@@ -1,5 +1,10 @@
 # 💰 GRANT APPLICATION GUIDE - x0tta6bl4
 
+> Current gate note: Production-ready wording in this commercial draft is not
+> current production proof unless `docs/05-operations/REAL_READINESS_GATE.md`,
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json` pass.
+
 **Дата:** 27 декабря 2025  
 **Цель:** $10k-$50k non-dilutive funding
 
@@ -158,4 +163,3 @@
 
 **Дата:** 27 декабря 2025  
 **Статус:** 📝 **GUIDE READY - APPLY IN Q2 2026**
-

@@ -499,17 +499,19 @@ class SPIREAgentManager:
             if not token:
                 raise ValueError("join_token strategy requires 'token' parameter")
 
+            agent_running = bool(
+                self.agent_process and self.agent_process.poll() is None
+            )
             result = self._run_control_action(
                 operation="attest_node",
                 context={
                     "strategy": strategy.value,
                     "token": token,
-                    "agent_running": bool(
-                        self.agent_process and self.agent_process.poll() is None
-                    ),
+                    "agent_running": agent_running,
                 },
                 executor=lambda _operation, _context: self._attest_join_token_internal(
-                    token
+                    token,
+                    agent_running=agent_running,
                 ),
             )
             return bool(result.success) and not bool(result.simulated)
@@ -519,14 +521,19 @@ class SPIREAgentManager:
         )
         return False
 
-    def _attest_join_token_internal(self, token: str) -> SafeActuatorResult:
+    def _attest_join_token_internal(
+        self,
+        token: str,
+        *,
+        agent_running: bool,
+    ) -> SafeActuatorResult:
         self._join_token = token
         logger.info(
             "Join token has been set. It will be used for agent attestation."
         )
 
         # If agent is already running, restart it to apply the new token.
-        if self.agent_process and self.agent_process.poll() is None:
+        if agent_running:
             logger.info("Restarting agent to apply new join token.")
             if not self.stop():
                 return SafeActuatorResult(

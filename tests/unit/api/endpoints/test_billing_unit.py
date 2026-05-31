@@ -1,5 +1,7 @@
 """Unit tests for src/api/maas/billing_helpers.py and billing endpoint."""
 
+import asyncio
+import json
 import time
 from decimal import Decimal
 from types import SimpleNamespace
@@ -278,6 +280,8 @@ def test_idempotency_record_to_dict_shape():
 
 from src.api.maas.endpoints import billing as billing_mod
 from src.api.maas.auth import UserContext
+from src.coordination.events import EventBus, EventType
+from src.services.service_event_trace import event_trace_evidence_summary
 
 
 def _make_billing_client(user: UserContext | None = None) -> TestClient:
@@ -366,3 +370,470 @@ class TestGetLimitsEndpoint:
         resp = client.get("/api/v1/maas/billing/limits")
         # Without auth override the dependency raises 401 or similar
         assert resp.status_code in (401, 403, 422)
+
+
+# ---------------------------------------------------------------------------
+# Billing endpoint EventBus evidence
+# ---------------------------------------------------------------------------
+
+
+class _BillingEvidenceRequest:
+    def __init__(self, bus: EventBus, payload: dict | bytes | None = None):
+        self.state = SimpleNamespace(event_bus=bus)
+        self._payload = payload if payload is not None else {}
+
+    async def body(self) -> bytes:
+        if isinstance(self._payload, bytes):
+            return self._payload
+        return json.dumps(self._payload).encode("utf-8")
+
+    async def json(self) -> dict:
+        if isinstance(self._payload, bytes):
+            return json.loads(self._payload.decode("utf-8"))
+        return self._payload
+
+
+class _FakeBillingEvidenceService:
+    webhook_secret = "modular-billing-webhook-secret"
+
+    def get_plan_limits(self, plan: str) -> dict:
+        return {
+            "max_nodes": 100 if plan == "enterprise" else 10,
+            "api_rate_limit": 10000,
+            "features": ["mesh", "billing"],
+        }
+
+    async def create_payment_session(self, user_id: str, plan: str) -> dict:
+        assert user_id == "modular-payment-user-secret"
+        assert plan == "pro"
+        return {
+            "payment_url": "https://checkout.stripe.test/session/raw-secret",
+            "session_id": "cs_modular_payment_secret",
+            "status": "created",
+        }
+
+    async def create_crypto_payment_session(self, user_id: str, plan: str) -> dict:
+        return {
+            "payment_url": "bitcoin:raw-secret-address",
+            "session_id": "crypto_modular_payment_secret",
+            "status": "awaiting_payment",
+            "deposit_address": "raw-secret-address",
+            "amount_usd": "29.00",
+            "network": "bitcoin",
+        }
+
+    async def process_webhook(
+        self,
+        *,
+        event_type: str,
+        event_data: dict,
+        event_id: str,
+        include_idempotency_metadata: bool,
+    ) -> dict:
+        assert event_type == "invoice.paid"
+        assert event_id == "evt_modular_webhook_secret"
+        assert include_idempotency_metadata is True
+        assert event_data["customer"] == "cus_payload_secret"
+        return {
+            "status": "processed",
+            "action": "subscription_extended",
+            "customer_id": "cus_result_secret",
+            "user_id": "modular-webhook-user-secret",
+            "_idempotent": False,
+        }
+
+
+class _FakeUsageEvidenceService:
+    def get_usage_report(self, mesh_id: str) -> dict:
+        assert mesh_id == "mesh-modular-billing-secret"
+        return {
+            "mesh_id": mesh_id,
+            "requests": 7,
+            "bandwidth_bytes": 2048,
+            "storage_bytes": 4096,
+            "report_time": "2026-05-30T00:00:00",
+        }
+
+
+def _event_payloads(bus: EventBus, source_agent: str) -> list[dict]:
+    return [
+        event.data
+        for event in bus.get_event_history(
+            event_type=EventType.PIPELINE_STAGE_END,
+            source_agent=source_agent,
+            limit=10,
+        )
+    ]
+
+
+def test_create_payment_publishes_redacted_payment_intent_evidence(
+    monkeypatch,
+    tmp_path,
+):
+    user_id = "modular-payment-user-secret"
+    raw_url = "https://checkout.stripe.test/session/raw-secret"
+    raw_session_id = "cs_modular_payment_secret"
+    bus = EventBus(str(tmp_path))
+    request = _BillingEvidenceRequest(bus)
+
+    monkeypatch.setattr(
+        billing_mod,
+        "get_billing_service",
+        lambda: _FakeBillingEvidenceService(),
+    )
+
+    response = asyncio.run(
+        billing_mod.create_payment(
+            plan="pro",
+            method="stripe",
+            user=UserContext(user_id=user_id, plan="free"),
+            request=request,
+        )
+    )
+
+    assert response == {
+        "payment_url": raw_url,
+        "session_id": raw_session_id,
+        "status": "created",
+        "method": "stripe",
+        "plan": "pro",
+    }
+
+    payloads = _event_payloads(
+        bus,
+        billing_mod._MODULAR_BILLING_PAYMENT_SOURCE_AGENT,
+    )
+    assert len(payloads) == 1
+    payload = payloads[0]
+    assert payload["operation"] == "create_payment"
+    assert payload["service_name"] == "maas-modular-billing-payment-intent"
+    assert payload["layer"] == "api_modular_billing_payment_intent"
+    assert payload["status"] == "success"
+    assert payload["source_quality"] == "stripe_payment_session_intent_created"
+    assert payload["actor_user_id_hash"]
+    assert payload["raw_payment_url_redacted"] is True
+    assert payload["raw_session_id_redacted"] is True
+
+    settlement = payload["settlement_evidence"]
+    assert settlement["settlement_action"] == "payment_session_intent_only"
+    assert settlement["dataplane_confirmed"] is False
+    assert settlement["live_provider_settlement_confirmed"] is False
+    assert settlement["bank_settlement_confirmed"] is False
+    assert settlement["chain_finality_confirmed"] is False
+    assert settlement["db_write_evidence"]["committed"] is False
+    assert settlement["output_summary"]["payment_url_present"] is True
+    assert settlement["output_summary"]["session_id_present"] is True
+
+    trace_summary = event_trace_evidence_summary(payload)
+    assert trace_summary["settlement_evidence"]["present"] is True
+    assert trace_summary["settlement_evidence"]["provider"] == "stripe"
+    assert trace_summary["settlement_evidence"]["settlement_action"] == (
+        "payment_session_intent_only"
+    )
+    assert trace_summary["settlement_evidence"]["live_provider_settlement_confirmed"] is False
+
+    serialized = json.dumps(payloads, sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    for raw_value in (user_id, raw_url, raw_session_id):
+        assert raw_value not in serialized
+        assert raw_value not in raw_log
+
+
+def test_billing_catalog_routes_publish_read_only_evidence(
+    monkeypatch,
+    tmp_path,
+):
+    user_id = "modular-plan-user-secret"
+    bus = EventBus(str(tmp_path))
+    request = _BillingEvidenceRequest(bus)
+
+    monkeypatch.setattr(
+        billing_mod,
+        "get_billing_service",
+        lambda: _FakeBillingEvidenceService(),
+    )
+
+    estimate = asyncio.run(
+        billing_mod.estimate_cost(
+            node_count=3,
+            node_type="standard",
+            plan="pro",
+            region="us-east-1",
+            request=request,
+        )
+    )
+    plans = asyncio.run(billing_mod.list_plans(request=request))
+    limits = asyncio.run(
+        billing_mod.get_limits(
+            user=UserContext(user_id=user_id, plan="enterprise"),
+            request=request,
+        )
+    )
+
+    assert estimate["monthly_cost_raw"]
+    assert len(plans) == 3
+    assert limits["max_nodes"] == 100
+
+    estimate_payloads = _event_payloads(
+        bus,
+        billing_mod._MODULAR_BILLING_ESTIMATE_SOURCE_AGENT,
+    )
+    plan_payloads = _event_payloads(
+        bus,
+        billing_mod._MODULAR_BILLING_PLAN_SOURCE_AGENT,
+    )
+    assert len(estimate_payloads) == 1
+    assert len(plan_payloads) == 2
+
+    estimate_payload = estimate_payloads[0]
+    assert estimate_payload["operation"] == "estimate_cost"
+    assert estimate_payload["read_only"] is True
+    assert estimate_payload["control_action"] is False
+    assert estimate_payload["source_quality"] == "local_billing_estimate_calculated"
+    assert estimate_payload["node_count"] == 3
+    assert estimate_payload["node_type"] == "standard"
+    assert estimate_payload["region"] == "us-east-1"
+    assert estimate_payload["settlement_evidence"]["settlement_action"] == (
+        "read_only_observed_state_no_settlement"
+    )
+    assert estimate_payload["settlement_evidence"]["dataplane_confirmed"] is False
+    assert estimate_payload["settlement_evidence"][
+        "live_provider_settlement_confirmed"
+    ] is False
+
+    list_payload = next(
+        payload for payload in plan_payloads if payload["operation"] == "list_plans"
+    )
+    limits_payload = next(
+        payload for payload in plan_payloads if payload["operation"] == "get_limits"
+    )
+    assert list_payload["source_quality"] == "local_plan_catalog_observed_state"
+    assert list_payload["result_summary"]["plans_count"] == 3
+    assert list_payload["settlement_evidence"]["settlement_action"] == (
+        "read_only_observed_state_no_settlement"
+    )
+    assert limits_payload["source_quality"] == "local_plan_limits_observed_state"
+    assert limits_payload["actor_user_id_hash"]
+    assert limits_payload["result_summary"]["max_nodes_present"] is True
+
+    trace_summary = event_trace_evidence_summary(limits_payload)
+    assert trace_summary["settlement_evidence"]["present"] is True
+    assert trace_summary["settlement_evidence"]["settlement_action"] == (
+        "read_only_observed_state_no_settlement"
+    )
+
+    serialized = json.dumps([*estimate_payloads, *plan_payloads], sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    assert user_id not in serialized
+    assert user_id not in raw_log
+
+
+def test_billing_usage_and_invoice_publish_redacted_mesh_evidence(
+    monkeypatch,
+    tmp_path,
+):
+    from src.api.maas import auth as maas_auth
+    from src.api.maas import registry as maas_registry
+
+    user_id = "modular-usage-invoice-user-secret"
+    mesh_id = "mesh-modular-billing-secret"
+    bus = EventBus(str(tmp_path))
+    request = _BillingEvidenceRequest(bus)
+    user = UserContext(user_id=user_id, plan="pro")
+
+    async def _require_mesh_access(checked_mesh_id: str, checked_user: UserContext):
+        assert checked_mesh_id == mesh_id
+        assert checked_user.user_id == user_id
+        return checked_user
+
+    monkeypatch.setattr(maas_auth, "require_mesh_access", _require_mesh_access)
+    monkeypatch.setattr(
+        billing_mod,
+        "get_usage_service",
+        lambda: _FakeUsageEvidenceService(),
+    )
+    monkeypatch.setattr(
+        maas_registry,
+        "get_mesh",
+        lambda checked_mesh_id: SimpleNamespace(
+            node_instances={"n-raw-secret-1": {}, "n-raw-secret-2": {}},
+            plan="pro",
+            region="eu-west-1",
+        ) if checked_mesh_id == mesh_id else None,
+    )
+
+    usage = asyncio.run(
+        billing_mod.get_usage_report(mesh_id=mesh_id, user=user, request=request)
+    )
+    invoice = asyncio.run(
+        billing_mod.create_invoice(
+            mesh_id=mesh_id,
+            user=user,
+            hours=2.5,
+            request=request,
+        )
+    )
+
+    assert usage["mesh_id"] == mesh_id
+    assert invoice["customer_id"] == user_id
+    assert invoice["invoice_id"].startswith("inv-")
+
+    usage_payloads = _event_payloads(
+        bus,
+        billing_mod._MODULAR_BILLING_USAGE_SOURCE_AGENT,
+    )
+    invoice_payloads = _event_payloads(
+        bus,
+        billing_mod._MODULAR_BILLING_INVOICE_SOURCE_AGENT,
+    )
+    assert len(usage_payloads) == 1
+    assert len(invoice_payloads) == 1
+
+    usage_payload = usage_payloads[0]
+    assert usage_payload["operation"] == "get_usage_report"
+    assert usage_payload["read_only"] is True
+    assert usage_payload["control_action"] is False
+    assert usage_payload["mesh_id_hash"]
+    assert usage_payload["source_quality"] == "local_usage_report_observed_state"
+    assert usage_payload["settlement_evidence"]["settlement_action"] == (
+        "read_only_observed_state_no_settlement"
+    )
+    assert usage_payload["result_summary"]["requests_bucket"] == "low"
+
+    invoice_payload = invoice_payloads[0]
+    assert invoice_payload["operation"] == "create_invoice"
+    assert invoice_payload["source_quality"] == "local_invoice_object_generated"
+    assert invoice_payload["node_count"] == 2
+    assert invoice_payload["hours"] == 2.5
+    assert invoice_payload["settlement_evidence"]["settlement_action"] == (
+        "invoice_generation_local_only"
+    )
+    assert invoice_payload["settlement_evidence"]["db_write_evidence"] == {
+        "storage_backend": "local_invoice_object_not_persisted",
+        "attempted": False,
+        "committed": False,
+        "payloads_redacted": True,
+    }
+    assert invoice_payload["result_summary"]["invoice_id_present"] is True
+    assert invoice_payload["result_summary"]["line_items_count"] == 1
+
+    trace_summary = event_trace_evidence_summary(invoice_payload)
+    assert trace_summary["settlement_evidence"]["present"] is True
+    assert trace_summary["settlement_evidence"]["settlement_action"] == (
+        "invoice_generation_local_only"
+    )
+    assert trace_summary["settlement_evidence"][
+        "live_provider_settlement_confirmed"
+    ] is False
+
+    serialized = json.dumps([*usage_payloads, *invoice_payloads], sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    for raw_value in (
+        user_id,
+        mesh_id,
+        invoice["invoice_id"],
+        "n-raw-secret-1",
+        "n-raw-secret-2",
+    ):
+        assert raw_value not in serialized
+        assert raw_value not in raw_log
+
+
+def test_billing_webhook_publishes_redacted_local_lifecycle_evidence(
+    monkeypatch,
+    tmp_path,
+):
+    payload_body = {
+        "type": "invoice.paid",
+        "data": {
+            "customer": "cus_payload_secret",
+            "subscription": "sub_payload_secret",
+        },
+    }
+    body = json.dumps(payload_body).encode("utf-8")
+    timestamp = str(int(time.time()))
+    signature = compute_hmac_signature(
+        f"{timestamp}.{body.decode('utf-8')}",
+        _FakeBillingEvidenceService.webhook_secret,
+    )
+    bus = EventBus(str(tmp_path))
+    request = _BillingEvidenceRequest(bus, body)
+
+    monkeypatch.setattr(
+        billing_mod,
+        "get_billing_service",
+        lambda: _FakeBillingEvidenceService(),
+    )
+
+    response = asyncio.run(
+        billing_mod.billing_webhook(
+            request,
+            x_signature=signature,
+            x_timestamp=timestamp,
+            x_event_id="evt_modular_webhook_secret",
+        )
+    )
+
+    assert response == {
+        "status": "processed",
+        "action": "subscription_extended",
+        "customer_id": "cus_result_secret",
+        "user_id": "modular-webhook-user-secret",
+        "_idempotent": False,
+    }
+
+    payloads = _event_payloads(
+        bus,
+        billing_mod._MODULAR_BILLING_WEBHOOK_SOURCE_AGENT,
+    )
+    assert len(payloads) == 1
+    payload = payloads[0]
+    assert payload["operation"] == "billing_webhook"
+    assert payload["service_name"] == "maas-modular-billing-webhook"
+    assert payload["layer"] == "api_modular_billing_webhook_lifecycle"
+    assert payload["status"] == "success"
+    assert payload["signature_verified"] is True
+    assert payload["event_type_bucket"] == "invoice.paid"
+    assert len(payload["event_id_hash"]) == 16
+    assert payload["source_quality"] == "verified_billing_webhook_local_lifecycle"
+    assert payload["raw_event_payload_redacted"] is True
+
+    settlement = payload["settlement_evidence"]
+    assert settlement["settlement_action"] == "webhook_local_lifecycle_only"
+    assert settlement["dataplane_confirmed"] is False
+    assert settlement["live_provider_settlement_confirmed"] is False
+    assert settlement["bank_settlement_confirmed"] is False
+    assert settlement["chain_finality_confirmed"] is False
+    assert settlement["db_write_evidence"]["attempted"] is True
+    assert settlement["db_write_evidence"]["committed"] is True
+    assert settlement["output_summary"]["signature_verified"] is True
+    assert settlement["output_summary"]["event_type_bucket"] == "invoice.paid"
+    assert settlement["output_summary"]["webhook_action"] == "subscription_extended"
+
+    trace_summary = event_trace_evidence_summary(payload)
+    assert trace_summary["settlement_evidence"]["present"] is True
+    assert trace_summary["settlement_evidence"]["provider"] == "provider_webhook"
+    assert trace_summary["settlement_evidence"]["settlement_action"] == (
+        "webhook_local_lifecycle_only"
+    )
+
+    serialized = json.dumps(payloads, sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    for raw_value in (
+        "evt_modular_webhook_secret",
+        "cus_payload_secret",
+        "sub_payload_secret",
+        "cus_result_secret",
+        "modular-webhook-user-secret",
+        signature,
+    ):
+        assert raw_value not in serialized
+        assert raw_value not in raw_log

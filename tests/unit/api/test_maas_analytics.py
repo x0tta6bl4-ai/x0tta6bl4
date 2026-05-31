@@ -16,6 +16,7 @@ os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
 from src.core.app import app
 from src.database import Base, get_db, User, MeshInstance, MeshNode, Invoice
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_analytics_{uuid.uuid4().hex}.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"
@@ -58,7 +59,7 @@ def operator_user(client):
     api_key = resp.json()["access_token"]
     # Upgrade to operator via DB
     db = TestingSessionLocal()
-    user = db.query(User).filter(User.api_key == api_key).first()
+    user = find_user_by_api_key(db, api_key)
     user.role = "operator"
     user_id = user.id
     db.commit()
@@ -78,7 +79,7 @@ def plain_user(client):
     assert resp.status_code == 200
     api_key = resp.json()["access_token"]
     db = TestingSessionLocal()
-    user = db.query(User).filter(User.api_key == api_key).first()
+    user = find_user_by_api_key(db, api_key)
     user_id = user.id
     db.close()
     return {"api_key": api_key, "user_id": user_id, "headers": {"X-API-Key": api_key}}
@@ -154,7 +155,7 @@ class TestAnalyticsSummary:
         """Operator accessing another user's mesh gets 404."""
         # Give plain_user operator role temporarily
         db = TestingSessionLocal()
-        user = db.query(User).filter(User.api_key == plain_user["api_key"]).first()
+        user = find_user_by_api_key(db, plain_user["api_key"])
         old_role = user.role
         user.role = "operator"
         db.commit()
@@ -167,7 +168,7 @@ class TestAnalyticsSummary:
             assert resp.status_code == 404
         finally:
             db = TestingSessionLocal()
-            user = db.query(User).filter(User.api_key == plain_user["api_key"]).first()
+            user = find_user_by_api_key(db, plain_user["api_key"])
             user.role = old_role
             db.commit()
             db.close()

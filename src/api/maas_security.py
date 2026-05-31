@@ -61,7 +61,17 @@ class ApiKeyManager:
     @staticmethod
     def hash_key(key: str) -> str:
         """Hash API key for storage (never store plaintext)."""
-        return hashlib.sha256(key.encode()).hexdigest()
+        return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def verify_key(key: str, stored_hash: str | None) -> bool:
+        if not key or not stored_hash:
+            return False
+        return secrets.compare_digest(ApiKeyManager.hash_key(key), stored_hash)
+
+    @staticmethod
+    def fingerprint_from_hash(stored_hash: str | None) -> str:
+        return (stored_hash or "")[:12]
 
 
 class RateLimiter:

@@ -108,6 +108,10 @@ def test_maas_governance_action_publishes_identity_policy_and_safe_actuator_even
     assert payload["matched_rules"] == ["allow-maas-governance-update-config"]
     assert payload["safe_actuator"] is True
     assert payload["context"]["params"]["api_token"] == "<redacted>"
+    assert payload["context"]["proposal_id"] != "prop-1"
+    assert payload["context"]["user_id"] != "user-1"
+    assert "prop-1" not in str(payload["context"])
+    assert "user-1" not in str(payload["context"])
     assert payload["claim_boundary"]
 
 

@@ -53,6 +53,18 @@ DEFAULT_COLLECTION_CHECKLIST = ".tmp/validation-shards/integration-spine-collect
 DEFAULT_OPERATOR_PACKET_INDEX = ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json"
 DEFAULT_RAW_OPERATOR_PACKET_INDEX = ".tmp/validation-shards/production-raw-evidence-operator-packet-index-current.json"
 DEFAULT_PRODUCTION_GRADE_GOAL_AUDIT = ".tmp/validation-shards/production-grade-goal-audit-current.json"
+DEFAULT_CROSS_PLANE_PROOF_GATE = ".tmp/validation-shards/cross-plane-proof-gate-current.json"
+
+OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS = (
+    "production_readiness",
+    "dataplane_delivery",
+    "traffic_delivery",
+    "customer_traffic",
+    "settlement_finality",
+    "dpi_bypass",
+)
+CROSS_PLANE_PROOF_GATE_SCHEMA = "x0tta6bl4.cross_plane_proof_gate.v1"
+CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION = "CROSS_PLANE_CLAIMS_ALLOWED"
 
 EXTERNAL_SETTLEMENT_HANDOFF_DECISIONS = {
     "X0T_EXTERNAL_SETTLEMENT_HANDOFF_READY",
@@ -88,6 +100,7 @@ REQUIRED_GOAL_AUDIT_ROWS = {
     "goal_audit:production_raw_evidence_operator_packet",
     "goal_audit:external_settlement_submitted",
     "goal_audit:broad_production_hardening",
+    "goal_audit:cross_plane_proof_gate",
 }
 
 
@@ -144,6 +157,72 @@ def _value(data: Optional[Dict[str, Any]], dotted: str, default: Any = None) -> 
             return default
         current = current[part]
     return current
+
+
+def _cross_plane_proof_gate_command() -> str:
+    claims = " ".join(f"--claim {claim_id}" for claim_id in OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS)
+    return (
+        f"python3 scripts/ops/run_cross_plane_proof_gate.py {claims} --json --require-allowed "
+        f"--output-json {DEFAULT_CROSS_PLANE_PROOF_GATE}"
+    )
+
+
+def _cross_plane_proof_gate_claim_ids(data: Optional[Dict[str, Any]]) -> List[str]:
+    claim_ids: List[str] = []
+    for result in _dicts((data or {}).get("claim_results")):
+        claim_id = result.get("claim_id")
+        if isinstance(claim_id, str) and claim_id:
+            claim_ids.append(claim_id)
+    return sorted(set(claim_ids))
+
+
+def _cross_plane_proof_gate_missing_claim_ids(data: Optional[Dict[str, Any]]) -> List[str]:
+    return sorted(set(OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS) - set(_cross_plane_proof_gate_claim_ids(data)))
+
+
+def _cross_plane_proof_gate_blocker_ids(data: Optional[Dict[str, Any]]) -> List[str]:
+    blockers: List[str] = []
+    if not data:
+        return ["cross_plane_proof_gate_missing"]
+    if data.get("schema") != CROSS_PLANE_PROOF_GATE_SCHEMA:
+        blockers.append("cross_plane_proof_gate_schema_invalid")
+    if data.get("decision") != CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION:
+        blockers.append("cross_plane_proof_gate_not_allowed")
+    if data.get("allowed") is not True:
+        blockers.append("cross_plane_proof_gate_blocked")
+    for claim_id in _cross_plane_proof_gate_missing_claim_ids(data):
+        blockers.append(f"cross_plane_proof_gate_missing_claim:{claim_id}")
+    for result in _dicts(data.get("claim_results")):
+        claim_id = str(result.get("claim_id") or "unknown_claim")
+        if result.get("allowed") is True:
+            continue
+        blockers.append(f"claim_blocked:{claim_id}")
+        blockers.extend(str(item) for item in result.get("blockers") or [] if item)
+    return sorted(set(blockers))
+
+
+def _cross_plane_proof_gate_local_ready(data: Optional[Dict[str, Any]]) -> bool:
+    return (
+        isinstance(data, dict)
+        and data.get("schema") == CROSS_PLANE_PROOF_GATE_SCHEMA
+        and not _cross_plane_proof_gate_missing_claim_ids(data)
+    )
+
+
+def _cross_plane_proof_gate_allowed(data: Optional[Dict[str, Any]]) -> bool:
+    if not _cross_plane_proof_gate_local_ready(data):
+        return False
+    required_claim_ids = set(OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS)
+    claim_results = {
+        str(result.get("claim_id")): result
+        for result in _dicts((data or {}).get("claim_results"))
+        if isinstance(result.get("claim_id"), str)
+    }
+    return (
+        data.get("decision") == CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION
+        and data.get("allowed") is True
+        and all(claim_results[claim_id].get("allowed") is True for claim_id in required_claim_ids)
+    )
 
 
 @dataclass(frozen=True)
@@ -406,6 +485,7 @@ def _rows(artifacts: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
     packet_index = artifacts["operator_packet_index"]["data"]
     raw_packet_index = artifacts["raw_operator_packet_index"]["data"]
     prod_grade = artifacts["production_grade_goal_audit"]["data"]
+    cross_plane_gate = artifacts["cross_plane_proof_gate"]["data"]
 
     code_ok = _source_status(code) == "VERIFIED HERE"
     wiring = code.get("wiring_covered", {}) if isinstance(code, dict) else {}
@@ -432,6 +512,11 @@ def _rows(artifacts: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
     packet_summary = _summary(packet_index)
     raw_packet_summary = _summary(raw_packet_index)
     prod_grade_summary = _summary(prod_grade)
+    cross_plane_gate_summary = _summary(cross_plane_gate)
+    cross_plane_gate_context = _mapping((cross_plane_gate or {}).get("context"))
+    cross_plane_gate_local_ready = _cross_plane_proof_gate_local_ready(cross_plane_gate)
+    cross_plane_gate_allowed = _cross_plane_proof_gate_allowed(cross_plane_gate)
+    cross_plane_gate_blocker_ids = _cross_plane_proof_gate_blocker_ids(cross_plane_gate)
 
     raw_expected = _int_value(return_summary, "raw_files_expected") or _int_value(pipeline_summary, "raw_files_expected")
     raw_staged = _int_value(return_summary, "raw_files_staged")
@@ -703,6 +788,34 @@ def _rows(artifacts: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
             _blocking_gaps("broader production-grade goal audit still reports production gaps" if (prod_grade or {}).get("goal_can_be_marked_complete") is not True else ""),
         ),
         RowSpec(
+            "goal_audit:cross_plane_proof_gate",
+            "Reusable cross-plane proof gate allows the objective's strong production/dataplane/traffic/DPI/settlement claims.",
+            ["cross_plane_proof_gate"],
+            [_cross_plane_proof_gate_command()],
+            cross_plane_gate_local_ready,
+            cross_plane_gate_allowed,
+            {
+                "schema": (cross_plane_gate or {}).get("schema"),
+                "decision": (cross_plane_gate or {}).get("decision"),
+                "allowed": (cross_plane_gate or {}).get("allowed"),
+                "required_claim_ids": list(OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS),
+                "reported_claim_ids": _cross_plane_proof_gate_claim_ids(cross_plane_gate),
+                "claims_total": _int_value(cross_plane_gate_summary, "claims_total"),
+                "claims_allowed": _int_value(cross_plane_gate_summary, "claims_allowed"),
+                "claims_blocked": _int_value(cross_plane_gate_summary, "claims_blocked"),
+                "open_gap_ids": cross_plane_gate_context.get("open_gap_ids", []),
+                "next_action_ids": cross_plane_gate_context.get("next_action_ids", []),
+                "blocker_ids": cross_plane_gate_blocker_ids,
+            },
+            _blocking_gaps(
+                "cross-plane proof gate artifact is missing or does not cover every objective strong claim"
+                if not cross_plane_gate_local_ready
+                else "",
+                "cross-plane proof gate has not allowed objective strong claims" if not cross_plane_gate_allowed else "",
+                cross_plane_gate_blocker_ids,
+            ),
+        ),
+        RowSpec(
             "checklist_delta_manifest",
             "Collection checklist delta manifest is available for every required evidence item.",
             ["collection_checklist"],
@@ -961,6 +1074,7 @@ def build_report(root: Path) -> Dict[str, Any]:
         ArtifactSpec("operator_packet_index", DEFAULT_OPERATOR_PACKET_INDEX),
         ArtifactSpec("raw_operator_packet_index", DEFAULT_RAW_OPERATOR_PACKET_INDEX),
         ArtifactSpec("production_grade_goal_audit", DEFAULT_PRODUCTION_GRADE_GOAL_AUDIT),
+        ArtifactSpec("cross_plane_proof_gate", DEFAULT_CROSS_PLANE_PROOF_GATE),
     ]
     artifacts = _load_artifacts(root, specs)
     rows = _rows(artifacts)
@@ -1005,6 +1119,11 @@ def build_report(root: Path) -> Dict[str, Any]:
     prod_grade = artifacts["production_grade_goal_audit"]["data"]
     prod_grade_summary = _summary(prod_grade)
     prod_grade_next_actions = _production_grade_next_actions(prod_grade)
+    cross_plane_gate = artifacts["cross_plane_proof_gate"]["data"]
+    cross_plane_gate_summary = _summary(cross_plane_gate)
+    cross_plane_gate_context = _mapping((cross_plane_gate or {}).get("context"))
+    cross_plane_gate_allowed = _cross_plane_proof_gate_allowed(cross_plane_gate)
+    cross_plane_gate_blocker_ids = _cross_plane_proof_gate_blocker_ids(cross_plane_gate)
     raw_expected = _int_value(return_summary, "raw_files_expected") or _int_value(pipeline_summary, "raw_files_expected")
     external_ready = external_summary.get("x0t_external_settlement_ready") is True
     external_handoff_local_ready = _external_settlement_handoff_local_ready(external_handoff, gap_summary)
@@ -1024,7 +1143,9 @@ def build_report(root: Path) -> Dict[str, Any]:
         "objective": OBJECTIVE,
         "completion_decision": "COMPLETE" if ready else "NOT_COMPLETE",
         "goal_can_be_marked_complete": ready,
-        "goal_completion_authority": "completion_audit + current_rollup + production closeout gates",
+        "goal_completion_authority": (
+            "completion_audit + current_rollup + production closeout gates + reusable cross-plane proof gate"
+        ),
         "local_integration_ready": completion_summary.get("local_wiring_passed") is True,
         "production_ready": ready,
         "ready_for_production_closeout_review": ready,
@@ -1032,8 +1153,8 @@ def build_report(root: Path) -> Dict[str, Any]:
         "claim_boundary": (
             "Repo-generated read-only prompt-to-artifact coverage audit. It maps the objective "
             "to current artifacts and refuses production completion while operator evidence is "
-            "missing. It does not collect evidence, contact live systems, mutate runtime, submit "
-            "transactions, or close /goal."
+            "missing or the reusable cross-plane proof gate blocks strong claims. It does not "
+            "collect evidence, contact live systems, mutate runtime, submit transactions, or close /goal."
         ),
         "source_artifacts": [spec.path for spec in specs],
         "source_errors": source_errors,
@@ -1044,6 +1165,7 @@ def build_report(root: Path) -> Dict[str, Any]:
             "safe actuator is wired and production-safe rollout evidence is ready",
             "settlement/reward loop is backed by submitted external X0T settlement evidence",
             "all production evidence keys are ready",
+            "reusable cross-plane proof gate allows the objective's strong claims",
             "completion/final/closeout gates allow production closeout",
         ],
         "prompt_to_artifact_checklist": rows,
@@ -1054,6 +1176,7 @@ def build_report(root: Path) -> Dict[str, Any]:
             "real external X0T settlement receipt verified against live Base RPC",
             f"{raw_expected} local-observation/operator-required raw evidence files replaced by production-grade retained evidence",
             "live rollout image digest/provenance gate ready",
+            "reusable cross-plane proof gate allows objective strong claims",
             "required evidence consistency, rollup, closeout, final review, and completion audit all clear",
         ],
         "next_actions": [
@@ -1140,6 +1263,19 @@ def build_report(root: Path) -> Dict[str, Any]:
                 "status": "AFTER_BLOCKERS" if not ready else "DONE",
                 "action": "Rerun coverage, passport, semantic queue, pipeline, closeout, final review, and completion audit.",
                 "command": "python3 scripts/ops/audit_integration_spine_objective_coverage.py --output text",
+            },
+            {
+                "id": "clear_cross_plane_proof_gate",
+                "status": "DONE" if cross_plane_gate_allowed else "BLOCKING",
+                "action": (
+                    "Run the reusable cross-plane proof gate for the objective's strong claims and clear every "
+                    "blocker before treating the objective coverage audit as complete."
+                ),
+                "source_artifact": DEFAULT_CROSS_PLANE_PROOF_GATE,
+                "command": _cross_plane_proof_gate_command(),
+                "requested_claim_ids": list(OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS),
+                "reported_claim_ids": _cross_plane_proof_gate_claim_ids(cross_plane_gate),
+                "blocker_ids": cross_plane_gate_blocker_ids,
             },
             *prod_grade_next_actions,
         ],
@@ -1369,6 +1505,17 @@ def build_report(root: Path) -> Dict[str, Any]:
             "production_grade_completion_gate_live_rollout_handoff_operator_sequence_ready": prod_grade_summary.get(
                 "completion_gate_live_rollout_handoff_operator_sequence_ready"
             ),
+            "cross_plane_proof_gate_available": artifacts["cross_plane_proof_gate"]["loaded"] is True,
+            "cross_plane_proof_gate_decision": (cross_plane_gate or {}).get("decision"),
+            "cross_plane_proof_gate_allowed": cross_plane_gate_allowed,
+            "cross_plane_proof_gate_required_claim_ids": list(OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS),
+            "cross_plane_proof_gate_reported_claim_ids": _cross_plane_proof_gate_claim_ids(cross_plane_gate),
+            "cross_plane_proof_gate_claims_total": _int_value(cross_plane_gate_summary, "claims_total"),
+            "cross_plane_proof_gate_claims_allowed": _int_value(cross_plane_gate_summary, "claims_allowed"),
+            "cross_plane_proof_gate_claims_blocked": _int_value(cross_plane_gate_summary, "claims_blocked"),
+            "cross_plane_proof_gate_open_gap_ids": cross_plane_gate_context.get("open_gap_ids", []),
+            "cross_plane_proof_gate_next_action_ids": cross_plane_gate_context.get("next_action_ids", []),
+            "cross_plane_proof_gate_blocker_ids": cross_plane_gate_blocker_ids,
             "external_settlement_handoff_available": artifacts["external_settlement_handoff"]["loaded"] is True,
             "external_settlement_handoff_clear": external_handoff_local_ready,
             "external_settlement_handoff_decision": (external_handoff or {}).get("handoff_decision"),
@@ -1529,6 +1676,7 @@ def _render_text(report: Dict[str, Any]) -> str:
         f"local_integration_ready: {report.get('local_integration_ready')}",
         f"production_ready: {report.get('production_ready')}",
         f"coverage_rows_blocking: {summary.get('coverage_rows_blocking')}",
+        f"cross_plane_proof_gate_allowed: {summary.get('cross_plane_proof_gate_allowed')}",
         f"current_raw_files_installed: {summary.get('current_raw_files_installed')}",
         f"raw_install_claim_source: {summary.get('raw_install_claim_source')}",
         f"return_acceptance_raw_files_local_observation: {summary.get('return_acceptance_raw_files_local_observation')}",

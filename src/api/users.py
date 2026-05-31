@@ -16,9 +16,12 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
+from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
 from src.core.reliability_policy import mark_degraded_dependency
 from src.database import Session as DB_Session
 from src.database import User, get_db
+from src.api.maas_security import ApiKeyManager
+from src.services.maas_auth_service import find_user_by_api_key
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -108,7 +111,8 @@ async def register(
         full_name=user_data.full_name,
         company=user_data.company,
         plan="free",  # Default plan
-        api_key=api_key,
+        api_key=None,
+        api_key_hash=ApiKeyManager.hash_key(api_key),
         requests_count=0,
         requests_limit=10000,  # Free tier limit
     )
@@ -193,7 +197,7 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)):
 
     # If not authenticated by session, try API key
     if not user and api_key:
-        user = db.query(User).filter(User.api_key == api_key).first()
+        user = find_user_by_api_key(db, api_key)
 
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -369,6 +373,9 @@ def _users_readiness_status(db: Any) -> Dict[str, Any]:
                 "runtime readiness dependency."
             ),
         },
+        "cross_plane_claim_gate": readiness_cross_plane_claim_gate_metadata(
+            surface="users_readiness"
+        ),
         "claim_boundary": (
             "Users readiness proves that the route imports and local dependency "
             "surfaces are present. It does not query the database, validate that "

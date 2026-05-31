@@ -60,6 +60,10 @@ class MeshDeployResponse(BaseModel):
     created_at: str = ""
     plan: str = ""
     join_token_expires_at: str = ""
+    mesh_deploy_claim_gate: Dict[str, Any] = Field(default_factory=dict)
+    mesh_provisioner_claim_gate: Dict[str, Any] = Field(default_factory=dict)
+    provisioner_cross_plane_claim_gate: Dict[str, Any] = Field(default_factory=dict)
+    cross_plane_claim_gate: Dict[str, Any] = Field(default_factory=dict)
 
 
 class TokenRotateResponse(BaseModel):
@@ -84,6 +88,9 @@ class MeshStatusResponse(BaseModel):
     federated_strategy: str = "fedavg"
     peers: List[Dict[str, Any]]
     health_score: float  # 0.0 - 1.0
+    control_policy_evidence: Dict[str, Any] = Field(default_factory=dict)
+    mesh_lifecycle_claim_gate: Dict[str, Any] = Field(default_factory=dict)
+    cross_plane_claim_gate: Dict[str, Any] = Field(default_factory=dict)
 
 
 class MeshMetricsResponse(BaseModel):
@@ -92,6 +99,9 @@ class MeshMetricsResponse(BaseModel):
     consciousness: Dict[str, Any]
     mape_k: Dict[str, Any]
     network: Dict[str, Any]
+    control_policy_evidence: Dict[str, Any] = Field(default_factory=dict)
+    mesh_metrics_claim_gate: Dict[str, Any] = Field(default_factory=dict)
+    cross_plane_claim_gate: Dict[str, Any] = Field(default_factory=dict)
     timestamp: str
 
 

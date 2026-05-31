@@ -6,6 +6,7 @@ High-frequency telemetry storage using Redis for scalability.
 """
 
 import logging
+import hashlib
 import json
 import os
 import threading
@@ -19,6 +20,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
+from src.coordination.events import EventBus, EventType, get_event_bus
 from src.database import MeshNode, get_db
 from src.api.maas_auth import get_current_user_from_maas
 from src.core.reliability_policy import mark_degraded_dependency
@@ -28,6 +31,32 @@ from src.network.reputation_scoring import ReputationScoringSystem
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/maas", tags=["MaaS Telemetry"])
+_SERVICE_AGENT = "maas-telemetry"
+_TELEMETRY_LAYER = "api_telemetry_observed_state"
+_TELEMETRY_CLAIM_BOUNDARY = (
+    "MaaS telemetry observed-state event only. It records bounded local "
+    "telemetry snapshot/history/topology metadata and storage fallback state; "
+    "topology responses expose only source-quality metadata and EventBus IDs for "
+    "cached telemetry reads; they do not prove fresh live agent connectivity or "
+    "external network reachability."
+)
+_HEARTBEAT_CLAIM_BOUNDARY = (
+    "MaaS heartbeat processing evidence only. It records local DB update, "
+    "uptime-sample, heartbeat metric, reputation update, and telemetry snapshot "
+    "write metadata with node, mesh, client IP, and error identifiers hashed. It "
+    "does not copy raw heartbeat payload values, pheromone maps, IP addresses, "
+    "node IDs, mesh IDs, or error details, and it does not prove live dataplane "
+    "reachability, remote node authenticity, escrow settlement, or external "
+    "provider quality."
+)
+_MAAS_TELEMETRY_CLAIM_GATE_BOUNDARY = (
+    "MaaS telemetry claim gate. Local readiness, heartbeat, uptime, cached "
+    "snapshot/history, and topology evidence can support local API telemetry "
+    "observations only. It does not prove fresh live agent connectivity, node "
+    "reachability, routing convergence, dataplane delivery, customer traffic, "
+    "external DPI bypass, escrow settlement finality, or production readiness."
+)
+_TELEMETRY_FIELD_LIMIT = 20
 
 # Global Reputation System for MaaS
 reputation_system = ReputationScoringSystem()
@@ -160,6 +189,351 @@ class NodeHeartbeatRequest(BaseModel):
     pheromones: Optional[Dict[str, Dict[str, float]]] = None
 
 
+def _redacted_sha256_prefix(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+
+def _telemetry_event_bus_from_request(request: Optional[Request]) -> Optional[EventBus]:
+    state = getattr(request, "state", None)
+    injected_bus = getattr(state, "event_bus", None)
+    if injected_bus is not None:
+        return injected_bus
+    project_root = getattr(state, "event_project_root", ".")
+    try:
+        return get_event_bus(project_root)
+    except Exception as exc:
+        logger.error("Failed to initialize MaaS telemetry EventBus: %s", exc)
+        return None
+
+
+def _telemetry_project_root_from_request(request: Optional[Request]) -> str:
+    state = getattr(request, "state", None)
+    return getattr(state, "event_project_root", ".")
+
+
+def _telemetry_payload_summary(data: Any) -> Dict[str, Any]:
+    if not isinstance(data, dict):
+        return {"payload_type": type(data).__name__, "field_count": 0}
+    fields = sorted(str(key) for key in data.keys())
+    return {
+        "payload_type": "dict",
+        "field_count": len(fields),
+        "fields": fields[:_TELEMETRY_FIELD_LIMIT],
+        "fields_truncated": len(fields) > _TELEMETRY_FIELD_LIMIT,
+        "has_status": "status" in data,
+        "has_pheromones": isinstance(data.get("pheromones"), dict),
+        "numeric_field_count": sum(
+            1
+            for value in data.values()
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        ),
+    }
+
+
+def _maas_telemetry_claim_gate(
+    *,
+    surface: str,
+    read_only: bool = True,
+    local_readiness_dependency_observation: bool = False,
+    local_snapshot_observation: bool = False,
+    local_history_observation: bool = False,
+    local_topology_observation: bool = False,
+    local_heartbeat_processing: bool = False,
+    local_uptime_sample_observation: bool = False,
+    settlement_uptime_ready: bool = False,
+    telemetry_runtime_ready: bool = False,
+) -> Dict[str, Any]:
+    return {
+        "schema": "x0tta6bl4.maas_telemetry.claim_gate.v1",
+        "surface": surface,
+        "claim_boundary": _MAAS_TELEMETRY_CLAIM_GATE_BOUNDARY,
+        "local_only": True,
+        "read_only": bool(read_only),
+        "local_readiness_dependency_observation_claim_allowed": bool(
+            local_readiness_dependency_observation
+        ),
+        "local_telemetry_snapshot_observation_claim_allowed": bool(
+            local_snapshot_observation
+        ),
+        "local_telemetry_history_observation_claim_allowed": bool(
+            local_history_observation
+        ),
+        "local_topology_snapshot_observation_claim_allowed": bool(
+            local_topology_observation
+        ),
+        "local_heartbeat_processing_claim_allowed": bool(
+            local_heartbeat_processing
+        ),
+        "local_uptime_sample_observation_claim_allowed": bool(
+            local_uptime_sample_observation
+        ),
+        "settlement_uptime_dependency_ready_observed": bool(
+            settlement_uptime_ready
+        ),
+        "telemetry_runtime_ready_observed": bool(telemetry_runtime_ready),
+        "raw_identifiers_redacted": True,
+        "raw_telemetry_values_redacted": True,
+        "fresh_live_agent_connectivity_claim_allowed": False,
+        "node_reachability_claim_allowed": False,
+        "routing_convergence_claim_allowed": False,
+        "remote_node_authenticity_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "external_dpi_bypass_claim_allowed": False,
+        "escrow_settlement_claim_allowed": False,
+        "settlement_finality_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    }
+
+
+def _maas_telemetry_event_claim_gate(
+    *,
+    operation: str,
+    read_only: bool,
+    telemetry_summary: Dict[str, Any],
+    topology_summary: Dict[str, Any],
+    heartbeat_summary: Dict[str, Any],
+    settlement_summary: Dict[str, Any],
+) -> Dict[str, Any]:
+    return _maas_telemetry_claim_gate(
+        surface=f"maas_telemetry.{operation}",
+        read_only=read_only,
+        local_snapshot_observation=operation
+        in {"telemetry_snapshot_write", "telemetry_snapshot_read"}
+        or bool(telemetry_summary),
+        local_history_observation=operation == "telemetry_history_read",
+        local_topology_observation=operation.startswith("topology")
+        or bool(topology_summary),
+        local_heartbeat_processing=operation == "heartbeat"
+        or bool(heartbeat_summary),
+        local_uptime_sample_observation=bool(
+            settlement_summary.get("uptime_sample_attempted")
+            or settlement_summary.get("uptime_sample_recorded")
+        ),
+        settlement_uptime_ready=bool(
+            settlement_summary.get("settlement_uptime_ready")
+        ),
+    )
+
+
+def _publish_telemetry_observed_state(
+    event_bus: Optional[EventBus],
+    *,
+    operation: str,
+    stage: str,
+    status: str,
+    node_id: Any = None,
+    mesh_id: Any = None,
+    storage_backend: Optional[str] = None,
+    read_only: bool = True,
+    observed_state: bool = True,
+    telemetry_summary: Optional[Dict[str, Any]] = None,
+    topology_summary: Optional[Dict[str, Any]] = None,
+    heartbeat_summary: Optional[Dict[str, Any]] = None,
+    trust_summary: Optional[Dict[str, Any]] = None,
+    settlement_summary: Optional[Dict[str, Any]] = None,
+    upstream_event_ids: Optional[List[str]] = None,
+    degraded_dependencies: Optional[set[str]] = None,
+    reason: str = "",
+    duration_ms: Optional[float] = None,
+    claim_boundary: Optional[str] = None,
+) -> Optional[str]:
+    if event_bus is None:
+        return None
+    telemetry_summary_payload = telemetry_summary or {}
+    topology_summary_payload = topology_summary or {}
+    heartbeat_summary_payload = heartbeat_summary or {}
+    trust_summary_payload = trust_summary or {}
+    settlement_summary_payload = settlement_summary or {}
+    payload = {
+        "component": "api.maas_telemetry",
+        "stage": stage,
+        "operation": operation,
+        "service_name": _SERVICE_AGENT,
+        "source_alias": _SERVICE_AGENT,
+        "layer": _TELEMETRY_LAYER,
+        "status": status,
+        "node_id_hash": _redacted_sha256_prefix(node_id),
+        "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+        "storage_backend": storage_backend,
+        "read_only": read_only,
+        "observed_state": observed_state,
+        "safe_actuator": False,
+        "telemetry_summary": telemetry_summary_payload,
+        "topology_summary": topology_summary_payload,
+        "heartbeat_summary": heartbeat_summary_payload,
+        "trust_summary": trust_summary_payload,
+        "settlement_summary": settlement_summary_payload,
+        "maas_telemetry_claim_gate": _maas_telemetry_event_claim_gate(
+            operation=operation,
+            read_only=read_only,
+            telemetry_summary=telemetry_summary_payload,
+            topology_summary=topology_summary_payload,
+            heartbeat_summary=heartbeat_summary_payload,
+            settlement_summary=settlement_summary_payload,
+        ),
+        "upstream_event_ids": list(upstream_event_ids or [])[:20],
+        "upstream_events_total": len(upstream_event_ids or []),
+        "duration_ms": (
+            round(float(duration_ms), 3) if duration_ms is not None else None
+        ),
+        "degraded_dependencies": sorted(degraded_dependencies or set()),
+        "raw_identifiers_redacted": True,
+        "reason": str(reason or "")[:160],
+        "claim_boundary": claim_boundary or _TELEMETRY_CLAIM_BOUNDARY,
+    }
+    try:
+        event = event_bus.publish(
+            EventType.PIPELINE_STAGE_END,
+            _SERVICE_AGENT,
+            payload,
+            priority=4,
+        )
+        return event.event_id
+    except Exception as exc:
+        logger.error("Failed to publish MaaS telemetry observed-state event: %s", exc)
+        return None
+
+
+def _telemetry_event_ids(
+    event_bus: Optional[EventBus],
+    *,
+    operation: Optional[str] = None,
+) -> set[str]:
+    if event_bus is None or not hasattr(event_bus, "get_event_history"):
+        return set()
+    try:
+        events = event_bus.get_event_history(
+            event_type=EventType.PIPELINE_STAGE_END,
+            source_agent=_SERVICE_AGENT,
+            limit=1000,
+        )
+    except Exception:
+        return set()
+    return {
+        event.event_id
+        for event in events
+        if operation is None or event.data.get("operation") == operation
+    }
+
+
+def _topology_status_source(
+    telemetry: Optional[Dict[str, Any]],
+    db_status: Optional[str],
+) -> str:
+    if isinstance(telemetry, dict) and isinstance(telemetry.get("status"), str):
+        return "cached_telemetry_status"
+    if isinstance(telemetry, dict) and telemetry:
+        return "cached_telemetry_presence"
+    if isinstance(db_status, str) and db_status:
+        return "database_node_status"
+    return "missing"
+
+
+def _topology_telemetry_source_quality(
+    telemetry: Optional[Dict[str, Any]],
+    degraded_dependencies: set[str],
+) -> str:
+    if not isinstance(telemetry, dict) or not telemetry:
+        return "snapshot_missing"
+    if "redis" in degraded_dependencies:
+        return "local_fallback_or_redis_degraded_cached_snapshot"
+    if REDIS_AVAILABLE:
+        return "redis_cached_snapshot"
+    return "local_fallback_cached_snapshot"
+
+
+def _topology_telemetry_evidence(
+    event_bus: Optional[EventBus],
+    *,
+    before_read_event_ids: set[str],
+    telemetry: Optional[Dict[str, Any]],
+    db_status: Optional[str],
+    degraded_dependencies: set[str],
+) -> Dict[str, Any]:
+    read_event_ids = sorted(
+        _telemetry_event_ids(event_bus, operation="telemetry_snapshot_read")
+        - before_read_event_ids
+    )
+    has_snapshot = isinstance(telemetry, dict) and bool(telemetry)
+    return {
+        "source_agents": [_SERVICE_AGENT] if read_event_ids else [],
+        "event_ids": read_event_ids,
+        "events_total": len(read_event_ids),
+        "source_quality": _topology_telemetry_source_quality(
+            telemetry,
+            degraded_dependencies,
+        ),
+        "decision_basis": (
+            "cached_observed_state" if has_snapshot else "database_status_or_missing"
+        ),
+        "status_source": _topology_status_source(telemetry, db_status),
+        "dataplane_confirmed": False,
+        "raw_telemetry_values_redacted": True,
+        "raw_identifiers_redacted": True,
+        "payload_summary": _telemetry_payload_summary(telemetry or {}),
+        "maas_telemetry_claim_gate": _maas_telemetry_claim_gate(
+            surface="maas_telemetry.topology_node_telemetry_evidence",
+            read_only=True,
+            local_snapshot_observation=has_snapshot,
+            local_topology_observation=True,
+        ),
+        "claim_boundary": _TELEMETRY_CLAIM_BOUNDARY,
+    }
+
+
+def _topology_control_policy_evidence(
+    *,
+    node_evidence: List[Dict[str, Any]],
+    degraded_dependencies: set[str],
+) -> Dict[str, Any]:
+    evidence_ids = sorted(
+        {
+            event_id
+            for item in node_evidence
+            for event_id in item.get("event_ids", [])
+        }
+    )
+    source_qualities = sorted(
+        {
+            str(item.get("source_quality"))
+            for item in node_evidence
+            if item.get("source_quality")
+        }
+    )
+    return {
+        "decision_basis": "cached_telemetry_observed_state",
+        "dataplane_confirmed": False,
+        "source_agents": [_SERVICE_AGENT] if evidence_ids else [],
+        "event_ids": evidence_ids,
+        "events_total": len(evidence_ids),
+        "source_qualities": source_qualities,
+        "degraded_dependencies": sorted(degraded_dependencies),
+        "raw_telemetry_values_redacted": True,
+        "raw_identifiers_redacted": True,
+        "maas_telemetry_claim_gate": _maas_telemetry_claim_gate(
+            surface="maas_telemetry.topology_control_policy_evidence",
+            read_only=True,
+            local_snapshot_observation=bool(evidence_ids),
+            local_topology_observation=True,
+        ),
+        "claim_boundary": (
+            "Topology control policy evidence reports source quality for cached "
+            "telemetry snapshots only. It must not be treated as proof of live "
+            "packet reachability, current mesh convergence, or remote node "
+            "authenticity without stronger dataplane evidence."
+        ),
+    }
+
+
 def _extract_pheromone_score(raw: Any) -> float:
     """Accept legacy numeric weights and richer score-bearing payloads."""
     if isinstance(raw, (int, float)) and not isinstance(raw, bool):
@@ -194,6 +568,57 @@ def _derive_topology_status(
     return "offline"
 
 
+def _telemetry_user_id(current_user: Any) -> Optional[str]:
+    for attr in ("id", "user_id"):
+        value = getattr(current_user, attr, None)
+        if value is not None:
+            return str(value)
+    return None
+
+
+def _verify_topology_mesh_access(
+    mesh_id: str,
+    current_user: Any,
+    db: Any,
+) -> Dict[str, Any]:
+    """Confirm topology reads are for a real mesh owned by the caller."""
+    owner_id = _telemetry_user_id(current_user)
+    if not owner_id:
+        raise HTTPException(status_code=401, detail="Invalid user identity")
+
+    try:
+        from src.database import MeshInstance as DBMeshInstance
+
+        if all(callable(getattr(db, attr, None)) for attr in ("query",)):
+            row = db.query(DBMeshInstance).filter(DBMeshInstance.id == mesh_id).first()
+            if row is not None:
+                if str(getattr(row, "owner_id", "")) != owner_id:
+                    raise HTTPException(status_code=404, detail=f"Mesh {mesh_id} not found")
+                return {
+                    "mesh_source": "database",
+                    "owner_checked": True,
+                }
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
+    try:
+        from src.api.maas_legacy import _get_mesh_or_404
+
+        _get_mesh_or_404(mesh_id, owner_id)
+        return {
+            "mesh_source": "legacy_or_modular_registry",
+            "owner_checked": True,
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
+    raise HTTPException(status_code=404, detail=f"Mesh {mesh_id} not found")
+
+
 def _store_local_fallback(key: str, history_key: str, data: Dict) -> None:
     """Store telemetry data in LRU cache fallback.
     
@@ -222,9 +647,15 @@ def _set_telemetry(
     node_id: str,
     data: Dict,
     degraded_dependencies: Optional[set[str]] = None,
+    *,
+    event_bus: Optional[EventBus] = None,
+    event_project_root: Optional[str] = None,
+    mesh_id: Any = None,
 ):
     key = f"maas:telemetry:{node_id}"
     history_key = f"{key}:history"
+    storage_backend = "redis" if REDIS_AVAILABLE else "local_fallback"
+    reason = ""
     if REDIS_AVAILABLE:
         payload = json.dumps(data)
         try:
@@ -236,6 +667,8 @@ def _set_telemetry(
             pipeline.execute()
         except Exception as e:
             logger.warning(f"⚠️ Failed to persist telemetry history for {node_id}: {e}")
+            storage_backend = "local_fallback"
+            reason = "redis_write_failed"
             if degraded_dependencies is not None:
                 degraded_dependencies.add("redis")
             _store_local_fallback(key, history_key, data)
@@ -244,67 +677,148 @@ def _set_telemetry(
         if degraded_dependencies is not None:
             degraded_dependencies.add("redis")
         _store_local_fallback(key, history_key, data)
+    bus = event_bus
+    if bus is None and event_project_root:
+        try:
+            bus = get_event_bus(event_project_root)
+        except Exception as exc:
+            logger.error("Failed to initialize MaaS telemetry EventBus: %s", exc)
+            bus = None
+    _publish_telemetry_observed_state(
+        bus,
+        operation="telemetry_snapshot_write",
+        stage="snapshot_written",
+        status="success",
+        node_id=node_id,
+        mesh_id=mesh_id or data.get("mesh_id"),
+        storage_backend=storage_backend,
+        read_only=False,
+        telemetry_summary=_telemetry_payload_summary(data),
+        degraded_dependencies=degraded_dependencies,
+        reason=reason,
+    )
 
 
 def _get_telemetry(
     node_id: str,
     degraded_dependencies: Optional[set[str]] = None,
+    *,
+    event_bus: Optional[EventBus] = None,
+    event_project_root: Optional[str] = None,
+    mesh_id: Any = None,
 ) -> Dict:
     key = f"maas:telemetry:{node_id}"
+    storage_backend = "redis" if REDIS_AVAILABLE else "local_fallback"
+    result: Dict[str, Any] = {}
+    reason = ""
     if REDIS_AVAILABLE:
         try:
             raw = r_client.get(key)
-            return json.loads(raw) if raw else {}
+            result = json.loads(raw) if raw else {}
         except Exception as e:
             logger.warning(f"⚠️ Failed to read telemetry snapshot for {node_id}: {e}")
+            storage_backend = "local_fallback"
+            reason = "redis_read_failed"
             if degraded_dependencies is not None:
                 degraded_dependencies.add("redis")
             fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
-            return fallback if isinstance(fallback, dict) else {}
+            result = fallback if isinstance(fallback, dict) else {}
     else:
         # Use local fallback when Redis is not available
         if degraded_dependencies is not None:
             degraded_dependencies.add("redis")
         fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
-        return fallback if isinstance(fallback, dict) else {}
+        result = fallback if isinstance(fallback, dict) else {}
+    bus = event_bus
+    if bus is None and event_project_root:
+        try:
+            bus = get_event_bus(event_project_root)
+        except Exception as exc:
+            logger.error("Failed to initialize MaaS telemetry EventBus: %s", exc)
+            bus = None
+    _publish_telemetry_observed_state(
+        bus,
+        operation="telemetry_snapshot_read",
+        stage="snapshot_read",
+        status="success",
+        node_id=node_id,
+        mesh_id=mesh_id or result.get("mesh_id"),
+        storage_backend=storage_backend,
+        read_only=True,
+        telemetry_summary=_telemetry_payload_summary(result),
+        degraded_dependencies=degraded_dependencies,
+        reason=reason,
+    )
+    return result
 
 
 def _get_telemetry_history(
     node_id: str,
     limit: int = 100,
     degraded_dependencies: Optional[set[str]] = None,
+    *,
+    event_bus: Optional[EventBus] = None,
+    event_project_root: Optional[str] = None,
+    mesh_id: Any = None,
 ) -> List[Dict]:
     if limit <= 0:
         return []
     key = f"maas:telemetry:{node_id}:history"
+    storage_backend = "redis" if REDIS_AVAILABLE else "local_fallback"
+    results: List[Dict] = []
+    reason = ""
     if REDIS_AVAILABLE:
         try:
             raw_items = r_client.lrange(key, 0, limit - 1)
         except Exception as e:
             logger.warning(f"⚠️ Failed to read telemetry history for {node_id}: {e}")
+            storage_backend = "local_fallback"
+            reason = "redis_history_read_failed"
             if degraded_dependencies is not None:
                 degraded_dependencies.add("redis")
             fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
             if isinstance(fallback, list):
-                return [entry for entry in fallback[:limit] if isinstance(entry, dict)]
-            return []
-        results: List[Dict] = []
-        for item in raw_items or []:
-            try:
-                parsed = json.loads(item) if isinstance(item, str) else item
-                if isinstance(parsed, dict):
-                    results.append(parsed)
-            except Exception:
-                continue
-        return results
+                results = [entry for entry in fallback[:limit] if isinstance(entry, dict)]
+        else:
+            for item in raw_items or []:
+                try:
+                    parsed = json.loads(item) if isinstance(item, str) else item
+                    if isinstance(parsed, dict):
+                        results.append(parsed)
+                except Exception:
+                    continue
     else:
         # Use local fallback when Redis is not available
         if degraded_dependencies is not None:
             degraded_dependencies.add("redis")
         fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
         if isinstance(fallback, list):
-            return [entry for entry in fallback[:limit] if isinstance(entry, dict)]
-        return []
+            results = [entry for entry in fallback[:limit] if isinstance(entry, dict)]
+    bus = event_bus
+    if bus is None and event_project_root:
+        try:
+            bus = get_event_bus(event_project_root)
+        except Exception as exc:
+            logger.error("Failed to initialize MaaS telemetry EventBus: %s", exc)
+            bus = None
+    _publish_telemetry_observed_state(
+        bus,
+        operation="telemetry_history_read",
+        stage="history_read",
+        status="success",
+        node_id=node_id,
+        mesh_id=mesh_id,
+        storage_backend=storage_backend,
+        read_only=True,
+        telemetry_summary={
+            "history_count": len(results),
+            "limit": limit,
+            "returned_dict_entries": len(results),
+        },
+        degraded_dependencies=degraded_dependencies,
+        reason=reason,
+    )
+    return results
 
 
 def get_fallback_cache_stats() -> Dict[str, Any]:
@@ -448,6 +962,8 @@ def _telemetry_readiness_status(db: Any) -> Dict[str, Any]:
         "legacy_route_shadowing": {
             "shadowed_by_legacy": [
                 "POST /heartbeat",
+            ],
+            "direct_routes": [
                 "GET /{mesh_id}/topology",
             ],
             "import_level_runtime_users": [
@@ -456,9 +972,11 @@ def _telemetry_readiness_status(db: Any) -> Dict[str, Any]:
             ],
             "boundary": (
                 "Legacy maas router is registered before maas_telemetry, so "
-                "HTTP heartbeat and topology requests are handled by legacy "
-                "routes. The Redis/fallback telemetry helpers and uptime tracker "
-                "remain active for maas_nodes imports and marketplace settlement."
+                "HTTP heartbeat requests are handled by the legacy route. "
+                "Topology is handled by maas_telemetry with mesh ownership "
+                "verification before telemetry snapshot reads. The Redis/fallback "
+                "telemetry helpers and uptime tracker remain active for maas_nodes "
+                "imports and marketplace settlement."
             ),
         },
         "degraded_dependencies": degraded_dependencies,
@@ -495,6 +1013,22 @@ def _telemetry_readiness_status(db: Any) -> Dict[str, Any]:
                 "Topology route depends on maas_auth.get_current_user_from_maas."
             ),
         },
+        "cross_plane_claim_gate": cross_plane_claim_gate_metadata(
+            (
+                "production_readiness",
+                "dataplane_delivery",
+                "settlement_finality",
+                "customer_traffic",
+            ),
+            surface="maas_telemetry_readiness",
+        ),
+        "maas_telemetry_claim_gate": _maas_telemetry_claim_gate(
+            surface="maas_telemetry.readiness",
+            read_only=True,
+            local_readiness_dependency_observation=True,
+            settlement_uptime_ready=settlement_uptime_ready,
+            telemetry_runtime_ready=telemetry_runtime_ready,
+        ),
         "claim_boundary": (
             "Telemetry readiness separates route availability from Redis-backed "
             "persistence, bounded local fallback, DB MeshNode updates, reputation "
@@ -521,9 +1055,45 @@ async def heartbeat(
     request: Request,
     db: Session = Depends(get_db)
 ):
+    started = time.perf_counter()
+    event_bus = _telemetry_event_bus_from_request(request)
+    event_project_root = _telemetry_project_root_from_request(request)
     node = db.query(MeshNode).filter(MeshNode.id == req.node_id).first()
     if not node:
         logger.warning(f"🚨 UNKNOWN NODE HEARTBEAT: {req.node_id}")
+        _publish_telemetry_observed_state(
+            event_bus,
+            operation="heartbeat",
+            stage="node_lookup",
+            status="unknown_node",
+            node_id=req.node_id,
+            storage_backend="database",
+            read_only=True,
+            heartbeat_summary={
+                "db_node_found": False,
+                "db_committed": False,
+                "client_ip_present": bool(getattr(request, "client", None)),
+                "client_ip_hash": _redacted_sha256_prefix(
+                    request.client.host if request.client else None
+                ),
+                "error_reports_count": len(req.error_reports or []),
+                "has_error_reports": bool(req.error_reports),
+                "has_pheromones": isinstance(req.pheromones, dict),
+            },
+            trust_summary={
+                "reputation_update_attempted": False,
+                "reputation_update_success": False,
+            },
+            settlement_summary={
+                "uptime_sample_attempted": False,
+                "uptime_sample_recorded": False,
+                "settlement_uptime_ready": REDIS_AVAILABLE
+                and _uptime_tracker_available(),
+            },
+            duration_ms=(time.perf_counter() - started) * 1000,
+            claim_boundary=_HEARTBEAT_CLAIM_BOUNDARY,
+            reason="node_not_registered",
+        )
         raise HTTPException(status_code=404, detail="Node not registered")
     
     # Fast DB update
@@ -536,10 +1106,13 @@ async def heartbeat(
         node.ip_address = client_ip
         
     db.commit()
+    db_committed = True
 
     # Track long-term uptime for settlement
     uptime_tracker.record_heartbeat(req.node_id)
+    uptime_sample_attempted = True
     _record_heartbeat_metric(req.node_id)
+    heartbeat_metric_recorded = True
 
     
     # Update Reputation based on heartbeat data
@@ -552,6 +1125,7 @@ async def heartbeat(
         latency_ms=req.latency_ms,
         error_type=error_type
     )
+    reputation_update_success = True
     
     # Store high-frequency data in Redis
     trust_score = 0.5
@@ -572,11 +1146,94 @@ async def heartbeat(
     if req.pheromones:
         telemetry_data["pheromones"] = req.pheromones
     degraded_dependencies: set[str] = set()
-    _set_telemetry(req.node_id, telemetry_data, degraded_dependencies=degraded_dependencies)
+    before_snapshot_event_ids = _telemetry_event_ids(
+        event_bus,
+        operation="telemetry_snapshot_write",
+    )
+    _set_telemetry(
+        req.node_id,
+        telemetry_data,
+        degraded_dependencies=degraded_dependencies,
+        event_bus=event_bus,
+        event_project_root=event_project_root,
+        mesh_id=node.mesh_id,
+    )
+    snapshot_event_ids = sorted(
+        _telemetry_event_ids(event_bus, operation="telemetry_snapshot_write")
+        - before_snapshot_event_ids
+    )
     for dependency in degraded_dependencies:
         mark_degraded_dependency(request, dependency)
+
+    _publish_telemetry_observed_state(
+        event_bus,
+        operation="heartbeat",
+        stage="heartbeat_processed",
+        status="accepted",
+        node_id=req.node_id,
+        mesh_id=node.mesh_id,
+        storage_backend=(
+            "local_fallback"
+            if "redis" in degraded_dependencies or not REDIS_AVAILABLE
+            else "redis"
+        ),
+        read_only=False,
+        heartbeat_summary={
+            "db_node_found": True,
+            "db_committed": db_committed,
+            "client_ip_present": bool(client_ip),
+            "client_ip_hash": _redacted_sha256_prefix(client_ip),
+            "neighbors_count": int(req.neighbors_count),
+            "routing_table_size": int(req.routing_table_size),
+            "latency_ms": round(float(req.latency_ms), 3),
+            "uptime_seconds": round(float(req.uptime), 3),
+            "cpu_usage_present": isinstance(req.cpu_usage, (int, float)),
+            "memory_usage_present": isinstance(req.memory_usage, (int, float)),
+            "has_error_reports": has_errors,
+            "error_reports_count": len(req.error_reports or []),
+            "first_error_type_hash": _redacted_sha256_prefix(error_type),
+            "has_pheromones": isinstance(req.pheromones, dict),
+            "pheromone_destination_count": (
+                len(req.pheromones) if isinstance(req.pheromones, dict) else 0
+            ),
+            "heartbeat_metric_recorded": heartbeat_metric_recorded,
+            "telemetry_snapshot_events_total": len(snapshot_event_ids),
+        },
+        telemetry_summary=_telemetry_payload_summary(telemetry_data),
+        trust_summary={
+            "reputation_update_attempted": True,
+            "reputation_update_success": reputation_update_success,
+            "trust_score_after": round(float(trust_score), 6),
+            "trust_source": (
+                "reputation_system" if proxy_trust is not None else "default"
+            ),
+        },
+        settlement_summary={
+            "uptime_sample_attempted": uptime_sample_attempted,
+            "uptime_sample_recorded": bool(REDIS_AVAILABLE),
+            "settlement_uptime_ready": REDIS_AVAILABLE
+            and _uptime_tracker_available(),
+            "settlement_decision_made": False,
+        },
+        upstream_event_ids=snapshot_event_ids,
+        degraded_dependencies=degraded_dependencies,
+        duration_ms=(time.perf_counter() - started) * 1000,
+        claim_boundary=_HEARTBEAT_CLAIM_BOUNDARY,
+    )
     
-    return {"status": "ack", "mesh_id": node.mesh_id, "trust_score": trust_score}
+    return {
+        "status": "ack",
+        "mesh_id": node.mesh_id,
+        "trust_score": trust_score,
+        "maas_telemetry_claim_gate": _maas_telemetry_claim_gate(
+            surface="maas_telemetry.heartbeat_response",
+            read_only=False,
+            local_heartbeat_processing=True,
+            local_uptime_sample_observation=uptime_sample_attempted,
+            settlement_uptime_ready=REDIS_AVAILABLE
+            and _uptime_tracker_available(),
+        ),
+    }
 
 @router.get("/{mesh_id}/topology")
 async def get_topology(
@@ -586,20 +1243,60 @@ async def get_topology(
     current_user = Depends(get_current_user_from_maas)
 ):
     """Returns nodes and links for the D3.js dashboard from Redis."""
+    event_bus = _telemetry_event_bus_from_request(request)
+    try:
+        mesh_context = _verify_topology_mesh_access(mesh_id, current_user, db)
+    except HTTPException as exc:
+        _publish_telemetry_observed_state(
+            event_bus,
+            operation="topology_access_check",
+            stage="topology_access_check",
+            status="denied",
+            mesh_id=mesh_id,
+            storage_backend="registry",
+            read_only=True,
+            topology_summary={
+                "access_granted": False,
+                "owner_checked": True,
+            },
+            reason=getattr(exc, "detail", "topology access denied"),
+        )
+        raise
+
     nodes = db.query(MeshNode).filter(MeshNode.mesh_id == mesh_id).all()
-    
+
     result_nodes = []
     links = []
     seen_links = set()
     degraded_dependencies: set[str] = set()
-    
+    node_evidence: List[Dict[str, Any]] = []
+
     for n in nodes:
-        telemetry = _get_telemetry(n.id, degraded_dependencies=degraded_dependencies)
+        before_read_event_ids = _telemetry_event_ids(
+            event_bus,
+            operation="telemetry_snapshot_read",
+        )
+        telemetry = _get_telemetry(
+            n.id,
+            degraded_dependencies=degraded_dependencies,
+            event_bus=event_bus,
+            event_project_root=_telemetry_project_root_from_request(request),
+            mesh_id=mesh_id,
+        )
+        telemetry_evidence = _topology_telemetry_evidence(
+            event_bus,
+            before_read_event_ids=before_read_event_ids,
+            telemetry=telemetry,
+            db_status=n.status,
+            degraded_dependencies=degraded_dependencies,
+        )
+        node_evidence.append(telemetry_evidence)
         result_nodes.append({
             "id": n.id,
             "class": n.device_class,
             "status": _derive_topology_status(telemetry, n.status),
             "telemetry": telemetry,
+            "telemetry_evidence": telemetry_evidence,
             "pqc_enabled": True # All MaaS nodes have PQC by default
         })
         
@@ -628,4 +1325,30 @@ async def get_topology(
     for dependency in degraded_dependencies:
         mark_degraded_dependency(request, dependency)
 
-    return {"nodes": result_nodes, "links": links}
+    _publish_telemetry_observed_state(
+        event_bus,
+        operation="topology_read",
+        stage="topology_read",
+        status="success",
+        mesh_id=mesh_id,
+        storage_backend="mixed",
+        read_only=True,
+        topology_summary={
+            "access_granted": True,
+            "mesh_source": mesh_context["mesh_source"],
+            "owner_checked": mesh_context["owner_checked"],
+            "node_count": len(result_nodes),
+            "link_count": len(links),
+            "degraded_dependencies_count": len(degraded_dependencies),
+        },
+        degraded_dependencies=degraded_dependencies,
+    )
+
+    return {
+        "nodes": result_nodes,
+        "links": links,
+        "control_policy_evidence": _topology_control_policy_evidence(
+            node_evidence=node_evidence,
+            degraded_dependencies=degraded_dependencies,
+        ),
+    }

@@ -104,6 +104,7 @@ def expected_claim_boundary(rows: list[dict[str, Any]]) -> dict[str, bool]:
     all_verified = rows and all(row.get("status") == "VERIFIED" for row in rows if isinstance(row, dict))
     production_ready = all_verified and statuses.get("production_readiness") == "VERIFIED"
     return {
+        "current_runtime_attached": statuses.get("current_runtime_attached") == "VERIFIED",
         "kernel_attach_verified": statuses.get("kernel_attach") == "VERIFIED",
         "production_ready": production_ready,
         "stealth_verified": (

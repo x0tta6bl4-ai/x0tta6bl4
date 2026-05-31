@@ -278,7 +278,8 @@ def ensure_user_exists(user_id: int, username: Optional[str] = None):
                 full_name=username,
                 plan="starter",
                 requests_limit=10000,
-                api_key=f"tg_{secrets.token_urlsafe(32)}"
+                api_key=None,
+                api_key_hash=None,
             )
             db.add(user)
             db.commit()

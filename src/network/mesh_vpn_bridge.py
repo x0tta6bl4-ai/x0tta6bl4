@@ -4,6 +4,7 @@ Integates SOCKS5 proxy with Mesh Network and Rotating Exit Nodes.
 """
 
 import asyncio
+import hashlib
 import hmac
 import logging
 import os
@@ -12,7 +13,7 @@ import socket
 import time
 from decimal import Decimal
 
-from src.coordination.events import get_event_bus
+from src.coordination.events import EventType, get_event_bus
 from src.crypto.pqc_crypto import PQCCrypto
 from src.dao.token_rewards import TokenRewards
 # Import MeshNode from our existing implementation
@@ -25,6 +26,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 _SERVICE_AGENT = "mesh-vpn-bridge"
+RELAY_REWARD_CLAIM_BOUNDARY = (
+    "Mesh VPN bridge relay reward observation only. It records a bounded local "
+    "packet-threshold observation used as upstream evidence for TokenRewards; "
+    "it does not prove customer traffic, external reachability, or live token settlement."
+)
+RELAY_REWARD_CLAIM_GATE_BOUNDARY = (
+    "Mesh VPN bridge relay reward gate allows only a local relay-counter claim. "
+    "It does not allow reward-accounting, traffic-delivery, dataplane-delivery, "
+    "external-reachability, token-finality, or production-readiness claims without "
+    "separate TokenRewards, dataplane, and chain-finality evidence."
+)
 
 
 class MeshVPNBridge:
@@ -108,6 +120,7 @@ class MeshVPNBridge:
         except Exception as exc:
             logger.error("Failed to initialize reward EventBus for mesh VPN bridge: %s", exc)
             reward_event_bus = None
+        self.reward_event_bus = reward_event_bus
         self.rewards = TokenRewards(
             contract_address=contract_address,
             event_bus=reward_event_bus,
@@ -146,6 +159,141 @@ class MeshVPNBridge:
 
     def _reward_address(self):
         return self.reward_identity["wallet_address"] or self.mesh.config.node_id
+
+    @staticmethod
+    def _hash_value(value):
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        if not normalized:
+            return None
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def _hash_metadata_value(cls, value):
+        digest = cls._hash_value(value)
+        return f"sha256:{digest}" if digest else None
+
+    @classmethod
+    def _identity_metadata(cls, identity):
+        metadata = {
+            "values_redacted": True,
+            "raw_identity_values_retained": False,
+        }
+        for key, value in identity.items():
+            metadata[f"{key}_present"] = value is not None
+            metadata[f"{key}_hash"] = cls._hash_metadata_value(value)
+        return metadata
+
+    @staticmethod
+    def _relay_reward_claim_gate():
+        return {
+            "decision": "local_relay_counter_only",
+            "local_relay_counter_claim_allowed": True,
+            "reward_accounting_claim_allowed": False,
+            "pending_token_submission_claim_allowed": False,
+            "traffic_delivery_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "external_reachability_claim_allowed": False,
+            "token_settlement_finality_claim_allowed": False,
+            "external_settlement_finality_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "requires_token_rewards_event_for_accounting_claim": True,
+            "requires_upstream_dataplane_evidence_for_traffic_claim": True,
+            "requires_chain_finality_evidence_for_settlement_claim": True,
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+            "claim_boundary": RELAY_REWARD_CLAIM_GATE_BOUNDARY,
+        }
+
+    def _publish_relay_reward_evidence(
+        self,
+        *,
+        direction: str,
+        peer_id: str | None,
+        reward_packets: int,
+        chunk_bytes: int,
+    ):
+        publish = getattr(self.reward_event_bus, "publish", None)
+        if not callable(publish):
+            return None
+        identity = {
+            "node_id": self.node_id,
+            "spiffe_id": self.reward_identity.get("spiffe_id"),
+            "did": self.reward_identity.get("did"),
+            "wallet_address": self.reward_identity.get("wallet_address"),
+        }
+        payload = {
+            "component": "network.mesh_vpn_bridge",
+            "stage": "relay_reward_observed",
+            "operation": "network_usage_reward",
+            "operation_resource": "relay_packet_threshold",
+            "resource": "network:mesh_vpn_bridge:relay_packet_threshold",
+            "identity_metadata": self._identity_metadata(identity),
+            "direction": str(direction),
+            "peer_id_hash": self._hash_value(peer_id),
+            "peer_id_redacted": peer_id is not None,
+            "reward_packets": int(reward_packets),
+            "packet_threshold": 100,
+            "packets_relayed_total": int(self.packets_relayed),
+            "bytes_relayed_total": int(self.bytes_relayed),
+            "last_chunk_bytes": int(chunk_bytes),
+            "routing_mode": "mesh_peer" if peer_id else "direct_or_local",
+            "reward_address_hash": self._hash_value(self._reward_address()),
+            "local_relay_counter_observed": True,
+            "dataplane_confirmed": False,
+            "customer_traffic_confirmed": False,
+            "external_reachability_confirmed": False,
+            "token_settlement_finality_confirmed": False,
+            "production_readiness_claim_allowed": False,
+            "relay_reward_claim_gate": self._relay_reward_claim_gate(),
+            "payloads_redacted": True,
+            "safe_observation": True,
+            "claim_boundary": RELAY_REWARD_CLAIM_BOUNDARY,
+        }
+        try:
+            event = publish(
+                EventType.PIPELINE_STAGE_END,
+                _SERVICE_AGENT,
+                payload,
+                priority=5,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish Mesh VPN relay reward evidence: %s", exc)
+            return None
+
+    def _reward_relay_with_evidence(
+        self,
+        *,
+        direction: str,
+        peer_id: str | None,
+        reward_packets: int,
+        chunk_bytes: int,
+    ):
+        evidence_event_id = self._publish_relay_reward_evidence(
+            direction=direction,
+            peer_id=peer_id,
+            reward_packets=reward_packets,
+            chunk_bytes=chunk_bytes,
+        )
+        kwargs = {}
+        if evidence_event_id:
+            kwargs = {
+                "upstream_event_ids": [evidence_event_id],
+                "upstream_source_agents": [_SERVICE_AGENT],
+            }
+        try:
+            return self.rewards.reward_relay(
+                self._reward_address(),
+                reward_packets,
+                **kwargs,
+            )
+        except TypeError as exc:
+            if "unexpected keyword argument" not in str(exc):
+                raise
+            return self.rewards.reward_relay(self._reward_address(), reward_packets)
 
     async def _stats_loop(self):
         import json
@@ -417,7 +565,12 @@ class MeshVPNBridge:
 
                 # Reward logic: every 100 packets (for demo speed) or 10MB
                 if self.packets_relayed % 100 == 0:
-                    self.rewards.reward_relay(self._reward_address(), 100)
+                    self._reward_relay_with_evidence(
+                        direction=direction,
+                        peer_id=peer_id,
+                        reward_packets=100,
+                        chunk_bytes=len(data),
+                    )
 
                 # PQC encryption for inter-node traffic
                 if peer_id and self.router.pqc and self.router.pqc.has_tunnel(peer_id):

@@ -4,6 +4,7 @@ Production-ready Recovery Actions for MAPE-K
 DEPRECATED: Use src.self_healing.recovery instead.
 """
 import warnings
+from datetime import datetime
 
 from .recovery import (
     CircuitBreaker,
@@ -27,4 +28,5 @@ __all__ = [
     "RecoveryActionExecutor",
     "RecoveryActionType",
     "RecoveryResult",
+    "datetime",
 ]

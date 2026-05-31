@@ -8,6 +8,7 @@ not collect evidence, call live services, mutate runtime, or close the goal.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,6 +20,27 @@ DEFAULT_PIPELINE = ".tmp/validation-shards/integration-spine-production-input-pi
 DEFAULT_COVERAGE = ".tmp/validation-shards/integration-spine-objective-coverage-audit-current.json"
 DEFAULT_RETURN_ACCEPTANCE = ".tmp/validation-shards/integration-spine-production-input-return-acceptance-current.json"
 DEFAULT_OUTPUT = ".tmp/validation-shards/integration-spine-semantic-production-blocker-queue-current.json"
+DEFAULT_CURRENT_ACTIVE_AUDIT = "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md"
+DEFAULT_CURRENT_CROSS_PLANE_MAP = "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json"
+DEFAULT_CROSS_PLANE_PROOF_GATE = ".tmp/validation-shards/cross-plane-proof-gate-current.json"
+EXPECTED_CURRENT_EVIDENCE_STATUS = "working_map_not_production_completion_proof"
+CROSS_PLANE_PROOF_GATE_SCHEMA = "x0tta6bl4.cross_plane_proof_gate.v1"
+CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION = "CROSS_PLANE_CLAIMS_ALLOWED"
+SEMANTIC_QUEUE_CROSS_PLANE_CLAIMS = (
+    "production_readiness",
+    "dataplane_delivery",
+    "traffic_delivery",
+    "customer_traffic",
+    "settlement_finality",
+    "dpi_bypass",
+)
+REQUIRED_CROSS_PLANE_PLANES = {
+    "data_plane",
+    "control_plane",
+    "trust_plane",
+    "evidence_plane",
+    "economy_plane",
+}
 OPERATOR_INPUT_REQUIRED = "OPERATOR_INPUT_REQUIRED"
 BLOCKING = "BLOCKING"
 
@@ -56,6 +78,224 @@ def _strings(value: Any) -> List[str]:
 def _summary(data: Dict[str, Any]) -> Dict[str, Any]:
     value = data.get("summary", {})
     return value if isinstance(value, dict) else {}
+
+
+def _hash_payload(payload: Dict[str, Any]) -> str:
+    body = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return "0x" + hashlib.sha256(body).hexdigest()
+
+
+def _current_evidence_context(root: Path) -> Dict[str, Any]:
+    map_path = root / DEFAULT_CURRENT_CROSS_PLANE_MAP
+    audit_path = root / DEFAULT_CURRENT_ACTIVE_AUDIT
+    context: Dict[str, Any] = {
+        "included": map_path.exists() and audit_path.exists(),
+        "source": "docs/architecture",
+        "cross_plane_map": DEFAULT_CURRENT_CROSS_PLANE_MAP,
+        "active_goal_audit": DEFAULT_CURRENT_ACTIVE_AUDIT,
+        "claim_boundary": (
+            "Current cross-plane evidence context is a local gate for this semantic "
+            "blocker queue. It is not production proof by itself."
+        ),
+    }
+    if not map_path.exists() or not audit_path.exists():
+        context.update(
+            {
+                "status": "missing_current_evidence_context",
+                "current_gap_count": None,
+                "tracked_gap_count": None,
+                "non_blocking_gap_count": None,
+                "next_action_count": None,
+                "open_gap_ids": [],
+                "non_blocking_gap_ids": [],
+                "next_action_ids": [],
+                "required_planes_present": False,
+                "plane_ids": [],
+            }
+        )
+        return context
+    try:
+        data = json.loads(map_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        context.update(
+            {
+                "status": "invalid_current_evidence_map",
+                "error": str(exc),
+                "current_gap_count": None,
+                "tracked_gap_count": None,
+                "non_blocking_gap_count": None,
+                "next_action_count": None,
+                "open_gap_ids": [],
+                "non_blocking_gap_ids": [],
+                "next_action_ids": [],
+                "required_planes_present": False,
+                "plane_ids": [],
+            }
+        )
+        return context
+    if not isinstance(data, dict):
+        context.update(
+            {
+                "status": "invalid_current_evidence_map",
+                "error": "current evidence map must be a JSON object",
+                "current_gap_count": None,
+                "tracked_gap_count": None,
+                "non_blocking_gap_count": None,
+                "next_action_count": None,
+                "open_gap_ids": [],
+                "non_blocking_gap_ids": [],
+                "next_action_ids": [],
+                "required_planes_present": False,
+                "plane_ids": [],
+            }
+        )
+        return context
+
+    gaps = _dicts(data.get("current_gaps"))
+    next_actions = _dicts(data.get("next_actions"))
+    blocking_gaps = [item for item in gaps if item.get("blocks_real_readiness") is not False]
+    non_blocking_gaps = [item for item in gaps if item.get("blocks_real_readiness") is False]
+    planes = data.get("planes")
+    plane_ids = sorted(str(key) for key in planes) if isinstance(planes, dict) else []
+    context.update(
+        {
+            "status": data.get("status"),
+            "current_gap_count": len(blocking_gaps),
+            "tracked_gap_count": len(gaps),
+            "non_blocking_gap_count": len(non_blocking_gaps),
+            "next_action_count": len(next_actions),
+            "open_gap_ids": [str(item.get("id")) for item in blocking_gaps if item.get("id")],
+            "non_blocking_gap_ids": [str(item.get("id")) for item in non_blocking_gaps if item.get("id")],
+            "next_action_ids": [str(item.get("id")) for item in next_actions if item.get("id")],
+            "required_planes_present": REQUIRED_CROSS_PLANE_PLANES.issubset(set(plane_ids)),
+            "plane_ids": plane_ids,
+        }
+    )
+    return context
+
+
+def _current_evidence_clear(context: Dict[str, Any]) -> bool:
+    return (
+        context.get("included") is True
+        and context.get("status") == EXPECTED_CURRENT_EVIDENCE_STATUS
+        and context.get("required_planes_present") is True
+        and context.get("current_gap_count") == 0
+        and context.get("next_action_count") == 0
+    )
+
+
+def _current_evidence_blockers(context: Dict[str, Any]) -> List[str]:
+    blockers: List[str] = []
+    if context.get("included") is not True:
+        blockers.append("current_evidence_context_missing")
+    if context.get("status") != EXPECTED_CURRENT_EVIDENCE_STATUS:
+        blockers.append("current_evidence_context_status")
+    if context.get("required_planes_present") is not True:
+        blockers.append("current_evidence_required_planes_missing")
+    if context.get("current_gap_count"):
+        blockers.append("current_evidence_open_gaps")
+    if context.get("next_action_count"):
+        blockers.append("current_evidence_next_actions_open")
+    return blockers
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _cross_plane_proof_gate_claim_ids(data: Optional[Dict[str, Any]]) -> List[str]:
+    claim_ids: List[str] = []
+    for result in _dicts((data or {}).get("claim_results")):
+        claim_id = result.get("claim_id")
+        if isinstance(claim_id, str) and claim_id:
+            claim_ids.append(claim_id)
+    return sorted(set(claim_ids))
+
+
+def _cross_plane_proof_gate_missing_claim_ids(data: Optional[Dict[str, Any]]) -> List[str]:
+    return sorted(set(SEMANTIC_QUEUE_CROSS_PLANE_CLAIMS) - set(_cross_plane_proof_gate_claim_ids(data)))
+
+
+def _cross_plane_proof_gate_blocker_ids(data: Optional[Dict[str, Any]]) -> List[str]:
+    blockers: List[str] = []
+    if not data:
+        return ["cross_plane_proof_gate_missing"]
+    if data.get("schema") != CROSS_PLANE_PROOF_GATE_SCHEMA:
+        blockers.append("cross_plane_proof_gate_schema_invalid")
+    if data.get("decision") != CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION:
+        blockers.append("cross_plane_proof_gate_not_allowed")
+    if data.get("allowed") is not True:
+        blockers.append("cross_plane_proof_gate_blocked")
+    context = data.get("context")
+    if not isinstance(context, dict) or context.get("source_artifact_hashes_present") is not True:
+        blockers.append("cross_plane_proof_gate_source_artifact_hashes_missing")
+    for claim_id in _cross_plane_proof_gate_missing_claim_ids(data):
+        blockers.append(f"cross_plane_proof_gate_missing_claim:{claim_id}")
+    for result in _dicts(data.get("claim_results")):
+        claim_id = str(result.get("claim_id") or "unknown_claim")
+        if result.get("allowed") is True:
+            continue
+        blockers.append(f"claim_blocked:{claim_id}")
+        result_blockers = result.get("blockers")
+        if isinstance(result_blockers, list):
+            blockers.extend(str(item) for item in result_blockers if item)
+    return sorted(set(blockers))
+
+
+def _cross_plane_proof_gate_allowed(data: Optional[Dict[str, Any]]) -> bool:
+    if not isinstance(data, dict):
+        return False
+    required_claim_ids = set(SEMANTIC_QUEUE_CROSS_PLANE_CLAIMS)
+    claim_results = {
+        str(result.get("claim_id")): result
+        for result in _dicts(data.get("claim_results"))
+        if isinstance(result.get("claim_id"), str)
+    }
+    return (
+        data.get("schema") == CROSS_PLANE_PROOF_GATE_SCHEMA
+        and data.get("decision") == CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION
+        and data.get("allowed") is True
+        and not _cross_plane_proof_gate_missing_claim_ids(data)
+        and all(claim_results[claim_id].get("allowed") is True for claim_id in required_claim_ids)
+        and isinstance(data.get("context"), dict)
+        and data["context"].get("source_artifact_hashes_present") is True
+    )
+
+
+def _cross_plane_proof_gate_context(root: Path) -> Dict[str, Any]:
+    path = root / DEFAULT_CROSS_PLANE_PROOF_GATE
+    data = _read_json(path)
+    context = data.get("context") if isinstance(data, dict) else {}
+    if not isinstance(context, dict):
+        context = {}
+    summary = (data or {}).get("summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
+    return {
+        "path": DEFAULT_CROSS_PLANE_PROOF_GATE,
+        "exists": path.exists(),
+        "loaded": isinstance(data, dict),
+        "schema": (data or {}).get("schema"),
+        "decision": (data or {}).get("decision"),
+        "allowed": _cross_plane_proof_gate_allowed(data),
+        "reported_claim_ids": _cross_plane_proof_gate_claim_ids(data),
+        "required_claim_ids": list(SEMANTIC_QUEUE_CROSS_PLANE_CLAIMS),
+        "claims_total": _as_int(summary.get("claims_total")),
+        "claims_allowed": _as_int(summary.get("claims_allowed")),
+        "claims_blocked": _as_int(summary.get("claims_blocked")),
+        "source_artifact_hashes_present": context.get("source_artifact_hashes_present") is True,
+        "map_sha256": context.get("map_sha256"),
+        "audit_sha256": context.get("audit_sha256"),
+        "blocker_ids": _cross_plane_proof_gate_blocker_ids(data),
+        "claim_boundary": (
+            "The semantic blocker queue uses the reusable cross-plane proof gate as "
+            "local claim-control evidence. It does not create external DPI, dataplane, "
+            "traffic, settlement, or production proof."
+        ),
+    }
 
 
 def _subject_from_name(name: str) -> str:
@@ -192,30 +432,119 @@ def build_queue(inputs: QueueInputs) -> Dict[str, Any]:
     return_summary = _summary(return_acceptance)
     semantic_preflight_errors_total = sum(1 for item in blocking_items if item.get("collector_id") != "external-settlement")
     raw_ready = return_summary.get("raw_ready_to_stage") is True
-    complete = not blocking_items and not source_errors and raw_ready
+    local_queue_clear = not blocking_items and not source_errors and raw_ready
+    current_evidence_context = _current_evidence_context(inputs.root)
+    current_evidence_context_hash = _hash_payload(current_evidence_context)
+    current_evidence_clear = _current_evidence_clear(current_evidence_context)
+    current_evidence_blockers = _current_evidence_blockers(current_evidence_context)
+    cross_plane_proof_gate = _cross_plane_proof_gate_context(inputs.root)
+    cross_plane_proof_gate_allowed = cross_plane_proof_gate.get("allowed") is True
+    cross_plane_proof_gate_blockers = list(cross_plane_proof_gate.get("blocker_ids") or [])
+    complete = local_queue_clear and current_evidence_clear and cross_plane_proof_gate_allowed
+    if complete:
+        completion_decision = "COMPLETE"
+    elif local_queue_clear:
+        completion_decision = (
+            "BLOCKED_ON_CURRENT_EVIDENCE_CONTEXT"
+            if not current_evidence_clear
+            else "BLOCKED_ON_CROSS_PLANE_PROOF_GATE"
+        )
+    else:
+        completion_decision = "NOT_COMPLETE"
+    blocked_reason_ids = (
+        ([] if local_queue_clear else ["semantic_blocker_queue_not_clear"])
+        + current_evidence_blockers
+        + ([] if cross_plane_proof_gate_allowed else cross_plane_proof_gate_blockers)
+    )
 
     return {
         "schema_version": "x0tta6bl4-integration-spine-semantic-production-blocker-queue-v2",
         "generated_at": utc_now(),
         "status": "VERIFIED HERE",
         "ok": True,
-        "completion_decision": "COMPLETE" if complete else "NOT_COMPLETE",
+        "completion_decision": completion_decision,
         "goal_can_be_marked_complete": complete,
         "claim_boundary": (
             "Generated from current retained pipeline/objective audit artifacts. "
             "Does not create or upgrade production evidence."
         ),
-        "source_artifacts": [inputs.pipeline_display, inputs.coverage_display, inputs.return_acceptance_display],
+        "current_evidence_context": current_evidence_context,
+        "current_evidence_context_hash": current_evidence_context_hash,
+        "cross_plane_proof_gate": cross_plane_proof_gate,
+        "cross_plane_claim_gate": {
+            "surface": "integration_spine_semantic_production_blocker_queue",
+            "claim_boundary": (
+                "This report can allow only a local semantic blocker queue claim unless "
+                "current cross-plane evidence context is clear and the reusable proof gate "
+                "allows the strong claim set. It cannot prove production readiness, dataplane "
+                "delivery, traffic delivery, DPI bypass, settlement finality, or live apply."
+            ),
+            "local_queue_clear": local_queue_clear,
+            "current_evidence_context_required": True,
+            "current_evidence_context_clear": current_evidence_clear,
+            "cross_plane_proof_gate_required": True,
+            "cross_plane_proof_gate_allowed": cross_plane_proof_gate_allowed,
+            "goal_completion_claim_allowed": complete,
+            "blocked_reason_ids": blocked_reason_ids,
+            "proof_claims": {
+                "production_ready": False,
+                "dataplane_delivery_confirmed": False,
+                "dpi_bypass_confirmed": False,
+                "settlement_finality_confirmed": False,
+                "live_apply_authorized": False,
+            },
+        },
+        "source_artifacts": [
+            inputs.pipeline_display,
+            inputs.coverage_display,
+            inputs.return_acceptance_display,
+            DEFAULT_CURRENT_CROSS_PLANE_MAP,
+            DEFAULT_CURRENT_ACTIVE_AUDIT,
+            DEFAULT_CROSS_PLANE_PROOF_GATE,
+        ],
         "source_errors": source_errors,
         "blocking_items": blocking_items,
         "priority_order": [str(item.get("id", "")) for item in blocking_items if item.get("id")],
         "not_verified_yet": []
         if complete
-        else [
-            "operator/live production evidence must clear every semantic preflight blocker",
-            "external settlement receipt must be retained and verified against live RPC",
-        ],
+        else (
+            [
+                "operator/live production evidence must clear every semantic preflight blocker",
+                "external settlement receipt must be retained and verified against live RPC",
+            ]
+            if not local_queue_clear
+            else []
+        )
+        + (
+            [
+                "current cross-plane evidence context must be present, cover all required planes, and have no blocking gaps or next actions",
+            ]
+            if not current_evidence_clear
+            else []
+        )
+        + (
+            [
+                "reusable cross-plane proof gate must allow semantic blocker queue completion claims",
+            ]
+            if not cross_plane_proof_gate_allowed
+            else []
+        ),
         "summary": {
+            "local_queue_clear": local_queue_clear,
+            "current_evidence_context_included": current_evidence_context.get("included") is True,
+            "current_evidence_context_clear": current_evidence_clear,
+            "cross_plane_proof_gate_available": cross_plane_proof_gate.get("loaded") is True,
+            "cross_plane_proof_gate_allowed": cross_plane_proof_gate_allowed,
+            "cross_plane_proof_gate_claims_blocked": cross_plane_proof_gate.get("claims_blocked"),
+            "cross_plane_proof_gate_source_artifact_hashes_present": cross_plane_proof_gate.get(
+                "source_artifact_hashes_present"
+            ),
+            "current_evidence_open_gaps": current_evidence_context.get("current_gap_count"),
+            "current_evidence_next_actions": current_evidence_context.get("next_action_count"),
+            "goal_completion_blocked_by_current_evidence": local_queue_clear and not current_evidence_clear,
+            "goal_completion_blocked_by_cross_plane_proof_gate": (
+                local_queue_clear and current_evidence_clear and not cross_plane_proof_gate_allowed
+            ),
             "blocking_items_total": len(blocking_items),
             "blocking_items_operator_input_required": item_status_counts.get(OPERATOR_INPUT_REQUIRED, 0),
             "blocking_items_generic_blocking": item_status_counts.get(BLOCKING, 0),

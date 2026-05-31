@@ -1,15 +1,15 @@
 {
   "artifacts": {
     "local_evidence": "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json",
-    "local_evidence_sha256": "7dd9ba7e8ecfeae4ad1d4e49aec9a6ff3c2dbe12dff8d1adbffacc7ca19ddf72",
+    "local_evidence_sha256": "27012e7f09e24581aee066243cb4dd13ecbe9bf9fe5742f6e25d4926412c30b9",
     "profile_matrix": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
-    "profile_matrix_sha256": "9edf1d51a01c1141470e1c38e95bcdaf9978c24b3dba2699b0cb311f20d2466c",
-    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z/suite.json",
-    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z/summary.md",
+    "profile_matrix_sha256": "34f05acbf1555cb638347fe7c140e51fd07e0e31e415daf29cc030b7f36ad053",
+    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260531T080422Z/suite.json",
+    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260531T080422Z/summary.md",
     "suite_latest_json": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
     "suite_latest_md": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z",
+  "bundle": "docs/verification/ghost-pulse-verification-suite-20260531T080422Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "kernel_read_only_visible": false,
@@ -27,60 +27,60 @@
           "left": {
             "exists": true,
             "path": "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json",
-            "sha256": "7dd9ba7e8ecfeae4ad1d4e49aec9a6ff3c2dbe12dff8d1adbffacc7ca19ddf72",
-            "size_bytes": 23758
+            "sha256": "27012e7f09e24581aee066243cb4dd13ecbe9bf9fe5742f6e25d4926412c30b9",
+            "size_bytes": 20370
           },
           "match": true,
           "right": {
             "exists": true,
-            "path": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/evidence.json",
-            "sha256": "7dd9ba7e8ecfeae4ad1d4e49aec9a6ff3c2dbe12dff8d1adbffacc7ca19ddf72",
-            "size_bytes": 23758
+            "path": "docs/verification/ghost-pulse-local-evidence-20260531T000533Z/evidence.json",
+            "sha256": "27012e7f09e24581aee066243cb4dd13ecbe9bf9fe5742f6e25d4926412c30b9",
+            "size_bytes": 20370
           }
         },
         "local_latest_vs_bundle_md": {
           "left": {
             "exists": true,
             "path": "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.md",
-            "sha256": "f5e8085893c7b481c2469a43ddc39b18649af81b9e68ced6e9845040e5fa2d04",
-            "size_bytes": 2111
+            "sha256": "452b27488d91e442e7b77a5f5c0e7bb57ac078db11412d5f23a45fe3f7f061c3",
+            "size_bytes": 2083
           },
           "match": true,
           "right": {
             "exists": true,
-            "path": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/summary.md",
-            "sha256": "f5e8085893c7b481c2469a43ddc39b18649af81b9e68ced6e9845040e5fa2d04",
-            "size_bytes": 2111
+            "path": "docs/verification/ghost-pulse-local-evidence-20260531T000533Z/summary.md",
+            "sha256": "452b27488d91e442e7b77a5f5c0e7bb57ac078db11412d5f23a45fe3f7f061c3",
+            "size_bytes": 2083
           }
         },
         "matrix_latest_vs_bundle_json": {
           "left": {
             "exists": true,
             "path": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
-            "sha256": "9edf1d51a01c1141470e1c38e95bcdaf9978c24b3dba2699b0cb311f20d2466c",
-            "size_bytes": 15031
+            "sha256": "34f05acbf1555cb638347fe7c140e51fd07e0e31e415daf29cc030b7f36ad053",
+            "size_bytes": 13981
           },
           "match": true,
           "right": {
             "exists": true,
-            "path": "docs/verification/ghost-pulse-profile-matrix-20260522T005403Z/matrix.json",
-            "sha256": "9edf1d51a01c1141470e1c38e95bcdaf9978c24b3dba2699b0cb311f20d2466c",
-            "size_bytes": 15031
+            "path": "docs/verification/ghost-pulse-profile-matrix-20260531T000535Z/matrix.json",
+            "sha256": "34f05acbf1555cb638347fe7c140e51fd07e0e31e415daf29cc030b7f36ad053",
+            "size_bytes": 13981
           }
         },
         "matrix_latest_vs_bundle_md": {
           "left": {
             "exists": true,
             "path": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.md",
-            "sha256": "18cc3826457a0e1588ef22fea185c199997952057249deb109dcd8a1c61514b1",
-            "size_bytes": 1187
+            "sha256": "a40defb6b03415e9a7ef888fe0f2d57bd22c296ef8aabd69e2c865f7cf97f98b",
+            "size_bytes": 1161
           },
           "match": true,
           "right": {
             "exists": true,
-            "path": "docs/verification/ghost-pulse-profile-matrix-20260522T005403Z/summary.md",
-            "sha256": "18cc3826457a0e1588ef22fea185c199997952057249deb109dcd8a1c61514b1",
-            "size_bytes": 1187
+            "path": "docs/verification/ghost-pulse-profile-matrix-20260531T000535Z/summary.md",
+            "sha256": "a40defb6b03415e9a7ef888fe0f2d57bd22c296ef8aabd69e2c865f7cf97f98b",
+            "size_bytes": 1161
           }
         }
       },
@@ -90,14 +90,14 @@
         "check_count": 4,
         "mode": "required_latest_bundle_path_pairs",
         "required": true,
-        "sha256": "109d1d7d2a86630e5636a6b878a4dfeb81c8f3173709bb4b3e67b5ccf4cd8b3f"
+        "sha256": "b7dc0594a7b1f973bef8688b73e680443d9d5888e3f2844c77343566d0cd9a6b"
       },
       "status": "PASS"
     },
     "false_claim_scan": {
       "allowed_matches": [
         {
-          "line": 12,
+          "line": 13,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
           "pattern": "\\bkernel_attach_verified\\b[\\\"']?\\s*[:=]\\s*true\\b",
           "reason": "kernel_attach_verified is proof-derived in inventory; inventory/proof verifiers validate the real evidence.",
@@ -118,14 +118,14 @@
         {
           "exists": true,
           "path": "src/network/transport/pulse_transport.py",
-          "sha256": "e492e6954dd769d650b7e3d4947c93ea80c8becab9b071d178456347eca7ddbc",
-          "size_bytes": 10533
+          "sha256": "dd855b2635821f53925770429ee0596d9c253b1c59cafcf5902591537807c1a5",
+          "size_bytes": 10813
         },
         {
           "exists": true,
           "path": "src/network/obfuscation/whitelist_mimicry.py",
-          "sha256": "14fed57c998a95c78bef2cab769d9fd61df70e570b5bb2ff25a2dc33c52d9681",
-          "size_bytes": 1925
+          "sha256": "68da7c6ed0c8ad55e15681a6ff6c1904d06ac720e3e5aa85cc14cfb05ad3b730",
+          "size_bytes": 1942
         },
         {
           "exists": true,
@@ -160,8 +160,8 @@
         {
           "exists": true,
           "path": "scripts/ops/verify_ghost_pulse_rng_replay.py",
-          "sha256": "92e519112601d8ad6ee641d32daf9f5d8637082f07d93c4daa312586f6b2e1f6",
-          "size_bytes": 7068
+          "sha256": "0e74ba93208f4e24cfcfcd02fa4a2af7732ee171bac85ed99147827ab083de5a",
+          "size_bytes": 7094
         },
         {
           "exists": true,
@@ -190,8 +190,8 @@
         {
           "exists": true,
           "path": "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
-          "sha256": "88e394e61c00db69043ef6bded9baf629fc815ba847eed5cff5c9d1c3f115c00",
-          "size_bytes": 29731
+          "sha256": "1290d0f60bff1bbd76acd4e7b3e751bff00207d3be55921e212e2b4719c28466",
+          "size_bytes": 30848
         },
         {
           "exists": true,
@@ -202,14 +202,14 @@
         {
           "exists": true,
           "path": "scripts/ops/import_ghost_pulse_external_evidence.py",
-          "sha256": "0ff99e0b34cda6dd594e946d7c282af8caf0d540e3b28e9383214a64834057c8",
-          "size_bytes": 15740
+          "sha256": "953311397250d5aade5a37671888efeec7ce56f7fe80d64d73bc6dd132f74a64",
+          "size_bytes": 28753
         },
         {
           "exists": true,
           "path": "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
-          "sha256": "6a38dbd2758423971ac06eccecd63fd0f46f837a16e8197050efc58b1d302b64",
-          "size_bytes": 38196
+          "sha256": "307fa4aed8b4d855812ad3ad4ea2685407768cbe9e5e376a9f592315ab5deca2",
+          "size_bytes": 46614
         },
         {
           "exists": true,
@@ -220,8 +220,8 @@
         {
           "exists": true,
           "path": "scripts/ops/verify_ghost_pulse_replacement_candidates.py",
-          "sha256": "ebc4e2733285b83732c5d2f7b6c91452f0b727d7a72f9b20a2221e009986b232",
-          "size_bytes": 26357
+          "sha256": "173cb330df28da3f77e865c096be707c986a41e7f5b466f3eb60633c381dacc5",
+          "size_bytes": 26811
         },
         {
           "exists": true,
@@ -244,20 +244,20 @@
         {
           "exists": true,
           "path": "scripts/ops/verify_ghost_pulse_proof_gate.py",
-          "sha256": "f5c91a6fced237c4d7527cfd6f9faef5015e9946e4750948341a31eef57a7e12",
-          "size_bytes": 12909
+          "sha256": "10ed5fc9b091c9313210811c6a7626c57a0dacfa690ea21baaac5625ed789000",
+          "size_bytes": 13001
         },
         {
           "exists": true,
           "path": "scripts/ops/verify_ghost_pulse_goal_state.py",
-          "sha256": "d6420032c9f45d9be43c57463543c0598f1677d09177a7e471980bc35f414aea",
-          "size_bytes": 45969
+          "sha256": "6ba4add2a6f46a518a738a49941ac5ad5fb5af02142a3caa89e1a77b34b1b4c9",
+          "size_bytes": 46884
         },
         {
           "exists": true,
           "path": "scripts/ops/run_ghost_pulse_proof_gate.py",
-          "sha256": "7ac570f7f6602f7800e2dc568e66741782edc5f070dc54e4bf192220b3f28e40",
-          "size_bytes": 58406
+          "sha256": "4a4858ff25d02b8092d5f469bd65a89fd32a4043f684480ad9f1ccfc12fb4199",
+          "size_bytes": 61997
         },
         {
           "exists": true,
@@ -268,8 +268,8 @@
         {
           "exists": true,
           "path": "docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md",
-          "sha256": "d212ca6dd13d1a01235830d68418cc6c83c76ff37af709f46cf88fe62d629dcd",
-          "size_bytes": 25511
+          "sha256": "5a3b0266ac28cb78fdb1f3663e3d6a1de50ee61fe678bd182881e5ce22c5bb94",
+          "size_bytes": 719
         },
         {
           "exists": true,
@@ -298,62 +298,62 @@
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json",
-          "sha256": "7dd9ba7e8ecfeae4ad1d4e49aec9a6ff3c2dbe12dff8d1adbffacc7ca19ddf72",
-          "size_bytes": 23758
+          "sha256": "27012e7f09e24581aee066243cb4dd13ecbe9bf9fe5742f6e25d4926412c30b9",
+          "size_bytes": 20370
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.md",
-          "sha256": "f5e8085893c7b481c2469a43ddc39b18649af81b9e68ced6e9845040e5fa2d04",
-          "size_bytes": 2111
+          "sha256": "452b27488d91e442e7b77a5f5c0e7bb57ac078db11412d5f23a45fe3f7f061c3",
+          "size_bytes": 2083
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
-          "sha256": "9edf1d51a01c1141470e1c38e95bcdaf9978c24b3dba2699b0cb311f20d2466c",
-          "size_bytes": 15031
+          "sha256": "34f05acbf1555cb638347fe7c140e51fd07e0e31e415daf29cc030b7f36ad053",
+          "size_bytes": 13981
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.md",
-          "sha256": "18cc3826457a0e1588ef22fea185c199997952057249deb109dcd8a1c61514b1",
-          "size_bytes": 1187
+          "sha256": "a40defb6b03415e9a7ef888fe0f2d57bd22c296ef8aabd69e2c865f7cf97f98b",
+          "size_bytes": 1161
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
-          "sha256": "f4256ee4492c5825d44804aa89413525e6c8e26ca8789799920812ba360d1092",
-          "size_bytes": 12943
+          "sha256": "96a13d35f53d41b7db84fd89a23474b53ed31e79f174aff3e593ca407cc4a024",
+          "size_bytes": 11333
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.md",
-          "sha256": "95b3dd9b82f70a94cc06345ec788fafaba770850df0707cb9120a85cb8b05e24",
-          "size_bytes": 2514
+          "sha256": "5bbef50e1b501dbbf63616706a912a7a8ad8425bc3ccef56e2747a3a674292bb",
+          "size_bytes": 2518
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
-          "sha256": "4b9bdd7b7ab92d97271b9357e1147b58dbd753b2e3eb7b055e0eb930ff1d3e13",
-          "size_bytes": 35109
+          "sha256": "cd9def77d50bd853238a727f13f83dbc72b65e3551cb952cfb1cc2ba8311c76e",
+          "size_bytes": 39298
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.md",
-          "sha256": "91cab44c20a05cdd0bde5e0a94f7189429cd108153b4629cefeeac4037cbe1ee",
-          "size_bytes": 1634
+          "sha256": "348d6fe23798dbf4f80af18577ab398b1967f37f178d9ab2255789ad8322ca89",
+          "size_bytes": 4754
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.json",
-          "sha256": "24851cc868de2dc8fdb22c44e017f12da3a80c2a0a363d87af41cd5d252a19ae",
-          "size_bytes": 21215
+          "sha256": "8fa12f3256f8d46c0ecdc14c2c6e59694609ef7945f80cd86705febbc69bf121",
+          "size_bytes": 22150
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.md",
-          "sha256": "2dc9c9a9658f8054e3ce6cfc299a5194569fc66fef23c4c0d22ea81722a91b73",
-          "size_bytes": 1244
+          "sha256": "cc52071291b7eefdfc9f4dfab02eb714c07bb6ba68ece4f037ddedeb143ac246",
+          "size_bytes": 1085
         }
       ],
       "targets_scanned": [
@@ -520,10 +520,10 @@
     "local": {
       "decision": "LOCAL_TIMING_VERIFIED_STEALTH_NOT_VERIFIED",
       "mode": "corporate",
-      "packets_received": 12,
+      "packets_received": 8,
       "pulse_rng_seed": 20260521,
-      "replay_sample_count": 12,
-      "replay_sha256": "63161b0c98bc3482b730371866c327eb2d5c57bd00eab453a823e97d5d0f77ff",
+      "replay_sample_count": 8,
+      "replay_sha256": "89d9e727dc6b396ed8b262475a6b4710b4385943c2eeb5ce4b8f5c451721d175",
       "replay_status": "LOCAL_SEED_REPLAYABLE",
       "seed": 20260521
     },
@@ -539,7 +539,7 @@
           "mode": "corporate",
           "pulse_rng_seed": 20260522,
           "repetition": 0,
-          "replay_sha256": "e0eec8a54943af16c739546fa5afc1fcbaefa2e131d7d7abb682d77e85eff612",
+          "replay_sha256": "d3b02d38a2f0bc56f813e278a56e4d40e377e197aa2155aadf94852c73df887a",
           "replay_status": "LOCAL_SEED_REPLAYABLE",
           "seed": 20260522
         },
@@ -547,7 +547,7 @@
           "mode": "corporate",
           "pulse_rng_seed": 20261522,
           "repetition": 1,
-          "replay_sha256": "bb1c8e49043d3dc7e1a767a0ad4d1af868e2196706dd093d227839541400a2f0",
+          "replay_sha256": "df059d04b2b521d73f5f69f6830e879190fd55edd40ce9196d05bbf60ffcdf84",
           "replay_status": "LOCAL_SEED_REPLAYABLE",
           "seed": 20261522
         },
@@ -555,7 +555,7 @@
           "mode": "whitelist",
           "pulse_rng_seed": 20262522,
           "repetition": 0,
-          "replay_sha256": "a9f23f990842c94063c377bcafac09df51dc2ec97fefc123a8c7862a97f4d56a",
+          "replay_sha256": "5a18cf22978ebe536c1ac6b0f618a8c0836ccaddd0c127121d7a5adc2b730155",
           "replay_status": "LOCAL_SEED_REPLAYABLE",
           "seed": 20262522
         },
@@ -563,7 +563,7 @@
           "mode": "whitelist",
           "pulse_rng_seed": 20263522,
           "repetition": 1,
-          "replay_sha256": "9475b04abfffe755728cf5630efd112735f043d55779c8345f8852cf000da044",
+          "replay_sha256": "9df8fc1e413a356c7a43c205e34e6a4bf952e7942ca6d4a6b0a7300294246486",
           "replay_status": "LOCAL_SEED_REPLAYABLE",
           "seed": 20263522
         }
@@ -572,5 +572,5 @@
       "seed": 20260522
     }
   },
-  "timestamp_utc": "2026-05-25T04:45:07.029484+00:00"
+  "timestamp_utc": "2026-05-31T08:04:22.711071+00:00"
 }

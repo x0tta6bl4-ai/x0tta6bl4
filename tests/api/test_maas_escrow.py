@@ -15,6 +15,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, get_db, User, MeshNode, MeshInstance, MarketplaceListing
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_escrow_{uuid.uuid4().hex}.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"
@@ -368,7 +369,7 @@ class TestAccessCheck:
     @staticmethod
     def _ensure_operator(api_key: str):
         db = TestingSessionLocal()
-        user = db.query(User).filter(User.api_key == api_key).first()
+        user = find_user_by_api_key(db, api_key)
         user.role = "operator"
         db.commit()
         db.close()
@@ -380,7 +381,7 @@ class TestAccessCheck:
     def _make_mesh_with_nodes(self, client, seller_token) -> tuple:
         """Returns (mesh_id, node_a_id, node_b_id)."""
         db = TestingSessionLocal()
-        user = db.query(User).filter(User.api_key == seller_token).first()
+        user = find_user_by_api_key(db, seller_token)
         assert user is not None
 
         mesh_id = f"mesh-{uuid.uuid4().hex[:8]}"

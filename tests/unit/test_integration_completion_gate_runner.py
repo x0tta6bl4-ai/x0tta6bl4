@@ -10,6 +10,72 @@ def _write_json(root: Path, rel: str, payload: dict) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_current_evidence_context(
+    root: Path,
+    *,
+    current_gaps: list[dict] | None = None,
+    next_actions: list[dict] | None = None,
+) -> None:
+    _write_json(
+        root,
+        "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
+        {
+            "status": "working_map_not_production_completion_proof",
+            "planes": {
+                "data_plane": {},
+                "control_plane": {},
+                "trust_plane": {},
+                "evidence_plane": {},
+                "economy_plane": {},
+            },
+            "current_gaps": current_gaps or [],
+            "next_actions": next_actions or [],
+        },
+    )
+    audit = root / "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md"
+    audit.parent.mkdir(parents=True, exist_ok=True)
+    audit.write_text("# active goal audit\n", encoding="utf-8")
+
+
+def _write_cross_plane_proof_gate(root: Path, *, allowed: bool) -> None:
+    claim_ids = (
+        "production_readiness",
+        "dataplane_delivery",
+        "traffic_delivery",
+        "customer_traffic",
+        "settlement_finality",
+        "dpi_bypass",
+    )
+    claim_results = [
+        {
+            "claim_id": claim_id,
+            "allowed": allowed,
+            "blockers": [] if allowed else [f"{claim_id}_proof_missing"],
+        }
+        for claim_id in claim_ids
+    ]
+    _write_json(
+        root,
+        ".tmp/validation-shards/cross-plane-proof-gate-current.json",
+        {
+            "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+            "decision": "CROSS_PLANE_CLAIMS_ALLOWED" if allowed else "CROSS_PLANE_CLAIMS_BLOCKED",
+            "allowed": allowed,
+            "context": {
+                "source_artifact_hashes_present": True,
+                "map_sha256": "0" * 64,
+                "audit_sha256": "1" * 64,
+            },
+            "claim_results": claim_results,
+            "summary": {
+                "claims_total": len(claim_results),
+                "claims_allowed": len(claim_results) if allowed else 0,
+                "claims_blocked": 0 if allowed else len(claim_results),
+            },
+        },
+    )
+
+
 def _write_governance_execute_readiness(root: Path, *, ready: bool) -> None:
     _write_json(
         root,
@@ -42,6 +108,7 @@ def _base_sources(root: Path, *, ready: bool) -> None:
     raw_expected = 2
     raw_staged = raw_expected if ready else 0
     _write_governance_execute_readiness(root, ready=ready)
+    _write_cross_plane_proof_gate(root, allowed=ready)
     _write_json(
         root,
         ".tmp/validation-shards/integration-spine-production-input-pipeline-current.json",
@@ -257,10 +324,15 @@ def test_completion_gate_runner_fails_closed_on_current_blockers(tmp_path):
 
     report = build_report(tmp_path)
 
-    assert report["schema_version"].endswith("v5-repo-generated")
+    assert report["schema_version"].endswith("v6-repo-generated")
     assert "source-restored" not in report["schema_version"]
     assert report["completion_decision"] == "NOT_COMPLETE"
+    assert report["local_completion_ready"] is False
     assert report["goal_can_be_marked_complete"] is False
+    assert report["summary"]["local_completion_ready"] is False
+    assert report["summary"]["current_evidence_context_clear"] is False
+    assert report["summary"]["cross_plane_proof_gate_allowed"] is False
+    assert report["cross_plane_claim_gate"]["goal_completion_claim_allowed"] is False
     assert report["summary"]["current_raw_files_installed"] == 0
     assert report["summary"]["pipeline_raw_files_reported_installed"] == 0
     assert report["summary"]["coverage_raw_files_reported_installed"] == 0
@@ -340,11 +412,27 @@ def test_completion_gate_runner_fails_closed_on_current_blockers(tmp_path):
 
 def test_completion_gate_runner_can_complete_when_sources_complete(tmp_path):
     _base_sources(tmp_path, ready=True)
+    _write_current_evidence_context(tmp_path)
 
     report = build_report(tmp_path)
 
     assert report["completion_decision"] == "COMPLETE"
+    assert report["local_completion_ready"] is True
     assert report["goal_can_be_marked_complete"] is True
+    assert report["summary"]["local_completion_ready"] is True
+    assert report["summary"]["current_evidence_context_clear"] is True
+    assert report["summary"]["cross_plane_proof_gate_allowed"] is True
+    assert report["summary"]["cross_plane_proof_gate_source_artifact_hashes_present"] is True
+    assert report["current_evidence_context"]["included"] is True
+    assert report["cross_plane_proof_gate"]["allowed"] is True
+    assert report["cross_plane_proof_gate"]["source_artifact_hashes_present"] is True
+    assert report["current_evidence_context"]["current_gap_count"] == 0
+    assert report["current_evidence_context_hash"].startswith("0x")
+    assert report["cross_plane_claim_gate"]["goal_completion_claim_allowed"] is True
+    assert report["cross_plane_claim_gate"]["cross_plane_proof_gate_required"] is True
+    assert report["cross_plane_claim_gate"]["cross_plane_proof_gate_allowed"] is True
+    assert report["cross_plane_claim_gate"]["proof_claims"]["production_ready"] is False
+    assert report["cross_plane_claim_gate"]["proof_claims"]["live_apply_authorized"] is False
     assert report["summary"]["steps_ready"] == report["summary"]["steps_total"]
     assert report["summary"]["current_raw_files_installed"] == 2
     assert report["summary"]["production_input_return_packet_available"] is True
@@ -374,6 +462,62 @@ def test_completion_gate_runner_can_complete_when_sources_complete(tmp_path):
     assert report["summary"]["live_rollout_handoff_ready_for_completion_rerun"] is True
     assert report["summary"]["live_rollout_handoff_operator_actions_total"] == 0
     assert report["summary"]["live_rollout_handoff_operator_commands_total"] == 0
+
+
+def test_completion_gate_runner_blocks_complete_without_current_evidence_context(tmp_path):
+    _base_sources(tmp_path, ready=True)
+
+    report = build_report(tmp_path)
+
+    assert report["completion_decision"] == "NOT_COMPLETE"
+    assert report["local_completion_ready"] is True
+    assert report["goal_can_be_marked_complete"] is False
+    assert report["summary"]["completion_blocked_by_current_evidence"] is True
+    assert report["summary"]["completion_blocked_by_cross_plane_proof_gate"] is False
+    assert report["summary"]["current_evidence_context_included"] is False
+    assert report["summary"]["current_evidence_context_clear"] is False
+    assert report["current_evidence_context"]["status"] == "missing_current_evidence_context"
+    assert "current_evidence_context_missing" in report["cross_plane_claim_gate"]["blocked_reason_ids"]
+    assert report["cross_plane_claim_gate"]["goal_completion_claim_allowed"] is False
+
+
+def test_completion_gate_runner_blocks_complete_when_cross_plane_proof_gate_blocks(tmp_path):
+    _base_sources(tmp_path, ready=True)
+    _write_current_evidence_context(tmp_path)
+    _write_cross_plane_proof_gate(tmp_path, allowed=False)
+
+    report = build_report(tmp_path)
+
+    assert report["completion_decision"] == "NOT_COMPLETE"
+    assert report["local_completion_ready"] is True
+    assert report["goal_can_be_marked_complete"] is False
+    assert report["summary"]["current_evidence_context_clear"] is True
+    assert report["summary"]["cross_plane_proof_gate_allowed"] is False
+    assert report["summary"]["completion_blocked_by_cross_plane_proof_gate"] is True
+    assert report["cross_plane_claim_gate"]["goal_completion_claim_allowed"] is False
+    assert "cross_plane_proof_gate_blocked" in report["cross_plane_claim_gate"]["blocked_reason_ids"]
+    assert "claim_blocked:dpi_bypass" in report["cross_plane_claim_gate"]["blocked_reason_ids"]
+
+
+def test_completion_gate_runner_blocks_complete_on_current_evidence_open_gap(tmp_path):
+    _base_sources(tmp_path, ready=True)
+    _write_current_evidence_context(
+        tmp_path,
+        current_gaps=[{"id": "external-dpi-proof-missing", "blocks_real_readiness": True}],
+        next_actions=[{"id": "external-dpi-real-artifact-intake"}],
+    )
+
+    report = build_report(tmp_path)
+
+    assert report["completion_decision"] == "NOT_COMPLETE"
+    assert report["local_completion_ready"] is True
+    assert report["goal_can_be_marked_complete"] is False
+    assert report["summary"]["current_evidence_open_gaps"] == 1
+    assert report["summary"]["current_evidence_next_actions"] == 1
+    assert report["current_evidence_context"]["open_gap_ids"] == ["external-dpi-proof-missing"]
+    assert report["current_evidence_context"]["next_action_ids"] == ["external-dpi-real-artifact-intake"]
+    assert "current_evidence_open_gaps" in report["cross_plane_claim_gate"]["blocked_reason_ids"]
+    assert "current_evidence_next_actions_open" in report["cross_plane_claim_gate"]["blocked_reason_ids"]
 
 
 def test_completion_gate_runner_cli_require_complete_returns_two_when_blocked(tmp_path):

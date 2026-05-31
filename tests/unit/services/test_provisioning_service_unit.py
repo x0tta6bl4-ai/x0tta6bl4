@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
 from src.services.provisioning_service import (
     ProvisioningResult,
     ProvisioningService,
@@ -14,6 +16,33 @@ from src.services.provisioning_service import (
     _SimulatedXUI,
     _resolve_mesh_provisioner,
 )
+
+
+def _event_payloads(bus):
+    return [
+        event.to_dict()
+        for event in bus.get_event_history(
+            source_agent="vpn-provisioning-service",
+            limit=100,
+        )
+    ]
+
+
+def _assert_event_log_redacted(tmp_path, bus, raw_values):
+    serialized = json.dumps(_event_payloads(bus), sort_keys=True)
+    log_path = tmp_path / EventBus.EVENT_LOG
+    log_text = log_path.read_text() if log_path.exists() else ""
+    for raw_value in raw_values:
+        assert raw_value not in serialized
+        assert raw_value not in log_text
+
+
+def _fake_cross_plane_claim_gate(_claims, *, surface):
+    return {
+        "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+        "surface": surface,
+        "allowed": False,
+    }
 
 
 @pytest.mark.asyncio
@@ -56,6 +85,83 @@ async def test_provision_vpn_user_success_path_with_xui_uuid(monkeypatch):
     assert out.vless_link == "vless://from-xui"
     assert update_calls and update_calls[0]["email"] == "user@example.com"
     assert notify_calls and notify_calls[0]["chat_id"] == 123
+
+
+@pytest.mark.asyncio
+async def test_provision_vpn_user_event_redacts_access_material(
+    monkeypatch,
+    tmp_path,
+):
+    bus = EventBus(str(tmp_path))
+    monkeypatch.setenv(
+        "VPN_PROVISIONING_SERVICE_SPIFFE_ID",
+        "spiffe://secret/vpn-provisioning",
+    )
+    monkeypatch.setenv(
+        "VPN_PROVISIONING_SERVICE_DID",
+        "did:mesh:vpn-provisioning-secret",
+    )
+    monkeypatch.setenv(
+        "VPN_PROVISIONING_SERVICE_WALLET_ADDRESS",
+        "0xcccccccccccccccccccccccccccccccccccccccc",
+    )
+    svc = ProvisioningService()
+    svc._xui_client = MagicMock()
+    svc._xui_client.create_user.return_value = {
+        "uuid": "uuid-private",
+        "vless_link": "vless://uuid-private@vpn.secret.example:443",
+    }
+
+    async def _noop(**_kwargs):
+        return None
+
+    monkeypatch.setattr(svc, "_update_database", _noop)
+    monkeypatch.setattr(svc, "_send_telegram_config", _noop)
+
+    out = await svc.provision_vpn_user(
+        email="private@example.com",
+        plan="pro",
+        source=ProvisioningSource.STRIPE_WEBHOOK,
+        user_id="user-private",
+        telegram_chat_id=123456,
+        event_bus=bus,
+    )
+
+    assert out.success is True
+    event = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="vpn-provisioning-service",
+        limit=10,
+    )[-1].to_dict()
+    payload = event["data"]
+    reference = svc.get_last_event_evidence()
+    assert payload["operation"] == "provision_vpn_user"
+    assert payload["control_action"] is True
+    assert payload["status"] == "success"
+    assert payload["email_hash"]
+    assert payload["vpn_uuid_hash"]
+    assert payload["vless_link_present"] is True
+    assert payload["xui_create_success"] is True
+    assert payload["db_update_attempted"] is True
+    assert payload["telegram_notify_attempted"] is True
+    assert payload["service_identity"]["spiffe_id_present"] is True
+    assert reference["event_id"] == event["event_id"]
+    assert reference["source_agent"] == "vpn-provisioning-service"
+    _assert_event_log_redacted(
+        tmp_path,
+        bus,
+        [
+            "private@example.com",
+            "uuid-private",
+            "vless://uuid-private@vpn.secret.example:443",
+            "vpn.secret.example",
+            "user-private",
+            "123456",
+            "spiffe://secret/vpn-provisioning",
+            "did:mesh:vpn-provisioning-secret",
+            "0xcccc",
+        ],
+    )
 
 
 @pytest.mark.asyncio
@@ -120,6 +226,10 @@ async def test_revoke_vpn_user_variants():
 @pytest.mark.asyncio
 async def test_provision_and_terminate_mesh_paths(monkeypatch):
     svc = ProvisioningService()
+    monkeypatch.setattr(
+        "src.services.provisioning_service.cross_plane_claim_gate_metadata",
+        _fake_cross_plane_claim_gate,
+    )
 
     class _Instance:
         mesh_id = "mesh-1"
@@ -136,7 +246,37 @@ async def test_provision_and_terminate_mesh_paths(monkeypatch):
     monkeypatch.setattr("src.services.provisioning_service._resolve_mesh_provisioner", lambda: _Prov())
 
     created = await svc.provision_mesh("m", 2, "owner")
-    assert created == {"success": True, "mesh_id": "mesh-1", "status": "active", "nodes": 2}
+    assert created["success"] is True
+    assert created["mesh_id"] == "mesh-1"
+    assert created["status"] == "active"
+    assert created["nodes"] == 2
+    assert (
+        created["mesh_provisioning_claim_gate"][
+            "local_mesh_provisioner_delegate_claim_allowed"
+        ]
+        is True
+    )
+    assert (
+        created["mesh_provisioning_claim_gate"][
+            "external_infrastructure_provisioning_claim_allowed"
+        ]
+        is False
+    )
+    assert (
+        created["mesh_provisioning_claim_gate"]["node_reachability_claim_allowed"]
+        is False
+    )
+    assert (
+        created["mesh_provisioning_claim_gate"][
+            "dataplane_delivery_claim_allowed"
+        ]
+        is False
+    )
+    assert (
+        created["cross_plane_claim_gate"]["surface"]
+        == "provisioning_service.provision_mesh"
+    )
+    assert created["cross_plane_claim_gate"]["allowed"] is False
 
     assert await svc.terminate_mesh("mesh-1") is True
     assert await svc.terminate_mesh("mesh-x") is False
@@ -282,12 +422,23 @@ async def test_provision_vpn_user_enum_source_used(monkeypatch):
 async def test_provision_mesh_provisioner_unavailable(monkeypatch):
     svc = ProvisioningService()
     monkeypatch.setattr(
+        "src.services.provisioning_service.cross_plane_claim_gate_metadata",
+        _fake_cross_plane_claim_gate,
+    )
+    monkeypatch.setattr(
         "src.services.provisioning_service._resolve_mesh_provisioner",
         lambda: None,
     )
     result = await svc.provision_mesh("m", 2, "owner")
     assert result["success"] is False
     assert "error" in result
+    assert result["mesh_provisioning_claim_gate"]["mesh_provisioner_available"] is False
+    assert (
+        result["mesh_provisioning_claim_gate"][
+            "production_readiness_claim_allowed"
+        ]
+        is False
+    )
 
 
 @pytest.mark.asyncio
@@ -304,6 +455,10 @@ async def test_terminate_mesh_provisioner_unavailable(monkeypatch):
 @pytest.mark.asyncio
 async def test_provision_mesh_exception_returns_failure(monkeypatch):
     svc = ProvisioningService()
+    monkeypatch.setattr(
+        "src.services.provisioning_service.cross_plane_claim_gate_metadata",
+        _fake_cross_plane_claim_gate,
+    )
 
     class _FailProv:
         async def create(self, **kwargs):
@@ -316,6 +471,13 @@ async def test_provision_mesh_exception_returns_failure(monkeypatch):
     result = await svc.provision_mesh("m", 2, "owner")
     assert result["success"] is False
     assert "infra down" in result["error"]
+    assert result["mesh_provisioning_claim_gate"]["mesh_provisioner_available"] is True
+    assert (
+        result["mesh_provisioning_claim_gate"][
+            "mesh_provisioner_create_succeeded"
+        ]
+        is False
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -31,6 +31,8 @@ def test_compat_readiness_ready_when_alias_surfaces_are_available(monkeypatch):
     assert payload["legacy_deploy_ready"] is True
     assert payload["billing_alias_ready"] is True
     assert payload["compat_models_ready"] is True
+    assert payload["cross_plane_claim_gate"]["allowed"] is False
+    assert "settlement_finality" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
     assert payload["degraded_dependencies"] == []
 
 

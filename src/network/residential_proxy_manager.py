@@ -11,6 +11,7 @@ Provides:
 """
 
 import asyncio
+import hashlib
 import logging
 import random
 import ssl
@@ -22,9 +23,32 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
+from src.coordination.events import EventBus, EventType, get_event_bus
 from src.core.circuit_breaker import CircuitBreaker
+from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "residential-proxy-manager"
+_SERVICE_LAYER = "network_residential_proxy_manager_observed_state"
+RESIDENTIAL_PROXY_MANAGER_CLAIM_BOUNDARY = (
+    "Local residential proxy manager observed-state evidence only. It records "
+    "redacted health-check, selection, and request-attempt metadata with proxy "
+    "and target identifiers hashed. It does not copy proxy hosts, credentials, "
+    "target URLs, headers, request bodies, or response payloads, and it does not "
+    "prove provider reputation, customer traffic delivery, or end-to-end "
+    "dataplane quality."
+)
+
+
+def _hash_value(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return None
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
 
 
 class ProxyStatus(Enum):
@@ -182,6 +206,8 @@ class ResidentialProxyManager:
         health_check_interval: int = 60,
         rotation_interval: int = 300,
         max_failures: int = 3,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: Optional[str] = None,
     ):
         self.proxies: List[ProxyEndpoint] = []
         self.domain_reputations: Dict[str, DomainReputation] = {}
@@ -195,11 +221,81 @@ class ResidentialProxyManager:
         self._lock = asyncio.Lock()
         self._health_check_task: Optional[asyncio.Task] = None
         self._running = False
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
 
         # Circuit breaker for proxy operations
         self._circuit_breaker = CircuitBreaker(
             name="proxy_manager", failure_threshold=5, recovery_timeout=60.0
         )
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        if self.event_project_root is None:
+            return None
+        try:
+            self.event_bus = get_event_bus(self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error(
+                "Failed to initialize residential-proxy-manager EventBus: %s",
+                exc,
+            )
+            return None
+
+    def _service_identity_presence(self) -> Dict[str, bool]:
+        identity = service_event_identity(service_name=_SERVICE_AGENT)
+        return {field: bool(value) for field, value in identity.items()}
+
+    def _proxy_identity_metadata(self, proxy: Optional[ProxyEndpoint]) -> Dict[str, Any]:
+        if proxy is None:
+            return {"present": False}
+        return {
+            "present": True,
+            "proxy_id_hash": _hash_value(proxy.id),
+            "status": proxy.status.value,
+            "region": proxy.region,
+            "country_code": proxy.country_code,
+            "has_auth": bool(proxy.username or proxy.password),
+        }
+
+    def _publish_observed_state(
+        self,
+        *,
+        operation: str,
+        status: str,
+        success: bool,
+        duration_ms: float,
+        payload: Dict[str, Any],
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+        event_payload = {
+            "component": "network.residential_proxy_manager",
+            "operation": operation,
+            "service_name": _SERVICE_AGENT,
+            "layer": _SERVICE_LAYER,
+            "status": status,
+            "success": bool(success),
+            "duration_ms": round(float(duration_ms), 3),
+            "service_identity_present": self._service_identity_presence(),
+            "raw_identifiers_redacted": True,
+            "claim_boundary": RESIDENTIAL_PROXY_MANAGER_CLAIM_BOUNDARY,
+            **payload,
+        }
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                _SERVICE_AGENT,
+                event_payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish residential proxy evidence: %s", exc)
+            return None
 
     def add_proxy(self, proxy: ProxyEndpoint):
         """Add a proxy endpoint to the pool."""
@@ -248,6 +344,11 @@ class ResidentialProxyManager:
 
     async def _check_proxy_health(self, proxy: ProxyEndpoint):
         """Check health of a single proxy."""
+        started = time.perf_counter()
+        previous_status = proxy.status
+        status_code: Optional[int] = None
+        error_type: Optional[str] = None
+        success = False
         try:
             start_time = time.time()
 
@@ -261,8 +362,10 @@ class ResidentialProxyManager:
                 ) as response:
                     elapsed_ms = (time.time() - start_time) * 1000
                     proxy.response_time_ms = elapsed_ms
+                    status_code = int(response.status)
 
                     if response.status == 200:
+                        success = True
                         proxy.success_count += 1
                         proxy.failure_count = 0
 
@@ -275,12 +378,34 @@ class ResidentialProxyManager:
                             proxy.status = ProxyStatus.UNHEALTHY
                             logger.warning(f"Proxy {proxy.id} marked unhealthy")
         except Exception as e:
+            error_type = type(e).__name__
             proxy.failure_count += 1
             if proxy.failure_count >= self.max_failures:
                 proxy.status = ProxyStatus.UNHEALTHY
             logger.debug(f"Proxy {proxy.id} health check failed: {e}")
 
         proxy.last_check = time.time()
+        self._publish_observed_state(
+            operation="health_check",
+            status="health_check_ok" if success else "health_check_failed",
+            success=success,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            payload={
+                "proxy": self._proxy_identity_metadata(proxy),
+                "previous_status": previous_status.value,
+                "new_status": proxy.status.value,
+                "status_code": status_code,
+                "error_type": error_type,
+                "health_check": {
+                    "target": "google_homepage_probe",
+                    "max_failures": int(self.max_failures),
+                    "success_count": int(proxy.success_count),
+                    "failure_count": int(proxy.failure_count),
+                    "ban_count": int(proxy.ban_count),
+                    "response_time_ms": round(float(proxy.response_time_ms), 3),
+                },
+            },
+        )
 
     def get_domain_reputation(self, domain: str) -> DomainReputation:
         """Get or create domain reputation."""
@@ -306,14 +431,38 @@ class ResidentialProxyManager:
             Selected proxy endpoint or None
         """
         async with self._lock:
+            started = time.perf_counter()
             candidates = self.proxies
+            candidate_counts: Dict[str, int] = {
+                "pool_total": len(candidates),
+                "after_health_filter": len(candidates),
+                "after_region_filter": len(candidates),
+                "rate_limited": 0,
+                "after_rate_limit_filter": len(candidates),
+            }
 
             # Filter by health status
             if require_healthy:
                 candidates = [p for p in candidates if p.status == ProxyStatus.HEALTHY]
+                candidate_counts["after_health_filter"] = len(candidates)
 
             if not candidates:
                 logger.error("No healthy proxies available")
+                candidate_counts["after_region_filter"] = len(candidates)
+                candidate_counts["after_rate_limit_filter"] = len(candidates)
+                self._publish_observed_state(
+                    operation="select_proxy",
+                    status="no_eligible_proxy_after_health_filter",
+                    success=False,
+                    duration_ms=(time.perf_counter() - started) * 1000,
+                    payload={
+                        "target_domain_hash": _hash_value(target_domain),
+                        "preferred_region_hash": _hash_value(preferred_region),
+                        "require_healthy": bool(require_healthy),
+                        "candidate_counts": candidate_counts,
+                        "selected_proxy": self._proxy_identity_metadata(None),
+                    },
+                )
                 return None
 
             # Filter by region if specified
@@ -323,17 +472,36 @@ class ResidentialProxyManager:
                 ]
                 if region_candidates:
                     candidates = region_candidates
+                candidate_counts["after_region_filter"] = len(candidates)
 
             # Filter by rate limit
+            before_rate_limit = len(candidates)
             candidates = [p for p in candidates if not p.is_rate_limited()]
+            candidate_counts["rate_limited"] = before_rate_limit - len(candidates)
+            candidate_counts["after_rate_limit_filter"] = len(candidates)
 
             if not candidates:
                 logger.warning("All proxies rate limited")
+                self._publish_observed_state(
+                    operation="select_proxy",
+                    status="no_eligible_proxy_after_rate_limit_filter",
+                    success=False,
+                    duration_ms=(time.perf_counter() - started) * 1000,
+                    payload={
+                        "target_domain_hash": _hash_value(target_domain),
+                        "preferred_region_hash": _hash_value(preferred_region),
+                        "require_healthy": bool(require_healthy),
+                        "candidate_counts": candidate_counts,
+                        "selected_proxy": self._proxy_identity_metadata(None),
+                    },
+                )
                 return None
 
+            reputation_bucket = "none"
             # Domain reputation-based selection
             if target_domain:
                 reputation = self.get_domain_reputation(target_domain)
+                reputation_bucket = "low" if reputation.score < 0.5 else "normal"
 
                 # If domain has low reputation, prefer proxies with better history
                 if reputation.score < 0.5:
@@ -356,6 +524,20 @@ class ResidentialProxyManager:
                 proxy = candidates[0]
 
             proxy.record_request()
+            self._publish_observed_state(
+                operation="select_proxy",
+                status="proxy_selected",
+                success=True,
+                duration_ms=(time.perf_counter() - started) * 1000,
+                payload={
+                    "target_domain_hash": _hash_value(target_domain),
+                    "preferred_region_hash": _hash_value(preferred_region),
+                    "require_healthy": bool(require_healthy),
+                    "candidate_counts": candidate_counts,
+                    "reputation_bucket": reputation_bucket,
+                    "selected_proxy": self._proxy_identity_metadata(proxy),
+                },
+            )
             return proxy
 
     async def request(
@@ -386,12 +568,54 @@ class ResidentialProxyManager:
         domain = target_domain or url.split("/")[2]
         reputation = self.get_domain_reputation(domain)
 
+        if max_retries <= 0:
+            self._publish_observed_state(
+                operation="request",
+                status="invalid_retry_budget",
+                success=False,
+                duration_ms=0.0,
+                payload={
+                    "target_domain_hash": _hash_value(domain),
+                    "preferred_region_hash": _hash_value(preferred_region),
+                    "selected_proxy": self._proxy_identity_metadata(None),
+                    "request": {
+                        "method": method.upper(),
+                        "attempt": 0,
+                        "max_retries": int(max_retries),
+                        "headers_present": bool(headers),
+                        "body_present": data is not None,
+                    },
+                    "error_type": "InvalidRetryBudget",
+                },
+            )
+            raise RuntimeError("Max retries exceeded")
+
         for attempt in range(max_retries):
+            started = time.perf_counter()
             proxy = await self.get_proxy(
                 target_domain=domain, preferred_region=preferred_region
             )
 
             if not proxy:
+                self._publish_observed_state(
+                    operation="request",
+                    status="no_proxy_available",
+                    success=False,
+                    duration_ms=(time.perf_counter() - started) * 1000,
+                    payload={
+                        "target_domain_hash": _hash_value(domain),
+                        "preferred_region_hash": _hash_value(preferred_region),
+                        "selected_proxy": self._proxy_identity_metadata(None),
+                        "request": {
+                            "method": method.upper(),
+                            "attempt": attempt + 1,
+                            "max_retries": int(max_retries),
+                            "headers_present": bool(headers),
+                            "body_present": data is not None,
+                        },
+                        "error_type": "NoProxyAvailable",
+                    },
+                )
                 raise RuntimeError("No proxies available")
 
             try:
@@ -424,12 +648,62 @@ class ResidentialProxyManager:
                                 proxy.status = ProxyStatus.BANNED
                                 logger.warning(f"Proxy {proxy.id} banned by {domain}")
 
+                        self._publish_observed_state(
+                            operation="request",
+                            status="response_observed",
+                            success=response.status < 400,
+                            duration_ms=(time.perf_counter() - started) * 1000,
+                            payload={
+                                "target_domain_hash": _hash_value(domain),
+                                "preferred_region_hash": _hash_value(
+                                    preferred_region
+                                ),
+                                "selected_proxy": self._proxy_identity_metadata(proxy),
+                                "request": {
+                                    "method": method.upper(),
+                                    "attempt": attempt + 1,
+                                    "max_retries": int(max_retries),
+                                    "headers_present": bool(headers),
+                                    "body_present": data is not None,
+                                },
+                                "response": {
+                                    "status_code": int(response.status),
+                                    "blocked_status": response.status == 403,
+                                },
+                                "reputation": {
+                                    "score_bucket": (
+                                        "low" if reputation.score < 0.5 else "normal"
+                                    ),
+                                    "success_count": int(reputation.success_count),
+                                    "block_count": int(reputation.block_count),
+                                },
+                            },
+                        )
                         return response
 
             except Exception as e:
                 logger.warning(f"Request failed with proxy {proxy.id}: {e}")
                 proxy.failure_count += 1
                 reputation.update_score(False)
+                self._publish_observed_state(
+                    operation="request",
+                    status="request_exception",
+                    success=False,
+                    duration_ms=(time.perf_counter() - started) * 1000,
+                    payload={
+                        "target_domain_hash": _hash_value(domain),
+                        "preferred_region_hash": _hash_value(preferred_region),
+                        "selected_proxy": self._proxy_identity_metadata(proxy),
+                        "request": {
+                            "method": method.upper(),
+                            "attempt": attempt + 1,
+                            "max_retries": int(max_retries),
+                            "headers_present": bool(headers),
+                            "body_present": data is not None,
+                        },
+                        "error_type": type(e).__name__,
+                    },
+                )
 
                 if attempt < max_retries - 1:
                     await asyncio.sleep(2**attempt)  # Exponential backoff

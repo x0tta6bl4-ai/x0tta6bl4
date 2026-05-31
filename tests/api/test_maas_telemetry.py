@@ -1,12 +1,12 @@
 """
 Integration tests for MaaS Telemetry API.
 
-NOTE: maas_telemetry.py is registered AFTER maas_legacy.py, so both:
+NOTE: maas_telemetry.py is registered AFTER maas_legacy.py, so:
   POST /api/v1/maas/heartbeat             — handled by legacy
-  GET  /api/v1/maas/{mesh_id}/topology    — handled by legacy
+  GET  /api/v1/maas/{mesh_id}/topology    — handled by maas_telemetry
 
-Legacy heartbeat: requires get_current_user (any auth), stores in _node_telemetry dict.
-Legacy topology:  requires auth + mesh ownership (_get_mesh_or_404).
+Legacy heartbeat: requires auth, known node, and mesh ownership/admin role.
+Telemetry topology: requires auth + mesh ownership before reading snapshots.
 
 Tests verify API behaviour regardless of which router handles the request.
 """
@@ -21,6 +21,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, User, get_db
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_telemetry_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -65,7 +66,7 @@ def telemetry_data(client):
 
     # Elevate admin
     db = TestingSessionLocal()
-    admin = db.query(User).filter(User.api_key == admin_token).first()
+    admin = find_user_by_api_key(db, admin_token)
     admin.role = "admin"
     db.commit()
     db.close()
@@ -110,7 +111,7 @@ class TestHeartbeat:
     def test_authenticated_success(self, client, telemetry_data):
         r = client.post(
             "/api/v1/maas/heartbeat",
-            json=_heartbeat_payload(),
+            json=_heartbeat_payload(f"{telemetry_data['mesh_id']}-node-0"),
             headers={"X-API-Key": telemetry_data["admin_token"]},
         )
         assert r.status_code == 200, r.text
@@ -118,8 +119,8 @@ class TestHeartbeat:
     def test_response_has_status_ack(self, client, telemetry_data):
         r = client.post(
             "/api/v1/maas/heartbeat",
-            json=_heartbeat_payload(),
-            headers={"X-API-Key": telemetry_data["usr_token"]},
+            json=_heartbeat_payload(f"{telemetry_data['mesh_id']}-node-0"),
+            headers={"X-API-Key": telemetry_data["admin_token"]},
         )
         assert r.status_code == 200, r.text
         assert r.json()["status"] == "ack"
@@ -127,23 +128,30 @@ class TestHeartbeat:
     def test_response_has_mesh_id_field(self, client, telemetry_data):
         r = client.post(
             "/api/v1/maas/heartbeat",
-            json=_heartbeat_payload(),
+            json=_heartbeat_payload(f"{telemetry_data['mesh_id']}-node-0"),
             headers={"X-API-Key": telemetry_data["admin_token"]},
         )
         assert "mesh_id" in r.json()
 
-    def test_unknown_node_returns_mesh_id_none(self, client, telemetry_data):
-        """Node not in any mesh → mesh_id is None (not an error)."""
+    def test_unknown_node_returns_404(self, client, telemetry_data):
+        """Unknown node heartbeat is not accepted as mesh evidence."""
         r = client.post(
             "/api/v1/maas/heartbeat",
             json=_heartbeat_payload("phantom-node-xyz"),
             headers={"X-API-Key": telemetry_data["admin_token"]},
         )
-        assert r.status_code == 200, r.text
-        assert r.json()["mesh_id"] is None
+        assert r.status_code == 404, r.text
+
+    def test_nonowner_node_heartbeat_returns_404(self, client, telemetry_data):
+        r = client.post(
+            "/api/v1/maas/heartbeat",
+            json=_heartbeat_payload(f"{telemetry_data['mesh_id']}-node-0"),
+            headers={"X-API-Key": telemetry_data["usr_token"]},
+        )
+        assert r.status_code == 404, r.text
 
     def test_heartbeat_with_pheromones(self, client, telemetry_data):
-        payload = _heartbeat_payload()
+        payload = _heartbeat_payload(f"{telemetry_data['mesh_id']}-node-1")
         payload["pheromones"] = {
             "dest-a": {"hop-1": 0.9, "hop-2": 0.4},
         }
@@ -173,7 +181,7 @@ class TestTopology:
         assert r.status_code == 401
 
     def test_nonowner_gets_404(self, client, telemetry_data):
-        """User who doesn't own the mesh → 404 (legacy ownership check)."""
+        """User who doesn't own the mesh cannot read topology snapshots."""
         r = client.get(
             f"/api/v1/maas/{telemetry_data['mesh_id']}/topology",
             headers={"X-API-Key": telemetry_data["usr_token"]},

@@ -1,18 +1,19 @@
 {
   "artifacts": {
-    "proof_bundle_json": "docs/verification/ghost-pulse-proof-gate-20260525T044523Z/proof.json",
-    "proof_bundle_md": "docs/verification/ghost-pulse-proof-gate-20260525T044523Z/summary.md",
+    "proof_bundle_json": "docs/verification/ghost-pulse-proof-gate-20260531T080433Z/proof.json",
+    "proof_bundle_md": "docs/verification/ghost-pulse-proof-gate-20260531T080433Z/summary.md",
     "proof_latest_json": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json",
     "proof_latest_md": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-proof-gate-20260525T044523Z",
+  "bundle": "docs/verification/ghost-pulse-proof-gate-20260531T080433Z",
   "claim_boundary": {
+    "current_runtime_attached": false,
     "kernel_attach_verified": true,
     "production_ready": false,
     "stealth_verified": false,
     "whitelist_verified": false
   },
-  "claim_boundary_note": "Only the local timing replay, false-claim hygiene, and artifact chain can be proven from current repo-local evidence. DPI, whitelist, kernel attach, and production claims require the external evidence files listed in required_external_evidence. Replacement-candidate preflight is supporting evidence only and never promotes claims.",
+  "claim_boundary_note": "Only the local timing replay, false-claim hygiene, and artifact chain can be proven from current repo-local evidence. DPI, whitelist, kernel attach, and production claims require the external evidence files listed in required_external_evidence. Historical kernel_attach evidence does not prove that the current runtime is attached; current_runtime_attached is verified only by a fresh read-only kernel observation. Replacement-candidate preflight is supporting evidence only and never promotes claims.",
   "decision": "GHOST_PULSE_PROOF_INCOMPLETE",
   "failures": [
     "dpi_lab: status must be VERIFIED",
@@ -43,19 +44,6 @@
     "whitelist_lab: measurements.third_party_baseline_captured must be True",
     "whitelist_lab: measurements.whitelist_behavior_verified must be True",
     "whitelist_lab: artifact role missing for content check: whitelist_conclusion",
-    "security_review: status must be VERIFIED",
-    "security_review: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
-    "security_review: missing_inputs must be absent or empty for VERIFIED evidence",
-    "security_review: failures must be absent or empty for VERIFIED evidence",
-    "security_review: claim_boundary.claim_verified must not be false for VERIFIED evidence",
-    "security_review: required artifact role missing: reviewer_identity",
-    "security_review: required artifact role missing: review_scope",
-    "security_review: required artifact role missing: findings_report",
-    "security_review: measurements.reviewer must be nonempty",
-    "security_review: measurements.scope_includes_pulse_transport must be True",
-    "security_review: measurements.open_critical_findings must be 0",
-    "security_review: measurements.open_high_findings must be 0",
-    "security_review: artifact role missing for content check: findings_report",
     "production_readiness: status must be VERIFIED",
     "production_readiness: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
     "production_readiness: missing_inputs must be absent or empty for VERIFIED evidence",
@@ -71,20 +59,21 @@
     "production_readiness: measurements.operator_approval_recorded must be True",
     "production_readiness: measurements.all_prior_claims_referenced must be True",
     "production_readiness: artifact role missing for content check: prior_claim_references",
-    "production_readiness: references must be a non-empty list"
+    "production_readiness: references must be a non-empty list",
+    "current_runtime_attached: current runtime interface not configured; set GHOST_PULSE_RUNTIME_INTERFACE or pass --runtime-interface"
   ],
   "not_verified_yet": [
     "dpi_lab",
     "whitelist_lab",
-    "security_review",
-    "production_readiness"
+    "production_readiness",
+    "current_runtime_attached"
   ],
   "proof_rows": [
     {
       "claim_id": "local_timing_replay",
       "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-      "sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
+      "sha256": "05e5d36c9c7ad7426c2c1399adadd8f26de6a15f54ba1e4cc6b0b80b4ca18912",
       "status": "VERIFIED",
       "title": "Seeded local timing plan replay"
     },
@@ -92,7 +81,7 @@
       "claim_id": "false_claim_hygiene",
       "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-      "sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
+      "sha256": "05e5d36c9c7ad7426c2c1399adadd8f26de6a15f54ba1e4cc6b0b80b4ca18912",
       "status": "VERIFIED",
       "title": "False-claim hygiene scan"
     },
@@ -100,7 +89,7 @@
       "claim_id": "artifact_chain",
       "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-      "sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
+      "sha256": "05e5d36c9c7ad7426c2c1399adadd8f26de6a15f54ba1e4cc6b0b80b4ca18912",
       "status": "VERIFIED",
       "title": "Latest artifact chain integrity"
     },
@@ -147,7 +136,7 @@
         "artifact role missing for content check: lab_conclusion"
       ],
       "evidence": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json",
-      "sha256": "d64ea7b38c180c3d5b4fb9ab554eee76b107037daf07d04a5057466c17b030a7",
+      "sha256": "3ee85d5afde5222ff62308ca5f4c83c190ed2758567f5513ad9c98c63a71555e",
       "status": "INVALID",
       "title": "Authorized DPI lab result"
     },
@@ -176,24 +165,10 @@
     },
     {
       "claim_id": "security_review",
-      "errors": [
-        "status must be VERIFIED",
-        "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
-        "missing_inputs must be absent or empty for VERIFIED evidence",
-        "failures must be absent or empty for VERIFIED evidence",
-        "claim_boundary.claim_verified must not be false for VERIFIED evidence",
-        "required artifact role missing: reviewer_identity",
-        "required artifact role missing: review_scope",
-        "required artifact role missing: findings_report",
-        "measurements.reviewer must be nonempty",
-        "measurements.scope_includes_pulse_transport must be True",
-        "measurements.open_critical_findings must be 0",
-        "measurements.open_high_findings must be 0",
-        "artifact role missing for content check: findings_report"
-      ],
+      "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json",
-      "sha256": "ea6d69e3b4ee4ad0e7a3da922fda7253c3d983f193e1515a28530ecc0c446a29",
-      "status": "INVALID",
+      "sha256": "e0ad08455f32d00be59ca1b0e92f5a8ddf80c1f8dfdb48ef1037f2f91f1725bf",
+      "status": "VERIFIED",
       "title": "Security review with no open high-severity findings"
     },
     {
@@ -220,6 +195,16 @@
       "sha256": "fde275c1d1d01803e2460e3927c7da8febf51d93c9a6d29dc9b7223dabf6bd2b",
       "status": "INVALID",
       "title": "Production readiness approval and rollback evidence"
+    },
+    {
+      "claim_id": "current_runtime_attached",
+      "errors": [
+        "current runtime interface not configured; set GHOST_PULSE_RUNTIME_INTERFACE or pass --runtime-interface"
+      ],
+      "evidence": "READ_ONLY_KERNEL_OBSERVATION:unconfigured",
+      "sha256": null,
+      "status": "INVALID",
+      "title": "Current runtime x0tta6bl4_pulse XDP attach"
     }
   ],
   "replacement_candidates": {
@@ -236,18 +221,16 @@
     "not_ready": [
       "dpi_lab",
       "whitelist_lab",
-      "security_review",
       "production_readiness"
     ],
     "ready": [],
     "replacement_required": [
       "dpi_lab",
       "whitelist_lab",
-      "security_review",
       "production_readiness"
     ],
     "report": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
-    "sha256": "f7cc7ebb57762cae23debf99ff714c7b91e8f2d0827ad24193f74f12ae7bd0bb",
+    "sha256": "5fa35c138ecdb73355c5ff9e47a33bd0e380e90e06c9c90f50cc170263dea3b9",
     "status": "PASS",
     "verifier_command": [
       "python3",
@@ -565,6 +548,6 @@
   ],
   "schema": "x0tta6bl4.ghost_pulse.proof_gate.v1",
   "suite": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-  "suite_sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
-  "timestamp_utc": "2026-05-25T04:45:23.098081+00:00"
+  "suite_sha256": "05e5d36c9c7ad7426c2c1399adadd8f26de6a15f54ba1e4cc6b0b80b4ca18912",
+  "timestamp_utc": "2026-05-31T08:04:33.312655+00:00"
 }

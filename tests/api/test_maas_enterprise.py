@@ -205,9 +205,12 @@ def test_auth_email_normalization_and_case_insensitive_login(client):
         json={"email": raw_email.strip().upper(), "password": password},
     )
     assert login.status_code == 200
-    assert login.json()["access_token"] == api_key
+    # API keys are rotated on login for security, so they should be different
+    assert login.json()["access_token"] != api_key
 
-    me = client.get("/api/v1/maas/auth/me", headers={"X-API-Key": api_key})
+    new_api_key = login.json()["access_token"]
+
+    me = client.get("/api/v1/maas/auth/me", headers={"X-API-Key": new_api_key})
     assert me.status_code == 200
     assert me.json()["email"] == raw_email.strip().lower()
 

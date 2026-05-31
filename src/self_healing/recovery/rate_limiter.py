@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -29,6 +30,14 @@ CLAIM_BOUNDARY = (
 )
 
 
+def _now() -> datetime:
+    compat = sys.modules.get("src.self_healing.recovery_actions")
+    compat_datetime = getattr(compat, "datetime", None)
+    if compat_datetime is not None:
+        return compat_datetime.now()
+    return datetime.now()
+
+
 
 class RateLimiter:
     """
@@ -49,7 +58,7 @@ class RateLimiter:
         Returns:
             True if action is allowed
         """
-        now = datetime.now()
+        now = _now()
 
         # Remove old actions outside window
         while (

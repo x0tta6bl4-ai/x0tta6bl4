@@ -16,6 +16,7 @@ Heals:
 Exposes Prometheus metrics on port 9091.
 """
 
+import hashlib
 import logging
 import os
 import re
@@ -27,7 +28,10 @@ import time
 import threading
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Optional
+from typing import Any, Optional
+
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.services.service_event_identity import service_event_identity
 
 
 def _build_log_handlers() -> list[logging.Handler]:
@@ -57,6 +61,186 @@ logging.basicConfig(
 # ── Configuration ──────────────────────────────────────────────────────────────
 
 DEFAULT_SOCKS_PORT_CANDIDATES = (10918, 10808, 10809, 10924, 40467, 1080, 7890, 7891)
+VPN_WATCHDOG_SERVICE_NAME = "vpn-watchdog"
+VPN_WATCHDOG_LAYER = "network_vpn_watchdog_observed_state"
+VPN_WATCHDOG_CLAIM_BOUNDARY = (
+    "Local VPN watchdog evidence only. Events record local ss, curl, ping, "
+    "pgrep, signal, provider-guard, and SOCKS detection outcomes with return "
+    "codes, duration, and redacted selector/output metadata; they do not prove "
+    "provider health, remote reachability, successful external recovery, or "
+    "production traffic forwarding."
+)
+_EVENT_BUS: Optional[EventBus] = None
+_EVENT_PROJECT_ROOT = os.getenv("X0TTA6BL4_EVENT_PROJECT_ROOT", ".")
+_SOURCE_AGENT = VPN_WATCHDOG_SERVICE_NAME
+
+
+def configure_event_bus(
+    *,
+    event_bus: Optional[EventBus] = None,
+    event_project_root: Optional[str] = None,
+    source_agent: Optional[str] = None,
+) -> None:
+    """Configure EventBus injection for tests or embedding processes."""
+    global _EVENT_BUS, _EVENT_PROJECT_ROOT, _SOURCE_AGENT
+    _EVENT_BUS = event_bus
+    if event_project_root is not None:
+        _EVENT_PROJECT_ROOT = event_project_root
+    if source_agent is not None:
+        _SOURCE_AGENT = source_agent
+
+
+def _event_bus_or_none() -> Optional[EventBus]:
+    global _EVENT_BUS
+    if _EVENT_BUS is not None:
+        return _EVENT_BUS
+    try:
+        _EVENT_BUS = get_event_bus(_EVENT_PROJECT_ROOT)
+        return _EVENT_BUS
+    except Exception as exc:
+        logger.error("Failed to initialize VPN watchdog EventBus: %s", exc)
+        return None
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8", errors="replace")).hexdigest()
+
+
+def _output_metadata(value: Any, limit: int = 512) -> dict[str, Any]:
+    if value is None:
+        encoded = b""
+    elif isinstance(value, bytes):
+        encoded = value
+    else:
+        encoded = str(value).encode("utf-8", errors="replace")
+    return {
+        "bytes": len(encoded),
+        "sha256": hashlib.sha256(encoded).hexdigest() if encoded else None,
+        "sample_limit": limit,
+        "sample_redacted": True,
+        "truncated": len(encoded) > limit,
+    }
+
+
+def _identity_metadata() -> dict[str, Any]:
+    identity = service_event_identity(service_name=VPN_WATCHDOG_SERVICE_NAME)
+    return {
+        "service_name": VPN_WATCHDOG_SERVICE_NAME,
+        "layer": VPN_WATCHDOG_LAYER,
+        "spiffe_id_configured": bool(identity.get("spiffe_id")),
+        "did_configured": bool(identity.get("did")),
+        "wallet_address_configured": bool(identity.get("wallet_address")),
+        "redacted": True,
+    }
+
+
+def _selector_metadata(
+    *,
+    vpn_server: Optional[str] = None,
+    socks_host: Optional[str] = None,
+    socks_port: Optional[int] = None,
+    state: Optional[str] = None,
+    script_path: Optional[str] = None,
+    pid: Optional[str | int] = None,
+    process_pattern: Optional[str] = None,
+    url: Optional[str] = None,
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    if vpn_server is not None:
+        metadata["vpn_server_hash"] = _hash_value(vpn_server)
+        metadata["vpn_server_redacted"] = True
+    if socks_host is not None:
+        metadata["socks_host_hash"] = _hash_value(socks_host)
+        metadata["socks_host_redacted"] = True
+    if socks_port is not None:
+        metadata["socks_port_hash"] = _hash_value(socks_port)
+        metadata["socks_port_redacted"] = True
+    if state is not None:
+        metadata["tcp_state"] = state
+    if script_path is not None:
+        metadata["script_path_hash"] = _hash_value(script_path)
+        metadata["script_path_redacted"] = True
+    if pid is not None:
+        metadata["pid_hash"] = _hash_value(pid)
+        metadata["pid_redacted"] = True
+    if process_pattern is not None:
+        metadata["process_pattern_hash"] = _hash_value(process_pattern)
+        metadata["process_pattern_redacted"] = True
+    if url is not None:
+        metadata["url_hash"] = _hash_value(url)
+        metadata["url_redacted"] = True
+    return metadata
+
+
+def _reason_metadata(reason: str) -> dict[str, Any]:
+    return {
+        "reason_hash": _hash_value(reason),
+        "reason_length": len(reason),
+        "reason_redacted": True,
+    }
+
+
+def _publish_observation(
+    *,
+    stage: str,
+    operation: str,
+    status: str,
+    source_mode: str,
+    start: float,
+    returncode: Optional[int] = None,
+    read_only: bool = True,
+    control_action: bool = False,
+    parsed_summary: Optional[dict[str, Any]] = None,
+    error: Optional[BaseException] = None,
+    extra: Optional[dict[str, Any]] = None,
+) -> Optional[str]:
+    bus = _event_bus_or_none()
+    if bus is None:
+        return None
+
+    payload: dict[str, Any] = {
+        "component": "network.vpn_watchdog",
+        "stage": stage,
+        "operation": operation,
+        "operation_resource": f"network:vpn_watchdog:{operation}",
+        "service_name": _SOURCE_AGENT,
+        "layer": VPN_WATCHDOG_LAYER,
+        "identity": _identity_metadata(),
+        "status": status,
+        "source_mode": source_mode,
+        "returncode": returncode,
+        "duration_ms": round((time.monotonic() - start) * 1000, 3),
+        "read_only": read_only,
+        "observed_state": True,
+        "control_action": control_action,
+        "local_actuator": control_action,
+        "safe_actuator": False,
+        "payloads_redacted": True,
+        "parsed_summary": parsed_summary or {},
+        "claim_boundary": VPN_WATCHDOG_CLAIM_BOUNDARY,
+    }
+    if error is not None:
+        payload["error"] = {
+            "type": type(error).__name__,
+            "message_hash": _hash_value(str(error)),
+            "message_redacted": True,
+        }
+    if extra:
+        payload.update(extra)
+
+    try:
+        event = bus.publish(
+            EventType.PIPELINE_STAGE_END,
+            _SOURCE_AGENT,
+            payload,
+            priority=5,
+        )
+        return event.event_id
+    except Exception:
+        logger.exception("Failed to publish VPN watchdog evidence")
+        return None
 
 
 def _parse_ports(*values: str | None) -> tuple[int, ...]:
@@ -131,14 +315,72 @@ ENABLE_HARD_HEAL = _parse_bool(
 
 
 def provider_guard_allows_heal(*, require_fresh: bool | None = None) -> tuple[bool, str]:
+    start = time.monotonic()
     effective_require_fresh = PROVIDER_GUARD_REQUIRE_FRESH if require_fresh is None else require_fresh
+    guard_selector = _selector_metadata(script_path=PROVIDER_GUARD_SCRIPT)
     if PROVIDER_GUARD_DISABLED:
         if effective_require_fresh:
+            _publish_observation(
+                stage="vpn_watchdog_provider_guard_disabled_blocked",
+                operation="provider_guard",
+                status="blocked",
+                source_mode="config",
+                start=start,
+                returncode=1,
+                parsed_summary={
+                    "provider_guard_disabled": True,
+                    "require_fresh": True,
+                    "allowed": False,
+                },
+                extra=guard_selector,
+            )
             return False, "provider guard disabled; fresh snapshot required"
+        _publish_observation(
+            stage="vpn_watchdog_provider_guard_disabled_allowed",
+            operation="provider_guard",
+            status="success",
+            source_mode="config",
+            start=start,
+            returncode=0,
+            parsed_summary={
+                "provider_guard_disabled": True,
+                "require_fresh": False,
+                "allowed": True,
+            },
+            extra=guard_selector,
+        )
         return True, "provider guard disabled"
     if not os.path.exists(PROVIDER_GUARD_SCRIPT):
         if effective_require_fresh:
+            _publish_observation(
+                stage="vpn_watchdog_provider_guard_unavailable_blocked",
+                operation="provider_guard",
+                status="blocked",
+                source_mode="filesystem",
+                start=start,
+                returncode=127,
+                parsed_summary={
+                    "provider_guard_available": False,
+                    "require_fresh": True,
+                    "allowed": False,
+                },
+                extra=guard_selector,
+            )
             return False, "provider guard unavailable; fresh snapshot required"
+        _publish_observation(
+            stage="vpn_watchdog_provider_guard_unavailable_allowed",
+            operation="provider_guard",
+            status="success",
+            source_mode="filesystem",
+            start=start,
+            returncode=127,
+            parsed_summary={
+                "provider_guard_available": False,
+                "require_fresh": False,
+                "allowed": True,
+            },
+            extra=guard_selector,
+        )
         return True, "provider guard unavailable"
     cmd = [
         sys.executable,
@@ -149,6 +391,20 @@ def provider_guard_allows_heal(*, require_fresh: bool | None = None) -> tuple[bo
     ]
     if effective_require_fresh:
         cmd.append("--require-fresh")
+    command_shape = [
+        "<python>",
+        "<provider_guard_script>",
+        "--check",
+        "--max-age-seconds",
+        "<seconds>",
+    ]
+    if effective_require_fresh:
+        command_shape.append("--require-fresh")
+    command_extra = {
+        "command_shape": command_shape,
+        "command_hash": _hash_value(" ".join(cmd)),
+        **guard_selector,
+    }
     try:
         result = subprocess.run(
             cmd,
@@ -156,17 +412,133 @@ def provider_guard_allows_heal(*, require_fresh: bool | None = None) -> tuple[bo
             text=True,
             timeout=10,
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except subprocess.TimeoutExpired as exc:
+        allowed = not effective_require_fresh
+        _publish_observation(
+            stage=(
+                "vpn_watchdog_provider_guard_inconclusive_allowed"
+                if allowed
+                else "vpn_watchdog_provider_guard_inconclusive_blocked"
+            ),
+            operation="provider_guard",
+            status="success" if allowed else "blocked",
+            source_mode="subprocess",
+            start=start,
+            returncode=124,
+            parsed_summary={
+                "provider_guard_available": True,
+                "provider_guard_inconclusive": True,
+                "command_timed_out": True,
+                "require_fresh": effective_require_fresh,
+                "allowed": allowed,
+            },
+            error=exc,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(exc.stdout),
+                "stderr_metadata": _output_metadata(exc.stderr),
+            },
+        )
+        if effective_require_fresh:
+            return False, f"provider guard inconclusive while fresh snapshot is required: {exc}"
+        return True, f"provider guard inconclusive: {exc}"
+    except OSError as exc:
+        allowed = not effective_require_fresh
+        _publish_observation(
+            stage=(
+                "vpn_watchdog_provider_guard_inconclusive_allowed"
+                if allowed
+                else "vpn_watchdog_provider_guard_inconclusive_blocked"
+            ),
+            operation="provider_guard",
+            status="success" if allowed else "blocked",
+            source_mode="subprocess",
+            start=start,
+            returncode=1,
+            parsed_summary={
+                "provider_guard_available": True,
+                "provider_guard_inconclusive": True,
+                "require_fresh": effective_require_fresh,
+                "allowed": allowed,
+            },
+            error=exc,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(None),
+                "stderr_metadata": _output_metadata(None),
+            },
+        )
         if effective_require_fresh:
             return False, f"provider guard inconclusive while fresh snapshot is required: {exc}"
         return True, f"provider guard inconclusive: {exc}"
     output = (result.stdout or result.stderr or "").strip()
     if result.returncode == 10:
+        _publish_observation(
+            stage="vpn_watchdog_provider_guard_blocked",
+            operation="provider_guard",
+            status="blocked",
+            source_mode="subprocess",
+            start=start,
+            returncode=result.returncode,
+            parsed_summary={
+                "provider_guard_available": True,
+                "provider_guard_blocked": True,
+                "require_fresh": effective_require_fresh,
+                "allowed": False,
+            },
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(result.stdout),
+                "stderr_metadata": _output_metadata(result.stderr),
+            },
+        )
         return False, output or "provider guard blocked local heal"
     if result.returncode != 0:
+        allowed = not effective_require_fresh
+        _publish_observation(
+            stage=(
+                "vpn_watchdog_provider_guard_inconclusive_allowed"
+                if allowed
+                else "vpn_watchdog_provider_guard_inconclusive_blocked"
+            ),
+            operation="provider_guard",
+            status="success" if allowed else "blocked",
+            source_mode="subprocess",
+            start=start,
+            returncode=result.returncode,
+            parsed_summary={
+                "provider_guard_available": True,
+                "provider_guard_inconclusive": True,
+                "require_fresh": effective_require_fresh,
+                "allowed": allowed,
+            },
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(result.stdout),
+                "stderr_metadata": _output_metadata(result.stderr),
+            },
+        )
         if effective_require_fresh:
             return False, f"provider guard inconclusive while fresh snapshot is required rc={result.returncode}: {output}"
         return True, f"provider guard inconclusive rc={result.returncode}: {output}"
+    _publish_observation(
+        stage="vpn_watchdog_provider_guard_allowed",
+        operation="provider_guard",
+        status="success",
+        source_mode="subprocess",
+        start=start,
+        returncode=result.returncode,
+        parsed_summary={
+            "provider_guard_available": True,
+            "require_fresh": effective_require_fresh,
+            "allowed": True,
+        },
+        extra={
+            **command_extra,
+            "stdout_metadata": _output_metadata(result.stdout),
+            "stderr_metadata": _output_metadata(result.stderr),
+        },
+    )
     return True, output or "provider guard allowed local heal"
 
 
@@ -256,18 +628,92 @@ def start_metrics_server():
 
 def check_connection_states() -> dict:
     """Parse ss output for connection states to VPN server."""
+    start = time.monotonic()
     states = {"ESTAB": 0, "FIN-WAIT-2": 0, "CLOSE-WAIT": 0, "LAST-ACK": 0}
+    command = ["ss", "-tn", "dst", VPN_SERVER]
+    command_extra = {
+        "command_shape": ["ss", "-tn", "dst", "<vpn_server>"],
+        "command_hash": _hash_value(" ".join(command)),
+        **_selector_metadata(vpn_server=VPN_SERVER),
+    }
     try:
-        result = subprocess.run(
-            ["ss", "-tn", "dst", VPN_SERVER],
-            capture_output=True, text=True, timeout=5
-        )
+        result = subprocess.run(command, capture_output=True, text=True, timeout=5)
         for line in result.stdout.splitlines():
             for state in states:
                 if state in line:
                     states[state] += 1
                     break
+        _publish_observation(
+            stage=(
+                "vpn_watchdog_connection_states_observed"
+                if result.returncode == 0
+                else "vpn_watchdog_connection_states_failed"
+            ),
+            operation="connection_states",
+            status="success" if result.returncode == 0 else "failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=result.returncode,
+            parsed_summary={
+                "counts": dict(states),
+                "command_returned": True,
+            },
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(result.stdout),
+                "stderr_metadata": _output_metadata(result.stderr),
+            },
+        )
+    except FileNotFoundError as e:
+        _publish_observation(
+            stage="vpn_watchdog_connection_states_missing_command",
+            operation="connection_states",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=127,
+            parsed_summary={"counts": dict(states), "command_available": False},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(None),
+                "stderr_metadata": _output_metadata(None),
+            },
+        )
+        logger.warning(f"ss check failed: {e}")
+    except subprocess.TimeoutExpired as e:
+        _publish_observation(
+            stage="vpn_watchdog_connection_states_timeout",
+            operation="connection_states",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=124,
+            parsed_summary={"counts": dict(states), "command_timed_out": True},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(e.stdout),
+                "stderr_metadata": _output_metadata(e.stderr),
+            },
+        )
+        logger.warning(f"ss check failed: {e}")
     except Exception as e:
+        _publish_observation(
+            stage="vpn_watchdog_connection_states_failed",
+            operation="connection_states",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=1,
+            parsed_summary={"counts": dict(states)},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(None),
+                "stderr_metadata": _output_metadata(None),
+            },
+        )
         logger.warning(f"ss check failed: {e}")
     return states
 
@@ -276,17 +722,53 @@ def check_proxy_health() -> tuple[bool, float]:
     """Test actual HTTP request through SOCKS5 proxy. Returns (ok, latency_ms)."""
     global SOCKS_PORT
 
+    start = time.monotonic()
+    original_port = SOCKS_PORT
     detected_port = discover_socks_port()
     if detected_port is None:
+        _publish_observation(
+            stage="vpn_watchdog_proxy_unavailable",
+            operation="proxy_health",
+            status="failure",
+            source_mode="socket",
+            start=start,
+            returncode=1,
+            parsed_summary={
+                "active_port_detected": False,
+                "candidate_count": len(SOCKS_PORT_CANDIDATES),
+                "proxy_ok": False,
+            },
+            extra=_selector_metadata(socks_host=SOCKS_HOST),
+        )
         return False, 0.0
     if detected_port != SOCKS_PORT:
         logger.info(f"Detected active SOCKS5 proxy at {SOCKS_HOST}:{detected_port}")
         SOCKS_PORT = detected_port
+    proxy_extra = _selector_metadata(socks_host=SOCKS_HOST, socks_port=SOCKS_PORT)
+    port_changed = detected_port != original_port
 
     curl_result = _curl_proxy_health(SOCKS_PORT)
     if curl_result is not None:
+        ok, latency = curl_result
+        _publish_observation(
+            stage="vpn_watchdog_proxy_health_observed",
+            operation="proxy_health",
+            status="success" if ok else "failure",
+            source_mode="curl",
+            start=start,
+            returncode=0 if ok else 1,
+            parsed_summary={
+                "active_port_detected": True,
+                "method": "curl",
+                "port_changed": port_changed,
+                "proxy_ok": ok,
+                "latency_ms": round(latency, 3),
+            },
+            extra=proxy_extra,
+        )
         return curl_result
 
+    urllib_url = "http://cp.cloudflare.com/"
     try:
         import urllib.request
         proxy_handler = urllib.request.ProxyHandler({
@@ -296,12 +778,44 @@ def check_proxy_health() -> tuple[bool, float]:
         opener = urllib.request.build_opener(proxy_handler)
         t0 = time.monotonic()
         # Use a lightweight endpoint
-        resp = opener.open("http://cp.cloudflare.com/", timeout=PROXY_TIMEOUT_SEC)
+        resp = opener.open(urllib_url, timeout=PROXY_TIMEOUT_SEC)
         latency = (time.monotonic() - t0) * 1000
         ok = resp.status == 200
+        _publish_observation(
+            stage="vpn_watchdog_proxy_health_observed",
+            operation="proxy_health",
+            status="success" if ok else "failure",
+            source_mode="urllib",
+            start=start,
+            returncode=0 if ok else 1,
+            parsed_summary={
+                "active_port_detected": True,
+                "method": "urllib",
+                "port_changed": port_changed,
+                "proxy_ok": ok,
+                "latency_ms": round(latency, 3),
+                "http_status": resp.status,
+            },
+            extra={**proxy_extra, **_selector_metadata(url=urllib_url)},
+        )
         return ok, latency
-    except Exception:
-        pass
+    except Exception as e:
+        _publish_observation(
+            stage="vpn_watchdog_proxy_urllib_failed",
+            operation="proxy_health",
+            status="failure",
+            source_mode="urllib",
+            start=start,
+            returncode=1,
+            parsed_summary={
+                "active_port_detected": True,
+                "method": "urllib",
+                "port_changed": port_changed,
+                "proxy_ok": False,
+            },
+            error=e,
+            extra={**proxy_extra, **_selector_metadata(url=urllib_url)},
+        )
 
     # Fallback: raw TCP SOCKS5 handshake check
     try:
@@ -312,10 +826,57 @@ def check_proxy_health() -> tuple[bool, float]:
             resp = s.recv(2)
             latency = (time.monotonic() - t0) * 1000
             if resp == b"\x05\x00":
+                _publish_observation(
+                    stage="vpn_watchdog_proxy_health_observed",
+                    operation="proxy_health",
+                    status="success",
+                    source_mode="socket",
+                    start=start,
+                    returncode=0,
+                    parsed_summary={
+                        "active_port_detected": True,
+                        "method": "socket_handshake",
+                        "port_changed": port_changed,
+                        "proxy_ok": True,
+                        "latency_ms": round(latency, 3),
+                    },
+                    extra=proxy_extra,
+                )
                 return True, latency
     except Exception as e:
+        _publish_observation(
+            stage="vpn_watchdog_proxy_socket_failed",
+            operation="proxy_health",
+            status="failure",
+            source_mode="socket",
+            start=start,
+            returncode=1,
+            parsed_summary={
+                "active_port_detected": True,
+                "method": "socket_handshake",
+                "port_changed": port_changed,
+                "proxy_ok": False,
+            },
+            error=e,
+            extra=proxy_extra,
+        )
         logger.debug(f"SOCKS5 handshake failed: {e}")
 
+    _publish_observation(
+        stage="vpn_watchdog_proxy_health_observed",
+        operation="proxy_health",
+        status="failure",
+        source_mode="socket",
+        start=start,
+        returncode=1,
+        parsed_summary={
+            "active_port_detected": True,
+            "method": "socket_handshake",
+            "port_changed": port_changed,
+            "proxy_ok": False,
+        },
+        extra=proxy_extra,
+    )
     return False, 0.0
 
 
@@ -327,68 +888,383 @@ def discover_socks_port() -> Optional[int]:
 
 
 def _curl_proxy_health(port: int) -> Optional[tuple[bool, float]]:
+    start = time.monotonic()
+    url = "https://cp.cloudflare.com/generate_204"
+    command = [
+        "curl",
+        "-sS",
+        "-o",
+        "/dev/null",
+        "--max-time",
+        str(PROXY_TIMEOUT_SEC),
+        "--proxy",
+        f"socks5h://{SOCKS_HOST}:{port}",
+        "-w",
+        "%{time_total} %{http_code}",
+        url,
+    ]
+    command_extra = {
+        "command_shape": [
+            "curl",
+            "-sS",
+            "-o",
+            "/dev/null",
+            "--max-time",
+            "<seconds>",
+            "--proxy",
+            "<socks_proxy>",
+            "-w",
+            "<format>",
+            "<url>",
+        ],
+        "command_hash": _hash_value(" ".join(command)),
+        **_selector_metadata(socks_host=SOCKS_HOST, socks_port=port, url=url),
+    }
     try:
         result = subprocess.run(
-            [
-                "curl",
-                "-sS",
-                "-o",
-                "/dev/null",
-                "--max-time",
-                str(PROXY_TIMEOUT_SEC),
-                "--proxy",
-                f"socks5h://{SOCKS_HOST}:{port}",
-                "-w",
-                "%{time_total} %{http_code}",
-                "https://cp.cloudflare.com/generate_204",
-            ],
+            command,
             capture_output=True,
             text=True,
             timeout=PROXY_TIMEOUT_SEC + 2,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except FileNotFoundError as e:
+        _publish_observation(
+            stage="vpn_watchdog_curl_proxy_missing_command",
+            operation="curl_proxy_health",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=127,
+            parsed_summary={"command_available": False, "proxy_ok": False},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(None),
+                "stderr_metadata": _output_metadata(None),
+            },
+        )
+        return None
+    except subprocess.TimeoutExpired as e:
+        _publish_observation(
+            stage="vpn_watchdog_curl_proxy_timeout",
+            operation="curl_proxy_health",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=124,
+            parsed_summary={"command_timed_out": True, "proxy_ok": False},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(e.stdout),
+                "stderr_metadata": _output_metadata(e.stderr),
+            },
+        )
+        return None
+    except OSError as e:
+        _publish_observation(
+            stage="vpn_watchdog_curl_proxy_failed",
+            operation="curl_proxy_health",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=1,
+            parsed_summary={"proxy_ok": False},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(None),
+                "stderr_metadata": _output_metadata(None),
+            },
+        )
         return None
 
     if result.returncode != 0:
+        _publish_observation(
+            stage="vpn_watchdog_curl_proxy_failed",
+            operation="curl_proxy_health",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=result.returncode,
+            parsed_summary={"command_returned": True, "proxy_ok": False},
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(result.stdout),
+                "stderr_metadata": _output_metadata(result.stderr),
+            },
+        )
         return None
 
     try:
         total_raw, code = result.stdout.strip().split(maxsplit=1)
         latency_ms = float(total_raw) * 1000.0
     except ValueError:
+        _publish_observation(
+            stage="vpn_watchdog_curl_proxy_parse_failed",
+            operation="curl_proxy_health",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=result.returncode,
+            parsed_summary={"command_returned": True, "proxy_ok": False},
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(result.stdout),
+                "stderr_metadata": _output_metadata(result.stderr),
+            },
+        )
         return None
 
-    return code in {"200", "204"}, latency_ms
+    ok = code in {"200", "204"}
+    _publish_observation(
+        stage="vpn_watchdog_curl_proxy_observed",
+        operation="curl_proxy_health",
+        status="success" if ok else "failure",
+        source_mode="subprocess",
+        start=start,
+        returncode=result.returncode,
+        parsed_summary={
+            "command_returned": True,
+            "proxy_ok": ok,
+            "latency_ms": round(latency_ms, 3),
+            "http_code": code,
+        },
+        extra={
+            **command_extra,
+            "stdout_metadata": _output_metadata(result.stdout),
+            "stderr_metadata": _output_metadata(result.stderr),
+        },
+    )
+    return ok, latency_ms
 
 
 def check_packet_loss() -> float:
     """Ping VPN server 5 times, return packet loss percentage."""
+    start = time.monotonic()
+    command = ["ping", "-c", "5", "-W", "2", "-q", VPN_SERVER]
+    command_extra = {
+        "command_shape": ["ping", "-c", "<count>", "-W", "<seconds>", "-q", "<vpn_server>"],
+        "command_hash": _hash_value(" ".join(command)),
+        **_selector_metadata(vpn_server=VPN_SERVER),
+    }
     try:
-        result = subprocess.run(
-            ["ping", "-c", "5", "-W", "2", "-q", VPN_SERVER],
-            capture_output=True, text=True, timeout=15
-        )
+        result = subprocess.run(command, capture_output=True, text=True, timeout=15)
         for line in result.stdout.splitlines():
             # "5 packets transmitted, 3 received, 40% packet loss"
             m = re.search(r"(\d+)% packet loss", line)
             if m:
-                return float(m.group(1))
+                loss = float(m.group(1))
+                _publish_observation(
+                    stage=(
+                        "vpn_watchdog_packet_loss_observed"
+                        if result.returncode == 0
+                        else "vpn_watchdog_packet_loss_failed"
+                    ),
+                    operation="packet_loss",
+                    status="success" if result.returncode == 0 else "failure",
+                    source_mode="subprocess",
+                    start=start,
+                    returncode=result.returncode,
+                    parsed_summary={
+                        "packet_loss_pct": loss,
+                        "command_returned": True,
+                    },
+                    extra={
+                        **command_extra,
+                        "stdout_metadata": _output_metadata(result.stdout),
+                        "stderr_metadata": _output_metadata(result.stderr),
+                    },
+                )
+                return loss
+        _publish_observation(
+            stage="vpn_watchdog_packet_loss_unparsed",
+            operation="packet_loss",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=result.returncode,
+            parsed_summary={
+                "packet_loss_pct": 0.0,
+                "command_returned": True,
+                "parse_matched": False,
+            },
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(result.stdout),
+                "stderr_metadata": _output_metadata(result.stderr),
+            },
+        )
+    except FileNotFoundError as e:
+        _publish_observation(
+            stage="vpn_watchdog_packet_loss_missing_command",
+            operation="packet_loss",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=127,
+            parsed_summary={"packet_loss_pct": 0.0, "command_available": False},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(None),
+                "stderr_metadata": _output_metadata(None),
+            },
+        )
+        logger.warning(f"Ping check failed: {e}")
+    except subprocess.TimeoutExpired as e:
+        _publish_observation(
+            stage="vpn_watchdog_packet_loss_timeout",
+            operation="packet_loss",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=124,
+            parsed_summary={"packet_loss_pct": 0.0, "command_timed_out": True},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(e.stdout),
+                "stderr_metadata": _output_metadata(e.stderr),
+            },
+        )
+        logger.warning(f"Ping check failed: {e}")
     except Exception as e:
+        _publish_observation(
+            stage="vpn_watchdog_packet_loss_failed",
+            operation="packet_loss",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=1,
+            parsed_summary={"packet_loss_pct": 0.0},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(None),
+                "stderr_metadata": _output_metadata(None),
+            },
+        )
         logger.warning(f"Ping check failed: {e}")
     return 0.0
 
 
 def get_xray_pid() -> Optional[int]:
     """Find running xray process PID."""
+    start = time.monotonic()
+    command = ["pgrep", "-f", XRAY_PROCESS_PATTERN]
+    command_extra = {
+        "command_shape": ["pgrep", "-f", "<process_pattern>"],
+        "command_hash": _hash_value(" ".join(command)),
+        **_selector_metadata(process_pattern=XRAY_PROCESS_PATTERN),
+    }
     try:
-        result = subprocess.run(
-            ["pgrep", "-f", XRAY_PROCESS_PATTERN],
-            capture_output=True, text=True, timeout=3
-        )
+        result = subprocess.run(command, capture_output=True, text=True, timeout=3)
         pids = result.stdout.strip().splitlines()
         if pids:
-            return int(pids[0])
-    except Exception:
+            pid = int(pids[0])
+            _publish_observation(
+                stage="vpn_watchdog_xray_pid_observed",
+                operation="xray_pid",
+                status="success",
+                source_mode="subprocess",
+                start=start,
+                returncode=result.returncode,
+                parsed_summary={
+                    "pid_found": True,
+                    "pid_count": len(pids),
+                    "command_returned": True,
+                },
+                extra={
+                    **command_extra,
+                    **_selector_metadata(pid=pid),
+                    "stdout_metadata": _output_metadata(result.stdout),
+                    "stderr_metadata": _output_metadata(result.stderr),
+                },
+            )
+            return pid
+        _publish_observation(
+            stage="vpn_watchdog_xray_pid_not_found",
+            operation="xray_pid",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=result.returncode,
+            parsed_summary={
+                "pid_found": False,
+                "pid_count": 0,
+                "command_returned": True,
+            },
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(result.stdout),
+                "stderr_metadata": _output_metadata(result.stderr),
+            },
+        )
+    except ValueError as e:
+        _publish_observation(
+            stage="vpn_watchdog_xray_pid_parse_failed",
+            operation="xray_pid",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=1,
+            parsed_summary={"pid_found": False, "parse_matched": False},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(None),
+                "stderr_metadata": _output_metadata(None),
+            },
+        )
+    except FileNotFoundError as e:
+        _publish_observation(
+            stage="vpn_watchdog_xray_pid_missing_command",
+            operation="xray_pid",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=127,
+            parsed_summary={"pid_found": False, "command_available": False},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(None),
+                "stderr_metadata": _output_metadata(None),
+            },
+        )
+    except subprocess.TimeoutExpired as e:
+        _publish_observation(
+            stage="vpn_watchdog_xray_pid_timeout",
+            operation="xray_pid",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=124,
+            parsed_summary={"pid_found": False, "command_timed_out": True},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(e.stdout),
+                "stderr_metadata": _output_metadata(e.stderr),
+            },
+        )
+    except Exception as e:
+        _publish_observation(
+            stage="vpn_watchdog_xray_pid_failed",
+            operation="xray_pid",
+            status="failure",
+            source_mode="subprocess",
+            start=start,
+            returncode=1,
+            parsed_summary={"pid_found": False},
+            error=e,
+            extra={
+                **command_extra,
+                "stdout_metadata": _output_metadata(None),
+                "stderr_metadata": _output_metadata(None),
+            },
+        )
         pass
     return None
 
@@ -406,33 +1282,172 @@ class VPNHealer:
     def force_close_stale(self):
         """Force close FIN-WAIT-2 and CLOSE-WAIT connections (needs CAP_NET_ADMIN)."""
         for state in ("fin-wait-2", "close-wait"):
+            start = time.monotonic()
+            command = ["ss", "-K", "dst", VPN_SERVER, "state", state]
+            command_extra = {
+                "command_shape": ["ss", "-K", "dst", "<vpn_server>", "state", state],
+                "command_hash": _hash_value(" ".join(command)),
+                **_selector_metadata(vpn_server=VPN_SERVER, state=state),
+            }
             try:
-                subprocess.run(
-                    ["ss", "-K", "dst", VPN_SERVER, "state", state],
+                result = subprocess.run(
+                    command,
                     timeout=5, capture_output=True
                 )
+                _publish_observation(
+                    stage=(
+                        "vpn_watchdog_force_close_completed"
+                        if result.returncode == 0
+                        else "vpn_watchdog_force_close_failed"
+                    ),
+                    operation="force_close_stale",
+                    status="success" if result.returncode == 0 else "failure",
+                    source_mode="subprocess",
+                    start=start,
+                    returncode=result.returncode,
+                    read_only=False,
+                    control_action=True,
+                    parsed_summary={
+                        "tcp_state": state,
+                        "command_returned": True,
+                    },
+                    extra={
+                        **command_extra,
+                        "stdout_metadata": _output_metadata(result.stdout),
+                        "stderr_metadata": _output_metadata(result.stderr),
+                    },
+                )
                 logger.info(f"Force-closed {state} connections to {VPN_SERVER}")
+            except FileNotFoundError as e:
+                _publish_observation(
+                    stage="vpn_watchdog_force_close_missing_command",
+                    operation="force_close_stale",
+                    status="failure",
+                    source_mode="subprocess",
+                    start=start,
+                    returncode=127,
+                    read_only=False,
+                    control_action=True,
+                    parsed_summary={"tcp_state": state, "command_available": False},
+                    error=e,
+                    extra={
+                        **command_extra,
+                        "stdout_metadata": _output_metadata(None),
+                        "stderr_metadata": _output_metadata(None),
+                    },
+                )
+                logger.debug(f"ss -K {state} failed (may need root): {e}")
+            except subprocess.TimeoutExpired as e:
+                _publish_observation(
+                    stage="vpn_watchdog_force_close_timeout",
+                    operation="force_close_stale",
+                    status="failure",
+                    source_mode="subprocess",
+                    start=start,
+                    returncode=124,
+                    read_only=False,
+                    control_action=True,
+                    parsed_summary={"tcp_state": state, "command_timed_out": True},
+                    error=e,
+                    extra={
+                        **command_extra,
+                        "stdout_metadata": _output_metadata(e.stdout),
+                        "stderr_metadata": _output_metadata(e.stderr),
+                    },
+                )
+                logger.debug(f"ss -K {state} failed (may need root): {e}")
             except Exception as e:
+                _publish_observation(
+                    stage="vpn_watchdog_force_close_failed",
+                    operation="force_close_stale",
+                    status="failure",
+                    source_mode="subprocess",
+                    start=start,
+                    returncode=1,
+                    read_only=False,
+                    control_action=True,
+                    parsed_summary={"tcp_state": state},
+                    error=e,
+                    extra={
+                        **command_extra,
+                        "stdout_metadata": _output_metadata(None),
+                        "stderr_metadata": _output_metadata(None),
+                    },
+                )
                 logger.debug(f"ss -K {state} failed (may need root): {e}")
 
     def sighup_xray(self) -> bool:
         """Send SIGHUP to xray for graceful reload (clears connection state)."""
+        start = time.monotonic()
         pid = get_xray_pid()
         if not pid:
+            _publish_observation(
+                stage="vpn_watchdog_sighup_skipped_no_pid",
+                operation="sighup_xray",
+                status="skipped",
+                source_mode="process_signal",
+                start=start,
+                returncode=1,
+                read_only=False,
+                control_action=False,
+                parsed_summary={"pid_found": False, "signal": "SIGHUP"},
+            )
             logger.error("xray process not found, cannot SIGHUP")
             return False
         try:
             os.kill(pid, signal.SIGHUP)
             logger.info(f"Sent SIGHUP to xray PID {pid}")
             time.sleep(3)
-            return get_xray_pid() is not None
+            still_running = get_xray_pid() is not None
+            _publish_observation(
+                stage="vpn_watchdog_sighup_sent",
+                operation="sighup_xray",
+                status="success" if still_running else "failure",
+                source_mode="process_signal",
+                start=start,
+                returncode=0 if still_running else 1,
+                read_only=False,
+                control_action=True,
+                parsed_summary={
+                    "pid_found": True,
+                    "signal": "SIGHUP",
+                    "xray_still_running": still_running,
+                },
+                extra=_selector_metadata(pid=pid),
+            )
+            return still_running
         except Exception as e:
+            _publish_observation(
+                stage="vpn_watchdog_sighup_failed",
+                operation="sighup_xray",
+                status="failure",
+                source_mode="process_signal",
+                start=start,
+                returncode=1,
+                read_only=False,
+                control_action=True,
+                parsed_summary={"pid_found": True, "signal": "SIGHUP"},
+                error=e,
+                extra=_selector_metadata(pid=pid),
+            )
             logger.error(f"SIGHUP failed: {e}")
             return False
 
     def restart_xray(self) -> bool:
         """Kill xray — v2rayN will auto-restart it."""
+        start = time.monotonic()
         if not ENABLE_HARD_HEAL:
+            _publish_observation(
+                stage="vpn_watchdog_restart_hard_heal_disabled",
+                operation="restart_xray",
+                status="skipped",
+                source_mode="config",
+                start=start,
+                returncode=1,
+                read_only=False,
+                control_action=False,
+                parsed_summary={"hard_heal_enabled": False, "signal": "SIGTERM"},
+            )
             logger.error(
                 "Hard heal skipped; set VPN_WATCHDOG_ALLOW_HARD_HEAL=1 "
                 "to allow SIGTERM of local xray."
@@ -441,30 +1456,129 @@ class VPNHealer:
 
         guard_ok, guard_reason = provider_guard_allows_heal(require_fresh=True)
         if not guard_ok:
+            _publish_observation(
+                stage="vpn_watchdog_restart_provider_guard_blocked",
+                operation="restart_xray",
+                status="blocked",
+                source_mode="provider_guard",
+                start=start,
+                returncode=1,
+                read_only=False,
+                control_action=False,
+                parsed_summary={
+                    "hard_heal_enabled": True,
+                    "provider_guard_allowed": False,
+                    "signal": "SIGTERM",
+                },
+                extra={
+                    "provider_guard_reason_hash": _hash_value(guard_reason),
+                    "provider_guard_reason_redacted": True,
+                },
+            )
             logger.warning(f"Hard heal blocked by provider guard: {guard_reason}")
             return False
 
         pid = get_xray_pid()
         if not pid:
+            _publish_observation(
+                stage="vpn_watchdog_restart_skipped_no_pid",
+                operation="restart_xray",
+                status="skipped",
+                source_mode="process_signal",
+                start=start,
+                returncode=1,
+                read_only=False,
+                control_action=False,
+                parsed_summary={
+                    "hard_heal_enabled": True,
+                    "pid_found": False,
+                    "signal": "SIGTERM",
+                },
+            )
             logger.error("xray not running, v2rayN should restart it")
             return False
         try:
             os.kill(pid, signal.SIGTERM)
             logger.warning(f"Killed xray PID {pid} — v2rayN will restart")
             time.sleep(5)
+            _publish_observation(
+                stage="vpn_watchdog_restart_sigterm_sent",
+                operation="restart_xray",
+                status="success",
+                source_mode="process_signal",
+                start=start,
+                returncode=0,
+                read_only=False,
+                control_action=True,
+                parsed_summary={
+                    "hard_heal_enabled": True,
+                    "pid_found": True,
+                    "signal": "SIGTERM",
+                },
+                extra=_selector_metadata(pid=pid),
+            )
             return True
         except Exception as e:
+            _publish_observation(
+                stage="vpn_watchdog_restart_sigterm_failed",
+                operation="restart_xray",
+                status="failure",
+                source_mode="process_signal",
+                start=start,
+                returncode=1,
+                read_only=False,
+                control_action=True,
+                parsed_summary={
+                    "hard_heal_enabled": True,
+                    "pid_found": True,
+                    "signal": "SIGTERM",
+                },
+                error=e,
+                extra=_selector_metadata(pid=pid),
+            )
             logger.error(f"Kill xray failed: {e}")
             return False
 
     def heal(self, reason: str):
+        start = time.monotonic()
         guard_ok, guard_reason = provider_guard_allows_heal()
         if not guard_ok:
+            _publish_observation(
+                stage="vpn_watchdog_heal_provider_guard_blocked",
+                operation="heal",
+                status="blocked",
+                source_mode="provider_guard",
+                start=start,
+                returncode=1,
+                read_only=False,
+                control_action=False,
+                parsed_summary={"provider_guard_allowed": False},
+                extra={
+                    **_reason_metadata(reason),
+                    "provider_guard_reason_hash": _hash_value(guard_reason),
+                    "provider_guard_reason_redacted": True,
+                },
+            )
             logger.warning(f"Heal blocked by provider guard: {guard_reason}; reason={reason}")
             return
 
         if not self._can_heal():
             secs_left = int(HEAL_COOLDOWN_SEC - (time.monotonic() - self._last_heal))
+            _publish_observation(
+                stage="vpn_watchdog_heal_cooldown_skipped",
+                operation="heal",
+                status="skipped",
+                source_mode="cooldown",
+                start=start,
+                returncode=1,
+                read_only=False,
+                control_action=False,
+                parsed_summary={
+                    "cooldown_remaining_sec": max(secs_left, 0),
+                    "provider_guard_allowed": True,
+                },
+                extra=_reason_metadata(reason),
+            )
             logger.info(f"Heal skipped (cooldown {secs_left}s remaining): {reason}")
             return
 
@@ -473,6 +1587,21 @@ class VPNHealer:
         self._heal_count += 1
         _metrics.heal_count = self._heal_count
         _metrics.last_heal_timestamp = time.time()
+        _publish_observation(
+            stage="vpn_watchdog_heal_started",
+            operation="heal",
+            status="started",
+            source_mode="runtime",
+            start=start,
+            returncode=0,
+            read_only=False,
+            control_action=True,
+            parsed_summary={
+                "heal_count": self._heal_count,
+                "provider_guard_allowed": True,
+            },
+            extra=_reason_metadata(reason),
+        )
 
         # Step 1: force-close stuck TCP states
         self.force_close_stale()
@@ -489,6 +1618,22 @@ class VPNHealer:
             logger.info(f"Recovery successful, proxy latency {latency:.0f}ms")
         else:
             logger.error("Recovery failed — proxy still unhealthy after healing")
+        _publish_observation(
+            stage="vpn_watchdog_heal_completed",
+            operation="heal",
+            status="success" if ok else "failure",
+            source_mode="runtime",
+            start=start,
+            returncode=0 if ok else 1,
+            read_only=False,
+            control_action=True,
+            parsed_summary={
+                "heal_count": self._heal_count,
+                "proxy_ok": ok,
+                "recovery_latency_ms": round(latency, 3),
+            },
+            extra=_reason_metadata(reason),
+        )
 
 
 # ── Main Loop ──────────────────────────────────────────────────────────────────
@@ -521,7 +1666,12 @@ class VPNWatchdog:
             self._stop.wait(CHECK_INTERVAL_SEC)
 
     def _check_cycle(self):
+        cycle_start = time.monotonic()
         _metrics.check_count += 1
+        heal_decision = "none"
+        observed_heal_reason: Optional[str] = None
+        packet_loss_checked = False
+        packet_loss_heal_reason: Optional[str] = None
 
         # 1. Connection states
         states = check_connection_states()
@@ -577,12 +1727,17 @@ class VPNWatchdog:
             heal_reason = f"Proxy health check failed {self._proxy_failures} consecutive times"
 
         if heal_reason and ENABLE_HEAL:
+            heal_decision = "heal_requested"
+            observed_heal_reason = heal_reason
             self.healer.heal(heal_reason)
         elif heal_reason:
+            heal_decision = "heal_disabled"
+            observed_heal_reason = heal_reason
             logger.warning(f"Heal disabled by VPN_WATCHDOG_ENABLE_HEAL=false: {heal_reason}")
         elif fw2 > 20 or cw > 10:
             self._preemptive_cleanup_failures += 1
             if ENABLE_HEAL and self._preemptive_cleanup_failures >= PREEMPTIVE_CLEANUP_FAILURES:
+                heal_decision = "preemptive_cleanup_requested"
                 logger.info(
                     f"Preemptive cleanup after {self._preemptive_cleanup_failures} "
                     f"consecutive elevated stale-state checks: FIN-WAIT-2={fw2} CLOSE-WAIT={cw}"
@@ -590,6 +1745,7 @@ class VPNWatchdog:
                 self.healer.force_close_stale()
                 self._preemptive_cleanup_failures = 0
             else:
+                heal_decision = "preemptive_cleanup_deferred"
                 logger.info(
                     f"Preemptive cleanup deferred: FIN-WAIT-2={fw2} CLOSE-WAIT={cw} "
                     f"(elevated {self._preemptive_cleanup_failures}/{PREEMPTIVE_CLEANUP_FAILURES}, "
@@ -600,6 +1756,7 @@ class VPNWatchdog:
 
         # 4. Packet loss (less frequent — every 6 cycles = 60s)
         if _metrics.check_count % 6 == 0:
+            packet_loss_checked = True
             loss = check_packet_loss()
             _metrics.packet_loss_pct = loss
             if loss >= PACKET_LOSS_HEAL_PCT:
@@ -610,11 +1767,17 @@ class VPNWatchdog:
                     f"(failure {self._packet_loss_failures}/{PACKET_LOSS_HEAL_FAILURES})"
                 )
                 if ENABLE_HEAL and self._packet_loss_failures >= PACKET_LOSS_HEAL_FAILURES:
-                    self.healer.heal(
+                    packet_loss_heal_reason = (
                         f"Packet loss {loss:.0f}% >= {PACKET_LOSS_HEAL_PCT}% "
                         f"for {self._packet_loss_failures} consecutive packet-loss checks"
                     )
+                    heal_decision = "packet_loss_heal_requested"
+                    observed_heal_reason = packet_loss_heal_reason
+                    self.healer.heal(
+                        packet_loss_heal_reason
+                    )
                 else:
+                    heal_decision = "packet_loss_heal_deferred"
                     logger.warning(
                         "Packet-loss heal deferred "
                         f"(heal_enabled={ENABLE_HEAL}, streak={self._packet_loss_failures})"
@@ -627,6 +1790,40 @@ class VPNWatchdog:
                 self._packet_loss_failures = 0
                 _metrics.packet_loss_failure_streak = 0
                 logger.info(f"Packet loss {loss:.0f}%")
+        summary_extra = (
+            _reason_metadata(observed_heal_reason)
+            if observed_heal_reason is not None
+            else {}
+        )
+        _publish_observation(
+            stage="vpn_watchdog_check_cycle_observed",
+            operation="check_cycle",
+            status="success",
+            source_mode="runtime",
+            start=cycle_start,
+            returncode=0,
+            parsed_summary={
+                "check_count": _metrics.check_count,
+                "connection_counts": {
+                    "ESTAB": estab,
+                    "FIN-WAIT-2": fw2,
+                    "CLOSE-WAIT": cw,
+                    "LAST-ACK": states.get("LAST-ACK", 0),
+                },
+                "proxy_ok": proxy_ok,
+                "proxy_latency_ms": round(latency, 3),
+                "proxy_failure_streak": self._proxy_failures,
+                "stale_state_failure_streak": self._stale_state_failures,
+                "preemptive_cleanup_failure_streak": self._preemptive_cleanup_failures,
+                "packet_loss_checked": packet_loss_checked,
+                "packet_loss_pct": _metrics.packet_loss_pct,
+                "packet_loss_failure_streak": self._packet_loss_failures,
+                "heal_enabled": ENABLE_HEAL,
+                "heal_decision": heal_decision,
+                "packet_loss_heal_reason_present": packet_loss_heal_reason is not None,
+            },
+            extra=summary_extra,
+        )
 
 
 def main():

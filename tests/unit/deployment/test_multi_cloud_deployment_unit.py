@@ -35,6 +35,7 @@ from src.deployment.multi_cloud_deployment import (CloudProvider,
 def _make_config(
     provider=CloudProvider.AWS, region="us-east-1", cluster="test-cluster", **kwargs
 ):
+    kwargs.setdefault("allow_live_actions", True)
     return DeploymentConfig(
         provider=provider, region=region, cluster_name=cluster, **kwargs
     )
@@ -89,6 +90,12 @@ class TestDeploymentConfig:
         assert cfg.wait_timeout == 600
         assert cfg.health_check_timeout == 300
 
+    def test_live_actions_default_to_env_gate(self):
+        cfg = DeploymentConfig(
+            provider=CloudProvider.AWS, region="us-east-1", cluster_name="c"
+        )
+        assert cfg.allow_live_actions is None
+
     def test_custom(self):
         cfg = _make_config(namespace="prod", image_tag="v1.0", values_file="vals.yaml")
         assert cfg.namespace == "prod"
@@ -107,6 +114,10 @@ class TestDeploymentResult:
         assert r.image_url is None
         assert r.error is None
         assert r.deployment_time == 0.0
+        assert r.production_readiness_claim_allowed is False
+        assert r.production_slo_claim_allowed is False
+        assert r.live_customer_traffic_proven is False
+        assert "does not prove live customer traffic" in r.claim_boundary
 
     def test_full(self):
         r = DeploymentResult(
@@ -133,6 +144,14 @@ class TestInit:
         d = MultiCloudDeployment(cfg)
         assert d.config is cfg
         assert isinstance(d.start_time, float)
+
+    def test_live_actions_blocked_by_default_without_env(self, monkeypatch):
+        monkeypatch.delenv("X0TTA6BL4_ALLOW_MULTI_CLOUD_LIVE_ACTIONS", raising=False)
+        cfg = DeploymentConfig(
+            provider=CloudProvider.AWS, region="us-east-1", cluster_name="c"
+        )
+        d = MultiCloudDeployment(cfg)
+        assert d.allow_live_actions is False
 
 
 # ---------------------------------------------------------------------------
@@ -876,6 +895,23 @@ class TestDeployToCluster:
 
 
 class TestDeploy:
+    @patch("src.deployment.multi_cloud_deployment.SafeSubprocess")
+    def test_deploy_blocked_without_live_authorization(self, mock_sp, monkeypatch):
+        monkeypatch.delenv("X0TTA6BL4_ALLOW_MULTI_CLOUD_LIVE_ACTIONS", raising=False)
+        cfg = DeploymentConfig(
+            provider=CloudProvider.AWS, region="us-east-1", cluster_name="c"
+        )
+        d = MultiCloudDeployment(cfg)
+
+        result = d.deploy()
+
+        assert result.success is False
+        assert result.error == "live_multi_cloud_deploy_blocked"
+        assert result.live_action_authorized is False
+        assert result.live_action_executed is False
+        assert result.production_readiness_claim_allowed is False
+        assert mock_sp.run.call_count == 0
+
     def test_deploy_image_build_fails(self):
         d = MultiCloudDeployment(_make_config())
         with patch.object(d, "_build_and_push_image", return_value=None):
@@ -932,7 +968,8 @@ class TestDeploy:
         with patch.object(d, "_build_and_push_image", side_effect=RuntimeError("boom")):
             result = d.deploy()
             assert result.success is False
-            assert "boom" in result.error
+            assert result.error == "RuntimeError"
+            assert "boom" not in str(result)
             assert result.deployment_time >= 0
 
     def test_deploy_result_fields(self):

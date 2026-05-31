@@ -14,6 +14,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +27,7 @@ DEFAULT_PREFLIGHT = VERIFY_ROOT / "GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.jso
 DEFAULT_EXAMPLES_MANIFEST = Path("docs") / "verification" / "incoming" / "examples" / "manifest.json"
 DEFAULT_OUTPUT_JSON = VERIFY_ROOT / "GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json"
 DEFAULT_OUTPUT_MD = VERIFY_ROOT / "GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.md"
+EXTERNAL_DPI_RUNBOOK = "docs/verification/ghost-pulse-external-dpi-intake-runbook.md"
 
 SCHEMA = "x0tta6bl4.ghost_pulse.external_evidence_intake.v1"
 INCOMING_EXAMPLE_MANIFEST_SCHEMA = "x0tta6bl4.ghost_pulse.incoming_example_manifest.v1"
@@ -209,6 +211,52 @@ def expected_acceptance_commands(claim_id: str) -> list[list[str]]:
     return commands
 
 
+def expected_collector_command_shape(claim_id: str) -> list[str] | None:
+    if claim_id != "dpi_lab":
+        return None
+    return [
+        "python3",
+        "scripts/ops/collect_external_dpi_proxy_reachability_evidence.py",
+        "--output",
+        "docs/verification/incoming/dpi_lab.json",
+        "--artifact-dir",
+        "docs/verification/incoming/artifacts/dpi_lab",
+        "--allow-external-probes",
+        "--target-url",
+        "<authorized target URL; local input only>",
+        "--treatment-proxy",
+        "<authorized proxy URL; local input only>",
+        "--operator-or-lab-id",
+        "<local operator/lab id; hashed before writing>",
+        "--authorization-scope-id",
+        "<local authorization scope; hashed before writing>",
+        "--scope-summary",
+        "<bounded authorized scope>",
+        "--network-region-bucket",
+        "<coarse region>",
+        "--network-type",
+        "<authorized lab/field network>",
+        "--isp-or-lab-profile",
+        "<local ISP/lab profile; hashed before writing>",
+        "--egress-location-bucket",
+        "<coarse egress>",
+        "--policy-context",
+        "<authorized policy context>",
+        "--json",
+    ]
+
+
+def expected_safe_local_runner_command(claim_id: str) -> list[str] | None:
+    if claim_id != "dpi_lab":
+        return None
+    return [
+        "python3",
+        "scripts/ops/run_external_dpi_intake_local.py",
+        "--json",
+        "--write-ready",
+    ]
+
+
 def verify_incoming_examples_manifest(root: Path, manifest_path: Path) -> dict[str, Any]:
     failures: list[str] = []
     examples: list[dict[str, Any]] = []
@@ -356,6 +404,11 @@ def verify_incoming_examples_manifest(root: Path, manifest_path: Path) -> dict[s
                 failures.append(f"{claim_id}: collection task write_import_command mismatch")
             if task.get("acceptance_commands") != expected_acceptance_commands(claim_id):
                 failures.append(f"{claim_id}: collection task acceptance_commands mismatch")
+            expected_collector_command = expected_collector_command_shape(claim_id)
+            if expected_collector_command is not None and task.get(
+                "collector_command_shape"
+            ) != expected_collector_command:
+                failures.append(f"{claim_id}: collection task collector_command_shape mismatch")
             payload = payloads_by_claim.get(claim_id, {})
             contract = payload.get("requirement_contract") if isinstance(payload, dict) else {}
             if not isinstance(contract, dict):
@@ -383,6 +436,7 @@ def verify_incoming_examples_manifest(root: Path, manifest_path: Path) -> dict[s
                     "read_only_import_command": task.get("read_only_import_command"),
                     "write_import_command": task.get("write_import_command"),
                     "acceptance_commands": task.get("acceptance_commands"),
+                    "collector_command_shape": task.get("collector_command_shape"),
                 }
             )
 
@@ -435,7 +489,28 @@ def collection_status_from_row(row: dict[str, Any]) -> str:
     return COLLECTION_TASK_REJECTED
 
 
-def collection_blocking_reasons(status: str, row: dict[str, Any]) -> list[str]:
+def external_dpi_proxy_validation_from_row(row: dict[str, Any]) -> dict[str, Any] | None:
+    import_report = row.get("read_only_import_report")
+    if isinstance(import_report, dict):
+        value = import_report.get("external_dpi_proxy_validation")
+    else:
+        value = row.get("external_dpi_proxy_validation")
+    if not isinstance(value, dict):
+        return None
+    return {
+        "status": value.get("status"),
+        "decision": value.get("decision"),
+        "failures": value.get("failures", []),
+        "summary": value.get("summary", {}),
+    }
+
+
+def collection_blocking_reasons(
+    status: str,
+    row: dict[str, Any],
+    claim_id: str,
+    external_dpi_proxy_validation: dict[str, Any] | None,
+) -> list[str]:
     reasons: list[str] = []
     if status == COLLECTION_TASK_MISSING:
         reasons.append("candidate_file_missing")
@@ -449,7 +524,44 @@ def collection_blocking_reasons(status: str, row: dict[str, Any]) -> list[str]:
         reasons.append("preflight_row_missing")
     if row.get("failures"):
         reasons.append("preflight_failures_present")
+    if (
+        claim_id == "dpi_lab"
+        and isinstance(external_dpi_proxy_validation, dict)
+        and external_dpi_proxy_validation.get("decision") != COLLECTION_TASK_READY
+    ):
+        reasons.append("external_dpi_proxy_validation_failed")
     return reasons
+
+
+def external_dpi_proxy_validation_summary(value: Any) -> str:
+    if not isinstance(value, dict):
+        return "none"
+    return f"{value.get('status')}/{value.get('decision')}"
+
+
+def command_line(command: Any) -> str:
+    if not isinstance(command, list) or not all(isinstance(part, str) for part in command):
+        return ""
+    return shlex.join(command)
+
+
+def append_command_block(lines: list[str], title: str, command: Any) -> None:
+    line = command_line(command)
+    if not line:
+        return
+    lines.extend([title, "", "```bash", line, "```", ""])
+
+
+def append_command_blocks(lines: list[str], title: str, commands: Any) -> None:
+    if not isinstance(commands, list):
+        return
+    rendered = [command_line(command) for command in commands]
+    rendered = [line for line in rendered if line]
+    if not rendered:
+        return
+    lines.extend([title, ""])
+    for line in rendered:
+        lines.extend(["```bash", line, "```", ""])
 
 
 def build_collection_tasks(
@@ -465,6 +577,7 @@ def build_collection_tasks(
         manifest_task = manifest_tasks.get(claim_id, {})
         candidate = row.get("candidate") or manifest_task.get("candidate") or f"docs/verification/incoming/{claim_id}.json"
         status = collection_status_from_row(row)
+        external_dpi_proxy_validation = external_dpi_proxy_validation_from_row(row)
         tasks.append(
             {
                 "claim_id": claim_id,
@@ -487,11 +600,21 @@ def build_collection_tasks(
                 or manifest_task.get("write_import_command"),
                 "acceptance_commands": row.get("acceptance_commands")
                 or manifest_task.get("acceptance_commands"),
+                "collector_command_shape": row.get("collector_command_shape")
+                or manifest_task.get("collector_command_shape")
+                or expected_collector_command_shape(claim_id),
+                "safe_local_runner_command": expected_safe_local_runner_command(claim_id),
                 "ready_to_import": row.get("ready_to_import") is True,
                 "import_decision": row.get("import_decision"),
                 "validation_status": row.get("validation_status"),
+                "external_dpi_proxy_validation": external_dpi_proxy_validation,
                 "failures": row.get("failures", []),
-                "blocking_reasons": collection_blocking_reasons(status, row),
+                "blocking_reasons": collection_blocking_reasons(
+                    status,
+                    row,
+                    claim_id,
+                    external_dpi_proxy_validation,
+                ),
             }
         )
     return tasks
@@ -522,12 +645,38 @@ def verify_collection_tasks(
             failures.append(f"{claim_id}: collection task write_import_command is inconsistent")
         if task.get("acceptance_commands") != expected_acceptance_commands(claim_id):
             failures.append(f"{claim_id}: collection task acceptance_commands is inconsistent")
+        expected_collector_command = expected_collector_command_shape(claim_id)
+        if expected_collector_command is not None and task.get(
+            "collector_command_shape"
+        ) != expected_collector_command:
+            failures.append(f"{claim_id}: collection task collector_command_shape is inconsistent")
+        expected_runner_command = expected_safe_local_runner_command(claim_id)
+        if task.get("safe_local_runner_command") != expected_runner_command:
+            failures.append(f"{claim_id}: collection task safe_local_runner_command is inconsistent")
         if claim_id in ready_set and task.get("status") != COLLECTION_TASK_READY:
             failures.append(f"{claim_id}: ready claim must have READY_TO_IMPORT collection task")
+        external_dpi_proxy_validation = task.get("external_dpi_proxy_validation")
+        if claim_id == "dpi_lab" and claim_id in ready_set:
+            if not isinstance(external_dpi_proxy_validation, dict):
+                failures.append("dpi_lab: ready collection task must include external_dpi_proxy_validation")
+            elif external_dpi_proxy_validation.get("decision") != COLLECTION_TASK_READY:
+                failures.append(
+                    "dpi_lab: ready collection task external_dpi_proxy_validation must be READY_TO_IMPORT"
+                )
         if claim_id in not_ready_set and task.get("status") == COLLECTION_TASK_READY:
             failures.append(f"{claim_id}: not_ready claim must not have READY_TO_IMPORT collection task")
         if claim_id in not_ready_set and not task.get("blocking_reasons"):
             failures.append(f"{claim_id}: not_ready collection task must record blocking reasons")
+        if (
+            claim_id == "dpi_lab"
+            and claim_id in not_ready_set
+            and isinstance(external_dpi_proxy_validation, dict)
+            and external_dpi_proxy_validation.get("decision") != COLLECTION_TASK_READY
+            and "external_dpi_proxy_validation_failed" not in task.get("blocking_reasons", [])
+        ):
+            failures.append(
+                "dpi_lab: not_ready collection task must record external_dpi_proxy_validation_failed"
+            )
     return failures
 
 
@@ -667,11 +816,38 @@ def render_markdown(report: dict[str, Any]) -> str:
     tasks = report.get("collection_tasks", [])
     if tasks:
         for task in tasks:
+            collector_command_shape = task.get("collector_command_shape")
+            collector_command_status = (
+                "present" if isinstance(collector_command_shape, list) else "none"
+            )
             lines.append(
                 f"- `{task.get('claim_id')}`: status `{task.get('status')}`, "
                 f"candidate `{task.get('candidate')}`, blockers "
-                f"`{', '.join(task.get('blocking_reasons', [])) or 'none'}`"
+                f"`{', '.join(task.get('blocking_reasons', [])) or 'none'}`, "
+                f"external_dpi_proxy_validation "
+                f"`{external_dpi_proxy_validation_summary(task.get('external_dpi_proxy_validation'))}`, "
+                f"collector_command_shape `{collector_command_status}`"
             )
+    else:
+        lines.append("- None")
+    lines.extend(["", "## Operator Command Shapes", ""])
+    if tasks:
+        lines.extend(
+            [
+                "Placeholder values in angle brackets must be filled locally by the operator.",
+                "Do not paste target URLs, proxy URLs, operator IDs, authorization scope, or policy context into chat.",
+                f"External DPI runbook: `{EXTERNAL_DPI_RUNBOOK}`.",
+                "",
+            ]
+        )
+        for task in tasks:
+            claim_id = task.get("claim_id")
+            lines.extend([f"### `{claim_id}`", ""])
+            append_command_block(lines, "Safe local runner (preferred):", task.get("safe_local_runner_command"))
+            append_command_block(lines, "Collector command shape:", task.get("collector_command_shape"))
+            append_command_block(lines, "Read-only import check:", task.get("read_only_import_command"))
+            append_command_block(lines, "Write import command, only after readiness is true:", task.get("write_import_command"))
+            append_command_blocks(lines, "Acceptance commands:", task.get("acceptance_commands"))
     else:
         lines.append("- None")
     lines.extend([
@@ -827,6 +1003,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"preflight={report['preflight']}")
         print(f"ready={','.join(report['ready']) if report['ready'] else 'none'}")
         print(f"not_ready={','.join(report['not_ready']) if report['not_ready'] else 'none'}")
+        for task in report.get("collection_tasks", []):
+            if not isinstance(task, dict):
+                continue
+            blockers = ",".join(task.get("blocking_reasons", [])) or "none"
+            external_dpi = external_dpi_proxy_validation_summary(
+                task.get("external_dpi_proxy_validation")
+            )
+            print(
+                f"task={task.get('claim_id')} status={task.get('status')} "
+                f"candidate={task.get('candidate')} blockers={blockers} "
+                f"external_dpi_proxy_validation={external_dpi} "
+                f"collector_command_shape="
+                f"{'present' if isinstance(task.get('collector_command_shape'), list) else 'none'}"
+            )
 
     if report["status"] != "PASS":
         return 1

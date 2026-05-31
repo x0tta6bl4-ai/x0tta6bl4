@@ -22,6 +22,8 @@ def test_policy_readiness_ready_when_db_model_and_rbac_are_available():
     assert payload["policy_db_ready"] is True
     assert payload["acl_policy_model_ready"] is True
     assert payload["rbac_dependency_ready"] is True
+    assert payload["cross_plane_claim_gate"]["allowed"] is False
+    assert "dataplane_delivery" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
     assert payload["legacy_route_shadowing"]["get_post_shadowed_by_legacy"] is True
     assert payload["degraded_dependencies"] == []
 

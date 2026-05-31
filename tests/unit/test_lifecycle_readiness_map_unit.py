@@ -331,6 +331,30 @@ def test_lifecycle_map_tracks_supply_chain_route_only_evidence_readiness():
     assert "mark_degraded_dependency(request, dependency)" in source
 
 
+def test_lifecycle_map_tracks_provisioning_route_only_setup_readiness():
+    lifecycle_map = _load_map()
+    provisioning = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-provisioning"
+    )
+    source = _module_path(provisioning["module"]).read_text(encoding="utf-8")
+
+    assert provisioning["lifecycle_binding"] == "route_import_only"
+    assert provisioning["registration_mode"] == "always"
+    assert provisioning["route_present_in_light_mode"] is True
+    assert provisioning["readiness_signal"] == "/api/v1/maas/provisioning/readiness"
+    assert provisioning["runtime_readiness_field"] == "provisioning_runtime_ready"
+    assert "pending MeshNode write" in provisioning["hidden_dependency"]
+    assert "does not prove that the install command ran" in (
+        provisioning["hidden_dependency"]
+    )
+    assert '@router.get("/readiness")' in source
+    assert '@router.post("/generate-setup")' in source
+    assert "provisioning_runtime_ready" in source
+    assert "db_write_ready" in source
+    assert "event_bus_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
 def test_lifecycle_map_tracks_analytics_route_only_runtime_readiness():
     lifecycle_map = _load_map()
     analytics = next(
@@ -414,7 +438,7 @@ def test_lifecycle_map_tracks_nodes_route_precedence_readiness():
     assert nodes["readiness_signal"] == "/api/v1/maas/nodes/readiness"
     assert nodes["runtime_readiness_field"] == "node_runtime_ready"
     assert "shadow POST /{mesh_id}/nodes/register" in nodes["hidden_dependency"]
-    assert "heartbeat, telemetry readback, ACL check, delete, and heal routes" in (
+    assert "heartbeat, telemetry readback, ACL check, node-config, nodes/all, delete, and heal routes" in (
         nodes["hidden_dependency"]
     )
     assert '@router.get("/nodes/readiness")' in source

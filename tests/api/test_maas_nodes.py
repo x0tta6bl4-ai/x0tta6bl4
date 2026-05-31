@@ -29,6 +29,7 @@ from src.database import (
     ACLPolicy, Base, MarketplaceEscrow, MarketplaceListing,
     MeshInstance, MeshNode, User, get_db,
 )
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_nodes_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -82,7 +83,7 @@ def node_data(client):
 
     # Elevate admin directly in DB
     db = TestingSessionLocal()
-    admin = db.query(User).filter(User.api_key == admin_token).first()
+    admin = find_user_by_api_key(db, admin_token)
     admin.role = "admin"
     db.commit()
     db.close()
@@ -154,7 +155,7 @@ class TestNodeRegistration:
 
 
 # ---------------------------------------------------------------------------
-# List Pending (legacy flow — requires operator role + mesh ownership)
+# List Pending (legacy flow — same in-memory pending store as register/approve)
 # ---------------------------------------------------------------------------
 
 class TestListPending:
@@ -263,14 +264,14 @@ class TestRevoke:
         return nid
 
     def test_revoke_requires_permission(self, client, node_data):
-        """user role lacks node:revoke → 403"""
+        """Foreign users get anti-enumeration 404 from the legacy owner check."""
         nid = self._registered_and_approved(client, node_data)
         r = client.post(
             f"/api/v1/maas/{node_data['mesh_id']}/nodes/{nid}/revoke",
             json={},
             headers={"X-API-Key": node_data["usr_token"]},
         )
-        assert r.status_code == 403
+        assert r.status_code == 404
 
     def test_revoke_success(self, client, node_data):
         nid = self._registered_and_approved(client, node_data)
@@ -294,7 +295,7 @@ class TestRevoke:
 
 
 # ---------------------------------------------------------------------------
-# List All Nodes (legacy flow — operator + ownership)
+# List All Nodes (DB-backed maas_nodes route — operator + ownership)
 # ---------------------------------------------------------------------------
 
 class TestListAllNodes:
@@ -557,7 +558,7 @@ class TestNodeTelemetryReadback:
         assert r.status_code == 200, r.text
         token = r.json()["access_token"]
         db = TestingSessionLocal()
-        user = db.query(User).filter(User.api_key == token).first()
+        user = find_user_by_api_key(db, token)
         user.role = "operator"
         user_id = user.id
         db.commit()
@@ -674,7 +675,7 @@ class TestNodeTelemetryReadback:
     def test_operator_cannot_read_foreign_mesh_telemetry(self, client, node_data):
         op_token, _ = self._create_operator(client)
         db = TestingSessionLocal()
-        admin = db.query(User).filter(User.api_key == node_data["admin_token"]).first()
+        admin = find_user_by_api_key(db, node_data["admin_token"])
         admin_id = admin.id
         db.close()
         nid, mesh_id = self._db_node_with_owner(admin_id)

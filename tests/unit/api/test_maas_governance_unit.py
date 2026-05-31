@@ -48,6 +48,8 @@ class TestGovernanceReadiness:
         assert payload["service_identity_ready"] is True
         assert payload["policy_required"] is False
         assert payload["policy_engine_ready"] is True
+        assert payload["cross_plane_claim_gate"]["allowed"] is False
+        assert "settlement_finality" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
         assert payload["degraded_dependencies"] == []
 
     def test_degraded_when_db_and_required_policy_engine_are_missing(self, monkeypatch):

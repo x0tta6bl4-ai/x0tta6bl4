@@ -1,5 +1,13 @@
 # 🔍 РАСШИФРОВКА ДИАГРАММЫ СИСТЕМЫ
 
+> Статус доказательств на 2026-05-30: это расшифровка пользовательской
+> диаграммы и инвентарь claims, а не текущее production proof. Формулировки
+> вроде `Production-ready`, `100% mTLS`, `94-98% accuracy`, `20s MTTD` и
+> похожие метрики ниже требуют current verification artifact перед тем, как
+> считать их фактом. Актуальные границы доказательств:
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md` и
+> `docs/architecture/CURRENT_EVENT_CONTROL_PLANE_MAP.json`.
+
 **Дата:** 28 декабря 2025  
 **Источник:** Пользовательская диаграмма системы
 
@@ -31,7 +39,7 @@
 1. **"100% mTLS Success Rate (in Hananrathroy Dakena)"**
    - **Расшифровка:** 100% успешность mTLS соединений
    - **Контекст:** SPIFFE/SPIRE интеграция работает идеально
-   - **Статус:** ✅ Production-ready
+   - **Статус:** diagram claim; current production proof не приложен
 
 2. **Rocket icon (🚀)**
    - **Расшифровка:** Deployment/Launch
@@ -152,9 +160,9 @@
 ## 📅 TIMELINE (Временная шкала)
 
 ### 2025 (Now) - Current Metrics
-- **Текущее состояние:** Production-ready
+- **Текущее состояние:** diagram claim: Production-ready, current proof не приложен
 - **17 компонентов:** Работают
-- **Метрики:** 94-98% accuracy, 20s MTTD
+- **Метрики:** 94-98% accuracy, 20s MTTD как claim, не текущий verification artifact
 
 ### 2026 Q1 - "Repatálcim Sondused /ebebed Leemsing"
 - **Расшифровка:** Возможно, "Replication Soundness / Embedded Learning"
@@ -243,7 +251,7 @@ Padlocks вокруг Core = Security Layers:
 ### Timeline = Roadmap 2025-2028
 
 ```
-2025: Production-ready (17 components) ✅
+2025: diagram claim: Production-ready (17 components), current proof не приложен
 2026 Q1: Replication + Embedded Learning
 2027: Creative-Native DAD (autonomy)
 2028: Agile Architecture (scale)
@@ -280,4 +288,3 @@ Padlocks вокруг Core = Security Layers:
 **Документ:** DIAGRAM_DECODED.md  
 **Версия:** 1.0  
 **Дата:** 28 декабря 2025
-

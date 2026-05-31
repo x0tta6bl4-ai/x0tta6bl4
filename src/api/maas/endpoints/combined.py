@@ -12,6 +12,7 @@ from .batman import router as batman_router
 from .billing import router as billing_router
 from .mesh import router as mesh_router
 from .nodes import router as nodes_router
+from .pilot import router as pilot_router
 
 
 def get_combined_router(
@@ -21,6 +22,7 @@ def get_combined_router(
     include_nodes: bool = True,
     include_billing: bool = True,
     include_batman: bool = True,
+    include_pilot: bool = True,
 ) -> APIRouter:
     """
     Create a combined router with all MaaS endpoints.
@@ -32,6 +34,7 @@ def get_combined_router(
         include_nodes: Include node management endpoints
         include_billing: Include billing endpoints
         include_batman: Include BATMAN-adv network management endpoints
+        include_pilot: Include pilot onboarding endpoints
 
     Returns:
         Combined APIRouter
@@ -52,6 +55,9 @@ def get_combined_router(
 
     if include_batman:
         router.include_router(batman_router)
+
+    if include_pilot:
+        router.include_router(pilot_router)
 
     return router
 

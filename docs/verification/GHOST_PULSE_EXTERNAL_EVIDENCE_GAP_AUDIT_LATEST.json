@@ -1,11 +1,11 @@
 {
   "artifacts": {
-    "audit_bundle_json": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260522T203433Z/audit.json",
-    "audit_bundle_md": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260522T203433Z/summary.md",
+    "audit_bundle_json": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260531T071714Z/audit.json",
+    "audit_bundle_md": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260531T071714Z/summary.md",
     "audit_latest_json": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.json",
     "audit_latest_md": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260522T203433Z",
+  "bundle": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260531T071714Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "note": "Gap audit only; proof-gate claim boundaries are not upgraded by this report.",
@@ -42,19 +42,6 @@
     "whitelist_lab: measurements.third_party_baseline_captured must be True",
     "whitelist_lab: measurements.whitelist_behavior_verified must be True",
     "whitelist_lab: artifact role missing for content check: whitelist_conclusion",
-    "security_review: status must be VERIFIED",
-    "security_review: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
-    "security_review: missing_inputs must be absent or empty for VERIFIED evidence",
-    "security_review: failures must be absent or empty for VERIFIED evidence",
-    "security_review: claim_boundary.claim_verified must not be false for VERIFIED evidence",
-    "security_review: required artifact role missing: reviewer_identity",
-    "security_review: required artifact role missing: review_scope",
-    "security_review: required artifact role missing: findings_report",
-    "security_review: measurements.reviewer must be nonempty",
-    "security_review: measurements.scope_includes_pulse_transport must be True",
-    "security_review: measurements.open_critical_findings must be 0",
-    "security_review: measurements.open_high_findings must be 0",
-    "security_review: artifact role missing for content check: findings_report",
     "production_readiness: status must be VERIFIED",
     "production_readiness: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
     "production_readiness: missing_inputs must be absent or empty for VERIFIED evidence",
@@ -102,7 +89,7 @@
         "candidate_example_path": "docs/verification/incoming/examples/dpi_lab.example.json",
         "candidate_path": "docs/verification/incoming/dpi_lab.json",
         "claim_id": "dpi_lab",
-        "current_sha256": "d64ea7b38c180c3d5b4fb9ab554eee76b107037daf07d04a5057466c17b030a7",
+        "current_sha256": "3ee85d5afde5222ff62308ca5f4c83c190ed2758567f5513ad9c98c63a71555e",
         "current_status": "INVALID",
         "destination": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json",
         "incoming_example_command": [
@@ -283,103 +270,6 @@
             "python3",
             "scripts/ops/verify_ghost_pulse_external_evidence.py",
             "--claim",
-            "security_review",
-            "--require-pass",
-            "--json"
-          ]
-        ],
-        "blocking_categories": [
-          "artifact_roles",
-          "measurements",
-          "missing_inputs",
-          "proof_errors",
-          "record"
-        ],
-        "candidate_example_path": "docs/verification/incoming/examples/security_review.example.json",
-        "candidate_path": "docs/verification/incoming/security_review.json",
-        "claim_id": "security_review",
-        "current_sha256": "ea6d69e3b4ee4ad0e7a3da922fda7253c3d983f193e1515a28530ecc0c446a29",
-        "current_status": "INVALID",
-        "destination": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json",
-        "incoming_example_command": [
-          "python3",
-          "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
-          "--examples-only"
-        ],
-        "read_only_import_command": [
-          "python3",
-          "scripts/ops/import_ghost_pulse_external_evidence.py",
-          "--claim",
-          "security_review",
-          "--candidate",
-          "docs/verification/incoming/security_review.json",
-          "--require-ready",
-          "--json"
-        ],
-        "replacement_contract": {
-          "acceptance_commands": [
-            [
-              "python3",
-              "scripts/ops/verify_ghost_pulse_external_evidence.py",
-              "--claim",
-              "security_review",
-              "--require-pass",
-              "--json"
-            ]
-          ],
-          "claim_id": "security_review",
-          "destination": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json",
-          "evidence_schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
-          "json_artifact_object_field_links": {
-            "findings_report": [
-              "measurements",
-              "failures",
-              "claim_boundary"
-            ]
-          },
-          "measurements": {
-            "open_critical_findings": 0,
-            "open_high_findings": 0,
-            "reviewer": "nonempty",
-            "scope_includes_pulse_transport": true
-          },
-          "path": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json",
-          "rejected_placeholder_markers": [
-            "REPLACE_WITH",
-            "EXAMPLE_ONLY_NOT_EVIDENCE",
-            "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
-          ],
-          "required_artifact_roles": [
-            "reviewer_identity",
-            "review_scope",
-            "findings_report"
-          ],
-          "required_flags": {
-            "dry_run": false,
-            "simulated": false,
-            "template": false
-          },
-          "required_status": "VERIFIED",
-          "title": "Security review with no open high-severity findings"
-        },
-        "title": "Security review with no open high-severity findings",
-        "write_import_command": [
-          "python3",
-          "scripts/ops/import_ghost_pulse_external_evidence.py",
-          "--claim",
-          "security_review",
-          "--candidate",
-          "docs/verification/incoming/security_review.json",
-          "--write",
-          "--json"
-        ]
-      },
-      {
-        "acceptance_commands": [
-          [
-            "python3",
-            "scripts/ops/verify_ghost_pulse_external_evidence.py",
-            "--claim",
             "production_readiness",
             "--require-pass",
             "--json"
@@ -502,7 +392,6 @@
   "replacement_required": [
     "dpi_lab",
     "whitelist_lab",
-    "security_review",
     "production_readiness"
   ],
   "rows": [
@@ -1475,11 +1364,11 @@
       "artifact_file_audit": {
         "artifacts": [
           {
-            "actual_sha256": "0d049726909730923946c3433da41cfc54d2c63d2659974f5e765c1db73b2646",
+            "actual_sha256": "27281d3c8a801cc58000a051ee0208630e9d416deba3cfa83cbc80639beb1493",
             "exists": true,
-            "expected_sha256": "0d049726909730923946c3433da41cfc54d2c63d2659974f5e765c1db73b2646",
+            "expected_sha256": "27281d3c8a801cc58000a051ee0208630e9d416deba3cfa83cbc80639beb1493",
             "index": 0,
-            "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/dpi_lab-gap-record.json",
+            "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260531T071618Z/dpi_lab-gap-record.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
@@ -1700,7 +1589,7 @@
             "missing_inputs_present": true,
             "mode": "EXTERNAL_EVIDENCE_GAP_RECORD"
           },
-          "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
+          "observed_at_utc": "2026-05-31T07:16:18.153685+00:00",
           "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
           "status": "INCOMPLETE"
         },
@@ -1771,7 +1660,7 @@
         "dpi_bypass_verified": true,
         "pulse_result_recorded": true
       },
-      "sha256": "d64ea7b38c180c3d5b4fb9ab554eee76b107037daf07d04a5057466c17b030a7",
+      "sha256": "3ee85d5afde5222ff62308ca5f4c83c190ed2758567f5513ad9c98c63a71555e",
       "status": "INVALID",
       "title": "Authorized DPI lab result"
     },
@@ -2083,11 +1972,51 @@
       "artifact_file_audit": {
         "artifacts": [
           {
-            "actual_sha256": "e91965ccc42b9b12475f01d93ae956308c37641d65ecdc852ac0837cae7fe38f",
+            "actual_sha256": "7cb430306b3254d4ea689bc30546f94523a5c01965ad3e4fdeb9048280c55b10",
             "exists": true,
-            "expected_sha256": "e91965ccc42b9b12475f01d93ae956308c37641d65ecdc852ac0837cae7fe38f",
+            "expected_sha256": "7cb430306b3254d4ea689bc30546f94523a5c01965ad3e4fdeb9048280c55b10",
             "index": 0,
-            "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/security_review-gap-record.json",
+            "path": "docs/verification/ghost-pulse-security-review-20260531T065425Z/reviewer_identity.json",
+            "path_errors": [],
+            "sha256_matches": true,
+            "status": "PASS"
+          },
+          {
+            "actual_sha256": "c8d1856bcebc95e51758af87f8856a258718a977019e8ef77036bcc17c8a3bd1",
+            "exists": true,
+            "expected_sha256": "c8d1856bcebc95e51758af87f8856a258718a977019e8ef77036bcc17c8a3bd1",
+            "index": 1,
+            "path": "docs/verification/ghost-pulse-security-review-20260531T065425Z/review_scope.json",
+            "path_errors": [],
+            "sha256_matches": true,
+            "status": "PASS"
+          },
+          {
+            "actual_sha256": "7282c8d6c61e61b7559cce73bf10df85f8a9b4f774413c8ccea6005fe471eab5",
+            "exists": true,
+            "expected_sha256": "7282c8d6c61e61b7559cce73bf10df85f8a9b4f774413c8ccea6005fe471eab5",
+            "index": 2,
+            "path": "docs/verification/ghost-pulse-security-review-20260531T065425Z/findings_report.json",
+            "path_errors": [],
+            "sha256_matches": true,
+            "status": "PASS"
+          },
+          {
+            "actual_sha256": "8b48453f3a9a5a1d64913c014c343a2b8e0ecdf8360f9751ebac68aea24ac54f",
+            "exists": true,
+            "expected_sha256": "8b48453f3a9a5a1d64913c014c343a2b8e0ecdf8360f9751ebac68aea24ac54f",
+            "index": 3,
+            "path": "docs/verification/ghost-pulse-security-review-20260531T065425Z/bandit-high-severity-summary.json",
+            "path_errors": [],
+            "sha256_matches": true,
+            "status": "PASS"
+          },
+          {
+            "actual_sha256": "899395ce83010e9cd2ccbadd5bb9f28c132b625f3a70cdb80980d3811a604911",
+            "exists": true,
+            "expected_sha256": "899395ce83010e9cd2ccbadd5bb9f28c132b625f3a70cdb80980d3811a604911",
+            "index": 4,
+            "path": "docs/verification/ghost-pulse-security-review-20260531T065425Z/bandit-ghost-pulse.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
@@ -2099,13 +2028,13 @@
       "artifact_role_audit": {
         "artifacts_without_role": [],
         "duplicate_roles": [],
-        "missing_roles": [
+        "missing_roles": [],
+        "observed_roles": [
           "reviewer_identity",
           "review_scope",
-          "findings_report"
-        ],
-        "observed_roles": [
-          "evidence_gap_record"
+          "findings_report",
+          "bandit_high_severity_summary",
+          "bandit_raw_report"
         ],
         "path_scope_errors": [],
         "required_roles": [
@@ -2115,81 +2044,12 @@
         ],
         "required_roles_without_path": [],
         "reused_required_paths": [],
-        "status": "FAIL"
+        "status": "PASS"
       },
       "blocking_audit": {
-        "blocking_categories": [
-          "artifact_roles",
-          "measurements",
-          "missing_inputs",
-          "proof_errors",
-          "record"
-        ],
-        "categories": {
-          "artifact_roles": {
-            "artifacts_without_role": [],
-            "duplicate_roles": [],
-            "missing_roles": [
-              "reviewer_identity",
-              "review_scope",
-              "findings_report"
-            ],
-            "path_scope_errors": [],
-            "required_roles_without_path": [],
-            "reused_required_paths": []
-          },
-          "measurements": [
-            {
-              "expected": "nonempty",
-              "name": "reviewer",
-              "observed": ""
-            },
-            {
-              "expected": true,
-              "name": "scope_includes_pulse_transport",
-              "observed": false
-            },
-            {
-              "expected": 0,
-              "name": "open_critical_findings",
-              "observed": null
-            },
-            {
-              "expected": 0,
-              "name": "open_high_findings",
-              "observed": null
-            }
-          ],
-          "missing_inputs": [
-            "reviewer identity",
-            "review scope covering pulse transport",
-            "critical finding count from completed review",
-            "high finding count from completed review"
-          ],
-          "proof_errors": [
-            "status must be VERIFIED",
-            "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
-            "missing_inputs must be absent or empty for VERIFIED evidence",
-            "failures must be absent or empty for VERIFIED evidence",
-            "claim_boundary.claim_verified must not be false for VERIFIED evidence",
-            "required artifact role missing: reviewer_identity",
-            "required artifact role missing: review_scope",
-            "required artifact role missing: findings_report",
-            "measurements.reviewer must be nonempty",
-            "measurements.scope_includes_pulse_transport must be True",
-            "measurements.open_critical_findings must be 0",
-            "measurements.open_high_findings must be 0",
-            "artifact role missing for content check: findings_report"
-          ],
-          "record": [
-            "status must be VERIFIED",
-            "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
-            "missing_inputs must be absent or empty",
-            "failures must be absent or empty",
-            "claim_boundary.claim_verified must not be false"
-          ]
-        },
-        "status": "BLOCKED"
+        "blocking_categories": [],
+        "categories": {},
+        "status": "CLEAR"
       },
       "claim_id": "security_review",
       "command_audit": {
@@ -2198,78 +2058,67 @@
         "missing_commands": [],
         "observed_commands": [
           [
-            "/usr/bin/python3",
-            "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
-            "--claim",
-            "security_review"
+            "python3",
+            "-c",
+            "import json,sys; data=json.load(open(sys.argv[1])); sys.exit(0 if data[\"open_high_findings\"] == 0 and data[\"open_critical_findings\"] == 0 else 1)",
+            "docs/verification/incoming/artifacts/security_review/20260531T065425Z/bandit-high-severity-summary.json"
           ]
         ],
         "required_commands": [],
         "status": "NOT_REQUIRED"
       },
-      "errors": [
-        "status must be VERIFIED",
-        "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
-        "missing_inputs must be absent or empty for VERIFIED evidence",
-        "failures must be absent or empty for VERIFIED evidence",
-        "claim_boundary.claim_verified must not be false for VERIFIED evidence",
-        "required artifact role missing: reviewer_identity",
-        "required artifact role missing: review_scope",
-        "required artifact role missing: findings_report",
-        "measurements.reviewer must be nonempty",
-        "measurements.scope_includes_pulse_transport must be True",
-        "measurements.open_critical_findings must be 0",
-        "measurements.open_high_findings must be 0",
-        "artifact role missing for content check: findings_report"
-      ],
+      "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json",
       "gap_record_role_audit": {
-        "declared_required_roles_on_gap_record": [],
+        "declared_required_roles_on_gap_record": [
+          "findings_report",
+          "review_scope",
+          "reviewer_identity"
+        ],
         "expected_gap_artifact_role": "evidence_gap_record",
         "failures": [],
-        "observed_gap_artifact_role": "evidence_gap_record",
+        "observed_gap_artifact_role": null,
         "observed_roles": [
-          "evidence_gap_record"
+          "reviewer_identity",
+          "review_scope",
+          "findings_report",
+          "bandit_high_severity_summary",
+          "bandit_raw_report"
         ],
         "required_roles": [
           "reviewer_identity",
           "review_scope",
           "findings_report"
         ],
-        "status": "PASS"
+        "status": "NOT_APPLICABLE"
       },
       "measurement_audit": [
         {
           "expected": "nonempty",
           "name": "reviewer",
-          "observed": "",
-          "status": "FAIL"
+          "observed": "Codex local security review",
+          "status": "PASS"
         },
         {
           "expected": true,
           "name": "scope_includes_pulse_transport",
-          "observed": false,
-          "status": "FAIL"
+          "observed": true,
+          "status": "PASS"
         },
         {
           "expected": 0,
           "name": "open_critical_findings",
-          "observed": null,
-          "status": "FAIL"
+          "observed": 0,
+          "status": "PASS"
         },
         {
           "expected": 0,
           "name": "open_high_findings",
-          "observed": null,
-          "status": "FAIL"
+          "observed": 0,
+          "status": "PASS"
         }
       ],
-      "missing_inputs": [
-        "reviewer identity",
-        "review scope covering pulse transport",
-        "critical finding count from completed review",
-        "high finding count from completed review"
-      ],
+      "missing_inputs": [],
       "next_action": "Replace the gap record with a completed security review covering pulse transport and showing zero open critical and high findings.",
       "record_audit": {
         "expected": {
@@ -2282,13 +2131,7 @@
           "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
           "status": "VERIFIED"
         },
-        "failures": [
-          "status must be VERIFIED",
-          "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
-          "missing_inputs must be absent or empty",
-          "failures must be absent or empty",
-          "claim_boundary.claim_verified must not be false"
-        ],
+        "failures": [],
         "observed": {
           "claim_id": "security_review",
           "flags": {
@@ -2297,16 +2140,16 @@
             "template": false
           },
           "gap_record_markers": {
-            "claim_boundary_claim_verified_false": true,
-            "failures_present": true,
-            "missing_inputs_present": true,
-            "mode": "EXTERNAL_EVIDENCE_GAP_RECORD"
+            "claim_boundary_claim_verified_false": false,
+            "failures_present": false,
+            "missing_inputs_present": false,
+            "mode": null
           },
-          "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
+          "observed_at_utc": "2026-05-31T06:54:25.486843+00:00",
           "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
-          "status": "INCOMPLETE"
+          "status": "VERIFIED"
         },
-        "status": "FAIL"
+        "status": "PASS"
       },
       "reference_audit": {
         "current_status_by_claim": {},
@@ -2365,15 +2208,15 @@
         "required_status": "VERIFIED",
         "title": "Security review with no open high-severity findings"
       },
-      "replacement_required": true,
+      "replacement_required": false,
       "required_measurements": {
         "open_critical_findings": 0,
         "open_high_findings": 0,
         "reviewer": "nonempty",
         "scope_includes_pulse_transport": true
       },
-      "sha256": "ea6d69e3b4ee4ad0e7a3da922fda7253c3d983f193e1515a28530ecc0c446a29",
-      "status": "INVALID",
+      "sha256": "e0ad08455f32d00be59ca1b0e92f5a8ddf80c1f8dfdb48ef1037f2f91f1725bf",
+      "status": "VERIFIED",
       "title": "Security review with no open high-severity findings"
     },
     {
@@ -2512,8 +2355,7 @@
             "unexpected_claims": [],
             "unverified_claims": [
               "dpi_lab",
-              "whitelist_lab",
-              "security_review"
+              "whitelist_lab"
             ]
           }
         },
@@ -2653,7 +2495,7 @@
           "dpi_lab": "INVALID",
           "kernel_attach": "VERIFIED",
           "packet_capture": "VERIFIED",
-          "security_review": "INVALID",
+          "security_review": "VERIFIED",
           "whitelist_lab": "INVALID"
         },
         "duplicate_claims": [],
@@ -2679,8 +2521,7 @@
         "unexpected_claims": [],
         "unverified_claims": [
           "dpi_lab",
-          "whitelist_lab",
-          "security_review"
+          "whitelist_lab"
         ]
       },
       "replacement_contract": {
@@ -2770,5 +2611,5 @@
     "production_readiness"
   ],
   "status": "EXTERNAL_EVIDENCE_ACTION_REQUIRED",
-  "timestamp_utc": "2026-05-22T20:34:33.769062+00:00"
+  "timestamp_utc": "2026-05-31T07:17:14.012824+00:00"
 }

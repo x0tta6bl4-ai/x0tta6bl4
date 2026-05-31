@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 
+import pytest
+
+from scripts.ops import audit_production_grade_goal as audit
 from scripts.ops.audit_production_grade_goal import Requirement, build_report, main
 
 
@@ -9,7 +12,106 @@ def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_current_evidence(
+    root: Path,
+    *,
+    gaps: list[dict] | None = None,
+    next_actions: list[dict] | None = None,
+    status: str = "working_map_not_production_completion_proof",
+) -> None:
+    architecture = root / "docs" / "architecture"
+    architecture.mkdir(parents=True, exist_ok=True)
+    (architecture / "CURRENT_ACTIVE_GOAL_GAP_AUDIT.md").write_text(
+        "# Current Active Goal Gap Audit\n",
+        encoding="utf-8",
+    )
+    _write_json(
+        architecture / "CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
+        {
+            "status": status,
+            "planes": {
+                "data_plane": {},
+                "control_plane": {},
+                "trust_plane": {},
+                "evidence_plane": {},
+                "economy_plane": {},
+            },
+            "current_gaps": gaps or [],
+            "next_actions": next_actions or [],
+        },
+    )
+
+
+def _ready_requirement(root: Path) -> list[Requirement]:
+    _write_json(
+        root / ".tmp/demo-gate.json",
+        {"status": "VERIFIED HERE", "ok": True, "goal_can_be_marked_complete": True},
+    )
+    _write_json(
+        root / ".tmp/demo-evidence-gate.json",
+        {
+            "status": "VERIFIED HERE",
+            "ok": True,
+            "ready": True,
+            "goal_can_be_marked_complete": True,
+        },
+    )
+    return [
+        Requirement(
+            "demo",
+            "Demo requirement",
+            [".tmp/demo-gate.json", ".tmp/demo-evidence-gate.json"],
+            "production evidence missing",
+        )
+    ]
+
+
+def test_audit_cli_refuses_to_overwrite_current_evidence_sources(tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        main(
+            [
+                "--root",
+                str(tmp_path),
+                "--output-json",
+                "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
+            ]
+        )
+
+    assert "must not overwrite current evidence source artifact" in str(exc.value)
+
+
+def _allowed_cross_plane_proof_gate(root, *, claims):
+    return {
+        "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+        "decision": "CROSS_PLANE_CLAIMS_ALLOWED",
+        "allowed": True,
+        "summary": {"claims_total": len(claims), "claims_blocked": 0},
+        "claim_results": [
+            {"claim_id": claim_id, "allowed": True} for claim_id in claims
+        ],
+        "claim_boundary": "test proof gate",
+    }
+
+
+def _blocked_cross_plane_proof_gate(root, *, claims):
+    return {
+        "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+        "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
+        "allowed": False,
+        "summary": {"claims_total": len(claims), "claims_blocked": 1},
+        "claim_results": [
+            {
+                "claim_id": "production_readiness",
+                "allowed": False,
+                "blockers": ["production_readiness_imported_artifact_not_verified"],
+            }
+        ],
+        "claim_boundary": "test proof gate blocked",
+    }
+
+
 def test_production_grade_audit_accepts_fail_closed_blocked_evidence(tmp_path):
+    _write_current_evidence(tmp_path)
     _write_json(
         tmp_path / ".tmp/demo-gate.json",
         {"status": "VERIFIED HERE", "ok": True, "goal_can_be_marked_complete": False},
@@ -58,6 +160,7 @@ def test_production_grade_audit_reports_missing_artifacts(tmp_path):
 
 
 def test_production_grade_audit_promotes_completion_gate_handoff_actions(tmp_path):
+    _write_current_evidence(tmp_path)
     _write_json(
         tmp_path / ".tmp/demo-gate.json",
         {"status": "VERIFIED HERE", "ok": True, "goal_can_be_marked_complete": False},
@@ -170,6 +273,111 @@ def test_production_grade_audit_promotes_completion_gate_handoff_actions(tmp_pat
     assert actions["rerun_production_closeout"] == "AFTER_BLOCKERS"
 
 
+def test_production_grade_audit_blocks_complete_on_open_current_evidence(tmp_path):
+    _write_current_evidence(
+        tmp_path,
+        gaps=[{"id": "economy-dataplane-separation-still-manual"}],
+        next_actions=[{"id": "external-dpi-real-artifact-intake"}],
+    )
+
+    report = build_report(tmp_path, _ready_requirement(tmp_path))
+    actions = {item["id"]: item for item in report["next_actions"]}
+
+    assert report["completion_decision"] == "NOT_COMPLETE"
+    assert report["goal_can_be_marked_complete"] is False
+    assert report["summary"]["requirements_complete"] is True
+    assert report["summary"]["requirements_with_production_gaps"] == 0
+    assert report["summary"]["current_evidence_gate_clear"] is False
+    assert report["summary"]["current_evidence_gap_count"] == 1
+    assert report["summary"]["current_evidence_next_action_count"] == 1
+    assert report["summary"]["current_evidence_blocker_ids"] == [
+        "current_evidence_open_gaps"
+    ]
+    assert actions["clear_current_cross_plane_evidence_context"]["status"] == "BLOCKING"
+    assert actions["clear_current_cross_plane_evidence_context"]["open_gap_ids"] == [
+        "economy-dataplane-separation-still-manual"
+    ]
+
+
+def test_production_grade_audit_completes_only_when_current_evidence_and_proof_gate_are_clear(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(
+        audit,
+        "build_cross_plane_proof_gate_report",
+        _allowed_cross_plane_proof_gate,
+    )
+    _write_current_evidence(tmp_path)
+
+    report = build_report(tmp_path, _ready_requirement(tmp_path))
+
+    assert report["completion_decision"] == "COMPLETE"
+    assert report["goal_can_be_marked_complete"] is True
+    assert report["summary"]["requirements_complete"] is True
+    assert report["summary"]["current_evidence_gate_clear"] is True
+    assert report["summary"]["cross_plane_proof_gate_allowed"] is True
+    assert report["cross_plane_proof_gate"]["allowed"] is True
+    assert report["current_evidence_context"]["current_gap_count"] == 0
+    assert report["next_actions"] == []
+
+
+def test_production_grade_audit_blocks_complete_when_cross_plane_proof_gate_blocks(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(
+        audit,
+        "build_cross_plane_proof_gate_report",
+        _blocked_cross_plane_proof_gate,
+    )
+    _write_current_evidence(tmp_path)
+
+    report = build_report(tmp_path, _ready_requirement(tmp_path))
+    actions = {item["id"]: item for item in report["next_actions"]}
+
+    assert report["completion_decision"] == "NOT_COMPLETE"
+    assert report["goal_can_be_marked_complete"] is False
+    assert report["summary"]["requirements_complete"] is True
+    assert report["summary"]["current_evidence_gate_clear"] is True
+    assert report["summary"]["cross_plane_proof_gate_allowed"] is False
+    assert report["cross_plane_proof_gate"]["allowed"] is False
+    assert "claim_blocked:production_readiness" in report["summary"][
+        "cross_plane_proof_gate_blocker_ids"
+    ]
+    assert actions["clear_cross_plane_proof_gate"]["status"] == "BLOCKING"
+    assert "production_readiness_imported_artifact_not_verified" in actions[
+        "clear_cross_plane_proof_gate"
+    ]["blocker_ids"]
+
+
+def test_production_grade_audit_completes_with_non_blocking_tracked_gap(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(
+        audit,
+        "build_cross_plane_proof_gate_report",
+        _allowed_cross_plane_proof_gate,
+    )
+    _write_current_evidence(
+        tmp_path,
+        gaps=[{"id": "tracked-local-risk", "blocks_real_readiness": False}],
+    )
+
+    report = build_report(tmp_path, _ready_requirement(tmp_path))
+
+    assert report["completion_decision"] == "COMPLETE"
+    assert report["goal_can_be_marked_complete"] is True
+    assert report["summary"]["current_evidence_gate_clear"] is True
+    assert report["summary"]["cross_plane_proof_gate_allowed"] is True
+    assert report["summary"]["current_evidence_gap_count"] == 0
+    assert report["current_evidence_context"]["tracked_gap_count"] == 1
+    assert report["current_evidence_context"]["non_blocking_gap_ids"] == [
+        "tracked-local-risk"
+    ]
+
+
 def test_production_grade_audit_cli_writes_fail_closed_report(tmp_path):
     output = tmp_path / "audit.json"
     output_md = tmp_path / "audit.md"
@@ -190,4 +398,6 @@ def test_production_grade_audit_cli_writes_fail_closed_report(tmp_path):
     assert report["completion_decision"] == "NOT_COMPLETE"
     assert report["goal_can_be_marked_complete"] is False
     assert report["summary"]["next_actions_operator_input_required"] == 1
-    assert report["summary"]["next_actions_generic_blocking"] == 0
+    assert report["summary"]["next_actions_generic_blocking"] == 1
+    assert report["summary"]["current_evidence_context_included"] is False
+    assert report["summary"]["current_evidence_gate_clear"] is False

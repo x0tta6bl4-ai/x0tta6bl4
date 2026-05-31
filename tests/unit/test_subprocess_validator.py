@@ -13,6 +13,7 @@ def test_validate_command_allowed():
     assert validate_command(["bpftool", "prog", "list"])
     assert validate_command(["batctl", "o"])
     assert validate_command(["yggdrasilctl", "getPeers"])
+    assert validate_command(["ping", "-c", "1", "-W", "1", "127.0.0.1"])
 
 
 def test_validate_command_disallowed():

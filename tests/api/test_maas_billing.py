@@ -33,6 +33,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, Invoice, User, get_db
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_billing_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -80,7 +81,7 @@ def billing_data(client):
 
     # Elevate admin
     db = TestingSessionLocal()
-    admin = db.query(User).filter(User.api_key == admin_token).first()
+    admin = find_user_by_api_key(db, admin_token)
     admin.role = "admin"
     db.commit()
     db.close()
@@ -257,7 +258,7 @@ class TestManualPayInvoice:
     def test_pay_own_invoice_success(self, client, billing_data):
         """Admin creates invoice then pays it manually."""
         db = TestingSessionLocal()
-        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin = find_user_by_api_key(db, billing_data["admin_token"])
         admin_id = admin.id
         db.close()
 
@@ -274,7 +275,7 @@ class TestManualPayInvoice:
     def test_pay_other_users_invoice_404(self, client, billing_data):
         """User cannot pay admin's invoice (different user_id)."""
         db = TestingSessionLocal()
-        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin = find_user_by_api_key(db, billing_data["admin_token"])
         admin_id = admin.id
         db.close()
 
@@ -345,7 +346,7 @@ class TestStripeWebhookHandling:
         """Valid event with invoice_id in DB → invoice status set to 'paid'."""
         from unittest.mock import patch
         db = TestingSessionLocal()
-        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin = find_user_by_api_key(db, billing_data["admin_token"])
         admin_id = admin.id
         db.close()
 
@@ -448,7 +449,7 @@ class TestCheckoutEdgeCases:
     def test_checkout_already_paid_returns_200(self, client, billing_data):
         """Invoice with status='paid' → 200 with 'already paid' message."""
         db = TestingSessionLocal()
-        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin = find_user_by_api_key(db, billing_data["admin_token"])
         admin_id = admin.id
         db.close()
 
@@ -470,7 +471,7 @@ class TestCheckoutEdgeCases:
         mod.STRIPE_SECRET_KEY = None
 
         db = TestingSessionLocal()
-        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin = find_user_by_api_key(db, billing_data["admin_token"])
         admin_id = admin.id
         db.close()
 
@@ -499,7 +500,7 @@ class TestEnterpriseInvoiceRate:
     def test_enterprise_user_gets_higher_rate(self, client, billing_data):
         """Enterprise plan users have rate=0.05 instead of 0.01."""
         db = TestingSessionLocal()
-        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin = find_user_by_api_key(db, billing_data["admin_token"])
         admin.plan = "enterprise"
         db.commit()
         db.close()
@@ -515,7 +516,7 @@ class TestEnterpriseInvoiceRate:
 
         # Restore plan
         db = TestingSessionLocal()
-        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin = find_user_by_api_key(db, billing_data["admin_token"])
         admin.plan = "starter"
         db.commit()
         db.close()

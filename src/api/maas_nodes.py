@@ -27,8 +27,10 @@ Example:
     ...     node.status = "approved"
 """
 
+import hashlib
 import logging
 import hmac
+import time
 import uuid
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Set
@@ -37,17 +39,45 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
 from src.database import (ACLPolicy, MarketplaceEscrow, MarketplaceListing,
                           MeshInstance, MeshNode, User, get_db)
 from src.core.rbac import MeshPermission, DEFAULT_ROLE_PERMISSIONS as ROLE_PERMISSIONS
 from src.api.maas_auth import require_role, require_mesh_access
 from src.api.maas_security import token_signer
+from src.coordination.events import EventType, get_event_bus
 from src.core.reliability_policy import mark_degraded_dependency
+from src.services.marketplace_events import publish_marketplace_escrow_event
 from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/maas", tags=["MaaS Nodes"])
+_HEARTBEAT_ESCROW_SOURCE_AGENT = "maas-nodes-heartbeat"
+_TELEMETRY_SOURCE_AGENT = "maas-telemetry"
+_HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT = 10
+_HEARTBEAT_OBSERVED_LAYER = "api_mesh_to_commerce"
+_HEARTBEAT_OBSERVED_STATE_CLAIM_BOUNDARY = (
+    "MaaS DB-backed node heartbeat evidence only. It records local node lookup, "
+    "approval gate, status update, DB commit, telemetry export, and optional "
+    "marketplace escrow auto-release linkage with node, mesh, and escrow "
+    "identifiers hashed. It does not copy raw node IDs, mesh IDs, custom metric "
+    "values, telemetry payloads, escrow IDs, listing IDs, renter IDs, or request "
+    "bodies, and it does not prove live dataplane reachability, current packet "
+    "delivery, remote node authenticity, or external settlement finality."
+)
+_MESH_HEALING_SOURCE_AGENT = "mesh-network-manager"
+_MESH_HEALING_EVIDENCE_OPERATIONS = {
+    "trigger_aggressive_healing",
+    "verify_node_state",
+}
+_MESH_HEALING_RESPONSE_CLAIM_BOUNDARY = (
+    "MaaS node heal response means a local mesh-network-manager healing action "
+    "was requested and summarized through redacted EventBus evidence. The "
+    "status field is kept for API compatibility, but it must not be read as "
+    "restored live dataplane behavior unless post_action_dataplane_revalidation "
+    "later cites bounded dataplane probe evidence."
+)
 
 
 # =============================================================================
@@ -515,8 +545,6 @@ def _node_readiness_status(db: Any) -> Dict[str, Any]:
             "shadowed_by_legacy": [
                 "POST /{mesh_id}/nodes/register",
                 "GET /{mesh_id}/nodes/pending",
-                "GET /{mesh_id}/nodes/all",
-                "GET /{mesh_id}/node-config/{node_id}",
                 "POST /{mesh_id}/nodes/{node_id}/approve",
                 "POST /{mesh_id}/nodes/{node_id}/revoke",
             ],
@@ -524,14 +552,16 @@ def _node_readiness_status(db: Any) -> Dict[str, Any]:
                 "POST /{mesh_id}/nodes/{node_id}/heartbeat",
                 "GET /{mesh_id}/nodes/{node_id}/telemetry",
                 "POST /{mesh_id}/nodes/check-access",
+                "GET /{mesh_id}/node-config/{node_id}",
+                "GET /{mesh_id}/nodes/all",
                 "DELETE /{mesh_id}/nodes/{node_id}",
                 "POST /{mesh_id}/nodes/{node_id}/heal",
             ],
             "boundary": (
                 "Legacy maas router is registered before maas_nodes, so register, "
-                "pending, approve, revoke, nodes/all, and node-config routes are "
-                "handled by legacy handlers. Heartbeat, telemetry, ACL check, "
-                "delete, and heal remain DB-backed in maas_nodes."
+                "pending, approve, and revoke routes are handled by legacy "
+                "handlers. Heartbeat, telemetry, ACL check, node-config, "
+                "nodes/all, delete, and heal remain DB-backed in maas_nodes."
             ),
         },
         "degraded_dependencies": degraded_dependencies,
@@ -564,6 +594,9 @@ def _node_readiness_status(db: Any) -> Dict[str, Any]:
                 "return 503 when that service is unavailable."
             ),
         },
+        "cross_plane_claim_gate": readiness_cross_plane_claim_gate_metadata(
+            surface="maas_node_readiness"
+        ),
         "claim_boundary": (
             "Node readiness separates route availability from DB-backed node "
             "runtime state, telemetry bridge availability, signed approval tokens, "
@@ -718,15 +751,436 @@ def _build_analytics_telemetry_payload(
     return payload
 
 
-def _export_analytics_telemetry(node_id: str, payload: Dict[str, Any]) -> bool:
+def _export_analytics_telemetry(
+    node_id: str,
+    payload: Dict[str, Any],
+    request: Optional[Request] = None,
+) -> bool:
     if _set_external_telemetry is None:
         return False
     try:
-        _set_external_telemetry(node_id, payload)
+        telemetry_kwargs = _telemetry_event_bus_kwargs_from_request(request)
+        mesh_id = payload.get("mesh_id")
+        if mesh_id is not None:
+            telemetry_kwargs["mesh_id"] = mesh_id
+        try:
+            if telemetry_kwargs:
+                _set_external_telemetry(node_id, payload, **telemetry_kwargs)
+            else:
+                _set_external_telemetry(node_id, payload)
+        except TypeError:
+            _set_external_telemetry(node_id, payload)
         return True
     except Exception as exc:
         logger.warning("Failed to export node telemetry for analytics (node=%s): %s", node_id, exc)
         return False
+
+
+def _event_bus_kwargs_from_request(request: Optional[Request]) -> Dict[str, Any]:
+    state = getattr(request, "state", None)
+    kwargs: Dict[str, Any] = {}
+    injected_bus = getattr(state, "event_bus", None)
+    if injected_bus is not None:
+        kwargs["event_bus"] = injected_bus
+    project_root = getattr(state, "event_project_root", None)
+    if project_root:
+        kwargs["project_root"] = project_root
+    return kwargs
+
+
+def _telemetry_event_bus_kwargs_from_request(
+    request: Optional[Request],
+) -> Dict[str, Any]:
+    event_kwargs = _event_bus_kwargs_from_request(request)
+    telemetry_kwargs: Dict[str, Any] = {}
+    if "event_bus" in event_kwargs:
+        telemetry_kwargs["event_bus"] = event_kwargs["event_bus"]
+    if "project_root" in event_kwargs:
+        telemetry_kwargs["event_project_root"] = event_kwargs["project_root"]
+    return telemetry_kwargs
+
+
+def _redacted_sha256_prefix(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    return hashlib.sha256(
+        normalized.encode("utf-8", errors="replace")
+    ).hexdigest()[:16]
+
+
+def _event_bus_from_kwargs(event_kwargs: Dict[str, Any]) -> Any:
+    event_bus = event_kwargs.get("event_bus")
+    if event_bus is not None:
+        return event_bus
+    project_root = event_kwargs.get("project_root")
+    if project_root:
+        try:
+            return get_event_bus(project_root)
+        except Exception:
+            return None
+    return None
+
+
+def _latest_heartbeat_telemetry_event_ids(
+    event_bus: Any,
+    *,
+    node_id: Any,
+    mesh_id: Any,
+) -> List[str]:
+    if event_bus is None or not hasattr(event_bus, "get_event_history"):
+        return []
+
+    node_hash = _redacted_sha256_prefix(node_id)
+    mesh_hash = _redacted_sha256_prefix(mesh_id)
+    try:
+        events = event_bus.get_event_history(
+            event_type=EventType.PIPELINE_STAGE_END,
+            source_agent=_TELEMETRY_SOURCE_AGENT,
+            limit=1000,
+        )
+    except Exception:
+        return []
+
+    event_ids = []
+    for event in events:
+        data = event.data if isinstance(event.data, dict) else {}
+        if data.get("operation") != "telemetry_snapshot_write":
+            continue
+        if node_hash is not None and data.get("node_id_hash") != node_hash:
+            continue
+        if mesh_hash is not None and data.get("mesh_id_hash") != mesh_hash:
+            continue
+        event_ids.append(event.event_id)
+    return event_ids[-_HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT:]
+
+
+def _heartbeat_auto_release_settlement_evidence(
+    event_bus: Any,
+    *,
+    node_id: Any,
+    mesh_id: Any,
+    telemetry_exported: bool,
+) -> Dict[str, Any]:
+    telemetry_event_ids = _latest_heartbeat_telemetry_event_ids(
+        event_bus,
+        node_id=node_id,
+        mesh_id=mesh_id,
+    )
+    if telemetry_event_ids:
+        source_quality = "heartbeat_api_plus_telemetry_eventbus_link"
+    elif telemetry_exported:
+        source_quality = "heartbeat_api_export_without_eventbus_link"
+    else:
+        source_quality = "heartbeat_api_without_telemetry_export"
+
+    return {
+        "decision_basis": "healthy_heartbeat_auto_release",
+        "source_quality": source_quality,
+        "dataplane_confirmed": False,
+        "threshold_met": True,
+        "uptime_percent": None,
+        "uptime_threshold": None,
+        "measurement_window_hours": 0,
+        "telemetry_evidence": {
+            "source_agents": [_TELEMETRY_SOURCE_AGENT] if telemetry_event_ids else [],
+            "event_ids": telemetry_event_ids,
+            "events_total": len(telemetry_event_ids),
+            "event_ids_limit": _HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT,
+            "payloads_redacted": True,
+        },
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": (
+            "Heartbeat auto-release evidence is based on a local healthy heartbeat "
+            "request and optional maas-telemetry EventBus snapshot-write links. It "
+            "does not prove live dataplane reachability, current packet delivery, "
+            "or remote node authenticity beyond those local observations."
+        ),
+    }
+
+
+def _heartbeat_request_summary(req: HeartbeatRequest) -> Dict[str, Any]:
+    custom_metrics = req.custom_metrics if isinstance(req.custom_metrics, dict) else {}
+    return {
+        "requested_status": req.status,
+        "cpu_percent_present": req.cpu_percent is not None,
+        "mem_percent_present": req.mem_percent is not None,
+        "latency_ms_present": req.latency_ms is not None,
+        "traffic_mbps_present": req.traffic_mbps is not None,
+        "active_connections_present": req.active_connections is not None,
+        "custom_metrics_count": len(custom_metrics),
+        "custom_metrics_numeric_count": sum(
+            1
+            for value in custom_metrics.values()
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        ),
+        "raw_metric_values_redacted": True,
+    }
+
+
+def _publish_node_heartbeat_evidence(
+    event_bus: Any,
+    *,
+    stage: str,
+    status: str,
+    mesh_id: Any,
+    node_id: Any,
+    req: HeartbeatRequest,
+    db_node_found: bool,
+    node_approved: bool,
+    db_committed: bool,
+    status_before: Any = None,
+    status_after: Any = None,
+    telemetry_exported: bool = False,
+    telemetry_event_ids: Optional[List[str]] = None,
+    escrow_release_attempted: bool = False,
+    escrow_released: bool = False,
+    marketplace_event_id: Optional[str] = None,
+    settlement_evidence: Optional[Dict[str, Any]] = None,
+    duration_ms: Optional[float] = None,
+    read_only: bool = False,
+    reason: str = "",
+) -> Optional[str]:
+    if event_bus is None:
+        return None
+
+    settlement_evidence = settlement_evidence or {}
+    telemetry_event_ids = list(telemetry_event_ids or [])[
+        -_HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT:
+    ]
+    upstream_event_ids = list(telemetry_event_ids)
+    if marketplace_event_id:
+        upstream_event_ids.append(marketplace_event_id)
+
+    payload = {
+        "component": "api.maas_nodes",
+        "operation": "node_heartbeat",
+        "stage": stage,
+        "service_name": _HEARTBEAT_ESCROW_SOURCE_AGENT,
+        "source_alias": _HEARTBEAT_ESCROW_SOURCE_AGENT,
+        "layer": _HEARTBEAT_OBSERVED_LAYER,
+        "status": status,
+        "node_id_hash": _redacted_sha256_prefix(node_id),
+        "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+        "read_only": bool(read_only),
+        "safe_actuator": False,
+        "heartbeat_summary": {
+            "db_node_found": bool(db_node_found),
+            "node_approved": bool(node_approved),
+            "db_committed": bool(db_committed),
+            "status_before": str(status_before or "")[:40] or None,
+            "status_after": str(status_after or "")[:40] or None,
+            **_heartbeat_request_summary(req),
+        },
+        "telemetry_summary": {
+            "telemetry_exported": bool(telemetry_exported),
+            "source_agents": [_TELEMETRY_SOURCE_AGENT] if telemetry_event_ids else [],
+            "event_ids": telemetry_event_ids,
+            "events_total": len(telemetry_event_ids),
+            "event_ids_limit": _HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT,
+            "payloads_redacted": True,
+        },
+        "settlement_summary": {
+            "escrow_release_attempted": bool(escrow_release_attempted),
+            "escrow_released": bool(escrow_released),
+            "marketplace_event_id": marketplace_event_id,
+            "decision_basis": settlement_evidence.get("decision_basis"),
+            "source_quality": settlement_evidence.get("source_quality"),
+            "dataplane_confirmed": settlement_evidence.get("dataplane_confirmed"),
+            "threshold_met": settlement_evidence.get("threshold_met"),
+            "payloads_redacted": True,
+        },
+        "upstream_event_ids": upstream_event_ids[: _HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT + 1],
+        "upstream_events_total": len(upstream_event_ids),
+        "duration_ms": (
+            round(float(duration_ms), 3) if duration_ms is not None else None
+        ),
+        "reason": str(reason or "")[:120],
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": _HEARTBEAT_OBSERVED_STATE_CLAIM_BOUNDARY,
+    }
+
+    try:
+        event = event_bus.publish(
+            EventType.PIPELINE_STAGE_END,
+            _HEARTBEAT_ESCROW_SOURCE_AGENT,
+            payload,
+            priority=4,
+        )
+        return event.event_id
+    except Exception as exc:
+        logger.error("Failed to publish MaaS node heartbeat evidence: %s", exc)
+        return None
+
+
+def _mesh_manager_event_ids(event_bus: Any) -> Set[str]:
+    if event_bus is None or not hasattr(event_bus, "get_event_history"):
+        return set()
+
+    event_ids: Set[str] = set()
+    for event_type in (
+        EventType.PIPELINE_STAGE_END,
+        EventType.TASK_FAILED,
+        EventType.TASK_BLOCKED,
+    ):
+        try:
+            events = event_bus.get_event_history(
+                event_type=event_type,
+                source_agent=_MESH_HEALING_SOURCE_AGENT,
+                limit=1000,
+            )
+        except Exception:
+            continue
+        event_ids.update(event.event_id for event in events)
+    return event_ids
+
+
+def _mesh_healing_control_plane_evidence(
+    event_bus: Any,
+    before_event_ids: Set[str],
+) -> Dict[str, Any]:
+    events = []
+    if event_bus is not None and hasattr(event_bus, "get_event_history"):
+        for event_type in (
+            EventType.PIPELINE_STAGE_END,
+            EventType.TASK_FAILED,
+            EventType.TASK_BLOCKED,
+        ):
+            try:
+                history = event_bus.get_event_history(
+                    event_type=event_type,
+                    source_agent=_MESH_HEALING_SOURCE_AGENT,
+                    limit=1000,
+                )
+            except Exception:
+                continue
+            for event in history:
+                if event.event_id in before_event_ids:
+                    continue
+                operation = str(event.data.get("operation", ""))
+                if operation in _MESH_HEALING_EVIDENCE_OPERATIONS:
+                    events.append(event)
+
+    events.sort(key=lambda item: item.timestamp)
+    event_ids = [event.event_id for event in events]
+    operations = sorted(
+        {
+            str(event.data.get("operation"))
+            for event in events
+            if event.data.get("operation") in _MESH_HEALING_EVIDENCE_OPERATIONS
+        }
+    )
+    verification_event_ids = [
+        event.event_id
+        for event in events
+        if event.data.get("operation") == "verify_node_state"
+    ]
+    terminal_event_ids = [
+        event.event_id
+        for event in events
+        if event.data.get("operation") == "trigger_aggressive_healing"
+    ]
+    identity_events_total = 0
+    duration_events_total = 0
+    bounded_output_events_total = 0
+    return_code_events_total = 0
+    statuses = set()
+    for event in events:
+        data = event.data if isinstance(event.data, dict) else {}
+        if isinstance(data.get("identity"), dict):
+            identity_events_total += 1
+        if isinstance(data.get("duration_ms"), (int, float)):
+            duration_events_total += 1
+        bounded_output = data.get("bounded_output")
+        if isinstance(bounded_output, dict):
+            bounded_output_events_total += 1
+            if "return_code" in bounded_output:
+                return_code_events_total += 1
+        status = data.get("status")
+        if status is not None:
+            statuses.add(str(status)[:40])
+
+    return {
+        "event_bus_observed": event_bus is not None,
+        "events_total": len(event_ids),
+        "event_ids": event_ids,
+        "source_agents": [_MESH_HEALING_SOURCE_AGENT] if event_ids else [],
+        "operations": operations,
+        "statuses": sorted(statuses),
+        "terminal_event_id": terminal_event_ids[-1] if terminal_event_ids else None,
+        "verification_event_ids": verification_event_ids,
+        "verification_events_total": len(verification_event_ids),
+        "service_identity_events_total": identity_events_total,
+        "duration_events_total": duration_events_total,
+        "bounded_output_events_total": bounded_output_events_total,
+        "return_code_events_total": return_code_events_total,
+        "dataplane_confirmed": False,
+        "post_action_dataplane_revalidated": False,
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": (
+            "MaaS node heal response exposes only EventBus evidence IDs from "
+            "mesh-network-manager verification/healing events. It does not copy raw "
+            "node IDs, mesh IDs, endpoints, route tables, or verification payloads, "
+            "and it does not prove live dataplane recovery beyond those referenced "
+            "local control-plane events."
+        ),
+    }
+
+
+def _mesh_healing_post_action_revalidation(
+    *,
+    healed: int,
+    control_plane_evidence: Dict[str, Any],
+) -> Dict[str, Any]:
+    event_ids = control_plane_evidence.get("event_ids", [])
+    reason = (
+        "no_bounded_post_action_dataplane_probe_attached"
+        if healed > 0
+        else "no_healing_action_applied"
+    )
+    claim_gate = {
+        "required_for_restored_dataplane_claim": True,
+        "restored_dataplane_claim_allowed": False,
+        "blockers": [reason],
+        "required_evidence": {
+            "bounded_post_action_dataplane_probe": True,
+            "dataplane_confirmed": True,
+            "redacted_evidence": True,
+            "event_ids_count_min": 1,
+        },
+        "observed_evidence": {
+            "bounded_post_action_dataplane_probe": False,
+            "dataplane_confirmed": False,
+            "control_plane_event_ids_total": (
+                len(event_ids) if isinstance(event_ids, list) else 0
+            ),
+        },
+        "claim_boundary": _MESH_HEALING_RESPONSE_CLAIM_BOUNDARY,
+        "redacted": True,
+    }
+    return {
+        "required_for_restored_dataplane_claim": True,
+        "attempted": False,
+        "post_action_dataplane_revalidated": False,
+        "dataplane_confirmed": False,
+        "restored_dataplane_claim_allowed": False,
+        "reason": reason,
+        "claim_gate": claim_gate,
+        "source_agents": [],
+        "event_ids": [],
+        "events_total": 0,
+        "control_plane_event_ids_total": (
+            len(event_ids) if isinstance(event_ids, list) else 0
+        ),
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": _MESH_HEALING_RESPONSE_CLAIM_BOUNDARY,
+    }
 
 
 def _read_external_telemetry(node_id: str) -> Dict[str, Any]:
@@ -764,17 +1218,52 @@ async def node_heartbeat(
     mesh_id: str,
     node_id: str,
     req: HeartbeatRequest,
+    request: Request = None,
     db: Session = Depends(get_db),
 ):
     """
     Called by node agents at regular intervals.  Updates last_seen timestamp
     and auto-releases any marketplace escrow waiting on this node's health.
     """
+    started = time.perf_counter()
+    event_kwargs = _event_bus_kwargs_from_request(request)
+    event_bus = _event_bus_from_kwargs(event_kwargs)
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
     if not node:
+        _publish_node_heartbeat_evidence(
+            event_bus,
+            stage="node_lookup",
+            status="node_not_found",
+            mesh_id=mesh_id,
+            node_id=node_id,
+            req=req,
+            db_node_found=False,
+            node_approved=False,
+            db_committed=False,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            read_only=True,
+            reason="node_not_found",
+        )
         raise HTTPException(status_code=404, detail="Node not found")
 
+    status_before = node.status
     if (node.status or "").lower() in {"pending", "pending_approval", "revoked"}:
+        _publish_node_heartbeat_evidence(
+            event_bus,
+            stage="approval_gate",
+            status="node_not_approved",
+            mesh_id=mesh_id,
+            node_id=node_id,
+            req=req,
+            db_node_found=True,
+            node_approved=False,
+            db_committed=False,
+            status_before=status_before,
+            status_after=node.status,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            read_only=True,
+            reason="node_not_approved_for_heartbeat",
+        )
         raise HTTPException(
             status_code=403,
             detail="Node is not approved for heartbeat",
@@ -787,6 +1276,8 @@ async def node_heartbeat(
         node.status = "degraded"
 
     released_escrow = None
+    released_escrow_event_kwargs = None
+    escrow_release_attempted = req.status == "healthy"
     if req.status == "healthy":
         # Find a marketplace listing for this node whose escrow is held
         listing = (
@@ -805,18 +1296,35 @@ async def node_heartbeat(
                 escrow.released_at = datetime.utcnow()
                 listing.status = "rented"
                 released_escrow = escrow.id
-                
+                released_escrow_event_kwargs = {
+                    "transition": "released",
+                    "source_agent": _HEARTBEAT_ESCROW_SOURCE_AGENT,
+                    "escrow_id": escrow.id,
+                    "listing_id": listing.id,
+                    "renter_id": escrow.renter_id,
+                    "actor_id": node_id,
+                    "currency": getattr(escrow, "currency", None)
+                    or getattr(listing, "currency", None),
+                    "status": "released",
+                    "node_id": node_id,
+                    "mesh_id": mesh_id,
+                    "amount_cents": getattr(escrow, "amount_cents", None),
+                    "amount_token": getattr(escrow, "amount_token", None),
+                    "reason": "heartbeat_healthy_auto_release",
+                    **event_kwargs,
+                }
+
                 record_audit_log(
                     db, None, "MARKETPLACE_ESCROW_RELEASED_AUTO",
                     user_id=listing.renter_id,
                     payload={
-                        "listing_id": listing.id, 
-                        "escrow_id": escrow.id, 
+                        "listing_id": listing.id,
+                        "escrow_id": escrow.id,
                         "node_id": node_id
                     },
                     status_code=200
                 )
-                
+
                 logger.info(
                     "✅ Heartbeat auto-released escrow %s for node %s (listing %s)",
                     escrow.id, node_id, listing.id,
@@ -830,7 +1338,52 @@ async def node_heartbeat(
         req=req,
         timestamp_iso=last_seen_iso,
     )
-    telemetry_exported = _export_analytics_telemetry(node_id, telemetry_payload)
+    telemetry_exported = _export_analytics_telemetry(
+        node_id,
+        telemetry_payload,
+        request=request,
+    )
+    telemetry_event_ids = _latest_heartbeat_telemetry_event_ids(
+        event_bus,
+        node_id=node_id,
+        mesh_id=mesh_id,
+    )
+    settlement_evidence = None
+    marketplace_event_id = None
+    if released_escrow_event_kwargs:
+        settlement_evidence = _heartbeat_auto_release_settlement_evidence(
+            event_bus,
+            node_id=node_id,
+            mesh_id=mesh_id,
+            telemetry_exported=telemetry_exported,
+        )
+        released_escrow_event_kwargs["settlement_evidence"] = settlement_evidence
+        marketplace_event_id = publish_marketplace_escrow_event(
+            **released_escrow_event_kwargs
+        )
+
+    _publish_node_heartbeat_evidence(
+        event_bus,
+        stage="heartbeat_processed",
+        status="accepted",
+        mesh_id=mesh_id,
+        node_id=node_id,
+        req=req,
+        db_node_found=True,
+        node_approved=True,
+        db_committed=True,
+        status_before=status_before,
+        status_after=node.status,
+        telemetry_exported=telemetry_exported,
+        telemetry_event_ids=telemetry_event_ids,
+        escrow_release_attempted=escrow_release_attempted,
+        escrow_released=released_escrow is not None,
+        marketplace_event_id=marketplace_event_id,
+        settlement_evidence=settlement_evidence,
+        duration_ms=(time.perf_counter() - started) * 1000,
+        read_only=False,
+        reason="heartbeat_processed",
+    )
 
     return {
         "status": "ok",
@@ -1174,7 +1727,8 @@ async def heal_node(
     mesh_id: str,
     node_id: str,
     current_user: User = Depends(require_mesh_access(MeshPermission.NODE_HEAL)),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    request: Request = None,
 ) -> Dict[str, Any]:
     """Trigger healing for a specific node.
     
@@ -1212,10 +1766,27 @@ async def heal_node(
     
     # Execute healing with proper error handling
     try:
-        manager = MeshNetworkManager(node_id=node_id)
+        event_kwargs = _event_bus_kwargs_from_request(request)
+        event_bus = _event_bus_from_kwargs(event_kwargs)
+        manager_kwargs: Dict[str, Any] = {"node_id": node_id}
+        if event_bus is not None:
+            manager_kwargs["event_bus"] = event_bus
+        if event_kwargs.get("project_root"):
+            manager_kwargs["event_project_root"] = event_kwargs["project_root"]
+        evidence_before = _mesh_manager_event_ids(event_bus)
+
+        manager = MeshNetworkManager(**manager_kwargs)
         healed = await manager.trigger_aggressive_healing(
             auto_restore_nodes=True,
             verification_mode=VerificationMode.FULL,
+        )
+        control_plane_evidence = _mesh_healing_control_plane_evidence(
+            event_bus,
+            evidence_before,
+        )
+        post_action_dataplane_revalidation = _mesh_healing_post_action_revalidation(
+            healed=healed,
+            control_plane_evidence=control_plane_evidence,
         )
         
         logger.info(f"🔧 Node {node_id} healing triggered by user {current_user.id}")
@@ -1223,6 +1794,14 @@ async def heal_node(
             "status": "healed" if healed > 0 else "no_action",
             "node_id": node_id,
             "components_healed": healed,
+            "healing_claim": (
+                "local_control_action_applied" if healed > 0 else "local_control_no_action"
+            ),
+            "dataplane_confirmed": False,
+            "post_action_dataplane_revalidation": post_action_dataplane_revalidation,
+            "restored_dataplane_claim_allowed": False,
+            "claim_boundary": _MESH_HEALING_RESPONSE_CLAIM_BOUNDARY,
+            "control_plane_evidence": control_plane_evidence,
         }
     except ImportError as e:
         logger.error(f"Healing module import error for node {node_id}: {e}")

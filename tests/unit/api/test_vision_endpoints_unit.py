@@ -60,6 +60,8 @@ def test_vision_readiness_ready_when_component_surfaces_are_available(monkeypatc
     assert payload["upload_surface_ready"] is True
     assert payload["local_image_backend_ready"] is True
     assert payload["external_provider_required"] is False
+    assert payload["cross_plane_claim_gate"]["allowed"] is False
+    assert "production_readiness" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
     assert payload["external_provider_configured"] is False
     assert payload["degraded_dependencies"] == []
 

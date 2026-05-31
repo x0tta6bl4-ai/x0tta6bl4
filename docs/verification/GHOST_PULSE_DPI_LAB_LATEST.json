@@ -1,12 +1,12 @@
 {
   "artifacts": [
     {
-      "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/dpi_lab-gap-record.json",
+      "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260531T071618Z/dpi_lab-gap-record.json",
       "role": "evidence_gap_record",
-      "sha256": "0d049726909730923946c3433da41cfc54d2c63d2659974f5e765c1db73b2646"
+      "sha256": "27281d3c8a801cc58000a051ee0208630e9d416deba3cfa83cbc80639beb1493"
     }
   ],
-  "bundle": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z",
+  "bundle": "docs/verification/ghost-pulse-external-evidence-gaps-20260531T071618Z",
   "claim_boundary": {
     "claim_verified": false,
     "note": "Required external evidence is absent; proof gate must reject this claim."
@@ -44,7 +44,7 @@
     "lab conclusion for DPI bypass behavior"
   ],
   "mode": "EXTERNAL_EVIDENCE_GAP_RECORD",
-  "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
+  "observed_at_utc": "2026-05-31T07:16:18.153685+00:00",
   "required_artifact_roles": [
     "lab_scope",
     "baseline_result",

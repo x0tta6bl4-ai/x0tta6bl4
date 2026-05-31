@@ -6,7 +6,7 @@ import logging
 from src.core.tracing_middleware import correlation_id_var
 from src.core.logging_config import (RequestIdContextVar, SensitiveDataFilter,
                                      StructuredJsonFormatter,
-                                     mask_sensitive_data)
+                                     mask_sensitive_data, setup_logging)
 
 
 def test_mask_sensitive_data_masks_credentials_and_ip():
@@ -104,3 +104,31 @@ def test_request_id_context_var_set_get_clear():
     assert RequestIdContextVar.get() == "rid-123"
     RequestIdContextVar.clear()
     assert RequestIdContextVar.get() is None
+
+
+def test_setup_logging_respects_named_logger_without_reconfiguring_root():
+    root_logger = logging.getLogger()
+    root_handlers = list(root_logger.handlers)
+    root_filters = list(root_logger.filters)
+    root_level = root_logger.level
+    logger_name = "x0tta6bl4.test.named_logger_contract"
+
+    try:
+        logger = setup_logging(name=logger_name, log_level="WARNING")
+
+        assert logger is logging.getLogger(logger_name)
+        assert logger is not root_logger
+        assert logger.name == logger_name
+        assert logger.level == logging.WARNING
+        assert tuple(root_logger.handlers) == tuple(root_handlers)
+        assert tuple(root_logger.filters) == tuple(root_filters)
+        assert root_logger.level == root_level
+    finally:
+        logger = logging.getLogger(logger_name)
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+            handler.close()
+        logger.filters.clear()
+        root_logger.handlers = root_handlers
+        root_logger.filters = root_filters
+        root_logger.setLevel(root_level)

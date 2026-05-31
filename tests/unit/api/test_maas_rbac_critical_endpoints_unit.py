@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, User, get_db
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_maas_rbac_{uuid.uuid4().hex}.db"
 _DB_URL = f"sqlite:///{_TEST_DB_PATH}"
@@ -35,7 +36,7 @@ def _register_user_with_role(client: TestClient, role: str) -> str:
     token = response.json()["access_token"]
 
     db = TestingSessionLocal()
-    user = db.query(User).filter(User.api_key == token).first()
+    user = find_user_by_api_key(db, token)
     user.role = role
     db.commit()
     db.close()

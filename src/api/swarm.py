@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
 from src.core.reliability_policy import mark_degraded_dependency
 
 logger = logging.getLogger(__name__)
@@ -191,6 +192,9 @@ def _swarm_readiness_status() -> Dict[str, Any]:
                 "src.swarm.vision_coding and depends on its local image stack."
             ),
         },
+        "cross_plane_claim_gate": readiness_cross_plane_claim_gate_metadata(
+            surface="swarm_readiness"
+        ),
         "claim_boundary": (
             "Swarm readiness proves that the route imports, registry shape, and "
             "lazy module surfaces are present. It does not create a swarm, run "

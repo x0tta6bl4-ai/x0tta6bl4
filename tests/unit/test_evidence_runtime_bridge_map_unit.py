@@ -15,6 +15,22 @@ def _load_map() -> dict:
     return json.loads(MAP_PATH.read_text(encoding="utf-8"))
 
 
+def _source_refs(value) -> list[str]:
+    refs: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key == "source_refs":
+                refs.extend(str(item) for item in child)
+            elif key == "source_ref":
+                refs.append(str(child))
+            else:
+                refs.extend(_source_refs(child))
+    elif isinstance(value, list):
+        for child in value:
+            refs.extend(_source_refs(child))
+    return refs
+
+
 def _indexable_evidence_files() -> list[Path]:
     return sorted(
         path
@@ -38,18 +54,23 @@ def test_evidence_runtime_bridge_map_matches_current_verification_tree():
     assert bridge_map["evidence_source"]["latest_by_suffix"] == dict(
         Counter(path.suffix.lower() for path in latest)
     )
+    external_dpi = bridge_map["evidence_source"]["external_dpi_intake_boundary"]
+    candidate = EVIDENCE_ROOT / "incoming" / "dpi_lab.json"
+    candidate_payload = json.loads(candidate.read_text(encoding="utf-8"))
+    assert external_dpi["candidate_path"] == "docs/verification/incoming/dpi_lab.json"
+    assert external_dpi["candidate_exists"] == candidate.exists()
+    assert external_dpi["candidate_is_file"] == candidate.is_file()
+    assert external_dpi["current_mode"] == candidate_payload["mode"]
+    assert external_dpi["current_status"] == candidate_payload["status"]
+    assert external_dpi["current_claim_status"] == "external_dpi_gap_record"
+    assert external_dpi["candidate_is_proof"] is False
+    assert external_dpi["proof_gate_dpi_bypass_claim_allowed"] is False
+    assert external_dpi["production_readiness_claim_allowed"] is False
 
 
 def test_evidence_runtime_bridge_source_refs_resolve_to_existing_files_and_lines():
     bridge_map = _load_map()
-    source_refs = []
-    source_refs.extend(bridge_map["event_trace_source"]["source_refs"])
-    source_refs.extend(bridge_map["runtime_surface"]["source_refs"])
-    source_refs.extend(bridge_map["operator_citation_flow"]["source_refs"])
-    source_refs.extend(bridge_map["rag_bridge"]["source_refs"])
-    source_refs.extend(bridge_map["operator_smoke"]["source_refs"])
-    for endpoint in bridge_map["runtime_surface"]["endpoints"]:
-        source_refs.extend(endpoint["source_refs"])
+    source_refs = _source_refs(bridge_map)
 
     for source_ref in source_refs:
         path_text, line_text = source_ref.rsplit(":", 1)
@@ -79,6 +100,9 @@ def test_evidence_runtime_bridge_claims_match_code_markers():
     assert "_search_response_from_result" in endpoint_source
     assert "_extract_citations" in endpoint_source
     assert "response_metadata[\"citations\"]" in endpoint_source
+    assert "external_dpi_intake_claim_gate_summary" in endpoint_source
+    assert "external_evidence_gap_record_not_proof" in endpoint_source
+    assert "external_dpi_proof_gate_not_allowed" in endpoint_source
 
     assert "VERIFICATION_ROOT" in rag_source
     assert "VERIFICATION_SUFFIXES" in rag_source
@@ -86,6 +110,11 @@ def test_evidence_runtime_bridge_claims_match_code_markers():
     assert "verification_evidence_status" in rag_source
     assert "source_class" in rag_source
     assert "verification_evidence" in rag_source
+    assert "CLAIM_STATUS_EXTERNAL_DPI_GAP_RECORD" in rag_source
+    assert "EXTERNAL_DPI_INTAKE_RELATIVE_PATH" in rag_source
+    assert "_external_dpi_intake_claim_gate_summary" in rag_source
+    assert "external_dpi_intake_claim_gate_summary" in rag_source
+    assert '"proof_gate_dpi_bypass_claim_allowed": False' in rag_source
     assert "EVENT_TRACE_SOURCE_CLASS" in rag_source
     assert "index_event_traces" in rag_source
     assert "event_trace_status" in rag_source
@@ -101,7 +130,19 @@ def test_evidence_runtime_bridge_claims_match_code_markers():
     assert ("POST", "/api/v1/ledger/event-traces/index") in endpoint_paths
     assert ("GET", "/api/v1/ledger/event-traces/status") in endpoint_paths
     assert bridge_map["operator_citation_flow"]["response_field"] == "metadata.citations"
+    assert "external_dpi_intake_claim_gate_summary" in bridge_map[
+        "operator_citation_flow"
+    ]["high_risk_boundary_fields"]
+    assert "external_evidence_gap_record" in bridge_map["operator_citation_flow"][
+        "high_risk_boundary_fields"
+    ]
     assert bridge_map["event_trace_source"]["source_class"] == "event_trace"
+    assert bridge_map["rag_bridge"]["metadata_contract"]["external_dpi_gap_record"][
+        "claim_status"
+    ] == "external_dpi_gap_record"
+    assert bridge_map["rag_bridge"]["metadata_contract"]["external_dpi_gap_record"][
+        "proof_gate_dpi_bypass_claim_allowed"
+    ] is False
     assert bridge_map["operator_smoke"]["command"] == (
         "python3 scripts/ops/smoke_ledger_event_trace_citation.py --json"
     )

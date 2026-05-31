@@ -1,10 +1,10 @@
 """
 Unit tests for telemetry layer — heartbeat and topology endpoints.
 
-NOTE: /api/v1/maas/heartbeat and /{mesh_id}/topology are served by the
-legacy handler (maas_legacy.py) because it is registered first in app.py.
-The maas_telemetry.py module's _set_telemetry/_get_telemetry helpers are
-tested at the unit level directly for Redis vs. memory fallback behaviour.
+NOTE: /api/v1/maas/heartbeat is served by the legacy handler because it is
+registered first in app.py. /{mesh_id}/topology is served by maas_telemetry
+and verifies mesh ownership before reading telemetry snapshots. The helper
+paths are tested directly for Redis vs. memory fallback behaviour.
 """
 import uuid
 import os
@@ -19,8 +19,9 @@ os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
+from src.coordination.events import EventBus, EventType
 from src.core.app import app
-from src.database import Base, MeshNode, get_db
+from src.database import Base, MeshInstance as DBMeshInstance, MeshNode, get_db
 
 _TEST_DB_PATH = f"./test_telemetry_{uuid.uuid4().hex}.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"
@@ -82,8 +83,7 @@ def provisioned_mesh(client, registered_user):
 class TestHeartbeatEndpoint:
     """
     /api/v1/maas/heartbeat is intercepted by maas_legacy.router (registered first).
-    The legacy handler accepts any node_id from authenticated users and stores
-    telemetry in the in-memory _node_telemetry dict.
+    The legacy handler only accepts nodes already present in the mesh registry.
     """
 
     def test_heartbeat_unauthenticated_returns_401(self, client):
@@ -98,12 +98,17 @@ class TestHeartbeatEndpoint:
         })
         assert resp.status_code == 401
 
-    def test_heartbeat_authenticated_any_node_returns_200(self, client, registered_user):
-        """Legacy handler stores telemetry in-memory for any node_id."""
+    def test_heartbeat_authenticated_registered_node_returns_200(
+        self,
+        client,
+        registered_user,
+        provisioned_mesh,
+    ):
+        """Legacy handler stores telemetry only for known mesh nodes."""
         resp = client.post(
             "/api/v1/maas/heartbeat",
             json={
-                "node_id": f"node-{uuid.uuid4().hex[:8]}",
+                "node_id": f"{provisioned_mesh}-node-0",
                 "cpu_usage": 0.45,
                 "memory_usage": 0.62,
                 "neighbors_count": 3,
@@ -114,12 +119,12 @@ class TestHeartbeatEndpoint:
         )
         assert resp.status_code == 200
 
-    def test_heartbeat_with_pheromones(self, client, registered_user):
+    def test_heartbeat_with_pheromones(self, client, registered_user, provisioned_mesh):
         """Legacy handler accepts optional pheromone payload."""
         resp = client.post(
             "/api/v1/maas/heartbeat",
             json={
-                "node_id": f"node-{uuid.uuid4().hex[:8]}",
+                "node_id": f"{provisioned_mesh}-node-1",
                 "cpu_usage": 0.3,
                 "memory_usage": 0.4,
                 "neighbors_count": 2,
@@ -143,8 +148,8 @@ class TestHeartbeatEndpoint:
 
 class TestTopologyEndpoint:
     """
-    /{mesh_id}/topology is intercepted by maas_legacy.router.
-    It checks in-memory mesh ownership via _get_mesh_or_404.
+    /{mesh_id}/topology is served by maas_telemetry and checks mesh ownership
+    before reading telemetry snapshots.
     """
 
     def test_topology_unauthenticated_returns_401(self, client, provisioned_mesh):
@@ -514,7 +519,11 @@ class TestTelemetryPheromoneContract:
         assert mod._derive_topology_status(None, "approved") == "offline"
 
     @pytest.mark.asyncio
-    async def test_heartbeat_persists_pheromones_and_topology_uses_numeric_weights(self, monkeypatch):
+    async def test_heartbeat_persists_pheromones_and_topology_uses_numeric_weights(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
         import src.api.maas_telemetry as mod
 
         local_db_path = f"./test_telemetry_direct_{uuid.uuid4().hex}.db"
@@ -543,13 +552,18 @@ class TestTelemetryPheromoneContract:
         db = LocalSession()
         try:
             db.add_all([
+                DBMeshInstance(id="mesh-direct", name="mesh-direct", owner_id="owner-1"),
                 MeshNode(id="node-a", mesh_id="mesh-direct", device_class="edge", status="healthy"),
                 MeshNode(id="node-b", mesh_id="mesh-direct", device_class="edge", status="healthy"),
             ])
             db.commit()
 
+            bus = EventBus(project_root=str(tmp_path))
             heartbeat_request = SimpleNamespace(
-                state=SimpleNamespace(),
+                state=SimpleNamespace(
+                    event_bus=bus,
+                    event_project_root=str(tmp_path),
+                ),
                 client=SimpleNamespace(host="198.51.100.10"),
             )
             await mod.heartbeat(
@@ -572,6 +586,60 @@ class TestTelemetryPheromoneContract:
             assert telemetry["pheromones"] == {"dest-b": {"node-b": 0.91}}
             assert telemetry["latency"] == 12.0
             assert "redis" in heartbeat_request.state.degraded_dependencies
+            events = bus.get_event_history(
+                event_type=EventType.PIPELINE_STAGE_END,
+                source_agent="maas-telemetry",
+            )
+            heartbeat_events = [
+                event.data for event in events if event.data["operation"] == "heartbeat"
+            ]
+            assert len(heartbeat_events) == 1
+            heartbeat_payload = heartbeat_events[0]
+            assert heartbeat_payload["stage"] == "heartbeat_processed"
+            assert heartbeat_payload["status"] == "accepted"
+            assert heartbeat_payload["read_only"] is False
+            assert heartbeat_payload["heartbeat_summary"]["db_node_found"] is True
+            assert heartbeat_payload["heartbeat_summary"]["db_committed"] is True
+            assert heartbeat_payload["heartbeat_summary"]["client_ip_hash"] == (
+                mod._redacted_sha256_prefix("198.51.100.10")
+            )
+            assert heartbeat_payload["heartbeat_summary"]["has_pheromones"] is True
+            assert (
+                heartbeat_payload["heartbeat_summary"]["pheromone_destination_count"]
+                == 1
+            )
+            assert (
+                heartbeat_payload["heartbeat_summary"]["heartbeat_metric_recorded"]
+                is True
+            )
+            assert heartbeat_payload["trust_summary"] == {
+                "reputation_update_attempted": True,
+                "reputation_update_success": True,
+                "trust_score_after": 0.5,
+                "trust_source": "default",
+            }
+            assert (
+                heartbeat_payload["settlement_summary"]["uptime_sample_attempted"]
+                is True
+            )
+            assert (
+                heartbeat_payload["settlement_summary"]["settlement_decision_made"]
+                is False
+            )
+            assert heartbeat_payload["upstream_events_total"] == 1
+            evidence_text = json.dumps([event.data for event in events], sort_keys=True)
+            raw_log = (
+                tmp_path / ".agent_coordination" / "events.log"
+            ).read_text(encoding="utf-8")
+            for raw_value in (
+                "node-a",
+                "node-b",
+                "mesh-direct",
+                "198.51.100.10",
+                "dest-b",
+            ):
+                assert raw_value not in evidence_text
+                assert raw_value not in raw_log
 
             topology_request = SimpleNamespace(state=SimpleNamespace())
             topology = await mod.get_topology(
@@ -616,6 +684,7 @@ class TestTelemetryPheromoneContract:
         Base.metadata.create_all(bind=local_engine)
         db = LocalSession()
         try:
+            db.add(DBMeshInstance(id="mesh-topology", name="mesh-topology", owner_id="owner-1"))
             db.add(MeshNode(id="node-degraded", mesh_id="mesh-topology", device_class="edge", status="degraded"))
             db.commit()
 

@@ -6,6 +6,7 @@ Peer-to-peer infrastructure sharing with escrow payment protection.
 Funds are held in escrow until the rented node passes a health heartbeat.
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -22,7 +23,9 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
 from src.api.maas_auth import get_current_user_from_maas, require_permission
+from src.coordination.events import EventBus, EventType, get_event_bus
 from src.core.reliability_policy import mark_degraded_dependency
 from src.database import MarketplaceEscrow, MarketplaceListing, User, GlobalConfig, get_db
 from src.api.maas_telemetry import reputation_system
@@ -32,7 +35,10 @@ from src.utils.audit import record_audit_log
 
 from src.resilience.advanced_patterns import get_resilient_executor
 from src.monitoring.maas_metrics import record_escrow_failure
-from src.services.marketplace_events import publish_marketplace_escrow_event
+from src.services.marketplace_events import (
+    bridge_upstream_evidence,
+    publish_marketplace_escrow_event,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +46,20 @@ logger = logging.getLogger(__name__)
 marketplace_executor = get_resilient_executor()
 
 router = APIRouter(prefix="/api/v1/maas/marketplace", tags=["MaaS Marketplace"])
+_MARKETPLACE_API_SOURCE_AGENT = "maas-marketplace"
+_MARKETPLACE_API_LAYER = "api_to_commerce"
+_MARKETPLACE_API_CLAIM_BOUNDARY = (
+    "Marketplace API route evidence records local request, cache, SQLAlchemy, "
+    "and helper-call boundaries only. It does not prove live dataplane quality, "
+    "remote node authenticity, external payment settlement, chain finality, or "
+    "that a listed/rented node is usable by a customer."
+)
+_MARKETPLACE_LISTING_CLAIM_BOUNDARY = (
+    "Marketplace listing responses describe local listing state, pricing metadata, "
+    "and reputation-derived trust score only. A listing being available does not "
+    "prove node dataplane reachability, customer traffic delivery, remote node "
+    "authenticity, external settlement finality, or production readiness."
+)
 
 _listings: Dict[str, Dict[str, Any]] = {}
 _listings_lock = Lock()
@@ -104,6 +124,290 @@ def _current_user_event_identity(current_user: User) -> Dict[str, Optional[str]]
         "spiffe_id": _normalize_identity(getattr(current_user, "spiffe_id", None)) or None,
         "did": _normalize_identity(getattr(current_user, "did", None)) or None,
         "wallet_address": _normalize_identity(getattr(current_user, "wallet_address", None)) or None,
+    }
+
+
+def _redacted_sha256_prefix(value: Any) -> Optional[str]:
+    normalized = _normalize_identity(value)
+    if not normalized:
+        return None
+    return hashlib.sha256(
+        normalized.encode("utf-8", errors="replace")
+    ).hexdigest()[:16]
+
+
+def _marketplace_event_bus_from_request(request: Request | None) -> Optional[EventBus]:
+    if request is not None:
+        event_bus = getattr(getattr(request, "state", None), "event_bus", None)
+        if isinstance(event_bus, EventBus):
+            return event_bus
+        project_root = getattr(getattr(request, "state", None), "project_root", ".")
+    else:
+        project_root = "."
+    try:
+        return get_event_bus(project_root)
+    except Exception as exc:
+        logger.error("Failed to initialize marketplace API EventBus: %s", exc)
+        return None
+
+
+def _marketplace_route_context(
+    *,
+    current_user: Any = None,
+    listing_id: Any = None,
+    node_id: Any = None,
+    mesh_id: Any = None,
+    region: Any = None,
+    currency: Any = None,
+    idempotency_key: Any = None,
+) -> Dict[str, Any]:
+    return {
+        "actor_id_hash": _redacted_sha256_prefix(getattr(current_user, "id", None)),
+        "actor_role": _normalize_identity(getattr(current_user, "role", None))
+        or "unknown",
+        "listing_id_hash": _redacted_sha256_prefix(listing_id),
+        "node_id_hash": _redacted_sha256_prefix(node_id),
+        "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+        "region": _normalize_identity(region) or None,
+        "currency": _normalize_identity(currency) or None,
+        "idempotency_key_present": _normalize_identity(idempotency_key) is not None,
+        "idempotency_key_hash": _redacted_sha256_prefix(idempotency_key),
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+    }
+
+
+def _marketplace_db_evidence(
+    *,
+    action: str,
+    db_ready: bool,
+    read_attempted: bool = False,
+    write_attempted: bool = False,
+    committed: bool = False,
+    cache_hit: bool = False,
+    cache_write: bool = False,
+) -> Dict[str, Any]:
+    return {
+        "storage_backend": "sqlalchemy",
+        "action": action,
+        "db_ready": bool(db_ready),
+        "read_attempted": bool(read_attempted),
+        "write_attempted": bool(write_attempted),
+        "committed": bool(committed),
+        "cache_hit": bool(cache_hit),
+        "cache_write": bool(cache_write),
+        "payloads_redacted": True,
+    }
+
+
+def _marketplace_result_summary(
+    *,
+    listing_count: Optional[int] = None,
+    listing_status: Any = None,
+    bandwidth_mbps: Any = None,
+    price_present: Optional[bool] = None,
+    reason: Optional[str] = None,
+) -> Dict[str, Any]:
+    return {
+        "listing_count": listing_count if isinstance(listing_count, int) else None,
+        "listing_status": _normalize_identity(listing_status) or None,
+        "bandwidth_mbps": int(bandwidth_mbps)
+        if isinstance(bandwidth_mbps, int)
+        else None,
+        "price_present": price_present if isinstance(price_present, bool) else None,
+        "reason": reason,
+        "payloads_redacted": True,
+    }
+
+
+def _marketplace_listing_claim_gate(listing_status: Any) -> Dict[str, Any]:
+    local_listing_observed = bool(_normalize_identity(listing_status))
+    return {
+        "decision": "local_listing_state_only"
+        if local_listing_observed
+        else "listing_state_missing",
+        "local_listing_state_claim_allowed": local_listing_observed,
+        "local_pricing_metadata_claim_allowed": local_listing_observed,
+        "reputation_score_observation_claim_allowed": local_listing_observed,
+        "node_dataplane_reachability_claim_allowed": False,
+        "customer_traffic_delivery_claim_allowed": False,
+        "remote_node_authenticity_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "requires_dataplane_evidence_for_delivery_claim": True,
+        "requires_identity_attestation_for_authenticity_claim": True,
+        "requires_external_finality_evidence_for_settlement_claim": True,
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": _MARKETPLACE_LISTING_CLAIM_BOUNDARY,
+    }
+
+
+def _publish_marketplace_api_event(
+    *,
+    request: Request | None,
+    operation: str,
+    stage: str,
+    status_text: str,
+    started_at: float,
+    http_status_code: int,
+    context: Optional[Dict[str, Any]] = None,
+    db_evidence: Optional[Dict[str, Any]] = None,
+    result_summary: Optional[Dict[str, Any]] = None,
+    event_type: Optional[EventType] = None,
+) -> Optional[str]:
+    event_bus = _marketplace_event_bus_from_request(request)
+    if event_bus is None:
+        return None
+
+    payload = {
+        "component": "api.maas_marketplace",
+        "operation": operation,
+        "service_name": _MARKETPLACE_API_SOURCE_AGENT,
+        "source_alias": _MARKETPLACE_API_SOURCE_AGENT,
+        "layer": _MARKETPLACE_API_LAYER,
+        "stage": stage,
+        "status": status_text,
+        "duration_ms": round((time.monotonic() - started_at) * 1000.0, 3),
+        "http_status_code": http_status_code,
+        "control_action": operation in {
+            "marketplace_create_listing",
+            "marketplace_cancel_listing",
+        },
+        "observed_state": operation in {
+            "marketplace_status",
+            "marketplace_search_listings",
+        },
+        "source_quality": "local_api_db_cache_observed",
+        "request_context": context or _marketplace_route_context(),
+        "db_evidence": db_evidence
+        or _marketplace_db_evidence(action="none", db_ready=False),
+        "result_summary": result_summary or _marketplace_result_summary(),
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": _MARKETPLACE_API_CLAIM_BOUNDARY,
+    }
+    try:
+        event = event_bus.publish(
+            event_type
+            or (
+                EventType.TASK_BLOCKED
+                if http_status_code >= 400
+                else EventType.PIPELINE_STAGE_END
+            ),
+            _MARKETPLACE_API_SOURCE_AGENT,
+            payload,
+            priority=5,
+        )
+        return event.event_id
+    except Exception as exc:
+        logger.error("Failed to publish marketplace API route event: %s", exc)
+        return None
+
+
+def _marketplace_request_evidence(
+    *,
+    action: str,
+    route: str,
+    current_user: User,
+    request_scope: Any = None,
+    normalized_idempotency_key: Optional[str] = None,
+    idempotency_cache_hit: bool = False,
+    db_write_ready: Optional[bool] = None,
+    listing_status: Any = None,
+    currency: Any = None,
+    hours: Optional[int] = None,
+    renter_matches_listing: Optional[bool] = None,
+    admin_override: Optional[bool] = None,
+) -> Dict[str, Any]:
+    role = _normalize_identity(getattr(current_user, "role", None)) or "unknown"
+    return {
+        "action": action,
+        "route": route,
+        "actor_role": role,
+        "request_scope_hash": _redacted_sha256_prefix(request_scope),
+        "idempotency_key_present": normalized_idempotency_key is not None,
+        "idempotency_key_hash": _redacted_sha256_prefix(normalized_idempotency_key),
+        "idempotency_cache_hit": bool(idempotency_cache_hit),
+        "db_write_ready": db_write_ready if isinstance(db_write_ready, bool) else None,
+        "listing_status": _normalize_identity(listing_status) or None,
+        "currency": _normalize_identity(currency) or None,
+        "hours": hours if isinstance(hours, int) else None,
+        "renter_matches_listing": (
+            renter_matches_listing if isinstance(renter_matches_listing, bool) else None
+        ),
+        "admin_override": admin_override if isinstance(admin_override, bool) else None,
+        "service_identity_present": {
+            "spiffe_id": bool(_normalize_identity(getattr(current_user, "spiffe_id", None))),
+            "did": bool(_normalize_identity(getattr(current_user, "did", None))),
+            "wallet_address": bool(_normalize_identity(getattr(current_user, "wallet_address", None))),
+        },
+        "raw_identifiers_redacted": True,
+        "claim_boundary": (
+            "Marketplace API request evidence records local auth/request/idempotency "
+            "metadata only. It does not authenticate the caller beyond the enclosing "
+            "FastAPI dependency result and never copies raw user, listing, mesh, or "
+            "idempotency-key values."
+        ),
+    }
+
+
+def _marketplace_api_settlement_evidence(
+    *,
+    action: str,
+    started_at: float,
+    decision_basis: str,
+    source_quality: str,
+    bridge_attempted: bool = False,
+    bridge_status: str = "not_required",
+    db_write_attempted: bool = False,
+    db_committed: bool = False,
+    escrow_status_after: Optional[Any] = None,
+    listing_status_after: Optional[Any] = None,
+) -> Dict[str, Any]:
+    return {
+        "decision_basis": str(decision_basis)[:120],
+        "source_quality": str(source_quality)[:120],
+        "settlement_action": str(action)[:80],
+        "duration_ms": round((time.monotonic() - started_at) * 1000.0, 3),
+        "dataplane_confirmed": False,
+        "threshold_met": True,
+        "telemetry_evidence": {
+            "source_agents": [],
+            "event_ids": [],
+            "events_total": 0,
+            "payloads_redacted": True,
+        },
+        "bridge_evidence": {
+            "attempted": bool(bridge_attempted),
+            "status": str(bridge_status)[:80],
+            "source_agent": "token-bridge" if bridge_attempted else None,
+            "payloads_redacted": True,
+        },
+        "db_write_evidence": {
+            "storage_backend": "sqlalchemy",
+            "attempted": bool(db_write_attempted),
+            "committed": bool(db_committed),
+            "payloads_redacted": True,
+        },
+        "output_summary": {
+            "escrow_status_after": str(escrow_status_after)[:80]
+            if escrow_status_after is not None
+            else None,
+            "listing_status_after": str(listing_status_after)[:80]
+            if listing_status_after is not None
+            else None,
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+        },
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": (
+            "Marketplace API escrow evidence records local authenticated request, "
+            "TokenBridge call status, and SQLAlchemy write state. It does not prove "
+            "live dataplane reachability, remote node authenticity, or final external "
+            "settlement without downstream chain receipt evidence."
+        ),
     }
 
 
@@ -237,6 +541,12 @@ class ListingResponse(BaseModel):
     status: str
     trust_score: float
     created_at: str
+    dataplane_confirmed: bool = False
+    customer_traffic_delivery_claim_allowed: bool = False
+    external_settlement_finality_claim_allowed: bool = False
+    production_readiness_claim_allowed: bool = False
+    listing_claim_gate: Dict[str, Any] = Field(default_factory=dict)
+    claim_boundary: str = _MARKETPLACE_LISTING_CLAIM_BOUNDARY
 
 
 def _db_session_available(db: Any) -> bool:
@@ -289,6 +599,9 @@ def _marketplace_readiness_status(db: Any) -> Dict[str, Any]:
             "token_bridge": "lazy",
             "telemetry_reputation": "imported",
         },
+        "cross_plane_claim_gate": readiness_cross_plane_claim_gate_metadata(
+            surface="maas_marketplace_readiness"
+        ),
         "claim_boundary": (
             "Marketplace route readiness distinguishes route availability from "
             "state-changing database readiness. It does not prove live chain "
@@ -302,10 +615,28 @@ async def marketplace_status(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    started = time.monotonic()
     payload = _marketplace_readiness_status(db)
     for dependency in payload["degraded_dependencies"]:
         if request is not None:
             mark_degraded_dependency(request, dependency)
+    _publish_marketplace_api_event(
+        request=request,
+        operation="marketplace_status",
+        stage="readiness_read",
+        status_text=payload["status"],
+        started_at=started,
+        http_status_code=200,
+        db_evidence=_marketplace_db_evidence(
+            action="readiness_check",
+            db_ready=bool(payload["write_db_ready"]),
+            read_attempted=True,
+        ),
+        result_summary=_marketplace_result_summary(
+            listing_count=payload["backing_state"]["in_memory_listing_cache_entries"],
+            reason="degraded" if payload["degraded_dependencies"] else "ready",
+        ),
+    )
     return payload
 
 
@@ -348,6 +679,8 @@ def _as_listing_response(data: Any, multiplier: float = 1.0) -> Dict[str, Any]:
     if raw_price_token is not None:
         price_token = round(float(raw_price_token) * total_multiplier, 4)
 
+    status = _val(data, "status", "available")
+    claim_gate = _marketplace_listing_claim_gate(status)
     return {
         "listing_id": listing_id,
         "owner_id": _val(data, "owner_id"),
@@ -357,9 +690,15 @@ def _as_listing_response(data: Any, multiplier: float = 1.0) -> Dict[str, Any]:
         "price_token_per_hour": price_token if currency == "X0T" else None,
         "currency": currency,
         "bandwidth_mbps": int(_val(data, "bandwidth_mbps") or 0),
-        "status": _val(data, "status", "available"),
+        "status": status,
         "trust_score": round(trust_score, 2),
         "created_at": created_at_iso,
+        "dataplane_confirmed": False,
+        "customer_traffic_delivery_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "listing_claim_gate": claim_gate,
+        "claim_boundary": _MARKETPLACE_LISTING_CLAIM_BOUNDARY,
     }
 
 
@@ -432,6 +771,7 @@ async def create_listing(
     db: Session = Depends(get_db),
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
+    started = time.monotonic()
     db_ready = _ensure_write_db_ready(db, request)
     owner_id = _current_user_id(current_user)
     cache_key = None
@@ -442,21 +782,126 @@ async def create_listing(
         )
         cached = _idempotency_get(cache_key)
         if cached:
+            _publish_marketplace_api_event(
+                request=request,
+                operation="marketplace_create_listing",
+                stage="idempotent_replay",
+                status_text="success",
+                started_at=started,
+                http_status_code=200,
+                context=_marketplace_route_context(
+                    current_user=current_user,
+                    node_id=req.node_id,
+                    region=req.region,
+                    currency=req.currency,
+                    idempotency_key=normalized_idem_key,
+                ),
+                db_evidence=_marketplace_db_evidence(
+                    action="create_listing_replay",
+                    db_ready=db_ready,
+                    cache_hit=True,
+                ),
+                result_summary=_marketplace_result_summary(reason="idempotent_replay"),
+            )
             return cached
 
     with _listings_lock:
         in_memory_exists = any(item.get("node_id") == req.node_id for item in _listings.values())
     if in_memory_exists:
+        _publish_marketplace_api_event(
+            request=request,
+            operation="marketplace_create_listing",
+            stage="create_blocked",
+            status_text="blocked",
+            started_at=started,
+            http_status_code=400,
+            context=_marketplace_route_context(
+                current_user=current_user,
+                node_id=req.node_id,
+                region=req.region,
+                currency=req.currency,
+                idempotency_key=normalized_idem_key,
+            ),
+            db_evidence=_marketplace_db_evidence(
+                action="create_listing_duplicate_cache_check",
+                db_ready=db_ready,
+                read_attempted=True,
+                cache_hit=True,
+            ),
+            result_summary=_marketplace_result_summary(reason="node_already_listed"),
+        )
         raise HTTPException(status_code=400, detail="Node already listed")
 
     if db_ready:
         existing = db.query(MarketplaceListing).filter(MarketplaceListing.node_id == req.node_id).first()
         if existing:
+            _publish_marketplace_api_event(
+                request=request,
+                operation="marketplace_create_listing",
+                stage="create_blocked",
+                status_text="blocked",
+                started_at=started,
+                http_status_code=400,
+                context=_marketplace_route_context(
+                    current_user=current_user,
+                    node_id=req.node_id,
+                    region=req.region,
+                    currency=req.currency,
+                    idempotency_key=normalized_idem_key,
+                ),
+                db_evidence=_marketplace_db_evidence(
+                    action="create_listing_duplicate_db_check",
+                    db_ready=db_ready,
+                    read_attempted=True,
+                    cache_hit=False,
+                ),
+                result_summary=_marketplace_result_summary(reason="node_already_listed"),
+            )
             raise HTTPException(status_code=400, detail="Node already listed")
 
     if req.currency == "USD" and not req.price_per_hour:
+        _publish_marketplace_api_event(
+            request=request,
+            operation="marketplace_create_listing",
+            stage="create_blocked",
+            status_text="blocked",
+            started_at=started,
+            http_status_code=400,
+            context=_marketplace_route_context(
+                current_user=current_user,
+                node_id=req.node_id,
+                region=req.region,
+                currency=req.currency,
+                idempotency_key=normalized_idem_key,
+            ),
+            db_evidence=_marketplace_db_evidence(
+                action="create_listing_validate_price",
+                db_ready=db_ready,
+            ),
+            result_summary=_marketplace_result_summary(reason="missing_usd_price"),
+        )
         raise HTTPException(status_code=400, detail="price_per_hour required for USD")
     if req.currency == "X0T" and not req.price_token_per_hour:
+        _publish_marketplace_api_event(
+            request=request,
+            operation="marketplace_create_listing",
+            stage="create_blocked",
+            status_text="blocked",
+            started_at=started,
+            http_status_code=400,
+            context=_marketplace_route_context(
+                current_user=current_user,
+                node_id=req.node_id,
+                region=req.region,
+                currency=req.currency,
+                idempotency_key=normalized_idem_key,
+            ),
+            db_evidence=_marketplace_db_evidence(
+                action="create_listing_validate_price",
+                db_ready=db_ready,
+            ),
+            result_summary=_marketplace_result_summary(reason="missing_x0t_price"),
+        )
         raise HTTPException(status_code=400, detail="price_token_per_hour required for X0T")
 
     listing_id = f"lst-{uuid.uuid4().hex[:8]}"
@@ -508,6 +953,37 @@ async def create_listing(
     result = _as_listing_response(listing, multiplier=multiplier)
     if cache_key:
         _idempotency_set(cache_key, result)
+    _publish_marketplace_api_event(
+        request=request,
+        operation="marketplace_create_listing",
+        stage="listing_created",
+        status_text="success",
+        started_at=started,
+        http_status_code=201,
+        context=_marketplace_route_context(
+            current_user=current_user,
+            listing_id=listing_id,
+            node_id=req.node_id,
+            region=req.region,
+            currency=req.currency,
+            idempotency_key=normalized_idem_key,
+        ),
+        db_evidence=_marketplace_db_evidence(
+            action="create_listing",
+            db_ready=db_ready,
+            read_attempted=True,
+            write_attempted=db_ready,
+            committed=db_ready,
+            cache_write=True,
+        ),
+        result_summary=_marketplace_result_summary(
+            listing_status=result.get("status"),
+            bandwidth_mbps=result.get("bandwidth_mbps"),
+            price_present=bool(
+                result.get("price_per_hour") or result.get("price_token_per_hour")
+            ),
+        ),
+    )
     return result
 
 
@@ -520,6 +996,7 @@ async def search_listings(
     currency: str = Query("USD", pattern="^(USD|X0T)$"),
     db: Session = Depends(get_db),
 ):
+    started = time.monotonic()
     # Allow direct coroutine calls in unit tests where FastAPI doesn't resolve Query defaults.
     if not isinstance(currency, str):
         currency = getattr(currency, "default", "USD")
@@ -574,6 +1051,22 @@ async def search_listings(
             continue
         result.append(_as_listing_response(listing, multiplier=multiplier))
 
+    _publish_marketplace_api_event(
+        request=request,
+        operation="marketplace_search_listings",
+        stage="search_read",
+        status_text="success",
+        started_at=started,
+        http_status_code=200,
+        context=_marketplace_route_context(region=region, currency=currency),
+        db_evidence=_marketplace_db_evidence(
+            action="search_listings",
+            db_ready=_db_session_available(db),
+            read_attempted=True,
+            cache_hit=bool(cached_rows),
+        ),
+        result_summary=_marketplace_result_summary(listing_count=len(result)),
+    )
     return result
 
 
@@ -597,13 +1090,19 @@ async def rent_node(
     if not isinstance(hours, int):
         hours = 1
 
+    started = time.monotonic()
     renter_id = _current_user_id(current_user)
     current_user_event_identity = _current_user_event_identity(current_user)
     cache_key = None
     normalized_idem_key = _normalize_idempotency_key(idempotency_key)
+    request_scope = f"{listing_id}:{mesh_id}:{hours}"
     if normalized_idem_key:
-        scope = f"{listing_id}:{mesh_id}:{hours}"
-        cache_key = _idempotency_compose_key("rent_node", scope, renter_id, normalized_idem_key)
+        cache_key = _idempotency_compose_key(
+            "rent_node",
+            request_scope,
+            renter_id,
+            normalized_idem_key,
+        )
         cached = _idempotency_get(cache_key)
         if cached:
             return cached
@@ -617,6 +1116,19 @@ async def rent_node(
         raise HTTPException(status_code=400, detail="Listing not available")
 
     db_ready = _ensure_write_db_ready(db, request)
+    request_evidence = _marketplace_request_evidence(
+        action="rent_node",
+        route="POST /rent/{listing_id}",
+        current_user=current_user,
+        request_scope=request_scope,
+        normalized_idempotency_key=normalized_idem_key,
+        db_write_ready=db_ready,
+        listing_status=listing.get("status"),
+        currency=listing.get("currency"),
+        hours=hours,
+        renter_matches_listing=False,
+        admin_override=False,
+    )
     if not db_ready:
         listing["status"] = "rented"
         listing["renter_id"] = renter_id
@@ -647,11 +1159,15 @@ async def rent_node(
     
     amount_cents = None
     amount_token = None
+    bridge_evidence = {}
+    bridge_attempted = False
+    bridge_status = "not_required"
     
     if listing.get("currency") == "X0T":
         amount_token = float(listing.get("price_token_per_hour", 0.0)) * total_multiplier * hours
         
         # Verify user has sufficient X0T balance before creating escrow
+        bridge = None
         try:
             token_sys = MeshToken()
             user_balance = token_sys.balance_of(renter_id)
@@ -667,11 +1183,15 @@ async def rent_node(
 
             # 3. Lock tokens in Decentralized Escrow (Token Bridge)
             bridge = _get_token_bridge()
+            bridge_attempted = True
             # Note: Using run_until_complete simulation or similar if needed, 
             # but here we are in an async function.
             tx_hash = await bridge.lock_escrow_on_chain(escrow_id, renter_id, amount_token)
+            bridge_evidence = bridge_upstream_evidence(bridge)
             if not tx_hash:
+                bridge_status = "rejected"
                 raise RuntimeError("lock_escrow_on_chain returned empty transaction hash")
+            bridge_status = "locked"
             
             if has_ledger_state:
                 logger.info(
@@ -694,6 +1214,19 @@ async def rent_node(
             if _allow_insecure_escrow_fallback():
                 logger.warning("Token system unavailable, using insecure escrow fallback")
             else:
+                bridge_evidence = bridge_upstream_evidence(bridge)
+                event_settlement_evidence = _marketplace_api_settlement_evidence(
+                    action="rent_node",
+                    started_at=started,
+                    decision_basis="api_rent_escrow_hold_request",
+                    source_quality="token_bridge_unavailable_before_db_write",
+                    bridge_attempted=bridge_attempted,
+                    bridge_status="unavailable",
+                    db_write_attempted=False,
+                    db_committed=False,
+                    escrow_status_after=None,
+                    listing_status_after=getattr(row, "status", listing.get("status")),
+                )
                 logger.error("Token system unavailable; refusing X0T rent for escrow %s", escrow_id)
                 publish_marketplace_escrow_event(
                     transition="blocked",
@@ -708,13 +1241,29 @@ async def rent_node(
                     mesh_id=mesh_id,
                     **current_user_event_identity,
                     amount_token=amount_token,
+                    request_evidence=request_evidence,
+                    settlement_evidence=event_settlement_evidence,
                     reason="token_bridge_unavailable",
+                    **bridge_evidence,
                 )
                 raise HTTPException(status_code=502, detail="Token bridge unavailable")
         except Exception as e:
             if _allow_insecure_escrow_fallback():
                 logger.warning("Token integration error, using insecure fallback: %s", e)
             else:
+                bridge_evidence = bridge_upstream_evidence(bridge)
+                event_settlement_evidence = _marketplace_api_settlement_evidence(
+                    action="rent_node",
+                    started_at=started,
+                    decision_basis="api_rent_escrow_hold_request",
+                    source_quality="token_bridge_lock_failed_before_db_write",
+                    bridge_attempted=bridge_attempted,
+                    bridge_status=bridge_status if bridge_status != "not_required" else "error",
+                    db_write_attempted=False,
+                    db_committed=False,
+                    escrow_status_after=None,
+                    listing_status_after=getattr(row, "status", listing.get("status")),
+                )
                 logger.error("Token bridge lock failed for escrow %s: %s", escrow_id, e)
                 publish_marketplace_escrow_event(
                     transition="blocked",
@@ -729,7 +1278,10 @@ async def rent_node(
                     mesh_id=mesh_id,
                     **current_user_event_identity,
                     amount_token=amount_token,
+                    request_evidence=request_evidence,
+                    settlement_evidence=event_settlement_evidence,
                     reason="x0t_lock_failed",
+                    **bridge_evidence,
                 )
                 raise HTTPException(status_code=502, detail="Failed to lock X0T escrow")
     else:
@@ -752,6 +1304,18 @@ async def rent_node(
         )
     )
     db.commit()
+    event_settlement_evidence = _marketplace_api_settlement_evidence(
+        action="rent_node",
+        started_at=started,
+        decision_basis="api_rent_escrow_hold_request",
+        source_quality="api_request_db_commit_and_optional_token_bridge_lock",
+        bridge_attempted=bridge_attempted,
+        bridge_status=bridge_status,
+        db_write_attempted=True,
+        db_committed=True,
+        escrow_status_after="held",
+        listing_status_after=getattr(row, "status", None),
+    )
     escrow_event_id = publish_marketplace_escrow_event(
         transition="held",
         source_agent="maas-marketplace",
@@ -766,6 +1330,9 @@ async def rent_node(
         **current_user_event_identity,
         amount_cents=amount_cents,
         amount_token=amount_token,
+        request_evidence=request_evidence,
+        settlement_evidence=event_settlement_evidence,
+        **bridge_evidence,
     )
 
     listing["status"] = "escrow"
@@ -823,12 +1390,19 @@ async def release_escrow(
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
     """Manually release escrow. Usually triggered by heartbeat."""
+    started = time.monotonic()
     requester_id = _current_user_id(current_user)
     current_user_event_identity = _current_user_event_identity(current_user)
     cache_key = None
     normalized_idem_key = _normalize_idempotency_key(idempotency_key)
+    request_scope = listing_id
     if normalized_idem_key:
-        cache_key = _idempotency_compose_key("release_escrow", listing_id, requester_id, normalized_idem_key)
+        cache_key = _idempotency_compose_key(
+            "release_escrow",
+            request_scope,
+            requester_id,
+            normalized_idem_key,
+        )
         cached = _idempotency_get(cache_key)
         if cached:
             return cached
@@ -838,7 +1412,8 @@ async def release_escrow(
         raise HTTPException(status_code=404, detail="Listing not found")
     if listing.get("status") != "escrow":
         raise HTTPException(status_code=400, detail="No active escrow")
-    if not _ids_equal(listing.get("renter_id"), requester_id) and current_user.role != "admin":
+    renter_matches_listing = _ids_equal(listing.get("renter_id"), requester_id)
+    if not renter_matches_listing and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
     released_at = datetime.utcnow().isoformat()
@@ -856,12 +1431,46 @@ async def release_escrow(
         escrow = _load_held_escrow_for_update(db, listing_id)
         if not escrow:
             raise HTTPException(status_code=409, detail="Escrow state mismatch")
+        bridge_evidence = {}
+        bridge_attempted = False
+        bridge_status = "not_required"
+        request_evidence = _marketplace_request_evidence(
+            action="release_escrow",
+            route="POST /escrow/{listing_id}/release",
+            current_user=current_user,
+            request_scope=request_scope,
+            normalized_idempotency_key=normalized_idem_key,
+            db_write_ready=db_ready,
+            listing_status=getattr(row, "status", listing.get("status")),
+            currency=getattr(escrow, "currency", listing.get("currency")),
+            renter_matches_listing=_ids_equal(row.renter_id, requester_id),
+            admin_override=(
+                current_user.role == "admin"
+                and not _ids_equal(row.renter_id, requester_id)
+            ),
+        )
         # 1. Release on-chain if X0T
         if escrow.currency == "X0T":
+            bridge = None
+            bridge_attempted = True
             try:
                 bridge = _get_token_bridge()
                 released = await bridge.release_escrow_on_chain(escrow.id)
+                bridge_evidence = bridge_upstream_evidence(bridge)
             except Exception as exc:
+                bridge_evidence = bridge_upstream_evidence(bridge)
+                event_settlement_evidence = _marketplace_api_settlement_evidence(
+                    action="release_escrow",
+                    started_at=started,
+                    decision_basis="api_manual_escrow_release_request",
+                    source_quality="token_bridge_release_error_before_db_write",
+                    bridge_attempted=bridge_attempted,
+                    bridge_status="error",
+                    db_write_attempted=False,
+                    db_committed=False,
+                    escrow_status_after=getattr(escrow, "status", None),
+                    listing_status_after=getattr(row, "status", None),
+                )
                 logger.error("Escrow release bridge error for %s: %s", escrow.id, exc)
                 record_escrow_failure("bridge_error")
                 publish_marketplace_escrow_event(
@@ -878,10 +1487,25 @@ async def release_escrow(
                     **current_user_event_identity,
                     amount_cents=escrow.amount_cents,
                     amount_token=escrow.amount_token,
+                    request_evidence=request_evidence,
+                    settlement_evidence=event_settlement_evidence,
                     reason="release_bridge_error",
+                    **bridge_evidence,
                 )
                 raise HTTPException(status_code=502, detail="Failed to release X0T escrow")
             if not released:
+                event_settlement_evidence = _marketplace_api_settlement_evidence(
+                    action="release_escrow",
+                    started_at=started,
+                    decision_basis="api_manual_escrow_release_request",
+                    source_quality="token_bridge_release_rejected_before_db_write",
+                    bridge_attempted=bridge_attempted,
+                    bridge_status="rejected",
+                    db_write_attempted=False,
+                    db_committed=False,
+                    escrow_status_after=getattr(escrow, "status", None),
+                    listing_status_after=getattr(row, "status", None),
+                )
                 record_escrow_failure("bridge_rejected")
                 publish_marketplace_escrow_event(
                     transition="blocked",
@@ -897,14 +1521,30 @@ async def release_escrow(
                     **current_user_event_identity,
                     amount_cents=escrow.amount_cents,
                     amount_token=escrow.amount_token,
+                    request_evidence=request_evidence,
+                    settlement_evidence=event_settlement_evidence,
                     reason="release_bridge_rejected",
+                    **bridge_evidence,
                 )
                 raise HTTPException(status_code=502, detail="Failed to release X0T escrow")
+            bridge_status = "released"
 
         escrow.status = "released"
         escrow.released_at = datetime.fromisoformat(released_at)
         row.status = "rented"
         db.commit()
+        event_settlement_evidence = _marketplace_api_settlement_evidence(
+            action="release_escrow",
+            started_at=started,
+            decision_basis="api_manual_escrow_release_request",
+            source_quality="api_request_db_commit_and_optional_token_bridge_release",
+            bridge_attempted=bridge_attempted,
+            bridge_status=bridge_status,
+            db_write_attempted=True,
+            db_committed=True,
+            escrow_status_after=getattr(escrow, "status", None),
+            listing_status_after=getattr(row, "status", None),
+        )
         escrow_event_id = publish_marketplace_escrow_event(
             transition="released",
             source_agent="maas-marketplace",
@@ -919,7 +1559,10 @@ async def release_escrow(
             **current_user_event_identity,
             amount_cents=escrow.amount_cents,
             amount_token=escrow.amount_token,
+            request_evidence=request_evidence,
+            settlement_evidence=event_settlement_evidence,
             reason="manual_release",
+            **bridge_evidence,
         )
 
         try:
@@ -955,12 +1598,19 @@ async def refund_escrow(
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
     """Refund escrow if node health fails or rental cancelled before heartbeat."""
+    started = time.monotonic()
     requester_id = _current_user_id(current_user)
     current_user_event_identity = _current_user_event_identity(current_user)
     cache_key = None
     normalized_idem_key = _normalize_idempotency_key(idempotency_key)
+    request_scope = listing_id
     if normalized_idem_key:
-        cache_key = _idempotency_compose_key("refund_escrow", listing_id, requester_id, normalized_idem_key)
+        cache_key = _idempotency_compose_key(
+            "refund_escrow",
+            request_scope,
+            requester_id,
+            normalized_idem_key,
+        )
         cached = _idempotency_get(cache_key)
         if cached:
             return cached
@@ -970,7 +1620,8 @@ async def refund_escrow(
         raise HTTPException(status_code=404, detail="Listing not found")
     if listing.get("status") != "escrow":
         raise HTTPException(status_code=400, detail="No active escrow")
-    if not _ids_equal(listing.get("renter_id"), requester_id) and current_user.role != "admin":
+    renter_matches_listing = _ids_equal(listing.get("renter_id"), requester_id)
+    if not renter_matches_listing and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
     db_ready = _ensure_write_db_ready(db, request)
@@ -986,12 +1637,46 @@ async def refund_escrow(
         escrow = _load_held_escrow_for_update(db, listing_id)
         if not escrow:
             raise HTTPException(status_code=409, detail="Escrow state mismatch")
+        bridge_evidence = {}
+        bridge_attempted = False
+        bridge_status = "not_required"
+        request_evidence = _marketplace_request_evidence(
+            action="refund_escrow",
+            route="POST /escrow/{listing_id}/refund",
+            current_user=current_user,
+            request_scope=request_scope,
+            normalized_idempotency_key=normalized_idem_key,
+            db_write_ready=db_ready,
+            listing_status=getattr(row, "status", listing.get("status")),
+            currency=getattr(escrow, "currency", listing.get("currency")),
+            renter_matches_listing=_ids_equal(row.renter_id, requester_id),
+            admin_override=(
+                current_user.role == "admin"
+                and not _ids_equal(row.renter_id, requester_id)
+            ),
+        )
         # 1. Refund on-chain if X0T
         if escrow.currency == "X0T":
+            bridge = None
+            bridge_attempted = True
             try:
                 bridge = _get_token_bridge()
                 refunded = await bridge.refund_escrow_on_chain(escrow.id)
+                bridge_evidence = bridge_upstream_evidence(bridge)
             except Exception as exc:
+                bridge_evidence = bridge_upstream_evidence(bridge)
+                event_settlement_evidence = _marketplace_api_settlement_evidence(
+                    action="refund_escrow",
+                    started_at=started,
+                    decision_basis="api_manual_escrow_refund_request",
+                    source_quality="token_bridge_refund_error_before_db_write",
+                    bridge_attempted=bridge_attempted,
+                    bridge_status="error",
+                    db_write_attempted=False,
+                    db_committed=False,
+                    escrow_status_after=getattr(escrow, "status", None),
+                    listing_status_after=getattr(row, "status", None),
+                )
                 logger.error("Escrow refund bridge error for %s: %s", escrow.id, exc)
                 record_escrow_failure("bridge_error")
                 publish_marketplace_escrow_event(
@@ -1008,10 +1693,25 @@ async def refund_escrow(
                     **current_user_event_identity,
                     amount_cents=escrow.amount_cents,
                     amount_token=escrow.amount_token,
+                    request_evidence=request_evidence,
+                    settlement_evidence=event_settlement_evidence,
                     reason="refund_bridge_error",
+                    **bridge_evidence,
                 )
                 raise HTTPException(status_code=502, detail="Failed to refund X0T escrow")
             if not refunded:
+                event_settlement_evidence = _marketplace_api_settlement_evidence(
+                    action="refund_escrow",
+                    started_at=started,
+                    decision_basis="api_manual_escrow_refund_request",
+                    source_quality="token_bridge_refund_rejected_before_db_write",
+                    bridge_attempted=bridge_attempted,
+                    bridge_status="rejected",
+                    db_write_attempted=False,
+                    db_committed=False,
+                    escrow_status_after=getattr(escrow, "status", None),
+                    listing_status_after=getattr(row, "status", None),
+                )
                 record_escrow_failure("bridge_rejected")
                 publish_marketplace_escrow_event(
                     transition="blocked",
@@ -1027,15 +1727,31 @@ async def refund_escrow(
                     **current_user_event_identity,
                     amount_cents=escrow.amount_cents,
                     amount_token=escrow.amount_token,
+                    request_evidence=request_evidence,
+                    settlement_evidence=event_settlement_evidence,
                     reason="refund_bridge_rejected",
+                    **bridge_evidence,
                 )
                 raise HTTPException(status_code=502, detail="Failed to refund X0T escrow")
+            bridge_status = "refunded"
 
         escrow.status = "refunded"
         row.status = "available"
         row.renter_id = None
         row.mesh_id = None
         db.commit()
+        event_settlement_evidence = _marketplace_api_settlement_evidence(
+            action="refund_escrow",
+            started_at=started,
+            decision_basis="api_manual_escrow_refund_request",
+            source_quality="api_request_db_commit_and_optional_token_bridge_refund",
+            bridge_attempted=bridge_attempted,
+            bridge_status=bridge_status,
+            db_write_attempted=True,
+            db_committed=True,
+            escrow_status_after=getattr(escrow, "status", None),
+            listing_status_after=getattr(row, "status", None),
+        )
         escrow_event_id = publish_marketplace_escrow_event(
             transition="refunded",
             source_agent="maas-marketplace",
@@ -1050,7 +1766,10 @@ async def refund_escrow(
             **current_user_event_identity,
             amount_cents=escrow.amount_cents,
             amount_token=escrow.amount_token,
+            request_evidence=request_evidence,
+            settlement_evidence=event_settlement_evidence,
             reason="manual_refund",
+            **bridge_evidence,
         )
 
         try:
@@ -1085,23 +1804,148 @@ async def cancel_listing(
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db),
 ):
+    started = time.monotonic()
     requester_id = _current_user_id(current_user)
     listing = _get_listing_from_cache_or_db(listing_id, db)
     if not listing:
+        _publish_marketplace_api_event(
+            request=request,
+            operation="marketplace_cancel_listing",
+            stage="cancel_blocked",
+            status_text="blocked",
+            started_at=started,
+            http_status_code=404,
+            context=_marketplace_route_context(
+                current_user=current_user,
+                listing_id=listing_id,
+            ),
+            db_evidence=_marketplace_db_evidence(
+                action="load_listing_for_cancel",
+                db_ready=_db_session_available(db),
+                read_attempted=True,
+            ),
+            result_summary=_marketplace_result_summary(reason="listing_not_found"),
+        )
         raise HTTPException(status_code=404, detail="Listing not found")
     if listing.get("status") in {"escrow", "rented"}:
+        _publish_marketplace_api_event(
+            request=request,
+            operation="marketplace_cancel_listing",
+            stage="cancel_blocked",
+            status_text="blocked",
+            started_at=started,
+            http_status_code=400,
+            context=_marketplace_route_context(
+                current_user=current_user,
+                listing_id=listing_id,
+                node_id=listing.get("node_id"),
+                currency=listing.get("currency"),
+            ),
+            db_evidence=_marketplace_db_evidence(
+                action="validate_cancel_state",
+                db_ready=_db_session_available(db),
+                read_attempted=True,
+                cache_hit=True,
+            ),
+            result_summary=_marketplace_result_summary(
+                listing_status=listing.get("status"),
+                reason="active_rental_state",
+            ),
+        )
         raise HTTPException(status_code=400, detail="Listing has active rental state (escrow)")
     if not _ids_equal(listing.get("owner_id"), requester_id) and current_user.role != "admin":
+        _publish_marketplace_api_event(
+            request=request,
+            operation="marketplace_cancel_listing",
+            stage="cancel_blocked",
+            status_text="blocked",
+            started_at=started,
+            http_status_code=403,
+            context=_marketplace_route_context(
+                current_user=current_user,
+                listing_id=listing_id,
+                node_id=listing.get("node_id"),
+                currency=listing.get("currency"),
+            ),
+            db_evidence=_marketplace_db_evidence(
+                action="validate_cancel_owner",
+                db_ready=_db_session_available(db),
+                read_attempted=True,
+                cache_hit=True,
+            ),
+            result_summary=_marketplace_result_summary(reason="permission_denied"),
+        )
         raise HTTPException(status_code=403, detail="Permission denied")
 
     db_ready = _ensure_write_db_ready(db, request)
     if db_ready:
         row = _load_listing_for_update(db, listing_id)
         if not row:
+            _publish_marketplace_api_event(
+                request=request,
+                operation="marketplace_cancel_listing",
+                stage="cancel_blocked",
+                status_text="blocked",
+                started_at=started,
+                http_status_code=404,
+                context=_marketplace_route_context(
+                    current_user=current_user,
+                    listing_id=listing_id,
+                ),
+                db_evidence=_marketplace_db_evidence(
+                    action="load_listing_for_cancel_update",
+                    db_ready=db_ready,
+                    read_attempted=True,
+                ),
+                result_summary=_marketplace_result_summary(reason="listing_not_found"),
+            )
             raise HTTPException(status_code=404, detail="Listing not found")
         if row.status in {"escrow", "rented"}:
+            _publish_marketplace_api_event(
+                request=request,
+                operation="marketplace_cancel_listing",
+                stage="cancel_blocked",
+                status_text="blocked",
+                started_at=started,
+                http_status_code=400,
+                context=_marketplace_route_context(
+                    current_user=current_user,
+                    listing_id=listing_id,
+                    node_id=getattr(row, "node_id", None),
+                    currency=getattr(row, "currency", None),
+                ),
+                db_evidence=_marketplace_db_evidence(
+                    action="validate_cancel_state_db",
+                    db_ready=db_ready,
+                    read_attempted=True,
+                ),
+                result_summary=_marketplace_result_summary(
+                    listing_status=getattr(row, "status", None),
+                    reason="active_rental_state",
+                ),
+            )
             raise HTTPException(status_code=400, detail="Listing has active rental state (escrow)")
         if current_user.role != "admin" and not _ids_equal(row.owner_id, requester_id):
+            _publish_marketplace_api_event(
+                request=request,
+                operation="marketplace_cancel_listing",
+                stage="cancel_blocked",
+                status_text="blocked",
+                started_at=started,
+                http_status_code=403,
+                context=_marketplace_route_context(
+                    current_user=current_user,
+                    listing_id=listing_id,
+                    node_id=getattr(row, "node_id", None),
+                    currency=getattr(row, "currency", None),
+                ),
+                db_evidence=_marketplace_db_evidence(
+                    action="validate_cancel_owner_db",
+                    db_ready=db_ready,
+                    read_attempted=True,
+                ),
+                result_summary=_marketplace_result_summary(reason="permission_denied"),
+            )
             raise HTTPException(status_code=403, detail="Permission denied")
 
         db.delete(row)
@@ -1119,4 +1963,30 @@ async def cancel_listing(
     with _listings_lock:
         _listings.pop(listing_id, None)
 
+    _publish_marketplace_api_event(
+        request=request,
+        operation="marketplace_cancel_listing",
+        stage="listing_cancelled",
+        status_text="success",
+        started_at=started,
+        http_status_code=200,
+        context=_marketplace_route_context(
+            current_user=current_user,
+            listing_id=listing_id,
+            node_id=listing.get("node_id"),
+            currency=listing.get("currency"),
+        ),
+        db_evidence=_marketplace_db_evidence(
+            action="cancel_listing",
+            db_ready=db_ready,
+            read_attempted=True,
+            write_attempted=db_ready,
+            committed=db_ready,
+            cache_write=True,
+        ),
+        result_summary=_marketplace_result_summary(
+            listing_status="cancelled",
+            reason="cancelled",
+        ),
+    )
     return {"status": "cancelled"}

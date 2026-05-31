@@ -4,49 +4,49 @@
       "all_runs_successful": true,
       "baseline_mean_gap_ms": {
         "count": 2,
-        "max": 0.3973188,
-        "mean": 0.2929085,
-        "min": 0.1884982,
-        "stdev": 0.10441030000000001
+        "max": 0.1584506,
+        "mean": 0.1438761,
+        "min": 0.1293016,
+        "stdev": 0.014574500000000004
       },
       "claim_boundary": "Aggregate local timing comparison only; do not use as DPI, whitelist, kernel attach, or production evidence.",
       "mean_gap_delta_ms": {
         "count": 2,
-        "max": 40.2897282,
-        "mean": 40.236407,
-        "min": 40.1830858,
-        "stdev": 0.05332119999999918
+        "max": 25.878749199999998,
+        "mean": 24.8558753,
+        "min": 23.833001400000004,
+        "stdev": 1.022873899999997
       },
       "mean_gap_ratio": {
         "count": 2,
-        "max": 214.1749045879483,
-        "mean": 158.2894681562993,
-        "min": 102.40403172465032,
-        "stdev": 55.88543643164899
+        "max": 201.14252878541333,
+        "mean": 176.27767383514487,
+        "min": 151.41281888487643,
+        "stdev": 24.86485495026845
       },
       "mode": "corporate",
       "pulse_mean_gap_ms": {
         "count": 2,
-        "max": 40.687047,
-        "mean": 40.529315499999996,
-        "min": 40.371584,
-        "stdev": 0.15773150000000058
+        "max": 26.0080508,
+        "mean": 24.9997514,
+        "min": 23.991452000000002,
+        "stdev": 1.0082993999999985
       },
       "replayable_runs": 2,
       "runs": 2,
       "sender_actual_mean_gap_ms": {
         "count": 2,
-        "max": 40.68470001220703,
-        "mean": 40.5256986618042,
-        "min": 40.36669731140137,
-        "stdev": 0.15900135040283203
+        "max": 25.993729,
+        "mean": 24.9919655,
+        "min": 23.990202,
+        "stdev": 1.0017634999999991
       },
       "sender_planned_mean_delay_ms": {
         "count": 2,
-        "max": 40.28907091228464,
-        "mean": 39.998892694869824,
-        "min": 39.708714477455,
-        "stdev": 0.2901782174148231
+        "max": 22.784443,
+        "mean": 21.92387,
+        "min": 21.063297,
+        "stdev": 0.8605730000000005
       },
       "successful_runs": 2
     },
@@ -54,54 +54,54 @@
       "all_runs_successful": true,
       "baseline_mean_gap_ms": {
         "count": 2,
-        "max": 0.1783514,
-        "mean": 0.1717038,
-        "min": 0.1650562,
-        "stdev": 0.0066476000000000035
+        "max": 0.1290194,
+        "mean": 0.1288291,
+        "min": 0.1286388,
+        "stdev": 0.00019030000000000435
       },
       "claim_boundary": "Aggregate local timing comparison only; do not use as DPI, whitelist, kernel attach, or production evidence.",
       "mean_gap_delta_ms": {
         "count": 2,
-        "max": 779.8971568,
-        "mean": 644.54039,
-        "min": 509.18362320000006,
-        "stdev": 135.35676679999995
+        "max": 66.55642959999999,
+        "mean": 62.90556719999999,
+        "min": 59.254704800000006,
+        "stdev": 3.6508623999999905
       },
       "mean_gap_ratio": {
         "count": 2,
-        "max": 4373.812082215222,
-        "mean": 3729.861347845559,
-        "min": 3085.9106134758954,
-        "stdev": 643.9507343696635
+        "max": 516.8637352212147,
+        "mean": 489.2461460398216,
+        "min": 461.62855685842845,
+        "stdev": 27.61758918139313
       },
       "mode": "whitelist",
       "pulse_mean_gap_ms": {
         "count": 2,
-        "max": 780.0755082,
-        "mean": 644.7120938,
-        "min": 509.34867940000004,
-        "stdev": 135.36341439999995
+        "max": 66.68544899999999,
+        "mean": 63.0343963,
+        "min": 59.3833436,
+        "stdev": 3.651052699999994
       },
       "replayable_runs": 2,
       "runs": 2,
       "sender_actual_mean_gap_ms": {
         "count": 2,
-        "max": 780.0866603851318,
-        "mean": 644.7144985198975,
-        "min": 509.3423366546631,
-        "stdev": 135.37216186523438
+        "max": 66.672182,
+        "mean": 63.02421100000001,
+        "min": 59.37624,
+        "stdev": 3.647971000000002
       },
       "sender_planned_mean_delay_ms": {
         "count": 2,
-        "max": 1142.6162647500826,
-        "mean": 783.3044611244208,
-        "min": 423.992657498759,
-        "stdev": 359.3118036256618
+        "max": 60.536218,
+        "mean": 57.163855,
+        "min": 53.791492,
+        "stdev": 3.372363
       },
       "successful_runs": 2
     }
   },
-  "bundle": "docs/verification/ghost-pulse-profile-matrix-20260522T005403Z",
+  "bundle": "docs/verification/ghost-pulse-profile-matrix-20260531T000535Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "kernel_read_only_visible": false,
@@ -192,7 +192,7 @@
         "available": true,
         "returncode": 0,
         "stderr": "",
-        "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\"},{\"ifindex\":2,\"ifname\":\"enp8s0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"18:c0:4d:ab:68:60\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":3,\"ifname\":\"virbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"52:54:00:34:e7:cf\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":4,\"ifname\":\"lxcbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"00:16:3e:00:00:00\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":5,\"ifname\":\"x0tctrl\",\"flags\":[\"POINTOPOINT\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"none\"},{\"ifindex\":6,\"ifname\":\"br-2346afa010d6\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"9e:d9:ef:93:23:80\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":7,\"ifname\":\"br-5cce4ae051c7\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"32:ad:9b:96:8e:23\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":8,\"ifname\":\"br-afb7e5743700\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ae:8a:5a:72:04:6d\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":9,\"ifname\":\"docker0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"1a:d5:9e:f7:f5:69\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":10,\"ifname\":\"br-224057b2b3d0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"62:75:0e:8d:0a:8c\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":11,\"link_index\":2,\"ifname\":\"veth6864553\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"docker0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"d6:c6:17:be:6d:61\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":0},{\"ifindex\":13,\"link_index\":2,\"ifname\":\"vethb6b7267\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"06:ca:da:6a:35:a2\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":2},{\"ifindex\":14,\"link_index\":2,\"ifname\":\"vethdfca4d4\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"c6:04:bb:36:cb:e8\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":3},{\"ifindex\":54,\"ifname\":\"singbox_tun\",\"flags\":[\"POINTOPOINT\",\"MULTICAST\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"fq\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":500,\"link_type\":\"none\"}]\n"
+        "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\"},{\"ifindex\":2,\"ifname\":\"enp8s0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"18:c0:4d:ab:68:60\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":3,\"ifname\":\"virbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"52:54:00:34:e7:cf\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":4,\"ifname\":\"lxcbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"00:16:3e:00:00:00\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":5,\"ifname\":\"x0tctrl\",\"flags\":[\"POINTOPOINT\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"none\"},{\"ifindex\":6,\"ifname\":\"br-224057b2b3d0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"92:73:c8:c6:b1:84\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":7,\"ifname\":\"docker0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"7e:08:36:39:aa:00\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":8,\"link_index\":2,\"ifname\":\"vethff00ee1\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"3e:da:df:1b:1e:aa\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":0},{\"ifindex\":9,\"link_index\":2,\"ifname\":\"veth9e01cdc\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"docker0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"62:bc:2c:98:b5:6d\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":1},{\"ifindex\":10,\"link_index\":2,\"ifname\":\"veth0d9f787\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ca:ef:dc:a5:0b:e4\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":2},{\"ifindex\":11,\"ifname\":\"singbox_tun\",\"flags\":[\"POINTOPOINT\",\"MULTICAST\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"fq\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":500,\"link_type\":\"none\"}]\n"
       }
     },
     "pulse_map_present": false,
@@ -211,102 +211,102 @@
   },
   "runs": [
     {
-      "baseline_gap_stdev_ms": 0.1711212785756348,
-      "baseline_mean_gap_ms": 0.3973188,
+      "baseline_gap_stdev_ms": 0.030430288921401982,
+      "baseline_mean_gap_ms": 0.1584506,
       "baseline_received": 6,
       "baseline_status": "VERIFIED_LOCAL",
       "comparison_status": "VERIFIED_LOCAL_COMPARISON",
-      "mean_gap_delta_ms": 40.2897282,
-      "mean_gap_ratio": 102.40403172465032,
+      "mean_gap_delta_ms": 23.833001400000004,
+      "mean_gap_ratio": 151.41281888487643,
       "mode": "corporate",
-      "pulse_gap_stdev_ms": 3.1351641118733804,
-      "pulse_mean_gap_ms": 40.687047,
+      "pulse_gap_stdev_ms": 7.277020412908377,
+      "pulse_mean_gap_ms": 23.991452000000002,
       "pulse_received": 6,
       "pulse_rng_seed": 20260522,
       "pulse_status": "VERIFIED_LOCAL",
       "repetition": 0,
       "seed": 20260522,
-      "sender_actual_mean_gap_ms": 40.68470001220703,
-      "sender_planned_mean_delay_ms": 40.28907091228464,
-      "sender_relative_error_mean": 0.0182232195914254,
+      "sender_actual_mean_gap_ms": 23.990202,
+      "sender_planned_mean_delay_ms": 21.063297,
+      "sender_relative_error_mean": 0.05053,
       "timing_plan_replay_samples": 6,
       "timing_plan_replay_seed": 20260522,
-      "timing_plan_replay_sha256": "e0eec8a54943af16c739546fa5afc1fcbaefa2e131d7d7abb682d77e85eff612",
+      "timing_plan_replay_sha256": "d3b02d38a2f0bc56f813e278a56e4d40e377e197aa2155aadf94852c73df887a",
       "timing_plan_replay_status": "LOCAL_SEED_REPLAYABLE",
       "timing_plan_samples_recorded": 6
     },
     {
-      "baseline_gap_stdev_ms": 0.04140929413259782,
-      "baseline_mean_gap_ms": 0.1884982,
+      "baseline_gap_stdev_ms": 0.01902656224965508,
+      "baseline_mean_gap_ms": 0.1293016,
       "baseline_received": 6,
       "baseline_status": "VERIFIED_LOCAL",
       "comparison_status": "VERIFIED_LOCAL_COMPARISON",
-      "mean_gap_delta_ms": 40.1830858,
-      "mean_gap_ratio": 214.1749045879483,
+      "mean_gap_delta_ms": 25.878749199999998,
+      "mean_gap_ratio": 201.14252878541333,
       "mode": "corporate",
-      "pulse_gap_stdev_ms": 2.1803281201645786,
-      "pulse_mean_gap_ms": 40.371584,
+      "pulse_gap_stdev_ms": 10.651226305469853,
+      "pulse_mean_gap_ms": 26.0080508,
       "pulse_received": 6,
       "pulse_rng_seed": 20261522,
       "pulse_status": "VERIFIED_LOCAL",
       "repetition": 1,
       "seed": 20261522,
-      "sender_actual_mean_gap_ms": 40.36669731140137,
-      "sender_planned_mean_delay_ms": 39.708714477455,
-      "sender_relative_error_mean": 0.015989092654109017,
+      "sender_actual_mean_gap_ms": 25.993729,
+      "sender_planned_mean_delay_ms": 22.784443,
+      "sender_relative_error_mean": 0.032583,
       "timing_plan_replay_samples": 6,
       "timing_plan_replay_seed": 20261522,
-      "timing_plan_replay_sha256": "bb1c8e49043d3dc7e1a767a0ad4d1af868e2196706dd093d227839541400a2f0",
+      "timing_plan_replay_sha256": "df059d04b2b521d73f5f69f6830e879190fd55edd40ce9196d05bbf60ffcdf84",
       "timing_plan_replay_status": "LOCAL_SEED_REPLAYABLE",
       "timing_plan_samples_recorded": 6
     },
     {
-      "baseline_gap_stdev_ms": 0.04117052737286711,
-      "baseline_mean_gap_ms": 0.1650562,
+      "baseline_gap_stdev_ms": 0.027640184678109515,
+      "baseline_mean_gap_ms": 0.1290194,
       "baseline_received": 6,
       "baseline_status": "VERIFIED_LOCAL",
       "comparison_status": "VERIFIED_LOCAL_COMPARISON",
-      "mean_gap_delta_ms": 509.18362320000006,
-      "mean_gap_ratio": 3085.9106134758954,
+      "mean_gap_delta_ms": 66.55642959999999,
+      "mean_gap_ratio": 516.8637352212147,
       "mode": "whitelist",
-      "pulse_gap_stdev_ms": 373.2849583310604,
-      "pulse_mean_gap_ms": 509.34867940000004,
+      "pulse_gap_stdev_ms": 16.36517888832482,
+      "pulse_mean_gap_ms": 66.68544899999999,
       "pulse_received": 6,
       "pulse_rng_seed": 20262522,
       "pulse_status": "VERIFIED_LOCAL",
       "repetition": 0,
       "seed": 20262522,
-      "sender_actual_mean_gap_ms": 509.3423366546631,
-      "sender_planned_mean_delay_ms": 423.992657498759,
-      "sender_relative_error_mean": 0.0845351529071251,
+      "sender_actual_mean_gap_ms": 66.672182,
+      "sender_planned_mean_delay_ms": 60.536218,
+      "sender_relative_error_mean": 0.012751,
       "timing_plan_replay_samples": 6,
       "timing_plan_replay_seed": 20262522,
-      "timing_plan_replay_sha256": "a9f23f990842c94063c377bcafac09df51dc2ec97fefc123a8c7862a97f4d56a",
+      "timing_plan_replay_sha256": "5a18cf22978ebe536c1ac6b0f618a8c0836ccaddd0c127121d7a5adc2b730155",
       "timing_plan_replay_status": "LOCAL_SEED_REPLAYABLE",
       "timing_plan_samples_recorded": 6
     },
     {
-      "baseline_gap_stdev_ms": 0.04542647191495286,
-      "baseline_mean_gap_ms": 0.1783514,
+      "baseline_gap_stdev_ms": 0.022163160247582022,
+      "baseline_mean_gap_ms": 0.1286388,
       "baseline_received": 6,
       "baseline_status": "VERIFIED_LOCAL",
       "comparison_status": "VERIFIED_LOCAL_COMPARISON",
-      "mean_gap_delta_ms": 779.8971568,
-      "mean_gap_ratio": 4373.812082215222,
+      "mean_gap_delta_ms": 59.254704800000006,
+      "mean_gap_ratio": 461.62855685842845,
       "mode": "whitelist",
-      "pulse_gap_stdev_ms": 541.7315336274779,
-      "pulse_mean_gap_ms": 780.0755082,
+      "pulse_gap_stdev_ms": 19.641506182347573,
+      "pulse_mean_gap_ms": 59.3833436,
       "pulse_received": 6,
       "pulse_rng_seed": 20263522,
       "pulse_status": "VERIFIED_LOCAL",
       "repetition": 1,
       "seed": 20263522,
-      "sender_actual_mean_gap_ms": 780.0866603851318,
-      "sender_planned_mean_delay_ms": 1142.6162647500826,
-      "sender_relative_error_mean": 0.06239467138443301,
+      "sender_actual_mean_gap_ms": 59.37624,
+      "sender_planned_mean_delay_ms": 53.791492,
+      "sender_relative_error_mean": 0.016898,
       "timing_plan_replay_samples": 6,
       "timing_plan_replay_seed": 20263522,
-      "timing_plan_replay_sha256": "9475b04abfffe755728cf5630efd112735f043d55779c8345f8852cf000da044",
+      "timing_plan_replay_sha256": "9df8fc1e413a356c7a43c205e34e6a4bf952e7942ca6d4a6b0a7300294246486",
       "timing_plan_replay_status": "LOCAL_SEED_REPLAYABLE",
       "timing_plan_samples_recorded": 6
     }
@@ -321,23 +321,23 @@
       "available": true,
       "returncode": 0,
       "stderr": "",
-      "stdout": "src/network/ebpf/x0tta6bl4_pulse.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), not stripped\n"
+      "stdout": "src/network/ebpf/x0tta6bl4_pulse.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), with debug_info, not stripped\n"
     },
     "object": {
       "elf_magic": "7f454c46",
       "exists": true,
       "is_elf": true,
       "path": "src/network/ebpf/x0tta6bl4_pulse.o",
-      "sha256": "f5f713eae20ab53c1fcc533f88b8614349e0707aa1ae7b4b01bc495196099927",
-      "size_bytes": 1288
+      "sha256": "86a613ae31f2440a95a0f10f25dc8db1c1b672dc77b987454ca8c465be18f40d",
+      "size_bytes": 10584
     },
     "source": {
       "exists": true,
       "path": "src/network/ebpf/x0tta6bl4_pulse.bpf.c",
-      "sha256": "75bd37951938ff63157ae912c953da08ce189c73a5634ab9b7a2e70d93535475",
-      "size_bytes": 2196
+      "sha256": "765341035f97256a11b85d977d740fe3662be56540db43364cb0bee179edb7ec",
+      "size_bytes": 818
     },
     "status": "STATIC_OBJECT_PRESENT"
   },
-  "timestamp_utc": "2026-05-22T00:54:13.741112+00:00"
+  "timestamp_utc": "2026-05-31T00:05:39.259442+00:00"
 }

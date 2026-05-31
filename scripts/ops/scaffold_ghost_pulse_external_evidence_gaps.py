@@ -60,6 +60,36 @@ POST_IMPORT_REFRESH_COMMANDS = [
     ["python3", "scripts/ops/verify_ghost_pulse_artifact_chain.py", "--write-report", "--json"],
     ["python3", "scripts/ops/verify_ghost_pulse_goal_state.py", "--write-report", "--json"],
 ]
+EXTERNAL_DPI_COLLECTOR_COMMAND_SHAPE = [
+    "python3",
+    "scripts/ops/collect_external_dpi_proxy_reachability_evidence.py",
+    "--output",
+    "docs/verification/incoming/dpi_lab.json",
+    "--artifact-dir",
+    "docs/verification/incoming/artifacts/dpi_lab",
+    "--allow-external-probes",
+    "--target-url",
+    "<authorized target URL; local input only>",
+    "--treatment-proxy",
+    "<authorized proxy URL; local input only>",
+    "--operator-or-lab-id",
+    "<local operator/lab id; hashed before writing>",
+    "--authorization-scope-id",
+    "<local authorization scope; hashed before writing>",
+    "--scope-summary",
+    "<bounded authorized scope>",
+    "--network-region-bucket",
+    "<coarse region>",
+    "--network-type",
+    "<authorized lab/field network>",
+    "--isp-or-lab-profile",
+    "<local ISP/lab profile; hashed before writing>",
+    "--egress-location-bucket",
+    "<coarse egress>",
+    "--policy-context",
+    "<authorized policy context>",
+    "--json",
+]
 
 CLAIM_GAPS: dict[str, dict[str, Any]] = {
     "dpi_lab": {
@@ -363,7 +393,7 @@ def build_incoming_example(proof, requirement: dict[str, Any]) -> dict[str, Any]
 def incoming_collection_task(requirement: dict[str, Any]) -> dict[str, Any]:
     claim_id = requirement["claim_id"]
     candidate = f"docs/verification/incoming/{claim_id}.json"
-    return {
+    task = {
         "claim_id": claim_id,
         "title": requirement["title"],
         "status": COLLECTION_TASK_STATUS,
@@ -400,6 +430,9 @@ def incoming_collection_task(requirement: dict[str, Any]) -> dict[str, Any]:
             "promote proof-gate claims."
         ),
     }
+    if claim_id == "dpi_lab":
+        task["collector_command_shape"] = EXTERNAL_DPI_COLLECTOR_COMMAND_SHAPE
+    return task
 
 
 def render_incoming_examples_readme(manifest: dict[str, Any]) -> str:

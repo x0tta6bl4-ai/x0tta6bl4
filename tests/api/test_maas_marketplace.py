@@ -33,6 +33,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, GlobalConfig, MarketplaceEscrow, MarketplaceListing, User, get_db
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_marketplace_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -716,7 +717,7 @@ class TestMarketplaceIdempotency:
         )
 
         db = TestingSessionLocal()
-        seller = db.query(User).filter(User.api_key == market_data["seller_token"]).first()
+        seller = find_user_by_api_key(db, market_data["seller_token"])
         seller_id = seller.id
         db.close()
 
@@ -738,7 +739,7 @@ class TestMarketplaceIdempotency:
         )
 
         db = TestingSessionLocal()
-        seller = db.query(User).filter(User.api_key == market_data["seller_token"]).first()
+        seller = find_user_by_api_key(db, market_data["seller_token"])
         seller_id = seller.id
         db.close()
 

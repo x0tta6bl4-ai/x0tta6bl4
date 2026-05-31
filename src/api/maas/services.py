@@ -17,6 +17,8 @@ from threading import Lock
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 import aiohttp
 
+from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
+
 from .constants import (
     BILLING_WEBHOOK_EVENTS,
     PLAN_ALIASES,
@@ -38,6 +40,23 @@ from .registry import (
 )
 
 logger = logging.getLogger(__name__)
+
+_MESH_PROVISIONER_CROSS_PLANE_CLAIMS = (
+    "production_readiness",
+    "dataplane_delivery",
+    "traffic_delivery",
+    "customer_traffic",
+    "dpi_bypass",
+    "settlement_finality",
+)
+MESH_PROVISIONER_CLAIM_BOUNDARY = (
+    "MeshProvisioner.provision_mesh creates an in-process MeshInstance, seeds "
+    "local node records, registers local lifecycle state, and records local "
+    "audit/metrics evidence. It does not prove external infrastructure "
+    "provisioning, node dataplane join, node reachability, routing convergence, "
+    "customer traffic, external DPI bypass, settlement finality, production "
+    "SLOs, or production readiness."
+)
 
 _SHARED_STATE_STORE_LOCK = Lock()
 _SHARED_STATE_STORE: Optional["_SharedStateStore"] = None
@@ -68,6 +87,50 @@ def _env_value(name: str, default: str = "") -> str:
     if value is None:
         return default
     return str(value).strip()
+
+
+def _mesh_provisioner_claim_gate(
+    *,
+    surface: str = "maas_services.mesh_provisioner.provision_mesh",
+    plan_limit_checked: bool = False,
+    mesh_instance_created: bool = False,
+    local_node_records_seeded: bool = False,
+    registry_mutation_committed: bool = False,
+    audit_log_recorded: bool = False,
+    metrics_recorded: bool = False,
+) -> Dict[str, Any]:
+    return {
+        "schema": "x0tta6bl4.mesh_provisioner_claim_gate.v1",
+        "surface": surface,
+        "plan_limit_checked": bool(plan_limit_checked),
+        "mesh_instance_created": bool(mesh_instance_created),
+        "local_node_records_seeded": bool(local_node_records_seeded),
+        "registry_mutation_committed": bool(registry_mutation_committed),
+        "audit_log_recorded": bool(audit_log_recorded),
+        "metrics_recorded": bool(metrics_recorded),
+        "local_mesh_instance_lifecycle_claim_allowed": bool(mesh_instance_created),
+        "local_node_seed_claim_allowed": bool(local_node_records_seeded),
+        "local_registry_lifecycle_claim_allowed": bool(registry_mutation_committed),
+        "external_infrastructure_provisioning_claim_allowed": False,
+        "node_dataplane_join_claim_allowed": False,
+        "node_reachability_claim_allowed": False,
+        "routing_convergence_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "external_dpi_bypass_claim_allowed": False,
+        "settlement_finality_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "claim_boundary": MESH_PROVISIONER_CLAIM_BOUNDARY,
+    }
+
+
+def _mesh_provisioner_cross_plane_gate(surface: str) -> Dict[str, Any]:
+    return cross_plane_claim_gate_metadata(
+        _MESH_PROVISIONER_CROSS_PLANE_CLAIMS,
+        surface=surface,
+    )
 
 
 class _SharedStateStore:
@@ -975,9 +1038,16 @@ class MeshProvisioner:
         obfuscation = kwargs.get("obfuscation", "none")
         traffic_profile = kwargs.get("traffic_profile", "none")
         join_token_ttl_sec = int(kwargs.get("join_token_ttl_sec", 604800))
+        plan_limit_checked = False
+        mesh_instance_created = False
+        local_node_records_seeded = False
+        registry_mutation_committed = False
+        audit_log_recorded = False
+        metrics_recorded = False
 
         # Validate plan limits
         limits = self._billing.get_plan_limits(normalized_plan)
+        plan_limit_checked = True
         if normalized_nodes > limits["max_nodes"]:
             raise ValueError(
                 f"Node count {normalized_nodes} exceeds plan limit {limits['max_nodes']}"
@@ -1005,6 +1075,7 @@ class MeshProvisioner:
             created_at=datetime.utcnow(),
             pqc_config=pqc_config,
         )
+        mesh_instance_created = True
         instance.join_token = f"join_{secrets.token_urlsafe(24)}"
         instance.join_token_ttl_sec = join_token_ttl_sec
         instance.join_token_issued_at = datetime.utcnow()
@@ -1014,9 +1085,11 @@ class MeshProvisioner:
 
         # Provision nodes
         await instance.provision()
+        local_node_records_seeded = True
 
         # Register in global registry
         register_mesh(instance)
+        registry_mutation_committed = True
 
         # Audit log
         await record_audit_log(
@@ -1025,6 +1098,7 @@ class MeshProvisioner:
             "mesh.provision",
             f"Mesh created with {normalized_nodes} nodes in {normalized_region}",
         )
+        audit_log_recorded = True
 
         # Record metrics
         if self._metrics:
@@ -1033,8 +1107,20 @@ class MeshProvisioner:
                 1,
                 {"plan": normalized_plan, "region": normalized_region},
             )
+            metrics_recorded = True
 
         logger.info(f"Provisioned mesh {mesh_id} for user {owner_id}")
+        instance.mesh_provisioner_claim_gate = _mesh_provisioner_claim_gate(
+            plan_limit_checked=plan_limit_checked,
+            mesh_instance_created=mesh_instance_created,
+            local_node_records_seeded=local_node_records_seeded,
+            registry_mutation_committed=registry_mutation_committed,
+            audit_log_recorded=audit_log_recorded,
+            metrics_recorded=metrics_recorded,
+        )
+        instance.cross_plane_claim_gate = _mesh_provisioner_cross_plane_gate(
+            "maas_services.mesh_provisioner.provision_mesh"
+        )
 
         return instance
 
@@ -1424,8 +1510,12 @@ class AuthService:
             store.popitem(last=False)
 
     @staticmethod
-    def _api_key_store_key(api_key: str) -> str:
-        return f"maas:auth:api_key:{api_key}"
+    def _api_key_hash(api_key: str) -> str:
+        return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def _api_key_store_key(cls, api_key: str) -> str:
+        return f"maas:auth:api_key:{cls._api_key_hash(api_key)}"
 
     @staticmethod
     def _session_store_key(token: str) -> str:
@@ -1434,6 +1524,7 @@ class AuthService:
     def generate_api_key(self, user_id: str, plan: str) -> str:
         """Generate a new API key for a user."""
         key = f"maas_{secrets.token_urlsafe(32)}"
+        key_hash = self._api_key_hash(key)
 
         key_record = {
             "user_id": user_id,
@@ -1441,8 +1532,9 @@ class AuthService:
             "created_at": datetime.utcnow().isoformat(),
             "last_used": None,
             "request_count": 0,
+            "key_fingerprint": key_hash[:12],
         }
-        self._api_keys[key] = key_record
+        self._api_keys[key_hash] = key_record
         self._evict_oldest(self._api_keys, self._max_api_keys)
         self._shared_state.set_json(
             self._api_key_store_key(key),
@@ -1454,12 +1546,13 @@ class AuthService:
 
     def validate_api_key(self, api_key: str) -> Optional[Dict[str, Any]]:
         """Validate an API key and verify active subscription."""
+        key_hash = self._api_key_hash(api_key)
         key_data = self._shared_state.get_json(self._api_key_store_key(api_key))
         if key_data is None:
             if self._shared_state_authoritative:
-                self._api_keys.pop(api_key, None)
+                self._api_keys.pop(key_hash, None)
                 return None
-            key_data = self._api_keys.get(api_key)
+            key_data = self._api_keys.get(key_hash)
         if key_data is None:
             return None
 
@@ -1499,15 +1592,15 @@ class AuthService:
             key_data,
             ttl_seconds=self._api_key_ttl_seconds if self._api_key_ttl_seconds > 0 else None,
         )
-        self._api_keys[api_key] = key_data
-        self._api_keys.move_to_end(api_key)
+        self._api_keys[key_hash] = key_data
+        self._api_keys.move_to_end(key_hash)
         self._evict_oldest(self._api_keys, self._max_api_keys)
 
         return key_data
 
     def revoke_api_key(self, api_key: str) -> bool:
         """Revoke an API key."""
-        deleted_local = self._api_keys.pop(api_key, None) is not None
+        deleted_local = self._api_keys.pop(self._api_key_hash(api_key), None) is not None
         deleted_shared = self._shared_state.delete(self._api_key_store_key(api_key))
         return deleted_local or deleted_shared
 

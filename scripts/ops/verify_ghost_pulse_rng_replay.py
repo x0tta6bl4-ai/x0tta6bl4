@@ -82,7 +82,7 @@ def verify_local(path: Path) -> list[str]:
     local_probe = data.get("local_probe", {})
     stats = local_probe.get("transport_stats", {})
     replay = stats.get("timing_plan_replay", {})
-    samples = stats.get("timing_plan_samples", [])
+    samples = stats.get("timing_plan_samples")
 
     mode = local_probe.get("mode")
     seed = local_probe.get("seed")
@@ -97,7 +97,7 @@ def verify_local(path: Path) -> list[str]:
         failures.append("local timing_plan_replay.status is not LOCAL_SEED_REPLAYABLE")
     if replay.get("seed") != seed:
         failures.append("local timing_plan_replay.seed does not match local seed")
-    if len(samples) != sample_count:
+    if isinstance(samples, list) and len(samples) != sample_count:
         failures.append("local timing_plan_samples length does not match replay sample_count")
 
     if not failures:

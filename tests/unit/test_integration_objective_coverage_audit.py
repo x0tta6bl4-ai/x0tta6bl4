@@ -2,7 +2,9 @@ import json
 from pathlib import Path
 
 from src.integration.objective_coverage_audit import (
+    DEFAULT_CROSS_PLANE_PROOF_GATE,
     DEFAULT_PRODUCTION_GRADE_GOAL_AUDIT,
+    OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS,
     build_report,
     main,
 )
@@ -15,10 +17,44 @@ def _write_json(root: Path, rel: str, payload: dict) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_cross_plane_proof_gate(root: Path, *, allowed: bool) -> None:
+    claim_results = [
+        {
+            "claim_id": claim_id,
+            "allowed": allowed,
+            "blockers": [] if allowed else [f"{claim_id}_proof_missing"],
+        }
+        for claim_id in OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS
+    ]
+    _write_json(
+        root,
+        DEFAULT_CROSS_PLANE_PROOF_GATE,
+        {
+            "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+            "decision": "CROSS_PLANE_CLAIMS_ALLOWED" if allowed else "CROSS_PLANE_CLAIMS_BLOCKED",
+            "allowed": allowed,
+            "context": {
+                "required_planes_present": True,
+                "open_gap_ids": [] if allowed else ["external-dpi-proof-missing"],
+                "next_action_ids": [] if allowed else ["external-dpi-real-artifact-intake"],
+                "current_gap_count": 0 if allowed else 1,
+                "next_action_count": 0 if allowed else 1,
+            },
+            "claim_results": claim_results,
+            "summary": {
+                "claims_total": len(claim_results),
+                "claims_allowed": len(claim_results) if allowed else 0,
+                "claims_blocked": 0 if allowed else len(claim_results),
+            },
+        },
+    )
+
+
 def _base_artifacts(root: Path, *, ready: bool = False) -> None:
     raw_expected = 2
     raw_staged = raw_expected if ready else 0
     raw_local = 0 if ready else raw_expected
+    _write_cross_plane_proof_gate(root, allowed=ready)
     _write_json(
         root,
         ".tmp/validation-shards/integration-spine-code-wiring-current.json",
@@ -639,6 +675,17 @@ def test_objective_coverage_audit_reports_blocked_raw_counts_from_return_accepta
     assert pipeline_row["status"] == "VERIFIED_LOCAL_PRODUCTION_GAP"
     assert pipeline_row["evidence"]["raw_files_installed"] == 0
     assert "goal_audit:production_input_pipeline" in report["blocking_row_ids"]
+    cross_plane_row = next(
+        row for row in report["prompt_to_artifact_checklist"] if row["id"] == "goal_audit:cross_plane_proof_gate"
+    )
+    assert cross_plane_row["local_ready"] is True
+    assert cross_plane_row["production_ready"] is False
+    assert cross_plane_row["evidence"]["claims_blocked"] == len(OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS)
+    assert "goal_audit:cross_plane_proof_gate" in report["blocking_row_ids"]
+    assert summary["cross_plane_proof_gate_available"] is True
+    assert summary["cross_plane_proof_gate_allowed"] is False
+    assert summary["cross_plane_proof_gate_claims_blocked"] == len(OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS)
+    assert "external-dpi-proof-missing" in summary["cross_plane_proof_gate_open_gap_ids"]
     raw_packet_row = next(
         row for row in report["prompt_to_artifact_checklist"] if row["id"] == "goal_audit:production_raw_evidence_operator_packet"
     )
@@ -750,6 +797,11 @@ def test_objective_coverage_audit_reports_blocked_raw_counts_from_return_accepta
     assert governance_action["required_artifact"] == (
         ".tmp/validation-shards/x0t-governance-execute-proposal-1-receipt-current.json"
     )
+    proof_gate_action = next_actions["clear_cross_plane_proof_gate"]
+    assert proof_gate_action["status"] == "BLOCKING"
+    assert proof_gate_action["source_artifact"] == DEFAULT_CROSS_PLANE_PROOF_GATE
+    assert proof_gate_action["requested_claim_ids"] == list(OBJECTIVE_COVERAGE_CROSS_PLANE_CLAIMS)
+    assert "claim_blocked:dpi_bypass" in proof_gate_action["blocker_ids"]
 
 
 def test_objective_coverage_promotes_production_grade_next_actions(tmp_path):
@@ -863,6 +915,31 @@ def test_objective_coverage_marks_ready_governance_action_as_operator_approval_r
     assert governance_action["submits_transaction"] is True
 
 
+def test_objective_coverage_requires_cross_plane_proof_gate_artifact(tmp_path):
+    _base_artifacts(tmp_path, ready=True)
+    (tmp_path / DEFAULT_CROSS_PLANE_PROOF_GATE).unlink()
+
+    report = build_report(tmp_path)
+
+    cross_plane_row = next(
+        row for row in report["prompt_to_artifact_checklist"] if row["id"] == "goal_audit:cross_plane_proof_gate"
+    )
+    next_actions = {item["id"]: item for item in report["next_actions"]}
+
+    assert report["completion_decision"] == "NOT_COMPLETE"
+    assert report["goal_can_be_marked_complete"] is False
+    assert any(DEFAULT_CROSS_PLANE_PROOF_GATE in error for error in report["source_errors"])
+    assert cross_plane_row["local_ready"] is False
+    assert cross_plane_row["production_ready"] is False
+    assert "cross_plane_proof_gate_missing" in cross_plane_row["evidence"]["blocker_ids"]
+    assert report["summary"]["cross_plane_proof_gate_available"] is False
+    assert report["summary"]["cross_plane_proof_gate_allowed"] is False
+    assert next_actions["clear_cross_plane_proof_gate"]["status"] == "BLOCKING"
+    command = next_actions["clear_cross_plane_proof_gate"]["command"]
+    assert f"--output-json {DEFAULT_CROSS_PLANE_PROOF_GATE}" in command
+    assert " > " not in command
+
+
 def test_objective_coverage_audit_can_complete_when_all_sources_are_ready(tmp_path):
     _base_artifacts(tmp_path, ready=True)
 
@@ -888,6 +965,9 @@ def test_objective_coverage_audit_can_complete_when_all_sources_are_ready(tmp_pa
     assert report["summary"]["closeout_external_settlement_handoff_operator_sequence_ready"] is True
     assert report["summary"]["closeout_x0t_contract_handoff_deployment_ready"] is True
     assert report["summary"]["closeout_live_rollout_handoff_ready_for_completion_rerun"] is True
+    assert report["summary"]["cross_plane_proof_gate_available"] is True
+    assert report["summary"]["cross_plane_proof_gate_allowed"] is True
+    assert report["summary"]["cross_plane_proof_gate_claims_blocked"] == 0
     handoff_row = next(
         row for row in report["prompt_to_artifact_checklist"] if row["id"] == "external_settlement_operator_handoff"
     )
@@ -898,12 +978,19 @@ def test_objective_coverage_audit_can_complete_when_all_sources_are_ready(tmp_pa
     )
     assert governance_row["local_ready"] is True
     assert governance_row["production_ready"] is True
+    cross_plane_row = next(
+        row for row in report["prompt_to_artifact_checklist"] if row["id"] == "goal_audit:cross_plane_proof_gate"
+    )
+    assert cross_plane_row["local_ready"] is True
+    assert cross_plane_row["production_ready"] is True
     next_actions = {item["id"]: item for item in report["next_actions"]}
     assert next_actions["submit_external_settlement_receipt"]["status"] == "DONE"
     assert next_actions["replace_semantically_blocked_raw_evidence"]["status"] == "DONE"
     assert next_actions["execute_x0t_governance_proposal_after_timelock"]["status"] == "DONE"
+    assert next_actions["clear_cross_plane_proof_gate"]["status"] == "DONE"
     assert report["summary"]["coverage_rows_blocking"] > 0
     assert "goal_audit:broad_production_hardening" in report["blocking_row_ids"]
+    assert "goal_audit:cross_plane_proof_gate" not in report["blocking_row_ids"]
 
 
 def test_objective_coverage_audit_cli_require_complete_returns_two_when_blocked(tmp_path):

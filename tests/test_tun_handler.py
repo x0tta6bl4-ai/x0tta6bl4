@@ -132,9 +132,9 @@ class TestTUNInterface:
     """Tests for TUN interface handler."""
     
     @pytest.mark.asyncio
-    async def test_create_tun_permission_check(self):
+    async def test_create_tun_permission_check(self, tmp_path):
         """Test that TUN creation checks permissions."""
-        tun = TUNInterface("tun0")
+        tun = TUNInterface("tun0", event_project_root=str(tmp_path))
         
         # This will fail if not root, which is expected
         if os.geteuid() != 0:

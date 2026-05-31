@@ -128,6 +128,8 @@ def test_swarm_readiness_ready_when_core_dependencies_are_available(monkeypatch)
     assert payload["vision_engine_ready"] is True
     assert payload["active_swarms"] == 1
     assert payload["total_agents"] == 0
+    assert payload["cross_plane_claim_gate"]["allowed"] is False
+    assert "production_readiness" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
     assert payload["degraded_dependencies"] == []
 
 

@@ -3,12 +3,13 @@ Recovery Actions for MAPE-K - Data Models
 """
 import logging
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 
-class RecoveryActionType:
+class RecoveryActionType(str, Enum):
     """Types of recovery actions"""
 
     RESTART_SERVICE = "restart_service"

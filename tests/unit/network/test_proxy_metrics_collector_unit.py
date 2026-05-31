@@ -6,7 +6,26 @@ os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
+from src.coordination.events import EventBus, EventType
 import src.network.proxy_metrics_collector as mod
+
+
+def _clear_proxy_metrics_identity(monkeypatch):
+    for name in (
+        "PROXY_METRICS_COLLECTOR_SPIFFE_ID",
+        "PROXY_METRICS_COLLECTOR_DID",
+        "PROXY_METRICS_COLLECTOR_WALLET_ADDRESS",
+        "X0TTA6BL4_SERVICE_SPIFFE_ID",
+        "X0TTA6BL4_SERVICE_DID",
+        "X0TTA6BL4_SERVICE_WALLET_ADDRESS",
+        "SERVICE_SPIFFE_ID",
+        "SERVICE_DID",
+        "SERVICE_WALLET_ADDRESS",
+        "SPIFFE_ID",
+        "DID",
+        "GHOST_WALLET_ADDRESS",
+    ):
+        monkeypatch.delenv(name, raising=False)
 
 
 def test_metric_series_add_and_retention_cleanup(monkeypatch):
@@ -138,6 +157,87 @@ async def test_record_proxy_request_health_and_domain_request():
     assert collector.get_metric("domain_requests_success").get_latest() == 1
 
 
+@pytest.mark.asyncio
+async def test_record_proxy_request_publishes_redacted_evidence(
+    tmp_path, monkeypatch
+):
+    _clear_proxy_metrics_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    collector = mod.create_default_collector(event_bus=bus)
+
+    await collector.record_proxy_request(
+        "proxy-secret-1",
+        success=False,
+        latency_ms=42.5,
+        error_type="timeout-with-secret",
+    )
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="proxy-metrics-collector",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["component"] == "network.proxy_metrics_collector"
+    assert payload["operation"] == "record_proxy_request"
+    assert payload["service_name"] == "proxy-metrics-collector"
+    assert payload["layer"] == "network_proxy_metrics_observed_state"
+    assert payload["status"] == "proxy_request_metric_recorded"
+    assert payload["success"] is True
+    assert payload["proxy_id_hash"].startswith("sha256:")
+    assert payload["request_success"] is False
+    assert payload["latency_ms"] == 42.5
+    assert payload["error_type_present"] is True
+    assert payload["error_type_hash"].startswith("sha256:")
+    assert payload["metrics_configured"]["proxy_requests_failed"] is True
+    assert payload["service_identity_present"] == {
+        "spiffe_id": False,
+        "did": False,
+        "wallet_address": False,
+    }
+    assert "raw metric labels" in payload["claim_boundary"]
+    text = str(payload)
+    assert "proxy-secret-1" not in text
+    assert "timeout-with-secret" not in text
+
+
+@pytest.mark.asyncio
+async def test_record_health_and_domain_request_publish_redacted_evidence(
+    tmp_path, monkeypatch
+):
+    _clear_proxy_metrics_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    collector = mod.create_default_collector(event_bus=bus)
+
+    await collector.record_proxy_health(
+        "proxy-secret-2", is_healthy=True, response_time_ms=88.1
+    )
+    await collector.record_domain_request(
+        "secret.example", "proxy-secret-2", success=True, latency_ms=12.25
+    )
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="proxy-metrics-collector",
+    )
+    assert len(events) == 2
+    health_payload = events[0].data
+    domain_payload = events[1].data
+    assert health_payload["operation"] == "record_proxy_health"
+    assert health_payload["status"] == "proxy_health_metric_recorded"
+    assert health_payload["proxy_id_hash"].startswith("sha256:")
+    assert health_payload["is_healthy"] is True
+    assert health_payload["health_value"] == 1
+    assert domain_payload["operation"] == "record_domain_request"
+    assert domain_payload["status"] == "domain_request_metric_recorded"
+    assert domain_payload["domain_hash"].startswith("sha256:")
+    assert domain_payload["proxy_id_hash"].startswith("sha256:")
+    assert domain_payload["request_success"] is True
+    text = str([event.data for event in events])
+    assert "secret.example" not in text
+    assert "proxy-secret-2" not in text
+
+
 def test_get_proxy_metrics_and_global_metrics(monkeypatch):
     now = {"t": 1000.0}
     monkeypatch.setattr(mod.time, "time", lambda: now["t"])
@@ -201,6 +301,49 @@ async def test_check_alerts_triggers_handlers_and_survives_handler_error(caplog)
     assert "high_failure_rate" in seen
     assert "high_latency" in seen
     assert "Alert handler error: handler boom" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_check_alerts_publishes_redacted_summary_evidence(tmp_path, monkeypatch):
+    _clear_proxy_metrics_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    collector = mod.ProxyMetricsCollector(event_bus=bus)
+    collector.register_metric(
+        "proxy_requests_failed", mod.MetricType.COUNTER, "failed requests"
+    )
+    collector.register_metric("proxy_latency_ms", mod.MetricType.HISTOGRAM, "latency")
+
+    now = mod.time.time()
+    collector.metrics["proxy_requests_failed"].values = [
+        mod.MetricValue(0.0, now - 10, {"proxy_id": "proxy-secret"}),
+        mod.MetricValue(120.0, now - 1, {"proxy_id": "proxy-secret"}),
+    ]
+    collector.metrics["proxy_latency_ms"].values = [
+        mod.MetricValue(1500.0, now - 5, {"proxy_id": "proxy-secret"}),
+        mod.MetricValue(3500.0, now - 1, {"proxy_id": "proxy-secret"}),
+    ]
+
+    await collector._check_alerts()
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="proxy-metrics-collector",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["operation"] == "check_alerts"
+    assert payload["status"] == "alerts_detected"
+    assert payload["success"] is True
+    assert payload["alerts_count"] == 2
+    assert payload["alert_types"] == ["high_failure_rate", "high_latency"]
+    assert payload["handler_errors"] == 0
+    assert payload["failure_rate_5m"] > 0
+    assert payload["p95_latency_ms_5m"] == 3500.0
+    assert payload["metric_value_counts"] == {
+        "proxy_requests_failed": 2,
+        "proxy_latency_ms": 2,
+    }
+    assert "proxy-secret" not in str(payload)
 
 
 @pytest.mark.asyncio

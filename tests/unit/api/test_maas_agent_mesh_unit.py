@@ -62,6 +62,8 @@ def test_health_status_endpoint_runs_in_read_only_mode(monkeypatch):
     assert payload["status_payload_ready"] is True
     assert payload["non_dry_run_guard_ready"] is True
     assert payload["local_only_mode"] is True
+    assert payload["cross_plane_claim_gate"]["allowed"] is False
+    assert "dataplane_delivery" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
     assert stub.calls[-1] == (False, True)
 
 

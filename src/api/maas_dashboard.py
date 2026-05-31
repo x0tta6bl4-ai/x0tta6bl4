@@ -8,12 +8,16 @@ Uses DB-backed data for all statistics including hardware attestation.
 
 import logging
 import importlib
+import hashlib
+import time
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
 from src.core.reliability_policy import mark_degraded_dependency
 from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, get_db
 from src.api.maas_auth import require_permission
@@ -24,6 +28,263 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/maas/dashboard", tags=["MaaS Dashboard"])
 
 _STALE_THRESHOLD_MINUTES = 5
+_DASHBOARD_SUMMARY_SOURCE_AGENT = "maas-dashboard-summary-read"
+_DASHBOARD_SUMMARY_LAYER = "api_dashboard_summary_observed_state"
+_DASHBOARD_ANALYTICS_SOURCE_AGENT = "maas-dashboard-analytics-read"
+_DASHBOARD_ANALYTICS_LAYER = "api_dashboard_analytics_observed_state"
+_DASHBOARD_NODES_SOURCE_AGENT = "maas-dashboard-node-read"
+_DASHBOARD_NODES_LAYER = "api_dashboard_node_observed_state"
+_DASHBOARD_CLAIM_BOUNDARY = (
+    "MaaS dashboard evidence records bounded read-only metadata from local DB, "
+    "analytics-service, and resilience surfaces only. It does not expose raw "
+    "emails, mesh IDs, node IDs, hardware IDs, invoice IDs, audit details, or "
+    "prove live dataplane state."
+)
+
+
+def _redacted_sha256_prefix(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+
+def _dashboard_event_bus_from_request(request: Request | None) -> EventBus | None:
+    if request is None:
+        return None
+    state = getattr(request, "state", None)
+    injected_bus = getattr(state, "event_bus", None)
+    if injected_bus is not None:
+        return injected_bus
+    project_root = getattr(state, "event_project_root", ".")
+    try:
+        return get_event_bus(project_root)
+    except Exception as exc:
+        logger.error("Failed to initialize MaaS dashboard EventBus: %s", exc)
+        return None
+
+
+def _dashboard_actor_summary(user: Any) -> Dict[str, Any]:
+    email = str(getattr(user, "email", "") or "").strip().lower()
+    return {
+        "actor_user_id_hash": _redacted_sha256_prefix(getattr(user, "id", None)),
+        "actor_email_hash": _redacted_sha256_prefix(email),
+        "actor_email_present": bool(email),
+        "actor_role": str(getattr(user, "role", ""))[:40],
+        "actor_plan": str(getattr(user, "plan", ""))[:40],
+    }
+
+
+def _known_count_map(values: list[str], known_values: tuple[str, ...]) -> Dict[str, int]:
+    counts = {name: 0 for name in known_values}
+    counts["other"] = 0
+    for value in values:
+        key = str(value or "").strip()
+        if key in counts and key != "other":
+            counts[key] += 1
+        else:
+            counts["other"] += 1
+    return counts
+
+
+def _publish_dashboard_summary_event(
+    request: Request | None,
+    *,
+    current_user: Any,
+    meshes_count: int = 0,
+    total_nodes: int = 0,
+    active_rentals_count: int = 0,
+    my_listings_count: int = 0,
+    audit_logs_count: int = 0,
+    pending_invoices_count: int = 0,
+    timeseries_points: int = 0,
+    security_stats: Dict[str, int] | None = None,
+    health_stats: Dict[str, int] | None = None,
+    cache_backend: str = "",
+    db_circuit_open: bool | None = None,
+    http_status_code: int | None = None,
+    duration_ms: float = 0.0,
+    reason: str = "",
+) -> str | None:
+    event_bus = _dashboard_event_bus_from_request(request)
+    if event_bus is None:
+        return None
+
+    payload = {
+        "component": "api.maas_dashboard",
+        "stage": "dashboard_summary_read",
+        "operation": "maas_dashboard_summary_read",
+        "service_name": _DASHBOARD_SUMMARY_SOURCE_AGENT,
+        "source_alias": _DASHBOARD_SUMMARY_SOURCE_AGENT,
+        "layer": _DASHBOARD_SUMMARY_LAYER,
+        "status": "success",
+        "duration_ms": round(duration_ms, 3),
+        **_dashboard_actor_summary(current_user),
+        "meshes_count": max(0, int(meshes_count)),
+        "total_nodes": max(0, int(total_nodes)),
+        "active_rentals_count": max(0, int(active_rentals_count)),
+        "my_listings_count": max(0, int(my_listings_count)),
+        "audit_logs_count": max(0, int(audit_logs_count)),
+        "pending_invoices_count": max(0, int(pending_invoices_count)),
+        "timeseries_points": max(0, int(timeseries_points)),
+        "security_stats": dict(security_stats or {}),
+        "health_stats": dict(health_stats or {}),
+        "analytics_service_used": True,
+        "cache_backend": cache_backend if cache_backend in {"memory", "redis"} else "unknown",
+        "db_circuit_open": db_circuit_open,
+        "http_status_code": http_status_code,
+        "read_only": True,
+        "observed_state": True,
+        "safe_actuator": False,
+        "control_action": False,
+        "raw_identifiers_redacted": True,
+        "raw_credentials_redacted": True,
+        "reason": str(reason or "")[:160],
+        "claim_boundary": _DASHBOARD_CLAIM_BOUNDARY,
+    }
+    try:
+        event = event_bus.publish(
+            EventType.PIPELINE_STAGE_END,
+            _DASHBOARD_SUMMARY_SOURCE_AGENT,
+            payload,
+            priority=5,
+        )
+        return event.event_id
+    except Exception as exc:
+        logger.error("Failed to publish MaaS dashboard summary event: %s", exc)
+        return None
+
+
+def _publish_dashboard_analytics_event(
+    request: Request | None,
+    *,
+    current_user: Any,
+    mesh_id: Any,
+    status: str,
+    result: Dict[str, Any] | None = None,
+    time_range: str = "24h",
+    http_status_code: int | None = None,
+    duration_ms: float = 0.0,
+    reason: str = "",
+) -> str | None:
+    event_bus = _dashboard_event_bus_from_request(request)
+    if event_bus is None:
+        return None
+
+    data = (result or {}).get("data") or []
+    payload = {
+        "component": "api.maas_dashboard",
+        "stage": "dashboard_analytics_read",
+        "operation": "maas_dashboard_analytics_read",
+        "service_name": _DASHBOARD_ANALYTICS_SOURCE_AGENT,
+        "source_alias": _DASHBOARD_ANALYTICS_SOURCE_AGENT,
+        "layer": _DASHBOARD_ANALYTICS_LAYER,
+        "status": status,
+        "duration_ms": round(duration_ms, 3),
+        **_dashboard_actor_summary(current_user),
+        "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+        "time_range": str(time_range or "")[:20],
+        "analytics_service_used": True,
+        "result_present": bool(result),
+        "points_count": len(data) if isinstance(data, list) else 0,
+        "nodes_total": max(0, int((result or {}).get("nodes_total") or 0)),
+        "http_status_code": http_status_code,
+        "read_only": True,
+        "observed_state": True,
+        "safe_actuator": False,
+        "control_action": False,
+        "raw_identifiers_redacted": True,
+        "raw_credentials_redacted": True,
+        "reason": str(reason or "")[:160],
+        "claim_boundary": _DASHBOARD_CLAIM_BOUNDARY,
+    }
+    try:
+        event = event_bus.publish(
+            EventType.PIPELINE_STAGE_END,
+            _DASHBOARD_ANALYTICS_SOURCE_AGENT,
+            payload,
+            priority=5,
+        )
+        return event.event_id
+    except Exception as exc:
+        logger.error("Failed to publish MaaS dashboard analytics event: %s", exc)
+        return None
+
+
+def _publish_dashboard_nodes_event(
+    request: Request | None,
+    *,
+    current_user: Any,
+    mesh_id: Any,
+    status: str,
+    mesh_found: bool = False,
+    nodes: list[Any] | None = None,
+    http_status_code: int | None = None,
+    duration_ms: float = 0.0,
+    reason: str = "",
+) -> str | None:
+    event_bus = _dashboard_event_bus_from_request(request)
+    if event_bus is None:
+        return None
+
+    node_list = list(nodes or [])
+    attestations = [_node_attestation_type(node) for node in node_list]
+    health_values = [_node_health(node) for node in node_list]
+    device_classes = [str(getattr(node, "device_class", "") or "")[:40] for node in node_list]
+    payload = {
+        "component": "api.maas_dashboard",
+        "stage": "dashboard_nodes_read",
+        "operation": "maas_dashboard_nodes_read",
+        "service_name": _DASHBOARD_NODES_SOURCE_AGENT,
+        "source_alias": _DASHBOARD_NODES_SOURCE_AGENT,
+        "layer": _DASHBOARD_NODES_LAYER,
+        "status": status,
+        "duration_ms": round(duration_ms, 3),
+        **_dashboard_actor_summary(current_user),
+        "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+        "mesh_found": mesh_found,
+        "nodes_count": len(node_list),
+        "attestation_counts": _known_count_map(
+            attestations,
+            ("HARDWARE_ROOTED", "SOFTWARE_ONLY"),
+        ),
+        "health_counts": _known_count_map(
+            health_values,
+            ("healthy", "stale", "offline", "unknown"),
+        ),
+        "device_class_counts": _known_count_map(
+            device_classes,
+            ("gateway", "edge", "sensor", "mobile", "server"),
+        ),
+        "hardware_id_present_count": sum(
+            1 for node in node_list if bool(getattr(node, "hardware_id", None))
+        ),
+        "enclave_enabled_count": sum(
+            1 for node in node_list if bool(getattr(node, "enclave_enabled", None))
+        ),
+        "http_status_code": http_status_code,
+        "read_only": True,
+        "observed_state": True,
+        "safe_actuator": False,
+        "control_action": False,
+        "raw_identifiers_redacted": True,
+        "raw_credentials_redacted": True,
+        "reason": str(reason or "")[:160],
+        "claim_boundary": _DASHBOARD_CLAIM_BOUNDARY,
+    }
+    try:
+        event = event_bus.publish(
+            EventType.PIPELINE_STAGE_END,
+            _DASHBOARD_NODES_SOURCE_AGENT,
+            payload,
+            priority=5,
+        )
+        return event.event_id
+    except Exception as exc:
+        logger.error("Failed to publish MaaS dashboard nodes event: %s", exc)
+        return None
 
 
 def _node_attestation_type(node: MeshNode) -> str:
@@ -190,6 +451,9 @@ def _dashboard_readiness_status(db: Any) -> Dict[str, Any]:
                 "and CircuitState lazily at request time."
             ),
         },
+        "cross_plane_claim_gate": readiness_cross_plane_claim_gate_metadata(
+            surface="maas_dashboard_readiness"
+        ),
         "claim_boundary": (
             "Dashboard readiness proves route availability and local dependency "
             "surfaces only. It does not query dashboard data, validate user "
@@ -248,6 +512,7 @@ def _dashboard_traffic_by_bucket(
 
 @router.get("/summary")
 async def get_dashboard_summary(
+    request: Request,
     current_user: User = Depends(require_permission("mesh:view")),
     db: Session = Depends(get_db),
 ):
@@ -255,6 +520,7 @@ async def get_dashboard_summary(
     Aggregated summary for the MaaS Dashboard.
     Returns meshes, node attestation stats, recent audit logs, and billing status.
     """
+    started = time.monotonic()
     # 1. Meshes owned by this user
     meshes = db.query(MeshInstance).filter(MeshInstance.owner_id == current_user.id).all()
     mesh_ids = [m.id for m in meshes]
@@ -354,7 +620,7 @@ async def get_dashboard_summary(
         }
     }
 
-    return {
+    payload = {
         "user": {
             "email": current_user.email,
             "plan": current_user.plan,
@@ -381,46 +647,108 @@ async def get_dashboard_summary(
         ],
         "timeseries": timeseries,
     }
+    _publish_dashboard_summary_event(
+        request,
+        current_user=current_user,
+        meshes_count=len(meshes),
+        total_nodes=total_nodes,
+        active_rentals_count=len(active_rentals),
+        my_listings_count=len(my_listings),
+        audit_logs_count=len(recent_logs),
+        pending_invoices_count=len(invoices),
+        timeseries_points=len(timeseries),
+        security_stats=security_stats,
+        health_stats=health_stats,
+        cache_backend=resilience_status["cache"]["backend"],
+        db_circuit_open=resilience_status["db_circuit_breaker"]["is_open"],
+        http_status_code=200,
+        duration_ms=(time.monotonic() - started) * 1000.0,
+        reason="summary_read",
+    )
+    return payload
 
 
 @router.get("/analytics/{mesh_id}/timeseries")
 async def get_mesh_analytics(
     mesh_id: str,
+    request: Request,
     current_user: User = Depends(require_permission("analytics:view")),
     db: Session = Depends(get_db),
 ):
-    """Real/Simulated analytics for a specific mesh."""
-    import random
-    now = datetime.utcnow()
-    data = []
-    for i in range(24):
-        ts = now - timedelta(hours=23-i)
-        data.append({
-            "timestamp": ts.isoformat(),
-            "health": 98 + random.uniform(-3, 2),
-            "traffic_mbps": random.uniform(50, 120),
-            "packet_loss": random.uniform(0, 0.5)
-        })
-    return {"mesh_id": mesh_id, "data": data}
+    """DB-backed dashboard analytics for a specific mesh."""
+    started = time.monotonic()
+    service = MaaSAnalyticsService(db, None)
+    try:
+        result = service.get_mesh_timeseries(mesh_id, current_user.id, "24h")
+    except Exception as exc:
+        _publish_dashboard_analytics_event(
+            request,
+            current_user=current_user,
+            mesh_id=mesh_id,
+            status="failed",
+            result=None,
+            time_range="24h",
+            http_status_code=500,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+            reason=type(exc).__name__,
+        )
+        raise
+    if not result:
+        _publish_dashboard_analytics_event(
+            request,
+            current_user=current_user,
+            mesh_id=mesh_id,
+            status="denied",
+            result=None,
+            time_range="24h",
+            http_status_code=404,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+            reason="mesh_not_found",
+        )
+        raise HTTPException(status_code=404, detail="Mesh not found")
+    _publish_dashboard_analytics_event(
+        request,
+        current_user=current_user,
+        mesh_id=mesh_id,
+        status="success",
+        result=result,
+        time_range=str(result.get("range") or "24h"),
+        http_status_code=200,
+        duration_ms=(time.monotonic() - started) * 1000.0,
+        reason="timeseries_read",
+    )
+    return result
 
 
 @router.get("/nodes/{mesh_id}")
 async def get_mesh_nodes_summary(
     mesh_id: str,
+    request: Request,
     current_user: User = Depends(require_permission("mesh:view")),
     db: Session = Depends(get_db),
 ):
     """Per-mesh node listing with attestation and health details."""
+    started = time.monotonic()
     mesh = db.query(MeshInstance).filter(
         MeshInstance.id == mesh_id,
         MeshInstance.owner_id == current_user.id,
     ).first()
     if not mesh:
-        from fastapi import HTTPException
+        _publish_dashboard_nodes_event(
+            request,
+            current_user=current_user,
+            mesh_id=mesh_id,
+            status="denied",
+            mesh_found=False,
+            nodes=[],
+            http_status_code=404,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+            reason="mesh_not_found",
+        )
         raise HTTPException(status_code=404, detail="Mesh not found")
 
     nodes = db.query(MeshNode).filter(MeshNode.mesh_id == mesh_id).all()
-    return {
+    payload = {
         "mesh_id": mesh_id,
         "mesh_name": mesh.name,
         "nodes": [
@@ -438,3 +766,15 @@ async def get_mesh_nodes_summary(
         ],
         "count": len(nodes),
     }
+    _publish_dashboard_nodes_event(
+        request,
+        current_user=current_user,
+        mesh_id=mesh_id,
+        status="success",
+        mesh_found=True,
+        nodes=nodes,
+        http_status_code=200,
+        duration_ms=(time.monotonic() - started) * 1000.0,
+        reason="nodes_read",
+    )
+    return payload

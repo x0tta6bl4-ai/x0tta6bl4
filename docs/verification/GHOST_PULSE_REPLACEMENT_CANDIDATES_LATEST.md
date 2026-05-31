@@ -6,7 +6,7 @@ Decision: `REPLACEMENT_CANDIDATES_NOT_READY`
 
 Audit: `docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.json`
 
-Audit sha256: `ab612ccf4d2d514f2d06d6ebe5275757fdf3ab895105fcfa6bfbbe911fd24a5b`
+Audit sha256: `1946a68370caada0e5001ff7d4ac85ac0a95e80d78b4bc646e41ff93c4f3fb2b`
 
 ## Claim Boundary
 
@@ -18,9 +18,9 @@ Audit sha256: `ab612ccf4d2d514f2d06d6ebe5275757fdf3ab895105fcfa6bfbbe911fd24a5b`
 
 ## Summary
 
-- replacement_required: `dpi_lab, whitelist_lab, security_review, production_readiness`
+- replacement_required: `dpi_lab, whitelist_lab, production_readiness`
 - ready: `none`
-- not_ready: `dpi_lab, whitelist_lab, security_review, production_readiness`
+- not_ready: `dpi_lab, whitelist_lab, production_readiness`
 - missing_candidates: `none`
 - non_file_candidates: `none`
 - unsafe_candidates: `none`
@@ -29,7 +29,7 @@ Audit sha256: `ab612ccf4d2d514f2d06d6ebe5275757fdf3ab895105fcfa6bfbbe911fd24a5b`
 
 - status: `ACTION_REQUIRED`
 - ready_claims: `none`
-- not_ready_claims: `dpi_lab, whitelist_lab, security_review, production_readiness`
+- not_ready_claims: `dpi_lab, whitelist_lab, production_readiness`
 - missing_candidate_paths: `none`
 - currently_ready_write_commands: `0`
 - post_import_refresh_commands: `9`
@@ -40,7 +40,6 @@ Audit sha256: `ab612ccf4d2d514f2d06d6ebe5275757fdf3ab895105fcfa6bfbbe911fd24a5b`
 | --- | --- | --- | --- | --- | --- | --- |
 | dpi_lab | `docs/verification/incoming/dpi_lab.json` | `True` | `True` | `False` | `REJECTED` | `False` |
 | whitelist_lab | `docs/verification/incoming/whitelist_lab.json` | `True` | `True` | `False` | `REJECTED` | `False` |
-| security_review | `docs/verification/incoming/security_review.json` | `True` | `True` | `False` | `REJECTED` | `False` |
 | production_readiness | `docs/verification/incoming/production_readiness.json` | `True` | `True` | `False` | `REJECTED` | `False` |
 
 ## Failures

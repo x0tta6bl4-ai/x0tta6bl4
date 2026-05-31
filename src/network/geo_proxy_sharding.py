@@ -11,6 +11,7 @@ Provides:
 """
 
 import asyncio
+import hashlib
 import logging
 import random
 import statistics
@@ -19,10 +20,33 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from src.coordination.events import EventBus, EventType, get_event_bus
 from src.network.residential_proxy_manager import (ProxyEndpoint, ProxyStatus,
                                                    TLSFingerprintRandomizer)
+from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "geo-proxy-shard-manager"
+_SERVICE_LAYER = "network_geo_proxy_sharding_observed_state"
+GEO_PROXY_SHARDING_CLAIM_BOUNDARY = (
+    "Local geo proxy sharding observed-state evidence only. It records redacted "
+    "regional health-check and proxy-selection metadata with proxy and domain "
+    "identifiers hashed. It does not copy proxy hosts, credentials, target "
+    "domains, request history, or response payloads, and it does not prove "
+    "external provider reachability, customer traffic delivery, or end-to-end "
+    "dataplane quality."
+)
+
+
+def _hash_value(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return None
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
 
 
 class Region(Enum):
@@ -220,10 +244,14 @@ class GeoProxyShardManager:
         default_region: Region = Region.US_EAST,
         health_check_interval: int = 60,
         failover_threshold: float = 0.3,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: Optional[str] = None,
     ):
         self.default_region = default_region
         self.health_check_interval = health_check_interval
         self.failover_threshold = failover_threshold
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
 
         # Regional pools
         self.pools: Dict[Region, RegionalProxyPool] = {}
@@ -245,6 +273,87 @@ class GeoProxyShardManager:
         self.total_requests = 0
         self.successful_requests = 0
         self.failover_count = 0
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        if self.event_project_root is None:
+            return None
+        try:
+            self.event_bus = get_event_bus(self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize geo-proxy EventBus: %s", exc)
+            return None
+
+    def _service_identity_presence(self) -> Dict[str, bool]:
+        identity = service_event_identity(service_name=_SERVICE_AGENT)
+        return {field: bool(value) for field, value in identity.items()}
+
+    def _region_pool_summary(self, region: Optional[Region]) -> Dict[str, Any]:
+        if region is None or region not in self.pools:
+            return {"present": False}
+        pool = self.pools[region]
+        return {
+            "present": True,
+            "region": region.value,
+            "total_proxies": int(pool.total_count),
+            "healthy_proxies": int(pool.healthy_count),
+            "available": bool(pool.is_available),
+            "quota_limited": bool(pool.quota.is_rate_limited),
+            "health_score": round(float(pool.health_score), 4),
+            "avg_latency_ms": round(float(pool.avg_latency_ms), 3),
+            "success_rate": round(float(pool.success_rate), 4),
+        }
+
+    def _proxy_identity_metadata(self, proxy: Optional[ProxyEndpoint]) -> Dict[str, Any]:
+        if proxy is None:
+            return {"present": False}
+        return {
+            "present": True,
+            "proxy_id_hash": _hash_value(proxy.id),
+            "status": proxy.status.value,
+            "region": proxy.region,
+            "country_code": proxy.country_code,
+            "has_auth": bool(proxy.username or proxy.password),
+        }
+
+    def _publish_observed_state(
+        self,
+        *,
+        operation: str,
+        status: str,
+        success: bool,
+        duration_ms: float,
+        payload: Dict[str, Any],
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+        event_payload = {
+            "component": "network.geo_proxy_sharding",
+            "operation": operation,
+            "service_name": _SERVICE_AGENT,
+            "layer": _SERVICE_LAYER,
+            "status": status,
+            "success": bool(success),
+            "duration_ms": round(float(duration_ms), 3),
+            "service_identity_present": self._service_identity_presence(),
+            "raw_identifiers_redacted": True,
+            "claim_boundary": GEO_PROXY_SHARDING_CLAIM_BOUNDARY,
+            **payload,
+        }
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                _SERVICE_AGENT,
+                event_payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish geo proxy sharding evidence: %s", exc)
+            return None
 
     def add_proxy_to_region(self, proxy: ProxyEndpoint, region: Region):
         """Add proxy to a specific region's pool."""
@@ -321,6 +430,11 @@ class GeoProxyShardManager:
         """Check health of a single proxy."""
         import aiohttp
 
+        started = time.perf_counter()
+        previous_status = proxy.status
+        status_code: Optional[int] = None
+        error_type: Optional[str] = None
+        success = False
         try:
             start_time = time.time()
 
@@ -333,8 +447,10 @@ class GeoProxyShardManager:
                 ) as response:
                     elapsed_ms = (time.time() - start_time) * 1000
                     proxy.response_time_ms = elapsed_ms
+                    status_code = int(response.status)
 
                     if response.status == 200:
+                        success = True
                         proxy.success_count += 1
                         proxy.failure_count = 0
 
@@ -349,12 +465,35 @@ class GeoProxyShardManager:
                             proxy.status = ProxyStatus.UNHEALTHY
 
         except Exception as e:
+            error_type = type(e).__name__
             proxy.failure_count += 1
             if proxy.failure_count >= 3:
                 proxy.status = ProxyStatus.UNHEALTHY
             logger.debug(f"Proxy {proxy.id} health check failed: {e}")
 
         proxy.last_check = time.time()
+        self._publish_observed_state(
+            operation="health_check",
+            status="health_check_ok" if success else "health_check_failed",
+            success=success,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            payload={
+                "region": pool.region.value,
+                "pool": self._region_pool_summary(pool.region),
+                "proxy": self._proxy_identity_metadata(proxy),
+                "previous_status": previous_status.value,
+                "new_status": proxy.status.value,
+                "status_code": status_code,
+                "error_type": error_type,
+                "health_check": {
+                    "target": "httpbin_ip_probe",
+                    "success_count": int(proxy.success_count),
+                    "failure_count": int(proxy.failure_count),
+                    "ban_count": int(proxy.ban_count),
+                    "response_time_ms": round(float(proxy.response_time_ms), 3),
+                },
+            },
+        )
 
     def get_nearest_regions(self, from_region: Region, count: int = 3) -> List[Region]:
         """Get nearest regions sorted by latency."""
@@ -395,19 +534,42 @@ class GeoProxyShardManager:
             Selected proxy or None
         """
         async with self._lock:
+            started = time.perf_counter()
             self.total_requests += 1
 
             # Determine target region
             target_region = (
-                preferred_region or self.get_domain_region(target_domain)
-                if target_domain
-                else None or self.default_region
+                preferred_region
+                or (self.get_domain_region(target_domain) if target_domain else None)
+                or self.default_region
             )
 
             # Try primary region first
             proxy = await self._select_from_region(target_region, require_healthy)
 
             if proxy:
+                self._publish_observed_state(
+                    operation="select_proxy",
+                    status="proxy_selected",
+                    success=True,
+                    duration_ms=(time.perf_counter() - started) * 1000,
+                    payload={
+                        "target_domain_hash": _hash_value(target_domain),
+                        "preferred_region": (
+                            preferred_region.value if preferred_region else None
+                        ),
+                        "target_region": (
+                            target_region.value if target_region else None
+                        ),
+                        "selected_region": proxy.region,
+                        "require_healthy": bool(require_healthy),
+                        "allow_failover": bool(allow_failover),
+                        "failover_attempted": False,
+                        "failover_count": int(self.failover_count),
+                        "pool": self._region_pool_summary(target_region),
+                        "selected_proxy": self._proxy_identity_metadata(proxy),
+                    },
+                )
                 return proxy
 
             # Failover to other regions
@@ -426,9 +588,58 @@ class GeoProxyShardManager:
                     )
                     if proxy:
                         logger.info(f"Failed over to region {fallback_region.value}")
+                        self._publish_observed_state(
+                            operation="select_proxy",
+                            status="proxy_selected_after_failover",
+                            success=True,
+                            duration_ms=(time.perf_counter() - started) * 1000,
+                            payload={
+                                "target_domain_hash": _hash_value(target_domain),
+                                "preferred_region": (
+                                    preferred_region.value if preferred_region else None
+                                ),
+                                "target_region": (
+                                    target_region.value if target_region else None
+                                ),
+                                "selected_region": fallback_region.value,
+                                "require_healthy": bool(require_healthy),
+                                "allow_failover": bool(allow_failover),
+                                "failover_attempted": True,
+                                "failover_count": int(self.failover_count),
+                                "fallback_regions_considered": len(
+                                    fallback_regions
+                                ),
+                                "primary_pool": self._region_pool_summary(
+                                    target_region
+                                ),
+                                "selected_pool": self._region_pool_summary(
+                                    fallback_region
+                                ),
+                                "selected_proxy": self._proxy_identity_metadata(proxy),
+                            },
+                        )
                         return proxy
 
             logger.error("No proxies available in any region")
+            self._publish_observed_state(
+                operation="select_proxy",
+                status="no_proxy_available",
+                success=False,
+                duration_ms=(time.perf_counter() - started) * 1000,
+                payload={
+                    "target_domain_hash": _hash_value(target_domain),
+                    "preferred_region": (
+                        preferred_region.value if preferred_region else None
+                    ),
+                    "target_region": target_region.value if target_region else None,
+                    "require_healthy": bool(require_healthy),
+                    "allow_failover": bool(allow_failover),
+                    "failover_attempted": bool(allow_failover),
+                    "failover_count": int(self.failover_count),
+                    "primary_pool": self._region_pool_summary(target_region),
+                    "selected_proxy": self._proxy_identity_metadata(None),
+                },
+            )
             return None
 
     async def _select_from_region(

@@ -35,8 +35,46 @@ logger = logging.getLogger(__name__)
 _SERVICE_AGENT = "spiffe-mapek-loop"
 SPIFFE_CLAIM_BOUNDARY = (
     "SPIFFE MAPE-K recovery event only. It records local identity recovery "
-    "policy and action state; it is not external production evidence."
+    "policy and action state; it is not live SPIFFE SVID issuance, DID "
+    "ownership, wallet control, chain identity finality, dataplane delivery, "
+    "or external production evidence."
 )
+SPIFFE_RECOVERY_CLAIM_GATE_SCHEMA = (
+    "x0tta6bl4.self_healing.spiffe_recovery_claim_gate.v1"
+)
+
+
+def _spiffe_recovery_claim_gate(result: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    local_action_recorded = result is not None
+    local_action_succeeded = bool(result and result.get("success") is True)
+    return {
+        "schema": SPIFFE_RECOVERY_CLAIM_GATE_SCHEMA,
+        "local_identity_recovery_action_recorded": local_action_recorded,
+        "local_identity_recovery_action_succeeded": local_action_succeeded,
+        "local_policy_decision_recorded": True,
+        "live_spiffe_svid_claim_allowed": False,
+        "did_ownership_claim_allowed": False,
+        "wallet_control_claim_allowed": False,
+        "event_producer_identity_authenticity_claim_allowed": False,
+        "chain_identity_finality_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "claim_allowed": {
+            "local_identity_recovery_lifecycle": local_action_recorded,
+            "live_spiffe_svid": False,
+            "did_ownership": False,
+            "wallet_control": False,
+            "chain_identity_finality": False,
+            "dataplane_delivery": False,
+            "traffic_delivery": False,
+            "external_settlement_finality": False,
+            "production_readiness": False,
+        },
+        "claim_boundary": SPIFFE_CLAIM_BOUNDARY,
+        "payloads_redacted": True,
+    }
 
 
 @dataclass
@@ -250,6 +288,14 @@ class SPIFFEMapEKLoop:
             "matched_rules": self._policy_rules(policy_decision)
             if policy_decision is not None
             else [],
+            "claim_gate": _spiffe_recovery_claim_gate(result),
+            "live_spiffe_svid_claim_allowed": False,
+            "did_ownership_claim_allowed": False,
+            "wallet_control_claim_allowed": False,
+            "chain_identity_finality_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "traffic_delivery_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
             "claim_boundary": SPIFFE_CLAIM_BOUNDARY,
         }
         try:

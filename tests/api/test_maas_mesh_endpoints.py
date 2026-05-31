@@ -25,6 +25,7 @@ from sqlalchemy.orm import sessionmaker
 import src.api.maas_legacy as legacy
 from src.core.app import app
 from src.database import Base, MeshInstance as DBMeshInstance, User, get_db
+from src.services.maas_auth_service import find_user_by_api_key
 
 
 _TEST_DB_PATH = f"./test_mesh_endpoints_{uuid.uuid4().hex}.db"
@@ -53,7 +54,7 @@ def _register_user(client: TestClient, prefix: str) -> dict[str, str]:
 
     db = _TestingSession()
     try:
-        user = db.query(User).filter(User.api_key == token).first()
+        user = find_user_by_api_key(db, token)
         assert user is not None
         return {"email": email, "token": token, "user_id": user.id}
     finally:
@@ -169,6 +170,25 @@ def test_mesh_status_and_metrics(client, users, deployed_mesh):
     assert "consciousness" in metrics_body
     assert "mape_k" in metrics_body
     assert "network" in metrics_body
+    assert (
+        metrics_body["mesh_metrics_claim_gate"][
+            "local_mesh_metrics_observation_claim_allowed"
+        ]
+        is True
+    )
+    assert (
+        metrics_body["mesh_metrics_claim_gate"]["production_readiness_claim_allowed"]
+        is False
+    )
+    assert (
+        metrics_body["mesh_metrics_claim_gate"]["dataplane_delivery_claim_allowed"]
+        is False
+    )
+    assert (
+        metrics_body["mesh_metrics_claim_gate"]["external_dpi_bypass_claim_allowed"]
+        is False
+    )
+    assert metrics_body["cross_plane_claim_gate"]["allowed"] is False
 
 
 def test_mesh_scale_audit_and_mapek(client, users, deployed_mesh):

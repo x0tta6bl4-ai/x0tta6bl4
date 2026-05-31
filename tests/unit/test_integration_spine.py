@@ -28,18 +28,22 @@ class _FakeExecutor:
 class _FakeRewards:
     def __init__(self):
         self.calls = []
+        self.kwargs = []
 
-    def reward_relay(self, node_address, packets):
+    def reward_relay(self, node_address, packets, **kwargs):
         self.calls.append((node_address, packets))
+        self.kwargs.append(kwargs)
 
 
 class _ReturningRewards:
     def __init__(self, result):
         self.result = result
         self.calls = []
+        self.kwargs = []
 
-    def reward_relay(self, node_address, packets):
+    def reward_relay(self, node_address, packets, **kwargs):
         self.calls.append((node_address, packets))
+        self.kwargs.append(kwargs)
         return self.result
 
 
@@ -95,16 +99,38 @@ def test_spine_wires_identity_event_policy_actuator_and_settlement(tmp_path):
     assert outcome.action_executed is True
     assert outcome.settlement_recorded is True
     assert outcome.matched_rules == ["allow-relay"]
+    assert outcome.claim_gate["local_reward_adapter_record_claim_allowed"] is True
+    assert outcome.claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert outcome.claim_gate["dataplane_delivery_claim_allowed"] is False
+    assert outcome.cross_plane_claim_gate["allowed"] is False
+    assert "settlement_finality" in outcome.cross_plane_claim_gate["requested_claim_ids"]
     assert rewards.calls == [("0x" + "b" * 40, 250)]
+    assert rewards.kwargs[0]["upstream_event_ids"] == outcome.event_ids[:2]
+    assert rewards.kwargs[0]["upstream_source_agents"] == ["integration-spine"]
+    assert rewards.kwargs[0]["upstream_claim_gate"]["local_actuator_execution_claim_allowed"] is True
+    assert rewards.kwargs[0]["upstream_claim_gate"]["external_settlement_finality_claim_allowed"] is False
+    assert rewards.kwargs[0]["upstream_cross_plane_claim_gate"]["allowed"] is False
     assert executor.calls[0][0] == "Switch route"
-    assert executor.calls[0][1]["identity"]["node_id"] == "node-1"
+    actuator_context = executor.calls[0][1]
+    assert actuator_context["identity"]["node_id"] == "node-1"
+    assert actuator_context["claim_gate"]["policy_decision_claim_allowed"] is True
+    assert actuator_context["claim_gate"]["local_actuator_execution_claim_allowed"] is False
+    assert actuator_context["claim_gate"]["external_settlement_finality_claim_allowed"] is False
+    assert actuator_context["cross_plane_claim_gate"]["allowed"] is False
+    assert actuator_context["upstream_event_ids"] == outcome.event_ids[:2]
+    assert actuator_context["upstream_source_agents"] == ["integration-spine"]
 
-    history_types = [event.event_type for event in bus.get_event_history(limit=10)]
+    history = bus.get_event_history(limit=10)
+    history_types = [event.event_type for event in history]
     assert history_types == [
         EventType.COORDINATION_REQUEST,
         EventType.PIPELINE_STAGE_START,
         EventType.PIPELINE_STAGE_END,
     ]
+    for event in history:
+        assert event.data["claim_gate"]["external_settlement_finality_claim_allowed"] is False
+        assert event.data["claim_gate"]["dataplane_delivery_claim_allowed"] is False
+        assert event.data["cross_plane_claim_gate"]["allowed"] is False
     assert len(outcome.event_ids) == 3
 
 
@@ -289,6 +315,42 @@ def test_spine_fails_closed_when_token_rewards_is_local_only(tmp_path):
     assert rewards.tx_history == []
 
 
+def test_spine_passes_event_ids_to_reward_event_without_payload(tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    rewards = TokenRewards(
+        "0x" + "a" * 40,
+        private_key=None,
+        event_bus=bus,
+        source_agent="token-rewards-test",
+        node_id="node-1",
+    )
+    spine = IntegrationSpine(
+        event_bus=bus,
+        policy_engine=_allowing_policy(),
+        actuator=SafeActuator(_FakeExecutor()),
+        reward_manager=rewards,
+    )
+
+    outcome = spine.process(_request())
+
+    reward_event = bus.get_event_history(
+        event_type=EventType.REWARD_RELAY_RECORDED,
+        source_agent="token-rewards-test",
+    )[0]
+    upstream = reward_event.data["upstream_evidence"]
+
+    assert outcome.status == "SETTLEMENT_FAILED"
+    assert upstream["source_agents"] == ["integration-spine"]
+    assert upstream["event_ids"] == outcome.event_ids[:2]
+    assert upstream["claim_gate_summary"]["present"] is True
+    assert upstream["claim_gate_summary"]["local_actuator_execution_claim_allowed"] is True
+    assert upstream["claim_gate_summary"]["external_settlement_finality_claim_allowed"] is False
+    assert upstream["cross_plane_claim_gate_summary"]["present"] is True
+    assert upstream["cross_plane_claim_gate_summary"]["allowed"] is False
+    assert upstream["payloads_redacted"] is True
+    assert "Switch route" not in str(upstream)
+
+
 def test_code_wiring_report_executes_all_required_spine_traces(tmp_path):
     report = build_code_wiring_report(tmp_path)
     summary = report["summary"]
@@ -330,6 +392,16 @@ def test_code_wiring_report_executes_all_required_spine_traces(tmp_path):
     assert success["executor_calls"] == 1
     assert success["reward_calls"] == 1
     assert success["settlement_recorded"] is True
+    assert success["outcome_claim_gate_present"] is True
+    assert success["event_claim_gates_present"] is True
+    assert success["strong_claims_blocked"] is True
+    assert success["actuator_context_claim_gate_present"] is True
+    assert success["actuator_context_upstream_events_present"] is True
+    assert success["reward_context_claim_gate_present"] is True
+    assert success["reward_context_upstream_events_present"] is True
+    assert summary["spine_claim_gates_preserved"] is True
+    assert summary["actuator_context_claim_gates_preserved"] is True
+    assert summary["reward_context_claim_gates_preserved"] is True
 
     policy_denied = cases["policy_denied_before_actuator_settlement"]
     assert policy_denied["event_sequence"] == [

@@ -130,6 +130,20 @@ def _packet_hash(payload: Dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _redacted_rpc_endpoint_metadata(rpc_url: Optional[str]) -> Dict[str, Any]:
+    endpoint = _required_string(rpc_url)
+    scheme = endpoint.split(":", 1)[0].lower() if "://" in endpoint else ""
+    return {
+        "rpc_endpoint": None,
+        "rpc_endpoint_present": bool(endpoint),
+        "rpc_endpoint_scheme": scheme,
+        "rpc_endpoint_hash": hashlib.sha256(endpoint.encode("utf-8")).hexdigest()[:16]
+        if endpoint
+        else None,
+        "rpc_endpoint_redacted": True,
+    }
+
+
 def _capture_input_values(
     transaction_hash: str,
     destination_chain: str,
@@ -586,7 +600,7 @@ def verify_live_rpc(evidence: EvidenceGateResult, rpc_url: Optional[str]) -> Dic
         "mutates_nl": False,
         "mutates_spb": False,
         "mutates_vpn_runtime": False,
-        "rpc_endpoint": rpc_url,
+        **_redacted_rpc_endpoint_metadata(rpc_url),
         "evidence_file": {
             "path": str(evidence.evidence_path),
             "status": "VALID" if evidence.valid else ("INVALID" if evidence.found else "NOT_FOUND"),

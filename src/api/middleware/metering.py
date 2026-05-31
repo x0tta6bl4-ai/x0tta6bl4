@@ -11,6 +11,7 @@ from sqlalchemy import func
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.database import User, get_db
+from src.services.maas_auth_service import find_user_by_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ class MeteringMiddleware(BaseHTTPMiddleware):
         """Check if user has exceeded their request quota."""
         db, generator = self._resolve_db(request)
         try:
-            user = db.query(User).filter(User.api_key == api_key).first()
+            user = find_user_by_api_key(db, api_key)
             if not user:
                 # No user found with this API key - let auth middleware handle it
                 # Don't consume quota for invalid keys
@@ -160,7 +161,10 @@ class MeteringMiddleware(BaseHTTPMiddleware):
             for api_key, increment in increments.items():
                 if increment <= 0:
                     continue
-                usage_query = db.query(User).filter(User.api_key == api_key)
+                user = find_user_by_api_key(db, api_key)
+                if not user:
+                    continue
+                usage_query = db.query(User).filter(User.id == user.id)
                 if hasattr(usage_query, "update"):
                     updated_rows = usage_query.update(
                         {User.requests_count: func.coalesce(User.requests_count, 0) + int(increment)},

@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import hashlib
 import io
 import json
 import logging
@@ -98,13 +99,144 @@ SEARCH_QUERY = (
     "mptcp-manager spire-server-client "
     "pqc-rotator pqc-zero-trust-executor pqc-zero-trust-healer event trace"
 )
+CLAIM_BOUNDARY_REQUIRED_SERVICES = frozenset(
+    {
+        MARKETPLACE_SERVICE_NAME,
+        MARKETPLACE_API_SERVICE_NAME,
+        MAAS_GOVERNANCE_SERVICE_NAME,
+        MAAS_BILLING_SERVICE_NAME,
+        DAO_SERVICE_NAME,
+        RECOVERY_SERVICE_NAME,
+        MESH_REWARD_SERVICE_NAME,
+        SHARE_TO_EARN_SERVICE_NAME,
+        MPTCP_SERVICE_NAME,
+        SPIRE_SERVER_SERVICE_NAME,
+        PQC_ROTATOR_SERVICE_NAME,
+        PQC_HEALER_SOURCE_AGENT,
+    }
+)
+ECONOMY_SUMMARY_REQUIRED_SERVICES = frozenset(
+    {
+        MARKETPLACE_SERVICE_NAME,
+        MARKETPLACE_API_SERVICE_NAME,
+        MAAS_BILLING_SERVICE_NAME,
+        MESH_REWARD_SERVICE_NAME,
+        SHARE_TO_EARN_SERVICE_NAME,
+    }
+)
 SECRET_VALUES = (
     "spiffe://secret/workload",
     "did:mesh:secret",
     "0xffffffffffffffffffffffffffffffffffffffff",
 )
 LEAK_SENTINEL = "secret-value-that-must-not-leak"
-REDACTION_SENTINELS = (*SECRET_VALUES, LEAK_SENTINEL)
+MARKETPLACE_API_IDEMPOTENCY_KEY = "idem-marketplace-api-smoke-secret"
+REDACTION_SENTINELS = (*SECRET_VALUES, LEAK_SENTINEL, MARKETPLACE_API_IDEMPOTENCY_KEY)
+
+
+def _hash_value(value: Any) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _citation_summary_metadata_present(citation: dict[str, Any]) -> bool:
+    return (
+        isinstance(citation.get("claim_boundary_summary"), dict)
+        and isinstance(citation.get("cross_plane_evidence_profile"), dict)
+        and isinstance(citation.get("economy_finality_summary"), dict)
+    )
+
+
+def _claim_boundary_summary_is_bounded(citation: dict[str, Any]) -> bool:
+    summary = citation.get("claim_boundary_summary")
+    if not isinstance(summary, dict):
+        return False
+    boundaries = summary.get("claim_boundaries")
+    limit = summary.get("claim_boundaries_limit")
+    total = summary.get("claim_boundaries_total")
+    return (
+        summary.get("redacted") is True
+        and isinstance(boundaries, list)
+        and isinstance(limit, int)
+        and 0 <= limit <= 8
+        and isinstance(total, int)
+        and total >= len(boundaries)
+        and len(boundaries) <= limit
+    )
+
+
+def _cross_plane_summary_is_fail_closed(citation: dict[str, Any]) -> bool:
+    summary = citation.get("cross_plane_evidence_profile")
+    if not isinstance(summary, dict):
+        return False
+    return (
+        isinstance(summary.get("primary_status"), str)
+        and summary.get("dataplane_confirmed") is False
+        and summary.get("settlement_confirmed") is False
+        and summary.get("production_ready_candidate") is False
+        and summary.get("external_dpi_tested") is False
+        and summary.get("dpi_bypass_confirmed") is False
+    )
+
+
+def _economy_summary_is_fail_closed(citation: dict[str, Any]) -> bool:
+    summary = citation.get("economy_finality_summary")
+    if not isinstance(summary, dict):
+        return False
+    high_risk_gate = summary.get("high_risk_claim_gate")
+    if not isinstance(high_risk_gate, dict):
+        return False
+    return (
+        summary.get("dataplane_confirmed") is False
+        and summary.get("settlement_confirmed") is False
+        and summary.get("production_ready_candidate") is False
+        and high_risk_gate.get("dataplane_delivery_claim_allowed") is False
+        and high_risk_gate.get("traffic_delivery_claim_allowed") is False
+        and high_risk_gate.get("external_settlement_finality_claim_allowed") is False
+        and high_risk_gate.get("token_settlement_finality_claim_allowed") is False
+        and high_risk_gate.get("production_readiness_claim_allowed") is False
+    )
+
+
+def _required_services_have_claim_boundaries(
+    citations_by_service: dict[str, dict[str, Any]],
+) -> bool:
+    for service_name in CLAIM_BOUNDARY_REQUIRED_SERVICES:
+        summary = citations_by_service.get(service_name, {}).get(
+            "claim_boundary_summary"
+        )
+        if not isinstance(summary, dict) or summary.get("present") is not True:
+            return False
+    return True
+
+
+def _required_economy_services_have_local_only_gates(
+    citations_by_service: dict[str, dict[str, Any]],
+) -> bool:
+    for service_name in ECONOMY_SUMMARY_REQUIRED_SERVICES:
+        summary = citations_by_service.get(service_name, {}).get(
+            "economy_finality_summary"
+        )
+        if not isinstance(summary, dict):
+            return False
+        high_risk_gate = summary.get("high_risk_claim_gate")
+        if not isinstance(high_risk_gate, dict):
+            return False
+        if summary.get("present") is not True:
+            return False
+        if summary.get("local_or_pending_only") is not True:
+            return False
+        if high_risk_gate.get("present") is not True:
+            return False
+        if high_risk_gate.get("local_or_pending_economy_claim_allowed") is not True:
+            return False
+        if not _economy_summary_is_fail_closed(citations_by_service[service_name]):
+            return False
+    return True
 
 
 class _SmokeRAG:
@@ -194,12 +326,16 @@ def _build_ledger(temp_root: Path) -> LedgerRAGSearch:
     ledger = LedgerRAGSearch.__new__(LedgerRAGSearch)
     ledger.continuity_file = temp_root / "CONTINUITY.md"
     ledger.verification_root = temp_root / "docs" / "verification"
+    ledger.current_evidence_root = temp_root / "docs" / "architecture"
     ledger.top_k = 30
     ledger.rag = _SmokeRAG()
     ledger._indexed = True
     ledger._verification_indexed = False
     ledger._verification_indexed_files = 0
     ledger._verification_indexed_chunks = 0
+    ledger._current_evidence_indexed = False
+    ledger._current_evidence_indexed_files = 0
+    ledger._current_evidence_indexed_chunks = 0
     ledger._event_trace_indexed = False
     ledger._event_trace_indexed_events = 0
     ledger._event_trace_indexed_chunks = 0
@@ -314,6 +450,29 @@ async def _publish_trace_events(
         did=SECRET_VALUES[1],
         wallet_address=SECRET_VALUES[2],
         amount_cents=2500,
+        request_evidence={
+            "action": "rent_node",
+            "route": "POST /rent/{listing_id}",
+            "actor_role": "user",
+            "request_scope_hash": _hash_value(
+                "listing-api-smoke-1:mesh-api-smoke-1:1"
+            ),
+            "idempotency_key_present": True,
+            "idempotency_key_hash": _hash_value(MARKETPLACE_API_IDEMPOTENCY_KEY),
+            "idempotency_key": MARKETPLACE_API_IDEMPOTENCY_KEY,
+            "db_write_ready": True,
+            "listing_status": "available",
+            "currency": "USD",
+            "hours": 1,
+            "renter_matches_listing": False,
+            "admin_override": False,
+            "service_identity_present": {
+                "spiffe_id": True,
+                "did": True,
+                "wallet_address": True,
+            },
+            "listing_id": "listing-api-smoke-1",
+        },
         reason="route-only marketplace API event trace citation smoke",
         event_bus=bus,
     )
@@ -435,6 +594,9 @@ async def _publish_trace_events(
     recovery_executor.source_agent = RECOVERY_SERVICE_NAME
     recovery_executor.require_policy = True
     recovery_executor.policy_engine = None
+    recovery_executor._post_action_probe_config_source = "constructor"
+    recovery_executor.enable_post_action_dataplane_probe = False
+    recovery_executor.post_action_dataplane_probe_provider = None
     recovery_executor.identity = {
         "node_id": RECOVERY_SERVICE_NAME,
         "spiffe_id": SECRET_VALUES[0],
@@ -471,12 +633,65 @@ async def _publish_trace_events(
         did=SECRET_VALUES[1],
         wallet_address=SECRET_VALUES[2],
     )
+    mesh_relay_evidence = bus.publish(
+        EventType.PIPELINE_STAGE_END,
+        MESH_REWARD_SERVICE_NAME,
+        {
+            "component": "network.mesh_vpn_bridge",
+            "stage": "relay_reward_observed",
+            "operation": "network_usage_reward",
+            "operation_resource": "relay_packet_threshold",
+            "resource": "network:mesh_vpn_bridge:relay_packet_threshold",
+            "node_id": MESH_REWARD_SERVICE_NAME,
+            "spiffe_id": SECRET_VALUES[0],
+            "did": SECRET_VALUES[1],
+            "wallet_address": SECRET_VALUES[2],
+            "identity": {
+                "node_id": MESH_REWARD_SERVICE_NAME,
+                "spiffe_id": SECRET_VALUES[0],
+                "did": SECRET_VALUES[1],
+                "wallet_address": SECRET_VALUES[2],
+            },
+            "direction": "upstream",
+            "peer_id_hash": _hash_value("mesh-smoke-peer"),
+            "peer_id_redacted": True,
+            "reward_packets": 100,
+            "packet_threshold": 100,
+            "packets_relayed_total": 100,
+            "bytes_relayed_total": 4096,
+            "last_chunk_bytes": 4096,
+            "routing_mode": "mesh_peer",
+            "reward_address_hash": _hash_value(
+                "0x1111111111111111111111111111111111111111"
+            ),
+            "payloads_redacted": True,
+            "safe_observation": True,
+            "claim_boundary": (
+                "Mesh VPN bridge relay reward observation only. It records a "
+                "bounded local packet-threshold observation used as upstream "
+                "evidence for TokenRewards; it does not prove customer traffic, "
+                "external reachability, or live token settlement."
+            ),
+        },
+    )
     mesh_reward_result = mesh_rewards.reward_relay(
         node_address="0x1111111111111111111111111111111111111111",
         packets=100,
+        upstream_event_ids=[mesh_relay_evidence.event_id],
+        upstream_source_agents=[MESH_REWARD_SERVICE_NAME],
     )
     mesh_reward_event_id = mesh_reward_result.get("event_id")
     assert mesh_reward_event_id is not None
+    mesh_reward_event = [
+        event
+        for event in bus.get_event_history(
+            event_type=EventType.REWARD_RELAY_RECORDED,
+            source_agent=MESH_REWARD_SERVICE_NAME,
+            limit=20,
+        )
+        if event.event_id == mesh_reward_event_id
+    ][0]
+    mesh_reward_upstream = mesh_reward_event.data.get("upstream_evidence", {})
 
     env_backup = {
         "SHARE_TO_EARN_SPIFFE_ID": os.environ.get("SHARE_TO_EARN_SPIFFE_ID"),
@@ -668,6 +883,18 @@ async def _publish_trace_events(
             "event_id": mesh_reward_event_id,
             "layer": MESH_REWARD_SERVICE_LAYER,
             "event_type": EventType.REWARD_RELAY_RECORDED.value,
+            "upstream_event_id": mesh_relay_evidence.event_id,
+            "upstream_event_linked": (
+                mesh_relay_evidence.event_id
+                in mesh_reward_upstream.get("event_ids", [])
+            ),
+            "upstream_source_agent_linked": (
+                MESH_REWARD_SERVICE_NAME
+                in mesh_reward_upstream.get("source_agents", [])
+            ),
+            "upstream_payloads_redacted": (
+                mesh_reward_upstream.get("payloads_redacted") is True
+            ),
         },
         SHARE_TO_EARN_SERVICE_NAME: {
             "event_id": share_to_earn_event_id,
@@ -802,6 +1029,31 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
                 citations_by_service.get(MARKETPLACE_API_SERVICE_NAME, {}).get("layer")
                 == MARKETPLACE_API_SERVICE_LAYER
             ),
+            "marketplace_api_evidence_summary_request_present": (
+                citations_by_service.get(MARKETPLACE_API_SERVICE_NAME, {})
+                .get("evidence_summary", {})
+                .get("request_evidence", {})
+                .get("present")
+                is True
+            ),
+            "marketplace_api_evidence_summary_idempotency_present": (
+                citations_by_service.get(MARKETPLACE_API_SERVICE_NAME, {})
+                .get("evidence_summary", {})
+                .get("request_evidence", {})
+                .get("idempotency_key_present")
+                is True
+            ),
+            "marketplace_api_evidence_summary_identity_present": (
+                citations_by_service.get(MARKETPLACE_API_SERVICE_NAME, {})
+                .get("evidence_summary", {})
+                .get("request_evidence", {})
+                .get("service_identity_present")
+                == {
+                    "spiffe_id": True,
+                    "did": True,
+                    "wallet_address": True,
+                }
+            ),
             "maas_governance_event_id_matches": (
                 citations_by_service.get(MAAS_GOVERNANCE_SERVICE_NAME, {}).get(
                     "event_id"
@@ -846,6 +1098,15 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
                 citations_by_service.get(MESH_REWARD_SERVICE_NAME, {}).get("layer")
                 == MESH_REWARD_SERVICE_LAYER
             ),
+            "mesh_reward_upstream_event_id_matches": expected_events[
+                MESH_REWARD_SERVICE_NAME
+            ]["upstream_event_linked"],
+            "mesh_reward_upstream_source_agent_matches": expected_events[
+                MESH_REWARD_SERVICE_NAME
+            ]["upstream_source_agent_linked"],
+            "mesh_reward_upstream_payloads_redacted": expected_events[
+                MESH_REWARD_SERVICE_NAME
+            ]["upstream_payloads_redacted"],
             "share_to_earn_event_id_matches": (
                 citations_by_service.get(SHARE_TO_EARN_SERVICE_NAME, {}).get(
                     "event_id"
@@ -901,6 +1162,30 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
             "redacted_true": all(
                 citation.get("redacted") is True
                 for citation in citations_by_service.values()
+            ),
+            "citation_summary_metadata_present": all(
+                _citation_summary_metadata_present(citation)
+                for citation in citations_by_service.values()
+            ),
+            "claim_boundary_summaries_bounded": all(
+                _claim_boundary_summary_is_bounded(citation)
+                for citation in citations_by_service.values()
+            ),
+            "claim_boundaries_present_for_bounded_services": (
+                _required_services_have_claim_boundaries(citations_by_service)
+            ),
+            "cross_plane_summaries_fail_closed": all(
+                _cross_plane_summary_is_fail_closed(citation)
+                for citation in citations_by_service.values()
+            ),
+            "economy_summaries_fail_closed": all(
+                _economy_summary_is_fail_closed(citation)
+                for citation in citations_by_service.values()
+            ),
+            "economy_services_have_local_only_gates": (
+                _required_economy_services_have_local_only_gates(
+                    citations_by_service
+                )
             ),
             "secret_values_absent": all(
                 secret not in response_text for secret in REDACTION_SENTINELS

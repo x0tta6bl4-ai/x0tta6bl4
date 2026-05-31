@@ -1,5 +1,12 @@
 # x0tta6bl4 Architecture
 
+> Evidence status, 2026-05-30: this design note mixes target architecture,
+> implementation facts, and aspirational metrics. Treat performance numbers,
+> PQC speedups, MTTR targets, recovery rates, and GraphSAGE references as
+> claims unless a current verification artifact is cited. Current evidence
+> boundaries live in `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md` and
+> `docs/architecture/CURRENT_EVENT_CONTROL_PLANE_MAP.json`.
+
 ## Overview
 
 x0tta6bl4 is a **post-quantum secure, self-healing mesh network** with decentralized governance.
@@ -141,13 +148,13 @@ Response:
 
 ---
 
-## Self-Healing Metrics
+## Self-Healing Target/Claim Metrics
 
-| Metric | Current | Target H1 | Target H2 | Target H3 |
-|--------|---------|-----------|-----------|-----------|
-| MTTR | ~20s | 9s | 7.6s | 5s |
-| MTTD | ~5s | 2s | 1s | 0.5s |
-| Recovery Rate | 90% | 99% | 99.9% | 99.99% |
+| Metric | Claimed current | Target H1 | Target H2 | Target H3 | Evidence status |
+|--------|---------|-----------|-----------|-----------|---|
+| MTTR | ~20s | 9s | 7.6s | 5s | claim/target, needs current artifact |
+| MTTD | ~5s | 2s | 1s | 0.5s | claim/target, needs current artifact |
+| Recovery Rate | 90% | 99% | 99.9% | 99.99% | claim/target, needs current artifact |
 
 ### MAPE-K Loop
 

@@ -16,12 +16,58 @@ import hashlib
 import logging
 import secrets
 import struct
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.services.service_event_identity import service_event_identity
+
 logger = logging.getLogger(__name__)
+
+
+_SERVICE_AGENT = "anti-censorship-pluggable-transport"
+_SERVICE_LAYER = "anti_censorship_pluggable_transport_local_evidence"
+PLUGGABLE_TRANSPORT_CLAIM_BOUNDARY = (
+    "Local pluggable-transport evidence only. It records local transport "
+    "factory selection, configuration presence, stats reads, byte-count "
+    "buckets, connection-state flags, duration, and service identity presence; "
+    "it does not expose raw keys, node IDs, session IDs, target hosts, front "
+    "domains, broker URLs, ICE servers, payload bytes, encrypted packets, "
+    "handshakes, nonces, or prove DPI bypass, censorship bypass, remote "
+    "reachability, packet delivery, anonymity, provider health, client "
+    "installation, or production customer traffic use."
+)
+
+
+def _count_bucket(value: Any) -> str:
+    if not isinstance(value, int) or value <= 0:
+        return "zero"
+    if value == 1:
+        return "single"
+    if value <= 3:
+        return "few"
+    if value <= 10:
+        return "small"
+    if value <= 50:
+        return "medium"
+    return "large"
+
+
+def _byte_count_bucket(value: Any) -> str:
+    if not isinstance(value, int) or value <= 0:
+        return "zero"
+    if value <= 64:
+        return "tiny"
+    if value <= 512:
+        return "small"
+    if value <= 1500:
+        return "mtu"
+    if value <= 8192:
+        return "chunk"
+    return "large"
 
 
 class TransportType(Enum):
@@ -55,6 +101,8 @@ class TransportConfig:
     timeout: float = 30.0
     max_retries: int = 3
     buffer_size: int = 65536
+    event_bus: Optional[EventBus] = field(default=None, repr=False)
+    event_project_root: Optional[str] = None
 
 
 class PluggableTransport(ABC):
@@ -73,6 +121,8 @@ class PluggableTransport(ABC):
             "connections": 0,
             "errors": 0,
         }
+        self.event_bus = config.event_bus
+        self.event_project_root = config.event_project_root
     
     @property
     def is_connected(self) -> bool:
@@ -100,11 +150,129 @@ class PluggableTransport(ABC):
     
     def get_stats(self) -> Dict[str, Any]:
         """Get transport statistics."""
-        return {
+        started_at = time.monotonic()
+        stats = {
             "type": self.config.transport_type.value,
             "connected": self._connected,
             **self._stats,
         }
+        self._publish_evidence(
+            operation="get_stats",
+            status_value="read",
+            started_at=started_at,
+            metadata={
+                "connected": self._connected,
+                "bytes_sent_bucket": _byte_count_bucket(self._stats["bytes_sent"]),
+                "bytes_received_bucket": _byte_count_bucket(
+                    self._stats["bytes_received"]
+                ),
+                "connections_count": self._stats["connections"],
+                "connections_count_bucket": _count_bucket(self._stats["connections"]),
+                "errors_count": self._stats["errors"],
+                "errors_count_bucket": _count_bucket(self._stats["errors"]),
+            },
+        )
+        return stats
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        if self.event_project_root is None:
+            return None
+        try:
+            self.event_bus = get_event_bus(self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize pluggable-transport EventBus: %s", exc)
+            return None
+
+    def _identity_presence(self) -> Dict[str, bool]:
+        identity = service_event_identity(service_name=_SERVICE_AGENT)
+        return {
+            "spiffe_id_present": bool(identity.get("spiffe_id")),
+            "did_present": bool(identity.get("did")),
+            "wallet_address_present": bool(identity.get("wallet_address")),
+            "raw_identity_redacted": True,
+        }
+
+    def _config_metadata(self) -> Dict[str, Any]:
+        return {
+            "transport_type": self.config.transport_type.value,
+            "node_id_present": bool(self.config.node_id),
+            "private_key_present": bool(self.config.private_key),
+            "public_key_present": bool(self.config.public_key),
+            "front_domain_present": bool(self.config.front_domain),
+            "meek_url_present": bool(self.config.meek_url),
+            "broker_url_present": bool(self.config.broker_url),
+            "ice_server_count": len(self.config.ice_servers),
+            "ice_server_count_bucket": _count_bucket(len(self.config.ice_servers)),
+            "timeout_ms_bucket": _byte_count_bucket(round(self.config.timeout * 1000)),
+            "max_retries_count": self.config.max_retries,
+            "max_retries_count_bucket": _count_bucket(self.config.max_retries),
+            "buffer_size_bucket": _byte_count_bucket(self.config.buffer_size),
+            "raw_keys_redacted": True,
+            "raw_node_id_redacted": True,
+            "raw_domains_redacted": True,
+            "raw_urls_redacted": True,
+            "raw_ice_servers_redacted": True,
+        }
+
+    def _publish_evidence(
+        self,
+        *,
+        operation: str,
+        status_value: str,
+        started_at: float,
+        metadata: Optional[Dict[str, Any]] = None,
+        error_type: Optional[str] = None,
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+
+        payload: Dict[str, Any] = {
+            "component": "anti_censorship.transports",
+            "operation": operation,
+            "service_name": _SERVICE_AGENT,
+            "source_alias": _SERVICE_AGENT,
+            "layer": _SERVICE_LAYER,
+            "status": status_value,
+            "duration_ms": round((time.monotonic() - started_at) * 1000.0, 3),
+            "config": self._config_metadata(),
+            "service_identity": self._identity_presence(),
+            "control_action": operation in {"create_transport", "close"},
+            "observed_state": True,
+            "payloads_redacted": True,
+            "raw_targets_redacted": True,
+            "raw_packets_redacted": True,
+            "raw_handshakes_redacted": True,
+            "crypto_material_redacted": True,
+            "raw_identifiers_redacted": True,
+            "dataplane_confirmed": False,
+            "dpi_bypass_confirmed": False,
+            "bypass_confirmed": False,
+            "external_dpi_tested": False,
+            "claim_boundary": PLUGGABLE_TRANSPORT_CLAIM_BOUNDARY,
+        }
+        if metadata:
+            payload.update(metadata)
+        if error_type:
+            payload["error"] = {
+                "type": error_type,
+                "message_redacted": True,
+            }
+
+        event_type = (
+            EventType.TASK_FAILED
+            if status_value.endswith("failed")
+            else EventType.PIPELINE_STAGE_END
+        )
+        try:
+            event = bus.publish(event_type, _SERVICE_AGENT, payload, priority=4)
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish pluggable-transport evidence: %s", exc)
+            return None
 
 
 class OBFS4Transport(PluggableTransport):
@@ -535,6 +703,7 @@ def create_transport(
     Returns:
         Configured PluggableTransport instance
     """
+    started_at = time.monotonic()
     try:
         t_type = TransportType(transport_type.lower())
     except ValueError:
@@ -543,13 +712,26 @@ def create_transport(
     config = TransportConfig(transport_type=t_type, **kwargs)
     
     if t_type == TransportType.OBFS4:
-        return OBFS4Transport(config)
+        transport = OBFS4Transport(config)
     elif t_type == TransportType.MEEK:
-        return MeekTransport(config)
+        transport = MeekTransport(config)
     elif t_type == TransportType.SNOWFLAKE:
-        return SnowflakeTransport(config)
+        transport = SnowflakeTransport(config)
     else:
         raise ValueError(f"Unsupported transport type: {transport_type}")
+
+    transport._publish_evidence(
+        operation="create_transport",
+        status_value="created",
+        started_at=started_at,
+        metadata={
+            "requested_transport_type": (
+                t_type.value if t_type != TransportType.CUSTOM else "custom"
+            ),
+            "raw_transport_name_redacted": True,
+        },
+    )
+    return transport
 
 
 __all__ = [

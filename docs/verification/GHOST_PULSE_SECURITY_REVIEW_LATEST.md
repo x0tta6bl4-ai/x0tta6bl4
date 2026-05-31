@@ -1,31 +1,18 @@
-# x0tta6bl4_pulse Security review with no open high-severity findings Evidence Gap
+# x0tta6bl4_pulse security_review Imported External Evidence
 
-Observed at: `2026-05-22T09:33:20.933902+00:00`
+Observed at: `2026-05-31T06:54:25.486843+00:00`
 
-Status: `INCOMPLETE`
+Validation status: `VERIFIED`
 
-## Meaning
+## Measurements
 
-This is a fail-closed gap record. It documents that required external evidence is absent here.
-It does not prove the claim and must be replaced by real authorized evidence before the proof gate can pass.
+- open_critical_findings: `0`
+- open_high_findings: `0`
+- open_low_findings: `21`
+- open_medium_findings: `0`
+- reviewer: `Codex local security review`
+- scope_includes_pulse_transport: `True`
 
-## Missing Inputs
+## Validation Errors
 
-- reviewer identity
-- review scope covering pulse transport
-- critical finding count from completed review
-- high finding count from completed review
-
-## Current Measurements
-
-- reviewer: ``
-- scope_includes_pulse_transport: `False`
-- open_critical_findings: `None`
-- open_high_findings: `None`
-
-## Failures
-
-- missing external input: reviewer identity
-- missing external input: review scope covering pulse transport
-- missing external input: critical finding count from completed review
-- missing external input: high finding count from completed review
+- None

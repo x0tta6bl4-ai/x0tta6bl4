@@ -74,7 +74,10 @@ def test_maas_full_flow(client):
     }
     response = client.post("/api/v1/maas/login", json=login_payload)
     assert response.status_code == 200
-    assert response.json()["access_token"] == api_key
+    # API keys are rotated on login, so they should be different
+    assert response.json()["access_token"] != api_key
+
+    new_api_key = response.json()["access_token"]
 
     # 3. Deploy Mesh
     deploy_payload = {
@@ -82,7 +85,7 @@ def test_maas_full_flow(client):
         "nodes": 3,
         "billing_plan": "starter"
     }
-    headers = {"X-API-Key": api_key}
+    headers = {"X-API-Key": new_api_key}
     response = client.post("/api/v1/maas/deploy", json=deploy_payload, headers=headers)
     
     assert response.status_code == 200
@@ -222,9 +225,11 @@ def test_legacy_email_normalization_and_case_insensitive_login(client):
         json={"email": raw_email.strip().upper(), "password": password},
     )
     assert login.status_code == 200
-    assert login.json()["access_token"] == api_key
+    assert login.json()["access_token"] != api_key
 
-    me = client.get("/api/v1/maas/me", headers={"X-API-Key": api_key})
+    new_api_key = login.json()["access_token"]
+
+    me = client.get("/api/v1/maas/me", headers={"X-API-Key": new_api_key})
     assert me.status_code == 200
     assert me.json()["email"] == raw_email.strip().lower()
 

@@ -19,6 +19,7 @@ Architecture:
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import time
@@ -68,6 +69,13 @@ TOKEN_BRIDGE_CLAIM_BOUNDARY = (
     "and settlement submission state for X0T bridge operations; it is not "
     "proof of final live external settlement without a verified receipt and "
     "live RPC evidence."
+)
+
+TOKEN_BRIDGE_CHAIN_READ_CLAIM_BOUNDARY = (
+    "TokenBridge chain-read event only. It records a bounded local observation "
+    "of an on-chain event and the resulting MeshToken sync outcome; raw chain "
+    "event payload values are redacted and this is not proof of final external "
+    "settlement beyond the cited transaction/block metadata."
 )
 
 
@@ -374,6 +382,7 @@ class TokenBridge:
             self._execute_chain_write_through_actuator
         )
         self._last_chain_write_result: Any = None
+        self._last_chain_write_event_ids: List[str] = []
         self.web3 = None
         self.contract = None
         self.account = None
@@ -445,9 +454,25 @@ class TokenBridge:
 
     @classmethod
     def _safe_value(cls, key: str, value: Any, depth: int = 0) -> Any:
+        key_lower = str(key).lower()
         blocked_fragments = ("secret", "password", "token", "key", "private")
-        if any(fragment in str(key).lower() for fragment in blocked_fragments):
+        identifier_fragments = (
+            "address",
+            "did",
+            "escrow",
+            "listing",
+            "mesh",
+            "node",
+            "renter",
+            "spiffe",
+            "wallet",
+        )
+        if any(fragment in key_lower for fragment in blocked_fragments):
             return "<redacted>"
+        if any(fragment in key_lower for fragment in identifier_fragments):
+            return cls._safe_identifier(value)
+        if key_lower in {"rewards", "uptimes"} and isinstance(value, dict):
+            return cls._safe_numeric_mapping_summary(value)
         if value is None or isinstance(value, (str, int, float, bool)):
             return value
         if isinstance(value, dict) and depth < 3:
@@ -466,6 +491,48 @@ class TokenBridge:
             for key, value in context.items()
         }
 
+    @classmethod
+    def _chain_write_result_summary(
+        cls,
+        *,
+        success: Optional[bool],
+        transaction_hash: Optional[str],
+        simulated: Optional[bool],
+        reason: str,
+    ) -> Dict[str, Any]:
+        submitted_transaction = bool(transaction_hash and not simulated)
+        return {
+            "success": success,
+            "simulated": bool(simulated) if simulated is not None else None,
+            "submitted_transaction": submitted_transaction,
+            "transaction_hash_present": bool(transaction_hash),
+            "transaction_hash_hash": cls._hash_value(transaction_hash),
+            "reason": str(reason or "")[:160],
+            "raw_result_redacted": True,
+        }
+
+    @staticmethod
+    def _chain_write_source_quality(
+        *,
+        stage: str,
+        success: Optional[bool],
+        simulated: Optional[bool],
+        transaction_hash: Optional[str],
+    ) -> str:
+        if stage == "received":
+            return "chain_write_request_received"
+        if stage == "policy_denied":
+            return "policy_denied_before_actuator"
+        if stage == "actuator_start":
+            return "policy_allowed_before_safe_actuator"
+        if simulated:
+            return "safe_actuator_simulated_no_settlement"
+        if success and transaction_hash:
+            return "safe_actuator_submitted_transaction"
+        if success:
+            return "safe_actuator_completed_without_transaction_hash"
+        return "safe_actuator_failed_no_settlement"
+
     @staticmethod
     def _chain_resource_name(operation: str) -> str:
         operation_lower = str(operation or "unknown_operation").lower().strip()
@@ -476,6 +543,160 @@ class TokenBridge:
         while "__" in slug:
             slug = slug.replace("__", "_")
         return slug or "unknown_operation"
+
+    @property
+    def last_chain_write_event_ids(self) -> List[str]:
+        return list(self._last_chain_write_event_ids)
+
+    @staticmethod
+    def _hash_value(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        if not normalized:
+            return None
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def _hash_prefix(cls, value: Any) -> Optional[str]:
+        digest = cls._hash_value(value)
+        return digest[:16] if digest else None
+
+    @classmethod
+    def _safe_identifier(cls, value: Any) -> Optional[str]:
+        digest = cls._hash_prefix(value)
+        return f"sha256:{digest}" if digest else None
+
+    @classmethod
+    def _identity_hashes(cls, identity: Dict[str, Any]) -> Dict[str, Optional[str]]:
+        return {
+            "node_id_hash": cls._hash_prefix(identity.get("node_id")),
+            "spiffe_id_hash": cls._hash_prefix(identity.get("spiffe_id")),
+            "did_hash": cls._hash_prefix(identity.get("did")),
+            "wallet_address_hash": cls._hash_prefix(identity.get("wallet_address")),
+        }
+
+    @staticmethod
+    def _identity_fields_present(identity: Dict[str, Any]) -> Dict[str, bool]:
+        return {
+            "node_id": bool(identity.get("node_id")),
+            "spiffe_id": bool(identity.get("spiffe_id")),
+            "did": bool(identity.get("did")),
+            "wallet_address": bool(identity.get("wallet_address")),
+        }
+
+    @classmethod
+    def _safe_numeric_mapping_summary(
+        cls,
+        values: Dict[Any, Any],
+        *,
+        limit: int = 16,
+    ) -> Dict[str, Any]:
+        items = list(values.items())
+        numeric_values: list[float] = []
+        for _key, value in items:
+            if isinstance(value, bool):
+                continue
+            try:
+                numeric_values.append(float(value))
+            except (TypeError, ValueError):
+                continue
+        return {
+            "entries_total": len(items),
+            "entries_limit": limit,
+            "entries_truncated": len(items) > limit,
+            "key_hashes": [
+                cls._hash_prefix(key)
+                for key, _value in items[:limit]
+                if cls._hash_prefix(key)
+            ],
+            "numeric_values_total": round(sum(numeric_values), 6)
+            if numeric_values
+            else None,
+            "numeric_values_count": len(numeric_values),
+            "raw_keys_redacted": True,
+            "raw_values_redacted": True,
+        }
+
+    @staticmethod
+    def _safe_arg_keys(args: Any, *, limit: int = 16) -> list[str]:
+        try:
+            keys = list(args.keys())
+        except Exception:
+            try:
+                keys = [key for key, _value in args]
+            except Exception:
+                return []
+        return [str(key) for key in keys[:limit]]
+
+    @staticmethod
+    def _tx_hash_value(event: Any) -> str:
+        tx_hash = getattr(event, "transactionHash", "")
+        if hasattr(tx_hash, "hex"):
+            try:
+                return str(tx_hash.hex())
+            except Exception:
+                return ""
+        return str(tx_hash or "")
+
+    def _publish_chain_read_event(
+        self,
+        *,
+        event_name: str,
+        block_number: Any,
+        transaction_hash: str,
+        args: Any,
+        sync_result: Optional[Dict[str, Any]] = None,
+        tx_history_recorded: bool = False,
+        handler_errors_total: int = 0,
+    ) -> Optional[str]:
+        if self.event_bus is None:
+            return None
+        event_resource = self._chain_resource_name(event_name)
+        result = dict(sync_result or {})
+        payload = {
+            "component": "dao.token_bridge",
+            "stage": "chain_event_observed",
+            "operation": "from_chain_sync",
+            "operation_resource": event_resource,
+            "resource": f"dao:token_bridge:from_chain:{event_resource}",
+            "event_name": str(event_name),
+            "block_number": block_number,
+            "transaction_hash": transaction_hash or None,
+            "transaction_hash_hash": self._hash_value(transaction_hash),
+            "chain_id": self.config.chain_id,
+            "node_id": self.identity["node_id"],
+            "spiffe_id": self.identity["spiffe_id"],
+            "did": self.identity["did"],
+            "wallet_address": self.identity["wallet_address"],
+            "identity": dict(self.identity),
+            "sync_result": result,
+            "success": bool(result.get("success", True)),
+            "tx_history_recorded": bool(tx_history_recorded),
+            "handlers_total": len(self._event_handlers.get(event_name, [])),
+            "handler_errors_total": handler_errors_total,
+            "chain_arg_keys": self._safe_arg_keys(args),
+            "chain_arg_values_redacted": True,
+            "safe_observation": True,
+            "claim_boundary": TOKEN_BRIDGE_CHAIN_READ_CLAIM_BOUNDARY,
+        }
+        try:
+            event = self.event_bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                self.source_agent,
+                payload,
+                priority=6,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish TokenBridge chain-read event: %s", exc)
+            return None
+
+    @staticmethod
+    def _sync_result_dict(value: Any, *, default_update: str = "observed") -> Dict[str, Any]:
+        if isinstance(value, dict):
+            return value
+        return {"local_update": default_update, "success": True}
 
     def _publish_chain_write_event(
         self,
@@ -489,26 +710,51 @@ class TokenBridge:
         success: Optional[bool] = None,
         transaction_hash: Optional[str] = None,
         simulated: Optional[bool] = None,
+        duration_ms: Optional[float] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
         operation_resource = self._chain_resource_name(operation)
+        source_quality = self._chain_write_source_quality(
+            stage=stage,
+            success=success,
+            simulated=simulated,
+            transaction_hash=transaction_hash,
+        )
         payload = {
             "component": "dao.token_bridge",
             "stage": stage,
             "operation": operation,
             "operation_resource": operation_resource,
             "resource": f"dao:token_bridge:{operation_resource}",
+            "service_name": self.source_agent,
+            "source_alias": self.source_agent,
+            "layer": "dao_chain_bridge",
+            "source_quality": source_quality,
             "node_id": self.identity["node_id"],
             "spiffe_id": self.identity["spiffe_id"],
             "did": self.identity["did"],
             "wallet_address": self.identity["wallet_address"],
             "identity": dict(self.identity),
+            "identity_hashes": self._identity_hashes(self.identity),
+            "identity_fields_present": self._identity_fields_present(self.identity),
             "context": self._safe_context(context),
+            "context_values_redacted": True,
+            "context_payloads_redacted": True,
             "success": success,
             "transaction_hash": transaction_hash,
+            "transaction_hash_hash": self._hash_value(transaction_hash),
             "simulated": simulated,
             "submitted_transaction": bool(transaction_hash and not simulated),
+            "duration_ms": (
+                round(float(duration_ms), 3) if duration_ms is not None else None
+            ),
+            "result_summary": self._chain_write_result_summary(
+                success=success,
+                transaction_hash=transaction_hash,
+                simulated=simulated,
+                reason=reason,
+            ),
             "reason": reason,
             "policy_required": self.require_policy or self.policy_engine is not None,
             "policy_allowed": self._policy_allowed(policy_decision)
@@ -521,6 +767,14 @@ class TokenBridge:
             if policy_decision is not None
             else [],
             "safe_actuator": True,
+            "safe_actuator_used": stage
+            in {
+                "actuator_start",
+                "actuator_completed",
+                "actuator_simulated",
+                "actuator_failed",
+            },
+            "result_payload_redacted": True,
             "claim_boundary": TOKEN_BRIDGE_CLAIM_BOUNDARY,
         }
         try:
@@ -580,12 +834,13 @@ class TokenBridge:
         simulated: bool,
         transaction_hash: Optional[str],
         reason: str,
-    ) -> None:
+        upstream_event_ids: Optional[List[str]] = None,
+    ) -> Optional[str]:
         if operation != "push_rewards_to_chain":
-            return
+            return None
         rewards = context.get("rewards") if isinstance(context.get("rewards"), dict) else {}
         amount = sum(float(value) for value in rewards.values()) if rewards else None
-        publish_reward_settlement_event(
+        return publish_reward_settlement_event(
             transition="recorded" if success and not simulated else "blocked",
             source_agent=self.source_agent,
             node_address=self.identity.get("wallet_address") or self.identity.get("node_id"),
@@ -597,6 +852,8 @@ class TokenBridge:
             settlement_recorded=bool(success and not simulated and transaction_hash),
             local_accounting_recorded=False,
             transaction_hash=transaction_hash if not simulated else None,
+            upstream_event_ids=upstream_event_ids,
+            upstream_source_agents=[self.source_agent] if upstream_event_ids else [],
             reason=reason,
             event_bus=self.event_bus,
             project_root=self.event_project_root,
@@ -611,15 +868,16 @@ class TokenBridge:
         success: bool,
         simulated: bool,
         reason: str,
-    ) -> None:
+        upstream_event_ids: Optional[List[str]] = None,
+    ) -> Optional[str]:
         transitions = {
             "lock_escrow_on_chain": "held",
             "release_escrow_on_chain": "released",
             "refund_escrow_on_chain": "refunded",
         }
         if operation not in transitions:
-            return
-        publish_marketplace_escrow_event(
+            return None
+        return publish_marketplace_escrow_event(
             transition=transitions[operation] if success and not simulated else "blocked",
             source_agent=self.source_agent,
             escrow_id=context.get("escrow_id"),
@@ -631,6 +889,8 @@ class TokenBridge:
             node_id=context.get("target_node_id") or self.identity.get("node_id"),
             mesh_id=context.get("mesh_id"),
             amount_token=context.get("amount_xot"),
+            upstream_event_ids=upstream_event_ids,
+            upstream_source_agents=[self.source_agent] if upstream_event_ids else [],
             reason=reason,
             event_bus=self.event_bus,
             project_root=self.event_project_root,
@@ -685,15 +945,18 @@ class TokenBridge:
         failure_value: Any = None,
     ) -> Any:
         self._last_chain_write_result = None
-        self._publish_chain_write_event(
+        self._last_chain_write_event_ids = []
+        started = time.monotonic()
+        request_event_id = self._publish_chain_write_event(
             EventType.COORDINATION_REQUEST,
             stage="received",
             operation=operation,
             context=context,
+            duration_ms=0.0,
         )
         policy_allowed, policy_decision, policy_reason = self._evaluate_chain_write_policy(operation)
         if not policy_allowed:
-            self._publish_chain_write_event(
+            blocked_event_id = self._publish_chain_write_event(
                 EventType.TASK_BLOCKED,
                 stage="policy_denied",
                 operation=operation,
@@ -702,31 +965,45 @@ class TokenBridge:
                 policy_decision=policy_decision,
                 success=False,
                 simulated=False,
+                duration_ms=(time.monotonic() - started) * 1000.0,
             )
-            self._publish_reward_lifecycle(
+            upstream_event_ids = [
+                event_id
+                for event_id in (request_event_id, blocked_event_id)
+                if event_id
+            ]
+            reward_event_id = self._publish_reward_lifecycle(
                 operation=operation,
                 context=context,
                 success=False,
                 simulated=False,
                 transaction_hash=None,
                 reason=policy_reason,
+                upstream_event_ids=upstream_event_ids,
             )
-            self._publish_marketplace_lifecycle(
+            marketplace_event_id = self._publish_marketplace_lifecycle(
                 operation=operation,
                 context=context,
                 success=False,
                 simulated=False,
                 reason=policy_reason,
+                upstream_event_ids=upstream_event_ids,
             )
+            self._last_chain_write_event_ids = [
+                event_id
+                for event_id in (*upstream_event_ids, reward_event_id, marketplace_event_id)
+                if event_id
+            ]
             return failure_value
 
-        self._publish_chain_write_event(
+        start_event_id = self._publish_chain_write_event(
             EventType.PIPELINE_STAGE_START,
             stage="actuator_start",
             operation=operation,
             context=context,
             reason=policy_reason,
             policy_decision=policy_decision,
+            duration_ms=(time.monotonic() - started) * 1000.0,
         )
         actuator_result = await self.safe_actuator.execute(operation, context)
         raw = self._last_chain_write_result
@@ -742,7 +1019,7 @@ class TokenBridge:
             if simulated
             else "actuator_failed"
         )
-        self._publish_chain_write_event(
+        final_event_id = self._publish_chain_write_event(
             event_type,
             stage=stage,
             operation=operation,
@@ -752,22 +1029,35 @@ class TokenBridge:
             success=success and not simulated,
             transaction_hash=transaction_hash if not simulated else None,
             simulated=simulated,
+            duration_ms=(time.monotonic() - started) * 1000.0,
         )
-        self._publish_reward_lifecycle(
+        upstream_event_ids = [
+            event_id
+            for event_id in (request_event_id, start_event_id, final_event_id)
+            if event_id
+        ]
+        reward_event_id = self._publish_reward_lifecycle(
             operation=operation,
             context=context,
             success=success,
             simulated=simulated,
             transaction_hash=transaction_hash,
             reason=reason,
+            upstream_event_ids=upstream_event_ids,
         )
-        self._publish_marketplace_lifecycle(
+        marketplace_event_id = self._publish_marketplace_lifecycle(
             operation=operation,
             context=context,
             success=success,
             simulated=simulated,
             reason=reason,
+            upstream_event_ids=upstream_event_ids,
         )
+        self._last_chain_write_event_ids = [
+            event_id
+            for event_id in (*upstream_event_ids, reward_event_id, marketplace_event_id)
+            if event_id
+        ]
         if raw is not None and simulated and operation in {
             "lock_escrow_on_chain",
             "release_escrow_on_chain",
@@ -957,20 +1247,36 @@ class TokenBridge:
         """Handle a single on-chain event."""
         args = event.args
         block = event.blockNumber
-        tx_hash = event.transactionHash.hex()
+        tx_hash = self._tx_hash_value(event)
         bridge_deposit_recorded = False
+        sync_result: Dict[str, Any] = {"local_update": "observed", "success": True}
+        handler_errors_total = 0
+        tx_history_recorded = False
 
-        logger.info(f"Event {event_name} at block {block}: {dict(args)}")
+        logger.info(
+            "Event %s at block %s with arg keys %s",
+            event_name,
+            block,
+            self._safe_arg_keys(args),
+        )
 
         # Sync to local MeshToken
         if event_name == "Staked":
-            await self._sync_stake(args.user, args.amount, is_stake=True)
+            sync_result = self._sync_result_dict(
+                await self._sync_stake(args.user, args.amount, is_stake=True)
+            )
         elif event_name == "Unstaked":
-            await self._sync_stake(args.user, args.amount, is_stake=False)
+            sync_result = self._sync_result_dict(
+                await self._sync_stake(args.user, args.amount, is_stake=False)
+            )
         elif event_name == "Transfer":
-            await self._sync_transfer(args["from"], args.to, args.value)
+            sync_result = self._sync_result_dict(
+                await self._sync_transfer(args["from"], args.to, args.value)
+            )
         elif event_name == "RelayPaid":
-            await self._sync_relay_payment(args.payer, args.relayer, args.amount)
+            sync_result = self._sync_result_dict(
+                await self._sync_relay_payment(args.payer, args.relayer, args.amount)
+            )
         elif event_name == "BridgeDeposit":
             bridge_deposit_recorded = True
             await self.mint_from_bridge_event(
@@ -988,6 +1294,7 @@ class TokenBridge:
                 else:
                     handler(event)
             except Exception as e:
+                handler_errors_total += 1
                 logger.error(f"Event handler error: {e}")
 
         if bridge_deposit_recorded:
@@ -996,6 +1303,16 @@ class TokenBridge:
         if event_name == "BridgeRelease":
             from_address = "bridge"
             to_address = str(self._event_arg(args, "recipient", ""))
+            sync_result = {
+                "local_update": "bridge_release_observed",
+                "success": True,
+                "amount_xot": (
+                    float(self._event_arg(args, "amount", self._event_arg(args, "value", 0)))
+                    / 1e18
+                ),
+                "from_address_hash": self._hash_value(from_address),
+                "to_address_hash": self._hash_value(to_address),
+            }
         else:
             from_address = str(
                 self._event_arg(
@@ -1030,28 +1347,62 @@ class TokenBridge:
                 status="confirmed",
             )
         )
+        tx_history_recorded = True
+        self._publish_chain_read_event(
+            event_name=event_name,
+            block_number=block,
+            transaction_hash=tx_hash,
+            args=args,
+            sync_result=sync_result,
+            tx_history_recorded=tx_history_recorded,
+            handler_errors_total=handler_errors_total,
+        )
 
     async def _sync_stake(self, eth_address: str, amount_wei: int, is_stake: bool):
         """Sync stake event to local MeshToken."""
         node_id = self.get_node_id(eth_address)
+        amount = float(amount_wei) / 1e18
         if not node_id:
             logger.warning(f"Unknown address {eth_address}, skipping stake sync")
-            return
-
-        amount = float(amount_wei) / 1e18
+            return {
+                "local_update": "stake_sync_skipped_unknown_address",
+                "success": False,
+                "action": "stake" if is_stake else "unstake",
+                "amount_xot": amount,
+                "address_hash": self._hash_value(eth_address),
+            }
 
         if is_stake:
             # Ensure node has balance, then stake
             current_balance = self.mesh_token.balance_of(node_id)
+            minted_delta = 0.0
             if current_balance < amount:
+                minted_delta = amount - current_balance
                 self.mesh_token.mint(node_id, amount - current_balance, "bridge_sync")
             self.mesh_token.stake(node_id, amount)
             logger.info(f"Synced stake: {node_id} staked {amount} X0T")
+            return {
+                "local_update": "stake_synced",
+                "success": True,
+                "action": "stake",
+                "amount_xot": amount,
+                "minted_delta_xot": minted_delta,
+                "affected_node_id_hash": self._hash_value(node_id),
+                "address_hash": self._hash_value(eth_address),
+            }
         else:
             # Unstake locally
             # Note: lock period is handled on-chain, local unstake is immediate
             self.mesh_token.stakes.pop(node_id, None)
             logger.info(f"Synced unstake: {node_id} unstaked {amount} X0T")
+            return {
+                "local_update": "unstake_synced",
+                "success": True,
+                "action": "unstake",
+                "amount_xot": amount,
+                "affected_node_id_hash": self._hash_value(node_id),
+                "address_hash": self._hash_value(eth_address),
+            }
 
     async def _sync_transfer(self, from_addr: str, to_addr: str, amount_wei: int):
         """Sync transfer event to local MeshToken."""
@@ -1063,10 +1414,34 @@ class TokenBridge:
             # Both addresses known, sync transfer
             self.mesh_token.transfer(from_node, to_node, amount)
             logger.info(f"Synced transfer: {from_node} → {to_node}: {amount} X0T")
+            return {
+                "local_update": "transfer_synced",
+                "success": True,
+                "amount_xot": amount,
+                "from_node_id_hash": self._hash_value(from_node),
+                "to_node_id_hash": self._hash_value(to_node),
+                "from_address_hash": self._hash_value(from_addr),
+                "to_address_hash": self._hash_value(to_addr),
+            }
         elif to_node:
             # Incoming from unknown (e.g., exchange deposit)
             self.mesh_token.mint(to_node, amount, "bridge_deposit")
             logger.info(f"Synced deposit: {to_node} received {amount} X0T")
+            return {
+                "local_update": "deposit_minted",
+                "success": True,
+                "amount_xot": amount,
+                "to_node_id_hash": self._hash_value(to_node),
+                "from_address_hash": self._hash_value(from_addr),
+                "to_address_hash": self._hash_value(to_addr),
+            }
+        return {
+            "local_update": "transfer_sync_skipped_unknown_addresses",
+            "success": False,
+            "amount_xot": amount,
+            "from_address_hash": self._hash_value(from_addr),
+            "to_address_hash": self._hash_value(to_addr),
+        }
 
     async def _sync_relay_payment(self, payer: str, relayer: str, amount_wei: int):
         """Sync relay payment to local MeshToken."""
@@ -1079,6 +1454,22 @@ class TokenBridge:
                 f"Synced relay payment: {payer_node} → {relayer_node}: {amount} X0T"
             )
             # Local state already updated via relay_packet(), just log
+            return {
+                "local_update": "relay_payment_observed",
+                "success": True,
+                "amount_xot": amount,
+                "payer_node_id_hash": self._hash_value(payer_node),
+                "relayer_node_id_hash": self._hash_value(relayer_node),
+                "payer_address_hash": self._hash_value(payer),
+                "relayer_address_hash": self._hash_value(relayer),
+            }
+        return {
+            "local_update": "relay_payment_skipped_unknown_addresses",
+            "success": False,
+            "amount_xot": amount,
+            "payer_address_hash": self._hash_value(payer),
+            "relayer_address_hash": self._hash_value(relayer),
+        }
 
     # ─────────────────────────────────────────────────────────────
     # Push to Chain (Python → Chain)
@@ -1405,10 +1796,32 @@ class TokenBridge:
             On-chain balance
         """
         if not self._init_web3():
+            self._publish_chain_read_event(
+                event_name="balanceOf",
+                block_number=None,
+                transaction_hash="",
+                args={"account": "<redacted>"},
+                sync_result={
+                    "local_update": "balance_sync_blocked_web3_unavailable",
+                    "success": False,
+                    "affected_node_id_hash": self._hash_value(node_id),
+                },
+            )
             return None
 
         eth_addr = self.get_eth_address(node_id)
         if not eth_addr:
+            self._publish_chain_read_event(
+                event_name="balanceOf",
+                block_number=None,
+                transaction_hash="",
+                args={"account": "<redacted>"},
+                sync_result={
+                    "local_update": "balance_sync_blocked_unknown_address",
+                    "success": False,
+                    "affected_node_id_hash": self._hash_value(node_id),
+                },
+            )
             return None
 
         try:
@@ -1418,16 +1831,50 @@ class TokenBridge:
 
             # Update local balance
             current = self.mesh_token.balance_of(node_id)
+            update_action = "unchanged"
+            delta = 0.0
             if balance > current:
+                update_action = "minted"
+                delta = balance - current
                 self.mesh_token.mint(node_id, balance - current, "chain_sync")
             elif balance < current:
+                update_action = "burned"
+                delta = current - balance
                 self.mesh_token.burn(node_id, current - balance, "chain_sync")
 
             logger.info(f"Synced balance for {node_id}: {balance} X0T")
+            self._publish_chain_read_event(
+                event_name="balanceOf",
+                block_number=None,
+                transaction_hash="",
+                args={"account": "<redacted>"},
+                sync_result={
+                    "local_update": "balance_synced",
+                    "success": True,
+                    "update_action": update_action,
+                    "balance_xot": balance,
+                    "delta_xot": delta,
+                    "affected_node_id_hash": self._hash_value(node_id),
+                    "address_hash": self._hash_value(eth_addr),
+                },
+            )
             return balance
 
         except Exception as e:
             logger.error(f"Failed to sync balance: {e}")
+            self._publish_chain_read_event(
+                event_name="balanceOf",
+                block_number=None,
+                transaction_hash="",
+                args={"account": "<redacted>"},
+                sync_result={
+                    "local_update": "balance_sync_failed",
+                    "success": False,
+                    "affected_node_id_hash": self._hash_value(node_id),
+                    "address_hash": self._hash_value(eth_addr),
+                    "reason": str(e),
+                },
+            )
             return None
 
     async def sync_all_balances(self):
@@ -1438,10 +1885,21 @@ class TokenBridge:
     def get_chain_stats(self) -> Dict:
         """Get on-chain token statistics."""
         if not self._init_web3() or not self.contract:
+            self._publish_chain_read_event(
+                event_name="chainStats",
+                block_number=None,
+                transaction_hash="",
+                args={"contract": "<redacted>"},
+                sync_result={
+                    "local_update": "chain_stats_unavailable",
+                    "success": False,
+                    "contract_address_hash": self._hash_value(self.config.contract_address),
+                },
+            )
             return {}
 
         try:
-            return {
+            stats = {
                 "total_staked": float(self.contract.functions.totalStaked().call())
                 / 1e18,
                 "current_epoch": self.contract.functions.currentEpoch().call(),
@@ -1449,8 +1907,43 @@ class TokenBridge:
                 "chain_id": self.config.chain_id,
                 "contract": self.config.contract_address,
             }
+            self._publish_chain_read_event(
+                event_name="chainStats",
+                block_number=None,
+                transaction_hash="",
+                args={
+                    "totalStaked": "<redacted>",
+                    "currentEpoch": "<redacted>",
+                    "canDistributeRewards": "<redacted>",
+                },
+                sync_result={
+                    "local_update": "chain_stats_read",
+                    "success": True,
+                    "total_staked": stats["total_staked"],
+                    "current_epoch": stats["current_epoch"],
+                    "can_distribute": stats["can_distribute"],
+                    "contract_address_hash": self._hash_value(self.config.contract_address),
+                },
+            )
+            return stats
         except Exception as e:
             logger.error(f"Failed to get chain stats: {e}")
+            self._publish_chain_read_event(
+                event_name="chainStats",
+                block_number=None,
+                transaction_hash="",
+                args={
+                    "totalStaked": "<redacted>",
+                    "currentEpoch": "<redacted>",
+                    "canDistributeRewards": "<redacted>",
+                },
+                sync_result={
+                    "local_update": "chain_stats_failed",
+                    "success": False,
+                    "reason": str(e),
+                    "contract_address_hash": self._hash_value(self.config.contract_address),
+                },
+            )
             return {}
 
     # ─────────────────────────────────────────────────────────────
@@ -1507,6 +2000,20 @@ class TokenBridge:
                         f"mint_from_bridge_event: only {actual_confs}/{required} "
                         f"confirmations for tx {tx_hash}"
                     )
+                    self._publish_chain_read_event(
+                        event_name="BridgeDeposit",
+                        block_number=block_number,
+                        transaction_hash=tx_hash,
+                        args={"recipient": "<redacted>", "amount": "<redacted>"},
+                        sync_result={
+                            "local_update": "bridge_deposit_waiting_confirmations",
+                            "success": False,
+                            "amount_xot": float(amount_wei) / 1e18,
+                            "required_confirmations": required,
+                            "actual_confirmations": actual_confs,
+                            "recipient_address_hash": self._hash_value(recipient_address),
+                        },
+                    )
                     return None
             except Exception as e:
                 logger.warning(f"Could not verify confirmations for {tx_hash}: {e}")
@@ -1518,6 +2025,21 @@ class TokenBridge:
         )
         if already:
             logger.info(f"mint_from_bridge_event: tx {tx_hash} already minted, skipping")
+            self._publish_chain_read_event(
+                event_name="BridgeDeposit",
+                block_number=block_number,
+                transaction_hash=tx_hash,
+                args={"recipient": "<redacted>", "amount": "<redacted>"},
+                sync_result={
+                    "local_update": "bridge_deposit_duplicate",
+                    "success": True,
+                    "amount_xot": already.amount,
+                    "transaction_status": already.status,
+                    "recipient_address_hash": self._hash_value(recipient_address),
+                    "affected_node_id_hash": self._hash_value(already.to_address),
+                },
+                tx_history_recorded=True,
+            )
             return already
 
         # Resolve node_id from Ethereum address
@@ -1551,6 +2073,23 @@ class TokenBridge:
             status="confirmed" if node_id else "unresolved",
         )
         self._tx_history.append(record)
+        self._publish_chain_read_event(
+            event_name="BridgeDeposit",
+            block_number=block_number,
+            transaction_hash=tx_hash,
+            args={"recipient": "<redacted>", "amount": "<redacted>"},
+            sync_result={
+                "local_update": "bridge_deposit_minted"
+                if node_id
+                else "bridge_deposit_unresolved",
+                "success": bool(node_id),
+                "amount_xot": amount_xot,
+                "transaction_status": record.status,
+                "recipient_address_hash": self._hash_value(recipient_address),
+                "affected_node_id_hash": self._hash_value(node_id or recipient_address),
+            },
+            tx_history_recorded=True,
+        )
         return record
 
 
@@ -1578,6 +2117,122 @@ class EpochRewardScheduler:
         self.uptime_provider = uptime_provider
         self._running = False
 
+    @staticmethod
+    def _hash_value(value: Any) -> Optional[str]:
+        return TokenBridge._hash_value(value)
+
+    def _chain_write_evidence(self) -> dict[str, Any]:
+        raw_event_ids = getattr(self.bridge, "last_chain_write_event_ids", None)
+        if callable(raw_event_ids):
+            raw_event_ids = raw_event_ids()
+        if raw_event_ids is None:
+            raw_event_ids = getattr(self.bridge, "_last_chain_write_event_ids", None)
+        if raw_event_ids is None:
+            event_ids: list[str] = []
+        elif isinstance(raw_event_ids, (str, bytes)):
+            event_ids = [str(raw_event_ids)]
+        else:
+            try:
+                event_ids = [str(event_id) for event_id in raw_event_ids if str(event_id)]
+            except TypeError:
+                event_ids = [str(raw_event_ids)]
+        return {
+            "source_agents": [str(getattr(self.bridge, "source_agent", _SERVICE_AGENT))],
+            "event_ids": event_ids[-10:],
+            "events_total": len(event_ids),
+            "event_ids_limit": 10,
+            "event_ids_truncated": len(event_ids) > 10,
+            "payloads_redacted": True,
+        }
+
+    def _publish_scheduler_event(
+        self,
+        *,
+        stage: str,
+        success: bool,
+        reason: str = "",
+        stats: Optional[Dict[str, Any]] = None,
+        uptimes: Optional[Dict[str, float]] = None,
+        transaction_hash: Optional[str] = None,
+    ) -> Optional[str]:
+        event_bus = getattr(self.bridge, "event_bus", None)
+        if event_bus is None:
+            return None
+
+        source_agent = str(getattr(self.bridge, "source_agent", _SERVICE_AGENT))
+        identity = dict(getattr(self.bridge, "identity", {}) or {})
+        node_id = identity.get("node_id", getattr(self.bridge, "node_id", "token-bridge"))
+        stats = stats if isinstance(stats, dict) else {}
+        uptimes = uptimes if isinstance(uptimes, dict) else {}
+        uptime_values = []
+        for value in uptimes.values():
+            try:
+                uptime_values.append(float(value))
+            except (TypeError, ValueError):
+                continue
+        chain_write_evidence = self._chain_write_evidence()
+        contract_address = stats.get("contract")
+        bridge_config = getattr(self.bridge, "config", None)
+        if not contract_address:
+            contract_address = getattr(bridge_config, "contract_address", None)
+        uptime_summary = {
+            "nodes_total": len(uptimes),
+            "node_id_hashes": [
+                self._hash_value(node_id)
+                for node_id in list(uptimes.keys())[:10]
+            ],
+            "node_id_hashes_limit": 10,
+            "node_ids_truncated": len(uptimes) > 10,
+            "uptime_values_total": len(uptime_values),
+            "min_uptime": min(uptime_values) if uptime_values else None,
+            "max_uptime": max(uptime_values) if uptime_values else None,
+            "payloads_redacted": True,
+        }
+        payload = {
+            "component": "dao.token_bridge.epoch_reward_scheduler",
+            "stage": stage,
+            "operation": "epoch_reward_scheduler",
+            "operation_resource": "epoch_reward_scheduler",
+            "resource": "dao:token_bridge:epoch_reward_scheduler",
+            "node_id": node_id,
+            "spiffe_id": identity.get("spiffe_id"),
+            "did": identity.get("did"),
+            "wallet_address": identity.get("wallet_address"),
+            "identity": identity,
+            "success": success,
+            "reason": reason,
+            "stats_summary": {
+                "can_distribute": stats.get("can_distribute"),
+                "current_epoch": stats.get("current_epoch"),
+                "total_staked": stats.get("total_staked"),
+                "chain_id": stats.get("chain_id", getattr(bridge_config, "chain_id", None)),
+                "contract_address_hash": self._hash_value(contract_address),
+            },
+            "uptime_summary": uptime_summary,
+            "submitted_transaction": bool(transaction_hash),
+            "transaction_hash": transaction_hash,
+            "transaction_hash_hash": self._hash_value(transaction_hash),
+            "downstream_evidence": chain_write_evidence,
+            "chain_write_evidence": chain_write_evidence,
+            "payloads_redacted": True,
+            "claim_boundary": (
+                "Epoch reward scheduler event only. It records local scheduler "
+                "decisions and downstream TokenBridge event IDs; it does not "
+                "prove final external reward settlement by itself."
+            ),
+        }
+        try:
+            event = event_bus.publish(
+                EventType.PIPELINE_STAGE_END if success else EventType.TASK_FAILED,
+                source_agent,
+                payload,
+                priority=6,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish epoch reward scheduler event: %s", exc)
+            return None
+
     async def start(self):
         """Start automatic reward distribution."""
         self._running = True
@@ -1588,10 +2243,22 @@ class EpochRewardScheduler:
                 # Check if epoch ready
                 stats = self.bridge.get_chain_stats()
                 if stats.get("can_distribute"):
-                    await self._distribute_epoch()
+                    await self._distribute_epoch(stats=stats)
+                else:
+                    self._publish_scheduler_event(
+                        stage="epoch_not_ready",
+                        success=True,
+                        reason="chain_stats_not_ready",
+                        stats=stats,
+                    )
 
             except Exception as e:
                 logger.error(f"Scheduler error: {e}")
+                self._publish_scheduler_event(
+                    stage="scheduler_error",
+                    success=False,
+                    reason=str(e),
+                )
 
             # Check every 5 minutes
             await asyncio.sleep(300)
@@ -1600,13 +2267,19 @@ class EpochRewardScheduler:
         """Stop scheduler."""
         self._running = False
 
-    async def _distribute_epoch(self):
+    async def _distribute_epoch(self, stats: Optional[Dict[str, Any]] = None):
         """Distribute rewards for current epoch."""
         # Get uptimes from provider
         uptimes = self.uptime_provider()
 
         if not uptimes:
             logger.warning("No uptime data, skipping epoch")
+            self._publish_scheduler_event(
+                stage="uptime_missing",
+                success=False,
+                reason="no uptime data",
+                stats=stats,
+            )
             return
 
         # Convert to int percentages
@@ -1619,5 +2292,20 @@ class EpochRewardScheduler:
 
         if tx_hash:
             logger.info(f"Epoch rewards distributed: {tx_hash}")
+            self._publish_scheduler_event(
+                stage="reward_distribution_submitted",
+                success=True,
+                reason="submitted",
+                stats=stats,
+                uptimes=uptimes,
+                transaction_hash=tx_hash,
+            )
         else:
             logger.error("Failed to distribute epoch rewards")
+            self._publish_scheduler_event(
+                stage="reward_distribution_failed",
+                success=False,
+                reason="push_rewards_to_chain returned no transaction hash",
+                stats=stats,
+                uptimes=uptimes,
+            )

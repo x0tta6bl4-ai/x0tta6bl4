@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
+from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
 from src.core.reliability_policy import mark_degraded_dependency
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,9 @@ def _vision_readiness_status() -> Dict[str, Any]:
             if _vision_component("_correction_engine") is not None
             else None,
         },
+        "cross_plane_claim_gate": readiness_cross_plane_claim_gate_metadata(
+            surface="vision_readiness"
+        ),
         "claim_boundary": (
             "Readiness verifies the import-time vision component surfaces used by "
             "the upload routes. It does not process an image, prove OCR is installed, "

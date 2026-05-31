@@ -21,6 +21,8 @@ def test_analytics_readiness_ready_when_db_service_and_redis_are_available(monke
     assert payload["analytics_db_ready"] is True
     assert payload["analytics_service_ready"] is True
     assert payload["realtime_telemetry_ready"] is True
+    assert payload["cross_plane_claim_gate"]["allowed"] is False
+    assert "dataplane_delivery" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
     assert payload["degraded_dependencies"] == []
 
 

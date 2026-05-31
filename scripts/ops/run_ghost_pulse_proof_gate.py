@@ -55,6 +55,9 @@ PRODUCTION_READINESS_REFERENCE_CLAIMS = (
     "whitelist_lab",
     "security_review",
 )
+CURRENT_RUNTIME_CLAIM_ID = "current_runtime_attached"
+CURRENT_RUNTIME_TITLE = "Current runtime x0tta6bl4_pulse XDP attach"
+RUNTIME_INTERFACE_ENV = "GHOST_PULSE_RUNTIME_INTERFACE"
 
 EXTERNAL_REQUIREMENTS: tuple[dict[str, Any], ...] = (
     {
@@ -1193,6 +1196,60 @@ def validate_external_evidence(root: Path, requirement: dict[str, Any]) -> dict[
 SuiteFailureProvider = Callable[[Path, Path], list[str]]
 ArtifactChainProvider = Callable[[Path, Path], dict[str, Any]]
 ReplacementCandidateProvider = Callable[[Path, Path], dict[str, Any]]
+CurrentRuntimeProvider = Callable[[Path, str | None, bool, float], dict[str, Any]]
+
+
+def current_runtime_invalid_row(error: str, interface: str | None = None) -> dict[str, Any]:
+    evidence_suffix = interface.strip() if isinstance(interface, str) and interface.strip() else "unconfigured"
+    return {
+        "claim_id": CURRENT_RUNTIME_CLAIM_ID,
+        "title": CURRENT_RUNTIME_TITLE,
+        "status": "INVALID",
+        "evidence": f"READ_ONLY_KERNEL_OBSERVATION:{evidence_suffix}",
+        "errors": [error],
+        "sha256": None,
+    }
+
+
+def default_current_runtime_provider(
+    root: Path,
+    interface: str | None,
+    bpftool_sudo: bool,
+    counter_wait_seconds: float,
+) -> dict[str, Any]:
+    iface = (interface or "").strip()
+    if not iface:
+        return current_runtime_invalid_row(
+            f"current runtime interface not configured; set {RUNTIME_INTERFACE_ENV} or pass --runtime-interface",
+            interface,
+        )
+    try:
+        collector = load_module(
+            "collect_ghost_pulse_kernel_attach_evidence_for_proof_gate",
+            root / "scripts" / "ops" / "collect_ghost_pulse_kernel_attach_evidence.py",
+        )
+        runtime_report = collector.build_report(
+            root=root,
+            iface=iface,
+            counter_wait_seconds=counter_wait_seconds,
+            bpftool_sudo=bpftool_sudo,
+        )
+    except Exception as exc:
+        return current_runtime_invalid_row(f"current runtime observation failed: {exc}", iface)
+    diagnostics = runtime_report.get("collection_diagnostics", {})
+    blockers = diagnostics.get("blockers", []) if isinstance(diagnostics, dict) else []
+    errors = list(runtime_report.get("failures") or [])
+    if blockers:
+        errors.extend(f"runtime diagnostic blocker: {blocker}" for blocker in blockers)
+    verified = runtime_report.get("status") == "VERIFIED" and not errors
+    return {
+        "claim_id": CURRENT_RUNTIME_CLAIM_ID,
+        "title": CURRENT_RUNTIME_TITLE,
+        "status": "VERIFIED" if verified else "INVALID",
+        "evidence": f"READ_ONLY_KERNEL_OBSERVATION:{iface}",
+        "errors": [] if verified else errors or ["current runtime observation is not VERIFIED"],
+        "sha256": None,
+    }
 
 
 def local_rows(
@@ -1247,9 +1304,13 @@ def build_report(
     root: Path = ROOT,
     suite_path: Path | None = None,
     replacement_candidates_path: Path | None = None,
+    runtime_interface: str | None = None,
+    bpftool_sudo: bool = False,
+    runtime_counter_wait_seconds: float = 0.2,
     suite_failure_provider: SuiteFailureProvider = default_suite_failures,
     artifact_chain_provider: ArtifactChainProvider = default_artifact_chain_report,
     replacement_candidate_provider: ReplacementCandidateProvider = default_replacement_candidate_preflight,
+    current_runtime_provider: CurrentRuntimeProvider = default_current_runtime_provider,
 ) -> dict[str, Any]:
     suite_path = suite_path or DEFAULT_SUITE
     suite_path = suite_path if suite_path.is_absolute() else root / suite_path
@@ -1272,6 +1333,8 @@ def build_report(
 
     rows = local_rows(root, suite_path, suite, suite_failures, artifact_chain)
     rows.extend(validate_external_evidence(root, requirement) for requirement in EXTERNAL_REQUIREMENTS)
+    runtime_interface = runtime_interface or os.getenv(RUNTIME_INTERFACE_ENV)
+    rows.append(current_runtime_provider(root, runtime_interface, bpftool_sudo, runtime_counter_wait_seconds))
     replacement_candidates = replacement_candidate_provider(root, replacement_candidates_path)
 
     for failure in suite_failures:
@@ -1290,10 +1353,12 @@ def build_report(
     external_ready = all(status_by_claim[item["claim_id"]] == "VERIFIED" for item in EXTERNAL_REQUIREMENTS)
     all_verified = all(row["status"] == "VERIFIED" for row in rows)
     replacement_candidates_ok = replacement_candidates.get("status") == "PASS"
+    current_runtime_verified = status_by_claim.get(CURRENT_RUNTIME_CLAIM_ID) == "VERIFIED"
     production_ready = (
         all_verified
         and external_ready
         and replacement_candidates_ok
+        and current_runtime_verified
         and status_by_claim.get("production_readiness") == "VERIFIED"
     )
     claim_boundary = {
@@ -1304,6 +1369,7 @@ def build_report(
         ),
         "whitelist_verified": status_by_claim.get("whitelist_lab") == "VERIFIED",
         "kernel_attach_verified": status_by_claim.get("kernel_attach") == "VERIFIED",
+        "current_runtime_attached": current_runtime_verified,
         "production_ready": production_ready,
     }
     decision = DECISION_PROVEN if production_ready else DECISION_INCOMPLETE
@@ -1324,6 +1390,8 @@ def build_report(
             "Only the local timing replay, false-claim hygiene, and artifact chain can be proven "
             "from current repo-local evidence. DPI, whitelist, kernel attach, and production "
             "claims require the external evidence files listed in required_external_evidence. "
+            "Historical kernel_attach evidence does not prove that the current runtime is attached; "
+            "current_runtime_attached is verified only by a fresh read-only kernel observation. "
             "Replacement-candidate preflight is supporting evidence only and never promotes claims."
         ),
     }
@@ -1420,6 +1488,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--replacement-candidates", type=Path, default=DEFAULT_REPLACEMENT_CANDIDATES)
     parser.add_argument("--output-json", type=Path, default=DEFAULT_OUTPUT_JSON)
     parser.add_argument("--output-md", type=Path, default=DEFAULT_OUTPUT_MD)
+    parser.add_argument("--runtime-interface", default=os.getenv(RUNTIME_INTERFACE_ENV))
+    parser.add_argument("--bpftool-sudo", action="store_true")
+    parser.add_argument("--runtime-counter-wait-seconds", type=float, default=0.2)
     parser.add_argument("--json", action="store_true", help="Print the full JSON report.")
     parser.add_argument("--require-all-proven", action="store_true")
     args = parser.parse_args(argv)
@@ -1435,6 +1506,9 @@ def main(argv: list[str] | None = None) -> int:
         root=root,
         suite_path=suite_path,
         replacement_candidates_path=replacement_candidates_path,
+        runtime_interface=args.runtime_interface,
+        bpftool_sudo=args.bpftool_sudo,
+        runtime_counter_wait_seconds=args.runtime_counter_wait_seconds,
     )
     output_json = args.output_json if args.output_json.is_absolute() else root / args.output_json
     output_md = args.output_md if args.output_md.is_absolute() else root / args.output_md

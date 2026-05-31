@@ -30,8 +30,42 @@ logger = logging.getLogger(__name__)
 _SERVICE_AGENT = "pqc-zero-trust-healer"
 PQC_CLAIM_BOUNDARY = (
     "PQC recovery executor event only. It records local policy and healing action "
-    "state; it is not external production evidence or a settlement attestation."
+    "state; it is not live PQC trust finality, dataplane delivery, external "
+    "production evidence, or a settlement attestation."
 )
+PQC_RECOVERY_CLAIM_GATE_SCHEMA = "x0tta6bl4.self_healing.pqc_recovery_claim_gate.v1"
+
+
+def _pqc_recovery_claim_gate(result: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    local_action_recorded = result is not None
+    local_action_succeeded = bool(result and result.get("success") is True)
+    return {
+        "schema": PQC_RECOVERY_CLAIM_GATE_SCHEMA,
+        "local_pqc_recovery_action_recorded": local_action_recorded,
+        "local_pqc_recovery_action_succeeded": local_action_succeeded,
+        "local_policy_decision_recorded": True,
+        "live_pqc_trust_finality_claim_allowed": False,
+        "live_spiffe_svid_claim_allowed": False,
+        "did_ownership_claim_allowed": False,
+        "wallet_control_claim_allowed": False,
+        "event_producer_identity_authenticity_claim_allowed": False,
+        "chain_identity_finality_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "claim_allowed": {
+            "local_pqc_recovery_lifecycle": local_action_recorded,
+            "live_pqc_trust_finality": False,
+            "live_spiffe_svid": False,
+            "dataplane_delivery": False,
+            "traffic_delivery": False,
+            "external_settlement_finality": False,
+            "production_readiness": False,
+        },
+        "claim_boundary": PQC_CLAIM_BOUNDARY,
+        "payloads_redacted": True,
+    }
 
 
 @dataclass
@@ -633,6 +667,12 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
             "matched_rules": self._policy_rules(policy_decision)
             if policy_decision is not None
             else [],
+            "claim_gate": _pqc_recovery_claim_gate(result),
+            "live_pqc_trust_finality_claim_allowed": False,
+            "live_spiffe_svid_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "traffic_delivery_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
             "claim_boundary": PQC_CLAIM_BOUNDARY,
         }
         try:

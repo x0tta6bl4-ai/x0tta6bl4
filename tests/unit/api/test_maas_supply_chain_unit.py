@@ -95,6 +95,8 @@ class TestSupplyChainReadiness:
         assert payload["sbom_registry_ready"] is True
         assert payload["audit_log_ready"] is True
         assert payload["ebpf_filter_adapter_ready"] is True
+        assert payload["cross_plane_claim_gate"]["allowed"] is False
+        assert "settlement_finality" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
         assert payload["degraded_dependencies"] == []
 
     def test_degraded_when_db_registry_audit_and_adapter_are_missing(self, monkeypatch):

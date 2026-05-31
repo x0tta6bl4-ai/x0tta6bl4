@@ -1,6 +1,6 @@
 # x0tta6bl4_pulse External Evidence Gap Audit
 
-Timestamp: `2026-05-22T20:34:33.769062+00:00`
+Timestamp: `2026-05-31T07:17:14.012824+00:00`
 
 Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 
@@ -21,14 +21,13 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 | baseline_timing_comparison | `VERIFIED` | `False` | `docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json` |
 | dpi_lab | `INVALID` | `True` | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json` |
 | whitelist_lab | `INVALID` | `True` | `docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json` |
-| security_review | `INVALID` | `True` | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json` |
+| security_review | `VERIFIED` | `False` | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json` |
 | production_readiness | `INVALID` | `True` | `docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json` |
 
 ## Next Actions
 
 - dpi_lab: Replace the gap record with an authorized DPI-lab evidence file containing baseline detect-or-block output, pulse output, lab identity, artifact hashes, and a verified conclusion.
 - whitelist_lab: Replace the gap record with authorized provider or lab evidence for provider profile, third-party baseline capture, and verified whitelist-behavior result.
-- security_review: Replace the gap record with a completed security review covering pulse transport and showing zero open critical and high findings.
 - production_readiness: Replace the gap record only after all prior proof rows are referenced by an operator approval record with verified rollback and monitoring plans.
 
 ## Blocking Audit
@@ -38,7 +37,7 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 - baseline_timing_comparison: `CLEAR`; categories: `none`
 - dpi_lab: `BLOCKED`; categories: `artifact_roles, measurements, missing_inputs, proof_errors, record`
 - whitelist_lab: `BLOCKED`; categories: `artifact_roles, measurements, missing_inputs, proof_errors, record`
-- security_review: `BLOCKED`; categories: `artifact_roles, measurements, missing_inputs, proof_errors, record`
+- security_review: `CLEAR`; categories: `none`
 - production_readiness: `BLOCKED`; categories: `artifact_roles, measurements, missing_inputs, proof_errors, record, references`
 
 ## Evidence Records
@@ -48,7 +47,7 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 - baseline_timing_comparison: `PASS`; status: `VERIFIED`; mode: `LOCAL_LOOPBACK_BASELINE_VS_PULSE`; missing inputs present: `False`; failures: `none`
 - dpi_lab: `FAIL`; status: `INCOMPLETE`; mode: `EXTERNAL_EVIDENCE_GAP_RECORD`; missing inputs present: `True`; failures: `status must be VERIFIED; mode must not be EXTERNAL_EVIDENCE_GAP_RECORD; missing_inputs must be absent or empty; failures must be absent or empty; claim_boundary.claim_verified must not be false`
 - whitelist_lab: `FAIL`; status: `INCOMPLETE`; mode: `EXTERNAL_EVIDENCE_GAP_RECORD`; missing inputs present: `True`; failures: `status must be VERIFIED; mode must not be EXTERNAL_EVIDENCE_GAP_RECORD; missing_inputs must be absent or empty; failures must be absent or empty; claim_boundary.claim_verified must not be false`
-- security_review: `FAIL`; status: `INCOMPLETE`; mode: `EXTERNAL_EVIDENCE_GAP_RECORD`; missing inputs present: `True`; failures: `status must be VERIFIED; mode must not be EXTERNAL_EVIDENCE_GAP_RECORD; missing_inputs must be absent or empty; failures must be absent or empty; claim_boundary.claim_verified must not be false`
+- security_review: `PASS`; status: `VERIFIED`; mode: `None`; missing inputs present: `False`; failures: `none`
 - production_readiness: `FAIL`; status: `INCOMPLETE`; mode: `EXTERNAL_EVIDENCE_GAP_RECORD`; missing inputs present: `True`; failures: `status must be VERIFIED; mode must not be EXTERNAL_EVIDENCE_GAP_RECORD; missing_inputs must be absent or empty; failures must be absent or empty; claim_boundary.claim_verified must not be false`
 
 ## Commands
@@ -78,7 +77,7 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 - baseline_timing_comparison: `PASS`; observed roles: `baseline_events, pulse_events, timing_comparison`; missing roles: `none`; duplicate roles: `none`; required roles without path: `none`; reused required paths: `none`; path scope errors: `none`
 - dpi_lab: `FAIL`; observed roles: `evidence_gap_record`; missing roles: `lab_scope, baseline_result, pulse_result, lab_conclusion`; duplicate roles: `none`; required roles without path: `none`; reused required paths: `none`; path scope errors: `none`
 - whitelist_lab: `FAIL`; observed roles: `evidence_gap_record`; missing roles: `provider_or_lab_authorization, provider_profile, third_party_baseline_capture, whitelist_conclusion`; duplicate roles: `none`; required roles without path: `none`; reused required paths: `none`; path scope errors: `none`
-- security_review: `FAIL`; observed roles: `evidence_gap_record`; missing roles: `reviewer_identity, review_scope, findings_report`; duplicate roles: `none`; required roles without path: `none`; reused required paths: `none`; path scope errors: `none`
+- security_review: `PASS`; observed roles: `reviewer_identity, review_scope, findings_report, bandit_high_severity_summary, bandit_raw_report`; missing roles: `none`; duplicate roles: `none`; required roles without path: `none`; reused required paths: `none`; path scope errors: `none`
 - production_readiness: `FAIL`; observed roles: `evidence_gap_record`; missing roles: `operator_approval, rollback_plan, monitoring_plan, prior_claim_references`; duplicate roles: `none`; required roles without path: `none`; reused required paths: `none`; path scope errors: `none`
 
 ## Gap Record Roles
@@ -88,7 +87,7 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 - baseline_timing_comparison: `NOT_APPLICABLE`; expected gap role: `evidence_gap_record`; observed gap role: `None`; declared proof roles: `baseline_events, pulse_events, timing_comparison`; failures: `none`
 - dpi_lab: `PASS`; expected gap role: `evidence_gap_record`; observed gap role: `evidence_gap_record`; declared proof roles: `none`; failures: `none`
 - whitelist_lab: `PASS`; expected gap role: `evidence_gap_record`; observed gap role: `evidence_gap_record`; declared proof roles: `none`; failures: `none`
-- security_review: `PASS`; expected gap role: `evidence_gap_record`; observed gap role: `evidence_gap_record`; declared proof roles: `none`; failures: `none`
+- security_review: `NOT_APPLICABLE`; expected gap role: `evidence_gap_record`; observed gap role: `None`; declared proof roles: `findings_report, review_scope, reviewer_identity`; failures: `none`
 - production_readiness: `PASS`; expected gap role: `evidence_gap_record`; observed gap role: `evidence_gap_record`; declared proof roles: `none`; failures: `none`
 
 ## References
@@ -99,7 +98,7 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 - dpi_lab: no prior-claim references required
 - whitelist_lab: no prior-claim references required
 - security_review: no prior-claim references required
-- production_readiness: `FAIL`; missing references: `kernel_attach, packet_capture, baseline_timing_comparison, dpi_lab, whitelist_lab, security_review`; unverified referenced claims: `dpi_lab, whitelist_lab, security_review`
+- production_readiness: `FAIL`; missing references: `kernel_attach, packet_capture, baseline_timing_comparison, dpi_lab, whitelist_lab, security_review`; unverified referenced claims: `dpi_lab, whitelist_lab`
 
 ## Replacement Contracts
 
@@ -116,7 +115,6 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 - status: `REPLACEMENT_ACTION_REQUIRED`
 - dpi_lab: candidate `docs/verification/incoming/dpi_lab.json`; example `docs/verification/incoming/examples/dpi_lab.example.json`; read-only import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim dpi_lab --candidate docs/verification/incoming/dpi_lab.json --require-ready --json`; write import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim dpi_lab --candidate docs/verification/incoming/dpi_lab.json --write --json`
 - whitelist_lab: candidate `docs/verification/incoming/whitelist_lab.json`; example `docs/verification/incoming/examples/whitelist_lab.example.json`; read-only import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim whitelist_lab --candidate docs/verification/incoming/whitelist_lab.json --require-ready --json`; write import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim whitelist_lab --candidate docs/verification/incoming/whitelist_lab.json --write --json`
-- security_review: candidate `docs/verification/incoming/security_review.json`; example `docs/verification/incoming/examples/security_review.example.json`; read-only import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim security_review --candidate docs/verification/incoming/security_review.json --require-ready --json`; write import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim security_review --candidate docs/verification/incoming/security_review.json --write --json`
 - production_readiness: candidate `docs/verification/incoming/production_readiness.json`; example `docs/verification/incoming/examples/production_readiness.example.json`; read-only import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim production_readiness --candidate docs/verification/incoming/production_readiness.json --require-ready --json`; write import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim production_readiness --candidate docs/verification/incoming/production_readiness.json --write --json`
 
 ## Failures
@@ -149,19 +147,6 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 - whitelist_lab: measurements.third_party_baseline_captured must be True
 - whitelist_lab: measurements.whitelist_behavior_verified must be True
 - whitelist_lab: artifact role missing for content check: whitelist_conclusion
-- security_review: status must be VERIFIED
-- security_review: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD
-- security_review: missing_inputs must be absent or empty for VERIFIED evidence
-- security_review: failures must be absent or empty for VERIFIED evidence
-- security_review: claim_boundary.claim_verified must not be false for VERIFIED evidence
-- security_review: required artifact role missing: reviewer_identity
-- security_review: required artifact role missing: review_scope
-- security_review: required artifact role missing: findings_report
-- security_review: measurements.reviewer must be nonempty
-- security_review: measurements.scope_includes_pulse_transport must be True
-- security_review: measurements.open_critical_findings must be 0
-- security_review: measurements.open_high_findings must be 0
-- security_review: artifact role missing for content check: findings_report
 - production_readiness: status must be VERIFIED
 - production_readiness: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD
 - production_readiness: missing_inputs must be absent or empty for VERIFIED evidence

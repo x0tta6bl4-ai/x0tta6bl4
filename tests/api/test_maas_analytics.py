@@ -22,6 +22,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, get_db, User, MeshInstance, MeshNode, MarketplaceListing
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_analytics_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -71,8 +72,8 @@ def analytics_data(client):
     op_token = r.json()["access_token"]
 
     db = TestingSessionLocal()
-    user = db.query(User).filter(User.api_key == user_token).first()
-    operator = db.query(User).filter(User.api_key == op_token).first()
+    user = find_user_by_api_key(db, user_token)
+    operator = find_user_by_api_key(db, op_token)
     user_id = user.id
     op_id = operator.id
 
@@ -249,7 +250,7 @@ class TestAnalyticsSummary:
         other_token = r2.json()["access_token"]
         # elevate to operator so RBAC passes
         db = TestingSessionLocal()
-        other = db.query(User).filter(User.api_key == other_token).first()
+        other = find_user_by_api_key(db, other_token)
         other.role = "operator"
         db.commit()
         db.close()

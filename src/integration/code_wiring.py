@@ -59,8 +59,8 @@ class _RewardManager:
     def __post_init__(self) -> None:
         self.calls: List[Dict[str, Any]] = []
 
-    def reward_relay(self, node_address: str, packets: int) -> Any:
-        self.calls.append({"node_address": node_address, "packets": packets})
+    def reward_relay(self, node_address: str, packets: int, **kwargs: Any) -> Any:
+        self.calls.append({"node_address": node_address, "packets": packets, "kwargs": kwargs})
         return self.result
 
 
@@ -79,9 +79,9 @@ class _TokenRewardsAdapter:
         self.rewards.did = identity.did
         self.rewards.wallet_address = identity.wallet_address
 
-    def reward_relay(self, node_address: str, packets: int) -> Any:
-        self.calls.append({"node_address": node_address, "packets": packets})
-        return self.rewards.reward_relay(node_address, packets)
+    def reward_relay(self, node_address: str, packets: int, **kwargs: Any) -> Any:
+        self.calls.append({"node_address": node_address, "packets": packets, "kwargs": kwargs})
+        return self.rewards.reward_relay(node_address, packets, **kwargs)
 
 
 def _utc_now() -> str:
@@ -181,6 +181,72 @@ def _trace_case(
     fingerprints = _identity_fingerprints(events)
     canonical_identity_consistent = bool(fingerprints) and len(set(fingerprints)) == 1
     event_ids_match = outcome.event_ids == [event.event_id for event in spine_events]
+    outcome_claim_gate_present = bool(outcome.claim_gate) and bool(outcome.cross_plane_claim_gate)
+    event_claim_gates_present = all(
+        bool(event.data.get("claim_gate")) and bool(event.data.get("cross_plane_claim_gate"))
+        for event in spine_events
+    )
+    actuator_contexts = [
+        call.get("context", {})
+        for call in executor.calls
+        if isinstance(call.get("context"), dict)
+    ]
+    actuator_context_claim_gate_present = (
+        not actuator_contexts
+        if expect_executor_calls == 0
+        else all(
+            bool(context.get("claim_gate")) and bool(context.get("cross_plane_claim_gate"))
+            for context in actuator_contexts
+        )
+    )
+    actuator_context_upstream_events_present = (
+        not actuator_contexts
+        if expect_executor_calls == 0
+        else all(
+            bool(context.get("upstream_event_ids"))
+            and context.get("upstream_source_agents") == ["code-wiring-audit"]
+            for context in actuator_contexts
+        )
+    )
+    reward_kwargs = [
+        call.get("kwargs", {})
+        for call in reward_manager.calls
+        if isinstance(call.get("kwargs"), dict)
+    ]
+    reward_context_claim_gate_present = (
+        not reward_kwargs
+        if expect_reward_calls == 0
+        else all(
+            bool(kwargs.get("upstream_claim_gate"))
+            and bool(kwargs.get("upstream_cross_plane_claim_gate"))
+            for kwargs in reward_kwargs
+        )
+    )
+    reward_context_upstream_events_present = (
+        not reward_kwargs
+        if expect_reward_calls == 0
+        else all(
+            bool(kwargs.get("upstream_event_ids"))
+            and kwargs.get("upstream_source_agents") == ["code-wiring-audit"]
+            for kwargs in reward_kwargs
+        )
+    )
+    strong_claims_blocked = (
+        outcome.claim_gate.get("production_readiness_claim_allowed") is False
+        and outcome.claim_gate.get("dataplane_delivery_claim_allowed") is False
+        and outcome.claim_gate.get("traffic_delivery_claim_allowed") is False
+        and outcome.claim_gate.get("customer_traffic_claim_allowed") is False
+        and outcome.claim_gate.get("external_dpi_bypass_claim_allowed") is False
+        and outcome.claim_gate.get("external_settlement_finality_claim_allowed") is False
+        and outcome.cross_plane_claim_gate.get("allowed") is False
+        and all(
+            event.data["claim_gate"].get("external_settlement_finality_claim_allowed") is False
+            and event.data["claim_gate"].get("dataplane_delivery_claim_allowed") is False
+            and event.data["cross_plane_claim_gate"].get("allowed") is False
+            for event in spine_events
+            if "claim_gate" in event.data and "cross_plane_claim_gate" in event.data
+        )
+    )
     passed = (
         outcome.status == expected_status
         and event_types == expected_event_values
@@ -188,6 +254,13 @@ def _trace_case(
         and len(executor.calls) == expect_executor_calls
         and len(reward_manager.calls) == expect_reward_calls
         and canonical_identity_consistent
+        and outcome_claim_gate_present
+        and event_claim_gates_present
+        and actuator_context_claim_gate_present
+        and actuator_context_upstream_events_present
+        and reward_context_claim_gate_present
+        and reward_context_upstream_events_present
+        and strong_claims_blocked
     )
     return {
         "name": name,
@@ -211,6 +284,13 @@ def _trace_case(
         "policy_allowed": outcome.policy_allowed,
         "allowed": outcome.allowed,
         "reason": outcome.reason,
+        "outcome_claim_gate_present": outcome_claim_gate_present,
+        "event_claim_gates_present": event_claim_gates_present,
+        "actuator_context_claim_gate_present": actuator_context_claim_gate_present,
+        "actuator_context_upstream_events_present": actuator_context_upstream_events_present,
+        "reward_context_claim_gate_present": reward_context_claim_gate_present,
+        "reward_context_upstream_events_present": reward_context_upstream_events_present,
+        "strong_claims_blocked": strong_claims_blocked,
     }
 
 
@@ -378,6 +458,22 @@ def build_report(root: Path) -> Dict[str, Any]:
             and token_rewards_local_only["allowed"] is False
             and token_rewards_local_only["settlement_recorded"] is False,
             "token_rewards_event_bus_recorded": token_rewards_local_only["reward_event_count"] == 1,
+            "spine_claim_gates_preserved": all(
+                trace["outcome_claim_gate_present"]
+                and trace["event_claim_gates_present"]
+                and trace["strong_claims_blocked"]
+                for trace in traces
+            ),
+            "actuator_context_claim_gates_preserved": all(
+                trace["actuator_context_claim_gate_present"]
+                and trace["actuator_context_upstream_events_present"]
+                for trace in traces
+            ),
+            "reward_context_claim_gates_preserved": all(
+                trace["reward_context_claim_gate_present"]
+                and trace["reward_context_upstream_events_present"]
+                for trace in traces
+            ),
         },
         "trace_cases": traces,
         "known_non_completion_reasons": [

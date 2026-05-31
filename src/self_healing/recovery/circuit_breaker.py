@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -29,6 +30,14 @@ CLAIM_BOUNDARY = (
     "and execution decisions and does not prove production rollout or live "
     "operator-approved remediation by itself."
 )
+
+
+def _now() -> datetime:
+    compat = sys.modules.get("src.self_healing.recovery_actions")
+    compat_datetime = getattr(compat, "datetime", None)
+    if compat_datetime is not None:
+        return compat_datetime.now()
+    return datetime.now()
 
 
 
@@ -69,7 +78,7 @@ class CircuitBreaker:
         if self.state.state == "open":
             if (
                 self.state.opened_at
-                and (datetime.now() - self.state.opened_at) < self.timeout
+                and (_now() - self.state.opened_at) < self.timeout
             ):
                 raise Exception("Circuit breaker is OPEN - too many failures")
             else:
@@ -101,11 +110,11 @@ class CircuitBreaker:
     def _on_failure(self):
         """Handle failed execution"""
         self.state.failures += 1
-        self.state.last_failure_time = datetime.now()
+        self.state.last_failure_time = _now()
 
         if self.state.failures >= self.failure_threshold:
             self.state.state = "open"
-            self.state.opened_at = datetime.now()
+            self.state.opened_at = _now()
             logger.warning(
                 f"Circuit breaker OPENED after {self.state.failures} failures"
             )

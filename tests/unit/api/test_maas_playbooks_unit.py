@@ -108,6 +108,8 @@ class TestPlaybookReadiness:
         assert payload["token_signer_ready"] is True
         assert payload["playbook_db_ready"] is True
         assert payload["audit_log_ready"] is True
+        assert payload["cross_plane_claim_gate"]["allowed"] is False
+        assert "dataplane_delivery" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
         assert payload["degraded_dependencies"] == []
 
     def test_degraded_when_queue_signer_db_and_audit_are_missing(self, monkeypatch):

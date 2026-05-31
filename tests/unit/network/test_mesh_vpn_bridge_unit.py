@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 import src.network.mesh_vpn_bridge as bridge_mod
+from src.coordination.events import EventBus, EventType
 
 
 class _FakeRewards:
@@ -15,10 +16,12 @@ class _FakeRewards:
         self.balance = Decimal("1000.0")
         self.daily_earnings = Decimal("0.0")
         self.calls = []
+        self.evidence_calls = []
         self.instances.append(self)
 
-    def reward_relay(self, node_id, packets):
+    def reward_relay(self, node_id, packets, **kwargs):
         self.calls.append((node_id, packets))
+        self.evidence_calls.append(dict(kwargs))
 
 
 class _FakeWriter:
@@ -163,6 +166,78 @@ async def test_relay_stream_rewards_configured_wallet_address(monkeypatch):
     await b._relay_stream(reader, writer, direction="upstream", peer_id=None)
 
     assert b.rewards.calls == [("0xffffffffffffffffffffffffffffffffffffffff", 100)]
+
+
+@pytest.mark.asyncio
+async def test_relay_stream_links_reward_to_redacted_relay_evidence(monkeypatch, tmp_path):
+    _patch_init_deps(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    monkeypatch.setattr(bridge_mod, "get_event_bus", lambda project_root=".": bus)
+    b = bridge_mod.MeshVPNBridge(node_id="node-vpn-1")
+    b.packets_relayed = 99
+    reader = _FakeReader([b"abc", b""])
+    writer = _FakeWriter()
+
+    await b._relay_stream(
+        reader,
+        writer,
+        direction="upstream",
+        peer_id="peer-secret-1",
+    )
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="mesh-vpn-bridge",
+    )
+    observed = [
+        event
+        for event in events
+        if event.data.get("stage") == "relay_reward_observed"
+    ][-1]
+    payload = observed.data
+    payload_text = str(payload)
+
+    assert b.rewards.calls == [("node-vpn-1", 100)]
+    assert b.rewards.evidence_calls == [
+        {
+            "upstream_event_ids": [observed.event_id],
+            "upstream_source_agents": ["mesh-vpn-bridge"],
+        }
+    ]
+    assert payload["component"] == "network.mesh_vpn_bridge"
+    assert payload["resource"] == "network:mesh_vpn_bridge:relay_packet_threshold"
+    assert payload["identity_metadata"]["values_redacted"] is True
+    assert payload["identity_metadata"]["raw_identity_values_retained"] is False
+    assert payload["identity_metadata"]["node_id_present"] is True
+    assert payload["identity_metadata"]["node_id_hash"].startswith("sha256:")
+    assert payload["direction"] == "upstream"
+    assert payload["reward_packets"] == 100
+    assert payload["packet_threshold"] == 100
+    assert payload["packets_relayed_total"] == 100
+    assert payload["bytes_relayed_total"] >= 3
+    assert payload["last_chunk_bytes"] == 3
+    assert payload["routing_mode"] == "mesh_peer"
+    assert payload["peer_id_redacted"] is True
+    assert len(payload["peer_id_hash"]) == 64
+    assert len(payload["reward_address_hash"]) == 64
+    assert payload["payloads_redacted"] is True
+    assert payload["safe_observation"] is True
+    assert payload["local_relay_counter_observed"] is True
+    assert payload["dataplane_confirmed"] is False
+    assert payload["customer_traffic_confirmed"] is False
+    assert payload["external_reachability_confirmed"] is False
+    assert payload["token_settlement_finality_confirmed"] is False
+    assert payload["production_readiness_claim_allowed"] is False
+    gate = payload["relay_reward_claim_gate"]
+    assert gate["decision"] == "local_relay_counter_only"
+    assert gate["local_relay_counter_claim_allowed"] is True
+    assert gate["reward_accounting_claim_allowed"] is False
+    assert gate["traffic_delivery_claim_allowed"] is False
+    assert gate["dataplane_delivery_claim_allowed"] is False
+    assert gate["token_settlement_finality_claim_allowed"] is False
+    assert gate["production_readiness_claim_allowed"] is False
+    assert "peer-secret-1" not in payload_text
+    assert "node-vpn-1" not in payload_text
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, get_db, User, MeshInstance, MeshNode
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_dashboard_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -55,7 +56,7 @@ def user_data(client):
     token = r.json()["access_token"]
 
     db = TestingSessionLocal()
-    user = db.query(User).filter(User.api_key == token).first()
+    user = find_user_by_api_key(db, token)
     user_id = user.id
 
     # Create a DB-backed mesh + nodes
@@ -251,7 +252,7 @@ class TestDashboardEdgeCases:
         token = r.json()["access_token"]
 
         db = TestingSessionLocal()
-        user = db.query(User).filter(User.api_key == token).first()
+        user = find_user_by_api_key(db, token)
         user_id = user.id
 
         mesh_id = f"mesh-off-{uuid.uuid4().hex[:6]}"
@@ -308,7 +309,7 @@ class TestDashboardEdgeCases:
         admin_token = r.json()["access_token"]
 
         db = TestingSessionLocal()
-        u = db.query(User).filter(User.api_key == admin_token).first()
+        u = find_user_by_api_key(db, admin_token)
         u.role = "admin"
         db.commit()
         db.close()

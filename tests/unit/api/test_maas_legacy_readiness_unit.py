@@ -2,6 +2,9 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+from fastapi import HTTPException
+
 import src.api.maas_legacy as legacy_mod
 
 
@@ -35,6 +38,8 @@ def test_legacy_readiness_ready_when_local_surfaces_are_available(monkeypatch):
     assert payload["legacy_security_ready"] is True
     assert payload["legacy_models_ready"] is True
     assert payload["pqc_identity_available"] is True
+    assert payload["cross_plane_claim_gate"]["allowed"] is False
+    assert "customer_traffic" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
     assert payload["degraded_dependencies"] == []
 
 
@@ -70,3 +75,15 @@ def test_legacy_readiness_endpoint_marks_degraded_dependencies(monkeypatch):
 
     assert payload["status"] == "degraded"
     assert request.state.degraded_dependencies == {"database"}
+
+
+def test_validate_customer_rejects_plaintext_api_key_without_db_lookup(monkeypatch):
+    monkeypatch.setattr(legacy_mod, "find_user_by_api_key", lambda db, api_key: None)
+    db = MagicMock()
+    db.query.side_effect = AssertionError("plaintext api_key lookup must not run")
+
+    with pytest.raises(HTTPException) as exc:
+        legacy_mod.validate_customer("legacy-plaintext-key", db)
+
+    assert exc.value.status_code == 401
+    db.query.assert_not_called()

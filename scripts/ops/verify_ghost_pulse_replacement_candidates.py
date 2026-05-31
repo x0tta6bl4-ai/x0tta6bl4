@@ -146,6 +146,7 @@ def load_importer(root: Path):
 def stable_import_report_summary(import_report: dict[str, Any]) -> dict[str, Any]:
     destination_before = import_report.get("destination_validation_before")
     validation = import_report.get("validation")
+    external_dpi = import_report.get("external_dpi_proxy_validation")
     return {
         "schema": import_report.get("schema"),
         "decision": import_report.get("decision"),
@@ -178,6 +179,16 @@ def stable_import_report_summary(import_report: dict[str, Any]) -> dict[str, Any
                 "sha256": validation.get("sha256"),
             }
             if isinstance(validation, dict)
+            else None
+        ),
+        "external_dpi_proxy_validation": (
+            {
+                "status": external_dpi.get("status"),
+                "decision": external_dpi.get("decision"),
+                "failures": external_dpi.get("failures", []),
+                "summary": external_dpi.get("summary", {}),
+            }
+            if isinstance(external_dpi, dict)
             else None
         ),
         "claim_boundary": import_report.get("claim_boundary"),

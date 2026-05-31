@@ -32,6 +32,11 @@ MARKER_REQUIREMENTS = {
     ),
     "safe_actuator": ("SafeActuator",),
     "async_safe_actuator": ("AsyncSafeActuator",),
+    "bounded_output_metadata": (
+        "_bounded_output_metadata",
+        "stdout_sha256",
+        "stderr_sha256",
+    ),
     "marketplace_event_helper": ("publish_marketplace_escrow_event",),
     "reward_event_helper": ("publish_reward_settlement_event",),
 }

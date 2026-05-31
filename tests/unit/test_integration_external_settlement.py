@@ -159,6 +159,9 @@ def test_live_rpc_gate_stays_blocked_without_rpc_url(tmp_path):
 
     assert rpc_report["summary"]["retained_evidence_ready"] is True
     assert rpc_report["summary"]["rpc_url_available"] is False
+    assert rpc_report["rpc_endpoint"] is None
+    assert rpc_report["rpc_endpoint_present"] is False
+    assert rpc_report["rpc_endpoint_redacted"] is True
     assert rpc_report["summary"]["x0t_external_settlement_live_rpc_ready"] is False
     assert blocker["decision"] == "BLOCKED_ON_REAL_SETTLEMENT_RECEIPT"
     assert blocker["summary"]["evidence_file_valid"] is True
@@ -296,6 +299,17 @@ def test_cli_capture_writes_evidence_and_gate_reports(monkeypatch, tmp_path):
     )
     assert blocker["decision"] == "READY_TO_PROMOTE"
     assert blocker["summary"]["x0t_external_settlement_ready"] is True
+    rpc_report = json.loads(
+        (tmp_path / ".tmp/validation-shards/x0t-external-settlement-live-rpc-current.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert rpc_report["rpc_endpoint"] is None
+    assert rpc_report["rpc_endpoint_present"] is True
+    assert rpc_report["rpc_endpoint_scheme"] == "https"
+    assert rpc_report["rpc_endpoint_hash"]
+    assert rpc_report["rpc_endpoint_redacted"] is True
+    assert "https://rpc.example" not in json.dumps(rpc_report)
 
 
 def test_cli_writes_fail_closed_current_artifacts_when_receipt_is_missing(tmp_path):

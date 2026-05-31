@@ -20,6 +20,7 @@ os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 from src.core.app import app
 import src.api.maas_auth as maas_auth_mod
 from src.database import Base, get_db, User
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_auth_ep_{uuid.uuid4().hex}.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"
@@ -88,7 +89,7 @@ def admin_user(client):
     api_key = resp.json()["access_token"]
     # Promote to admin directly in DB
     db = TestingSessionLocal()
-    user = db.query(User).filter(User.api_key == api_key).first()
+    user = find_user_by_api_key(db, api_key)
     user.role = "admin"
     db.commit()
     db.close()
@@ -104,7 +105,8 @@ def target_user(client):
         json={"email": email, "password": "password123"},
     )
     assert resp.status_code == 200
-    return {"email": email}
+    api_key = resp.json()["access_token"]
+    return {"email": email, "api_key": api_key}
 
 
 class TestMaaSAuthReadiness:
@@ -131,6 +133,8 @@ class TestMaaSAuthReadiness:
         assert payload["oidc_enabled"] is False
         assert payload["oidc_redirect_ready"] is True
         assert payload["bootstrap_token_configured"] is False
+        assert payload["cross_plane_claim_gate"]["allowed"] is False
+        assert "production_readiness" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
         assert payload["degraded_dependencies"] == []
 
     def test_degraded_when_dependencies_are_missing(self, monkeypatch):
@@ -237,15 +241,16 @@ class TestSetAdmin:
 
     def test_set_admin_verifies_role_in_db(self, client, admin_user, target_user):
         """After set-admin, the user's /me endpoint shows role=admin."""
-        # Log in as target to get their API key
         db = TestingSessionLocal()
         user = db.query(User).filter(User.email == target_user["email"]).first()
-        target_api_key = user.api_key
         target_role = user.role
         db.close()
         assert target_role == "admin"
         # Verify via /me
-        resp = client.get("/api/v1/maas/auth/me", headers={"X-API-Key": target_api_key})
+        resp = client.get(
+            "/api/v1/maas/auth/me",
+            headers={"X-API-Key": target_user["api_key"]},
+        )
         assert resp.status_code == 200
         assert resp.json()["role"] == "admin"
 

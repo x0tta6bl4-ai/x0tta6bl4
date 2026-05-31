@@ -101,6 +101,9 @@ __all__ = [
     "revoke_node",
     "reissue_node_token",
     "rotate_join_token",
+    "create_policy",
+    "get_node_config",
+    "list_mapek_events",
     "get_onprem_profile",
     "list_all_nodes",
 ]

@@ -20,6 +20,62 @@ CLAIM_BOUNDARY = (
     "settlement/reward adapters; it does not prove production rollout, "
     "customer traffic, or live on-chain settlement."
 )
+SPINE_STRONG_CLAIM_IDS = (
+    "production_readiness",
+    "dataplane_delivery",
+    "traffic_delivery",
+    "customer_traffic",
+    "dpi_bypass",
+    "settlement_finality",
+)
+
+
+def _spine_claim_gate(
+    *,
+    status: str,
+    policy_allowed: bool,
+    action_executed: bool,
+    settlement_recorded: bool,
+    surface: str,
+) -> Dict[str, Any]:
+    return {
+        "schema": "x0tta6bl4.integration_spine.claim_gate.v1",
+        "surface": surface,
+        "status": status,
+        "local_spine_lifecycle_claim_allowed": True,
+        "policy_decision_claim_allowed": policy_allowed,
+        "local_actuator_execution_claim_allowed": action_executed,
+        "local_reward_adapter_record_claim_allowed": settlement_recorded,
+        "production_readiness_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "external_dpi_bypass_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "blocked_claim_ids": list(SPINE_STRONG_CLAIM_IDS),
+        "claim_boundary": (
+            "IntegrationSpine evidence is local control-spine lifecycle evidence only. "
+            "policy_allowed, action_executed, and settlement_recorded do not prove "
+            "production readiness, customer/dataplane traffic delivery, DPI bypass, "
+            "or external settlement finality."
+        ),
+    }
+
+
+def _spine_cross_plane_claim_gate(*, surface: str) -> Dict[str, Any]:
+    return {
+        "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+        "surface": surface,
+        "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
+        "allowed": False,
+        "requested_claim_ids": list(SPINE_STRONG_CLAIM_IDS),
+        "blockers": ["integration_spine_local_contract_only"],
+        "claim_boundary": (
+            "The integration spine records local wiring and adapter outcomes. "
+            "Any production, dataplane, traffic, DPI-bypass, or settlement-finality "
+            "claim still needs the dedicated cross-plane proof gate and external evidence."
+        ),
+    }
 
 
 class PolicyEngineLike(Protocol):
@@ -33,7 +89,16 @@ class PolicyEngineLike(Protocol):
 
 
 class RewardManagerLike(Protocol):
-    def reward_relay(self, node_address: str, packets: int) -> Any:
+    def reward_relay(
+        self,
+        node_address: str,
+        packets: int,
+        *,
+        upstream_event_ids: Optional[List[str]] = None,
+        upstream_source_agents: Optional[List[str]] = None,
+        upstream_claim_gate: Optional[Dict[str, Any]] = None,
+        upstream_cross_plane_claim_gate: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         ...
 
 
@@ -102,6 +167,8 @@ class SpineOutcome:
     reward_packets: int = 0
     reward_address: Optional[str] = None
     claim_boundary: str = CLAIM_BOUNDARY
+    claim_gate: Dict[str, Any] = field(default_factory=dict)
+    cross_plane_claim_gate: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -117,6 +184,8 @@ class SpineOutcome:
             "reward_packets": self.reward_packets,
             "reward_address": self.reward_address,
             "claim_boundary": self.claim_boundary,
+            "claim_gate": dict(self.claim_gate),
+            "cross_plane_claim_gate": dict(self.cross_plane_claim_gate),
         }
 
 
@@ -371,12 +440,27 @@ class IntegrationSpine:
             )
         )
 
+        actuator_claim_gate = _spine_claim_gate(
+            status="actuator_context",
+            policy_allowed=True,
+            action_executed=False,
+            settlement_recorded=False,
+            surface="integration_spine.actuator_context",
+        )
+        actuator_cross_plane_claim_gate = _spine_cross_plane_claim_gate(
+            surface="integration_spine.actuator_context"
+        )
         context = {
             "request_id": request.request_id,
             "identity": request.identity.to_dict(),
             "resource": request.resource,
             "workload_type": request.workload_type,
             "metadata": dict(request.metadata),
+            "upstream_event_ids": list(event_ids),
+            "upstream_source_agents": [self.source_agent],
+            "claim_boundary": CLAIM_BOUNDARY,
+            "claim_gate": actuator_claim_gate,
+            "cross_plane_claim_gate": actuator_cross_plane_claim_gate,
             "policy": {
                 "allowed": True,
                 "matched_rules": matched_rules,
@@ -441,7 +525,42 @@ class IntegrationSpine:
                     reward_address=reward_address,
                 )
             try:
-                reward_result = self.reward_manager.reward_relay(reward_address, request.reward_packets)
+                reward_claim_gate = _spine_claim_gate(
+                    status="reward_context",
+                    policy_allowed=True,
+                    action_executed=True,
+                    settlement_recorded=False,
+                    surface="integration_spine.reward_context",
+                )
+                reward_cross_plane_claim_gate = _spine_cross_plane_claim_gate(
+                    surface="integration_spine.reward_context"
+                )
+                try:
+                    reward_result = self.reward_manager.reward_relay(
+                        reward_address,
+                        request.reward_packets,
+                        upstream_event_ids=list(event_ids),
+                        upstream_source_agents=[self.source_agent],
+                        upstream_claim_gate=reward_claim_gate,
+                        upstream_cross_plane_claim_gate=reward_cross_plane_claim_gate,
+                    )
+                except TypeError as exc:
+                    if "unexpected keyword argument" not in str(exc):
+                        raise
+                    try:
+                        reward_result = self.reward_manager.reward_relay(
+                            reward_address,
+                            request.reward_packets,
+                            upstream_event_ids=list(event_ids),
+                            upstream_source_agents=[self.source_agent],
+                        )
+                    except TypeError as fallback_exc:
+                        if "unexpected keyword argument" not in str(fallback_exc):
+                            raise
+                        reward_result = self.reward_manager.reward_relay(
+                            reward_address,
+                            request.reward_packets,
+                        )
                 settlement_error = _settlement_error(reward_result)
                 if settlement_error:
                     event_ids.append(
@@ -524,6 +643,16 @@ class IntegrationSpine:
             "workload_type": request.workload_type,
             "reward_packets": request.reward_packets,
             "claim_boundary": CLAIM_BOUNDARY,
+            "claim_gate": _spine_claim_gate(
+                status=stage,
+                policy_allowed=False,
+                action_executed=False,
+                settlement_recorded=False,
+                surface="integration_spine.event",
+            ),
+            "cross_plane_claim_gate": _spine_cross_plane_claim_gate(
+                surface="integration_spine.event"
+            ),
         }
         if extra:
             data.update(extra)
@@ -556,4 +685,14 @@ class IntegrationSpine:
             matched_rules=matched_rules or [],
             reward_packets=request.reward_packets,
             reward_address=reward_address or request.reward_address or request.identity.wallet_address,
+            claim_gate=_spine_claim_gate(
+                status=status,
+                policy_allowed=policy_allowed,
+                action_executed=action_executed,
+                settlement_recorded=settlement_recorded,
+                surface="integration_spine.outcome",
+            ),
+            cross_plane_claim_gate=_spine_cross_plane_claim_gate(
+                surface="integration_spine.outcome"
+            ),
         )

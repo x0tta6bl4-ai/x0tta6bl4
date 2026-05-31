@@ -6,6 +6,9 @@ set -e
 NAMESPACE="x0tta6bl4-staging"
 RELEASE_NAME="x0tta6bl4-staging"
 SERVICE_NAME="$RELEASE_NAME"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REAL_READINESS_JSON=".tmp/validation-shards/real-readiness-current.json"
+REAL_READINESS_MD=".tmp/validation-shards/real-readiness-current.md"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║     P0 Components Validation Checklist                        ║"
@@ -224,7 +227,17 @@ generate_report() {
     
     if [ $failed_tests -eq 0 ]; then
         echo "🎉 P0 Components Validation: SUCCESS"
-        echo "✅ System is ready for production deployment"
+        echo "Local P0 checks passed. Production deployment claim requires the fail-closed real-readiness gate."
+        if python3 "$ROOT_DIR/scripts/ops/check_real_readiness.py" \
+            --write-json "$REAL_READINESS_JSON" \
+            --write-md "$REAL_READINESS_MD" >/dev/null; then
+            echo "✅ REAL READINESS GATE: PASSED"
+        else
+            echo "❌ REAL READINESS GATE: BLOCKED"
+            echo "P0 checks passed, but production deployment is not allowed yet."
+            echo "Report: $REAL_READINESS_JSON"
+            return 1
+        fi
     else
         echo "⚠️  P0 Components Validation: NEEDS ATTENTION"
         echo "🔧 Fix failed tests before production deployment"
@@ -251,21 +264,21 @@ main() {
     
     # Check deployment readiness
     if check_deployment_ready; then
-        ((passed_tests++))
+        ((passed_tests+=1))
     else
-        ((failed_tests++))
+        ((failed_tests+=1))
     fi
-    ((total_tests++))
+    ((total_tests+=1))
     
     # Setup port-forward
     if setup_port_forward; then
-        ((passed_tests++))
+        ((passed_tests+=1))
     else
-        ((failed_tests++))
+        ((failed_tests+=1))
         cleanup_port_forward
         exit 1
     fi
-    ((total_tests++))
+    ((total_tests+=1))
     
     # Run tests
     echo ""
@@ -274,43 +287,43 @@ main() {
     
     # Test 1: Application Health
     if test_application_health; then
-        ((passed_tests++))
+        ((passed_tests+=1))
     else
-        ((failed_tests++))
+        ((failed_tests+=1))
     fi
-    ((total_tests++))
+    ((total_tests+=1))
     
     # Test 2: Payment Verification
     if test_payment_verification; then
-        ((passed_tests++))
+        ((passed_tests+=1))
     else
-        ((warning_tests++))
+        ((warning_tests+=1))
     fi
-    ((total_tests++))
+    ((total_tests+=1))
     
     # Test 3: eBPF Observability
     if test_ebpf_observability; then
-        ((passed_tests++))
+        ((passed_tests+=1))
     else
-        ((warning_tests++))
+        ((warning_tests+=1))
     fi
-    ((total_tests++))
+    ((total_tests+=1))
     
     # Test 4: GraphSAGE Causal Analysis
     if test_graphsage_causal; then
-        ((passed_tests++))
+        ((passed_tests+=1))
     else
-        ((warning_tests++))
+        ((warning_tests+=1))
     fi
-    ((total_tests++))
+    ((total_tests+=1))
     
     # Test 5: Security Features
     if test_security_features; then
-        ((passed_tests++))
+        ((passed_tests+=1))
     else
-        ((warning_tests++))
+        ((warning_tests+=1))
     fi
-    ((total_tests++))
+    ((total_tests+=1))
     
     # Cleanup
     cleanup_port_forward

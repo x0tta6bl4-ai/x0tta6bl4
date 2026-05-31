@@ -60,6 +60,20 @@ def test_file_level_truth_surface_note_suppresses_legacy_draft(tmp_path: Path) -
     assert {item.caveated for item in findings} == {True}
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "docs/05-operations/project-completion-report-v1.4.0.md",
+        "docs/05-operations/project-completion-report-v1.5.md",
+    ],
+)
+def test_historical_operations_completion_reports_are_caveated(relative_path: str) -> None:
+    findings = scan.scan_file(ROOT / relative_path, "active_claim_surface")
+
+    assert findings
+    assert {item.caveated for item in findings} == {True}
+
+
 def test_truth_surface_doc_is_in_authoritative_zone() -> None:
     assert "docs/team/REPO_TRUTH_SURFACE.md" in scan.ZONE_PATHS["authoritative"]
     assert (ROOT / "docs/team/REPO_TRUTH_SURFACE.md").is_file()

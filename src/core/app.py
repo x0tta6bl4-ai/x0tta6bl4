@@ -6,7 +6,7 @@ import sys
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
@@ -24,6 +24,9 @@ from src.core.settings import settings
 from src.core.status_collector import get_current_status
 from src.core.tracing_middleware import TracingMiddleware
 from src.version import __version__, get_health_info
+from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
+from src.coordination.events import EventBus, get_event_bus
+from src.mesh.metric_evidence_policy import latest_mesh_metric_policy_evidence
 
 # Initialize structured logging
 log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -243,6 +246,7 @@ _include_maas_router("src.api.maas_compat", "compat")
 _include_maas_router("src.api.maas_auth", "auth")
 _include_maas_router("src.api.maas_playbooks", "playbooks")
 _include_maas_router("src.api.maas_supply_chain", "supply-chain")
+_include_maas_router("src.api.maas_provisioning", "provisioning")
 _include_maas_router("src.api.maas_marketplace", "marketplace")
 _include_maas_router("src.api.maas_governance", "governance")
 _include_maas_router("src.api.maas_analytics", "analytics")
@@ -265,28 +269,104 @@ _include_maas_router("src.edge.api", "edge-computing")
 _include_maas_router("src.event_sourcing.api", "event-sourcing")
 
 # --- Basic Endpoints ---
+_HEALTH_API_CROSS_PLANE_CLAIMS = (
+    "production_readiness",
+    "dataplane_delivery",
+    "traffic_delivery",
+    "customer_traffic",
+    "settlement_finality",
+    "dpi_bypass",
+)
+_HEALTH_API_CLAIM_BOUNDARY = (
+    "Health API responses expose local process liveness, readiness probe, "
+    "shutdown, and component-check observations only. HTTP 200, ok, ready, or "
+    "healthy does not prove production readiness, customer traffic, dataplane "
+    "delivery, external DPI bypass, settlement finality, or production SLOs."
+)
+
+
+def _health_api_claim_gate(surface: str):
+    return {
+        "schema": "x0tta6bl4.health_api_claim_gate.v1",
+        "surface": surface,
+        "local_liveness_observation_claim_allowed": True,
+        "local_readiness_probe_observation_claim_allowed": True,
+        "local_component_health_observation_claim_allowed": True,
+        "production_readiness_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "external_dpi_bypass_claim_allowed": False,
+        "settlement_finality_claim_allowed": False,
+        "claim_boundary": _HEALTH_API_CLAIM_BOUNDARY,
+    }
+
+
+def _health_api_response(payload: dict, *, surface: str):
+    return {
+        **payload,
+        "health_api_claim_gate": _health_api_claim_gate(surface),
+        "cross_plane_claim_gate": cross_plane_claim_gate_metadata(
+            _HEALTH_API_CROSS_PLANE_CLAIMS,
+            surface=surface,
+        ),
+    }
+
+
+_METRICS_API_CLAIM_BOUNDARY = (
+    "Prometheus metrics expose local scrape observations only. A successful "
+    "scrape does not prove production readiness, production SLOs, dataplane "
+    "delivery, customer traffic, external DPI bypass, or settlement finality."
+)
+_METRICS_API_CLAIM_HEADERS = {
+    "X-X0TTA6BL4-Claim-Gate-Schema": "x0tta6bl4.metrics_api_claim_boundary_headers.v1",
+    "X-X0TTA6BL4-Claim-Boundary": _METRICS_API_CLAIM_BOUNDARY,
+    "X-X0TTA6BL4-Local-Metrics-Observation-Claim-Allowed": "true",
+    "X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false",
+    "X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false",
+    "X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false",
+    "X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false",
+    "X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false",
+    "X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false",
+    "X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false",
+}
+
+
+def _metrics_api_claim_boundary_headers():
+    return dict(_METRICS_API_CLAIM_HEADERS)
+
 
 @app.get("/health")
 async def health():
-    return {
-        "status": "ok",
-        **get_health_info(),
-        "shutdown": shutdown_manager.get_status(),
-    }
+    return _health_api_response(
+        {
+            "status": "ok",
+            **get_health_info(),
+            "shutdown": shutdown_manager.get_status(),
+        },
+        surface="health_api.health",
+    )
 
 
 @app.get("/health/live")
 async def health_live():
     """Kubernetes liveness probe - is the app running?"""
     from datetime import datetime
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat() + "Z"}
+    return _health_api_response(
+        {"status": "ok", "timestamp": datetime.utcnow().isoformat() + "Z"},
+        surface="health_api.live",
+    )
 
 
 @app.get("/health/ready")
 async def health_ready():
     """Kubernetes readiness probe - is the app ready to serve traffic?"""
     from datetime import datetime
-    return {"status": "ready", "timestamp": datetime.utcnow().isoformat() + "Z"}
+    return _health_api_response(
+        {"status": "ready", "timestamp": datetime.utcnow().isoformat() + "Z"},
+        surface="health_api.ready",
+    )
 
 
 @app.get("/health/detailed")
@@ -305,7 +385,10 @@ async def health_detailed():
     }
     from fastapi.responses import JSONResponse
     status_code = 503 if result.status.value == "unhealthy" else 200
-    return JSONResponse(content=payload, status_code=status_code)
+    return JSONResponse(
+        content=_health_api_response(payload, surface="health_api.detailed"),
+        status_code=status_code,
+    )
 
 
 @app.get("/metrics")
@@ -317,33 +400,158 @@ async def metrics():
     return Response(
         content=metrics_payload.body,
         media_type=metrics_payload.media_type,
+        headers=_metrics_api_claim_boundary_headers(),
     )
 
 
 # --- Mesh / Yggdrasil Status Endpoints ---
+_MESH_API_CROSS_PLANE_CLAIMS = (
+    "dataplane_delivery",
+    "traffic_delivery",
+    "customer_traffic",
+    "dpi_bypass",
+    "production_readiness",
+)
+_MESH_API_CLAIM_BOUNDARY = (
+    "Mesh API responses expose local Yggdrasil observed-state and local control "
+    "policy evidence only. They do not prove dataplane delivery, customer "
+    "traffic, external DPI bypass, production SLOs, or production readiness."
+)
+_STATUS_API_CROSS_PLANE_CLAIMS = (
+    "production_readiness",
+    "dataplane_delivery",
+    "traffic_delivery",
+    "customer_traffic",
+    "settlement_finality",
+    "dpi_bypass",
+)
+_STATUS_API_CLAIM_BOUNDARY = (
+    "Status API responses expose local process, system, resilience, mesh-health, "
+    "and loop-state observations only. A healthy local status does not prove "
+    "production readiness, live customer traffic, external DPI bypass, "
+    "settlement finality, or production SLOs."
+)
+
+
+def _mesh_event_bus_from_request(request: Request) -> EventBus | None:
+    state = getattr(request, "state", None)
+    injected_bus = getattr(state, "event_bus", None)
+    if injected_bus is not None:
+        return injected_bus
+    project_root = getattr(state, "event_project_root", ".")
+    try:
+        return get_event_bus(project_root)
+    except Exception as exc:
+        logger.error("Failed to initialize mesh API EventBus: %s", exc)
+        return None
+
+
+def _mesh_api_claim_gate(operation: str):
+    return {
+        "schema": "x0tta6bl4.mesh_api_claim_gate.v1",
+        "surface": f"mesh_api.{operation}",
+        "local_yggdrasil_observed_state_claim_allowed": True,
+        "control_policy_observation_claim_allowed": True,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "external_dpi_bypass_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "claim_boundary": _MESH_API_CLAIM_BOUNDARY,
+    }
+
+
+def _status_api_claim_gate():
+    return {
+        "schema": "x0tta6bl4.status_api_claim_gate.v1",
+        "surface": "status_api",
+        "local_system_health_observation_claim_allowed": True,
+        "local_mesh_health_observation_claim_allowed": True,
+        "local_loop_state_observation_claim_allowed": True,
+        "production_readiness_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "external_dpi_bypass_claim_allowed": False,
+        "settlement_finality_claim_allowed": False,
+        "claim_boundary": _STATUS_API_CLAIM_BOUNDARY,
+    }
+
+
+def _status_api_response(status_data: dict):
+    return {
+        **status_data,
+        "status_api_claim_gate": _status_api_claim_gate(),
+        "cross_plane_claim_gate": cross_plane_claim_gate_metadata(
+            _STATUS_API_CROSS_PLANE_CLAIMS,
+            surface="status_api",
+        ),
+    }
+
+
+def _call_yggdrasil_with_api_evidence(func, request: Request, *, operation: str):
+    event_bus = _mesh_event_bus_from_request(request)
+    kwargs = {
+        "event_bus": event_bus,
+        "include_evidence": True,
+    }
+    try:
+        result = func(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if "unexpected keyword" not in message and "positional argument" not in message:
+            raise
+        result = func()
+    if isinstance(result, dict):
+        return {
+            **result,
+            "control_policy_evidence": latest_mesh_metric_policy_evidence(event_bus),
+            "mesh_api_claim_gate": _mesh_api_claim_gate(operation),
+            "cross_plane_claim_gate": cross_plane_claim_gate_metadata(
+                _MESH_API_CROSS_PLANE_CLAIMS,
+                surface=f"mesh_api.{operation}",
+            ),
+        }
+    return result
+
+
 @app.get("/mesh/status")
-async def mesh_status():
+async def mesh_status(request: Request):
     from src.network import yggdrasil_client as yc
-    return yc.get_yggdrasil_status()
+    return _call_yggdrasil_with_api_evidence(
+        yc.get_yggdrasil_status,
+        request,
+        operation="status",
+    )
 
 
 @app.get("/mesh/peers")
-async def mesh_peers():
+async def mesh_peers(request: Request):
     from src.network import yggdrasil_client as yc
-    return yc.get_yggdrasil_peers()
+    return _call_yggdrasil_with_api_evidence(
+        yc.get_yggdrasil_peers,
+        request,
+        operation="peers",
+    )
 
 
 @app.get("/mesh/routes")
-async def mesh_routes():
+async def mesh_routes(request: Request):
     from src.network import yggdrasil_client as yc
-    return yc.get_yggdrasil_routes()
+    return _call_yggdrasil_with_api_evidence(
+        yc.get_yggdrasil_routes,
+        request,
+        operation="routes",
+    )
 
 from src.core.cache import cached
 
 @app.get("/status")
 @cached(ttl=5, key_prefix="api_status")
 async def status_endpoint():
-    return JSONResponse(content=get_current_status())
+    return JSONResponse(content=_status_api_response(get_current_status()))
 
 @app.get("/")
 async def root():

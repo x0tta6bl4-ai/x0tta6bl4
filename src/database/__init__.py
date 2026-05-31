@@ -8,10 +8,10 @@ import os
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 from dotenv import load_dotenv
-from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer, String,
+from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint,
                         Text, create_engine, inspect as sqlalchemy_inspect, event, exc as sa_exc)
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from src.resilience.advanced_patterns import CircuitBreaker, CircuitBreakerConfig, CircuitState
@@ -124,6 +124,7 @@ class User(Base):
     oidc_id = Column(String, unique=True, index=True, nullable=True)
     oidc_provider = Column(String, nullable=True)
     api_key = Column(String, unique=True, index=True, nullable=True)
+    api_key_hash = Column(String, unique=True, index=True, nullable=True)
     stripe_customer_id = Column(String, unique=True, index=True, nullable=True)
     stripe_subscription_id = Column(String, unique=True, index=True, nullable=True)
     vpn_uuid = Column(String, unique=True, index=True, nullable=True)
@@ -412,29 +413,194 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=_utc_now)
 
 
-def get_required_schema_gaps() -> List[str]:
-    """
-    Return a list of required schema gaps that must be fixed before startup.
-    """
-    required_columns = {
-        "marketplace_listings": {"renter_id", "mesh_id"},
-        "mesh_nodes": {"last_seen"},
-    }
+DEFAULT_ALLOWED_EXTRA_TABLES = {"alembic_version", "es_events", "es_streams", "es_snapshots"}
 
+
+def _env_csv_set(name: str) -> set[str]:
+    return {item.strip() for item in os.getenv(name, "").split(",") if item.strip()}
+
+
+def _allowed_extra_tables() -> set[str]:
+    return DEFAULT_ALLOWED_EXTRA_TABLES | _env_csv_set("SCHEMA_PARITY_ALLOWED_EXTRA_TABLES")
+
+
+def _allowed_extra_columns() -> set[str]:
+    return _env_csv_set("SCHEMA_PARITY_ALLOWED_EXTRA_COLUMNS")
+
+
+def _normalize_columns(columns: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
+    if not columns:
+        return ()
+    return tuple(sorted(col for col in columns if col))
+
+
+def _expected_unique_sets(table: Any) -> set[tuple[str, ...]]:
+    expected: set[tuple[str, ...]] = set()
+    for column in table.columns:
+        if column.unique:
+            expected.add((column.name,))
+    for constraint in table.constraints:
+        if isinstance(constraint, UniqueConstraint):
+            normalized = _normalize_columns([col.name for col in constraint.columns])
+            if normalized:
+                expected.add(normalized)
+    for index in table.indexes:
+        if index.unique:
+            normalized = _normalize_columns([col.name for col in index.columns])
+            if normalized:
+                expected.add(normalized)
+    return expected
+
+
+def _expected_index_sets(table: Any) -> set[tuple[str, ...]]:
+    expected: set[tuple[str, ...]] = set()
+    for column in table.columns:
+        if column.index:
+            expected.add((column.name,))
+    for index in table.indexes:
+        normalized = _normalize_columns([col.name for col in index.columns])
+        if normalized:
+            expected.add(normalized)
+    return expected
+
+
+def _actual_unique_sets(inspector: Any, table_name: str) -> set[tuple[str, ...]]:
+    actual: set[tuple[str, ...]] = set()
+    pk = _normalize_columns(inspector.get_pk_constraint(table_name).get("constrained_columns"))
+    if pk:
+        actual.add(pk)
+    for constraint in inspector.get_unique_constraints(table_name):
+        normalized = _normalize_columns(constraint.get("column_names"))
+        if normalized:
+            actual.add(normalized)
+    for index in inspector.get_indexes(table_name):
+        if index.get("unique"):
+            normalized = _normalize_columns(index.get("column_names"))
+            if normalized:
+                actual.add(normalized)
+    return actual
+
+
+def _actual_index_sets(inspector: Any, table_name: str) -> set[tuple[str, ...]]:
+    actual = set(_actual_unique_sets(inspector, table_name))
+    for index in inspector.get_indexes(table_name):
+        normalized = _normalize_columns(index.get("column_names"))
+        if normalized:
+            actual.add(normalized)
+    return actual
+
+
+def get_schema_parity_report() -> dict[str, Any]:
     inspector = sqlalchemy_inspect(engine)
-    table_names = set(inspector.get_table_names())
-    missing: List[str] = []
+    actual_tables = set(inspector.get_table_names())
+    expected_tables = set(Base.metadata.tables.keys())
+    allowed_extra_tables = _allowed_extra_tables()
+    allowed_extra_columns = _allowed_extra_columns()
+    report: dict[str, Any] = {
+        "missing_tables": sorted(expected_tables - actual_tables),
+        "extra_tables": sorted(actual_tables - expected_tables - allowed_extra_tables),
+        "missing_columns": {},
+        "extra_columns": {},
+        "nullable_mismatches": {},
+        "primary_key_mismatches": {},
+        "missing_unique_constraints": {},
+        "missing_indexes": {},
+        "gaps": [],
+    }
+    for table_name in sorted(expected_tables & actual_tables):
+        table = Base.metadata.tables[table_name]
+        actual_columns = {col["name"]: col for col in inspector.get_columns(table_name)}
+        expected_columns = set(table.columns.keys())
+        actual_column_names = set(actual_columns.keys())
+        missing_columns = sorted(expected_columns - actual_column_names)
+        if missing_columns:
+            report["missing_columns"][table_name] = missing_columns
+        extra_columns = sorted(
+            column
+            for column in actual_column_names - expected_columns
+            if f"{table_name}.{column}" not in allowed_extra_columns
+        )
+        if extra_columns:
+            report["extra_columns"][table_name] = extra_columns
+        nullable_mismatches = []
+        pk_columns = set(inspector.get_pk_constraint(table_name).get("constrained_columns") or [])
+        for column in table.columns:
+            if column.name not in actual_columns or column.name in pk_columns:
+                continue
+            actual_nullable = bool(actual_columns[column.name].get("nullable"))
+            expected_nullable = bool(column.nullable)
+            if actual_nullable != expected_nullable:
+                nullable_mismatches.append(
+                    {"column": column.name, "expected_nullable": expected_nullable, "actual_nullable": actual_nullable}
+                )
+        if nullable_mismatches:
+            report["nullable_mismatches"][table_name] = nullable_mismatches
+        expected_pk = _normalize_columns([column.name for column in table.primary_key.columns])
+        actual_pk = _normalize_columns(inspector.get_pk_constraint(table_name).get("constrained_columns"))
+        if expected_pk != actual_pk:
+            report["primary_key_mismatches"][table_name] = {"expected": list(expected_pk), "actual": list(actual_pk)}
+        missing_unique = sorted(
+            list(columns)
+            for columns in (_expected_unique_sets(table) - _actual_unique_sets(inspector, table_name))
+        )
+        if missing_unique:
+            report["missing_unique_constraints"][table_name] = missing_unique
+        missing_indexes = sorted(
+            list(columns)
+            for columns in (_expected_index_sets(table) - _actual_index_sets(inspector, table_name))
+        )
+        if missing_indexes:
+            report["missing_indexes"][table_name] = missing_indexes
+    gaps: list[str] = []
+    gaps.extend(f"missing table '{table}'" for table in report["missing_tables"])
+    gaps.extend(f"extra table '{table}'" for table in report["extra_tables"])
+    for category in (
+        "missing_columns",
+        "extra_columns",
+        "nullable_mismatches",
+        "primary_key_mismatches",
+        "missing_unique_constraints",
+        "missing_indexes",
+    ):
+        for table_name, value in report[category].items():
+            gaps.append(f"{category} on '{table_name}': {value}")
+    report["gaps"] = gaps
+    return report
 
-    for table, columns in required_columns.items():
-        if table not in table_names:
-            missing.append(f"missing table '{table}'")
-            continue
-        existing = {col["name"] for col in inspector.get_columns(table)}
-        for col in sorted(columns):
-            if col not in existing:
-                missing.append(f"missing column '{table}.{col}'")
 
-    return missing
+def get_alembic_head_gaps() -> List[str]:
+    try:
+        from alembic.config import Config
+        from alembic.migration import MigrationContext
+        from alembic.script import ScriptDirectory
+    except Exception as exc:
+        return [f"alembic unavailable: {exc}"]
+    repo_root = Path(__file__).resolve().parents[2]
+    alembic_ini = repo_root / "alembic.ini"
+    alembic_dir = repo_root / "alembic"
+    if not alembic_ini.exists() or not alembic_dir.exists():
+        return [f"alembic config/script directory missing under {repo_root}"]
+    cfg = Config(str(alembic_ini))
+    cfg.set_main_option("script_location", str(alembic_dir))
+    cfg.set_main_option("sqlalchemy.url", DATABASE_URL)
+    script = ScriptDirectory.from_config(cfg)
+    expected_heads = set(script.get_heads())
+    with engine.connect() as connection:
+        current_heads = set(MigrationContext.configure(connection).get_current_heads())
+    if current_heads != expected_heads:
+        return [
+            "alembic revision mismatch: "
+            f"current={sorted(current_heads) or ['<none>']} expected={sorted(expected_heads)}"
+        ]
+    return []
+
+
+def get_required_schema_gaps() -> List[str]:
+    return list(get_schema_parity_report()["gaps"])
+
+
+def get_schema_compatibility_gaps() -> List[str]:
+    return [*get_alembic_head_gaps(), *get_required_schema_gaps()]
 
 
 def validate_required_secrets() -> None:
@@ -515,7 +681,7 @@ def ensure_schema_compatible(auto_migrate: bool = False) -> None:
     # Validate secrets first - fail fast before any DB operations
     validate_required_secrets()
     
-    missing = get_required_schema_gaps()
+    missing = get_schema_compatibility_gaps()
     if not missing:
         return
 
@@ -525,7 +691,7 @@ def ensure_schema_compatible(auto_migrate: bool = False) -> None:
             "; ".join(missing),
         )
         run_alembic_upgrade("head")
-        missing = get_required_schema_gaps()
+        missing = get_schema_compatibility_gaps()
         if not missing:
             logger.info("Database schema upgraded and validated successfully")
             return

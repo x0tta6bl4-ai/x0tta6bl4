@@ -222,6 +222,8 @@ class TestUsersReadiness:
         assert payload["token_generation_ready"] is True
         assert payload["rate_limiter_ready"] is True
         assert payload["admin_token_ready"] is True
+        assert payload["cross_plane_claim_gate"]["allowed"] is False
+        assert "production_readiness" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
         assert payload["degraded_dependencies"] == []
 
     def test_degraded_when_dependencies_are_missing(self, monkeypatch):

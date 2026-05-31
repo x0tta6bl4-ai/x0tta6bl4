@@ -1,18 +1,67 @@
 """
 Traffic Shaping Module for x0tta6bl4 Mesh.
 Shapes traffic patterns to mimic popular applications (YouTube, Netflix, etc.)
-to evade advanced DPI that analyzes timing and packet size patterns.
+for local packet-size and timing experiments.
 """
 
 import asyncio
+import hashlib
 import logging
 import random
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
+
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "traffic-shaper"
+_SERVICE_LAYER = "network_traffic_shaping_local_evidence"
+TRAFFIC_SHAPING_CLAIM_BOUNDARY = (
+    "Local traffic shaping evidence only. It records local shape/unshape, "
+    "delay-selection, profile metadata, byte-count buckets, duration, and "
+    "redacted service identity presence; it does not expose payload bytes, "
+    "packet contents, destinations, timing traces, or prove DPI bypass, "
+    "censorship bypass, remote reachability, packet delivery, anonymity, "
+    "provider health, client installation, or production customer traffic use."
+)
+
+
+def _sha256_prefix(value: Any) -> Optional[str]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+
+def _byte_count_bucket(value: Any) -> str:
+    if not isinstance(value, int) or value <= 0:
+        return "zero"
+    if value <= 64:
+        return "tiny"
+    if value <= 512:
+        return "small"
+    if value <= 1500:
+        return "mtu"
+    if value <= 8192:
+        return "chunk"
+    return "large"
+
+
+def _delay_ms_bucket(delay_seconds: float) -> str:
+    delay_ms = max(0.0, float(delay_seconds) * 1000.0)
+    if delay_ms == 0:
+        return "zero"
+    if delay_ms <= 5:
+        return "very_low"
+    if delay_ms <= 50:
+        return "low"
+    if delay_ms <= 500:
+        return "medium"
+    return "high"
 
 
 class TrafficProfile(Enum):
@@ -109,8 +158,15 @@ class TrafficShaper:
     Shapes outgoing traffic to match a specified application profile.
     """
 
-    def __init__(self, profile: TrafficProfile = TrafficProfile.VIDEO_STREAMING):
+    def __init__(
+        self,
+        profile: TrafficProfile = TrafficProfile.VIDEO_STREAMING,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: Optional[str] = None,
+    ):
         self.profile = profile
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
         self.params = TRAFFIC_PROFILES.get(profile)
         self._last_send_time = 0
         self._burst_counter = 0
@@ -119,11 +175,116 @@ class TrafficShaper:
         if self.params:
             logger.info(f"Traffic Shaper initialized with profile: {self.params.name}")
 
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        if self.event_project_root is None:
+            return None
+        try:
+            self.event_bus = get_event_bus(self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize traffic-shaper EventBus: %s", exc)
+            return None
+
+    def _identity_presence(self) -> Dict[str, bool]:
+        identity = service_event_identity(service_name=_SERVICE_AGENT)
+        return {
+            "spiffe_id_present": bool(identity.get("spiffe_id")),
+            "did_present": bool(identity.get("did")),
+            "wallet_address_present": bool(identity.get("wallet_address")),
+            "raw_identity_redacted": True,
+        }
+
+    def _profile_metadata(self) -> Dict[str, Any]:
+        params = self.params
+        return {
+            "profile": self.profile.value,
+            "profile_hash": _sha256_prefix(self.profile.value),
+            "configured": params is not None,
+            "pad_to_size_bucket": (
+                _byte_count_bucket(params.pad_to_size)
+                if params and params.pad_to_size
+                else "none"
+            ),
+            "typical_packet_sizes_count": (
+                len(params.typical_packet_sizes) if params else 0
+            ),
+            "burst_enabled": bool(params and params.burst_probability > 0),
+            "raw_profile_values_redacted": True,
+        }
+
+    def _publish_evidence(
+        self,
+        *,
+        operation: str,
+        status_value: str,
+        started_at: float,
+        metadata: Optional[Dict[str, Any]] = None,
+        error_type: Optional[str] = None,
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+
+        payload: Dict[str, Any] = {
+            "component": "network.obfuscation.traffic_shaping",
+            "operation": operation,
+            "service_name": _SERVICE_AGENT,
+            "source_alias": _SERVICE_AGENT,
+            "layer": _SERVICE_LAYER,
+            "status": status_value,
+            "duration_ms": round((time.monotonic() - started_at) * 1000.0, 3),
+            "profile": self._profile_metadata(),
+            "service_identity": self._identity_presence(),
+            "control_action": False,
+            "observed_state": True,
+            "payloads_redacted": True,
+            "raw_identifiers_redacted": True,
+            "raw_profile_values_redacted": True,
+            "timing_trace_redacted": True,
+            "dataplane_confirmed": False,
+            "dpi_bypass_confirmed": False,
+            "bypass_confirmed": False,
+            "claim_boundary": TRAFFIC_SHAPING_CLAIM_BOUNDARY,
+        }
+        if metadata:
+            payload.update(metadata)
+        if error_type:
+            payload["error"] = {
+                "type": error_type,
+                "message_redacted": True,
+            }
+
+        event_type = (
+            EventType.TASK_FAILED
+            if status_value == "failed"
+            else EventType.PIPELINE_STAGE_END
+        )
+        try:
+            event = bus.publish(event_type, _SERVICE_AGENT, payload, priority=4)
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish traffic-shaper evidence: %s", exc)
+            return None
+
     def shape_packet(self, data: bytes) -> bytes:
         """
         Shape a packet by padding to match profile's typical sizes.
         """
+        started_at = time.monotonic()
         if self.profile == TrafficProfile.NONE or not self.params:
+            self._publish_evidence(
+                operation="shape_packet",
+                status_value="pass_through",
+                started_at=started_at,
+                metadata={
+                    "input_bytes_bucket": _byte_count_bucket(len(data)),
+                    "output_bytes_bucket": _byte_count_bucket(len(data)),
+                    "padding_applied": False,
+                    "length_prefix_added": False,
+                },
+            )
             return data
 
         original_size = len(data)
@@ -150,30 +311,99 @@ class TrafficShaper:
             # Prepend length of original data (2 bytes) so receiver can unpad
             length_prefix = original_size.to_bytes(2, "big")
             shaped = length_prefix + data + padding
+            self._publish_evidence(
+                operation="shape_packet",
+                status_value="shaped",
+                started_at=started_at,
+                metadata={
+                    "input_bytes_bucket": _byte_count_bucket(original_size),
+                    "output_bytes_bucket": _byte_count_bucket(len(shaped)),
+                    "target_size_bucket": _byte_count_bucket(target_size),
+                    "padding_applied": True,
+                    "length_prefix_added": True,
+                },
+            )
             return shaped
         else:
             # No padding needed, just add length prefix
             length_prefix = original_size.to_bytes(2, "big")
-            return length_prefix + data
+            shaped = length_prefix + data
+            self._publish_evidence(
+                operation="shape_packet",
+                status_value="length_prefixed",
+                started_at=started_at,
+                metadata={
+                    "input_bytes_bucket": _byte_count_bucket(original_size),
+                    "output_bytes_bucket": _byte_count_bucket(len(shaped)),
+                    "target_size_bucket": _byte_count_bucket(target_size),
+                    "padding_applied": False,
+                    "length_prefix_added": True,
+                },
+            )
+            return shaped
 
     def unshape_packet(self, data: bytes) -> bytes:
         """Remove shaping (padding) from received packet."""
+        started_at = time.monotonic()
         # NONE profile doesn't add shaping, so return unchanged
         if self.profile == TrafficProfile.NONE or not self.params:
+            self._publish_evidence(
+                operation="unshape_packet",
+                status_value="pass_through",
+                started_at=started_at,
+                metadata={
+                    "input_bytes_bucket": _byte_count_bucket(len(data)),
+                    "output_bytes_bucket": _byte_count_bucket(len(data)),
+                    "length_prefix_present": False,
+                },
+            )
             return data
 
         if len(data) < 2:
+            self._publish_evidence(
+                operation="unshape_packet",
+                status_value="short_input",
+                started_at=started_at,
+                metadata={
+                    "input_bytes_bucket": _byte_count_bucket(len(data)),
+                    "output_bytes_bucket": _byte_count_bucket(len(data)),
+                    "length_prefix_present": False,
+                },
+            )
             return data
 
         original_length = int.from_bytes(data[:2], "big")
-        return data[2 : 2 + original_length]
+        unshaped = data[2 : 2 + original_length]
+        self._publish_evidence(
+            operation="unshape_packet",
+            status_value="unshaped",
+            started_at=started_at,
+            metadata={
+                "input_bytes_bucket": _byte_count_bucket(len(data)),
+                "declared_length_bucket": _byte_count_bucket(original_length),
+                "output_bytes_bucket": _byte_count_bucket(len(unshaped)),
+                "length_prefix_present": True,
+                "truncated": len(unshaped) < original_length,
+            },
+        )
+        return unshaped
 
     def get_send_delay(self) -> float:
         """
         Calculate delay before next packet to match profile timing.
         Returns delay in seconds.
         """
+        started_at = time.monotonic()
         if self.profile == TrafficProfile.NONE or not self.params:
+            self._publish_evidence(
+                operation="get_send_delay",
+                status_value="none",
+                started_at=started_at,
+                metadata={
+                    "delay_ms_bucket": "zero",
+                    "burst_state": "disabled",
+                },
+            )
             return 0.0
 
         # Handle burst mode
@@ -182,25 +412,58 @@ class TrafficShaper:
             if self._burst_counter <= 0:
                 self._in_burst = False
             # Minimal delay during burst
-            return self.params.min_interval_ms / 1000.0
+            delay = self.params.min_interval_ms / 1000.0
+            self._publish_evidence(
+                operation="get_send_delay",
+                status_value="selected",
+                started_at=started_at,
+                metadata={
+                    "delay_ms_bucket": _delay_ms_bucket(delay),
+                    "burst_state": "in_burst",
+                    "burst_counter_bucket": _byte_count_bucket(self._burst_counter),
+                },
+            )
+            return delay
 
         # Check if we should start a burst
         if random.random() < self.params.burst_probability:
             self._in_burst = True
             self._burst_counter = self.params.burst_size
-            return self.params.min_interval_ms / 1000.0
+            delay = self.params.min_interval_ms / 1000.0
+            self._publish_evidence(
+                operation="get_send_delay",
+                status_value="selected",
+                started_at=started_at,
+                metadata={
+                    "delay_ms_bucket": _delay_ms_bucket(delay),
+                    "burst_state": "started",
+                    "burst_counter_bucket": _byte_count_bucket(self._burst_counter),
+                },
+            )
+            return delay
 
         # Normal inter-packet delay with jitter
         delay_ms = random.uniform(
             self.params.min_interval_ms, self.params.max_interval_ms
         )
-        return delay_ms / 1000.0
+        delay = delay_ms / 1000.0
+        self._publish_evidence(
+            operation="get_send_delay",
+            status_value="selected",
+            started_at=started_at,
+            metadata={
+                "delay_ms_bucket": _delay_ms_bucket(delay),
+                "burst_state": "not_in_burst",
+            },
+        )
+        return delay
 
     async def send_shaped(self, data: bytes, send_func: Callable[[bytes], None]):
         """
         Send data with traffic shaping applied.
         Adds appropriate delays and padding.
         """
+        started_at = time.monotonic()
         shaped = self.shape_packet(data)
         delay = self.get_send_delay()
 
@@ -209,6 +472,17 @@ class TrafficShaper:
 
         send_func(shaped)
         self._last_send_time = time.time()
+        self._publish_evidence(
+            operation="send_shaped",
+            status_value="sent",
+            started_at=started_at,
+            metadata={
+                "input_bytes_bucket": _byte_count_bucket(len(data)),
+                "output_bytes_bucket": _byte_count_bucket(len(shaped)),
+                "delay_ms_bucket": _delay_ms_bucket(delay),
+                "send_callback_invoked": True,
+            },
+        )
 
     def get_profile_info(self) -> dict:
         """Return current profile information."""

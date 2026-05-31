@@ -40,8 +40,49 @@ logger = logging.getLogger(__name__)
 _SERVICE_AGENT = "ebpf-self-healing"
 EBPF_CLAIM_BOUNDARY = (
     "eBPF self-healing recovery event only. It records local policy and safe "
-    "actuator state; it is not production rollout evidence or live throughput evidence."
+    "actuator state; it is not restored dataplane, route convergence, kernel "
+    "forwarding correctness, production rollout, live traffic, or live "
+    "throughput evidence."
 )
+EBPF_RECOVERY_CLAIM_GATE_SCHEMA = "x0tta6bl4.self_healing.ebpf_recovery_claim_gate.v1"
+
+
+def _ebpf_recovery_claim_gate(result: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    local_action_recorded = result is not None
+    local_action_succeeded = bool(
+        result and result.get("success") is True and result.get("simulated") is not True
+    )
+    return {
+        "schema": EBPF_RECOVERY_CLAIM_GATE_SCHEMA,
+        "local_ebpf_recovery_action_recorded": local_action_recorded,
+        "local_ebpf_recovery_action_succeeded": local_action_succeeded,
+        "local_policy_decision_recorded": True,
+        "safe_actuator_result_recorded": local_action_recorded,
+        "restored_dataplane_claim_allowed": False,
+        "route_convergence_claim_allowed": False,
+        "kernel_forwarding_correctness_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "live_customer_traffic_confirmed": False,
+        "external_dpi_bypass_confirmed": False,
+        "settlement_finality_confirmed": False,
+        "production_readiness_claim_allowed": False,
+        "claim_allowed": {
+            "local_ebpf_recovery_lifecycle": local_action_recorded,
+            "local_safe_actuator_success": local_action_succeeded,
+            "restored_dataplane": False,
+            "route_convergence": False,
+            "kernel_forwarding_correctness": False,
+            "dataplane_delivery": False,
+            "traffic_delivery": False,
+            "live_customer_traffic": False,
+            "external_dpi_bypass": False,
+            "settlement_finality": False,
+            "production_readiness": False,
+        },
+        "claim_boundary": EBPF_CLAIM_BOUNDARY,
+        "payloads_redacted": True,
+    }
 
 
 class EBPFAnomalyType(Enum):
@@ -373,6 +414,16 @@ class EBPFExecutor(MAPEKExecutor):
             "matched_rules": self._policy_rules(policy_decision)
             if policy_decision is not None
             else [],
+            "claim_gate": _ebpf_recovery_claim_gate(result),
+            "restored_dataplane_claim_allowed": False,
+            "route_convergence_claim_allowed": False,
+            "kernel_forwarding_correctness_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "traffic_delivery_claim_allowed": False,
+            "live_customer_traffic_confirmed": False,
+            "external_dpi_bypass_confirmed": False,
+            "settlement_finality_confirmed": False,
+            "production_readiness_claim_allowed": False,
             "claim_boundary": EBPF_CLAIM_BOUNDARY,
         }
         try:

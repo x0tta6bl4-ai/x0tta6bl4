@@ -2,7 +2,15 @@
 import subprocess
 from typing import List
 
-ALLOWED_COMMANDS = {"bpftool", "batctl", "yggdrasilctl", "ip", "tc", "which"}
+ALLOWED_COMMANDS = {
+    "bpftool",
+    "batctl",
+    "yggdrasilctl",
+    "ip",
+    "tc",
+    "which",
+    "ping",
+}
 
 
 def validate_command(cmd: List[str]) -> bool:

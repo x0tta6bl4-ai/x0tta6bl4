@@ -29,6 +29,14 @@ def test_billing_readiness_ready_when_db_and_stripe_configured(monkeypatch):
     assert payload["stripe_config_ready"] is True
     assert payload["stripe_plans_ready"] is True
     assert payload["legacy_metering_ready"] is True
+    assert payload["cross_plane_claim_gate"]["allowed"] is False
+    assert payload["cross_plane_claim_gate"]["requested_claim_ids"] == [
+        "production_readiness",
+        "settlement_finality",
+        "dataplane_delivery",
+        "traffic_delivery",
+        "customer_traffic",
+    ]
     assert payload["degraded_dependencies"] == []
 
 
@@ -69,6 +77,53 @@ def test_billing_readiness_endpoint_marks_degraded_dependencies(monkeypatch):
 
     assert payload["status"] == "degraded"
     assert request.state.degraded_dependencies == {"database", "stripe", "stripe_plans"}
+
+
+def test_billing_settlement_evidence_includes_local_only_claim_gate():
+    import src.api.maas_billing as mod
+
+    evidence = mod._billing_settlement_evidence(
+        decision_basis="subscription_status_read",
+        source_quality="local_db_and_stripe_status",
+        settlement_action="subscription_status_observation_only",
+        provider="stripe",
+        payment_status="active",
+        db_write_committed=False,
+    )
+
+    gate = evidence["claim_gate"]
+    assert gate["present"] is True
+    assert gate["stripe_status_observation_claim_allowed"] is True
+    assert gate["payment_provider_settlement_claim_allowed"] is False
+    assert gate["bank_settlement_claim_allowed"] is False
+    assert gate["customer_dataplane_delivery_claim_allowed"] is False
+    assert gate["traffic_delivery_claim_allowed"] is False
+    assert gate["external_settlement_finality_claim_allowed"] is False
+    assert gate["production_readiness_claim_allowed"] is False
+
+
+def test_subscription_status_response_keeps_active_subscription_local_only(monkeypatch):
+    import src.api.maas_billing as mod
+
+    async def _fake_sync_subscription(user, db, request=None):
+        return None
+
+    monkeypatch.setattr(mod, "sync_subscription_with_stripe", _fake_sync_subscription)
+    current_user = SimpleNamespace(stripe_subscription_id="sub_private", plan="pro")
+
+    response = asyncio.run(
+        mod.get_subscription_status(
+            request=SimpleNamespace(state=SimpleNamespace()),
+            current_user=current_user,
+            db=SimpleNamespace(),
+        )
+    )
+
+    assert response.status == "active"
+    assert response.claim_gate["stripe_status_observation_claim_allowed"] is True
+    assert response.claim_gate["payment_provider_settlement_claim_allowed"] is False
+    assert response.claim_gate["customer_dataplane_delivery_claim_allowed"] is False
+    assert response.claim_gate["production_readiness_claim_allowed"] is False
 
 
 def test_execute_stripe_call_success(monkeypatch):

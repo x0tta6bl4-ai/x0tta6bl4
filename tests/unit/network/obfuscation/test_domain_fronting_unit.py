@@ -12,6 +12,7 @@ import pytest
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 
+from src.coordination.events import EventBus
 from src.network.obfuscation.domain_fronting import (DomainFrontingSocket,
                                                      DomainFrontingTransport)
 
@@ -139,6 +140,38 @@ class TestObfuscateDeobfuscateRoundTrip:
     def test_roundtrip_large_data(self):
         data = os.urandom(5000)
         assert self.t.deobfuscate(self.t.obfuscate(data)) == data
+
+
+def test_domain_fronting_event_evidence_redacts_domains_and_payload(tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    transport = DomainFrontingTransport(
+        "secret-front.example",
+        "secret-backend.example",
+        event_bus=bus,
+    )
+
+    packet = transport.obfuscate(b"raw-domain-fronting-secret")
+    assert transport.deobfuscate(packet) == b"raw-domain-fronting-secret"
+
+    events = bus.get_event_history(source_agent="domain-fronting-transport")
+    assert [event.data["operation"] for event in events] == [
+        "obfuscate",
+        "deobfuscate",
+    ]
+
+    for event in events:
+        payload = event.data
+        assert payload["payloads_redacted"] is True
+        assert payload["raw_domains_redacted"] is True
+        assert payload["dataplane_confirmed"] is False
+        assert payload["dpi_bypass_confirmed"] is False
+        assert payload["bypass_confirmed"] is False
+        assert payload["claim_boundary"]
+
+        rendered = repr(payload)
+        assert "secret-front.example" not in rendered
+        assert "secret-backend.example" not in rendered
+        assert "raw-domain-fronting-secret" not in rendered
 
 
 # ===========================================================================

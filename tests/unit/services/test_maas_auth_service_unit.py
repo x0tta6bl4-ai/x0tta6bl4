@@ -10,8 +10,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.api.maas_auth_models import UserLoginRequest, UserRegisterRequest
+from src.api.maas_security import ApiKeyManager
 from src.database import Base, User
-from src.services.maas_auth_service import MaaSAuthService
+from src.services.maas_auth_service import MaaSAuthService, find_user_by_api_key
 
 
 @pytest.fixture()
@@ -43,7 +44,9 @@ def test_register_creates_user_with_configured_plan(db_session):
 
     assert user.email == req.email
     assert user.plan == "starter"
-    assert user.api_key == "test-api-key"
+    assert user.api_key is None
+    assert user.api_key_hash == ApiKeyManager.hash_key("test-api-key")
+    assert service.issued_api_key(user) == "test-api-key"
     assert user.full_name == "Test User"
     assert user.company == "TestCo"
     assert user.password_hash.startswith("$2")
@@ -130,6 +133,7 @@ def test_register_normalizes_email_and_login_is_case_insensitive(db_session):
         UserLoginRequest(email=user.email.upper(), password=password),
     )
     assert api_key == "case-key"
+    assert find_user_by_api_key(db_session, api_key).id == user.id
 
 
 def test_login_invalid_password_raises_401(db_session):
@@ -162,7 +166,8 @@ def test_rotate_api_key_updates_user(db_session):
         password="StrongPassword123!",
     )
     user = service.register(db_session, req)
-    assert user.api_key == "first-key"
+    assert user.api_key is None
+    assert user.api_key_hash == ApiKeyManager.hash_key("first-key")
 
     new_key, rotated_at = service.rotate_api_key(db_session, user)
     assert new_key == "rotated-key"
@@ -170,7 +175,10 @@ def test_rotate_api_key_updates_user(db_session):
 
     refreshed = db_session.query(User).filter(User.id == user.id).first()
     assert refreshed is not None
-    assert refreshed.api_key == "rotated-key"
+    assert refreshed.api_key is None
+    assert refreshed.api_key_hash == ApiKeyManager.hash_key("rotated-key")
+    assert find_user_by_api_key(db_session, "first-key") is None
+    assert find_user_by_api_key(db_session, "rotated-key").id == user.id
 
 
 # ---------------------------------------------------------------------------

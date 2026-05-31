@@ -1,5 +1,14 @@
 # Глубокий анализ системы x0tta6bl4
 
+> Статус доказательств на 2026-05-30: это исторический архитектурный документ
+> с claims, а не текущее доказательство production-ready состояния. Используйте
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md` и
+> `docs/architecture/CURRENT_EVENT_CONTROL_PLANE_MAP.json` как текущий источник
+> проверяемого EventBus/service-identity/control-plane evidence. Любые
+> production-ready, MTTR, route-discovery, availability, GraphSAGE, uptime или
+> chaos-test числа ниже считаются инвентарем claims, пока рядом с claim не
+> указан текущий verification artifact.
+
 ## 📋 Исполнительное резюме
 
 **x0tta6bl4** — это децентрализованная само-восстанавливающаяся mesh-платформа интеллектуального управления, интегрирующая:
@@ -10,7 +19,7 @@
 - **Observability-first подход** с Prometheus и OpenTelemetry
 
 **Версия**: v1.0.0-restructured  
-**Статус**: Production Ready после 7-фазной модернизации
+**Статус**: исторический claim-документ; текущие evidence-карты не доказывают production readiness.
 
 ---
 
@@ -134,10 +143,14 @@ class MAPEKKnowledge:
 
 ### Метрики производительности
 
-- **MTTR (Mean Time To Recovery)**: <5s (цель), 3.2s (достигнуто) ✅
-- **Route Discovery Time**: <100ms (цель), 85ms (достигнуто) ✅
-- **Search Accuracy**: >90% (цель), 92% (достигнуто) ✅
-- **System Availability**: >99% (цель), 99.5% (достигнуто) ✅
+Evidence note: значения ниже оставлены как исторический/planned claim inventory.
+Они не считаются проверенными production-фактами без текущего run artifact,
+live mesh test или записи в актуальной evidence map.
+
+- **MTTR (Mean Time To Recovery)**: <5s (цель), 3.2s (исторически заявлено)
+- **Route Discovery Time**: <100ms (цель), 85ms (исторически заявлено)
+- **Search Accuracy**: >90% (цель), 92% (исторически заявлено)
+- **System Availability**: >99% (цель), 99.5% (исторически заявлено)
 
 ---
 
@@ -393,16 +406,16 @@ cirq>=1.0.0
 
 ## 📈 Производительность и метрики
 
-### Достигнутые показатели
+### Исторически заявленные показатели
 
-| Метрика | Цель | Достигнуто | Статус |
+| Метрика | Цель | Исторически заявлено | Evidence status |
 |---------|------|------------|--------|
-| MTTR | <5s | 3.2s | ✅ Превышено |
-| Route Discovery | <100ms | 85ms | ✅ Превышено |
-| Search Accuracy | >90% | 92% | ✅ Превышено |
-| System Availability | >99% | 99.5% | ✅ Превышено |
-| Recovery Success Rate | >95% | 96% | ✅ Превышено |
-| Chaos Test Pass Rate | >90% | 95% | ✅ Превышено |
+| MTTR | <5s | 3.2s | claim, needs current artifact |
+| Route Discovery | <100ms | 85ms | claim, needs current artifact |
+| Search Accuracy | >90% | 92% | claim, needs current artifact |
+| System Availability | >99% | 99.5% | claim, needs current artifact |
+| Recovery Success Rate | >95% | 96% | claim, needs current artifact |
+| Chaos Test Pass Rate | >90% | 95% | claim, needs current artifact |
 
 ### Тестовое покрытие
 
@@ -421,7 +434,7 @@ cirq>=1.0.0
 3. **Безопасность**: Zero Trust подход - каждый компонент проверяется
 4. **Наблюдаемость**: Полная прозрачность через метрики и трейсинг
 5. **Адаптивность**: Система учится на опыте и улучшается со временем
-6. **Отказоустойчивость**: Автоматическое восстановление с MTTR <5s
+6. **Отказоустойчивость**: автоматическое восстановление с MTTR <5s is a claim here and needs current artifact
 
 ### Поведенческие паттерны
 
@@ -449,7 +462,12 @@ cirq>=1.0.0
 
 ## 📝 Заключение
 
-**x0tta6bl4** представляет собой зрелую, production-ready платформу для децентрализованных само-восстанавливающихся систем. Архитектура построена на принципах Zero Trust, автономности и наблюдаемости, что делает её идеальной для критически важных приложений.
+**x0tta6bl4** содержит реальные контуры Zero Trust, EventBus evidence,
+mesh/network integration и MAPE-K-oriented control-plane code, но этот документ
+сам по себе не доказывает зрелую production-ready платформу. Текущая проверяемая
+позиция: production readiness, live mesh reachability, MTTR/availability
+metrics и customer traffic use должны доказываться текущими bounded artifacts,
+а не этим историческим narrative.
 
 Система успешно интегрирует:
 - ✅ Mesh-сети (batman-adv, Yggdrasil)
@@ -458,5 +476,5 @@ cirq>=1.0.0
 - ✅ Машинное обучение (RAG, Federated Learning)
 - ✅ Observability (Prometheus, OpenTelemetry)
 
-Все ключевые метрики производительности превышают целевые значения, что подтверждает готовность системы к production использованию.
-
+Ключевые метрики выше остаются historical claims, пока current verification
+artifacts не докажут их для указанной среды и масштаба.

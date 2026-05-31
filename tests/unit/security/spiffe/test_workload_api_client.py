@@ -1,8 +1,10 @@
+import hashlib
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
 from src.security.spiffe.workload.api_client import (JWTSVID,
                                                      SPIFFE_SDK_AVAILABLE,
                                                      X509SVID,
@@ -125,6 +127,55 @@ def test_fetch_jwt_svid_success(mock_spiffe_sdk, spiffe_socket_env, monkeypatch)
     assert not jwt_svid.is_expired()
 
 
+def test_fetch_svids_publish_redacted_workload_evidence(
+    mock_spiffe_sdk, spiffe_socket_env, monkeypatch, tmp_path
+):
+    """SVID fetches should leave EventBus evidence without exposing SVID material."""
+
+    monkeypatch.setenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
+    bus = EventBus(project_root=str(tmp_path))
+    client = WorkloadAPIClient(event_bus=bus)
+
+    x509_svid = client.fetch_x509_svid()
+    jwt_svid = client.fetch_jwt_svid(["aud-secret"])
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="spiffe-workload-api",
+        limit=10,
+    )
+    x509_event = next(
+        event for event in events if event.data["operation"] == "x509_svid_fetch"
+    )
+    jwt_event = next(
+        event for event in events if event.data["operation"] == "jwt_svid_fetch"
+    )
+
+    x509_data = x509_event.data
+    assert x509_data["result"] == "success"
+    assert x509_data["mode"] == "mock"
+    assert x509_data["spiffe_id_hash"] == hashlib.sha256(
+        x509_svid.spiffe_id.encode("utf-8")
+    ).hexdigest()
+    assert x509_data["spiffe_id_redacted"] is True
+    assert x509_data["cert_chain_redacted"] is True
+    assert x509_data["private_key_redacted"] is True
+    assert x509_data["payloads_redacted"] is True
+    assert x509_svid.spiffe_id not in str(x509_data)
+    assert "MOCK_PRIVATE_KEY" not in str(x509_data)
+
+    jwt_data = jwt_event.data
+    assert jwt_data["result"] == "success"
+    assert jwt_data["audience_count"] == 1
+    assert jwt_data["audience_redacted"] is True
+    assert jwt_data["token_redacted"] is True
+    assert jwt_data["spiffe_id_hash"] == hashlib.sha256(
+        jwt_svid.spiffe_id.encode("utf-8")
+    ).hexdigest()
+    assert jwt_svid.token not in str(jwt_data)
+    assert "aud-secret" not in str(jwt_data)
+
+
 def test_validate_peer_svid_logic(spiffe_socket_env, monkeypatch):
     """
     Test the peer validation logic. This logic is independent of the fetch mechanism,
@@ -163,3 +214,44 @@ def test_validate_peer_svid_logic(spiffe_socket_env, monkeypatch):
         expiry=datetime.utcnow() - timedelta(minutes=1),
     )
     assert client.validate_peer_svid(expired_peer) is False
+
+
+def test_validate_peer_svid_publishes_redacted_decision(
+    spiffe_socket_env, monkeypatch, tmp_path
+):
+    """Peer validation decisions should be observable without leaking SPIFFE IDs."""
+
+    monkeypatch.setenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
+    bus = EventBus(project_root=str(tmp_path))
+    client = WorkloadAPIClient(event_bus=bus)
+    peer = X509SVID(
+        spiffe_id="spiffe://x0tta6bl4.mesh/peer/secret-node",
+        cert_chain=[b"MOCK_CERT"],
+        private_key=b"K",
+        expiry=datetime.utcnow() + timedelta(hours=1),
+    )
+
+    assert client.validate_peer_svid(peer, expected_id="spiffe://other.domain") is False
+
+    event = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="spiffe-workload-api",
+        limit=5,
+    )[-1]
+    data = event.data
+    assert data["operation"] == "peer_svid_validation"
+    assert data["validation_result"] is False
+    assert data["result"] == "blocked"
+    assert data["reason"] == "spiffe_id_prefix_mismatch"
+    assert data["peer_spiffe_id_hash"] == hashlib.sha256(
+        peer.spiffe_id.encode("utf-8")
+    ).hexdigest()
+    assert data["expected_id_hash"] == hashlib.sha256(
+        "spiffe://other.domain".encode("utf-8")
+    ).hexdigest()
+    assert data["peer_spiffe_id_redacted"] is True
+    assert data["expected_id_redacted"] is True
+    assert data["cert_chain_redacted"] is True
+    assert data["private_key_redacted"] is True
+    assert peer.spiffe_id not in str(data)
+    assert "spiffe://other.domain" not in str(data)

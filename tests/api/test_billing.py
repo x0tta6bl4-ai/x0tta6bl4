@@ -88,11 +88,11 @@ async def test_billing_config_configured(client: AsyncClient):
     """Test retrieving billing config when configured."""
     response = await client.get("/api/v1/billing/config")
     assert response.status_code == 200
-    assert response.json() == {
-        "configured": True,
-        "publishable_key": "pk_test_123",
-        "price_id": "price_123",
-    }
+    payload = response.json()
+    assert payload["configured"] is True
+    assert payload["publishable_key"] == "pk_test_123"
+    assert payload["price_id"] == "price_123"
+    assert payload["claim_gate"]["settlement_finality_claim_allowed"] is False
 
 
 @pytest.mark.asyncio
@@ -101,11 +101,11 @@ async def test_billing_config_not_configured(client: AsyncClient, setup_env_vars
     del os.environ["STRIPE_SECRET_KEY"]
     response = await client.get("/api/v1/billing/config")
     assert response.status_code == 200
-    assert response.json() == {
-        "configured": False,
-        "publishable_key": "pk_test_123",  # Publishable key might still be there
-        "price_id": "price_123",
-    }
+    payload = response.json()
+    assert payload["configured"] is False
+    assert payload["publishable_key"] == "pk_test_123"
+    assert payload["price_id"] == "price_123"
+    assert payload["claim_gate"]["settlement_finality_claim_allowed"] is False
 
 
 # --- Tests for POST /api/v1/billing/checkout-session ---

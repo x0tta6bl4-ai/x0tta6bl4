@@ -6,9 +6,11 @@ Enables Kernel-level Multi-path TCP (MPTCP) to aggregate multiple
 mesh links into a single logical high-speed connection.
 """
 
+import hashlib
 import logging
 import os
 import subprocess
+import time
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
@@ -23,11 +25,19 @@ from src.services.service_event_identity import service_event_identity
 logger = logging.getLogger(__name__)
 
 _SERVICE_AGENT = "mptcp-manager"
+_STATUS_SOURCE_AGENT = "mptcp-manager-status-read"
+_STATUS_LAYER = "network_mptcp_observed_state"
 
 MPTCP_MANAGER_CLAIM_BOUNDARY = (
     "MPTCP manager control event only. It records local identity, policy, and "
     "safe actuator state for kernel/network MPTCP configuration; it is not "
     "proof of live production traffic, throughput, or field validation."
+)
+MPTCP_STATUS_CLAIM_BOUNDARY = (
+    "Read-only local MPTCP status observation. It records /proc support checks "
+    "and bounded ip mptcp limits command metadata; it does not prove live "
+    "multipath traffic, throughput, remote path quality, or production field "
+    "validation."
 )
 
 
@@ -98,10 +108,47 @@ class MPTCPManager:
         return limits
 
     @classmethod
-    def _read_mptcp_limits(cls) -> Dict[str, int]:
+    def _sha256_text(cls, value: str) -> Optional[str]:
+        if not value:
+            return None
+        return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+    @classmethod
+    def _bounded_output_metadata(
+        cls,
+        stdout: Optional[str],
+        stderr: Optional[str],
+        *,
+        preview_limit: int = 0,
+    ) -> Dict[str, Any]:
+        safe_stdout = stdout or ""
+        safe_stderr = stderr or ""
+        bounded_limit = max(0, preview_limit)
+        return {
+            "stdout_chars": len(safe_stdout),
+            "stderr_chars": len(safe_stderr),
+            "stdout_sha256": cls._sha256_text(safe_stdout),
+            "stderr_sha256": cls._sha256_text(safe_stderr),
+            "stdout_preview_chars": min(len(safe_stdout), bounded_limit),
+            "stderr_preview_chars": min(len(safe_stderr), bounded_limit),
+            "stdout_truncated": len(safe_stdout) > bounded_limit,
+            "stderr_truncated": len(safe_stderr) > bounded_limit,
+            "output_preview_limit": bounded_limit,
+            "output_bounded": True,
+            "output_redacted": True,
+        }
+
+    @classmethod
+    def _read_mptcp_limits_with_metadata(
+        cls,
+        *,
+        output_preview_limit: int = 0,
+    ) -> tuple[Dict[str, int], Dict[str, Any]]:
+        command = ["ip", "mptcp", "limits", "show"]
+        started = time.monotonic()
         try:
             result = subprocess.run(
-                ["ip", "mptcp", "limits", "show"],
+                command,
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -109,12 +156,47 @@ class MPTCPManager:
             )
         except Exception as exc:
             logger.debug("Unable to read MPTCP limits: %s", exc)
-            return {}
+            duration_ms = (time.monotonic() - started) * 1000.0
+            stdout = getattr(exc, "stdout", None) or getattr(exc, "output", None)
+            stderr = getattr(exc, "stderr", None)
+            returncode = getattr(exc, "returncode", None)
+            return {}, {
+                "command": command,
+                "attempted": True,
+                "returncode": returncode,
+                "duration_ms": round(duration_ms, 3),
+                "output": cls._bounded_output_metadata(
+                    stdout,
+                    stderr,
+                    preview_limit=output_preview_limit,
+                ),
+                "error": {
+                    "type": type(exc).__name__,
+                    "message_redacted": True,
+                },
+            }
 
+        duration_ms = (time.monotonic() - started) * 1000.0
         stdout = getattr(result, "stdout", "") or ""
-        if not isinstance(stdout, str):
-            return {}
-        return cls._parse_mptcp_limits(stdout)
+        stderr = getattr(result, "stderr", "") or ""
+        limits = cls._parse_mptcp_limits(stdout) if isinstance(stdout, str) else {}
+        return limits, {
+            "command": command,
+            "attempted": True,
+            "returncode": getattr(result, "returncode", None),
+            "duration_ms": round(duration_ms, 3),
+            "parsed_limit_keys": sorted(limits),
+            "output": cls._bounded_output_metadata(
+                stdout if isinstance(stdout, str) else "",
+                stderr if isinstance(stderr, str) else "",
+                preview_limit=output_preview_limit,
+            ),
+        }
+
+    @classmethod
+    def _read_mptcp_limits(cls) -> Dict[str, int]:
+        limits, _metadata = cls._read_mptcp_limits_with_metadata()
+        return limits
 
     @staticmethod
     def _default_event_bus(project_root: str) -> Optional[EventBus]:
@@ -132,6 +214,90 @@ class MPTCPManager:
             return get_policy_engine()
         except Exception as exc:
             logger.error("Failed to initialize MPTCP manager policy engine: %s", exc)
+            return None
+
+    @classmethod
+    def _status_identity_metadata(cls) -> Dict[str, Any]:
+        identity = service_event_identity(service_name=_SERVICE_AGENT)
+        return {
+            "service_name": _SERVICE_AGENT,
+            "spiffe_id_configured": bool(identity.get("spiffe_id")),
+            "did_configured": bool(identity.get("did")),
+            "wallet_address_configured": bool(identity.get("wallet_address")),
+            "redacted": True,
+        }
+
+    @classmethod
+    def _status_evidence_metadata(cls, event_id: Optional[str]) -> Dict[str, Any]:
+        event_ids = [event_id] if event_id else []
+        return {
+            "source_agents": [_STATUS_SOURCE_AGENT] if event_ids else [],
+            "layer": _STATUS_LAYER,
+            "event_ids": event_ids,
+            "events_total": len(event_ids),
+            "redacted": True,
+        }
+
+    @classmethod
+    def _with_status_evidence(
+        cls,
+        payload: Dict[str, Any],
+        event_id: Optional[str],
+        *,
+        include_evidence: bool,
+    ) -> Dict[str, Any]:
+        if not include_evidence:
+            return payload
+        return {**payload, "evidence": cls._status_evidence_metadata(event_id)}
+
+    @classmethod
+    def _publish_status_observation(
+        cls,
+        *,
+        event_bus: Optional[EventBus],
+        source_agent: str,
+        status: str,
+        supported: bool,
+        enabled: bool,
+        proc_metadata: Dict[str, Any],
+        limits_metadata: Dict[str, Any],
+        limits: Dict[str, int],
+        duration_ms: float,
+    ) -> Optional[str]:
+        if event_bus is None:
+            return None
+        payload = {
+            "component": "network.mptcp_manager",
+            "stage": "observed_state",
+            "operation": "get_status",
+            "resource": "network:mptcp:get_status",
+            "service_name": source_agent,
+            "source_alias": source_agent,
+            "layer": _STATUS_LAYER,
+            "identity": cls._status_identity_metadata(),
+            "status": status,
+            "supported": supported,
+            "enabled": enabled,
+            "max_subflows": limits.get("subflow", 0),
+            "add_addr_accepted": limits.get("add_addr_accepted", 0),
+            "duration_ms": round(duration_ms, 3),
+            "read_only": True,
+            "observed_state": True,
+            "safe_actuator": False,
+            "proc": proc_metadata,
+            "limits_command": limits_metadata,
+            "claim_boundary": MPTCP_STATUS_CLAIM_BOUNDARY,
+        }
+        try:
+            event = event_bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                source_agent,
+                payload,
+                priority=3,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish MPTCP status observation: %s", exc)
             return None
 
     @staticmethod
@@ -517,21 +683,87 @@ class MPTCPManager:
         )
 
     @staticmethod
-    def get_status() -> Dict:
+    def get_status(
+        *,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+        output_preview_limit: int = 0,
+        include_evidence: bool = False,
+        source_agent: str = _STATUS_SOURCE_AGENT,
+    ) -> Dict:
         """Returns current MPTCP status."""
+        started = time.monotonic()
+        bus = (
+            event_bus
+            if event_bus is not None
+            else MPTCPManager._default_event_bus(event_project_root)
+        )
         supported = MPTCPManager.is_mptcp_supported()
         enabled = False
+        proc_metadata: Dict[str, Any] = {
+            "enabled_path": "/proc/sys/net/mptcp/enabled",
+            "exists": supported,
+            "read_attempted": supported,
+            "read_succeeded": False,
+            "read_error_type": "",
+            "raw_value_redacted": True,
+        }
         if supported:
             try:
                 with open("/proc/sys/net/mptcp/enabled", "r", encoding="utf-8") as f:
-                    enabled = f.read().strip() == "1"
-            except Exception:
+                    raw_value = f.read().strip()
+                    enabled = raw_value == "1"
+                    proc_metadata["read_succeeded"] = True
+                    proc_metadata["value_bucket"] = (
+                        "enabled" if enabled else "disabled_or_unknown"
+                    )
+            except Exception as exc:
+                proc_metadata["read_error_type"] = type(exc).__name__
                 pass
-        limits = MPTCPManager._read_mptcp_limits() if supported else {}
+        limits: Dict[str, int] = {}
+        limits_metadata: Dict[str, Any] = {
+            "command": ["ip", "mptcp", "limits", "show"],
+            "attempted": False,
+            "returncode": None,
+            "duration_ms": 0.0,
+            "parsed_limit_keys": [],
+            "output": MPTCPManager._bounded_output_metadata(
+                None,
+                None,
+                preview_limit=output_preview_limit,
+            ),
+        }
+        if supported:
+            limits, limits_metadata = MPTCPManager._read_mptcp_limits_with_metadata(
+                output_preview_limit=output_preview_limit,
+            )
 
-        return {
+        payload = {
             "supported": supported,
             "enabled": enabled,
             "max_subflows": limits.get("subflow", 0),
             "add_addr_accepted": limits.get("add_addr_accepted", 0),
         }
+        status = (
+            "enabled"
+            if supported and enabled
+            else "disabled"
+            if supported
+            else "unsupported"
+        )
+        event_id = MPTCPManager._publish_status_observation(
+            event_bus=bus,
+            source_agent=source_agent,
+            status=status,
+            supported=supported,
+            enabled=enabled,
+            proc_metadata=proc_metadata,
+            limits_metadata=limits_metadata,
+            limits=limits,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+        )
+        return MPTCPManager._with_status_evidence(
+            payload,
+            event_id,
+            include_evidence=include_evidence,
+        )

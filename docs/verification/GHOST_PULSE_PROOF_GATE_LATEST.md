@@ -1,11 +1,12 @@
 # x0tta6bl4_pulse Proof Gate
 
-Timestamp: `2026-05-25T04:45:23.098081+00:00`
+Timestamp: `2026-05-31T08:04:33.312655+00:00`
 
 Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
 ## Claim Boundary
 
+- current_runtime_attached: `False`
 - kernel_attach_verified: `True`
 - production_ready: `False`
 - stealth_verified: `False`
@@ -14,10 +15,10 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 ## Replacement Candidate Preflight
 
 - report: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`
-- sha256: `f7cc7ebb57762cae23debf99ff714c7b91e8f2d0827ad24193f74f12ae7bd0bb`
+- sha256: `5fa35c138ecdb73355c5ff9e47a33bd0e380e90e06c9c90f50cc170263dea3b9`
 - status: `PASS`
 - decision: `REPLACEMENT_CANDIDATES_NOT_READY`
-- not_ready: `dpi_lab, whitelist_lab, security_review, production_readiness`
+- not_ready: `dpi_lab, whitelist_lab, production_readiness`
 
 ## Proof Rows
 
@@ -31,15 +32,16 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 | baseline_timing_comparison | `VERIFIED` | `docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json` |
 | dpi_lab | `INVALID` | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json` |
 | whitelist_lab | `INVALID` | `docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json` |
-| security_review | `INVALID` | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json` |
+| security_review | `VERIFIED` | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json` |
 | production_readiness | `INVALID` | `docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json` |
+| current_runtime_attached | `INVALID` | `READ_ONLY_KERNEL_OBSERVATION:unconfigured` |
 
 ## Missing Or Invalid Evidence
 
 - dpi_lab
 - whitelist_lab
-- security_review
 - production_readiness
+- current_runtime_attached
 
 ## Failures
 
@@ -71,19 +73,6 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 - whitelist_lab: measurements.third_party_baseline_captured must be True
 - whitelist_lab: measurements.whitelist_behavior_verified must be True
 - whitelist_lab: artifact role missing for content check: whitelist_conclusion
-- security_review: status must be VERIFIED
-- security_review: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD
-- security_review: missing_inputs must be absent or empty for VERIFIED evidence
-- security_review: failures must be absent or empty for VERIFIED evidence
-- security_review: claim_boundary.claim_verified must not be false for VERIFIED evidence
-- security_review: required artifact role missing: reviewer_identity
-- security_review: required artifact role missing: review_scope
-- security_review: required artifact role missing: findings_report
-- security_review: measurements.reviewer must be nonempty
-- security_review: measurements.scope_includes_pulse_transport must be True
-- security_review: measurements.open_critical_findings must be 0
-- security_review: measurements.open_high_findings must be 0
-- security_review: artifact role missing for content check: findings_report
 - production_readiness: status must be VERIFIED
 - production_readiness: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD
 - production_readiness: missing_inputs must be absent or empty for VERIFIED evidence
@@ -100,3 +89,4 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 - production_readiness: measurements.all_prior_claims_referenced must be True
 - production_readiness: artifact role missing for content check: prior_claim_references
 - production_readiness: references must be a non-empty list
+- current_runtime_attached: current runtime interface not configured; set GHOST_PULSE_RUNTIME_INTERFACE or pass --runtime-interface

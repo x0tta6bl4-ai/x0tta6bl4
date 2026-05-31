@@ -43,6 +43,14 @@ def _make_instance(mesh_id: str = "mesh-test", nodes: int = 2) -> MagicMock:
     return inst
 
 
+def _fake_cross_plane_claim_gate(_claims, *, surface):
+    return {
+        "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+        "surface": surface,
+        "allowed": False,
+    }
+
+
 # ---------------------------------------------------------------------------
 # MeshProvisioner — provision_mesh
 # ---------------------------------------------------------------------------
@@ -51,6 +59,10 @@ class TestMeshProvisionerProvision:
     @pytest.mark.asyncio
     async def test_provision_returns_mesh_instance(self, monkeypatch):
         prov = MeshProvisioner(billing_service=_make_billing_svc())
+        monkeypatch.setattr(
+            "src.api.maas.services.cross_plane_claim_gate_metadata",
+            _fake_cross_plane_claim_gate,
+        )
 
         created = MagicMock()
         created.mesh_id = "mesh-abc"
@@ -67,6 +79,29 @@ class TestMeshProvisionerProvision:
             result = await prov.provision_mesh(owner_id="u-1", node_count=2)
 
         assert result.mesh_id == "mesh-abc"
+        assert result.mesh_provisioner_claim_gate[
+            "local_mesh_instance_lifecycle_claim_allowed"
+        ] is True
+        assert result.mesh_provisioner_claim_gate[
+            "local_node_seed_claim_allowed"
+        ] is True
+        assert result.mesh_provisioner_claim_gate[
+            "external_infrastructure_provisioning_claim_allowed"
+        ] is False
+        assert result.mesh_provisioner_claim_gate[
+            "node_dataplane_join_claim_allowed"
+        ] is False
+        assert result.mesh_provisioner_claim_gate[
+            "dataplane_delivery_claim_allowed"
+        ] is False
+        assert result.mesh_provisioner_claim_gate[
+            "production_readiness_claim_allowed"
+        ] is False
+        assert (
+            result.cross_plane_claim_gate["surface"]
+            == "maas_services.mesh_provisioner.provision_mesh"
+        )
+        assert result.cross_plane_claim_gate["allowed"] is False
 
     @pytest.mark.asyncio
     async def test_provision_raises_when_node_count_exceeds_limit(self):

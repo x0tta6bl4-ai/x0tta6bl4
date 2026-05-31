@@ -6,9 +6,11 @@ REST API endpoints for VPN configuration and management.
 """
 
 import hmac
+import hashlib
 import logging
 import os
 import secrets
+import time
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -19,9 +21,13 @@ from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from src.core.cache import cache, cached
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
 from src.core.reliability_policy import mark_degraded_dependency
 from src.database import User, get_db
 from src.api.maas_auth import require_permission, get_current_user_from_maas
+from src.network.vpn_leak_protection import get_vpn_protector
+from src.services.service_event_identity import service_event_identity
 from vpn_config_generator import XUIAPIClient
 from vpn_config_generator import generate_config_text, generate_vless_link
 try:
@@ -47,6 +53,215 @@ router = APIRouter(prefix="/vpn", tags=["vpn"])
 limiter = Limiter(key_func=get_remote_address)
 
 xui: Optional[XUIAPIClient] = None
+
+_VPN_STATUS_SOURCE_AGENT = "vpn-api-status-read"
+_VPN_STATUS_LAYER = "api_vpn_status_observed_state"
+VPN_API_STATUS_CLAIM_BOUNDARY = (
+    "VPN API status evidence records local API status reads, TCP/x-ui status "
+    "summaries, and bounded vpn-leak-protector status evidence references only. "
+    "It does not prove customer client connectivity, production dataplane "
+    "routing, remote VPN provider correctness, DNS privacy, firewall correctness, "
+    "or that all traffic uses the VPN tunnel."
+)
+
+
+def _redacted_sha256_prefix(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+
+def _identity_evidence() -> Dict[str, Any]:
+    identity = service_event_identity(service_name=_VPN_STATUS_SOURCE_AGENT)
+    return {
+        "spiffe_id_present": bool(str(identity.get("spiffe_id") or "").strip()),
+        "spiffe_id_hash": _redacted_sha256_prefix(identity.get("spiffe_id")),
+        "did_present": bool(str(identity.get("did") or "").strip()),
+        "did_hash": _redacted_sha256_prefix(identity.get("did")),
+        "wallet_address_present": bool(
+            str(identity.get("wallet_address") or "").strip()
+        ),
+        "wallet_address_hash": _redacted_sha256_prefix(
+            identity.get("wallet_address")
+        ),
+        "raw_identity_redacted": True,
+    }
+
+
+def _vpn_event_bus_from_request(request: Optional[Request]) -> Optional[EventBus]:
+    if request is None:
+        return None
+    state = getattr(request, "state", None)
+    injected_bus = getattr(state, "event_bus", None)
+    if injected_bus is not None:
+        return injected_bus
+    project_root = getattr(state, "event_project_root", ".")
+    try:
+        return get_event_bus(project_root)
+    except Exception as exc:
+        logger.error("Failed to initialize vpn-api-status EventBus: %s", exc)
+        return None
+
+
+def _bounded_event_reference(evidence: Any) -> Dict[str, Any]:
+    if not isinstance(evidence, dict) or not evidence:
+        return {
+            "available": False,
+            "reason": "event_evidence_missing",
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+        }
+    allowed = {
+        "event_id",
+        "source_agent",
+        "layer",
+        "operation",
+        "stage",
+        "status",
+        "reason",
+        "observed_state",
+        "control_action",
+        "claim_boundary",
+    }
+    reference = {
+        key: evidence.get(key)
+        for key in sorted(allowed)
+        if key in evidence
+    }
+    reference.update(
+        {
+            "available": bool(reference.get("event_id")),
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+        }
+    )
+    return reference
+
+
+def _vpn_leak_status_summary(status: Any) -> Dict[str, Any]:
+    if not isinstance(status, dict):
+        return {
+            "available": False,
+            "reason": "status_payload_missing",
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+        }
+    original_dns_servers = status.get("original_dns_servers")
+    return {
+        "available": True,
+        "protection_enabled": bool(status.get("protection_enabled")),
+        "kill_switch_enabled": bool(status.get("kill_switch_enabled")),
+        "vpn_interface_hash": _redacted_sha256_prefix(status.get("vpn_interface")),
+        "original_dns_server_count": (
+            len(original_dns_servers) if isinstance(original_dns_servers, list) else 0
+        ),
+        "resolver_info_present": bool(status.get("resolver_info")),
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+    }
+
+
+async def _read_vpn_leak_status_evidence(
+    request: Request,
+    event_bus: Optional[EventBus],
+) -> Dict[str, Any]:
+    try:
+        protector = await get_vpn_protector()
+        state = getattr(request, "state", None)
+        project_root = getattr(state, "event_project_root", ".")
+        if event_bus is not None:
+            protector.event_bus = event_bus
+            protector.event_project_root = project_root
+            resolver = getattr(protector, "doh_resolver", None)
+            if resolver is not None:
+                if hasattr(resolver, "event_bus"):
+                    resolver.event_bus = event_bus
+                if hasattr(resolver, "event_project_root"):
+                    resolver.event_project_root = project_root
+
+        status = await protector.get_status()
+        evidence_getter = getattr(protector, "get_last_event_evidence", None)
+        event_reference = (
+            evidence_getter() if callable(evidence_getter) else None
+        )
+        return {
+            "available": True,
+            "status_summary": _vpn_leak_status_summary(status),
+            "event_reference": _bounded_event_reference(event_reference),
+            "raw_status_payload_redacted": True,
+            "payloads_redacted": True,
+        }
+    except Exception as exc:
+        logger.error("Failed to read vpn-leak-protector status evidence: %s", exc)
+        return {
+            "available": False,
+            "reason": "vpn_leak_status_read_failed",
+            "error_hash": _redacted_sha256_prefix(exc),
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+        }
+
+
+def _publish_vpn_status_event(
+    request: Request,
+    *,
+    started_at: float,
+    status: str,
+    http_status: int,
+    status_payload: Optional[Dict[str, Any]] = None,
+    leak_protection_evidence: Optional[Dict[str, Any]] = None,
+    reason: Optional[str] = None,
+) -> Optional[str]:
+    bus = _vpn_event_bus_from_request(request)
+    if bus is None:
+        return None
+    status_payload = status_payload or {}
+    payload = {
+        "component": "api.vpn",
+        "operation": "get_vpn_status",
+        "service_name": _VPN_STATUS_SOURCE_AGENT,
+        "source_alias": _VPN_STATUS_SOURCE_AGENT,
+        "layer": _VPN_STATUS_LAYER,
+        "stage": "status_read",
+        "status": status,
+        "reason": reason,
+        "http_status": http_status,
+        "duration_ms": round((time.monotonic() - started_at) * 1000.0, 3),
+        "vpn_status": status_payload.get("status"),
+        "vpn_server_hash": _redacted_sha256_prefix(status_payload.get("server")),
+        "vpn_port": status_payload.get("port"),
+        "protocol": status_payload.get("protocol"),
+        "active_user_count": status_payload.get("active_users"),
+        "uptime_present": status_payload.get("uptime") is not None,
+        "leak_protection_status_evidence": leak_protection_evidence
+        or {
+            "available": False,
+            "reason": "not_collected",
+            "payloads_redacted": True,
+        },
+        "observed_state": True,
+        "control_action": False,
+        "service_identity": _identity_evidence(),
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": VPN_API_STATUS_CLAIM_BOUNDARY,
+    }
+    try:
+        event = bus.publish(
+            EventType.PIPELINE_STAGE_END
+            if status == "success"
+            else EventType.TASK_BLOCKED,
+            _VPN_STATUS_SOURCE_AGENT,
+            payload,
+            priority=4,
+        )
+        return event.event_id
+    except Exception as exc:
+        logger.error("Failed to publish vpn-api-status event: %s", exc)
+        return None
 
 
 def _get_xui_client() -> XUIAPIClient:
@@ -226,6 +441,15 @@ def _vpn_readiness_status(db: Any) -> Dict[str, Any]:
             ),
         },
         "degraded_dependencies": degraded_dependencies,
+        "cross_plane_claim_gate": cross_plane_claim_gate_metadata(
+            (
+                "production_readiness",
+                "dataplane_delivery",
+                "dpi_bypass",
+                "customer_traffic",
+            ),
+            surface="vpn_readiness",
+        ),
         "claim_boundary": (
             "VPN readiness separates /vpn route reachability from lazy x-ui access, "
             "config generation, local User DB state, cache, MaaS auth, legacy admin "
@@ -872,12 +1096,33 @@ async def get_vpn_status(
     """
     Get VPN server status.
     """
+    started_at = time.monotonic()
     try:
         await _enforce_permission_if_authenticated(request, db, "vpn:status")
         data = await _get_vpn_status_cached()
+        event_bus = _vpn_event_bus_from_request(request)
+        leak_protection_evidence = await _read_vpn_leak_status_evidence(
+            request,
+            event_bus,
+        )
+        _publish_vpn_status_event(
+            request,
+            started_at=started_at,
+            status="success",
+            http_status=200,
+            status_payload=data,
+            leak_protection_evidence=leak_protection_evidence,
+        )
         return VPNStatusResponse(**data)
     except Exception as e:
         logger.error(f"Error getting VPN status: {e}", exc_info=True)
+        _publish_vpn_status_event(
+            request,
+            started_at=started_at,
+            status="error",
+            http_status=500,
+            reason="exception",
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

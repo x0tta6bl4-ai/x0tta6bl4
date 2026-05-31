@@ -1,0 +1,467 @@
+{
+  "schema_version": "x0tta6bl4.external_dpi_proxy_reachability_evidence_shape.v1",
+  "artifact_kind": "verification_contract_not_evidence",
+  "status": "SCHEMA_ONLY_NOT_PRODUCTION_PROOF",
+  "claim_status": "current_evidence_contract_not_proof",
+  "created_at": "2026-05-30",
+  "scope": "Bounded artifact shape for external DPI/proxy reachability evidence. This contract describes what a future lab or field artifact must contain before local anti-censorship or obfuscation evidence can be upgraded to an external DPI/proxy reachability claim.",
+  "related_current_artifacts": [
+    {
+      "path": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json",
+      "role": "current external DPI gap record",
+      "current_status": "INCOMPLETE",
+      "claim_boundary": "Required external evidence is absent; proof gate must reject this claim."
+    },
+    {
+      "path": "docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.json",
+      "role": "local loopback packet capture",
+      "current_status": "VERIFIED",
+      "claim_boundary": "Local loopback packet capture only; not remote-path, DPI, whitelist, or production evidence."
+    }
+  ],
+  "candidate_paths": {
+    "primary": "docs/verification/incoming/dpi_lab.json",
+    "example": "docs/verification/incoming/examples/dpi_lab.example.json",
+    "latest_gap_record": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json"
+  },
+  "validator": {
+    "path": "scripts/ops/verify_external_dpi_proxy_reachability_evidence.py",
+    "read_only": true,
+    "default_command": "python3 scripts/ops/verify_external_dpi_proxy_reachability_evidence.py --json",
+    "ready_gate_command": "python3 scripts/ops/verify_external_dpi_proxy_reachability_evidence.py --require-ready --json",
+    "current_expected_decision": "REJECTED until docs/verification/incoming/dpi_lab.json contains a concrete authorized external artifact",
+    "claim_boundary": "The validator accepts or rejects artifact shape only; it does not import evidence or promote proof-gate claims by itself."
+  },
+  "collector": {
+    "path": "scripts/ops/collect_external_dpi_proxy_reachability_evidence.py",
+    "requires_explicit_authorization": true,
+    "default_output": "docs/verification/incoming/dpi_lab.json",
+    "redacted_artifact_dir": "docs/verification/incoming/artifacts/external-dpi-proxy",
+    "example_command_shape": "python3 scripts/ops/collect_external_dpi_proxy_reachability_evidence.py --allow-external-probes --target-url '<authorized target URL>' --treatment-proxy '<authorized proxy URL>' --operator-or-lab-id '<local secret>' --authorization-scope-id '<local ticket/scope>' --scope-summary '<bounded scope>' --network-region-bucket '<coarse region>' --network-type '<authorized lab/field network>' --isp-or-lab-profile '<local secret>' --egress-location-bucket '<coarse egress>' --policy-context '<authorized context>'",
+    "claim_boundary": "The collector writes only hashes, buckets, and redacted probe summaries. It keeps the artifact INCOMPLETE unless the explicitly authorized control path is blocked or detected and the treatment path is reachable."
+  },
+  "import_gate": {
+    "path": "scripts/ops/import_ghost_pulse_external_evidence.py",
+    "claim_id": "dpi_lab",
+    "requires_validator_decision": "READY_TO_IMPORT",
+    "current_expected_decision": "REJECTED for the current gap record",
+    "claim_boundary": "The import gate requires both the existing Ghost Pulse proof contract and this bounded DPI/proxy validator before a dpi_lab candidate can be READY_TO_IMPORT."
+  },
+  "claim_boundary": {
+    "summary": "The shape itself is not evidence. A filled artifact can only describe bounded observations from an authorized external lab or field run.",
+    "not_proven_by_this_shape": [
+      "production readiness",
+      "durable censorship bypass",
+      "country-wide censorship policy",
+      "anonymity",
+      "provider SLA or provider health",
+      "customer traffic delivery",
+      "payment or token settlement finality"
+    ],
+    "proof_claims_default_false": {
+      "external_dpi_tested": false,
+      "reachability_observed": false,
+      "dpi_bypass_confirmed": false,
+      "bypass_confirmed": false,
+      "dataplane_confirmed": false,
+      "production_ready": false,
+      "customer_traffic_confirmed": false,
+      "durable_policy_confirmed": false,
+      "anonymity_confirmed": false,
+      "provider_health_confirmed": false
+    },
+    "upgrade_rule": "dpi_bypass_confirmed may be true only in a concrete artifact that records authorized external scope, a blocked or detected control path, a reachable treatment path, bounded packet-flow summaries, redacted raw captures or capture hashes, and explicit repeatability limits."
+  },
+  "required_top_level_sections": [
+    "artifact_identity",
+    "authorization_scope",
+    "environment",
+    "methodology",
+    "probe_matrix",
+    "packet_flow_summary",
+    "raw_capture_redaction",
+    "repeatability_limits",
+    "result_summary",
+    "claim_boundary",
+    "evidence_links"
+  ],
+  "required_sections": {
+    "artifact_identity": {
+      "required_fields": [
+        "artifact_id",
+        "schema_version",
+        "claim_id",
+        "captured_at_utc",
+        "collector_kind",
+        "operator_or_lab_hash",
+        "artifact_sha256"
+      ],
+      "rules": [
+        "artifact_id must not include customer, wallet, subscriber, or raw target identifiers",
+        "collector_kind must identify lab, field, or controlled relay collection without naming private persons",
+        "artifact_sha256 must equal SHA-256 of the canonical final redacted artifact with artifact_identity.artifact_sha256 set to 64 zeroes"
+      ]
+    },
+    "authorization_scope": {
+      "required_fields": [
+        "authorization_present",
+        "scope_id_hash",
+        "scope_summary",
+        "consent_or_legal_basis_present",
+        "collection_boundaries"
+      ],
+      "rules": [
+        "authorization_present must be true before any external_dpi_tested claim can be true",
+        "scope_id_hash must be a digest or ticket hash, not a raw contract, name, email, or account id",
+        "collection_boundaries must state what networks, time windows, targets, and payload classes were excluded"
+      ]
+    },
+    "environment": {
+      "required_fields": [
+        "network_region_bucket",
+        "network_type",
+        "isp_or_lab_profile_hash",
+        "egress_location_bucket",
+        "time_window_utc",
+        "tool_versions",
+        "policy_context",
+        "clock_sync_status"
+      ],
+      "rules": [
+        "network_region_bucket must be coarse enough to avoid identifying a subscriber",
+        "isp_or_lab_profile_hash must not expose raw ISP account, ASN notes, site address, or operator identity",
+        "time_window_utc must be bounded and must not imply durability beyond the observed window"
+      ]
+    },
+    "methodology": {
+      "required_fields": [
+        "control_path_description",
+        "treatment_path_description",
+        "external_dpi_or_blocking_middlebox_observed",
+        "probe_payload_class",
+        "success_criteria",
+        "failure_criteria",
+        "anti_replay_controls"
+      ],
+      "rules": [
+        "control and treatment paths must be comparable except for the tested obfuscation or proxy behavior",
+        "probe_payload_class must describe payload category, not raw payload bytes",
+        "success and failure criteria must be defined before reporting results"
+      ]
+    },
+    "probe_matrix": {
+      "required_fields": [
+        "probe_pairs",
+        "attempt_count",
+        "success_count",
+        "failure_buckets",
+        "control_probe_ids",
+        "treatment_probe_ids"
+      ],
+      "probe_pair_required_fields": [
+        "pair_id",
+        "transport",
+        "proxy_or_fronting_mode",
+        "target_category",
+        "probe_target_hash",
+        "control_result_bucket",
+        "treatment_result_bucket",
+        "attempts",
+        "successes",
+        "failure_buckets"
+      ],
+      "rules": [
+        "probe_target_hash must be a digest; raw domains, URLs, IP addresses, SNI values, and Host headers are forbidden",
+        "failure_buckets must use categories such as dns_failed, tcp_failed, tls_failed, http_blocked, timeout, reset, or throttled",
+        "attempt_count and success_count must be counts, not percentages without sample sizes"
+      ]
+    },
+    "packet_flow_summary": {
+      "required_fields": [
+        "flows_observed",
+        "bytes_bucket",
+        "duration_ms_bucket",
+        "rtt_ms_bucket",
+        "loss_bucket",
+        "dns_result_bucket",
+        "tls_handshake_bucket",
+        "http_status_bucket",
+        "capture_artifact_hashes",
+        "packet_payloads_redacted"
+      ],
+      "rules": [
+        "captures must be summarized by buckets and hashes before being linked",
+        "packet_payloads_redacted must be true before a capture can be cited by this contract",
+        "packet_flow_summary does not by itself prove anonymity, durable bypass, or production readiness"
+      ]
+    },
+    "raw_capture_redaction": {
+      "required_fields": [
+        "redaction_performed",
+        "redaction_tool",
+        "redaction_tool_version",
+        "redacted_fields",
+        "forbidden_raw_fields_absent",
+        "raw_capture_retention_policy",
+        "redacted_capture_sha256"
+      ],
+      "rules": [
+        "redaction_performed and forbidden_raw_fields_absent must be true before any capture hash is accepted",
+        "raw_capture_retention_policy must say whether raw captures were destroyed, quarantined, or retained out of repository",
+        "redacted_capture_sha256 must refer to the redacted artifact only"
+      ]
+    },
+    "repeatability_limits": {
+      "required_fields": [
+        "sample_window_utc",
+        "sample_count",
+        "locations_count",
+        "networks_count",
+        "known_confounders",
+        "not_generalizable_beyond_environment",
+        "refresh_after_utc"
+      ],
+      "rules": [
+        "not_generalizable_beyond_environment must be true unless a separate production-readiness artifact proves otherwise",
+        "refresh_after_utc must bound how long the observation should be treated as current",
+        "known_confounders must include middlebox variance, CDN routing changes, and target-side failures when applicable"
+      ]
+    },
+    "result_summary": {
+      "required_fields": [
+        "external_dpi_tested",
+        "baseline_blocked_or_detected",
+        "treatment_reachability_observed",
+        "reachability_observed",
+        "dpi_bypass_confirmed",
+        "bypass_confirmed",
+        "dataplane_confirmed",
+        "production_ready",
+        "confidence_bucket",
+        "decision"
+      ],
+      "rules": [
+        "dpi_bypass_confirmed must remain false unless external_dpi_tested, baseline_blocked_or_detected, and treatment_reachability_observed are all true",
+        "production_ready must remain false in this artifact family",
+        "decision must be one of incomplete, rejected, bounded_external_reachability_observed, or bounded_external_dpi_bypass_observed"
+      ]
+    },
+    "claim_boundary": {
+      "required_fields": [
+        "summary",
+        "not_proven",
+        "proof_claims",
+        "upgrade_rule"
+      ],
+      "rules": [
+        "not_proven must include production readiness, durable censorship bypass, anonymity, provider health, and customer traffic",
+        "proof_claims must repeat the result booleans instead of implying them from prose"
+      ]
+    },
+    "evidence_links": {
+      "required_fields": [
+        "source_artifacts",
+        "artifact_roles",
+        "source_hashes",
+        "related_local_evidence_refs"
+      ],
+      "rules": [
+        "source_artifacts must be repo-relative under docs/verification/incoming/artifacts when stored in this repository",
+        "source_hashes must include sha256 for each cited file and the validator must match it to on-disk file bytes",
+        "related_local_evidence_refs may cite local EventBus evidence, but local refs cannot replace external evidence"
+      ]
+    }
+  },
+  "redaction_rules": {
+    "forbidden_raw_fields": [
+      "raw_ip_address",
+      "raw_domain",
+      "raw_url",
+      "raw_sni",
+      "raw_host_header",
+      "raw_http_headers",
+      "raw_payload",
+      "subscriber_id",
+      "customer_id",
+      "wallet_address",
+      "spiffe_id",
+      "did",
+      "api_token",
+      "private_key"
+    ],
+    "hash_fields": [
+      "operator_or_lab_hash",
+      "scope_id_hash",
+      "isp_or_lab_profile_hash",
+      "probe_target_hash",
+      "redacted_capture_sha256",
+      "artifact_sha256"
+    ],
+    "bucket_fields": [
+      "network_region_bucket",
+      "egress_location_bucket",
+      "bytes_bucket",
+      "duration_ms_bucket",
+      "rtt_ms_bucket",
+      "loss_bucket",
+      "dns_result_bucket",
+      "tls_handshake_bucket",
+      "http_status_bucket",
+      "confidence_bucket"
+    ],
+    "bounded_output_metadata": [
+      "tool_versions",
+      "attempt_count",
+      "success_count",
+      "failure_buckets",
+      "capture_artifact_hashes",
+      "redacted_fields"
+    ]
+  },
+  "result_logic": {
+    "dpi_bypass_confirmed_requires_all": [
+      "authorization_scope.authorization_present=true",
+      "authorization_scope.consent_or_legal_basis_present=true",
+      "methodology.external_dpi_or_blocking_middlebox_observed=true",
+      "result_summary.external_dpi_tested=true",
+      "result_summary.baseline_blocked_or_detected=true",
+      "result_summary.treatment_reachability_observed=true",
+      "raw_capture_redaction.redaction_performed=true",
+      "raw_capture_redaction.forbidden_raw_fields_absent=true",
+      "repeatability_limits.not_generalizable_beyond_environment=true",
+      "claim_boundary.proof_claims.production_ready=false"
+    ],
+    "must_remain_false_without_external_artifact": [
+      "external_dpi_tested",
+      "reachability_observed",
+      "dpi_bypass_confirmed",
+      "bypass_confirmed",
+      "dataplane_confirmed"
+    ],
+    "must_always_remain_false_for_this_artifact_family": [
+      "production_ready",
+      "customer_traffic_confirmed",
+      "durable_policy_confirmed",
+      "anonymity_confirmed",
+      "provider_health_confirmed",
+      "payment_or_token_settlement_finality_confirmed"
+    ]
+  },
+  "minimal_redacted_candidate_shape": {
+    "status": "INCOMPLETE_EXAMPLE_NOT_EVIDENCE",
+    "artifact_identity": {
+      "artifact_id": "external-dpi-proxy-reachability-example",
+      "schema_version": "x0tta6bl4.external_dpi_proxy_reachability_evidence.v1",
+      "claim_id": "external_dpi_proxy_reachability",
+      "captured_at_utc": "2026-05-30T00:00:00Z",
+      "collector_kind": "example_only",
+      "operator_or_lab_hash": "sha256-example-operator-or-lab-hash",
+      "artifact_sha256": "sha256-example-redacted-artifact-hash"
+    },
+    "authorization_scope": {
+      "authorization_present": false,
+      "scope_id_hash": "sha256-example-scope-hash",
+      "scope_summary": "example only, no authorized external collection",
+      "consent_or_legal_basis_present": false,
+      "collection_boundaries": [
+        "no real network collection represented by this example"
+      ]
+    },
+    "environment": {
+      "network_region_bucket": "example-region",
+      "network_type": "example-lab",
+      "isp_or_lab_profile_hash": "sha256-example-profile-hash",
+      "egress_location_bucket": "example-egress-bucket",
+      "time_window_utc": "example-window",
+      "tool_versions": {},
+      "policy_context": "example-only",
+      "clock_sync_status": "not_applicable"
+    },
+    "methodology": {
+      "control_path_description": "example-only-control",
+      "treatment_path_description": "example-only-treatment",
+      "external_dpi_or_blocking_middlebox_observed": false,
+      "probe_payload_class": "example-only",
+      "success_criteria": "defined before real collection",
+      "failure_criteria": "defined before real collection",
+      "anti_replay_controls": []
+    },
+    "probe_matrix": {
+      "probe_pairs": [],
+      "attempt_count": 0,
+      "success_count": 0,
+      "failure_buckets": [],
+      "control_probe_ids": [],
+      "treatment_probe_ids": []
+    },
+    "packet_flow_summary": {
+      "flows_observed": 0,
+      "bytes_bucket": "none",
+      "duration_ms_bucket": "none",
+      "rtt_ms_bucket": "none",
+      "loss_bucket": "none",
+      "dns_result_bucket": "none",
+      "tls_handshake_bucket": "none",
+      "http_status_bucket": "none",
+      "capture_artifact_hashes": [],
+      "packet_payloads_redacted": true
+    },
+    "raw_capture_redaction": {
+      "redaction_performed": true,
+      "redaction_tool": "none-example",
+      "redaction_tool_version": "example",
+      "redacted_fields": [],
+      "forbidden_raw_fields_absent": true,
+      "raw_capture_retention_policy": "no raw capture exists in this example",
+      "redacted_capture_sha256": "sha256-example-redacted-capture-hash"
+    },
+    "repeatability_limits": {
+      "sample_window_utc": "example-window",
+      "sample_count": 0,
+      "locations_count": 0,
+      "networks_count": 0,
+      "known_confounders": [
+        "example only, no external observation"
+      ],
+      "not_generalizable_beyond_environment": true,
+      "refresh_after_utc": "2026-05-30T00:00:00Z"
+    },
+    "result_summary": {
+      "external_dpi_tested": false,
+      "baseline_blocked_or_detected": false,
+      "treatment_reachability_observed": false,
+      "reachability_observed": false,
+      "dpi_bypass_confirmed": false,
+      "bypass_confirmed": false,
+      "dataplane_confirmed": false,
+      "production_ready": false,
+      "confidence_bucket": "none",
+      "decision": "incomplete"
+    },
+    "claim_boundary": {
+      "summary": "Example shape only; not evidence.",
+      "not_proven": [
+        "production readiness",
+        "durable censorship bypass",
+        "anonymity",
+        "provider health",
+        "customer traffic"
+      ],
+      "proof_claims": {
+        "external_dpi_tested": false,
+        "reachability_observed": false,
+        "dpi_bypass_confirmed": false,
+        "bypass_confirmed": false,
+        "dataplane_confirmed": false,
+        "production_ready": false
+      },
+      "upgrade_rule": "Only a concrete authorized external artifact can raise these flags."
+    },
+    "evidence_links": {
+      "source_artifacts": [],
+      "artifact_roles": [],
+      "source_hashes": [],
+      "related_local_evidence_refs": []
+    }
+  }
+}

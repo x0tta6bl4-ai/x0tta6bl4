@@ -4,10 +4,10 @@
   "scope": "Canonical import direction for libx0t and src.libx0t package surfaces.",
   "canonical_import_policy": {
     "src_libx0t_rule": "Files under src/libx0t must import src.libx0t.* when the target module or package exists under src/libx0t.",
-    "allowed_exception_rule": "Files under src/libx0t may import top-level libx0t.* only when no matching src.libx0t module or package exists.",
-    "top_level_libx0t_role": "Top-level libx0t remains a public and legacy compatibility surface.",
-    "pqc_runtime_rule": "Runtime modules outside src/libx0t should prefer the canonical src.security.pqc module; src.libx0t.security.post_quantum and top-level libx0t.security.post_quantum remain compatibility surfaces.",
-    "security_bridge_rule": "Top-level libx0t/security shims delegate to src.libx0t.security modules or to the canonical src.security module when the implementation lives outside src.libx0t."
+    "allowed_exception_rule": "No direct top-level libx0t.* imports are allowed inside src/libx0t while the top-level libx0t tree is absent.",
+    "top_level_libx0t_role": "The top-level libx0t source tree is absent in the current worktree; compatibility imports resolve through src/libx0t when src is on sys.path.",
+    "pqc_runtime_rule": "Runtime modules outside src/libx0t should prefer the canonical src.security.pqc module; src.libx0t.security.post_quantum remains a compatibility surface.",
+    "security_bridge_rule": "Top-level libx0t/security file shims are absent in the current worktree; compatibility import tests must resolve modules through src/libx0t instead of deleted top-level files."
   },
   "current_scan": {
     "scanned_roots_for_repo_import_counts": [
@@ -17,14 +17,57 @@
       "libx0t"
     ],
     "repo_direct_import_statements": {
-      "libx0t": 96,
-      "src.libx0t": 76
+      "libx0t": 43,
+      "src.libx0t": 97
     },
     "src_libx0t_top_level_libx0t_import_statements": {
       "total": 0,
       "with_src_libx0t_counterpart": 0,
       "top_level_only": 0
     }
+  },
+  "test_compatibility_import_surface": {
+    "contract": "Remaining direct libx0t.* imports are test-only public compatibility surface checks. Runtime src files outside src/libx0t and scripts must not import top-level libx0t while the top-level libx0t source tree is absent.",
+    "imports_total": 35,
+    "runtime_src_imports_total": 0,
+    "scripts_imports_total": 0,
+    "source_refs": [
+      "tests/dao/test_pqc_governance.py:12",
+      "tests/network/test_pqc_discovery.py:13",
+      "tests/security/test_pqc_identity_did.py:11",
+      "tests/unit/core/test_libx0t_cache.py:4",
+      "tests/unit/core/test_libx0t_circuit_breaker.py:4",
+      "tests/unit/core/test_libx0t_consciousness.py:4",
+      "tests/unit/core/test_libx0t_mape_k_loop.py:3",
+      "tests/unit/core/test_libx0t_mape_k_loop.py:4",
+      "tests/unit/libx0t/core/test_settings_security_profile_unit.py:3",
+      "tests/unit/libx0t/core/test_settings_validation_unit.py:6",
+      "tests/unit/libx0t/network/obfuscation/test_base_unit.py:4",
+      "tests/unit/libx0t/network/obfuscation/test_domain_fronting_unit.py:7",
+      "tests/unit/libx0t/network/obfuscation/test_simple_xor_obfuscation_unit.py:4",
+      "tests/unit/libx0t/network/obfuscation/test_simple_xor_obfuscation_unit.py:5",
+      "tests/unit/libx0t/test_pqc_module_unit.py:9",
+      "tests/unit/libx0t/test_secure_chat_unit.py:3",
+      "tests/unit/network/test_batman_health.py:12",
+      "tests/unit/network/test_batman_health.py:20",
+      "tests/unit/network/test_batman_health.py:25",
+      "tests/unit/network/test_dns_over_https_libx0t_unit.py:15",
+      "tests/unit/network/test_geo_proxy_sharding_libx0t_unit.py:8",
+      "tests/unit/network/test_geo_proxy_sharding_libx0t_unit.py:9",
+      "tests/unit/network/test_proxy_auth_middleware_libx0t_unit.py:12",
+      "tests/unit/network/test_proxy_auth_middleware_libx0t_unit.py:16",
+      "tests/unit/network/test_proxy_config_manager_libx0t_unit.py:12",
+      "tests/unit/network/test_proxy_selection_algorithm_libx0t_unit.py:11",
+      "tests/unit/network/test_proxy_selection_algorithm_libx0t_unit.py:12",
+      "tests/unit/network/test_reputation_scoring_libx0t_unit.py:9",
+      "tests/unit/network/test_residential_proxy_manager_libx0t_unit.py:12",
+      "tests/unit/network/test_vpn_leak_protection_libx0t_unit.py:6",
+      "tests/unit/network/test_vpn_proxy_libx0t_unit.py:7",
+      "tests/unit/network/test_vpn_proxy_libx0t_unit.py:8",
+      "tests/unit/network/test_webrtc_leak_fix_libx0t_unit.py:7",
+      "tests/unit/network/test_yggdrasil_client_errors_libx0t_unit.py:4",
+      "tests/unit/network/test_yggdrasil_client_libx0t_unit.py:6"
+    ]
   },
   "repaired_import_holes": [
     {
@@ -68,117 +111,73 @@
       "id": "src-libx0t-production-system-hardening",
       "previous_problem": "src/libx0t/core/production_system.py imported libx0t.security.production_hardening, but that top-level module was missing.",
       "current_target": "src.security.production_hardening",
-      "compatibility_target": "libx0t.security.production_hardening",
       "source_refs": [
-        "src/libx0t/core/production_system.py:38",
-        "libx0t/security/production_hardening.py:3"
+        "src/libx0t/core/production_system.py:38"
       ]
     },
     {
-      "id": "src-libx0t-network-top-level-bridges",
-      "previous_problem": "src/libx0t runtime modules imported top-level libx0t.network modules directly because yggdrasil, byzantine, and eBPF modules existed only under the top-level libx0t surface.",
-      "current_target": "src.libx0t.network bridge modules",
-      "compatibility_targets": [
-        "libx0t.network.yggdrasil_client",
-        "libx0t.network.byzantine.mesh_byzantine_protection",
-        "libx0t.network.byzantine.signed_gossip",
-        "libx0t.network.ebpf.cilium_integration",
-        "libx0t.network.ebpf.explainer"
-      ],
+      "id": "src-libx0t-network-canonical-imports",
+      "previous_problem": "src/libx0t runtime modules imported top-level libx0t.network modules directly while the top-level libx0t tree is now absent.",
+      "current_target": "src.libx0t.network modules and src.network canonical bridges",
       "source_refs": [
-        "src/libx0t/core/app.py:95",
-        "src/libx0t/core/app.py:106",
-        "src/libx0t/core/app.py:513",
-        "src/libx0t/core/app.py:525",
-        "src/libx0t/core/app.py:537",
+        "src/libx0t/core/app.py:97",
+        "src/libx0t/core/app.py:108",
+        "src/libx0t/core/app.py:549",
+        "src/libx0t/core/app.py:561",
+        "src/libx0t/core/app.py:573",
         "src/libx0t/core/app_minimal_with_byzantine.py:23",
         "src/libx0t/core/app_minimal_with_byzantine.py:25",
         "src/libx0t/core/app_minimal_with_byzantine.py:188",
         "src/libx0t/core/demo_api.py:164",
         "src/libx0t/core/q2_integration.py:39"
       ]
+    },
+    {
+      "id": "src-libx0t-network-compat-bridges-to-src-network",
+      "previous_problem": "src/libx0t network bridge modules pointed at deleted top-level libx0t.network modules.",
+      "current_target": "src.network canonical modules",
+      "source_refs": [
+        "src/libx0t/network/byzantine/mesh_byzantine_protection.py:6",
+        "src/libx0t/network/byzantine/signed_gossip.py:6",
+        "src/libx0t/network/ebpf/cilium_integration.py:6",
+        "src/libx0t/network/ebpf/explainer.py:6"
+      ]
+    },
+    {
+      "id": "src-libx0t-direct-top-level-imports-canonicalized",
+      "previous_problem": "Several files inside src/libx0t imported libx0t.* even though matching modules exist under src/libx0t and the top-level libx0t tree is absent.",
+      "current_target": "src.libx0t.* imports only inside src/libx0t",
+      "source_refs": [
+        "src/libx0t/core/node.py:5",
+        "src/libx0t/examples/secure_chat.py:13",
+        "src/libx0t/examples/secure_chat.py:14",
+        "src/libx0t/network/ebpf/loader.py:27",
+        "src/libx0t/network/ebpf/mape_k_integration.py:129",
+        "src/libx0t/network/residential_proxy_manager.py:25",
+        "src/libx0t/network/residential_proxy_manager.py:26",
+        "src/libx0t/network/vpn_leak_protection.py:19"
+      ]
+    },
+    {
+      "id": "src-runtime-direct-top-level-libx0t-imports-canonicalized",
+      "previous_problem": "Runtime files outside src/libx0t imported libx0t.* directly even though the top-level libx0t source tree is absent.",
+      "current_target": "src.libx0t.* imports for runtime Batman/CLI/governance compatibility",
+      "source_refs": [
+        "src/api/maas/endpoints/batman.py:151",
+        "src/api/maas/endpoints/batman.py:164",
+        "src/api/maas/endpoints/batman.py:177",
+        "src/api/maas/endpoints/batman.py:384",
+        "src/api/maas/endpoints/batman.py:700",
+        "src/api/maas/endpoints/batman.py:742",
+        "src/cli/node_cli.py:11",
+        "src/cli/node_cli.py:12",
+        "src/dao/governance_mvp.py:22"
+      ]
     }
   ],
   "allowed_top_level_only_imports_in_src_libx0t": [],
-  "src_libx0t_top_level_bridge_modules": [
-    {
-      "path": "src/libx0t/network/yggdrasil_client.py",
-      "target": "libx0t.network.yggdrasil_client",
-      "top_level_path": "libx0t/network/yggdrasil_client.py",
-      "source_refs": [
-        "src/libx0t/network/yggdrasil_client.py:6"
-      ]
-    },
-    {
-      "path": "src/libx0t/network/byzantine/mesh_byzantine_protection.py",
-      "target": "libx0t.network.byzantine.mesh_byzantine_protection",
-      "top_level_path": "libx0t/network/byzantine/mesh_byzantine_protection.py",
-      "source_refs": [
-        "src/libx0t/network/byzantine/mesh_byzantine_protection.py:6"
-      ]
-    },
-    {
-      "path": "src/libx0t/network/byzantine/signed_gossip.py",
-      "target": "libx0t.network.byzantine.signed_gossip",
-      "top_level_path": "libx0t/network/byzantine/signed_gossip.py",
-      "source_refs": [
-        "src/libx0t/network/byzantine/signed_gossip.py:6"
-      ]
-    },
-    {
-      "path": "src/libx0t/network/ebpf/cilium_integration.py",
-      "target": "libx0t.network.ebpf.cilium_integration",
-      "top_level_path": "libx0t/network/ebpf/cilium_integration.py",
-      "source_refs": [
-        "src/libx0t/network/ebpf/cilium_integration.py:6"
-      ]
-    },
-    {
-      "path": "src/libx0t/network/ebpf/explainer.py",
-      "target": "libx0t.network.ebpf.explainer",
-      "top_level_path": "libx0t/network/ebpf/explainer.py",
-      "source_refs": [
-        "src/libx0t/network/ebpf/explainer.py:6"
-      ]
-    }
-  ],
-  "top_level_security_shims": [
-    {
-      "path": "libx0t/security/post_quantum.py",
-      "target": "src.libx0t.security.post_quantum",
-      "source_refs": [
-        "libx0t/security/post_quantum.py:3"
-      ]
-    },
-    {
-      "path": "libx0t/security/pqc_core.py",
-      "target": "src.libx0t.security.pqc_core",
-      "source_refs": [
-        "libx0t/security/pqc_core.py:3"
-      ]
-    },
-    {
-      "path": "libx0t/security/pqc_mtls.py",
-      "target": "src.libx0t.security.pqc_mtls",
-      "source_refs": [
-        "libx0t/security/pqc_mtls.py:3"
-      ]
-    },
-    {
-      "path": "libx0t/security/zero_trust/__init__.py",
-      "target": "src.libx0t.security.zero_trust",
-      "source_refs": [
-        "libx0t/security/zero_trust/__init__.py:3"
-      ]
-    },
-    {
-      "path": "libx0t/security/production_hardening.py",
-      "target": "src.security.production_hardening",
-      "source_refs": [
-        "libx0t/security/production_hardening.py:3"
-      ]
-    }
-  ],
+  "src_libx0t_top_level_bridge_modules": [],
+  "top_level_security_shims": [],
   "drift_checks": [
     "tests/unit/test_canonical_import_map_unit.py",
     "tests/unit/test_namespace_convergence_map_unit.py"

@@ -11,6 +11,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from src.database import User, AuditLog, get_db
 from src.core.tracing_middleware import get_correlation_id
+from src.services.maas_auth_service import find_user_by_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +162,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             if cached:
                 return cached
 
-            user = db.query(User).filter(User.api_key == api_key).first()
+            user = find_user_by_api_key(db, api_key)
             if user:
                 self._cache_identity_set(cache_key, user.id)
                 return user.id
