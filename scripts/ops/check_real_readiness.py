@@ -1056,6 +1056,67 @@ def check_spire_local_socket_boundary_contract(root: Path) -> list[CheckResult]:
     ]
 
 
+def check_mapek_safe_mode_contract(root: Path) -> list[CheckResult]:
+    mape_k_loop = _read(root, "src/core/mape_k_loop.py")
+    required = {
+        "safe_mode_claim_boundary": (
+            "MAPEK_SAFE_MODE_CLAIM_BOUNDARY" in mape_k_loop
+            and "Safe-mode blocks route, healing, scaling, DAO dispatch"
+            in mape_k_loop
+        ),
+        "safe_mode_directives_helper": (
+            "def _safe_mode_directives(" in mape_k_loop
+            and "self.safe_mode_active = True" in mape_k_loop
+            and '"safe_mode_final_state": "control_actions_blocked"'
+            in mape_k_loop
+            and '"production_readiness_claim_allowed": False' in mape_k_loop
+        ),
+        "safe_mode_event": (
+            "def _publish_safe_mode_event(" in mape_k_loop
+            and 'operation="enter_safe_mode"' in mape_k_loop
+            and 'stage="safe_mode_entered"' in mape_k_loop
+        ),
+        "execute_blocks_control_actions": (
+            'if directives.get("safe_mode"):' in mape_k_loop
+            and "return [f\"safe_mode={reason_id}\"]" in mape_k_loop
+        ),
+        "planning_error_enters_safe_mode": (
+            'reason_id="planning_failed"' in mape_k_loop
+            and 'dependency="planner"' in mape_k_loop
+        ),
+        "knowledge_error_enters_safe_mode": (
+            'reason_id="knowledge_phase_failed"' in mape_k_loop
+            and 'dependency="knowledge"' in mape_k_loop
+        ),
+        "cid_layer_error_enters_safe_mode": (
+            'reason_id="cid_log_failed"' in mape_k_loop
+            and 'dependency="cid_audit_log"' in mape_k_loop
+        ),
+    }
+    missing = [name for name, ok in required.items() if not ok]
+    if missing:
+        return [
+            fail_check(
+                "mapek_safe_mode_contract",
+                (
+                    "MAPE-K must fail closed into safe-mode for planning, "
+                    "knowledge, and CID-layer failures: " + ", ".join(missing)
+                ),
+                "src/core/mape_k_loop.py",
+            )
+        ]
+    return [
+        pass_check(
+            "mapek_safe_mode_contract",
+            (
+                "MAPE-K has a fail-closed safe-mode final state for planning, "
+                "knowledge, and CID-layer failures"
+            ),
+            "src/core/mape_k_loop.py",
+        )
+    ]
+
+
 def check_maas_telemetry_claim_gate_contract(root: Path) -> list[CheckResult]:
     maas_telemetry = _read_with_optional(
         root,
@@ -5456,6 +5517,7 @@ def build_report(
         checks.extend(check_yggdrasil_observed_state_contract(root))
         checks.extend(check_service_identity_trust_claim_gate_contract(root))
         checks.extend(check_spire_local_socket_boundary_contract(root))
+        checks.extend(check_mapek_safe_mode_contract(root))
         checks.extend(check_maas_telemetry_claim_gate_contract(root))
         checks.extend(check_mesh_api_claim_gate_contract(root))
         checks.extend(check_status_api_claim_gate_contract(root))

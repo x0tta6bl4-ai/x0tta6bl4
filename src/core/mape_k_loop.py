@@ -62,6 +62,7 @@ _MAPEK_RESOURCES = {
     "trigger_preemptive_checks": "core:mapek:execute:preemptive_healing",
     "handle_scaling": "core:mapek:execute:scaling",
     "dispatch_dao_action": "core:mapek:execute:dao_action",
+    "enter_safe_mode": "core:mapek:safe_mode",
 }
 _SAFE_ROUTE_PREFERENCES = {"low_latency", "reliability", "balanced"}
 _CLAIM_BOUNDARY_LIMIT = 8
@@ -95,6 +96,12 @@ MAPEK_POST_ACTION_DATAPLANE_CLAIM_BOUNDARY = (
     "prove restored dataplane behavior, live customer traffic, external reachability, "
     "production SLOs, or production readiness without a bounded post-action "
     "dataplane probe whose nested claim gate allows the restored-dataplane claim."
+)
+MAPEK_SAFE_MODE_CLAIM_BOUNDARY = (
+    "MAPE-K safe-mode evidence records a local fail-closed control decision only. "
+    "Safe-mode blocks route, healing, scaling, DAO dispatch, and production-ready "
+    "claims until a trusted operator or recovery path clears the underlying "
+    "planning, knowledge, or CID-layer fault."
 )
 
 
@@ -169,6 +176,11 @@ def _directive_summary(directives: Dict[str, Any]) -> Dict[str, Any]:
     )
     return {
         "keys": sorted(str(key) for key in directives),
+        "safe_mode": bool(directives.get("safe_mode", False)),
+        "safe_mode_final_state": str(
+            directives.get("safe_mode_final_state", "")
+        ),
+        "safe_mode_reason_id": str(directives.get("safe_mode_reason_id", "")),
         "route_preference": (
             route_preference
             if route_preference in _SAFE_ROUTE_PREFERENCES
@@ -236,6 +248,12 @@ def _safe_action_context(context: Dict[str, Any]) -> Dict[str, Any]:
         )
     if "mesh_dataplane_confirmed" in context:
         safe["mesh_dataplane_confirmed"] = bool(context["mesh_dataplane_confirmed"])
+    if "safe_mode_reason_id" in context:
+        safe["safe_mode_reason_id"] = str(context["safe_mode_reason_id"])
+    if "safe_mode_final_state" in context:
+        safe["safe_mode_final_state"] = str(context["safe_mode_final_state"])
+    if "dependency" in context:
+        safe["dependency"] = str(context["dependency"])
     safe["values_redacted"] = True
     return safe
 
@@ -747,6 +765,85 @@ class MAPEKLoop:
         # Thought Generation Control
         self.cycle_count = 0
         self.thought_frequency = 10  # Generate thought every 10 cycles (~10 mins)
+        self.safe_mode_active = False
+        self.safe_mode_reason_id = ""
+
+    def _safe_mode_directives(
+        self,
+        *,
+        reason_id: str,
+        dependency: str,
+        error_type: str = "",
+        base_directives: Dict[str, Any] | None = None,
+        raw_metrics: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        directives = dict(base_directives or {})
+        directives = _apply_mesh_metric_evidence_policy(directives, raw_metrics or {})
+        directives.update(
+            {
+                "safe_mode": True,
+                "safe_mode_reason_id": reason_id,
+                "safe_mode_dependency": dependency,
+                "safe_mode_error_type": error_type,
+                "safe_mode_final_state": "control_actions_blocked",
+                "monitoring_interval_sec": max(
+                    int(directives.get("monitoring_interval_sec", 60) or 60),
+                    60,
+                ),
+                "route_preference": "balanced",
+                "enable_aggressive_healing": False,
+                "preemptive_healing": False,
+                "scaling_action": "none",
+                "dao_actions": [],
+                "blocked_high_risk_mesh_actions": [
+                    "aggressive_healing",
+                    "mesh_optimization",
+                    "preemptive_healing",
+                    "scaling",
+                    "dao_action",
+                ],
+                "mesh_high_risk_actions_blocked": True,
+                "production_readiness_claim_allowed": False,
+                "claim_boundary": MAPEK_SAFE_MODE_CLAIM_BOUNDARY,
+            }
+        )
+        self.safe_mode_active = True
+        self.safe_mode_reason_id = reason_id
+        return directives
+
+    def _publish_safe_mode_event(
+        self,
+        *,
+        directives: Dict[str, Any],
+        metrics: Dict[str, Any] | None = None,
+        reason: str,
+        error_type: str,
+    ) -> None:
+        self._publish_control_event(
+            EventType.TASK_BLOCKED,
+            stage="safe_mode_entered",
+            operation="enter_safe_mode",
+            status="safe_mode",
+            directives=directives,
+            metrics=metrics,
+            context={
+                "safe_mode_reason_id": directives.get("safe_mode_reason_id", ""),
+                "safe_mode_final_state": directives.get(
+                    "safe_mode_final_state", "control_actions_blocked"
+                ),
+                "dependency": directives.get("safe_mode_dependency", ""),
+            },
+            success=False,
+            simulated=False,
+            raw_result={
+                "success": False,
+                "safe_mode_active": True,
+                "control_actions_blocked": True,
+                "production_readiness_claim_allowed": False,
+            },
+            reason=reason,
+            error_type=error_type or None,
+        )
 
     def _publish_control_event(
         self,
@@ -970,11 +1067,27 @@ class MAPEKLoop:
             consciousness_metrics = await self._analyze(raw_metrics)
 
         # ===== PLAN =====
-        if mapek_spans:
-            with mapek_spans.plan_phase(node_id):
-                directives = self._plan(consciousness_metrics)
+        if self.safe_mode_active:
+            directives = self._safe_mode_directives(
+                reason_id=self.safe_mode_reason_id or "safe_mode_active",
+                dependency="previous_cycle",
+                raw_metrics=raw_metrics,
+            )
         else:
-            directives = self._plan(consciousness_metrics)
+            try:
+                if mapek_spans:
+                    with mapek_spans.plan_phase(node_id):
+                        directives = self._plan(consciousness_metrics)
+                else:
+                    directives = self._plan(consciousness_metrics)
+            except Exception as exc:
+                logger.error("MAPE-K planning failed; entering safe mode: %s", exc)
+                directives = self._safe_mode_directives(
+                    reason_id="planning_failed",
+                    dependency="planner",
+                    error_type=type(exc).__name__,
+                    raw_metrics=raw_metrics,
+                )
 
         # ===== EXECUTE =====
         if mapek_spans:
@@ -986,13 +1099,53 @@ class MAPEKLoop:
         # ===== KNOWLEDGE =====
         if mapek_spans:
             with mapek_spans.knowledge_phase(node_id):
+                try:
+                    await self._knowledge(
+                        consciousness_metrics, directives, actions_taken, raw_metrics
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "MAPE-K knowledge phase failed; entering safe mode: %s",
+                        exc,
+                    )
+                    safe_directives = self._safe_mode_directives(
+                        reason_id="knowledge_phase_failed",
+                        dependency="knowledge",
+                        error_type=type(exc).__name__,
+                        base_directives=directives,
+                        raw_metrics=raw_metrics,
+                    )
+                    self._publish_safe_mode_event(
+                        directives=safe_directives,
+                        metrics=raw_metrics,
+                        reason="knowledge_phase_failed",
+                        error_type=type(exc).__name__,
+                    )
+                    directives = safe_directives
+        else:
+            try:
                 await self._knowledge(
                     consciousness_metrics, directives, actions_taken, raw_metrics
                 )
-        else:
-            await self._knowledge(
-                consciousness_metrics, directives, actions_taken, raw_metrics
-            )
+            except Exception as exc:
+                logger.error(
+                    "MAPE-K knowledge phase failed; entering safe mode: %s",
+                    exc,
+                )
+                safe_directives = self._safe_mode_directives(
+                    reason_id="knowledge_phase_failed",
+                    dependency="knowledge",
+                    error_type=type(exc).__name__,
+                    base_directives=directives,
+                    raw_metrics=raw_metrics,
+                )
+                self._publish_safe_mode_event(
+                    directives=safe_directives,
+                    metrics=raw_metrics,
+                    reason="knowledge_phase_failed",
+                    error_type=type(exc).__name__,
+                )
+                directives = safe_directives
 
         cycle_duration = time.time() - cycle_start
         self.cycle_count += 1
@@ -1306,6 +1459,15 @@ class MAPEKLoop:
         EXECUTE phase: Take action based on directives
         """
         actions = []
+        if directives.get("safe_mode"):
+            reason_id = str(directives.get("safe_mode_reason_id", "safe_mode"))
+            self._publish_safe_mode_event(
+                directives=directives,
+                reason=reason_id,
+                error_type=str(directives.get("safe_mode_error_type", "")),
+            )
+            return [f"safe_mode={reason_id}"]
+
         for blocked_action in _safe_string_list(
             directives.get("blocked_high_risk_mesh_actions", []),
         ):
@@ -1602,6 +1764,19 @@ class MAPEKLoop:
                 logger.info(f"📜 DAO audit logged: {cid}")
             except Exception as e:
                 logger.error(f"Failed to log to DAO: {e}")
+                safe_directives = self._safe_mode_directives(
+                    reason_id="cid_log_failed",
+                    dependency="cid_audit_log",
+                    error_type=type(e).__name__,
+                    base_directives=state.directives,
+                    raw_metrics=getattr(state.metrics, "raw_metrics", None),
+                )
+                self._publish_safe_mode_event(
+                    directives=safe_directives,
+                    metrics=getattr(state.metrics, "raw_metrics", None),
+                    reason="cid_log_failed",
+                    error_type=type(e).__name__,
+                )
         else:
             logger.info(
                 f"📜 DAO audit (simulation): {state.metrics.state.value} state recorded"

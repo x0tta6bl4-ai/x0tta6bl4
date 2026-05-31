@@ -994,6 +994,55 @@ def _apply_mesh_metric_evidence_policy(directives, raw_metrics):
     directives["blocked_high_risk_mesh_actions"] = blocked_high_risk_mesh_actions
     directives["mesh_high_risk_actions_blocked"] = True
     return directives
+
+MAPEK_SAFE_MODE_CLAIM_BOUNDARY = "Safe-mode blocks route, healing, scaling, DAO dispatch"
+
+def _safe_mode_directives(reason_id, dependency):
+    self.safe_mode_active = True
+    return {
+        "safe_mode": True,
+        "safe_mode_final_state": "control_actions_blocked",
+        "safe_mode_reason_id": reason_id,
+        "production_readiness_claim_allowed": False,
+    }
+
+def _publish_safe_mode_event(directives):
+    self._publish_control_event(
+        operation="enter_safe_mode",
+        stage="safe_mode_entered",
+    )
+
+def _execute(directives):
+    if directives.get("safe_mode"):
+        _publish_safe_mode_event(directives)
+        reason_id = "planning_failed"
+        return [f"safe_mode={reason_id}"]
+
+def _execute_cycle():
+    try:
+        directives = self._plan(consciousness_metrics)
+    except Exception:
+        directives = self._safe_mode_directives(
+            reason_id="planning_failed",
+            dependency="planner",
+        )
+    try:
+        self._knowledge(consciousness_metrics, directives, actions_taken, raw_metrics)
+    except Exception:
+        self._safe_mode_directives(
+            reason_id="knowledge_phase_failed",
+            dependency="knowledge",
+        )
+
+def _log_to_dao(state):
+    try:
+        cid = dao_logger.log_consciousness_event(event_data)
+    except Exception:
+        safe_directives = self._safe_mode_directives(
+            reason_id="cid_log_failed",
+            dependency="cid_audit_log",
+        )
+        self._publish_safe_mode_event(directives=safe_directives)
 """,
     )
     _write(
@@ -6722,6 +6771,36 @@ chmod 777 /tmp/spire-agent/public
     ]
     assert "chmod 777" in blocker["details"]
     assert "/tmp/spire-agent/public" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_mapek_safe_mode_contract_blocks_missing_safe_mode(tmp_path: Path) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/core/mape_k_loop.py",
+        """
+def _execute_cycle():
+    directives = self._plan(consciousness_metrics)
+    return directives
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "mapek_safe_mode_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "mapek_safe_mode_contract"
+    ]
+    assert "planning" in blocker["details"]
+    assert "CID-layer" in blocker["details"]
     assert report["ready"] is False
 
 
