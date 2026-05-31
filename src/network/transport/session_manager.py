@@ -4,7 +4,7 @@ import logging
 import hashlib
 from pathlib import Path
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
-from typing import Dict, Optional
+from typing import Dict
 
 logger = logging.getLogger("pulse-session-manager")
 
@@ -23,11 +23,37 @@ class SessionPersistence:
             with open(id_path, "rb") as f:
                 self.master_secret = hashlib.sha256(f.read()).digest()
         else:
-            self.master_secret = os.getenv("GHOST_NODE_SECRET", "fallback_entropy_!!!!").encode()[:32]
-            if len(self.master_secret) < 32:
-                self.master_secret = self.master_secret.ljust(32, b'\0')
+            self.master_secret = self._derive_env_or_ephemeral_secret()
 
         self.cipher = ChaCha20Poly1305(self.master_secret)
+
+    @staticmethod
+    def _production_mode() -> bool:
+        return os.getenv("X0TTA6BL4_PRODUCTION", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+    @classmethod
+    def _derive_env_or_ephemeral_secret(cls) -> bytes:
+        raw_secret = os.getenv("GHOST_NODE_SECRET")
+        if raw_secret:
+            master_secret = raw_secret.encode()[:32]
+            return master_secret.ljust(32, b"\0")
+
+        if cls._production_mode():
+            raise RuntimeError(
+                "GHOST_NODE_SECRET is required when .tmp/pqc_identity.txt is absent "
+                "and X0TTA6BL4_PRODUCTION is enabled"
+            )
+
+        logger.warning(
+            "GHOST_NODE_SECRET is not set and .tmp/pqc_identity.txt is absent; "
+            "using an ephemeral session encryption key"
+        )
+        return os.urandom(32)
 
     def save_sessions(self, sessions: Dict):
         """Шифрование и сохранение всех активных сессий."""

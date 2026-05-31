@@ -180,6 +180,17 @@ pip install --upgrade "aiohttp>=3.13.3" "certifi>=2024.7.4" \
 | mutants/test_stripe_webhook.py:8 | `WEBHOOK_SECRET = "whsec_test_..."` | 🟡 TEST ONLY |
 | src/sales/telegram_bot.py:55 | `BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"` | 🟡 PLACEHOLDER |
 | monitoring/geo-leak-detector/config/settings.py:95 | `secret_key = "your-secret-key-change-in-production"` | 🔴 DEFAULT |
+| src/network/transport/session_manager.py:26 | `GHOST_NODE_SECRET` used shared fallback entropy | ✅ FIXED 2026-05-31 |
+
+#### Текущее уточнение baseline
+
+На 2026-05-31 `scripts/check_env_security_defaults.py` проверяет
+`src/self_healing` и `src/sales` вместе с основными security/runtime путями.
+SPIFFE MAPE-K join token читается только из env в
+`src/self_healing/mape_k_spiffe_integration.py`. Session persistence больше не
+использует общий fallback entropy: production требует `GHOST_NODE_SECRET` или
+`.tmp/pqc_identity.txt`, а non-production использует временный ephemeral key,
+если оба источника отсутствуют.
 
 #### Задачи:
 
