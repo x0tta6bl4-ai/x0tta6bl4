@@ -4,7 +4,7 @@
   "scope": "EventBus, service identity, and SafeActuator cross-layer control plane surface.",
   "current_scan": {
     "scanned_root": "src",
-    "event_surface_files": 127,
+    "event_surface_files": 128,
     "service_identity_services": 88,
     "event_trace_services": 193,
     "event_type_values": 31,
@@ -1818,6 +1818,24 @@
         "src/mesh/recovery_contracts.py:68",
         "src/mesh/recovery_contracts.py:102",
         "src/services/service_identity_registry.py:462"
+      ]
+    },
+    {
+      "path": "src/mesh/recovery_dataplane_probe.py",
+      "layer": "mesh_recovery_dataplane_probe_adapter",
+      "role": "RecoveryDataplanePingProbe adapts the shared real-network-adapter bounded ping probe into MeshRecoveryOrchestrator.dataplane_probe. It normalizes async/sync probe results into dataplane_confirmed plus redacted EventBus evidence references for recovery proof gates without copying raw probe targets or creating a new source_agent.",
+      "markers": [
+        "event_bus"
+      ],
+      "source_refs": [
+        "src/mesh/recovery_dataplane_probe.py:11",
+        "src/mesh/recovery_dataplane_probe.py:14",
+        "src/mesh/recovery_dataplane_probe.py:87",
+        "src/mesh/recovery_dataplane_probe.py:120",
+        "src/mesh/recovery_dataplane_probe.py:145",
+        "src/mesh/recovery_dataplane_probe.py:162",
+        "src/mesh/real_network_adapter.py:286",
+        "tests/unit/mesh/test_recovery_dataplane_probe_unit.py:39"
       ]
     },
     {
