@@ -67,7 +67,7 @@ jobs:
           python -m pip install pytest packaging
 
       - name: Run dependency security guard
-        run: python3 -m pytest tests/unit/security/test_dependency_security_pins_unit.py -q -o addopts=''
+        run: python3 -m pytest --confcutdir=tests/unit/security tests/unit/security/test_dependency_security_pins_unit.py -q -o addopts=''
 
       - name: Run requirements lock sync
         run: python3 scripts/check_requirements_lock_sync.py
