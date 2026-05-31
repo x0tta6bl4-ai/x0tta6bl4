@@ -54,6 +54,16 @@ ECONOMY_BOUNDARY_SOURCE_AGENTS = (
     "token-rewards",
     "token-bridge",
 )
+DATAPLANE_PROOF_SOURCE_AGENTS = (
+    "mesh-action-enforcer",
+    "mesh-recovery-orchestrator",
+    "real-network-adapter",
+)
+LOCAL_OBSERVED_STATE_ONLY_SOURCE_AGENTS = (
+    "mesh-telemetry-collector",
+    "mesh-yggdrasil-optimizer",
+    "yggdrasil-client",
+)
 DPI_IMPORT_BUNDLE_GLOB = "ghost-pulse-external-evidence-import-*"
 DPI_IMPORT_REPORT_NAME = "import-report.json"
 DPI_IMPORT_REPORT_SCAN_LIMIT = 50
@@ -373,6 +383,12 @@ def _count_list_or_field(value: Mapping[str, Any], count_field: str, list_field:
     return len(items) if isinstance(items, list) else 0
 
 
+def _safe_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item)]
+
+
 def _dataplane_revalidation_candidates(data: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     candidates: list[Mapping[str, Any]] = []
     for value in (
@@ -440,12 +456,17 @@ def _dataplane_candidate_blockers(
     event_ids_count = _count_list_or_field(evidence, "event_ids_count", "event_ids")
     events_total = _count_list_or_field(evidence, "events_total", "event_ids")
     source_agents_count = _count_list_or_field(evidence, "source_agents_count", "source_agents")
+    source_agents = _safe_string_list(evidence.get("source_agents"))
     if evidence.get("redacted") is not True:
         blockers.append("dataplane_evidence_not_redacted")
     if event_ids_count <= 0 or events_total <= 0:
         blockers.append("dataplane_evidence_event_ids_missing")
     if source_agents_count <= 0:
         blockers.append("dataplane_evidence_source_agents_missing")
+    elif not any(agent in DATAPLANE_PROOF_SOURCE_AGENTS for agent in source_agents):
+        blockers.append("dataplane_evidence_source_agent_not_dataplane_probe")
+        if all(agent in LOCAL_OBSERVED_STATE_ONLY_SOURCE_AGENTS for agent in source_agents):
+            blockers.append("dataplane_evidence_is_local_observed_state_only")
     if not (revalidation.get("claim_boundary") or gate.get("claim_boundary")):
         blockers.append("dataplane_claim_boundary_missing")
 

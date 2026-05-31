@@ -809,6 +809,51 @@ def test_gate_blocks_dataplane_delivery_without_nested_claim_gate(
     assert "verified_dataplane_delivery_event_not_found" in artifact["blockers"]
 
 
+def test_gate_blocks_dataplane_delivery_from_yggdrasil_observed_state_only(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, dataplane_flags=True)
+    _write_valid_dataplane_delivery_event(tmp_path)
+    event_log = tmp_path / ".agent_coordination/events.log"
+    event = json.loads(event_log.read_text(encoding="utf-8"))
+    revalidation = event["data"]["post_action_dataplane_revalidation"]
+    revalidation["evidence"]["source_agents"] = ["yggdrasil-client"]
+    revalidation["evidence"]["source_agents_count"] = 1
+    event["data"]["downstream_claim_gates"] = {
+        "present": True,
+        "claim_gates": [
+            {
+                "source_agent": "yggdrasil-client",
+                "schema": "x0tta6bl4.yggdrasil_observed_state.claim_gate.v1",
+                "decision": "LOCAL_YGGDRASIL_OBSERVED_STATE_ONLY",
+                "flags": {
+                    "local_observed_state_claim_allowed": True,
+                    "live_packet_reachability_claim_allowed": False,
+                    "customer_traffic_claim_allowed": False,
+                    "production_readiness_claim_allowed": False,
+                },
+                "redacted": True,
+            }
+        ],
+        "redacted": True,
+    }
+    event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("dataplane_delivery",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [dataplane] = report["claim_results"]
+    assert "dataplane_delivery_eventbus_artifact_not_verified" in dataplane["blockers"]
+    artifact = dataplane["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "dataplane_evidence_source_agent_not_dataplane_probe" in artifact[
+        "candidate_blockers"
+    ]
+    assert "dataplane_evidence_is_local_observed_state_only" in artifact[
+        "candidate_blockers"
+    ]
+
+
 def test_gate_blocks_settlement_finality_when_map_flags_are_true_but_artifact_is_missing(
     tmp_path: Path,
 ) -> None:
