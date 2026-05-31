@@ -45,6 +45,7 @@ The manifest files make each CI run auditable:
 ## Platform Notes
 
 - Android builds locally after installing JDK 21 and Android SDK platform/build tools.
+- Android release signing can be bootstrapped with `scripts/ops/prepare_android_signing_secrets.py`; this generates local signing material and can set the required GitHub secrets without printing private values.
 - Ubuntu builds locally with Tauri v2 and WebKitGTK 4.1.
 - iOS sync works locally, but a real device `.ipa` requires macOS, Xcode, CocoaPods, and Apple signing secrets.
 - Windows MSI requires a Windows build host. On Linux, Tauri exposes only Linux bundle targets such as `deb`, `rpm`, and `appimage`.
