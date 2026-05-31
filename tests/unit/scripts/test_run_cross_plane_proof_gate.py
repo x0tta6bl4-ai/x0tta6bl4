@@ -806,6 +806,28 @@ def test_gate_allows_trust_finality_only_with_verified_eventbus_artifact(
     assert "dataplane delivery" in artifact["claim_boundary"]
 
 
+def test_gate_finds_trust_finality_event_outside_tail_scan_via_source_filter(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, trust_flags=True)
+    _write_valid_trust_finality_event(tmp_path)
+    _append_irrelevant_event_log_entries(tmp_path, 1001)
+
+    report = build_report(tmp_path, claims=("trust_finality",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_ALLOWED"
+    [trust] = report["claim_results"]
+    artifact = trust["required_artifact_evidence"]
+    assert artifact["valid"] is True
+    assert artifact["selected_event"]["event_id"] == "trust-finality-event-1"
+    assert artifact["selected_event"]["scan_source"] == (
+        "source_agent_prefiltered_reverse_scan"
+    )
+    assert artifact["candidate_scan"]["event_log_lines_seen"] > artifact[
+        "tail_events_scanned_limit"
+    ]
+
+
 def test_gate_blocks_customer_traffic_when_map_flags_are_true_but_event_is_missing(
     tmp_path: Path,
 ) -> None:
@@ -858,6 +880,28 @@ def test_gate_allows_customer_traffic_only_with_verified_customer_artifact(
     assert artifact["selected_event"]["event_id"] == "customer-traffic-event-1"
     assert artifact["selected_event"]["production_customer_traffic_confirmed"] is True
     assert "Dataplane probes" in artifact["claim_boundary"]
+
+
+def test_gate_finds_customer_traffic_event_outside_tail_scan_via_source_filter(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, customer_flags=True)
+    _write_valid_customer_traffic_event(tmp_path)
+    _append_irrelevant_event_log_entries(tmp_path, 1001)
+
+    report = build_report(tmp_path, claims=("customer_traffic",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_ALLOWED"
+    [customer] = report["claim_results"]
+    artifact = customer["required_artifact_evidence"]
+    assert artifact["valid"] is True
+    assert artifact["selected_event"]["event_id"] == "customer-traffic-event-1"
+    assert artifact["selected_event"]["scan_source"] == (
+        "source_agent_prefiltered_reverse_scan"
+    )
+    assert artifact["candidate_scan"]["event_log_lines_seen"] > artifact[
+        "tail_events_scanned_limit"
+    ]
 
 
 def test_gate_blocks_production_readiness_when_map_flags_are_true_but_imported_artifact_is_missing(
@@ -1121,6 +1165,28 @@ def test_gate_allows_dataplane_delivery_only_with_map_flags_and_verified_eventbu
     assert artifact["selected_event"]["event_id"] == "dataplane-event-1"
     assert artifact["selected_event"]["redacted"] is True
     assert "customer traffic" in artifact["claim_boundary"]
+
+
+def test_gate_finds_dataplane_delivery_event_outside_tail_scan_via_source_filter(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, dataplane_flags=True)
+    _write_valid_dataplane_delivery_event(tmp_path)
+    _append_irrelevant_event_log_entries(tmp_path, 1001)
+
+    report = build_report(tmp_path, claims=("dataplane_delivery",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_ALLOWED"
+    [dataplane] = report["claim_results"]
+    artifact = dataplane["required_artifact_evidence"]
+    assert artifact["valid"] is True
+    assert artifact["selected_event"]["event_id"] == "dataplane-event-1"
+    assert artifact["selected_event"]["scan_source"] == (
+        "source_agent_prefiltered_reverse_scan"
+    )
+    assert artifact["candidate_scan"]["event_log_lines_seen"] > artifact[
+        "tail_events_scanned_limit"
+    ]
 
 
 def test_gate_blocks_dataplane_delivery_when_eventbus_artifact_lacks_probe_evidence(

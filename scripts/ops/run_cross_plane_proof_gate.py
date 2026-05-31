@@ -546,7 +546,10 @@ def trust_finality_artifact_evidence(root: Path) -> dict[str, Any]:
         "event_log_path": EVENTBUS_LOG.as_posix(),
         "event_log_exists": path.is_file(),
         "events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "tail_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
         "candidate_source_agents": sorted(TRUST_FINALITY_SOURCE_AGENTS),
+        "candidate_scan": None,
         "matching_events": 0,
         "selected_event": None,
         "candidate_blockers": [],
@@ -563,26 +566,48 @@ def trust_finality_artifact_evidence(root: Path) -> dict[str, Any]:
         result["blockers"].append("trust_finality_event_log_missing")
         return result
 
-    for event in reversed(_bounded_event_log_entries(path, limit=EVENTBUS_TAIL_SCAN_LIMIT)):
+    scanned_event_ids: set[str] = set()
+
+    def select_if_valid(event: Mapping[str, Any], scan_source: str) -> bool:
+        event_id = str(event.get("event_id") or "")
+        if event_id and event_id in scanned_event_ids:
+            return False
+        if event_id:
+            scanned_event_ids.add(event_id)
         if str(event.get("source_agent") or "") not in TRUST_FINALITY_SOURCE_AGENTS:
-            continue
+            return False
         candidate_blockers = _trust_candidate_blockers(event)
         if candidate_blockers:
             for blocker in candidate_blockers:
                 if blocker not in result["candidate_blockers"] and len(result["candidate_blockers"]) < 20:
                     result["candidate_blockers"].append(blocker)
-            continue
+            return False
         result["matching_events"] += 1
         result["selected_event"] = {
             "event_id": str(event.get("event_id") or ""),
             "event_type": str(event.get("event_type") or ""),
             "source_agent": str(event.get("source_agent") or ""),
             "timestamp": str(event.get("timestamp") or ""),
+            "scan_source": scan_source,
             "trust_finality_confirmed": True,
             "redacted": True,
         }
         result["valid"] = True
-        return result
+        return True
+
+    for event in reversed(_bounded_event_log_entries(path, limit=EVENTBUS_TAIL_SCAN_LIMIT)):
+        if select_if_valid(event, "tail_scan"):
+            return result
+
+    source_filtered_events, candidate_scan = _source_filtered_event_log_entries(
+        path,
+        source_agents=TRUST_FINALITY_SOURCE_AGENTS,
+        candidate_limit=EVENTBUS_TAIL_SCAN_LIMIT,
+    )
+    result["candidate_scan"] = candidate_scan
+    for event in source_filtered_events:
+        if select_if_valid(event, "source_agent_prefiltered_reverse_scan"):
+            return result
 
     result["blockers"].append("verified_trust_finality_event_not_found")
     return result
@@ -644,7 +669,10 @@ def customer_traffic_artifact_evidence(root: Path) -> dict[str, Any]:
         "event_log_path": EVENTBUS_LOG.as_posix(),
         "event_log_exists": path.is_file(),
         "events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "tail_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
         "candidate_source_agents": sorted(CUSTOMER_TRAFFIC_SOURCE_AGENTS),
+        "candidate_scan": None,
         "matching_events": 0,
         "selected_event": None,
         "candidate_blockers": [],
@@ -661,26 +689,48 @@ def customer_traffic_artifact_evidence(root: Path) -> dict[str, Any]:
         result["blockers"].append("customer_traffic_event_log_missing")
         return result
 
-    for event in reversed(_bounded_event_log_entries(path, limit=EVENTBUS_TAIL_SCAN_LIMIT)):
+    scanned_event_ids: set[str] = set()
+
+    def select_if_valid(event: Mapping[str, Any], scan_source: str) -> bool:
+        event_id = str(event.get("event_id") or "")
+        if event_id and event_id in scanned_event_ids:
+            return False
+        if event_id:
+            scanned_event_ids.add(event_id)
         if str(event.get("source_agent") or "") not in CUSTOMER_TRAFFIC_SOURCE_AGENTS:
-            continue
+            return False
         candidate_blockers = _customer_traffic_candidate_blockers(event)
         if candidate_blockers:
             for blocker in candidate_blockers:
                 if blocker not in result["candidate_blockers"] and len(result["candidate_blockers"]) < 20:
                     result["candidate_blockers"].append(blocker)
-            continue
+            return False
         result["matching_events"] += 1
         result["selected_event"] = {
             "event_id": str(event.get("event_id") or ""),
             "event_type": str(event.get("event_type") or ""),
             "source_agent": str(event.get("source_agent") or ""),
             "timestamp": str(event.get("timestamp") or ""),
+            "scan_source": scan_source,
             "production_customer_traffic_confirmed": True,
             "redacted": True,
         }
         result["valid"] = True
-        return result
+        return True
+
+    for event in reversed(_bounded_event_log_entries(path, limit=EVENTBUS_TAIL_SCAN_LIMIT)):
+        if select_if_valid(event, "tail_scan"):
+            return result
+
+    source_filtered_events, candidate_scan = _source_filtered_event_log_entries(
+        path,
+        source_agents=CUSTOMER_TRAFFIC_SOURCE_AGENTS,
+        candidate_limit=EVENTBUS_TAIL_SCAN_LIMIT,
+    )
+    result["candidate_scan"] = candidate_scan
+    for event in source_filtered_events:
+        if select_if_valid(event, "source_agent_prefiltered_reverse_scan"):
+            return result
 
     result["blockers"].append("verified_customer_traffic_event_not_found")
     return result
@@ -700,6 +750,10 @@ def dataplane_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
         "event_log_path": EVENTBUS_LOG.as_posix(),
         "event_log_exists": path.is_file(),
         "events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "tail_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_source_agents": sorted(DATAPLANE_PROOF_SOURCE_AGENTS),
+        "candidate_scan": None,
         "matching_events": 0,
         "selected_event": None,
         "candidate_blockers": [],
@@ -715,10 +769,17 @@ def dataplane_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
         result["blockers"].append("dataplane_event_log_missing")
         return result
 
-    for event in reversed(_bounded_event_log_entries(path, limit=EVENTBUS_TAIL_SCAN_LIMIT)):
+    scanned_event_ids: set[str] = set()
+
+    def select_if_valid(event: Mapping[str, Any], scan_source: str) -> bool:
+        event_id = str(event.get("event_id") or "")
+        if event_id and event_id in scanned_event_ids:
+            return False
+        if event_id:
+            scanned_event_ids.add(event_id)
         data = _mapping(event.get("data"))
         if not data:
-            continue
+            return False
         for revalidation in _dataplane_revalidation_candidates(data):
             candidate_blockers = _dataplane_candidate_blockers(event, revalidation)
             if candidate_blockers:
@@ -732,12 +793,28 @@ def dataplane_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
                 "event_type": str(event.get("event_type") or ""),
                 "source_agent": str(event.get("source_agent") or ""),
                 "timestamp": str(event.get("timestamp") or ""),
+                "scan_source": scan_source,
                 "dataplane_confirmed": True,
                 "post_action_dataplane_revalidated": True,
                 "restored_dataplane_claim_allowed": True,
                 "redacted": True,
             }
             result["valid"] = True
+            return True
+        return False
+
+    for event in reversed(_bounded_event_log_entries(path, limit=EVENTBUS_TAIL_SCAN_LIMIT)):
+        if select_if_valid(event, "tail_scan"):
+            return result
+
+    source_filtered_events, candidate_scan = _source_filtered_event_log_entries(
+        path,
+        source_agents=DATAPLANE_PROOF_SOURCE_AGENTS,
+        candidate_limit=EVENTBUS_TAIL_SCAN_LIMIT,
+    )
+    result["candidate_scan"] = candidate_scan
+    for event in source_filtered_events:
+        if select_if_valid(event, "source_agent_prefiltered_reverse_scan"):
             return result
 
     result["blockers"].append("verified_dataplane_delivery_event_not_found")
