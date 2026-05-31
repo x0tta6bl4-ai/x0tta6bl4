@@ -1,7 +1,7 @@
 # VPN Planning Refresh
 
-generated_at: `2026-05-28T03:42:31.210070+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z`
+generated_at: `2026-05-31T13:46:13.316758+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z`
 ok: `true`
 
 ## Summary
@@ -10,13 +10,13 @@ ok: `true`
 decision=observe
 decision_confidence=high
 operator_status=observe
-boot_gap_watch_status=watch
-boot_gap_seconds=21907
-provider_packet_type=provider_watch
+boot_gap_watch_status=normal
+boot_gap_seconds=None
+provider_packet_type=historical_provider_incident
 provider_packet_stale=False
-provider_packet_snapshot_age_seconds=57
+provider_packet_snapshot_age_seconds=63
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=11
+blocking_history_snapshot_count=12
 manual_failover_status=planning_not_active
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_probe_allowed=False
@@ -51,15 +51,15 @@ secondary_post_provision_validation_status=post_provision_validation_ready_waiti
 secondary_post_provision_can_generate_probe_config=False
 secondary_post_provision_can_run_public_probe=False
 secondary_post_provision_test_client_allowed=False
-local_diagnostic_environment_status=watch_root_full_tmpdir_available
-local_root_status=critical_full
+local_diagnostic_environment_status=ok
+local_root_status=ok
 local_tmpdir_writable=True
 local_recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
-local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.24
+local_root_cleanup_plan_status=no_cleanup_needed
+local_root_cleanup_estimated_reclaim_gib=0.93
 local_root_cleanup_execute_allowed=False
-local_root_cleanup_approval_packet_status=cleanup_approval_packet_ready
-local_root_cleanup_approval_required=True
+local_root_cleanup_approval_packet_status=cleanup_approval_packet_no_cleanup_needed
+local_root_cleanup_approval_required=False
 local_root_cleanup_commands_executed=0
 incident_symptom_intake_status=symptom_intake_ready_observe
 incident_symptom_required_fields=12
@@ -67,14 +67,14 @@ incident_symptom_forbidden_material=12
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=24
+nl_transport_uptime_samples=25
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=ready_local_with_future_blocks
 readiness_missing=0
-incident_timeline_event_count=22
-incident_timeline_latest_type=provider_watch
-incident_timeline_latest_snapshot=20260528T034120Z
+incident_timeline_event_count=23
+incident_timeline_latest_type=observe
+incident_timeline_latest_snapshot=20260531T134449Z
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false

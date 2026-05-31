@@ -1,6 +1,6 @@
 # VPN Incident Symptom Intake
 
-generated_at: `2026-05-28T03:42:30.538424+00:00`
+generated_at: `2026-05-31T13:46:12.475067+00:00`
 status: `symptom_intake_ready_observe`
 ok: `true`
 
@@ -11,9 +11,9 @@ decision=observe
 operator_status=observe
 transport_status=healthy
 failure_domain=external_network
-provider_status=recent_boot_gap
+provider_status=normal
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=11
+blocking_history_snapshot_count=12
 latest_blocking_targets_ok=8/8
 nl_transport_probe_status=healthy
 manual_failover_readiness_status=blocked_no_incident_trigger

@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/record_nl_transport_uptime.py",
-  "generated_at": "2026-05-28T03:42:19.773601+00:00",
+  "generated_at": "2026-05-31T13:45:53.146557+00:00",
   "history": "/mnt/projects/nl-diagnostics/nl-transport-uptime-history.jsonl",
   "summary": {
     "status": "stable_healthy",
-    "sample_count": 24,
+    "sample_count": 25,
     "latest_status": "healthy",
-    "latest_generated_at": "2026-05-28T03:42:19.387960+00:00",
+    "latest_generated_at": "2026-05-31T13:45:52.963532+00:00",
     "latest_ok_count": 3,
     "latest_port_count": 3,
     "consecutive_non_healthy": 0,
     "status_counts": {
-      "healthy": 24
+      "healthy": 25
     },
     "recent_statuses": [
       "healthy",

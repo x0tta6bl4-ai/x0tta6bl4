@@ -1,7 +1,7 @@
 # VPN Operator Card
 
-generated_at: `2026-05-28T03:42:30.348752+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z`
+generated_at: `2026-05-31T13:46:12.301705+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z`
 
 ## Status
 
@@ -13,10 +13,10 @@ confidence=high
 overall_status=advisory
 transport_status=healthy
 telegram_media_status=degraded
-provider_status=recent_boot_gap
+provider_status=normal
 failure_domain=external_network
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=11
+blocking_history_snapshot_count=12
 manual_failover_status=planning_not_active
 nl_mutation_allowed=false
 spb_fallback_allowed=false

@@ -1,6 +1,6 @@
 # Manual Failover Plan
 
-generated_at: `2026-05-28T03:42:18.865327+00:00`
+generated_at: `2026-05-31T13:45:52.589458+00:00`
 
 ## Status
 
@@ -11,7 +11,7 @@ decision_confidence=high
 overall_status=advisory
 transport_status=healthy
 failure_domain=external_network
-provider_status=recent_boot_gap
+provider_status=normal
 spb_fallback_allowed=false
 automatic_failover_allowed=false
 nl_write_allowed=false

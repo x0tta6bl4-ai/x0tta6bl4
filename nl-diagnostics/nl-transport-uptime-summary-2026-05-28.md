@@ -1,13 +1,13 @@
 # NL Transport Uptime Summary
 
-generated_at: `2026-05-28T03:42:19.773601+00:00`
+generated_at: `2026-05-31T13:45:53.146557+00:00`
 history: `/mnt/projects/nl-diagnostics/nl-transport-uptime-history.jsonl`
 
 ## Summary
 
 ```text
 status=stable_healthy
-sample_count=24
+sample_count=25
 latest_status=healthy
 latest_ok_count=3/3
 consecutive_non_healthy=0

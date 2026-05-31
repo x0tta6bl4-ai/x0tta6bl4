@@ -1,20 +1,16 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_vpn_plan_readiness.py",
-  "generated_at": "2026-05-28T03:42:31.056483+00:00",
+  "generated_at": "2026-05-31T13:46:13.076520+00:00",
   "overall_status": "ready_local_with_future_blocks",
   "ok": true,
   "summary": {
-    "ready_local": 24,
+    "ready_local": 27,
     "blocked_future_approval": 4,
-    "watch": 3,
+    "watch": 0,
     "missing": 0,
     "missing_items": [],
-    "watch_items": [
-      "BOOT-01",
-      "LOCALENV-01",
-      "LOCALCLEAN-01"
-    ],
+    "watch_items": [],
     "blocked_items": [
       "FAILOVER-03",
       "FAILOVER-06",
@@ -23,8 +19,8 @@
     ],
     "operator_status": "observe",
     "decision": "observe",
-    "boot_gap_watch_status": "watch",
-    "provider_packet_type": "provider_watch",
+    "boot_gap_watch_status": "normal",
+    "provider_packet_type": "historical_provider_incident",
     "provider_packet_stale": false,
     "manual_failover_readiness_status": "blocked_no_incident_trigger",
     "manual_failover_switch_allowed": false,
@@ -55,14 +51,14 @@
     "secondary_post_provision_can_generate_probe_config": false,
     "secondary_post_provision_can_run_public_probe": false,
     "secondary_post_provision_test_client_allowed": false,
-    "local_diagnostic_environment_status": "watch_root_full_tmpdir_available",
-    "local_root_status": "critical_full",
+    "local_diagnostic_environment_status": "ok",
+    "local_root_status": "ok",
     "local_tmpdir_writable": true,
-    "local_root_cleanup_plan_status": "manual_cleanup_plan_ready",
-    "local_root_cleanup_estimated_reclaim_gib": 3.24,
+    "local_root_cleanup_plan_status": "no_cleanup_needed",
+    "local_root_cleanup_estimated_reclaim_gib": 0.93,
     "local_root_cleanup_execute_allowed": false,
-    "local_root_cleanup_approval_packet_status": "cleanup_approval_packet_ready",
-    "local_root_cleanup_approval_required": true,
+    "local_root_cleanup_approval_packet_status": "cleanup_approval_packet_no_cleanup_needed",
+    "local_root_cleanup_approval_required": false,
     "local_root_cleanup_commands_executed": 0,
     "incident_symptom_intake_status": "symptom_intake_ready_observe",
     "incident_symptom_required_fields": 12,
@@ -80,11 +76,11 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
-        "refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
-        "latest_snapshot=20260528T034120Z",
+        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z",
+        "refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z",
+        "latest_snapshot=20260531T134449Z",
         "snapshot_exists=true",
-        "snapshot_age_seconds=71",
+        "snapshot_age_seconds=84",
         "fresh=true"
       ],
       "next_step": "collect a fresh read-only snapshot during the next visible outage"
@@ -105,12 +101,12 @@
     {
       "id": "BOOT-01",
       "title": "Boot-gap provider signal is tracked separately from restart decisions",
-      "status": "watch",
+      "status": "ready_local",
       "ok": true,
       "evidence": [
-        "boot_gap_watch_status=watch",
-        "boot_gap_seconds=21907",
-        "provider_status=recent_boot_gap",
+        "boot_gap_watch_status=normal",
+        "boot_gap_seconds=None",
+        "provider_status=normal",
         "transport_status=healthy",
         "safe_flags=true"
       ],
@@ -122,10 +118,10 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "provider_packet_type=provider_watch",
+        "provider_packet_type=historical_provider_incident",
         "snapshot_stale=false",
-        "packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
-        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
+        "packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z",
+        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z",
         "same_snapshot=true",
         "safe_flags=true"
       ],
@@ -137,9 +133,9 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "snapshot_count=11",
+        "snapshot_count=12",
         "trend=stable_no_probe_evidence",
-        "latest_probe_snapshot=20260528T034120Z",
+        "latest_probe_snapshot=20260531T134449Z",
         "latest_targets_ok=8/8"
       ],
       "next_step": "use probes as app/path evidence, not as an x-ui restart trigger"
@@ -160,18 +156,18 @@
     {
       "id": "LOCALENV-01",
       "title": "Local diagnostic host has a writable project temp directory",
-      "status": "watch",
+      "status": "ready_local",
       "ok": true,
       "evidence": [
-        "local_environment_status=watch_root_full_tmpdir_available",
-        "root_status=critical_full",
-        "root_used_percent=94.9",
-        "root_free_gib=0.0",
-        "tmp_status=critical_full",
+        "local_environment_status=ok",
+        "root_status=ok",
+        "root_used_percent=74.1",
+        "root_free_gib=22.15",
+        "tmp_status=ok",
         "diagnostic_tmpdir=/mnt/projects/.tmp",
         "diagnostic_tmpdir_writable=true",
         "recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp",
-        "cleanup_required=true",
+        "cleanup_required=false",
         "safe_flags=true"
       ],
       "next_step": "keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval"
@@ -179,15 +175,15 @@
     {
       "id": "LOCALCLEAN-01",
       "title": "Local root cleanup plan is prepared but execution is blocked",
-      "status": "watch",
+      "status": "ready_local",
       "ok": true,
       "evidence": [
-        "cleanup_plan_status=manual_cleanup_plan_ready",
-        "root_status=critical_full",
-        "root_free_gib=0.0",
-        "existing_candidate_count=5",
-        "estimated_reclaim_gib=3.24",
-        "top_candidate_id=APT-CACHE-01",
+        "cleanup_plan_status=no_cleanup_needed",
+        "root_status=ok",
+        "root_free_gib=22.15",
+        "existing_candidate_count=3",
+        "estimated_reclaim_gib=0.93",
+        "top_candidate_id=JOURNAL-01",
         "cleanup_execute_allowed=false",
         "safe_flags=true"
       ],
@@ -199,10 +195,10 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "cleanup_approval_packet_status=cleanup_approval_packet_ready",
+        "cleanup_approval_packet_status=cleanup_approval_packet_no_cleanup_needed",
         "first_review_id=APT-CACHE-01",
-        "command_preview_count=5",
-        "approval_required=true",
+        "command_preview_count=3",
+        "approval_required=false",
         "commands_executed=0",
         "cleanup_execute_allowed=false",
         "safe_flags=true"
@@ -436,7 +432,7 @@
       "ok": true,
       "evidence": [
         "uptime_status=stable_healthy",
-        "sample_count=24",
+        "sample_count=25",
         "latest_status=healthy",
         "consecutive_non_healthy=0",
         "safe_flags=true"

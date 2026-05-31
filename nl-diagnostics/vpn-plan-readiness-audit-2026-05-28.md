@@ -1,20 +1,20 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-28T03:42:31.056483+00:00`
+generated_at: `2026-05-31T13:46:13.076520+00:00`
 overall_status: `ready_local_with_future_blocks`
 ok: `true`
 
 ## Summary
 
 ```text
-ready_local=24
+ready_local=27
 blocked_future_approval=4
-watch=3
+watch=0
 missing=0
 decision=observe
 operator_status=observe
-boot_gap_watch_status=watch
-provider_packet_type=provider_watch
+boot_gap_watch_status=normal
+provider_packet_type=historical_provider_incident
 provider_packet_stale=False
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_switch_allowed=False
@@ -45,14 +45,14 @@ secondary_post_provision_validation_status=post_provision_validation_ready_waiti
 secondary_post_provision_can_generate_probe_config=False
 secondary_post_provision_can_run_public_probe=False
 secondary_post_provision_test_client_allowed=False
-local_diagnostic_environment_status=watch_root_full_tmpdir_available
-local_root_status=critical_full
+local_diagnostic_environment_status=ok
+local_root_status=ok
 local_tmpdir_writable=True
-local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.24
+local_root_cleanup_plan_status=no_cleanup_needed
+local_root_cleanup_estimated_reclaim_gib=0.93
 local_root_cleanup_execute_allowed=False
-local_root_cleanup_approval_packet_status=cleanup_approval_packet_ready
-local_root_cleanup_approval_required=True
+local_root_cleanup_approval_packet_status=cleanup_approval_packet_no_cleanup_needed
+local_root_cleanup_approval_required=False
 local_root_cleanup_commands_executed=0
 incident_symptom_intake_status=symptom_intake_ready_observe
 incident_symptom_required_fields=12
@@ -70,12 +70,12 @@ automatic_failover_allowed=false
 |---|---|---|---|
 | `EVIDENCE-01` | `ready_local` | Latest read-only snapshot is the shared evidence anchor | collect a fresh read-only snapshot during the next visible outage |
 | `DECISION-01` | `ready_local` | Current decision blocks mutation and automatic profile changes | keep decision=observe unless a fresh snapshot changes the failure domain |
-| `BOOT-01` | `watch` | Boot-gap provider signal is tracked separately from restart decisions | keep provider boot gap on watch while current transport remains healthy/advisory |
+| `BOOT-01` | `ready_local` | Boot-gap provider signal is tracked separately from restart decisions | keep provider boot gap on watch while current transport remains healthy/advisory |
 | `PROVIDER-01` | `ready_local` | Provider packet is generated from the same read-only snapshot | use the packet for provider questions only when fresh evidence points to provider or host failure |
 | `EVIDENCE-02` | `ready_local` | Blocking/app probe history is available as trend evidence | use probes as app/path evidence, not as an x-ui restart trigger |
 | `REFRESH-01` | `ready_local` | One refresh command rebuilds the local planning reports | run refresh after every new snapshot before deciding on action |
-| `LOCALENV-01` | `watch` | Local diagnostic host has a writable project temp directory | keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval |
-| `LOCALCLEAN-01` | `watch` | Local root cleanup plan is prepared but execution is blocked | review local cleanup candidates and execute cleanup only after separate local approval |
+| `LOCALENV-01` | `ready_local` | Local diagnostic host has a writable project temp directory | keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval |
+| `LOCALCLEAN-01` | `ready_local` | Local root cleanup plan is prepared but execution is blocked | review local cleanup candidates and execute cleanup only after separate local approval |
 | `LOCALCLEAN-02` | `ready_local` | Local cleanup approval packet is prepared without executing commands | run only prechecks now; execute cleanup previews only after separate local cleanup approval |
 | `OPERATOR-01` | `ready_local` | Short incident card exists for the next outage | start incidents from the operator card, then collect fresh evidence |
 | `INCIDENT-01` | `ready_local` | Incident symptom intake is safe to use without collecting secrets | use this template for user-visible symptoms and reject any pasted VPN secrets |
@@ -104,11 +104,11 @@ automatic_failover_allowed=false
 
 ### EVIDENCE-01
 
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z
-- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z
-- latest_snapshot=20260528T034120Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z
+- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z
+- latest_snapshot=20260531T134449Z
 - snapshot_exists=true
-- snapshot_age_seconds=71
+- snapshot_age_seconds=84
 - fresh=true
 
 ### DECISION-01
@@ -120,26 +120,26 @@ automatic_failover_allowed=false
 
 ### BOOT-01
 
-- boot_gap_watch_status=watch
-- boot_gap_seconds=21907
-- provider_status=recent_boot_gap
+- boot_gap_watch_status=normal
+- boot_gap_seconds=None
+- provider_status=normal
 - transport_status=healthy
 - safe_flags=true
 
 ### PROVIDER-01
 
-- provider_packet_type=provider_watch
+- provider_packet_type=historical_provider_incident
 - snapshot_stale=false
-- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z
+- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z
 - same_snapshot=true
 - safe_flags=true
 
 ### EVIDENCE-02
 
-- snapshot_count=11
+- snapshot_count=12
 - trend=stable_no_probe_evidence
-- latest_probe_snapshot=20260528T034120Z
+- latest_probe_snapshot=20260531T134449Z
 - latest_targets_ok=8/8
 
 ### REFRESH-01
@@ -151,34 +151,34 @@ automatic_failover_allowed=false
 
 ### LOCALENV-01
 
-- local_environment_status=watch_root_full_tmpdir_available
-- root_status=critical_full
-- root_used_percent=94.9
-- root_free_gib=0.0
-- tmp_status=critical_full
+- local_environment_status=ok
+- root_status=ok
+- root_used_percent=74.1
+- root_free_gib=22.15
+- tmp_status=ok
 - diagnostic_tmpdir=/mnt/projects/.tmp
 - diagnostic_tmpdir_writable=true
 - recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
-- cleanup_required=true
+- cleanup_required=false
 - safe_flags=true
 
 ### LOCALCLEAN-01
 
-- cleanup_plan_status=manual_cleanup_plan_ready
-- root_status=critical_full
-- root_free_gib=0.0
-- existing_candidate_count=5
-- estimated_reclaim_gib=3.24
-- top_candidate_id=APT-CACHE-01
+- cleanup_plan_status=no_cleanup_needed
+- root_status=ok
+- root_free_gib=22.15
+- existing_candidate_count=3
+- estimated_reclaim_gib=0.93
+- top_candidate_id=JOURNAL-01
 - cleanup_execute_allowed=false
 - safe_flags=true
 
 ### LOCALCLEAN-02
 
-- cleanup_approval_packet_status=cleanup_approval_packet_ready
+- cleanup_approval_packet_status=cleanup_approval_packet_no_cleanup_needed
 - first_review_id=APT-CACHE-01
-- command_preview_count=5
-- approval_required=true
+- command_preview_count=3
+- approval_required=false
 - commands_executed=0
 - cleanup_execute_allowed=false
 - safe_flags=true
@@ -322,7 +322,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=24
+- sample_count=25
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true

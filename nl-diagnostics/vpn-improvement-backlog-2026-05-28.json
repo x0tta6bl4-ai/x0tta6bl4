@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_vpn_improvement_backlog.py",
-  "generated_at": "2026-05-28T03:42:17.995694+00:00",
+  "generated_at": "2026-05-31T13:45:52.449986+00:00",
   "summary": {
     "decision": "observe",
     "decision_confidence": "high",
     "overall_status": "advisory",
     "transport_status": "healthy",
     "telegram_media_status": "degraded",
-    "provider_status": "recent_boot_gap",
+    "provider_status": "normal",
     "failure_domain": "external_network",
     "blocking_history_trend": "stable_no_probe_evidence",
-    "blocking_history_snapshot_count": 11,
+    "blocking_history_snapshot_count": 12,
     "source_gap_summary": {
       "accepted_local_delta": 5,
       "redacted_review_only": 2,
@@ -68,7 +68,7 @@
       "reason": "Current app/path probe history does not prove an x-ui outage.",
       "evidence": [
         "blocking_history_trend=stable_no_probe_evidence",
-        "blocking_history_snapshot_count=11"
+        "blocking_history_snapshot_count=12"
       ],
       "next_steps": [
         "keep nl-diagnostics/blocking_probe_targets.json as the default target set",
@@ -114,7 +114,7 @@
       "phase": "local_now",
       "priority": "P1",
       "title": "Treat provider boot gaps as watch evidence until transport degrades",
-      "status": "watch",
+      "status": "ready",
       "allowed_now": true,
       "mutation_allowed": false,
       "nl_mutation_allowed": false,
@@ -122,7 +122,7 @@
       "spb_fallback_allowed": false,
       "reason": "A boot gap with current healthy transport is a provider-watch signal, not a restart signal.",
       "evidence": [
-        "provider_status=recent_boot_gap",
+        "provider_status=normal",
         "failure_domain=external_network"
       ],
       "next_steps": [

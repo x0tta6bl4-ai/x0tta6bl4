@@ -1,6 +1,6 @@
 # Secondary Exit Manual Drill
 
-generated_at: `2026-05-28T03:42:22.309922+00:00`
+generated_at: `2026-05-31T13:45:57.008837+00:00`
 status: `drill_plan_ready_blocked_no_endpoint`
 ok: `true`
 

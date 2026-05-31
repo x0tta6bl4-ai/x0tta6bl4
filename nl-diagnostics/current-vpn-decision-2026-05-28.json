@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_vpn_decision_report.py",
-  "generated_at": "2026-05-28T03:42:16.470375+00:00",
-  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
+  "generated_at": "2026-05-31T13:45:51.773849+00:00",
+  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z",
   "decision": {
     "decision": "observe",
     "confidence": "high",
@@ -10,8 +10,7 @@
     "next_actions": [
       "keep observing current VPN path",
       "when a user-visible outage happens, collect a fresh read-only snapshot with blocking probes",
-      "test Telegram/media separately from core VPN transport",
-      "keep provider boot gap on watch; build provider packet if transport degrades"
+      "test Telegram/media separately from core VPN transport"
     ],
     "blocked_actions": [
       "do not restart x-ui from app/blocking evidence alone",
@@ -24,7 +23,7 @@
       "failure_domain": "external_network",
       "recommended_action": "observe",
       "transport_status": "healthy",
-      "provider_status": "recent_boot_gap",
+      "provider_status": "normal",
       "blocking_category": "app_specific_degradation",
       "profile_policy_decision": "observe",
       "blocking_history_trend": "stable_no_probe_evidence"
@@ -35,11 +34,11 @@
     "spb_fallback_allowed": false
   },
   "classification": {
-    "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
+    "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z",
     "overall_status": "advisory",
     "transport_status": "healthy",
     "telegram_media_status": "degraded",
-    "provider_status": "recent_boot_gap",
+    "provider_status": "normal",
     "runtime_mode": "degraded",
     "runtime_recommended_action": "observe",
     "failure_domain": "external_network",
@@ -47,9 +46,7 @@
     "mutation_allowed": false,
     "nl_mutation_allowed": false,
     "warnings": [
-      "NL non-critical failed units: ifup@eth0.service",
-      "NL boot gap seconds=21907",
-      "NL previous boot ended uncleanly"
+      "NL non-critical failed units: ifup@eth0.service"
     ],
     "problems": [],
     "evidence": [
@@ -62,8 +59,7 @@
       "NL failed units are known non-critical: ifup@eth0.service",
       "NL key services active",
       "NL core listeners 443/2083/39829 present",
-      "NL transport_status=healthy",
-      "NL current boot reports previous journal uncleanly shut down"
+      "NL transport_status=healthy"
     ],
     "blocking_probe_summary": {
       "assessment": "no_probe_evidence",
@@ -112,16 +108,16 @@
     }
   },
   "blocking_probe_history_summary": {
-    "snapshot_count": 11,
+    "snapshot_count": 12,
     "trend": "stable_no_probe_evidence",
     "assessment_counts": {
-      "no_probe_evidence": 11
+      "no_probe_evidence": 12
     },
     "degraded_by_target": {},
     "degraded_by_group": {},
     "latest": {
-      "snapshot": "20260528T034120Z",
-      "generated_at": "2026-05-28T03:41:45.251876+00:00",
+      "snapshot": "20260531T134449Z",
+      "generated_at": "2026-05-31T13:45:25.713140+00:00",
       "assessment": "no_probe_evidence",
       "target_count": 8,
       "ok_count": 8,

@@ -1,22 +1,22 @@
 # Local Root Cleanup Approval Packet
 
-generated_at: `2026-05-28T03:42:29.941357+00:00`
-status: `cleanup_approval_packet_ready`
+generated_at: `2026-05-31T13:46:12.133858+00:00`
+status: `cleanup_approval_packet_no_cleanup_needed`
 ok: `true`
 
 ## Summary
 
 ```text
-root_status=critical_full
-root_free_gib=0.0
+root_status=ok
+root_free_gib=22.15
 diagnostic_tmpdir=/mnt/projects/.tmp
 diagnostic_tmpdir_writable=true
-cleanup_plan_status=manual_cleanup_plan_ready
-existing_candidate_count=5
-estimated_reclaim_gib=3.24
+cleanup_plan_status=no_cleanup_needed
+existing_candidate_count=3
+estimated_reclaim_gib=0.93
 first_review_id=APT-CACHE-01
-command_preview_count=5
-approval_required=true
+command_preview_count=3
+approval_required=false
 commands_executed=0
 cleanup_execute_allowed=false
 nl_write_allowed=false
@@ -36,10 +36,8 @@ TMPDIR=/mnt/projects/.tmp python3 nl-diagnostics/plan_local_root_cleanup.py
 
 | ID | Size GiB | Risk | Approval Level | May Execute Now | Command Preview |
 |---|---:|---|---|---:|---|
-| `APT-CACHE-01` | `0.85` | `low_standard_cache` | `single_command_approval` | `false` | `sudo apt-get clean` |
-| `JOURNAL-01` | `0.71` | `medium_keep_recent_logs` | `confirm_log_retention_approval` | `false` | `sudo journalctl --vacuum-size=500M` |
-| `TMP-ANTIGRAVITY-01` | `0.67` | `medium_manual_review` | `manual_path_review_required` | `false` | `sudo rm -rf /tmp/antigravity_restore` |
-| `TMP-ANTIGRAVITY-02` | `0.6` | `medium_manual_review` | `manual_path_review_required` | `false` | `sudo rm -rf /tmp/antigravity_restore_correct` |
+| `APT-CACHE-01` | `0.0` | `low_standard_cache` | `single_command_approval` | `false` | `sudo apt-get clean` |
+| `JOURNAL-01` | `0.52` | `medium_keep_recent_logs` | `confirm_log_retention_approval` | `false` | `sudo journalctl --vacuum-size=500M` |
 | `VARTMP-01` | `0.41` | `high_manual_review` | `manual_path_review_required` | `false` | `sudo find /var/tmp -mindepth 1 -maxdepth 1 -mtime +7 -print` |
 
 ## Postcheck Commands

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_manual_failover_plan.py",
-  "generated_at": "2026-05-28T03:42:18.865327+00:00",
+  "generated_at": "2026-05-31T13:45:52.589458+00:00",
   "status": "planning_not_active",
   "summary": {
     "current_decision": "observe",
@@ -9,7 +9,7 @@
     "overall_status": "advisory",
     "transport_status": "healthy",
     "failure_domain": "external_network",
-    "provider_status": "recent_boot_gap",
+    "provider_status": "normal",
     "blocking_history_trend": "stable_no_probe_evidence",
     "spb_fallback_allowed": false,
     "automatic_failover_allowed": false,

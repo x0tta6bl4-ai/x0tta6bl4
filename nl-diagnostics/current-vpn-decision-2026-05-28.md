@@ -1,7 +1,7 @@
 # Current VPN Decision
 
-generated_at: `2026-05-28T03:42:16.470375+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z`
+generated_at: `2026-05-31T13:45:51.773849+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z`
 
 ## Status
 
@@ -15,12 +15,12 @@ reason: core VPN is healthy/advisory and blocking probes show no direct-vs-SOCKS
 overall_status=advisory
 transport_status=healthy
 telegram_media_status=degraded
-provider_status=recent_boot_gap
+provider_status=normal
 failure_domain=external_network
 recommended_action=observe
 blocking_category=app_specific_degradation
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshots=11
+blocking_history_snapshots=12
 nl_mutation_allowed=false
 auto_profile_switch_allowed=false
 spb_fallback_allowed=false
@@ -31,7 +31,6 @@ spb_fallback_allowed=false
 - keep observing current VPN path
 - when a user-visible outage happens, collect a fresh read-only snapshot with blocking probes
 - test Telegram/media separately from core VPN transport
-- keep provider boot gap on watch; build provider packet if transport degrades
 
 ## Blocked Actions
 
@@ -43,8 +42,6 @@ spb_fallback_allowed=false
 ## Warnings
 
 - NL non-critical failed units: ifup@eth0.service
-- NL boot gap seconds=21907
-- NL previous boot ended uncleanly
 
 ## Problems
 
@@ -62,14 +59,13 @@ spb_fallback_allowed=false
 - NL key services active
 - NL core listeners 443/2083/39829 present
 - NL transport_status=healthy
-- NL current boot reports previous journal uncleanly shut down
 
 ## Blocking Probe History
 
 ```text
-snapshot_count=11
+snapshot_count=12
 trend=stable_no_probe_evidence
-latest_snapshot=20260528T034120Z
+latest_snapshot=20260531T134449Z
 latest_targets_ok=8/8
 latest_degraded_targets=0
 ```
