@@ -238,6 +238,80 @@ def freeze_map_by_name(map_name):
     )
     _write(
         root,
+        "src/ml/graphsage_anomaly_detector.py",
+        """
+DEFAULT_ANOMALY_THRESHOLD = 0.6
+GRAPHSAGE_ANOMALY_CLAIM_GATE_SCHEMA = "x0tta6bl4.ml.graphsage_anomaly_claim_gate.v1"
+GRAPHSAGE_ANOMALY_CLAIM_BOUNDARY = "Local GraphSAGE model-score evidence only"
+
+def build_graphsage_anomaly_claim_gate(prediction, *, threshold=DEFAULT_ANOMALY_THRESHOLD, source="graphsage_predict", detector_trained=False):
+    local_model_score_observed = True
+    invalid = "invalid_anomaly_score"
+    return {
+        "schema": GRAPHSAGE_ANOMALY_CLAIM_GATE_SCHEMA,
+        "decision": "GRAPHSAGE_LOCAL_MODEL_SCORE_INVALID_FAIL_CLOSED",
+        "local_model_score_claim_allowed": local_model_score_observed,
+        "live_intrusion_detection_claim_allowed": False,
+        "complete_attack_absence_claim_allowed": False,
+        "external_compromise_absence_claim_allowed": False,
+        "production_security_coverage_claim_allowed": False,
+        "autonomous_block_claim_allowed": False,
+        "fail_closed": True,
+    }
+
+class GraphSAGEAnomalyDetector:
+    def __init__(self, anomaly_threshold: float = DEFAULT_ANOMALY_THRESHOLD):
+        self.anomaly_threshold = anomaly_threshold
+
+    def predict(self):
+        prediction = object()
+        prediction.claim_gate = build_graphsage_anomaly_claim_gate(
+            prediction,
+            source="graphsage_rule_fallback",
+        )
+        prediction.claim_gate = build_graphsage_anomaly_claim_gate(
+            prediction,
+            source="graphsage_model_inference",
+        )
+        return prediction
+""",
+    )
+    _write(
+        root,
+        "src/ml/graphsage_observe_mode.py",
+        """
+from dataclasses import dataclass, field
+from typing import Any, Dict
+
+from src.ml.graphsage_anomaly_detector import DEFAULT_ANOMALY_THRESHOLD, build_graphsage_anomaly_claim_gate
+
+class DetectorMode:
+    OBSERVE = "observe"
+    WARN = "warn"
+    BLOCK = "block"
+
+@dataclass
+class AnomalyEvent:
+    claim_gate: Dict[str, Any] = field(default_factory=dict)
+
+class GraphSAGEObserveMode:
+    def __init__(self, threshold: float = DEFAULT_ANOMALY_THRESHOLD):
+        self.threshold = threshold
+
+    def detect(self, prediction):
+        claim_gate = build_graphsage_anomaly_claim_gate(prediction, threshold=self.threshold)
+        event = AnomalyEvent(
+            claim_gate={
+                **claim_gate,
+                "observe_mode_passive": self.mode == DetectorMode.OBSERVE,
+                "autonomous_block_claim_allowed": False,
+            }
+        )
+        return {"claim_gate": event.claim_gate}
+""",
+    )
+    _write(
+        root,
         "Dockerfile.vpn",
         "COPY services/nl-server/ghost-vpn/ghost_vpn_protocol.py src/network/ghost_vpn_protocol.py\n",
     )
@@ -7043,6 +7117,44 @@ def freeze_map_by_name(map_name):
     ]
     assert "validate map names" in blocker["details"]
     assert "without a shell" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_graphsage_anomaly_claim_boundary_blocks_overbroad_model_claims(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/ml/graphsage_anomaly_detector.py",
+        """
+class GraphSAGEAnomalyDetector:
+    def __init__(self, anomaly_threshold=0.95):
+        self.anomaly_threshold = anomaly_threshold
+
+    def predict(self):
+        return {
+            "production_security_coverage_claim_allowed": True,
+            "complete_attack_absence_claim_allowed": True,
+        }
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "graphsage_anomaly_claim_boundary_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "graphsage_anomaly_claim_boundary_contract"
+    ]
+    assert "local model-score claim gate" in blocker["details"]
+    assert "production security/no-attack/autonomous-block" in blocker["details"]
     assert report["ready"] is False
 
 

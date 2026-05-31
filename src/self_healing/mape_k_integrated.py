@@ -227,6 +227,7 @@ class IntegratedMAPEKCycle:
                             "confidence": event.confidence,
                             "mode": event.mode.value,
                             "action_taken": event.action_taken,
+                            "claim_gate": event.claim_gate,
                         }
 
                         # Добавить объяснение

@@ -16,7 +16,12 @@ try:
 except ImportError:
     PROMETHEUS_AVAILABLE = False
 
-from src.ml.graphsage_anomaly_detector import GraphSAGEAnomalyDetector
+from src.ml.graphsage_anomaly_detector import (
+    DEFAULT_ANOMALY_THRESHOLD,
+    GRAPHSAGE_ANOMALY_CLAIM_BOUNDARY,
+    GraphSAGEAnomalyDetector,
+    build_graphsage_anomaly_claim_gate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +54,7 @@ class AnomalyEvent:
     metrics: Dict[str, float] = field(default_factory=dict)
     action_taken: Optional[str] = None
     mode: DetectorMode = DetectorMode.OBSERVE
+    claim_gate: Dict[str, Any] = field(default_factory=dict)
 
 
 class GraphSAGEObserveMode:
@@ -62,7 +68,7 @@ class GraphSAGEObserveMode:
     def __init__(
         self,
         mode: DetectorMode = DetectorMode.OBSERVE,
-        threshold: float = 0.95,
+        threshold: float = DEFAULT_ANOMALY_THRESHOLD,
         confidence_required: float = 0.90,
     ):
         self.mode = mode
@@ -100,6 +106,12 @@ class GraphSAGEObserveMode:
         )
         anomaly_score = prediction.anomaly_score
         confidence = prediction.confidence
+        claim_gate = build_graphsage_anomaly_claim_gate(
+            prediction,
+            threshold=self.threshold,
+            source="graphsage_observe_mode",
+            detector_trained=self.detector.is_trained,
+        )
 
         # Проверить threshold
         if anomaly_score < self.threshold:
@@ -118,6 +130,14 @@ class GraphSAGEObserveMode:
             graph_state=graph_data,
             metrics=self._extract_metrics(graph_data),
             mode=self.mode,
+            claim_gate={
+                **claim_gate,
+                "observe_mode_passive": self.mode == DetectorMode.OBSERVE,
+                "warn_mode_alert_only": self.mode == DetectorMode.WARN,
+                "block_mode_requires_manual_validation": self.mode
+                == DetectorMode.BLOCK,
+                "autonomous_block_claim_allowed": False,
+            },
         )
 
         # Обработка в зависимости от режима
@@ -266,6 +286,7 @@ class GraphSAGEObserveMode:
                 "metrics": event.metrics,
                 "action_taken": event.action_taken,
                 "mode": event.mode.value,
+                "claim_gate": event.claim_gate,
             }
 
             # Сохранить в файл
@@ -299,6 +320,7 @@ class GraphSAGEObserveMode:
             "mode": self.mode.value,
             "threshold": self.threshold,
             "confidence_required": self.confidence_required,
+            "claim_boundary": GRAPHSAGE_ANOMALY_CLAIM_BOUNDARY,
         }
 
     def get_recent_events(self, limit: int = 10) -> List[AnomalyEvent]:

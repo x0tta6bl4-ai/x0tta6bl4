@@ -279,6 +279,8 @@ def check_required_files(root: Path) -> list[CheckResult]:
         "scripts/ops/run_cross_plane_proof_gate.py",
         DATAPLANE_DELIVERY_EVENTBUS_COLLECTOR,
         "src/mesh/metric_evidence_policy.py",
+        "src/ml/graphsage_anomaly_detector.py",
+        "src/ml/graphsage_observe_mode.py",
     )
     missing = [item for item in files if not _exists(root, item)]
     if missing:
@@ -1294,6 +1296,80 @@ def check_ebpf_map_freeze_guard_contract(root: Path) -> list[CheckResult]:
                 "bpftool freeze, fails closed, and keeps claims bounded"
             ),
             "src/network/ebpf/map_freeze_guard.py",
+        )
+    ]
+
+
+def check_graphsage_anomaly_claim_boundary_contract(root: Path) -> list[CheckResult]:
+    detector = _read(root, "src/ml/graphsage_anomaly_detector.py")
+    observe = _read(root, "src/ml/graphsage_observe_mode.py")
+    required = {
+        "baseline_threshold": (
+            "DEFAULT_ANOMALY_THRESHOLD = 0.6" in detector
+            and "anomaly_threshold: float = DEFAULT_ANOMALY_THRESHOLD" in detector
+        ),
+        "claim_gate_schema": (
+            "GRAPHSAGE_ANOMALY_CLAIM_GATE_SCHEMA" in detector
+            and "x0tta6bl4.ml.graphsage_anomaly_claim_gate.v1" in detector
+            and "def build_graphsage_anomaly_claim_gate(" in detector
+        ),
+        "claim_boundary_blocks_overclaims": (
+            "GRAPHSAGE_ANOMALY_CLAIM_BOUNDARY" in detector
+            and '"local_model_score_claim_allowed": local_model_score_observed'
+            in detector
+            and '"live_intrusion_detection_claim_allowed": False' in detector
+            and '"complete_attack_absence_claim_allowed": False' in detector
+            and '"external_compromise_absence_claim_allowed": False' in detector
+            and '"production_security_coverage_claim_allowed": False' in detector
+            and '"autonomous_block_claim_allowed": False' in detector
+            and '"fail_closed": True' in detector
+        ),
+        "invalid_score_fails_closed": (
+            "invalid_anomaly_score" in detector
+            and "GRAPHSAGE_LOCAL_MODEL_SCORE_INVALID_FAIL_CLOSED" in detector
+        ),
+        "prediction_attaches_claim_gate": (
+            "prediction.claim_gate = build_graphsage_anomaly_claim_gate(" in detector
+            and "source=\"graphsage_rule_fallback\"" in detector
+            and "source=\"graphsage_model_inference\"" in detector
+        ),
+        "observe_mode_uses_baseline_threshold": (
+            "threshold: float = DEFAULT_ANOMALY_THRESHOLD" in observe
+            and "DEFAULT_ANOMALY_THRESHOLD" in observe
+        ),
+        "observe_event_preserves_claim_gate": (
+            "claim_gate: Dict[str, Any] = field(default_factory=dict)" in observe
+            and "build_graphsage_anomaly_claim_gate(" in observe
+            and '"observe_mode_passive": self.mode == DetectorMode.OBSERVE'
+            in observe
+            and '"autonomous_block_claim_allowed": False' in observe
+            and '"claim_gate": event.claim_gate' in observe
+        ),
+    }
+    missing = [name for name, ok in required.items() if not ok]
+    if missing:
+        return [
+            fail_check(
+                "graphsage_anomaly_claim_boundary_contract",
+                (
+                    "GraphSAGE anomaly detection must expose a bounded local "
+                    "model-score claim gate, use baseline threshold 0.6, "
+                    "fail closed on invalid scores, and block production "
+                    "security/no-attack/autonomous-block overclaims: "
+                    + ", ".join(missing)
+                ),
+                "src/ml/graphsage_anomaly_detector.py; src/ml/graphsage_observe_mode.py",
+            )
+        ]
+    return [
+        pass_check(
+            "graphsage_anomaly_claim_boundary_contract",
+            (
+                "GraphSAGE anomaly detection exposes a local-score-only claim "
+                "gate, uses threshold 0.6, fails closed on invalid scores, and "
+                "keeps observe-mode evidence bounded"
+            ),
+            "src/ml/graphsage_anomaly_detector.py; src/ml/graphsage_observe_mode.py",
         )
     ]
 
@@ -5702,6 +5778,7 @@ def build_report(
         checks.extend(check_mapek_safe_mode_contract(root))
         checks.extend(check_ebpf_telemetry_loss_fail_closed_contract(root))
         checks.extend(check_ebpf_map_freeze_guard_contract(root))
+        checks.extend(check_graphsage_anomaly_claim_boundary_contract(root))
         checks.extend(check_maas_telemetry_claim_gate_contract(root))
         checks.extend(check_mesh_api_claim_gate_contract(root))
         checks.extend(check_status_api_claim_gate_contract(root))

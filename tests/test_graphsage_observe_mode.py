@@ -4,6 +4,7 @@ Tests для GraphSAGE Observe Mode
 
 import pytest
 
+from src.ml.graphsage_anomaly_detector import AnomalyPrediction
 from src.ml.graphsage_observe_mode import (DetectorMode,
                                            GraphSAGEObserveMode)
 
@@ -38,6 +39,10 @@ def test_detect_anomaly_observe_mode(observe_detector):
     if event:
         assert event.mode == DetectorMode.OBSERVE
         assert event.action_taken is None  # Нет действий в observe mode
+        assert event.claim_gate["observe_mode_passive"] is True
+        assert event.claim_gate["local_model_score_claim_allowed"] is True
+        assert event.claim_gate["live_intrusion_detection_claim_allowed"] is False
+        assert event.claim_gate["production_security_coverage_claim_allowed"] is False
 
 
 def test_get_stats(observe_detector):
@@ -47,6 +52,29 @@ def test_get_stats(observe_detector):
     assert "total_detections" in stats
     assert "mode" in stats
     assert stats["mode"] == "observe"
+    assert "claim_boundary" in stats
+
+
+def test_observe_mode_claim_gate_uses_observe_threshold(monkeypatch, observe_detector):
+    """Observe mode reports local score only and keeps broad security claims blocked."""
+    monkeypatch.setattr(observe_detector, "_save_event_for_analysis", lambda _event: None)
+    observe_detector.detector.predict = lambda **_kwargs: AnomalyPrediction(
+        is_anomaly=True,
+        anomaly_score=0.96,
+        confidence=0.95,
+        node_id="node-claim",
+        features={"cpu_percent": 99.0},
+        inference_time_ms=0.1,
+    )
+
+    event = observe_detector.detect({"cpu_percent": 99.0}, "node-claim")
+
+    assert event is not None
+    assert event.claim_gate["source"] == "graphsage_observe_mode"
+    assert event.claim_gate["threshold"] == observe_detector.threshold
+    assert event.claim_gate["local_anomaly_threshold_exceeded"] is True
+    assert event.claim_gate["autonomous_block_claim_allowed"] is False
+    assert event.action_taken is None
 
 
 def test_migrate_to_warn_mode(observe_detector):
