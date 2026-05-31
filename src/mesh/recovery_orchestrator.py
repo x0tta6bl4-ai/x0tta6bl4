@@ -15,6 +15,7 @@ from src.mesh.recovery_contracts import (
     PostActionDataplaneClaimGate,
     PostActionDataplaneRevalidation,
     RecoveryEvidenceV1,
+    ServiceIdentityEvidence,
     build_dataplane_evidence_ref,
     build_post_action_dataplane_claim_gate,
     generate_node_id_hash,
@@ -40,15 +41,14 @@ MESH_RECOVERY_DATAPLANE_CLAIM_BOUNDARY = (
 )
 
 
-def _identity_metadata(service_name: str) -> dict[str, object]:
+def _identity_metadata(service_name: str) -> ServiceIdentityEvidence:
     identity = service_event_identity(service_name=service_name)
-    return {
-        "service_name": service_name,
-        "spiffe_id_configured": bool(identity.get("spiffe_id")),
-        "did_configured": bool(identity.get("did")),
-        "wallet_address_configured": bool(identity.get("wallet_address")),
-        "redacted": True,
-    }
+    return ServiceIdentityEvidence(
+        service_name=service_name,
+        spiffe_id_configured=bool(identity.get("spiffe_id")),
+        did_configured=bool(identity.get("did")),
+        wallet_address_configured=bool(identity.get("wallet_address")),
+    )
 
 
 class MeshRecoveryOrchestrator:
@@ -95,12 +95,14 @@ class MeshRecoveryOrchestrator:
         policy_result = self.policy_manager.check_policy(incident_key)
         policy_decision = policy_result.to_decision()
         node_id_hash = generate_node_id_hash(self.node_id, self.local_audit_secret)
+        service_identity = _identity_metadata(self.source_agent)
 
         if not policy_result.allowed:
             evidence = RecoveryEvidenceV1(
                 event_id=self._new_event_id(),
                 incident_id=incident_id,
                 node_id_hash=node_id_hash,
+                service_identity=service_identity,
                 action="block_and_escalate",
                 policy_decision=policy_decision,
                 before=before_state,
@@ -144,6 +146,7 @@ class MeshRecoveryOrchestrator:
             event_id=self._new_event_id(),
             incident_id=incident_id,
             node_id_hash=node_id_hash,
+            service_identity=service_identity,
             action="restart_local_mesh_agent",
             policy_decision=policy_decision,
             before=before_state,
@@ -190,7 +193,8 @@ class MeshRecoveryOrchestrator:
             status = "failed"
 
         policy = evidence.policy_decision
-        service_identity = _identity_metadata(self.source_agent)
+        service_identity = evidence.service_identity
+        service_identity_payload = service_identity.model_dump(mode="json")
         return {
             "schema": MESH_RECOVERY_EVENTBUS_SCHEMA,
             "recovery_evidence_schema": evidence.schema,
@@ -218,11 +222,11 @@ class MeshRecoveryOrchestrator:
             "identity": {"node_id_hash": evidence.node_id_hash},
             "identity_fields_present": {
                 "node_id_hash": bool(evidence.node_id_hash),
-                "spiffe_id": bool(service_identity["spiffe_id_configured"]),
-                "did": bool(service_identity["did_configured"]),
-                "wallet_address": bool(service_identity["wallet_address_configured"]),
+                "spiffe_id": service_identity.spiffe_id_configured,
+                "did": service_identity.did_configured,
+                "wallet_address": service_identity.wallet_address_configured,
             },
-            "service_identity": service_identity,
+            "service_identity": service_identity_payload,
             "observed_state": True,
             "before": evidence.before.model_dump(mode="json"),
             "after": evidence.after.model_dump(mode="json"),

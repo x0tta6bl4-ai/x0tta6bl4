@@ -247,19 +247,34 @@ def test_recovery_eventbus_records_service_identity_presence_without_values(
         event_bus=event_bus,
     )
 
-    orchestrator.run_recovery_flow(
+    evidence = orchestrator.run_recovery_flow(
         incident_id="inc-01",
         incident_key="incident-vpn-loss",
     )
+
+    assert evidence.service_identity.service_name == MESH_RECOVERY_SOURCE_AGENT
+    assert evidence.service_identity.spiffe_id_configured is True
+    assert evidence.service_identity.did_configured is True
+    assert evidence.service_identity.wallet_address_configured is True
+    assert evidence.service_identity.raw_identity_values_redacted is True
+    evidence_json = evidence.model_dump_json()
+    assert (
+        "spiffe://x0tta6bl4.mesh/workload/mesh-recovery-orchestrator"
+        not in evidence_json
+    )
+    assert "did:mesh:recovery:orchestrator" not in evidence_json
+    assert "0xRecoveryWallet" not in evidence_json
 
     payload = event_bus.get_event_history(
         source_agent=MESH_RECOVERY_SOURCE_AGENT,
     )[0].data
     assert payload["service_identity"] == {
+        "schema": "x0tta6bl4.service_identity_evidence.v1",
         "service_name": MESH_RECOVERY_SOURCE_AGENT,
         "spiffe_id_configured": True,
         "did_configured": True,
         "wallet_address_configured": True,
+        "raw_identity_values_redacted": True,
         "redacted": True,
     }
     assert payload["identity_fields_present"] == {

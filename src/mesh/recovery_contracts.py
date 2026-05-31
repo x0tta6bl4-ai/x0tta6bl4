@@ -57,6 +57,20 @@ class NodeState(BaseModel):
     yggdrasil_status: str
 
 
+class ServiceIdentityEvidence(BaseModel):
+    """Redacted workload identity presence attached to recovery evidence."""
+
+    schema: Literal["x0tta6bl4.service_identity_evidence.v1"] = (
+        "x0tta6bl4.service_identity_evidence.v1"
+    )
+    service_name: str
+    spiffe_id_configured: bool = False
+    did_configured: bool = False
+    wallet_address_configured: bool = False
+    raw_identity_values_redacted: bool = True
+    redacted: bool = True
+
+
 class DataplaneEvidenceRef(BaseModel):
     """Redacted EventBus evidence reference for a dataplane proof."""
 
@@ -128,6 +142,7 @@ class RecoveryEvidenceV1(BaseModel):
     event_id: str
     incident_id: str
     node_id_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    service_identity: ServiceIdentityEvidence
     action: Literal["restart_local_mesh_agent", "block_and_escalate"]
     policy_decision: PolicyDecision
     before: NodeState
