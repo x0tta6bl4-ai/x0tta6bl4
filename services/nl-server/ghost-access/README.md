@@ -91,3 +91,20 @@ python3 services/nl-server/ghost-access/diagnose_subscription_404.py \
 The command prints a local `subscription_url`. Send that URL to the user through
 the normal private support channel and ask them to re-import the subscription in
 the VPN app. Add `--rotate` only when the old token must be invalidated.
+
+## Per-user Subscription Diagnostic
+
+For a user complaint where the VPN is unstable but the whole NL server appears
+healthy, diagnose the user first before rotating tokens or restarting x-ui.
+Run this on NL, or pipe the local script over SSH without copying it:
+
+```bash
+cd /path/to/x0tta6bl4
+ssh nl 'python3 - --username USERNAME --check-subscription-http --check-runtime --json' \
+  < services/nl-server/ghost-access/diagnose_user_subscription.py
+```
+
+The diagnostic checks the Ghost Access user row, all active devices, x-ui DB
+inbounds, optional Xray runtime users, optional `/sub/{token}` HTTP response,
+and recent Xray access-log routes. It redacts subscription tokens and VPN UUIDs.
+It is read-only and reports `mutation_allowed=false`.
