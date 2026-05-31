@@ -460,6 +460,13 @@ KNOWN_EVENT_IDENTITY_SERVICES: Tuple[Dict[str, str], ...] = (
 KNOWN_EVENT_TRACE_SERVICES: Tuple[Dict[str, str], ...] = (
     *KNOWN_EVENT_IDENTITY_SERVICES,
     {
+        "service_name": "mesh-recovery-orchestrator",
+        "source_agent": "mesh-recovery-orchestrator",
+        "layer": "mesh_recovery_control_spine",
+        "entrypoint": "src/mesh/recovery_orchestrator.py",
+        "identity_source": "hmac_redacted_local_node_identity",
+    },
+    {
         "service_name": "mptcp-manager-status-read",
         "layer": "network_mptcp_observed_state",
         "entrypoint": "src/network/mptcp_manager.py",

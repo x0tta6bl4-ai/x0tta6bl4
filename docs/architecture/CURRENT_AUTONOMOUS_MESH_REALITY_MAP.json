@@ -57,11 +57,13 @@
         },
         {
           "id": "bounded_mesh_recovery_contract",
-          "what_is_proven": "A local mesh recovery vertical now has typed contracts, HMAC-redacted node IDs, cooldown policy, post-action revalidation, and machine-readable evidence.",
+          "what_is_proven": "A local mesh recovery vertical now has typed contracts, HMAC-redacted node IDs, cooldown policy, post-action revalidation, machine-readable evidence, and redacted EventBus publication through a dedicated trace-registered source_agent.",
           "source_refs": [
             "src/mesh/recovery_contracts.py",
             "src/mesh/recovery_policy.py",
             "src/mesh/recovery_orchestrator.py",
+            "src/services/service_identity_registry.py",
+            "src/services/service_event_trace.py",
             "tests/unit/mesh/test_recovery_contracts_unit.py"
           ]
         },
@@ -196,11 +198,13 @@
       "id": "policy_to_safe_action_to_revalidation",
       "from": ["control_plane", "data_plane"],
       "to": ["evidence_plane"],
-      "verified_path": "The bounded recovery contract records policy decision, safe action return code, post-action node state, and claim gate.",
+      "verified_path": "The bounded recovery contract records policy decision, safe action return code, post-action node state, claim gate, and trace-visible EventBus evidence under mesh-recovery-orchestrator.",
       "boundary": "A local action can prove only local recovery claims until a separate dataplane proof allows stronger claims.",
       "source_refs": [
         "src/mesh/recovery_orchestrator.py",
         "src/mesh/recovery_contracts.py",
+        "src/services/service_identity_registry.py",
+        "src/services/service_event_trace.py",
         "tests/unit/mesh/test_recovery_contracts_unit.py"
       ]
     },
@@ -243,8 +247,8 @@
     {
       "id": "control_spine_fragmentation",
       "severity": "tracked_risk",
-      "gap": "SafeActuator, recovery contracts, MAPE-K, MaaS heal routes, and EventBus traces are present but not yet one fully unified runtime spine.",
-      "next_improvement": "Register mesh recovery evidence as an EventBus source_agent and include it in service_event_trace and Ledger event-trace indexing.",
+      "gap": "SafeActuator, recovery contracts, MAPE-K, MaaS heal routes, and EventBus traces are closer together, but not yet one fully unified runtime spine with dataplane proof promotion.",
+      "next_improvement": "Feed an explicit opt-in dataplane proof result into the mesh recovery evidence as a separate nested claim gate before allowing any traffic-restored claim.",
       "source_refs": [
         "src/integration/spine.py",
         "src/core/mape_k_loop.py",
@@ -285,12 +289,12 @@
     ]
   },
   "next_best_code_improvement": {
-    "id": "mesh_recovery_eventbus_bridge",
-    "description": "Publish RecoveryEvidenceV1 packets to EventBus through a dedicated source_agent and register that source in service_event_trace so recovery evidence becomes part of the same evidence-driven control spine as other runtime traces.",
-    "blocked_by": "Avoid touching active MaaS auth/mesh files while other agents are editing them.",
+    "id": "mesh_recovery_dataplane_probe_gate",
+    "description": "Extend RecoveryEvidenceV1 with an explicit optional post-action dataplane proof gate so local recovery can remain separate from customer-traffic restoration unless a dedicated dataplane proof artifact exists.",
+    "blocked_by": "Requires choosing the concrete dataplane probe source and keeping it opt-in so recovery does not over-claim live customer traffic.",
     "safe_files_to_touch_later": [
+      "src/mesh/recovery_contracts.py",
       "src/mesh/recovery_orchestrator.py",
-      "src/services/service_event_trace.py",
       "tests/unit/mesh/test_recovery_contracts_unit.py"
     ]
   }

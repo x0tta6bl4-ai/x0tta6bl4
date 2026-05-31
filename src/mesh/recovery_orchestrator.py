@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from typing import Callable
 
+from src.coordination.events import EventBus, EventType
 from src.mesh.recovery_contracts import (
     BoundedClaims,
     NodeState,
@@ -13,6 +15,18 @@ from src.mesh.recovery_contracts import (
     generate_node_id_hash,
 )
 from src.mesh.recovery_policy import RecoveryPolicyManager
+
+
+logger = logging.getLogger(__name__)
+
+MESH_RECOVERY_SOURCE_AGENT = "mesh-recovery-orchestrator"
+MESH_RECOVERY_LAYER = "mesh_recovery_control_spine"
+MESH_RECOVERY_EVENTBUS_SCHEMA = "mesh_node_degradation_recovery.eventbus.v1"
+MESH_RECOVERY_CLAIM_BOUNDARY = (
+    "Local mesh recovery evidence only. A restart plus local revalidation can "
+    "prove bounded node-state changes, but it does not prove customer traffic, "
+    "remote peer authenticity, external dataplane delivery, or production readiness."
+)
 
 
 class MeshRecoveryOrchestrator:
@@ -26,6 +40,8 @@ class MeshRecoveryOrchestrator:
         policy_manager: RecoveryPolicyManager,
         restart_action: Callable[[], int],
         get_node_state: Callable[[], NodeState],
+        event_bus: EventBus | None = None,
+        source_agent: str = MESH_RECOVERY_SOURCE_AGENT,
         post_action_wait_seconds: float = 15.0,
         sleeper: Callable[[float], None] | None = None,
         clock: Callable[[], float] | None = None,
@@ -35,6 +51,8 @@ class MeshRecoveryOrchestrator:
         self.policy_manager = policy_manager
         self.restart_action = restart_action
         self.get_node_state = get_node_state
+        self.event_bus = event_bus
+        self.source_agent = source_agent
         self.post_action_wait_seconds = post_action_wait_seconds
         self._sleeper = sleeper or time.sleep
         self._clock = clock or time.monotonic
@@ -55,7 +73,7 @@ class MeshRecoveryOrchestrator:
         node_id_hash = generate_node_id_hash(self.node_id, self.local_audit_secret)
 
         if not policy_result.allowed:
-            return RecoveryEvidenceV1(
+            evidence = RecoveryEvidenceV1(
                 event_id=self._new_event_id(),
                 incident_id=incident_id,
                 node_id_hash=node_id_hash,
@@ -68,6 +86,8 @@ class MeshRecoveryOrchestrator:
                 return_code=1,
                 escalation_required=True,
             )
+            self._publish_recovery_event(evidence)
+            return evidence
 
         self.policy_manager.record_action(incident_key)
         return_code = int(self.restart_action())
@@ -80,7 +100,7 @@ class MeshRecoveryOrchestrator:
             or claim_gate.packet_loss_metric_decreased != "PROVEN"
         )
 
-        return RecoveryEvidenceV1(
+        evidence = RecoveryEvidenceV1(
             event_id=self._new_event_id(),
             incident_id=incident_id,
             node_id_hash=node_id_hash,
@@ -93,6 +113,78 @@ class MeshRecoveryOrchestrator:
             return_code=return_code,
             escalation_required=escalation_required,
         )
+        self._publish_recovery_event(evidence)
+        return evidence
+
+    def _publish_recovery_event(self, evidence: RecoveryEvidenceV1) -> str | None:
+        if self.event_bus is None:
+            return None
+
+        event_type = (
+            EventType.TASK_BLOCKED
+            if evidence.escalation_required
+            else EventType.PIPELINE_STAGE_END
+        )
+        payload = self._event_payload(evidence)
+        try:
+            event = self.event_bus.publish(
+                event_type,
+                self.source_agent,
+                payload,
+                priority=7 if evidence.escalation_required else 5,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish mesh recovery evidence event: %s", exc)
+            return None
+
+    def _event_payload(self, evidence: RecoveryEvidenceV1) -> dict[str, object]:
+        stage = "recovery_revalidated"
+        status = "success"
+        if evidence.action == "block_and_escalate":
+            stage = "recovery_blocked"
+            status = "blocked"
+        elif evidence.escalation_required:
+            stage = "recovery_escalated"
+            status = "failed"
+
+        policy = evidence.policy_decision
+        return {
+            "schema": MESH_RECOVERY_EVENTBUS_SCHEMA,
+            "recovery_evidence_schema": evidence.schema,
+            "component": "src.mesh.recovery_orchestrator",
+            "operation": "mesh_node_degradation_recovery",
+            "service_name": MESH_RECOVERY_SOURCE_AGENT,
+            "source_alias": self.source_agent,
+            "layer": MESH_RECOVERY_LAYER,
+            "stage": stage,
+            "status": status,
+            "success": status == "success",
+            "duration_ms": evidence.duration_ms,
+            "return_code": evidence.return_code,
+            "returncode": evidence.return_code,
+            "recovery_event_id": evidence.event_id,
+            "incident_id": evidence.incident_id,
+            "incident_key_redacted": True,
+            "action": evidence.action,
+            "policy_allowed": policy.allowed,
+            "cooldown_active": policy.cooldown_active,
+            "safe_mode_required": policy.safe_mode_required,
+            "execution_limit_checked": policy.execution_limit_checked,
+            "escalation_required": evidence.escalation_required,
+            "node_id_hash": evidence.node_id_hash,
+            "identity": {"node_id_hash": evidence.node_id_hash},
+            "before": evidence.before.model_dump(mode="json"),
+            "after": evidence.after.model_dump(mode="json"),
+            "claim_gate": evidence.claim_gate.model_dump(mode="json"),
+            "customer_traffic_restored": (
+                evidence.claim_gate.customer_traffic_restored
+            ),
+            "raw_values_redacted": evidence.raw_values_redacted,
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+            "claim_boundary": MESH_RECOVERY_CLAIM_BOUNDARY,
+        }
 
     @staticmethod
     def _new_event_id() -> str:
