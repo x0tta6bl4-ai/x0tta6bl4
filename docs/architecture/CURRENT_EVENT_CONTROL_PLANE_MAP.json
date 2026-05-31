@@ -1532,7 +1532,7 @@
     {
       "path": "src/core/mape_k_loop.py",
       "layer": "core_mapek_control_spine",
-      "role": "Deprecated but still production-wired core MAPE-K loop emits monitor evidence links, preserves transitive mesh-network-manager to Yggdrasil evidence IDs plus mesh-telemetry metric-source provenance for dataplane_probe/admin_estimate/fallback inputs, turns that provenance through the shared mesh_metric_evidence_policy contract into a plan-time guard for high-risk healing/optimization decisions, passes the same policy to MeshActionEnforcer, and wraps execute-phase route, healing, scaling, optimization, blocked-policy, and DAO dispatch actions in AsyncSafeActuator-backed EventBus traces with redacted context plus bounded downstream mesh/DAO evidence IDs.",
+      "role": "Deprecated but still production-wired core MAPE-K loop emits monitor evidence links, preserves transitive mesh-network-manager to Yggdrasil evidence IDs plus mesh-telemetry metric-source provenance for dataplane_probe/admin_estimate/fallback inputs, turns that provenance through the shared mesh_metric_evidence_policy contract into a plan-time guard for high-risk healing/optimization decisions, passes the same policy to MeshActionEnforcer, re-normalizes healing post-action dataplane gates through the shared recovery_contracts helper, and wraps execute-phase route, healing, scaling, optimization, blocked-policy, and DAO dispatch actions in AsyncSafeActuator-backed EventBus traces with redacted context plus bounded downstream mesh/DAO evidence IDs.",
       "markers": [
         "event_bus",
         "service_identity",
@@ -1552,6 +1552,7 @@
         "src/core/mape_k_loop.py:423",
         "src/core/mape_k_loop.py:442",
         "src/core/mape_k_loop.py:484",
+        "src/mesh/recovery_contracts.py:207",
         "src/core/mape_k_loop.py:803",
         "src/core/mape_k_loop.py:693",
         "src/core/mape_k_loop.py:706",

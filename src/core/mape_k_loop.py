@@ -29,6 +29,7 @@ from ..mesh.metric_evidence_policy import (
     safe_mesh_metric_evidence_policy,
 )
 from ..mesh.network_manager import MeshNetworkManager
+from ..mesh.recovery_contracts import build_post_action_dataplane_claim_gate
 from ..monitoring.prometheus_client import PrometheusExporter
 from ..security.zero_trust import ZeroTrustValidator
 from ..services.service_event_identity import service_event_identity
@@ -422,67 +423,52 @@ def _safe_result_summary(raw: Any) -> Dict[str, Any]:
 
 
 def _local_healing_post_action_claim_gate(operation: str) -> Dict[str, Any]:
-    return {
-        "schema": "x0tta6bl4.core_mapek.post_action_dataplane_claim_gate.v1",
-        "decision": "LOCAL_HEALING_CONTROL_ACTION_ONLY",
-        "operation": operation,
-        "local_control_action_claim_allowed": True,
-        "dataplane_confirmed": False,
-        "post_action_dataplane_revalidated": False,
-        "restored_dataplane_claim_allowed": False,
-        "traffic_delivery_claim_allowed": False,
-        "customer_traffic_claim_allowed": False,
-        "external_reachability_claim_allowed": False,
-        "production_slo_claim_allowed": False,
-        "production_readiness_claim_allowed": False,
-        "requires_post_action_dataplane_revalidation": True,
-        "blockers": ["no_bounded_post_action_dataplane_probe_attached"],
-        "claim_boundary": MAPEK_POST_ACTION_DATAPLANE_CLAIM_BOUNDARY,
-        "redacted": True,
-    }
+    gate = build_post_action_dataplane_claim_gate(
+        probe_required=True,
+        probe_enabled=False,
+        probe_target_present=False,
+        probe_attempted=False,
+        dataplane_confirmed=False,
+        evidence={},
+        claim_boundary=MAPEK_POST_ACTION_DATAPLANE_CLAIM_BOUNDARY,
+        local_action_applied=True,
+    ).model_dump(mode="json")
+    gate["schema"] = "x0tta6bl4.core_mapek.post_action_dataplane_claim_gate.v1"
+    gate["operation"] = operation
+    gate["local_control_action_claim_allowed"] = True
+    return gate
 
 
 def _safe_post_action_claim_gate(gate: Dict[str, Any] | None) -> Dict[str, Any] | None:
     if not isinstance(gate, dict):
         return None
-    return {
-        "schema": str(gate.get("schema", "")),
-        "decision": str(gate.get("decision", "")),
-        "operation": str(gate.get("operation", "")),
-        "local_control_action_claim_allowed": bool(
-            gate.get("local_control_action_claim_allowed")
+    required = bool(
+        gate.get(
+            "requires_post_action_dataplane_revalidation",
+            gate.get("required_for_restored_dataplane_claim", True),
+        )
+    )
+    normalized = build_post_action_dataplane_claim_gate(
+        probe_required=required,
+        probe_enabled=bool(gate.get("post_action_probe_enabled")),
+        probe_target_present=bool(gate.get("post_action_probe_target_present")),
+        probe_attempted=bool(gate.get("post_action_probe_attempted")),
+        dataplane_confirmed=bool(gate.get("dataplane_confirmed")),
+        evidence=gate.get("evidence", {}),
+        claim_boundary=str(
+            gate.get("claim_boundary") or MAPEK_POST_ACTION_DATAPLANE_CLAIM_BOUNDARY
         ),
-        "dataplane_confirmed": bool(gate.get("dataplane_confirmed")),
-        "post_action_dataplane_revalidated": bool(
-            gate.get("post_action_dataplane_revalidated")
-        ),
-        "restored_dataplane_claim_allowed": bool(
-            gate.get("restored_dataplane_claim_allowed")
-        ),
-        "traffic_delivery_claim_allowed": bool(
-            gate.get("traffic_delivery_claim_allowed")
-        ),
-        "customer_traffic_claim_allowed": bool(
-            gate.get("customer_traffic_claim_allowed")
-        ),
-        "external_reachability_claim_allowed": bool(
-            gate.get("external_reachability_claim_allowed")
-        ),
-        "production_slo_claim_allowed": bool(gate.get("production_slo_claim_allowed")),
-        "production_readiness_claim_allowed": bool(
-            gate.get("production_readiness_claim_allowed")
-        ),
-        "requires_post_action_dataplane_revalidation": bool(
-            gate.get("requires_post_action_dataplane_revalidation")
-        ),
-        "blockers": [
-            str(blocker)
-            for blocker in gate.get("blockers", [])
-            if str(blocker).strip()
-        ][:10],
-        "claim_boundary": str(gate.get("claim_boundary", "")),
-        "redacted": True,
-    }
+        local_action_applied=bool(gate.get("local_action_applied", True)),
+    ).model_dump(mode="json")
+    normalized["schema"] = str(
+        gate.get("schema") or "x0tta6bl4.core_mapek.post_action_dataplane_claim_gate.v1"
+    )
+    normalized["operation"] = str(gate.get("operation", ""))
+    normalized["local_control_action_claim_allowed"] = bool(
+        gate.get("local_control_action_claim_allowed", normalized["local_action_applied"])
+    )
+    normalized["redacted"] = True
+    return normalized
 
 
 def _raw_success(raw: Any) -> bool:

@@ -57,7 +57,7 @@
         },
         {
           "id": "bounded_mesh_recovery_contract",
-          "what_is_proven": "A local mesh recovery vertical now has typed contracts, HMAC-redacted node IDs, cooldown policy, post-action local revalidation, optional post-action dataplane proof gating, a shared typed post-action dataplane claim-gate helper, a recovery-compatible adapter around the shared real-network dataplane probe, self-healing executor and MeshNetworkManager runtime bindings for redacted post-action probe targets, MaaS heal surface propagation of bounded post-action evidence, machine-readable evidence, and redacted EventBus publication through dedicated trace-registered source_agents. Customer-traffic, external-reachability, production-SLO, and production-readiness claims remain blocked even when a local dataplane proof is attached.",
+          "what_is_proven": "A local mesh recovery vertical now has typed contracts, HMAC-redacted node IDs, cooldown policy, post-action local revalidation, optional post-action dataplane proof gating, a shared typed post-action dataplane claim-gate helper, a recovery-compatible adapter around the shared real-network dataplane probe, self-healing executor and MeshNetworkManager runtime bindings for redacted post-action probe targets, MaaS heal surface propagation of bounded post-action evidence, core MAPE-K healing action re-normalization through the same post-action claim gate, machine-readable evidence, and redacted EventBus publication through dedicated trace-registered source_agents. Customer-traffic, external-reachability, production-SLO, and production-readiness claims remain blocked even when a local dataplane proof is attached.",
           "source_refs": [
             "src/mesh/recovery_contracts.py",
             "src/mesh/recovery_dataplane_probe.py",
@@ -68,6 +68,7 @@
             "src/self_healing/recovery/executor.py",
             "src/services/service_identity_registry.py",
             "src/services/service_event_trace.py",
+            "tests/unit/core/test_mape_k_loop_unit.py",
             "tests/unit/mesh/test_recovery_contracts_unit.py",
             "tests/unit/mesh/test_network_manager_unit.py",
             "tests/unit/self_healing/test_recovery_actions_unit.py",
@@ -244,8 +245,8 @@
     {
       "id": "post_action_dataplane_probe_operationalization",
       "severity": "tracked_risk",
-      "gap": "Recovery evidence now has explicit optional post-action dataplane proof gates, the shared recovery dataplane adapter is used by self-healing executor and MeshNetworkManager, the MaaS heal surface re-sanitizes EventBus revalidation through the shared claim-gate helper, and restored-dataplane promotion uses one typed evidence/redaction rule. The remaining risk is that broader MAPE-K/SafeActuator execution still emits adjacent control-action summaries instead of adapting all mesh-restoration decisions into this shared recovery evidence contract.",
-      "next_improvement": "Add a focused MAPE-K/SafeActuator adapter that converts mesh-restoration execution outcomes into the shared post-action dataplane claim-gate contract when a policy path wants to claim restored dataplane.",
+      "gap": "Recovery evidence now has explicit optional post-action dataplane proof gates, the shared recovery dataplane adapter is used by self-healing executor and MeshNetworkManager, the MaaS heal surface re-sanitizes EventBus revalidation through the shared claim-gate helper, core MAPE-K healing action summaries are re-normalized through the same helper, and restored-dataplane promotion uses one typed evidence/redaction rule. The remaining risk is that AsyncSafeActuator itself still carries only success/simulated/reason, so structured evidence and claim metadata are attached by callers rather than by a typed actuator result contract.",
+      "next_improvement": "Add a narrow typed evidence result contract around SafeActuatorResult so guarded actions can carry sanitized claim-gate/evidence metadata without each caller inventing its own wrapper.",
       "source_refs": [
         "src/mesh/recovery_contracts.py",
         "src/mesh/recovery_dataplane_probe.py",
@@ -253,17 +254,19 @@
         "src/mesh/network_manager.py",
         "src/api/maas/nodes/healing.py",
         "src/self_healing/recovery/executor.py",
+        "src/core/mape_k_loop.py",
         "tests/unit/mesh/test_recovery_contracts_unit.py",
         "tests/unit/mesh/test_network_manager_unit.py",
         "tests/unit/self_healing/test_recovery_actions_unit.py",
-        "tests/unit/api/test_maas_healing_post_action_dataplane_unit.py"
+        "tests/unit/api/test_maas_healing_post_action_dataplane_unit.py",
+        "tests/unit/core/test_mape_k_loop_unit.py"
       ]
     },
     {
       "id": "control_spine_fragmentation",
       "severity": "tracked_risk",
-      "gap": "SafeActuator, recovery contracts, self-healing executor post-action proof, MeshNetworkManager post-heal proof, MAPE-K, MaaS heal routes, EventBus traces, and recovery dataplane proof adapters are closer together, but not yet one fully unified runtime spine.",
-      "next_improvement": "Make the core MAPE-K/SafeActuator execution path consume or emit the shared post-action dataplane claim-gate contract for mesh-restoration actions, rather than relying only on local action summaries.",
+      "gap": "Recovery contracts, self-healing executor post-action proof, MeshNetworkManager post-heal proof, MAPE-K, MaaS heal routes, EventBus traces, and recovery dataplane proof adapters now share more claim-gate semantics, but SafeActuator itself is still a thin success wrapper instead of a typed evidence carrier.",
+      "next_improvement": "Promote sanitized claim-gate/evidence metadata into a typed SafeActuator result path so guarded actions across the control spine speak the same evidence dialect.",
       "source_refs": [
         "src/integration/spine.py",
         "src/core/mape_k_loop.py",
@@ -308,15 +311,15 @@
     ]
   },
   "next_best_code_improvement": {
-    "id": "mapek_safeactuator_recovery_evidence_adapter",
-    "description": "Add a focused adapter for core MAPE-K/SafeActuator mesh-restoration execution so those actions can attach or consume the shared post-action dataplane claim-gate contract instead of only local action summaries.",
+    "id": "safeactuator_typed_evidence_result_contract",
+    "description": "Add a focused typed evidence result contract for SafeActuator so MAPE-K and adjacent guarded actions can carry sanitized post-action dataplane claim-gate metadata without caller-specific wrappers.",
     "blocked_by": "Not blocked, but should be done as a narrow core-loop refactor because broader API and frontend files are being modified by other agents.",
     "safe_files_to_touch_later": [
-      "src/core/mape_k_loop.py",
       "src/integration/spine.py",
+      "src/core/mape_k_loop.py",
       "src/mesh/recovery_contracts.py",
-      "src/mesh/recovery_orchestrator.py",
-      "tests/unit/mesh/test_recovery_contracts_unit.py",
+      "tests/unit/core/test_mape_k_loop_unit.py",
+      "tests/unit/integration/test_spine_unit.py",
       "tests/unit/test_event_control_plane_map_unit.py"
     ]
   }

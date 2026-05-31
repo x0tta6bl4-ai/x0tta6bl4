@@ -577,14 +577,46 @@ class TestExecutePhase:
         assert revalidation["required_for_restored_dataplane_claim"] is True
         assert revalidation["dataplane_confirmed"] is False
         assert revalidation["restored_dataplane_claim_allowed"] is False
-        assert gate["decision"] == "LOCAL_HEALING_CONTROL_ACTION_ONLY"
+        assert gate["decision"] == "LOCAL_RECOVERY_LIFECYCLE_ONLY"
         assert gate["local_control_action_claim_allowed"] is True
+        assert gate["local_action_applied"] is True
         assert gate["traffic_delivery_claim_allowed"] is False
         assert gate["customer_traffic_claim_allowed"] is False
         assert gate["production_readiness_claim_allowed"] is False
         assert gate["requires_post_action_dataplane_revalidation"] is True
+        assert gate["required_evidence"]["event_ids_count_min"] == 1
         assert gate["blockers"] == ["no_bounded_post_action_dataplane_probe_attached"]
         assert "does not prove restored dataplane behavior" in gate["claim_boundary"]
+
+    def test_safe_post_action_claim_gate_rejects_unbacked_dataplane_success(self):
+        from src.core.mape_k_loop import _safe_post_action_claim_gate
+
+        gate = _safe_post_action_claim_gate(
+            {
+                "schema": "x0tta6bl4.core_mapek.post_action_dataplane_claim_gate.v1",
+                "operation": "trigger_aggressive_healing",
+                "local_control_action_claim_allowed": True,
+                "post_action_probe_enabled": True,
+                "post_action_probe_target_present": True,
+                "post_action_probe_attempted": True,
+                "dataplane_confirmed": True,
+                "post_action_dataplane_revalidated": True,
+                "restored_dataplane_claim_allowed": True,
+                "evidence": {"redacted": True},
+                "claim_boundary": "bounded fake dataplane probe evidence only",
+            }
+        )
+
+        assert gate is not None
+        assert gate["decision"] == "LOCAL_RECOVERY_LIFECYCLE_ONLY"
+        assert gate["dataplane_confirmed"] is True
+        assert gate["post_action_dataplane_revalidated"] is False
+        assert gate["restored_dataplane_claim_allowed"] is False
+        assert "post_action_probe_evidence_missing" in gate["blockers"]
+        assert "post_action_probe_source_agent_missing" in gate["blockers"]
+        assert gate["traffic_delivery_claim_allowed"] is False
+        assert gate["customer_traffic_claim_allowed"] is False
+        assert gate["production_readiness_claim_allowed"] is False
 
     @pytest.mark.asyncio
     async def test_execute_preemptive_healing(self, loop):
