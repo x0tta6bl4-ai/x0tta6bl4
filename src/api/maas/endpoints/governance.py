@@ -1124,7 +1124,10 @@ async def execute_maas_proposal(
         "proposal_id": proposal_id,
         "finality_hash": finality_hash,
         "pqc_attestation": pqc_attestation,
-        "results": results,
+        "actions_total": len(results),
+        "actions_succeeded": sum(
+            1 for result in results if result.get("success") is True
+        ),
     }
 
 @router.get("/proposals")
