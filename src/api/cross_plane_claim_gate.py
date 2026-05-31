@@ -20,6 +20,7 @@ DEFAULT_READINESS_CLAIMS = (
     "dataplane_delivery",
     "traffic_delivery",
     "customer_traffic",
+    "trust_finality",
     "settlement_finality",
     "dpi_bypass",
 )

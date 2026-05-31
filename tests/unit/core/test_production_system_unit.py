@@ -210,6 +210,7 @@ def test_readiness_report_allows_production_claim_only_with_clear_current_eviden
     assert report["current_evidence_context"]["next_action_count"] == 0
     assert report["cross_plane_proof_gate"]["allowed"] is True
     assert report["cross_plane_proof_gate"]["surface"] == "production_system.readiness"
+    assert "trust_finality" in report["cross_plane_proof_gate"]["requested_claim_ids"]
     assert report["gaps_remaining"] == []
 
 
