@@ -1327,10 +1327,13 @@ def check_ebpf_map_freeze_guard_contract(root: Path) -> list[CheckResult]:
             and "invalid_map_name" in guard
         ),
         "shell_disabled": (
-            "subprocess.run(" in guard
-            and "shell=False" in guard
-            and "shell=True" not in guard
-        ),
+            (
+                "from src.core.subprocess_validator import safe_run" in guard
+                and "safe_run(" in guard
+            )
+            or ("subprocess.run(" in guard and "shell=False" in guard)
+        )
+        and "shell=True" not in guard,
         "fail_closed_errors": (
             "bpftool_unavailable" in guard
             and "bpftool_timeout" in guard

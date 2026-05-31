@@ -13,6 +13,8 @@ import subprocess
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Mapping, Sequence
 
+from src.core.subprocess_validator import safe_run
+
 
 EBPF_MAP_FREEZE_CLAIM_GATE_SCHEMA = "x0tta6bl4.ebpf.map_freeze_claim_gate.v1"
 EBPF_MAP_FREEZE_CLAIM_BOUNDARY = (
@@ -113,12 +115,11 @@ def _result(
 
 
 def _run_bpftool(command: Sequence[str], *, timeout: float) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    return safe_run(
         list(command),
         capture_output=True,
         text=True,
         timeout=timeout,
-        shell=False,
         check=False,
     )
 
@@ -162,6 +163,20 @@ def freeze_map_by_name(
             reason="bpftool_timeout",
             stdout=exc.stdout,
             stderr=exc.stderr,
+        )
+    except ValueError as exc:
+        reason = (
+            "bpftool_unavailable"
+            if "not available in trusted system paths" in str(exc)
+            else "bpftool_freeze_failed"
+        )
+        return _result(
+            map_name=map_name,
+            attempted=True,
+            frozen=False,
+            returncode=None,
+            reason=reason,
+            stderr=str(exc),
         )
     except Exception as exc:
         return _result(

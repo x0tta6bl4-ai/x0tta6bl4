@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from unittest.mock import patch
 
 from src.network.ebpf.map_freeze_guard import (
     build_bpftool_map_freeze_command,
@@ -57,6 +58,23 @@ def test_successful_freeze_allows_only_bounded_local_freeze_claim() -> None:
     assert result.claim_gate["complete_kernel_tamper_resistance_claim_allowed"] is False
 
 
+def test_default_runner_uses_safe_subprocess_validator() -> None:
+    with patch(
+        "src.network.ebpf.map_freeze_guard.safe_run",
+        return_value=_Completed(0, stdout="frozen"),
+    ) as safe_run:
+        result = freeze_map_by_name("attested_nodes_map", timeout=3)
+
+    assert result.frozen is True
+    safe_run.assert_called_once_with(
+        ["bpftool", "map", "freeze", "name", "attested_nodes_map"],
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+
+
 def test_bpftool_unavailable_fails_closed() -> None:
     def runner(command, *, timeout):
         raise FileNotFoundError("bpftool")
@@ -68,6 +86,18 @@ def test_bpftool_unavailable_fails_closed() -> None:
     assert result.reason == "bpftool_unavailable"
     assert result.claim_gate["blockers"] == ["bpftool_unavailable"]
     assert result.claim_gate["fail_closed"] is True
+
+
+def test_trusted_path_validation_failure_maps_to_bpftool_unavailable() -> None:
+    def runner(command, *, timeout):
+        raise ValueError("Allowed command is not available in trusted system paths: bpftool")
+
+    result = freeze_map_by_name("attested_nodes_map", runner=runner)
+
+    assert result.attempted is True
+    assert result.frozen is False
+    assert result.reason == "bpftool_unavailable"
+    assert result.claim_gate["blockers"] == ["bpftool_unavailable"]
 
 
 def test_bpftool_timeout_fails_closed_with_bounded_output_hashes() -> None:
