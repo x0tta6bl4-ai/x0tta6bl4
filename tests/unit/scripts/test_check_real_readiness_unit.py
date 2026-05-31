@@ -94,6 +94,66 @@ def default_spire_workload_socket():
     )
     _write(
         root,
+        "src/security/spiffe/agent/join_token_guard.py",
+        """
+import hashlib
+import threading
+
+JOIN_TOKEN_GUARD_CLAIM_BOUNDARY = "Local SPIRE join-token replay/race guard evidence only"
+
+class JoinTokenReplayGuard:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._seen_hashes = set()
+        self._inflight_hashes = set()
+
+    def reserve(self, token):
+        token_sha256 = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        if token_sha256 in self._inflight_hashes:
+            reason = "join_token_attestation_inflight"
+        if token_sha256 in self._seen_hashes:
+            reason = "join_token_replay_detected"
+        return {
+            "token_sha256": token_sha256,
+            "live_spiffe_svid_claim_allowed": False,
+            "production_spire_mtls_claim_allowed": False,
+            "production_trust_finality_claim_allowed": False,
+            "fail_closed": True,
+        }
+
+    def complete(self, token, success):
+        token_sha256 = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        self._seen_hashes.add(token_sha256)
+        self._inflight_hashes.discard(token_sha256)
+""",
+    )
+    _write(
+        root,
+        "src/security/spiffe/agent/manager.py",
+        """
+from src.security.spiffe.agent.join_token_guard import JoinTokenReplayGuard
+
+class SPIREAgentManager:
+    def __init__(self):
+        self.join_token_guard = JoinTokenReplayGuard()
+
+    def attest_node(self, token):
+        guard_decision = self.join_token_guard.reserve(token)
+        if not guard_decision.accepted:
+            stage = "join_token_guard_blocked"
+        context = {
+            "attestation_guard": guard_decision.to_safe_context(),
+        }
+        success = False
+        try:
+            success = True
+            return success
+        finally:
+            self.join_token_guard.complete(token, success=success)
+""",
+    )
+    _write(
+        root,
         "src/network/ebpf/telemetry/models.py",
         """
 class TelemetryConfig:
@@ -6855,6 +6915,39 @@ chmod 777 /tmp/spire-agent/public
     ]
     assert "chmod 777" in blocker["details"]
     assert "/tmp/spire-agent/public" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_spire_join_token_replay_guard_blocks_missing_single_use_guard(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/security/spiffe/agent/manager.py",
+        """
+class SPIREAgentManager:
+    def attest_node(self, token):
+        self._join_token = token
+        return True
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "spire_join_token_replay_guard_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "spire_join_token_replay_guard_contract"
+    ]
+    assert "hash-only" in blocker["details"]
+    assert "reused" in blocker["details"]
     assert report["ready"] is False
 
 

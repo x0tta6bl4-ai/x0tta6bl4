@@ -131,6 +131,28 @@ def test_join_token_attestation_redacts_token_in_event_payload(tmp_path):
     assert payload["context"]["token"] == "<redacted>"
 
 
+def test_join_token_replay_is_blocked_before_attestation_action(tmp_path):
+    manager = _manager(
+        tmp_path,
+        policy_engine=_allow_policy("identity:spire_agent:attest_node"),
+    )
+
+    first = manager.attest_node(AttestationStrategy.JOIN_TOKEN, token="secret-token")
+    second = manager.attest_node(AttestationStrategy.JOIN_TOKEN, token="secret-token")
+
+    assert first is True
+    assert second is False
+    blocked = manager.event_bus.get_event_history(
+        event_type=EventType.TASK_BLOCKED,
+        source_agent="spire-agent-manager",
+    )
+    payload = blocked[-1].data
+    assert payload["stage"] == "join_token_guard_blocked"
+    assert payload["reason"] == "join_token_replay_detected"
+    assert payload["context"]["token"] == "<redacted>"
+    assert "secret-token" not in str(payload)
+
+
 def test_simulated_actuator_blocks_agent_start(tmp_path):
     manager = _manager(
         tmp_path,

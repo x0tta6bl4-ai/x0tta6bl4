@@ -38,6 +38,7 @@ from src.security.policy_decision_adapter import (
     policy_reason as normalize_policy_reason,
     policy_rules as normalize_policy_rules,
 )
+from src.security.spiffe.agent.join_token_guard import JoinTokenReplayGuard
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,7 @@ class SPIREAgentManager:
         self.agent_process: Optional[subprocess.Popen] = None
         self._generated_config_path: Optional[Path] = None
         self._join_token: Optional[str] = None
+        self.join_token_guard = JoinTokenReplayGuard()
         self.event_bus = (
             event_bus
             if event_bus is not None
@@ -499,22 +501,48 @@ class SPIREAgentManager:
             if not token:
                 raise ValueError("join_token strategy requires 'token' parameter")
 
+            guard_decision = self.join_token_guard.reserve(token)
+            if not guard_decision.accepted:
+                context = {
+                    "strategy": strategy.value,
+                    "token": token,
+                    "attestation_guard": guard_decision.to_safe_context(),
+                }
+                self._publish_control_event(
+                    EventType.TASK_BLOCKED,
+                    stage="join_token_guard_blocked",
+                    operation="attest_node",
+                    context=context,
+                    reason=guard_decision.reason,
+                    success=False,
+                    simulated=False,
+                )
+                return False
+
             agent_running = bool(
                 self.agent_process and self.agent_process.poll() is None
             )
-            result = self._run_control_action(
-                operation="attest_node",
-                context={
-                    "strategy": strategy.value,
-                    "token": token,
-                    "agent_running": agent_running,
-                },
-                executor=lambda _operation, _context: self._attest_join_token_internal(
-                    token,
-                    agent_running=agent_running,
-                ),
-            )
-            return bool(result.success) and not bool(result.simulated)
+            success = False
+            try:
+                result = self._run_control_action(
+                    operation="attest_node",
+                    context={
+                        "strategy": strategy.value,
+                        "token": token,
+                        "agent_running": agent_running,
+                        "attestation_guard": guard_decision.to_safe_context(),
+                    },
+                    executor=lambda _operation, _context: (
+                        self._attest_join_token_internal(
+                            token,
+                            agent_running=agent_running,
+                        )
+                    ),
+                )
+                success = bool(result.success) and not bool(result.simulated)
+                return success
+            finally:
+                self.join_token_guard.complete(token, success=success)
 
         logger.warning(
             "Attestation strategy %s is not fully implemented", strategy.value

@@ -1056,6 +1056,70 @@ def check_spire_local_socket_boundary_contract(root: Path) -> list[CheckResult]:
     ]
 
 
+def check_spire_join_token_replay_guard_contract(root: Path) -> list[CheckResult]:
+    guard = _read(root, "src/security/spiffe/agent/join_token_guard.py")
+    manager = _read(root, "src/security/spiffe/agent/manager.py")
+    required = {
+        "hash_only_guard": (
+            "class JoinTokenReplayGuard" in guard
+            and "threading.Lock()" in guard
+            and "hashlib.sha256" in guard
+            and "token_sha256" in guard
+        ),
+        "single_use_reservation": (
+            "def reserve(" in guard
+            and "_seen_hashes" in guard
+            and "_inflight_hashes" in guard
+            and "join_token_attestation_inflight" in guard
+            and "join_token_replay_detected" in guard
+        ),
+        "completion_keeps_replay_blocked": (
+            "def complete(" in guard
+            and "self._seen_hashes.add(token_sha256)" in guard
+            and "self._inflight_hashes.discard(token_sha256)" in guard
+        ),
+        "claim_gate_blocks_overclaims": (
+            "JOIN_TOKEN_GUARD_CLAIM_BOUNDARY" in guard
+            and '"live_spiffe_svid_claim_allowed": False' in guard
+            and '"production_spire_mtls_claim_allowed": False' in guard
+            and '"production_trust_finality_claim_allowed": False' in guard
+            and '"fail_closed": True' in guard
+        ),
+        "manager_enforces_guard": (
+            "JoinTokenReplayGuard" in manager
+            and "self.join_token_guard.reserve(token)" in manager
+            and "join_token_guard_blocked" in manager
+            and "self.join_token_guard.complete(token, success=success)" in manager
+            and '"attestation_guard": guard_decision.to_safe_context()' in manager
+        ),
+    }
+    missing = [name for name, ok in required.items() if not ok]
+    if missing:
+        return [
+            fail_check(
+                "spire_join_token_replay_guard_contract",
+                (
+                    "SPIRE join-token attestation must reserve tokens with a "
+                    "hash-only local replay/race guard, reject concurrent/reused "
+                    "tokens fail-closed, and avoid broad trust claims: "
+                    + ", ".join(missing)
+                ),
+                "src/security/spiffe/agent/join_token_guard.py; src/security/spiffe/agent/manager.py",
+            )
+        ]
+    return [
+        pass_check(
+            "spire_join_token_replay_guard_contract",
+            (
+                "SPIRE join-token attestation uses a hash-only single-use guard "
+                "that rejects inflight/replayed tokens and keeps trust claims "
+                "fail-closed"
+            ),
+            "src/security/spiffe/agent/join_token_guard.py; src/security/spiffe/agent/manager.py",
+        )
+    ]
+
+
 def check_mapek_safe_mode_contract(root: Path) -> list[CheckResult]:
     mape_k_loop = _read(root, "src/core/mape_k_loop.py")
     required = {
@@ -5634,6 +5698,7 @@ def build_report(
         checks.extend(check_yggdrasil_observed_state_contract(root))
         checks.extend(check_service_identity_trust_claim_gate_contract(root))
         checks.extend(check_spire_local_socket_boundary_contract(root))
+        checks.extend(check_spire_join_token_replay_guard_contract(root))
         checks.extend(check_mapek_safe_mode_contract(root))
         checks.extend(check_ebpf_telemetry_loss_fail_closed_contract(root))
         checks.extend(check_ebpf_map_freeze_guard_contract(root))
