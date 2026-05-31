@@ -85,4 +85,23 @@ Set these repository secrets to produce a signed iOS `.ipa` artifact:
 - `X0T_IOS_BUNDLE_ID`: optional, defaults to `net.x0tta6bl4.mesh`
 - `X0T_IOS_EXPORT_METHOD`: optional, defaults to `ad-hoc`
 
+If the Apple signing certificate and provisioning profile already exist locally, upload them without printing private values:
+
+```bash
+python3 scripts/ops/prepare_ios_signing_secrets.py \
+  --prepare \
+  --certificate-p12 /secure/path/ios-distribution.p12 \
+  --certificate-password "$X0T_IOS_CERTIFICATE_PASSWORD" \
+  --provisioning-profile /secure/path/x0tta6bl4.mobileprovision \
+  --team-id "$X0T_IOS_TEAM_ID" \
+  --bundle-id net.x0tta6bl4.mesh \
+  --export-method ad-hoc \
+  --set-github-secrets \
+  --repo x0tta6bl4-ai/x0tta6bl4 \
+  --json \
+  --output .tmp/native-signing/ios/ios-signing-setup.json
+```
+
+The helper does not create Apple certificates and does not validate App Store trust or notarization. It only transfers existing local signing material into GitHub secrets through stdin and redacts secret values from reports.
+
 Without those secrets, CI still builds and uploads the unsigned iOS simulator app. That proves the Xcode project and native wrapper compile, but it is not an installable iPhone `.ipa`.
