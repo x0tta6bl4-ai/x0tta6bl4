@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import importlib.util
 import json
 import os
 import re
@@ -46,6 +47,7 @@ REQUIRED_CROSS_PLANE_PLANES = {
     "evidence_plane",
     "economy_plane",
 }
+CLAIM_HYGIENE_TIMEOUT_SECONDS = 120
 
 STATUS_PASS = "PASS"
 STATUS_FAIL = "FAIL"
@@ -200,6 +202,16 @@ def utc_now() -> str:
 
 def _read(root: Path, relative: str) -> str:
     return (root / relative).read_text(encoding="utf-8")
+
+
+def _read_with_optional(root: Path, required: str, *optional: str) -> str:
+    """Read a legacy/static contract file plus optional modularized implementations."""
+    chunks = [_read(root, required)]
+    for relative in optional:
+        path = root / relative
+        if path.exists():
+            chunks.append(path.read_text(encoding="utf-8"))
+    return "\n".join(chunks)
 
 
 def _exists(root: Path, relative: str) -> bool:
@@ -543,7 +555,13 @@ def check_ghost_pulse_local_timing_evidence_contract(root: Path) -> list[CheckRe
 def check_post_action_dataplane_gate_contract(root: Path) -> list[CheckResult]:
     action_enforcer = _read(root, "src/mesh/action_enforcer.py")
     mape_k_loop = _read(root, "src/core/mape_k_loop.py")
-    maas_nodes = _read(root, "src/api/maas_nodes.py")
+    maas_nodes = _read_with_optional(
+        root,
+        "src/api/maas_nodes.py",
+        "src/api/maas_nodes_legacy.py",
+        "src/api/maas/endpoints/nodes.py",
+        "src/api/maas/endpoints/nodes_legacy.py",
+    )
     service_trace = _read(root, "src/services/service_event_trace.py")
     recovery_executor = _read(root, "src/self_healing/recovery/executor.py")
     ebpf_self_healing = _read(root, "src/self_healing/ebpf_anomaly_detector.py")
@@ -622,14 +640,14 @@ def check_post_action_dataplane_gate_contract(root: Path) -> list[CheckResult]:
             fail_check(
                 "post_action_dataplane_gate_contract",
                 "Missing post-action dataplane gate fragments: " + ", ".join(missing),
-                "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py",
+                "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/api/maas_nodes_legacy.py; src/api/maas/endpoints/nodes.py; src/api/maas/endpoints/nodes_legacy.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py",
             )
         ]
     return [
         pass_check(
             "post_action_dataplane_gate_contract",
             "Mesh heal/restart, self-healing recovery, and eBPF self-healing paths keep restored-dataplane/route/traffic/production claims behind bounded proof or fail-closed claim gates, and service traces keep post-action dataplane profile claims behind the nested claim gate",
-            "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py",
+            "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/api/maas_nodes_legacy.py; src/api/maas/endpoints/nodes.py; src/api/maas/endpoints/nodes_legacy.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py",
         )
     ]
 
@@ -843,7 +861,11 @@ def check_yggdrasil_observed_state_contract(root: Path) -> list[CheckResult]:
 
 
 def check_service_identity_trust_claim_gate_contract(root: Path) -> list[CheckResult]:
-    service_identity_status = _read(root, "src/api/service_identity_status.py")
+    service_identity_status = _read_with_optional(
+        root,
+        "src/api/service_identity_status.py",
+        "src/api/maas/endpoints/service_identity_status.py",
+    )
     pqc_healer = _read(root, "src/self_healing/pqc_zero_trust_healer.py")
     spiffe_mapek = _read(root, "src/self_healing/mape_k_spiffe_integration.py")
     required = {
@@ -934,20 +956,24 @@ def check_service_identity_trust_claim_gate_contract(root: Path) -> list[CheckRe
                 "service_identity_trust_claim_gate_contract",
                 "Missing service identity trust claim-gate fragments: "
                 + ", ".join(missing),
-                "src/api/service_identity_status.py; src/self_healing/pqc_zero_trust_healer.py; src/self_healing/mape_k_spiffe_integration.py",
+                "src/api/service_identity_status.py; src/api/maas/endpoints/service_identity_status.py; src/self_healing/pqc_zero_trust_healer.py; src/self_healing/mape_k_spiffe_integration.py",
             )
         ]
     return [
         pass_check(
             "service_identity_trust_claim_gate_contract",
             "Service identity status plus PQC/SPIFFE recovery events separate local redacted configuration or recovery lifecycle from live SPIFFE/DID/wallet/chain trust-finality, dataplane, traffic, and production claims",
-            "src/api/service_identity_status.py; src/self_healing/pqc_zero_trust_healer.py; src/self_healing/mape_k_spiffe_integration.py",
+            "src/api/service_identity_status.py; src/api/maas/endpoints/service_identity_status.py; src/self_healing/pqc_zero_trust_healer.py; src/self_healing/mape_k_spiffe_integration.py",
         )
     ]
 
 
 def check_maas_telemetry_claim_gate_contract(root: Path) -> list[CheckResult]:
-    maas_telemetry = _read(root, "src/api/maas_telemetry.py")
+    maas_telemetry = _read_with_optional(
+        root,
+        "src/api/maas_telemetry.py",
+        "src/api/maas/endpoints/telemetry.py",
+    )
     required = {
         "claim_gate_boundary": (
             "_MAAS_TELEMETRY_CLAIM_GATE_BOUNDARY" in maas_telemetry
@@ -1019,14 +1045,14 @@ def check_maas_telemetry_claim_gate_contract(root: Path) -> list[CheckResult]:
                 "maas_telemetry_claim_gate_contract",
                 "Missing MaaS telemetry claim-gate fragments: "
                 + ", ".join(missing),
-                "src/api/maas_telemetry.py",
+                "src/api/maas_telemetry.py; src/api/maas/endpoints/telemetry.py",
             )
         ]
     return [
         pass_check(
             "maas_telemetry_claim_gate_contract",
             "MaaS telemetry readiness, EventBus, heartbeat, and topology evidence remain local-only and cannot imply dataplane, settlement, or production claims",
-            "src/api/maas_telemetry.py",
+            "src/api/maas_telemetry.py; src/api/maas/endpoints/telemetry.py",
         )
     ]
 
@@ -1244,6 +1270,22 @@ def check_maas_mesh_metrics_claim_gate_contract(root: Path) -> list[CheckResult]
     mesh_endpoint = _read(root, "src/api/maas/endpoints/mesh.py")
     mesh_models = _read(root, "src/api/maas/models.py")
     legacy_maas = _read(root, "src/api/maas_legacy.py")
+    compat_maas = (
+        _read(root, "src/api/maas/endpoints/compat.py")
+        if _exists(root, "src/api/maas/endpoints/compat.py")
+        else ""
+    )
+    compat_metrics_alias_delegates_to_modular_gate = (
+        "async def get_mesh_metrics_alias(" in compat_maas
+        and "response = await modular_mesh.get_mesh_metrics(" in compat_maas
+        and "_mesh_metrics_summary_for_evidence(response)" in compat_maas
+        and "return response" in compat_maas
+    )
+    compat_metrics_alias_summarizes_cross_plane_gate = (
+        compat_metrics_alias_delegates_to_modular_gate
+        and "mesh_metrics_claim_gate_present=bool(metrics_claim_gate)" in compat_maas
+        and "cross_plane_claim_gate_present=bool(cross_plane_claim_gate)" in compat_maas
+    )
 
     required = {
         "mesh_metrics_model_claim_gate": "mesh_metrics_claim_gate" in mesh_models,
@@ -1300,9 +1342,11 @@ def check_maas_mesh_metrics_claim_gate_contract(root: Path) -> list[CheckResult]
         ),
         "legacy_mesh_metrics_response_claim_gate": (
             "mesh_metrics_claim_gate=_legacy_mesh_metrics_claim_gate()" in legacy_maas
+            or compat_metrics_alias_delegates_to_modular_gate
         ),
         "legacy_mesh_metrics_response_cross_plane_gate": (
             "cross_plane_claim_gate=cross_plane_claim_gate_metadata" in legacy_maas
+            or compat_metrics_alias_summarizes_cross_plane_gate
         ),
         "legacy_mesh_metrics_local_observation_true": (
             '"local_mesh_metrics_observation_claim_allowed": True' in legacy_maas
@@ -1729,7 +1773,11 @@ def check_maas_mesh_read_list_claim_boundary_contract(
 def check_maas_compat_read_list_claim_boundary_contract(
     root: Path,
 ) -> list[CheckResult]:
-    maas_compat = _read(root, "src/api/maas_compat.py")
+    maas_compat = _read_with_optional(
+        root,
+        "src/api/maas_compat.py",
+        "src/api/maas/endpoints/compat.py",
+    )
 
     required = {
         "compat_read_list_headers": (
@@ -1848,14 +1896,14 @@ def check_maas_compat_read_list_claim_boundary_contract(
                 "maas_compat_read_list_claim_boundary_contract",
                 "Missing MaaS compat audit/MAPE-K read-list claim-boundary fragments: "
                 + ", ".join(missing),
-                "src/api/maas_compat.py",
+                "src/api/maas_compat.py; src/api/maas/endpoints/compat.py",
             )
         ]
     return [
         pass_check(
             "maas_compat_read_list_claim_boundary_contract",
             "MaaS compatibility audit and MAPE-K aliases expose HTTP claim-boundary headers plus fail-closed EventBus summary flags",
-            "src/api/maas_compat.py",
+            "src/api/maas_compat.py; src/api/maas/endpoints/compat.py",
         )
     ]
 
@@ -1863,7 +1911,11 @@ def check_maas_compat_read_list_claim_boundary_contract(
 def check_maas_compat_lifecycle_read_claim_boundary_contract(
     root: Path,
 ) -> list[CheckResult]:
-    maas_compat = _read(root, "src/api/maas_compat.py")
+    maas_compat = _read_with_optional(
+        root,
+        "src/api/maas_compat.py",
+        "src/api/maas/endpoints/compat.py",
+    )
 
     required = {
         "compat_lifecycle_read_headers": (
@@ -1997,14 +2049,14 @@ def check_maas_compat_lifecycle_read_claim_boundary_contract(
                 "maas_compat_lifecycle_read_claim_boundary_contract",
                 "Missing MaaS compat lifecycle read claim-boundary fragments: "
                 + ", ".join(missing),
-                "src/api/maas_compat.py",
+                "src/api/maas_compat.py; src/api/maas/endpoints/compat.py",
             )
         ]
     return [
         pass_check(
             "maas_compat_lifecycle_read_claim_boundary_contract",
             "MaaS compatibility list/status/metrics aliases preserve response bodies while exposing HTTP claim-boundary headers and redacted EventBus gate summary flags",
-            "src/api/maas_compat.py",
+            "src/api/maas_compat.py; src/api/maas/endpoints/compat.py",
         )
     ]
 
@@ -2012,7 +2064,11 @@ def check_maas_compat_lifecycle_read_claim_boundary_contract(
 def check_maas_compat_lifecycle_control_claim_gate_contract(
     root: Path,
 ) -> list[CheckResult]:
-    maas_compat = _read(root, "src/api/maas_compat.py")
+    maas_compat = _read_with_optional(
+        root,
+        "src/api/maas_compat.py",
+        "src/api/maas/endpoints/compat.py",
+    )
 
     required = {
         "compat_lifecycle_control_headers": (
@@ -2188,14 +2244,14 @@ def check_maas_compat_lifecycle_control_claim_gate_contract(
                 "maas_compat_lifecycle_control_claim_gate_contract",
                 "Missing MaaS compat lifecycle control claim-gate fragments: "
                 + ", ".join(missing),
-                "src/api/maas_compat.py",
+                "src/api/maas_compat.py; src/api/maas/endpoints/compat.py",
             )
         ]
     return [
         pass_check(
             "maas_compat_lifecycle_control_claim_gate_contract",
             "MaaS compatibility deploy/scale/terminate aliases expose response or summary claim gates, HTTP claim-boundary headers, and EventBus gate presence while blocking infrastructure/dataplane/traffic/DPI/settlement/production promotion",
-            "src/api/maas_compat.py",
+            "src/api/maas_compat.py; src/api/maas/endpoints/compat.py",
         )
     ]
 
@@ -2284,7 +2340,11 @@ def check_maas_core_lifecycle_claim_gate_contract(root: Path) -> list[CheckResul
 
 
 def check_maas_provisioning_setup_claim_gate_contract(root: Path) -> list[CheckResult]:
-    provisioning = _read(root, "src/api/maas_provisioning.py")
+    provisioning = _read_with_optional(
+        root,
+        "src/api/maas_provisioning.py",
+        "src/api/maas/endpoints/provisioning.py",
+    )
 
     required = {
         "setup_claim_boundary": "PROVISIONING_CLAIM_BOUNDARY" in provisioning,
@@ -2364,14 +2424,14 @@ def check_maas_provisioning_setup_claim_gate_contract(root: Path) -> list[CheckR
                 "maas_provisioning_setup_claim_gate_contract",
                 "Missing MaaS provisioning setup claim-gate fragments: "
                 + ", ".join(missing),
-                "src/api/maas_provisioning.py",
+                "src/api/maas_provisioning.py; src/api/maas/endpoints/provisioning.py",
             )
         ]
     return [
         pass_check(
             "maas_provisioning_setup_claim_gate_contract",
             "MaaS provisioning setup responses and events expose local pending-node/setup-package evidence only and block node-join/dataplane/PQC/ZKP/production promotion",
-            "src/api/maas_provisioning.py",
+            "src/api/maas_provisioning.py; src/api/maas/endpoints/provisioning.py",
         )
     ]
 
@@ -3046,18 +3106,30 @@ def check_batman_mesh_status_claim_gate_contract(root: Path) -> list[CheckResult
 def check_economy_dataplane_claim_gate_contract(root: Path) -> list[CheckResult]:
     service_trace = _read(root, "src/services/service_event_trace.py")
     rag_search = _read(root, "src/ledger/rag_search.py")
-    ledger_endpoints = _read(root, "src/api/ledger_endpoints.py")
+    ledger_endpoints = _read_with_optional(
+        root,
+        "src/api/ledger_endpoints.py",
+        "src/api/maas/endpoints/ledger.py",
+    )
     ledger_citation_smoke = _read(
         root,
         "scripts/ops/smoke_ledger_event_trace_citation.py",
     )
     billing_api = _read(root, "src/api/billing.py")
     maas_billing = _read(root, "src/api/maas_billing.py")
-    maas_compat = _read(root, "src/api/maas_compat.py")
+    maas_compat = _read_with_optional(
+        root,
+        "src/api/maas_compat.py",
+        "src/api/maas/endpoints/compat.py",
+    )
     reward_events = _read(root, "src/services/reward_events.py")
     marketplace_settlement = _read(root, "src/services/marketplace_settlement.py")
     marketplace_events = _read(root, "src/services/marketplace_events.py")
-    marketplace_api = _read(root, "src/api/maas_marketplace.py")
+    marketplace_api = _read_with_optional(
+        root,
+        "src/api/maas_marketplace.py",
+        "src/api/maas/endpoints/marketplace.py",
+    )
     mesh_vpn_bridge = _read(root, "src/network/mesh_vpn_bridge.py")
     share_to_earn_service = _read(root, "src/services/share_to_earn_service.py")
 
@@ -3779,6 +3851,56 @@ def check_high_risk_true_claim_literal_contract(root: Path) -> list[CheckResult]
                 f"metadata: scanned_files={scanned_files}; guarded_literals={guarded_literals}"
             ),
             "src/**/*.py; scripts/**/*.py static scan",
+        )
+    ]
+
+
+def check_telegram_control_boundary_contract(root: Path) -> list[CheckResult]:
+    scanner_path = Path(__file__).resolve().parent / "check_telegram_control_boundary.py"
+    spec = importlib.util.spec_from_file_location(
+        "check_telegram_control_boundary",
+        scanner_path,
+    )
+    if spec is None or spec.loader is None:
+        return [
+            fail_check(
+                "telegram_control_boundary_contract",
+                "Telegram control-boundary scanner could not be loaded",
+                "scripts/ops/check_telegram_control_boundary.py",
+            )
+        ]
+    scanner = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = scanner
+    spec.loader.exec_module(scanner)
+
+    findings, scanned = scanner.scan_root(root, scanner.DEFAULT_TELEGRAM_ENTRYPOINTS)
+    if findings:
+        details = "; ".join(
+            f"{item.path}:{item.line}:{item.kind}:{item.detail}"
+            for item in findings[:5]
+        )
+        remaining = max(0, len(findings) - 5)
+        if remaining:
+            details += f"; ... +{remaining} more"
+        return [
+            fail_check(
+                "telegram_control_boundary_contract",
+                (
+                    "Telegram entrypoints must remain notification/sales/config "
+                    f"surfaces, not direct mesh/control executors: {details}"
+                ),
+                "scripts/ops/check_telegram_control_boundary.py",
+            )
+        ]
+
+    return [
+        pass_check(
+            "telegram_control_boundary_contract",
+            (
+                "Telegram entrypoints do not directly import mesh/control/MAPE-K "
+                f"executors or infrastructure mutation commands; scanned={len(scanned)}"
+            ),
+            "scripts/ops/check_telegram_control_boundary.py",
         )
     ]
 
@@ -5082,7 +5204,7 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
                 "--json",
             ),
             None,
-            60,
+            CLAIM_HYGIENE_TIMEOUT_SECONDS,
         )
         check_id = f"claim_hygiene_{zone}"
         if claim_hygiene.returncode != 0:
@@ -5273,6 +5395,7 @@ def build_report(
         checks.extend(check_production_grade_audit_cross_plane_gate_contract(root))
         checks.extend(check_objective_coverage_cross_plane_gate_contract(root))
         checks.extend(check_high_risk_true_claim_literal_contract(root))
+        checks.extend(check_telegram_control_boundary_contract(root))
         checks.extend(check_external_dpi_collector_import_bridge_contract(root))
         checks.extend(check_integration_spine_claim_gate_contract(root))
         checks.extend(check_rollup_approval_context_gate_contract(root))

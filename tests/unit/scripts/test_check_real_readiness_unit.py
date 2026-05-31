@@ -6644,6 +6644,37 @@ def test_command_failure_blocks_readiness(tmp_path: Path) -> None:
     assert report["ready"] is False
 
 
+def test_telegram_control_boundary_blocks_direct_mesh_import(tmp_path: Path) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "telegram_bot.py",
+        """
+from src.mesh.network_manager import MeshNetworkManager
+
+def handler():
+    return MeshNetworkManager()
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "telegram_control_boundary_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "telegram_control_boundary_contract"
+    ]
+    assert "forbidden-import" in blocker["details"]
+    assert "src.mesh.network_manager" in blocker["details"]
+    assert report["ready"] is False
+
+
 def test_dirty_git_state_blocks_readiness_without_traceback(tmp_path: Path) -> None:
     _ready_root(tmp_path)
 
