@@ -3043,6 +3043,15 @@ def _prompt(label, secret=False):
 def _redact_private_values(value, private_values):
     return REDACTED_LOCAL_INPUT
 
+def _post_import_refresh_commands():
+    return [
+        ["python3", "scripts/ops/verify_ghost_pulse_external_evidence.py"],
+        ["python3", "scripts/ops/verify_ghost_pulse_external_evidence_intake.py"],
+        ["python3", "scripts/ops/verify_ghost_pulse_external_evidence_inventory.py"],
+        ["python3", "scripts/ops/verify_ghost_pulse_artifact_chain.py"],
+        ["python3", "scripts/ops/verify_ghost_pulse_goal_state.py"],
+    ]
+
 def _plan():
     return {
         "schema": "x0tta6bl4.external_dpi_intake.local_runner_plan.v1",
@@ -3051,6 +3060,7 @@ def _plan():
             "<authorized target URL; local input only>",
             "<authorized proxy URL; local input only>",
         ],
+        "post_import_refresh_commands": _post_import_refresh_commands(),
         "raw_private_values_in_report": False,
     }
 
@@ -3068,6 +3078,7 @@ def run():
         "collector": EXTERNAL_DPI_COLLECTOR,
         "validator": EXTERNAL_DPI_VALIDATOR,
         "importer": EXTERNAL_DPI_IMPORTER,
+        "post_import_refresh_commands": _post_import_refresh_commands(),
         "claim_boundary": {"raw_private_values_retained": False},
     }
 """,
@@ -3084,6 +3095,8 @@ Run:
 
 ```bash
 python3 scripts/ops/run_external_dpi_intake_local.py --json --write-ready
+python3 scripts/ops/verify_ghost_pulse_external_evidence_inventory.py --write-report --json
+python3 scripts/ops/verify_ghost_pulse_goal_state.py --write-report --json
 ```
 
 Do not paste target URLs into chat. This can close `dpi_lab` only when the
@@ -6095,6 +6108,31 @@ def run():
     }
 """,
     )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "external_dpi_collector_import_bridge_contract" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_missing_external_dpi_local_runner_refresh_plan_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    runner_path = tmp_path / "scripts/ops/run_external_dpi_intake_local.py"
+    runner = runner_path.read_text(encoding="utf-8")
+    runner = runner.replace("def _post_import_refresh_commands():", "def _missing_refresh_commands():")
+    runner = runner.replace(
+        '"post_import_refresh_commands": _post_import_refresh_commands(),',
+        '"post_import_refresh_commands": [],',
+    )
+    runner_path.write_text(runner, encoding="utf-8")
 
     report = build_report(
         tmp_path,

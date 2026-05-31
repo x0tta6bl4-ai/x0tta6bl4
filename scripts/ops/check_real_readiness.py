@@ -3903,12 +3903,23 @@ def check_external_dpi_collector_import_bridge_contract(root: Path) -> list[Chec
             and "_redact_private_values(import_report" in local_runner
             and '"raw_private_values_retained": False' in local_runner
         ),
+        "local_runner_post_import_refresh_plan": (
+            "def _post_import_refresh_commands" in local_runner
+            and '"scripts/ops/verify_ghost_pulse_external_evidence.py"' in local_runner
+            and '"scripts/ops/verify_ghost_pulse_external_evidence_intake.py"' in local_runner
+            and '"scripts/ops/verify_ghost_pulse_external_evidence_inventory.py"' in local_runner
+            and '"scripts/ops/verify_ghost_pulse_artifact_chain.py"' in local_runner
+            and '"scripts/ops/verify_ghost_pulse_goal_state.py"' in local_runner
+            and '"post_import_refresh_commands": _post_import_refresh_commands()' in local_runner
+        ),
         "operator_runbook": (
             "# Ghost Pulse External DPI Intake Runbook" in runbook
             and "AUTHORIZED_EXTERNAL_EVIDENCE_REQUIRED" in runbook
             and "run_external_dpi_intake_local.py --json --write-ready" in runbook
             and "Do not paste target URLs" in runbook
             and "validator and import preflight both report readiness" in runbook
+            and "verify_ghost_pulse_external_evidence_inventory.py --write-report --json" in runbook
+            and "verify_ghost_pulse_goal_state.py --write-report --json" in runbook
             and "Do not edit `GHOST_PULSE_DPI_LAB_LATEST.json` by hand" in runbook
         ),
     }
@@ -3928,7 +3939,7 @@ def check_external_dpi_collector_import_bridge_contract(root: Path) -> list[Chec
     return [
         pass_check(
             "external_dpi_collector_import_bridge_contract",
-            "External DPI collector emits validator/import-ready artifacts plus a safe local operator handoff, local runner keeps private target/proxy inputs out of chat/shell history and redacts local inputs from its output, validator source artifacts stay under the incoming artifact root, importer write requires fresh replacement/intake reports, intake Markdown links the DPI runbook, and validator/importer reports carry fail-closed intake claim gates",
+            "External DPI collector emits validator/import-ready artifacts plus a safe local operator handoff, local runner keeps private target/proxy inputs out of chat/shell history, redacts local inputs from its output, and returns the post-import refresh plan; validator source artifacts stay under the incoming artifact root, importer write requires fresh replacement/intake reports, intake Markdown links the DPI runbook, and validator/importer reports carry fail-closed intake claim gates",
             (
                 f"{EXTERNAL_DPI_COLLECTOR}; {EXTERNAL_DPI_VALIDATOR}; "
                 f"{EXTERNAL_DPI_IMPORTER}; scripts/ops/verify_ghost_pulse_external_evidence_intake.py; "
