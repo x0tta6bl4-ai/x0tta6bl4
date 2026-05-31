@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Set
@@ -19,7 +20,11 @@ from fastapi import FastAPI, HTTPException, Request, status
 from pydantic import BaseModel
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.integration.spine import (
+    SafeActuator,
+    SafeActuatorEvidenceMetadata,
+    SafeActuatorResult,
+)
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -37,6 +42,13 @@ _DEPLOYMENTS_DIR = Path(__file__).parent / "deployments"
 _DEFAULT_PROCESSED = _DEPLOYMENTS_DIR / "executed_proposals.json"
 _DEFAULT_LEDGER = _DEPLOYMENTS_DIR / "audit.jsonl"
 _SERVICE_AGENT = "dao-executor"
+_DAO_EXECUTOR_STRONG_CLAIM_IDS = (
+    "production_rollout",
+    "production_readiness",
+    "dataplane_delivery",
+    "customer_traffic",
+    "external_settlement_finality",
+)
 
 DAO_EXECUTOR_CLAIM_BOUNDARY = (
     "DAO executor release event only. It records local identity, policy, and "
@@ -122,6 +134,8 @@ class DAOExecutor:
             self._execute_release_through_actuator
         )
         self._last_upgrade_success: Optional[bool] = None
+        self._last_release_return_code: Optional[int] = None
+        self._last_release_duration_ms: Optional[int] = None
 
     @staticmethod
     def _env_bool(name: str, default: bool) -> bool:
@@ -183,6 +197,127 @@ class DAOExecutor:
             for key, value in context.items()
         }
 
+    @staticmethod
+    def _release_cross_plane_claim_gate() -> Dict[str, Any]:
+        return {
+            "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+            "surface": "dao.executor.release_script.safe_actuator",
+            "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
+            "allowed": False,
+            "requested_claim_ids": list(_DAO_EXECUTOR_STRONG_CLAIM_IDS),
+            "blockers": ["dao_executor_release_script_local_action_only"],
+            "claim_boundary": (
+                "DAO executor release-script evidence records a local guarded "
+                "script attempt only. Production rollout, readiness, dataplane, "
+                "customer traffic, and settlement-finality claims need external "
+                "cross-plane evidence."
+            ),
+        }
+
+    @classmethod
+    def _release_claim_gate(
+        cls,
+        *,
+        action: str,
+        context: Dict[str, Any],
+        success: bool,
+        simulated: bool,
+        action_recognized: bool,
+        return_code: Optional[int],
+    ) -> Dict[str, Any]:
+        local_execution_allowed = (
+            action_recognized
+            and success
+            and not simulated
+            and return_code == 0
+        )
+        blockers = [
+            "production_rollout_requires_deployment_evidence",
+            "production_readiness_requires_cross_plane_proof",
+            "dataplane_claim_requires_dedicated_dataplane_probe",
+            "settlement_finality_requires_external_chain_evidence",
+        ]
+        if not action_recognized:
+            blockers.append("unknown_dao_executor_action")
+        if simulated:
+            blockers.append("safe_actuator_result_simulated")
+        if not success:
+            blockers.append("release_script_not_successful")
+        if return_code is None:
+            blockers.append("release_script_return_code_missing")
+        if return_code not in (None, 0):
+            blockers.append("release_script_return_code_nonzero")
+
+        return {
+            "schema": "x0tta6bl4.dao_executor.safe_actuator_claim_gate.v1",
+            "surface": "dao.executor.release_script",
+            "operation": "release_script",
+            "action": str(action or ""),
+            "proposal_id_present": context.get("proposal_id") is not None,
+            "script_path_present": bool(context.get("script_path")),
+            "local_release_script_execution_claim_allowed": local_execution_allowed,
+            "production_rollout_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "external_settlement_finality_claim_allowed": False,
+            "blocked_claim_ids": list(_DAO_EXECUTOR_STRONG_CLAIM_IDS),
+            "blockers": blockers,
+            "claim_boundary": (
+                "DAOExecutor SafeActuator metadata proves only a local guarded "
+                "release-script attempt and its bounded process outcome. It does "
+                "not prove production rollout, production readiness, dataplane or "
+                "customer traffic delivery, or external settlement finality."
+            ),
+        }
+
+    @classmethod
+    def _release_evidence_metadata(
+        cls,
+        *,
+        action: str,
+        context: Dict[str, Any],
+        success: bool,
+        simulated: bool = False,
+        action_recognized: bool = True,
+        return_code: Optional[int] = None,
+        duration_ms: Optional[int] = None,
+    ) -> SafeActuatorEvidenceMetadata:
+        claim_gate = cls._release_claim_gate(
+            action=action,
+            context=context,
+            success=success,
+            simulated=simulated,
+            action_recognized=action_recognized,
+            return_code=return_code,
+        )
+        evidence = {
+            "source_agents": [_SERVICE_AGENT],
+            "event_ids": [],
+            "operation": "release_script",
+            "action": str(action or ""),
+            "proposal_id_present": context.get("proposal_id") is not None,
+            "script_path_present": bool(context.get("script_path")),
+            "script_path_redacted": True,
+            "title_redacted": True,
+            "return_code": return_code,
+            "return_code_observed": return_code is not None,
+            "duration_ms": int(duration_ms or 0),
+            "simulated": bool(simulated),
+            "raw_values_redacted": True,
+        }
+        return SafeActuatorEvidenceMetadata.from_value(
+            {
+                "claim_gate": claim_gate,
+                "cross_plane_claim_gate": cls._release_cross_plane_claim_gate(),
+                "evidence": evidence,
+                "source_agents": [_SERVICE_AGENT],
+                "event_ids": [],
+                "claim_boundary": claim_gate["claim_boundary"],
+                "redacted": True,
+            }
+        )
+
     def _publish_release_event(
         self,
         event_type: EventType,
@@ -193,6 +328,7 @@ class DAOExecutor:
         reason: str = "",
         policy_decision: Any = None,
         simulated: Optional[bool] = None,
+        safe_actuator_evidence_metadata: Optional[SafeActuatorEvidenceMetadata] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -224,6 +360,11 @@ class DAOExecutor:
             if policy_decision is not None
             else [],
             "safe_actuator": True,
+            "safe_actuator_evidence_metadata": (
+                safe_actuator_evidence_metadata.to_dict()
+                if safe_actuator_evidence_metadata is not None
+                else SafeActuatorEvidenceMetadata().to_dict()
+            ),
             "claim_boundary": DAO_EXECUTOR_CLAIM_BOUNDARY,
         }
         try:
@@ -259,14 +400,37 @@ class DAOExecutor:
         context: Dict[str, Any],
     ) -> SafeActuatorResult:
         if action != "release_script":
-            return SafeActuatorResult(False, f"unknown DAO executor action: {action}")
+            return SafeActuatorResult(
+                False,
+                f"unknown DAO executor action: {action}",
+                evidence_metadata=self._release_evidence_metadata(
+                    action=action,
+                    context=context,
+                    success=False,
+                    action_recognized=False,
+                ),
+            )
+        start = time.monotonic()
+        self._last_release_return_code = None
         success = self._trigger_upgrade_internal(
             proposal_id=int(context.get("proposal_id", 0)),
             title=str(context.get("title", "")),
             script_path=str(context.get("script_path", "")),
         )
+        duration_ms = int((time.monotonic() - start) * 1000)
+        self._last_release_duration_ms = duration_ms
         self._last_upgrade_success = success
-        return SafeActuatorResult(success, "release script completed" if success else "release script failed")
+        return SafeActuatorResult(
+            success,
+            "release script completed" if success else "release script failed",
+            evidence_metadata=self._release_evidence_metadata(
+                action=action,
+                context=context,
+                success=success,
+                return_code=self._last_release_return_code,
+                duration_ms=duration_ms,
+            ),
+        )
 
     async def start(self):
         """Start the event listener loop."""
@@ -380,6 +544,8 @@ class DAOExecutor:
             "script_path": script_path,
         }
         self._last_upgrade_success = None
+        self._last_release_return_code = None
+        self._last_release_duration_ms = None
         self._publish_release_event(
             EventType.COORDINATION_REQUEST,
             stage="received",
@@ -407,6 +573,20 @@ class DAOExecutor:
         )
         actuator_result = self.safe_actuator.execute("release_script", context)
         success = bool(self._last_upgrade_success if self._last_upgrade_success is not None else actuator_result.success)
+        if not actuator_result.evidence_metadata.claim_gate:
+            actuator_result = SafeActuatorResult(
+                success=actuator_result.success,
+                reason=actuator_result.reason,
+                simulated=actuator_result.simulated,
+                evidence_metadata=self._release_evidence_metadata(
+                    action="release_script",
+                    context=context,
+                    success=success,
+                    simulated=bool(actuator_result.simulated),
+                    return_code=getattr(self, "_last_release_return_code", None),
+                    duration_ms=getattr(self, "_last_release_duration_ms", None),
+                ),
+            )
         event_type = EventType.PIPELINE_STAGE_END if success and not actuator_result.simulated else EventType.TASK_FAILED
         stage = (
             "actuator_completed"
@@ -423,6 +603,7 @@ class DAOExecutor:
             reason=actuator_result.reason,
             policy_decision=policy_decision,
             simulated=bool(actuator_result.simulated),
+            safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
         )
         return success and not actuator_result.simulated
 
@@ -430,6 +611,7 @@ class DAOExecutor:
         """Execute the release script after identity, policy, and safe actuator gates."""
         if not os.path.exists(script_path):
             logger.error("Release script not found: %s", script_path)
+            self._last_release_return_code = None
             return False
 
         logger.info("Executing %s for proposal '%s' (%d)", script_path, title, proposal_id)
@@ -446,6 +628,7 @@ class DAOExecutor:
                 env=env,
             )
             stdout, stderr = process.communicate()
+            self._last_release_return_code = int(process.returncode)
 
             if process.returncode == 0:
                 logger.info("Upgrade successful for proposal %d", proposal_id)
@@ -456,6 +639,7 @@ class DAOExecutor:
             return False
         except Exception as exc:
             logger.error("Exception during script execution: %s", exc)
+            self._last_release_return_code = None
             return False
 
     def _load_processed_ids(self) -> Set[int]:

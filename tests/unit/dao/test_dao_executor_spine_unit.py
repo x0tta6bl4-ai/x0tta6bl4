@@ -196,6 +196,27 @@ def test_dao_executor_release_script_runs_through_safe_actuator(tmp_path):
     assert payload["policy_allowed"] is True
     assert payload["safe_actuator"] is True
     assert payload["claim_boundary"]
+    metadata = payload["safe_actuator_evidence_metadata"]
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert metadata["source_agents"] == ["dao-executor"]
+    assert metadata["redacted"] is True
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.dao_executor.safe_actuator_claim_gate.v1"
+    assert claim_gate["local_release_script_execution_claim_allowed"] is True
+    assert claim_gate["production_rollout_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
+    assert claim_gate["dataplane_delivery_claim_allowed"] is False
+    assert claim_gate["customer_traffic_claim_allowed"] is False
+    assert claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert metadata["cross_plane_claim_gate"]["allowed"] is False
+    evidence = metadata["evidence"]
+    assert evidence["operation"] == "release_script"
+    assert evidence["proposal_id_present"] is True
+    assert evidence["script_path_redacted"] is True
+    assert evidence["title_redacted"] is True
+    assert evidence["return_code"] == 0
+    assert evidence["return_code_observed"] is True
+    assert "HELM_UPGRADE: allowed" not in str(metadata)
 
 
 def test_dao_executor_simulated_actuator_blocks_release_script(tmp_path):
@@ -221,3 +242,9 @@ def test_dao_executor_simulated_actuator_blocks_release_script(tmp_path):
     )
     assert failed[-1].data["stage"] == "actuator_simulated"
     assert failed[-1].data["simulated"] is True
+    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["local_release_script_execution_claim_allowed"] is False
+    assert "safe_actuator_result_simulated" in claim_gate["blockers"]
+    assert "release_script_return_code_missing" in claim_gate["blockers"]
+    assert metadata["cross_plane_claim_gate"]["allowed"] is False
