@@ -24,11 +24,10 @@ _Updated: March 1, 2026_
 - **Usage billing:** реализованы rate-based расчеты; пилотные setup/SOW работы ведутся вне auto-invoice логики.
 
 ## 5) Итог готовности
-- **Execution readiness:** TRL 8 (Production-Ready).
-- **Production Blockers:** Отсутствуют. Внедрены контуры Observability (Prometheus/Grafana + SLA метрики), механизмы graceful degradation (Circuit Breakers для БД и RPC), Auto-Healing для пулов соединений и Incident Response Runbooks.
+- **Execution readiness:** TRL 8 / Production-Ready is historical/operator status language, not current production proof unless the current gates in `docs/05-operations/REAL_READINESS_GATE.md`, `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md`, and `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json` pass.
+- **Production Blockers:** Current blockers are tracked by the real-readiness gate and current cross-plane map; older "no blockers" wording is not authoritative without those current artifacts.
 - **Go-To-Market:** Подготовлены интерактивные демо-скрипты, обновлен процесс онбординга агентов и расширена база знаний RAG (конкурентный анализ PQC).
 
 ## 6) Минимальные правила для внешних заявлений
 - Не использовать формулировки "fully integrated", "production proven", "unblockable" без ссылок на тестовые артефакты и эксплуатационные метрики.
 - Все GTM/whitepaper документы должны ссылаться на этот файл как на baseline статуса.
-

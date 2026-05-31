@@ -1,5 +1,10 @@
 # x0tta6bl4 — Investor Pitch Deck
 
+> Current gate note: Production-ready wording in this investor draft is not
+> current production proof unless `docs/05-operations/REAL_READINESS_GATE.md`,
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json` pass.
+
 ## 🎯 One-Liner
 **"Internet that fixes itself in 0.75 milliseconds"**
 
