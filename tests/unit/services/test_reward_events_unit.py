@@ -83,6 +83,9 @@ def test_publish_reward_settlement_event_records_canonical_identity(tmp_path):
         "dataplane_delivery_claim_allowed": False,
         "token_settlement_finality_claim_allowed": False,
         "external_settlement_finality_claim_allowed": False,
+        "economy_finality_claim_allowed": False,
+        "bank_settlement_claim_allowed": False,
+        "revenue_recognition_claim_allowed": False,
         "production_readiness_claim_allowed": False,
         "requires_upstream_dataplane_evidence_for_traffic_claim": True,
         "requires_chain_finality_evidence_for_settlement_claim": True,
@@ -170,6 +173,9 @@ def test_publish_reward_settlement_event_summarizes_upstream_claim_gates(tmp_pat
             "customer_traffic_claim_allowed": False,
             "external_dpi_bypass_claim_allowed": False,
             "external_settlement_finality_claim_allowed": False,
+            "economy_finality_claim_allowed": False,
+            "bank_settlement_claim_allowed": False,
+            "revenue_recognition_claim_allowed": False,
             "blocked_claim_ids": ["settlement_finality", "dataplane_delivery"],
             "raw_payload": "must-not-copy",
         },
@@ -192,6 +198,9 @@ def test_publish_reward_settlement_event_summarizes_upstream_claim_gates(tmp_pat
     assert upstream["claim_gate_summary"]["surface"] == "integration_spine.reward_context"
     assert upstream["claim_gate_summary"]["local_actuator_execution_claim_allowed"] is True
     assert upstream["claim_gate_summary"]["external_settlement_finality_claim_allowed"] is False
+    assert upstream["claim_gate_summary"]["economy_finality_claim_allowed"] is False
+    assert upstream["claim_gate_summary"]["bank_settlement_claim_allowed"] is False
+    assert upstream["claim_gate_summary"]["revenue_recognition_claim_allowed"] is False
     assert upstream["claim_gate_summary"]["blocked_claim_ids"] == [
         "settlement_finality",
         "dataplane_delivery",

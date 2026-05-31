@@ -194,6 +194,15 @@ def _safe_claim_gate_summary(value: Any) -> dict[str, Any]:
         "external_settlement_finality_claim_allowed": _bool_value(
             value.get("external_settlement_finality_claim_allowed")
         ),
+        "economy_finality_claim_allowed": _bool_value(
+            value.get("economy_finality_claim_allowed")
+        ),
+        "bank_settlement_claim_allowed": _bool_value(
+            value.get("bank_settlement_claim_allowed")
+        ),
+        "revenue_recognition_claim_allowed": _bool_value(
+            value.get("revenue_recognition_claim_allowed")
+        ),
         "blocked_claim_ids": _safe_claim_id_list(value.get("blocked_claim_ids")),
         "payloads_redacted": True,
     }
@@ -267,6 +276,9 @@ def _reward_claim_gate(
         "dataplane_delivery_claim_allowed": False,
         "token_settlement_finality_claim_allowed": False,
         "external_settlement_finality_claim_allowed": False,
+        "economy_finality_claim_allowed": False,
+        "bank_settlement_claim_allowed": False,
+        "revenue_recognition_claim_allowed": False,
         "production_readiness_claim_allowed": False,
         "requires_upstream_dataplane_evidence_for_traffic_claim": True,
         "requires_chain_finality_evidence_for_settlement_claim": True,
