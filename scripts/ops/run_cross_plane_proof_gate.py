@@ -1442,6 +1442,7 @@ def external_settlement_artifact_evidence(root: Path) -> dict[str, Any]:
     result: dict[str, Any] = {
         "claim_id": EXTERNAL_SETTLEMENT_CLAIM_ID,
         "required_for_claim": "settlement_finality",
+        "required_for_claims": ["settlement_finality", "production_readiness"],
         "valid": False,
         "evidence_path": None,
         "evidence_exists": False,
@@ -1453,10 +1454,12 @@ def external_settlement_artifact_evidence(root: Path) -> dict[str, Any]:
         "operator_handoff": None,
         "blockers": [],
         "claim_boundary": (
-            "External settlement evidence can support settlement_finality only when "
-            "the retained receipt is valid and a saved read-only live RPC/blocker "
-            "report says READY_TO_PROMOTE. This is not production readiness, customer "
-            "traffic, provider settlement, bank settlement, or token economic finality."
+            "External settlement evidence can support settlement_finality and the "
+            "settlement leg of production_readiness only when the retained receipt "
+            "is valid and a saved read-only live RPC/blocker report says "
+            "READY_TO_PROMOTE. It does not prove production readiness by itself, "
+            "customer traffic, provider settlement, bank settlement, or token "
+            "economic finality."
         ),
     }
     try:
@@ -1684,6 +1687,11 @@ def evaluate_claim(
             supporting_artifact_evidence[ECONOMY_BOUNDARY_CLAIM_ID] = economy_boundary
         if not economy_boundary or economy_boundary.get("valid") is not True:
             blockers.append("economy_boundary_artifact_not_verified")
+        external_settlement = (artifact_evidence or {}).get(EXTERNAL_SETTLEMENT_CLAIM_ID)
+        if external_settlement is not None:
+            supporting_artifact_evidence[EXTERNAL_SETTLEMENT_CLAIM_ID] = external_settlement
+        if not external_settlement or external_settlement.get("valid") is not True:
+            blockers.append("production_readiness_external_settlement_artifact_not_verified")
         trust_boundary = (artifact_evidence or {}).get(TRUST_FINALITY_CLAIM_ID)
         if trust_boundary is not None:
             supporting_artifact_evidence[TRUST_FINALITY_CLAIM_ID] = trust_boundary
@@ -1758,7 +1766,7 @@ def build_report(
         artifact_evidence[DPI_LAB_CLAIM_ID] = dpi_lab_artifact_evidence(root)
     if "production_readiness" in claims:
         artifact_evidence[PRODUCTION_READINESS_CLAIM_ID] = production_readiness_artifact_evidence(root)
-    if "settlement_finality" in claims:
+    if any(claim in claims for claim in ("settlement_finality", "production_readiness")):
         artifact_evidence[EXTERNAL_SETTLEMENT_CLAIM_ID] = external_settlement_artifact_evidence(root)
     claim_results = [evaluate_claim(claim, context, flag_index, artifact_evidence) for claim in claims]
     if load_errors:

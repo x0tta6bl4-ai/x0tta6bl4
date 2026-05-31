@@ -868,6 +868,7 @@ def test_gate_blocks_production_readiness_when_map_flags_are_true_but_imported_a
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
+    _write_valid_external_settlement_artifacts(tmp_path)
 
     report = build_report(tmp_path, claims=("production_readiness",))
 
@@ -892,6 +893,7 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
+    _write_valid_external_settlement_artifacts(tmp_path)
 
     report = build_report(tmp_path, claims=("production_readiness",))
 
@@ -912,6 +914,15 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     assert customer["valid"] is True
     assert customer["selected_event"]["event_id"] == "customer-traffic-event-1"
     assert customer["selected_event"]["production_customer_traffic_confirmed"] is True
+    settlement = production["supporting_artifact_evidence"]["external_settlement"]
+    assert settlement["valid"] is True
+    assert (
+        settlement["retained_evidence_validation"]["summary"][
+            "x0t_external_settlement_ready"
+        ]
+        is True
+    )
+    assert "does not prove production readiness by itself" in settlement["claim_boundary"]
     economy = production["supporting_artifact_evidence"]["economy_boundary"]
     assert economy["valid"] is True
     assert economy["selected_event"]["event_id"] == "economy-boundary-event-1"
@@ -928,6 +939,7 @@ def test_gate_blocks_production_readiness_when_dataplane_artifact_is_missing(
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
+    _write_valid_external_settlement_artifacts(tmp_path)
 
     report = build_report(tmp_path, claims=("production_readiness",))
 
@@ -942,6 +954,7 @@ def test_gate_blocks_production_readiness_when_dataplane_artifact_is_missing(
     assert production["required_artifact_evidence"]["valid"] is True
     assert production["supporting_artifact_evidence"]["trust_finality"]["valid"] is True
     assert production["supporting_artifact_evidence"]["economy_boundary"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["external_settlement"]["valid"] is True
 
 
 def test_gate_blocks_production_readiness_when_customer_traffic_artifact_is_missing(
@@ -952,6 +965,7 @@ def test_gate_blocks_production_readiness_when_customer_traffic_artifact_is_miss
     _write_valid_dataplane_delivery_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
+    _write_valid_external_settlement_artifacts(tmp_path)
 
     report = build_report(tmp_path, claims=("production_readiness",))
 
@@ -970,6 +984,39 @@ def test_gate_blocks_production_readiness_when_customer_traffic_artifact_is_miss
     assert production["supporting_artifact_evidence"]["dataplane_delivery"]["valid"] is True
     assert production["supporting_artifact_evidence"]["trust_finality"]["valid"] is True
     assert production["supporting_artifact_evidence"]["economy_boundary"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["external_settlement"]["valid"] is True
+
+
+def test_gate_blocks_production_readiness_when_external_settlement_artifact_is_missing(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, production_flags=True, customer_flags=True)
+    _write_stub_production_readiness_proof(tmp_path, verified=True)
+    _write_valid_dataplane_delivery_event(tmp_path)
+    _write_valid_customer_traffic_event(tmp_path)
+    _write_valid_trust_finality_event(tmp_path)
+    _write_valid_economy_boundary_event(tmp_path)
+
+    report = build_report(tmp_path, claims=("production_readiness",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    assert report["allowed"] is False
+    [production] = report["claim_results"]
+    assert production["allowed"] is False
+    assert (
+        "production_readiness_external_settlement_artifact_not_verified"
+        in production["blockers"]
+    )
+    settlement = production["supporting_artifact_evidence"]["external_settlement"]
+    assert settlement["valid"] is False
+    assert "external_settlement_retained_evidence_not_verified" in settlement["blockers"]
+    assert "external_settlement_live_rpc_report_missing" in settlement["blockers"]
+    assert "external_settlement_blocker_report_missing" in settlement["blockers"]
+    assert production["required_artifact_evidence"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["dataplane_delivery"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["customer_traffic"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["trust_finality"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["economy_boundary"]["valid"] is True
 
 
 def test_gate_blocks_production_readiness_when_customer_traffic_map_flag_is_missing(
@@ -981,6 +1028,7 @@ def test_gate_blocks_production_readiness_when_customer_traffic_map_flag_is_miss
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
+    _write_valid_external_settlement_artifacts(tmp_path)
 
     report = build_report(tmp_path, claims=("production_readiness",))
 
