@@ -94,6 +94,53 @@ def default_spire_workload_socket():
     )
     _write(
         root,
+        "src/network/ebpf/telemetry/models.py",
+        """
+class TelemetryConfig:
+    max_dropped_events_healthy: int = 0
+    max_drop_ratio_healthy: float = 0.0
+""",
+    )
+    _write(
+        root,
+        "src/network/ebpf/telemetry/perf_reader.py",
+        """
+EBPF_EVENT_LOSS_CLAIM_BOUNDARY = "telemetry blind spot"
+
+class PerfBufferReader:
+    def get_loss_health(self):
+        loss_detected = True
+        blockers = [
+            "perf_buffer_events_dropped",
+            "perf_buffer_drop_ratio_exceeded",
+            "perf_buffer_parse_errors",
+        ]
+        return {
+            "event_loss_detected": loss_detected,
+            "observability_integrity_claim_allowed": not loss_detected,
+            "blockers": blockers,
+        }
+""",
+    )
+    _write(
+        root,
+        "src/network/ebpf/telemetry/collector.py",
+        """
+class EBPFTelemetryCollector:
+    def get_health_status(self):
+        perf_loss = self.perf_reader.get_loss_health()
+        return {
+            "claim_gate": {
+                "decision": "EBPF_TELEMETRY_UNHEALTHY_FAIL_CLOSED",
+                "complete_attack_absence_claim_allowed": False,
+                "production_security_coverage_claim_allowed": False,
+                "fail_closed": True,
+            }
+        }
+""",
+    )
+    _write(
+        root,
         "Dockerfile.vpn",
         "COPY services/nl-server/ghost-vpn/ghost_vpn_protocol.py src/network/ghost_vpn_protocol.py\n",
     )
@@ -6801,6 +6848,38 @@ def _execute_cycle():
     ]
     assert "planning" in blocker["details"]
     assert "CID-layer" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_ebpf_telemetry_loss_contract_blocks_missing_fail_closed_health(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/network/ebpf/telemetry/perf_reader.py",
+        """
+class PerfBufferReader:
+    def get_stats(self):
+        return {"events_dropped": 0}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "ebpf_telemetry_loss_fail_closed_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "ebpf_telemetry_loss_fail_closed_contract"
+    ]
+    assert "dropped/overflowed" in blocker["details"]
+    assert "unparseable events" in blocker["details"]
     assert report["ready"] is False
 
 

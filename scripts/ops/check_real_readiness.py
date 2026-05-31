@@ -1117,6 +1117,66 @@ def check_mapek_safe_mode_contract(root: Path) -> list[CheckResult]:
     ]
 
 
+def check_ebpf_telemetry_loss_fail_closed_contract(root: Path) -> list[CheckResult]:
+    perf_reader = _read(root, "src/network/ebpf/telemetry/perf_reader.py")
+    collector = _read(root, "src/network/ebpf/telemetry/collector.py")
+    models = _read(root, "src/network/ebpf/telemetry/models.py")
+    required = {
+        "loss_claim_boundary": (
+            "EBPF_EVENT_LOSS_CLAIM_BOUNDARY" in perf_reader
+            and "telemetry blind spot" in perf_reader
+        ),
+        "loss_health_helper": (
+            "def get_loss_health(" in perf_reader
+            and '"event_loss_detected": loss_detected' in perf_reader
+            and '"observability_integrity_claim_allowed": not loss_detected'
+            in perf_reader
+        ),
+        "drop_and_parse_blockers": (
+            "perf_buffer_events_dropped" in perf_reader
+            and "perf_buffer_drop_ratio_exceeded" in perf_reader
+            and "perf_buffer_parse_errors" in perf_reader
+        ),
+        "collector_health_status": (
+            "def get_health_status(" in collector
+            and "perf_reader.get_loss_health()" in collector
+            and "EBPF_TELEMETRY_UNHEALTHY_FAIL_CLOSED" in collector
+        ),
+        "claim_gate_blocks_overclaims": (
+            '"complete_attack_absence_claim_allowed": False' in collector
+            and '"production_security_coverage_claim_allowed": False' in collector
+            and '"fail_closed": True' in collector
+        ),
+        "zero_loss_default_threshold": (
+            "max_dropped_events_healthy: int = 0" in models
+            and "max_drop_ratio_healthy: float = 0.0" in models
+        ),
+    }
+    missing = [name for name, ok in required.items() if not ok]
+    if missing:
+        return [
+            fail_check(
+                "ebpf_telemetry_loss_fail_closed_contract",
+                (
+                    "eBPF telemetry must fail closed on dropped/overflowed or "
+                    "unparseable events: " + ", ".join(missing)
+                ),
+                "src/network/ebpf/telemetry",
+            )
+        ]
+    return [
+        pass_check(
+            "ebpf_telemetry_loss_fail_closed_contract",
+            (
+                "eBPF telemetry health treats dropped/overflowed and parse-error "
+                "events as observability blind spots and blocks production "
+                "security coverage claims"
+            ),
+            "src/network/ebpf/telemetry",
+        )
+    ]
+
+
 def check_maas_telemetry_claim_gate_contract(root: Path) -> list[CheckResult]:
     maas_telemetry = _read_with_optional(
         root,
@@ -5518,6 +5578,7 @@ def build_report(
         checks.extend(check_service_identity_trust_claim_gate_contract(root))
         checks.extend(check_spire_local_socket_boundary_contract(root))
         checks.extend(check_mapek_safe_mode_contract(root))
+        checks.extend(check_ebpf_telemetry_loss_fail_closed_contract(root))
         checks.extend(check_maas_telemetry_claim_gate_contract(root))
         checks.extend(check_mesh_api_claim_gate_contract(root))
         checks.extend(check_status_api_claim_gate_contract(root))
