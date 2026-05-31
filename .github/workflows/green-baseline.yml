@@ -11,8 +11,19 @@ on:
       - "requirements-staging.txt"
       - "requirements-dev.txt"
       - "pyproject.toml"
+      - "scripts/check_env_security_defaults.py"
       - "scripts/check_requirements_lock_sync.py"
+      - "scripts/**/*.sh"
+      - "src/api/**"
+      - "src/core/**"
+      - "src/network/**"
+      - "src/security/**"
+      - "src/self_healing/**"
+      - "src/sales/**"
+      - "src/libx0t/core/**"
+      - "src/libx0t/security/**"
       - "tests/unit/security/test_dependency_security_pins_unit.py"
+      - "tests/unit/scripts/test_check_env_security_defaults_unit.py"
       - "docker/mesh-node/requirements.txt"
       - "monitoring/geo-leak-detector/requirements.txt"
       - "x0tta6bl4-core-skill/x0tta6bl4-core/scripts/update_dependencies.sh"
@@ -27,8 +38,19 @@ on:
       - "requirements-staging.txt"
       - "requirements-dev.txt"
       - "pyproject.toml"
+      - "scripts/check_env_security_defaults.py"
       - "scripts/check_requirements_lock_sync.py"
+      - "scripts/**/*.sh"
+      - "src/api/**"
+      - "src/core/**"
+      - "src/network/**"
+      - "src/security/**"
+      - "src/self_healing/**"
+      - "src/sales/**"
+      - "src/libx0t/core/**"
+      - "src/libx0t/security/**"
       - "tests/unit/security/test_dependency_security_pins_unit.py"
+      - "tests/unit/scripts/test_check_env_security_defaults_unit.py"
       - "docker/mesh-node/requirements.txt"
       - "monitoring/geo-leak-detector/requirements.txt"
       - "x0tta6bl4-core-skill/x0tta6bl4-core/scripts/update_dependencies.sh"
@@ -68,6 +90,9 @@ jobs:
 
       - name: Run dependency security guard
         run: python3 -m pytest --confcutdir=tests/unit/security tests/unit/security/test_dependency_security_pins_unit.py -q -o addopts=''
+
+      - name: Run env security defaults audit
+        run: python3 scripts/check_env_security_defaults.py
 
       - name: Run requirements lock sync
         run: python3 scripts/check_requirements_lock_sync.py
