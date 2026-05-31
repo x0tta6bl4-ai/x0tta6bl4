@@ -1,0 +1,1823 @@
+"""
+MaaS Node Management (Production) — x0tta6bl4
+============================================
+
+SQLAlchemy-backed node registration and admission control with granular RBAC.
+
+Features:
+    - Node registration with enrollment tokens
+    - Heartbeat processing with telemetry export
+    - ACL-based access control
+    - Granular RBAC permissions for mesh operators
+
+RBAC Permission Model:
+    - mesh:read: View mesh and node information
+    - mesh:write: Modify mesh configuration
+    - node:read: View node details and telemetry
+    - node:write: Modify node configuration
+    - node:approve: Approve pending nodes
+    - node:revoke: Revoke node access
+    - node:delete: Permanently delete nodes
+    - acl:read: View ACL policies
+    - acl:write: Modify ACL policies
+
+Example:
+    >>> # Check if user has permission to approve nodes
+    >>> if _check_permission(current_user, mesh_id, "node:approve", db):
+    ...     node.status = "approved"
+"""
+
+import hashlib
+import logging
+import hmac
+import time
+import uuid
+from datetime import datetime
+from typing import List, Optional, Dict, Any, Set
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
+from src.database import (ACLPolicy, MarketplaceEscrow, MarketplaceListing,
+                          MeshInstance, MeshNode, User, get_db)
+from src.core.rbac import MeshPermission, DEFAULT_ROLE_PERMISSIONS as ROLE_PERMISSIONS
+from src.api.maas_auth import require_role, require_mesh_access
+from src.api.maas_security import token_signer
+from src.coordination.events import EventType, get_event_bus
+from src.core.reliability_policy import mark_degraded_dependency
+from src.services.marketplace_events import publish_marketplace_escrow_event
+from src.utils.audit import record_audit_log
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/v1/maas", tags=["MaaS Nodes"])
+_HEARTBEAT_ESCROW_SOURCE_AGENT = "maas-nodes-heartbeat"
+_TELEMETRY_SOURCE_AGENT = "maas-telemetry"
+_HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT = 10
+_HEARTBEAT_OBSERVED_LAYER = "api_mesh_to_commerce"
+_HEARTBEAT_OBSERVED_STATE_CLAIM_BOUNDARY = (
+    "MaaS DB-backed node heartbeat evidence only. It records local node lookup, "
+    "approval gate, status update, DB commit, telemetry export, and optional "
+    "marketplace escrow auto-release linkage with node, mesh, and escrow "
+    "identifiers hashed. It does not copy raw node IDs, mesh IDs, custom metric "
+    "values, telemetry payloads, escrow IDs, listing IDs, renter IDs, or request "
+    "bodies, and it does not prove live dataplane reachability, current packet "
+    "delivery, remote node authenticity, or external settlement finality."
+)
+_MESH_HEALING_SOURCE_AGENT = "mesh-network-manager"
+_MESH_HEALING_EVIDENCE_OPERATIONS = {
+    "trigger_aggressive_healing",
+    "verify_node_state",
+}
+_MESH_HEALING_RESPONSE_CLAIM_BOUNDARY = (
+    "MaaS node heal response means a local mesh-network-manager healing action "
+    "was requested and summarized through redacted EventBus evidence. The "
+    "status field is kept for API compatibility, but it must not be read as "
+    "restored live dataplane behavior unless post_action_dataplane_revalidation "
+    "later cites bounded dataplane probe evidence."
+)
+
+
+# =============================================================================
+# Mesh Operator Security Context
+# =============================================================================
+
+class MeshOperator:
+    """Represents a mesh operator with granular permissions.
+
+    This class extends the basic User model with mesh-specific permissions,
+    allowing fine-grained access control beyond simple role-based checks.
+
+    Attributes:
+        user_id: ID of the user
+        mesh_id: ID of the mesh being accessed
+        role: User's global role
+        permissions: Set of granted permissions
+        is_owner: Whether the user owns this mesh
+
+    Example:
+        >>> operator = MeshOperator(user, mesh_id, db)
+        >>> if operator.has_permission(MeshPermission.NODE_APPROVE):
+        ...     approve_node(node_id)
+    """
+
+    def __init__(
+        self,
+        user: User,
+        mesh_id: str,
+        db: Session,
+        custom_permissions: Optional[Set[MeshPermission]] = None,
+    ) -> None:
+        """Initialize MeshOperator with permissions.
+
+        Args:
+            user: The User object from authentication
+            mesh_id: The mesh being accessed
+            db: Database session for permission queries
+            custom_permissions: Optional override permissions (for testing)
+        """
+        self.user_id = user.id
+        self.mesh_id = mesh_id
+        self.role = user.role
+        self._db = db
+
+        # Check if user is mesh owner
+        mesh = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
+        self.is_owner = mesh is not None and mesh.owner_id == user.id
+
+        # Determine permissions
+        if custom_permissions is not None:
+            self.permissions = custom_permissions
+        else:
+            self.permissions = self._resolve_permissions(user, mesh_id, db)
+
+    def _resolve_permissions(
+        self, user: User, mesh_id: str, db: Session
+    ) -> Set[MeshPermission]:
+        """Resolve effective permissions for user on mesh.
+
+        Permission resolution order:
+        1. Admin users get all permissions
+        2. Mesh owners get operator permissions + additional owner permissions
+        3. Check MeshOperatorPermission table for explicit grants
+        4. Fall back to role default permissions
+
+        Args:
+            user: The user to resolve permissions for
+            mesh_id: The mesh being accessed
+            db: Database session
+
+        Returns:
+            Set of effective permissions
+        """
+        # Admin gets all permissions
+        if user.role == "admin":
+            return ROLE_PERMISSIONS["admin"].copy()
+
+        # Start with role default permissions
+        base_permissions = ROLE_PERMISSIONS.get(user.role, set()).copy()
+
+        # Mesh owner gets additional permissions
+        if self.is_owner:
+            base_permissions.update([
+                MeshPermission.MESH_READ,
+                MeshPermission.MESH_VIEW,
+                MeshPermission.MESH_WRITE,
+                MeshPermission.NODE_READ,
+                MeshPermission.NODE_VIEW,
+                MeshPermission.NODE_WRITE,
+                MeshPermission.NODE_APPROVE,
+                MeshPermission.NODE_REVOKE,
+                MeshPermission.NODE_DELETE,
+                MeshPermission.NODE_HEAL,
+                MeshPermission.ACL_READ,
+                MeshPermission.ACL_VIEW,
+                MeshPermission.ACL_WRITE,
+                MeshPermission.ACL_UPDATE,
+                MeshPermission.TELEMETRY_READ,
+                MeshPermission.TELEMETRY_VIEW,
+                MeshPermission.TELEMETRY_EXPORT,
+            ])
+
+        # Check for explicit permission grants (future: database table)
+        # This allows per-mesh permission customization
+        try:
+            from src.database import MeshOperatorPermission
+            explicit_perms = db.query(MeshOperatorPermission).filter(
+                MeshOperatorPermission.user_id == user.id,
+                MeshOperatorPermission.mesh_id == mesh_id,
+            ).all()
+
+            for perm in explicit_perms:
+                try:
+                    base_permissions.add(MeshPermission(perm.permission))
+                except ValueError:
+                    logger.warning(f"Unknown permission: {perm.permission}")
+        except ImportError:
+            # MeshOperatorPermission table doesn't exist yet - using role defaults
+            logger.debug(
+                f"MeshOperatorPermission table not found for user {user.id} on mesh {mesh_id} - "
+                "using role-based permissions. Run database migration to enable custom permissions."
+            )
+
+        return _expand_permission_aliases(base_permissions)
+
+    def has_permission(self, permission: MeshPermission) -> bool:
+        """Check if operator has a specific permission.
+
+        Args:
+            permission: The permission to check
+
+        Returns:
+            True if the operator has the permission
+        """
+        return permission in self.permissions
+
+    def require_permission(self, permission: MeshPermission) -> None:
+        """Require a specific permission, raising HTTPException if not granted.
+
+        Args:
+            permission: The required permission
+
+        Raises:
+            HTTPException: 403 Forbidden if permission not granted
+        """
+        if not self.has_permission(permission):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission denied: {permission.value} required",
+            )
+
+    def has_any_permission(self, permissions: Set[MeshPermission]) -> bool:
+        """Check if operator has any of the specified permissions.
+
+        Args:
+            permissions: Set of permissions to check
+
+        Returns:
+            True if operator has at least one permission
+        """
+        return bool(self.permissions & permissions)
+
+    def has_all_permissions(self, permissions: Set[MeshPermission]) -> bool:
+        """Check if operator has all of the specified permissions.
+
+        Args:
+            permissions: Set of permissions to check
+
+        Returns:
+            True if operator has all permissions
+        """
+        return permissions.issubset(self.permissions)
+
+
+def _get_mesh_operator(
+    mesh_id: str,
+    current_user: User = Depends(require_role("operator")),
+    db: Session = Depends(get_db),
+) -> MeshOperator:
+    """Dependency to get MeshOperator for current user and mesh.
+
+    Args:
+        mesh_id: The mesh being accessed
+        current_user: Authenticated user (requires operator role)
+        db: Database session
+
+    Returns:
+        MeshOperator instance with resolved permissions
+    """
+    return MeshOperator(current_user, mesh_id, db)
+
+
+def _expand_permission_aliases(permissions: Set[MeshPermission]) -> Set[MeshPermission]:
+    expanded = set(permissions)
+    alias_groups = (
+        {MeshPermission.MESH_READ, MeshPermission.MESH_VIEW},
+        {MeshPermission.NODE_READ, MeshPermission.NODE_VIEW},
+        {MeshPermission.ACL_READ, MeshPermission.ACL_VIEW},
+        {MeshPermission.ACL_WRITE, MeshPermission.ACL_UPDATE},
+        {MeshPermission.TELEMETRY_READ, MeshPermission.TELEMETRY_VIEW},
+    )
+    for group in alias_groups:
+        if expanded.intersection(group):
+            expanded.update(group)
+    return expanded
+
+
+def _check_permission(
+    current_user: User,
+    mesh_id: str,
+    permission: MeshPermission,
+    db: Session,
+) -> bool:
+    """Check if user has a specific permission on mesh.
+
+    This is a convenience function for simple permission checks.
+
+    Args:
+        current_user: The user to check
+        mesh_id: The mesh being accessed
+        permission: The required permission
+        db: Database session
+
+    Returns:
+        True if user has the permission
+    """
+    operator = MeshOperator(current_user, mesh_id, db)
+    return operator.has_permission(permission)
+
+
+def _ensure_mesh_visibility(
+    mesh_id: str,
+    current_user: User,
+    db: Session,
+    permission: MeshPermission = MeshPermission.MESH_READ,
+) -> None:
+    """Enforce mesh access with permission check.
+
+    This function replaces the old _ensure_mesh_visibility with a more
+    comprehensive permission check that supports granular RBAC.
+
+    Args:
+        mesh_id: The mesh being accessed
+        current_user: The user requesting access
+        db: Database session
+        permission: The required permission (default: MESH_READ)
+
+    Raises:
+        HTTPException: 404 if mesh not found or no access
+        HTTPException: 403 if permission denied
+    """
+    operator = MeshOperator(current_user, mesh_id, db)
+
+    # Check if mesh exists and user has access
+    mesh = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
+    if not mesh:
+        raise HTTPException(status_code=404, detail="Mesh not found")
+
+    # Admin always has access
+    if current_user.role == "admin":
+        return
+
+    # Check ownership or explicit permission
+    if not operator.is_owner and not operator.has_permission(permission):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access denied: {permission.value} required",
+        )
+
+
+def _ensure_mesh_visibility_with_permission(
+    mesh_id: str,
+    current_user: User,
+    db: Session,
+    required_permission: MeshPermission,
+) -> MeshOperator:
+    """Enforce mesh visibility and return MeshOperator for further checks.
+
+    Args:
+        mesh_id: The mesh being accessed
+        current_user: The user requesting access
+        db: Database session
+        required_permission: The required permission
+
+    Returns:
+        MeshOperator instance for additional permission checks
+
+    Raises:
+        HTTPException: 404 if mesh not found
+        HTTPException: 403 if permission denied
+    """
+    operator = MeshOperator(current_user, mesh_id, db)
+
+    # Check mesh existence
+    mesh = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
+    if not mesh:
+        raise HTTPException(status_code=404, detail="Mesh not found")
+
+    # Require permission
+    operator.require_permission(required_permission)
+
+    return operator
+
+
+def _ensure_owner_or_admin_access(
+    mesh_id: str,
+    current_user: User,
+    db: Session,
+    required_permission: MeshPermission,
+    *,
+    allow_admin_without_mesh: bool = False,
+) -> Optional[MeshInstance]:
+    """Enforce owner-scoped visibility for sensitive node routes.
+
+    For selected endpoints (telemetry readback / ACL checks), tests expect
+    operator access only for mesh owners while allowing admins to operate on
+    historical test data where MeshInstance may be absent.
+    """
+    mesh = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
+    if mesh is None:
+        if current_user.role == "admin" and allow_admin_without_mesh:
+            return None
+        raise HTTPException(status_code=404, detail="Mesh not found")
+
+    if current_user.role != "admin" and mesh.owner_id != current_user.id:
+        # Hide mesh existence from non-owner operators.
+        raise HTTPException(status_code=404, detail="Mesh not found")
+
+    _ensure_mesh_visibility(mesh_id, current_user, db, required_permission)
+    return mesh
+
+# Optional telemetry imports with graceful fallback
+try:
+    from src.api.maas_telemetry import _set_telemetry as _set_external_telemetry
+except ImportError:
+    _set_external_telemetry = None
+
+try:
+    from src.api.maas_telemetry import _get_telemetry as _get_external_telemetry
+except ImportError:
+    _get_external_telemetry = None
+
+try:
+    from src.api.maas_telemetry import _get_telemetry_history as _get_external_telemetry_history
+except ImportError:
+    _get_external_telemetry_history = None
+
+# Optional healing imports with graceful fallback
+try:
+    from src.mesh.network_manager import MeshNetworkManager, VerificationMode
+    MESH_HEALING_AVAILABLE = True
+except ImportError:
+    MESH_HEALING_AVAILABLE = False
+    MeshNetworkManager = None
+    VerificationMode = None
+    logger.debug("Mesh healing module not available - heal_node endpoint will return 503")
+
+
+def _node_db_session_available(db: Any) -> bool:
+    return all(
+        hasattr(db, attr)
+        for attr in ("query", "add", "commit", "delete")
+    )
+
+
+def _model_fields_available(model: Any, fields: tuple[str, ...]) -> bool:
+    return all(hasattr(model, field) for field in fields)
+
+
+def _node_models_available() -> bool:
+    return all(
+        (
+            _model_fields_available(
+                MeshNode,
+                ("id", "mesh_id", "device_class", "status", "acl_profile", "last_seen"),
+            ),
+            _model_fields_available(
+                MeshInstance,
+                ("id", "owner_id", "join_token", "join_token_expires_at", "status"),
+            ),
+            _model_fields_available(
+                ACLPolicy,
+                ("id", "mesh_id", "source_tag", "target_tag", "action"),
+            ),
+            _model_fields_available(
+                MarketplaceListing,
+                ("id", "node_id", "status", "renter_id"),
+            ),
+            _model_fields_available(
+                MarketplaceEscrow,
+                ("id", "listing_id", "status", "released_at"),
+            ),
+        )
+    )
+
+
+def _telemetry_bridge_available() -> bool:
+    return all(
+        callable(fn)
+        for fn in (
+            _set_external_telemetry,
+            _get_external_telemetry,
+            _get_external_telemetry_history,
+        )
+    )
+
+
+def _node_healing_available() -> bool:
+    return (
+        MESH_HEALING_AVAILABLE
+        and callable(MeshNetworkManager)
+        and VerificationMode is not None
+    )
+
+
+def _node_readiness_status(db: Any) -> Dict[str, Any]:
+    node_db_ready = _node_db_session_available(db)
+    node_model_ready = _node_models_available()
+    node_rbac_ready = callable(require_role) and callable(require_mesh_access)
+    token_signer_ready = callable(getattr(token_signer, "sign_token", None))
+    audit_log_ready = callable(record_audit_log)
+    telemetry_bridge_ready = _telemetry_bridge_available()
+    healing_service_ready = _node_healing_available()
+    node_runtime_ready = (
+        node_db_ready
+        and node_model_ready
+        and node_rbac_ready
+        and token_signer_ready
+        and audit_log_ready
+    )
+
+    degraded_dependencies = []
+    if not node_db_ready:
+        degraded_dependencies.append("database")
+    if not node_model_ready:
+        degraded_dependencies.append("node_models")
+    if not node_rbac_ready:
+        degraded_dependencies.append("rbac")
+    if not token_signer_ready:
+        degraded_dependencies.append("token_signing")
+    if not audit_log_ready:
+        degraded_dependencies.append("audit_log")
+    if not telemetry_bridge_ready:
+        degraded_dependencies.append("telemetry_bridge")
+    if not healing_service_ready:
+        degraded_dependencies.append("healing_service")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "full_mode_only",
+        "route_present_in_light_mode": False,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "node_runtime_ready": node_runtime_ready,
+        "node_db_ready": node_db_ready,
+        "node_model_ready": node_model_ready,
+        "node_rbac_ready": node_rbac_ready,
+        "token_signer_ready": token_signer_ready,
+        "audit_log_ready": audit_log_ready,
+        "telemetry_bridge_ready": telemetry_bridge_ready,
+        "healing_service_ready": healing_service_ready,
+        "legacy_route_shadowing": {
+            "shadowed_by_legacy": [
+                "POST /{mesh_id}/nodes/register",
+                "GET /{mesh_id}/nodes/pending",
+                "POST /{mesh_id}/nodes/{node_id}/approve",
+                "POST /{mesh_id}/nodes/{node_id}/revoke",
+            ],
+            "db_backed_routes_active": [
+                "POST /{mesh_id}/nodes/{node_id}/heartbeat",
+                "GET /{mesh_id}/nodes/{node_id}/telemetry",
+                "POST /{mesh_id}/nodes/check-access",
+                "GET /{mesh_id}/node-config/{node_id}",
+                "GET /{mesh_id}/nodes/all",
+                "DELETE /{mesh_id}/nodes/{node_id}",
+                "POST /{mesh_id}/nodes/{node_id}/heal",
+            ],
+            "boundary": (
+                "Legacy maas router is registered before maas_nodes, so register, "
+                "pending, approve, and revoke routes are handled by legacy "
+                "handlers. Heartbeat, telemetry, ACL check, node-config, "
+                "nodes/all, delete, and heal remain DB-backed in maas_nodes."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": (
+                "Node admission, heartbeat, telemetry readback, ACL checks, "
+                "escrow release, deletion, and healing require SQLAlchemy query "
+                "and write support."
+            ),
+            "node_models": (
+                "Runtime paths depend on MeshNode, MeshInstance, ACLPolicy, "
+                "MarketplaceListing, and MarketplaceEscrow columns."
+            ),
+            "rbac": (
+                "Operator and mesh-permission checks come from maas_auth "
+                "require_role and require_mesh_access."
+            ),
+            "token_signing": (
+                "Node approval returns a signed join token through maas_security."
+            ),
+            "audit_log": (
+                "Heartbeat-driven marketplace escrow release records an audit log."
+            ),
+            "telemetry_bridge": (
+                "Heartbeat export and telemetry readback bridge into maas_telemetry; "
+                "node control still works with reduced telemetry when unavailable."
+            ),
+            "healing_service": (
+                "Heal requests require src.mesh.network_manager at runtime and "
+                "return 503 when that service is unavailable."
+            ),
+        },
+        "cross_plane_claim_gate": readiness_cross_plane_claim_gate_metadata(
+            surface="maas_node_readiness"
+        ),
+        "claim_boundary": (
+            "Node readiness separates route availability from DB-backed node "
+            "runtime state, telemetry bridge availability, signed approval tokens, "
+            "audit logging, healing service availability, and legacy route "
+            "precedence. It does not prove that physical mesh agents are online."
+        ),
+    }
+
+
+@router.get("/nodes/readiness")
+async def node_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _node_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
+
+
+class NodeRegisterRequest(BaseModel):
+    node_id: Optional[str] = None
+    enrollment_token: str
+    device_class: str = "edge"
+    hardware_id: Optional[str] = None
+
+@router.post("/{mesh_id}/nodes/register")
+async def register_node(
+    mesh_id: str,
+    req: NodeRegisterRequest,
+    db: Session = Depends(get_db)
+):
+    instance = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
+    if not instance:
+        raise HTTPException(status_code=404, detail="Mesh not found")
+
+    if not instance.join_token:
+        raise HTTPException(status_code=503, detail="Mesh enrollment token is not configured")
+    if instance.join_token_expires_at and instance.join_token_expires_at <= datetime.utcnow():
+        raise HTTPException(status_code=401, detail="Enrollment token expired")
+
+    if not hmac.compare_digest(req.enrollment_token, instance.join_token):
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    node_id = req.node_id or f"node-{uuid.uuid4().hex[:6]}"
+
+    # Check if node already exists
+    existing = db.query(MeshNode).filter(MeshNode.id == node_id).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Node ID already registered")
+
+    node = MeshNode(
+        id=node_id,
+        mesh_id=mesh_id,
+        device_class=req.device_class,
+        hardware_id=req.hardware_id,
+        status="pending"
+    )
+    db.add(node)
+    db.commit()
+
+    logger.info(f"🆕 Node {node_id} registered (pending) for mesh {mesh_id}")
+    return {"status": "pending_approval", "node_id": node_id}
+
+@router.get("/{mesh_id}/nodes/pending")
+def list_pending(
+    mesh_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("operator"))
+):
+    _ensure_mesh_visibility(mesh_id, current_user, db)
+    return db.query(MeshNode).filter(MeshNode.mesh_id == mesh_id, MeshNode.status == "pending").all()
+
+
+class HeartbeatRequest(BaseModel):
+    status: str = Field(default="healthy", pattern="^(healthy|degraded|unhealthy)$")
+    cpu_percent: Optional[float] = None
+    mem_percent: Optional[float] = None
+    latency_ms: Optional[float] = None
+    traffic_mbps: Optional[float] = None
+    active_connections: Optional[int] = None
+    custom_metrics: Optional[Dict[str, Any]] = None
+
+
+def _to_optional_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_external_telemetry_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Add stable aliases for telemetry payloads emitted by different MaaS modules."""
+    normalized = dict(payload)
+
+    if "latency_ms" not in normalized:
+        latency = _to_optional_float(normalized.get("latency"))
+        if latency is not None and latency >= 0:
+            normalized["latency_ms"] = latency
+
+    if "neighbors_count" not in normalized:
+        neighbors = normalized.get("neighbors")
+        if isinstance(neighbors, int) and not isinstance(neighbors, bool):
+            normalized["neighbors_count"] = neighbors
+        elif not isinstance(neighbors, bool):
+            converted = _to_optional_float(neighbors)
+            if converted is not None and converted >= 0 and float(converted).is_integer():
+                normalized["neighbors_count"] = int(converted)
+
+    status = normalized.get("status")
+    if isinstance(status, str):
+        normalized["status"] = status.strip().lower()
+
+    return normalized
+
+
+def _build_analytics_telemetry_payload(
+    mesh_id: str,
+    node_id: str,
+    req: HeartbeatRequest,
+    timestamp_iso: str,
+) -> Dict[str, Any]:
+    custom_metrics = req.custom_metrics or {}
+    latency = _to_optional_float(
+        req.latency_ms
+        if req.latency_ms is not None
+        else custom_metrics.get("latency_ms")
+    )
+    traffic = _to_optional_float(
+        req.traffic_mbps
+        if req.traffic_mbps is not None
+        else custom_metrics.get("traffic_mbps")
+    )
+
+    payload: Dict[str, Any] = {
+        "mesh_id": mesh_id,
+        "node_id": node_id,
+        "status": req.status,
+        "timestamp": timestamp_iso,
+        "last_seen": timestamp_iso,
+        "cpu_percent": req.cpu_percent,
+        "mem_percent": req.mem_percent,
+        "active_connections": req.active_connections,
+        "custom_metrics": custom_metrics,
+    }
+    if latency is not None and latency >= 0:
+        payload["latency_ms"] = latency
+    if traffic is not None and traffic >= 0:
+        payload["traffic_mbps"] = traffic
+    return payload
+
+
+def _export_analytics_telemetry(
+    node_id: str,
+    payload: Dict[str, Any],
+    request: Optional[Request] = None,
+) -> bool:
+    if _set_external_telemetry is None:
+        return False
+    try:
+        telemetry_kwargs = _telemetry_event_bus_kwargs_from_request(request)
+        mesh_id = payload.get("mesh_id")
+        if mesh_id is not None:
+            telemetry_kwargs["mesh_id"] = mesh_id
+        try:
+            if telemetry_kwargs:
+                _set_external_telemetry(node_id, payload, **telemetry_kwargs)
+            else:
+                _set_external_telemetry(node_id, payload)
+        except TypeError:
+            _set_external_telemetry(node_id, payload)
+        return True
+    except Exception as exc:
+        logger.warning("Failed to export node telemetry for analytics (node=%s): %s", node_id, exc)
+        return False
+
+
+def _event_bus_kwargs_from_request(request: Optional[Request]) -> Dict[str, Any]:
+    state = getattr(request, "state", None)
+    kwargs: Dict[str, Any] = {}
+    injected_bus = getattr(state, "event_bus", None)
+    if injected_bus is not None:
+        kwargs["event_bus"] = injected_bus
+    project_root = getattr(state, "event_project_root", None)
+    if project_root:
+        kwargs["project_root"] = project_root
+    return kwargs
+
+
+def _telemetry_event_bus_kwargs_from_request(
+    request: Optional[Request],
+) -> Dict[str, Any]:
+    event_kwargs = _event_bus_kwargs_from_request(request)
+    telemetry_kwargs: Dict[str, Any] = {}
+    if "event_bus" in event_kwargs:
+        telemetry_kwargs["event_bus"] = event_kwargs["event_bus"]
+    if "project_root" in event_kwargs:
+        telemetry_kwargs["event_project_root"] = event_kwargs["project_root"]
+    return telemetry_kwargs
+
+
+def _redacted_sha256_prefix(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    return hashlib.sha256(
+        normalized.encode("utf-8", errors="replace")
+    ).hexdigest()[:16]
+
+
+def _event_bus_from_kwargs(event_kwargs: Dict[str, Any]) -> Any:
+    event_bus = event_kwargs.get("event_bus")
+    if event_bus is not None:
+        return event_bus
+    project_root = event_kwargs.get("project_root")
+    if project_root:
+        try:
+            return get_event_bus(project_root)
+        except Exception:
+            return None
+    return None
+
+
+def _latest_heartbeat_telemetry_event_ids(
+    event_bus: Any,
+    *,
+    node_id: Any,
+    mesh_id: Any,
+) -> List[str]:
+    if event_bus is None or not hasattr(event_bus, "get_event_history"):
+        return []
+
+    node_hash = _redacted_sha256_prefix(node_id)
+    mesh_hash = _redacted_sha256_prefix(mesh_id)
+    try:
+        events = event_bus.get_event_history(
+            event_type=EventType.PIPELINE_STAGE_END,
+            source_agent=_TELEMETRY_SOURCE_AGENT,
+            limit=1000,
+        )
+    except Exception:
+        return []
+
+    event_ids = []
+    for event in events:
+        data = event.data if isinstance(event.data, dict) else {}
+        if data.get("operation") != "telemetry_snapshot_write":
+            continue
+        if node_hash is not None and data.get("node_id_hash") != node_hash:
+            continue
+        if mesh_hash is not None and data.get("mesh_id_hash") != mesh_hash:
+            continue
+        event_ids.append(event.event_id)
+    return event_ids[-_HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT:]
+
+
+def _heartbeat_auto_release_settlement_evidence(
+    event_bus: Any,
+    *,
+    node_id: Any,
+    mesh_id: Any,
+    telemetry_exported: bool,
+) -> Dict[str, Any]:
+    telemetry_event_ids = _latest_heartbeat_telemetry_event_ids(
+        event_bus,
+        node_id=node_id,
+        mesh_id=mesh_id,
+    )
+    if telemetry_event_ids:
+        source_quality = "heartbeat_api_plus_telemetry_eventbus_link"
+    elif telemetry_exported:
+        source_quality = "heartbeat_api_export_without_eventbus_link"
+    else:
+        source_quality = "heartbeat_api_without_telemetry_export"
+
+    return {
+        "decision_basis": "healthy_heartbeat_auto_release",
+        "source_quality": source_quality,
+        "dataplane_confirmed": False,
+        "threshold_met": True,
+        "uptime_percent": None,
+        "uptime_threshold": None,
+        "measurement_window_hours": 0,
+        "telemetry_evidence": {
+            "source_agents": [_TELEMETRY_SOURCE_AGENT] if telemetry_event_ids else [],
+            "event_ids": telemetry_event_ids,
+            "events_total": len(telemetry_event_ids),
+            "event_ids_limit": _HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT,
+            "payloads_redacted": True,
+        },
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": (
+            "Heartbeat auto-release evidence is based on a local healthy heartbeat "
+            "request and optional maas-telemetry EventBus snapshot-write links. It "
+            "does not prove live dataplane reachability, current packet delivery, "
+            "or remote node authenticity beyond those local observations."
+        ),
+    }
+
+
+def _heartbeat_request_summary(req: HeartbeatRequest) -> Dict[str, Any]:
+    custom_metrics = req.custom_metrics if isinstance(req.custom_metrics, dict) else {}
+    return {
+        "requested_status": req.status,
+        "cpu_percent_present": req.cpu_percent is not None,
+        "mem_percent_present": req.mem_percent is not None,
+        "latency_ms_present": req.latency_ms is not None,
+        "traffic_mbps_present": req.traffic_mbps is not None,
+        "active_connections_present": req.active_connections is not None,
+        "custom_metrics_count": len(custom_metrics),
+        "custom_metrics_numeric_count": sum(
+            1
+            for value in custom_metrics.values()
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        ),
+        "raw_metric_values_redacted": True,
+    }
+
+
+def _publish_node_heartbeat_evidence(
+    event_bus: Any,
+    *,
+    stage: str,
+    status: str,
+    mesh_id: Any,
+    node_id: Any,
+    req: HeartbeatRequest,
+    db_node_found: bool,
+    node_approved: bool,
+    db_committed: bool,
+    status_before: Any = None,
+    status_after: Any = None,
+    telemetry_exported: bool = False,
+    telemetry_event_ids: Optional[List[str]] = None,
+    escrow_release_attempted: bool = False,
+    escrow_released: bool = False,
+    marketplace_event_id: Optional[str] = None,
+    settlement_evidence: Optional[Dict[str, Any]] = None,
+    duration_ms: Optional[float] = None,
+    read_only: bool = False,
+    reason: str = "",
+) -> Optional[str]:
+    if event_bus is None:
+        return None
+
+    settlement_evidence = settlement_evidence or {}
+    telemetry_event_ids = list(telemetry_event_ids or [])[
+        -_HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT:
+    ]
+    upstream_event_ids = list(telemetry_event_ids)
+    if marketplace_event_id:
+        upstream_event_ids.append(marketplace_event_id)
+
+    payload = {
+        "component": "api.maas_nodes",
+        "operation": "node_heartbeat",
+        "stage": stage,
+        "service_name": _HEARTBEAT_ESCROW_SOURCE_AGENT,
+        "source_alias": _HEARTBEAT_ESCROW_SOURCE_AGENT,
+        "layer": _HEARTBEAT_OBSERVED_LAYER,
+        "status": status,
+        "node_id_hash": _redacted_sha256_prefix(node_id),
+        "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+        "read_only": bool(read_only),
+        "safe_actuator": False,
+        "heartbeat_summary": {
+            "db_node_found": bool(db_node_found),
+            "node_approved": bool(node_approved),
+            "db_committed": bool(db_committed),
+            "status_before": str(status_before or "")[:40] or None,
+            "status_after": str(status_after or "")[:40] or None,
+            **_heartbeat_request_summary(req),
+        },
+        "telemetry_summary": {
+            "telemetry_exported": bool(telemetry_exported),
+            "source_agents": [_TELEMETRY_SOURCE_AGENT] if telemetry_event_ids else [],
+            "event_ids": telemetry_event_ids,
+            "events_total": len(telemetry_event_ids),
+            "event_ids_limit": _HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT,
+            "payloads_redacted": True,
+        },
+        "settlement_summary": {
+            "escrow_release_attempted": bool(escrow_release_attempted),
+            "escrow_released": bool(escrow_released),
+            "marketplace_event_id": marketplace_event_id,
+            "decision_basis": settlement_evidence.get("decision_basis"),
+            "source_quality": settlement_evidence.get("source_quality"),
+            "dataplane_confirmed": settlement_evidence.get("dataplane_confirmed"),
+            "threshold_met": settlement_evidence.get("threshold_met"),
+            "payloads_redacted": True,
+        },
+        "upstream_event_ids": upstream_event_ids[: _HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT + 1],
+        "upstream_events_total": len(upstream_event_ids),
+        "duration_ms": (
+            round(float(duration_ms), 3) if duration_ms is not None else None
+        ),
+        "reason": str(reason or "")[:120],
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": _HEARTBEAT_OBSERVED_STATE_CLAIM_BOUNDARY,
+    }
+
+    try:
+        event = event_bus.publish(
+            EventType.PIPELINE_STAGE_END,
+            _HEARTBEAT_ESCROW_SOURCE_AGENT,
+            payload,
+            priority=4,
+        )
+        return event.event_id
+    except Exception as exc:
+        logger.error("Failed to publish MaaS node heartbeat evidence: %s", exc)
+        return None
+
+
+def _mesh_manager_event_ids(event_bus: Any) -> Set[str]:
+    if event_bus is None or not hasattr(event_bus, "get_event_history"):
+        return set()
+
+    event_ids: Set[str] = set()
+    for event_type in (
+        EventType.PIPELINE_STAGE_END,
+        EventType.TASK_FAILED,
+        EventType.TASK_BLOCKED,
+    ):
+        try:
+            events = event_bus.get_event_history(
+                event_type=event_type,
+                source_agent=_MESH_HEALING_SOURCE_AGENT,
+                limit=1000,
+            )
+        except Exception:
+            continue
+        event_ids.update(event.event_id for event in events)
+    return event_ids
+
+
+def _mesh_healing_control_plane_evidence(
+    event_bus: Any,
+    before_event_ids: Set[str],
+) -> Dict[str, Any]:
+    events = []
+    if event_bus is not None and hasattr(event_bus, "get_event_history"):
+        for event_type in (
+            EventType.PIPELINE_STAGE_END,
+            EventType.TASK_FAILED,
+            EventType.TASK_BLOCKED,
+        ):
+            try:
+                history = event_bus.get_event_history(
+                    event_type=event_type,
+                    source_agent=_MESH_HEALING_SOURCE_AGENT,
+                    limit=1000,
+                )
+            except Exception:
+                continue
+            for event in history:
+                if event.event_id in before_event_ids:
+                    continue
+                operation = str(event.data.get("operation", ""))
+                if operation in _MESH_HEALING_EVIDENCE_OPERATIONS:
+                    events.append(event)
+
+    events.sort(key=lambda item: item.timestamp)
+    event_ids = [event.event_id for event in events]
+    operations = sorted(
+        {
+            str(event.data.get("operation"))
+            for event in events
+            if event.data.get("operation") in _MESH_HEALING_EVIDENCE_OPERATIONS
+        }
+    )
+    verification_event_ids = [
+        event.event_id
+        for event in events
+        if event.data.get("operation") == "verify_node_state"
+    ]
+    terminal_event_ids = [
+        event.event_id
+        for event in events
+        if event.data.get("operation") == "trigger_aggressive_healing"
+    ]
+    identity_events_total = 0
+    duration_events_total = 0
+    bounded_output_events_total = 0
+    return_code_events_total = 0
+    statuses = set()
+    for event in events:
+        data = event.data if isinstance(event.data, dict) else {}
+        if isinstance(data.get("identity"), dict):
+            identity_events_total += 1
+        if isinstance(data.get("duration_ms"), (int, float)):
+            duration_events_total += 1
+        bounded_output = data.get("bounded_output")
+        if isinstance(bounded_output, dict):
+            bounded_output_events_total += 1
+            if "return_code" in bounded_output:
+                return_code_events_total += 1
+        status = data.get("status")
+        if status is not None:
+            statuses.add(str(status)[:40])
+
+    return {
+        "event_bus_observed": event_bus is not None,
+        "events_total": len(event_ids),
+        "event_ids": event_ids,
+        "source_agents": [_MESH_HEALING_SOURCE_AGENT] if event_ids else [],
+        "operations": operations,
+        "statuses": sorted(statuses),
+        "terminal_event_id": terminal_event_ids[-1] if terminal_event_ids else None,
+        "verification_event_ids": verification_event_ids,
+        "verification_events_total": len(verification_event_ids),
+        "service_identity_events_total": identity_events_total,
+        "duration_events_total": duration_events_total,
+        "bounded_output_events_total": bounded_output_events_total,
+        "return_code_events_total": return_code_events_total,
+        "dataplane_confirmed": False,
+        "post_action_dataplane_revalidated": False,
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": (
+            "MaaS node heal response exposes only EventBus evidence IDs from "
+            "mesh-network-manager verification/healing events. It does not copy raw "
+            "node IDs, mesh IDs, endpoints, route tables, or verification payloads, "
+            "and it does not prove live dataplane recovery beyond those referenced "
+            "local control-plane events."
+        ),
+    }
+
+
+def _mesh_healing_post_action_revalidation(
+    *,
+    healed: int,
+    control_plane_evidence: Dict[str, Any],
+) -> Dict[str, Any]:
+    event_ids = control_plane_evidence.get("event_ids", [])
+    reason = (
+        "no_bounded_post_action_dataplane_probe_attached"
+        if healed > 0
+        else "no_healing_action_applied"
+    )
+    claim_gate = {
+        "required_for_restored_dataplane_claim": True,
+        "restored_dataplane_claim_allowed": False,
+        "blockers": [reason],
+        "required_evidence": {
+            "bounded_post_action_dataplane_probe": True,
+            "dataplane_confirmed": True,
+            "redacted_evidence": True,
+            "event_ids_count_min": 1,
+        },
+        "observed_evidence": {
+            "bounded_post_action_dataplane_probe": False,
+            "dataplane_confirmed": False,
+            "control_plane_event_ids_total": (
+                len(event_ids) if isinstance(event_ids, list) else 0
+            ),
+        },
+        "claim_boundary": _MESH_HEALING_RESPONSE_CLAIM_BOUNDARY,
+        "redacted": True,
+    }
+    return {
+        "required_for_restored_dataplane_claim": True,
+        "attempted": False,
+        "post_action_dataplane_revalidated": False,
+        "dataplane_confirmed": False,
+        "restored_dataplane_claim_allowed": False,
+        "reason": reason,
+        "claim_gate": claim_gate,
+        "source_agents": [],
+        "event_ids": [],
+        "events_total": 0,
+        "control_plane_event_ids_total": (
+            len(event_ids) if isinstance(event_ids, list) else 0
+        ),
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": _MESH_HEALING_RESPONSE_CLAIM_BOUNDARY,
+    }
+
+
+def _read_external_telemetry(node_id: str) -> Dict[str, Any]:
+    if _get_external_telemetry is None:
+        return {}
+    try:
+        payload = _get_external_telemetry(node_id)
+        if not isinstance(payload, dict):
+            return {}
+        return _normalize_external_telemetry_payload(payload)
+    except Exception as exc:
+        logger.warning("Failed to read external telemetry snapshot (node=%s): %s", node_id, exc)
+        return {}
+
+
+def _read_external_telemetry_history(node_id: str, limit: int) -> List[Dict[str, Any]]:
+    if _get_external_telemetry_history is None:
+        return []
+    try:
+        payload = _get_external_telemetry_history(node_id, limit=limit)
+    except Exception as exc:
+        logger.warning("Failed to read external telemetry history (node=%s): %s", node_id, exc)
+        return []
+    if not isinstance(payload, list):
+        return []
+    return [
+        _normalize_external_telemetry_payload(item)
+        for item in payload
+        if isinstance(item, dict)
+    ]
+
+
+@router.post("/{mesh_id}/nodes/{node_id}/heartbeat")
+async def node_heartbeat(
+    mesh_id: str,
+    node_id: str,
+    req: HeartbeatRequest,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Called by node agents at regular intervals.  Updates last_seen timestamp
+    and auto-releases any marketplace escrow waiting on this node's health.
+    """
+    started = time.perf_counter()
+    event_kwargs = _event_bus_kwargs_from_request(request)
+    event_bus = _event_bus_from_kwargs(event_kwargs)
+    node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
+    if not node:
+        _publish_node_heartbeat_evidence(
+            event_bus,
+            stage="node_lookup",
+            status="node_not_found",
+            mesh_id=mesh_id,
+            node_id=node_id,
+            req=req,
+            db_node_found=False,
+            node_approved=False,
+            db_committed=False,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            read_only=True,
+            reason="node_not_found",
+        )
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    status_before = node.status
+    if (node.status or "").lower() in {"pending", "pending_approval", "revoked"}:
+        _publish_node_heartbeat_evidence(
+            event_bus,
+            stage="approval_gate",
+            status="node_not_approved",
+            mesh_id=mesh_id,
+            node_id=node_id,
+            req=req,
+            db_node_found=True,
+            node_approved=False,
+            db_committed=False,
+            status_before=status_before,
+            status_after=node.status,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            read_only=True,
+            reason="node_not_approved_for_heartbeat",
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Node is not approved for heartbeat",
+        )
+
+    node.last_seen = datetime.utcnow()
+    if req.status == "healthy":
+        node.status = "approved"
+    elif req.status in {"degraded", "unhealthy"}:
+        node.status = "degraded"
+
+    released_escrow = None
+    released_escrow_event_kwargs = None
+    escrow_release_attempted = req.status == "healthy"
+    if req.status == "healthy":
+        # Find a marketplace listing for this node whose escrow is held
+        listing = (
+            db.query(MarketplaceListing)
+            .filter(MarketplaceListing.node_id == node_id, MarketplaceListing.status == "escrow")
+            .first()
+        )
+        if listing:
+            escrow = (
+                db.query(MarketplaceEscrow)
+                .filter(MarketplaceEscrow.listing_id == listing.id, MarketplaceEscrow.status == "held")
+                .first()
+            )
+            if escrow:
+                escrow.status = "released"
+                escrow.released_at = datetime.utcnow()
+                listing.status = "rented"
+                released_escrow = escrow.id
+                released_escrow_event_kwargs = {
+                    "transition": "released",
+                    "source_agent": _HEARTBEAT_ESCROW_SOURCE_AGENT,
+                    "escrow_id": escrow.id,
+                    "listing_id": listing.id,
+                    "renter_id": escrow.renter_id,
+                    "actor_id": node_id,
+                    "currency": getattr(escrow, "currency", None)
+                    or getattr(listing, "currency", None),
+                    "status": "released",
+                    "node_id": node_id,
+                    "mesh_id": mesh_id,
+                    "amount_cents": getattr(escrow, "amount_cents", None),
+                    "amount_token": getattr(escrow, "amount_token", None),
+                    "reason": "heartbeat_healthy_auto_release",
+                    **event_kwargs,
+                }
+
+                record_audit_log(
+                    db, None, "MARKETPLACE_ESCROW_RELEASED_AUTO",
+                    user_id=listing.renter_id,
+                    payload={
+                        "listing_id": listing.id,
+                        "escrow_id": escrow.id,
+                        "node_id": node_id
+                    },
+                    status_code=200
+                )
+
+                logger.info(
+                    "✅ Heartbeat auto-released escrow %s for node %s (listing %s)",
+                    escrow.id, node_id, listing.id,
+                )
+
+    db.commit()
+    last_seen_iso = node.last_seen.isoformat()
+    telemetry_payload = _build_analytics_telemetry_payload(
+        mesh_id=mesh_id,
+        node_id=node_id,
+        req=req,
+        timestamp_iso=last_seen_iso,
+    )
+    telemetry_exported = _export_analytics_telemetry(
+        node_id,
+        telemetry_payload,
+        request=request,
+    )
+    telemetry_event_ids = _latest_heartbeat_telemetry_event_ids(
+        event_bus,
+        node_id=node_id,
+        mesh_id=mesh_id,
+    )
+    settlement_evidence = None
+    marketplace_event_id = None
+    if released_escrow_event_kwargs:
+        settlement_evidence = _heartbeat_auto_release_settlement_evidence(
+            event_bus,
+            node_id=node_id,
+            mesh_id=mesh_id,
+            telemetry_exported=telemetry_exported,
+        )
+        released_escrow_event_kwargs["settlement_evidence"] = settlement_evidence
+        marketplace_event_id = publish_marketplace_escrow_event(
+            **released_escrow_event_kwargs
+        )
+
+    _publish_node_heartbeat_evidence(
+        event_bus,
+        stage="heartbeat_processed",
+        status="accepted",
+        mesh_id=mesh_id,
+        node_id=node_id,
+        req=req,
+        db_node_found=True,
+        node_approved=True,
+        db_committed=True,
+        status_before=status_before,
+        status_after=node.status,
+        telemetry_exported=telemetry_exported,
+        telemetry_event_ids=telemetry_event_ids,
+        escrow_release_attempted=escrow_release_attempted,
+        escrow_released=released_escrow is not None,
+        marketplace_event_id=marketplace_event_id,
+        settlement_evidence=settlement_evidence,
+        duration_ms=(time.perf_counter() - started) * 1000,
+        read_only=False,
+        reason="heartbeat_processed",
+    )
+
+    return {
+        "status": "ok",
+        "node_id": node_id,
+        "mesh_id": mesh_id,
+        "node_status": node.status,
+        "last_seen": last_seen_iso,
+        "escrow_released": released_escrow,
+        "telemetry_exported": telemetry_exported,
+    }
+
+
+@router.get("/{mesh_id}/nodes/{node_id}/telemetry")
+async def get_node_telemetry(
+    mesh_id: str,
+    node_id: str,
+    history_limit: int = Query(default=20, ge=1, le=200),
+    current_user: User = Depends(require_role("operator")),
+    db: Session = Depends(get_db),
+):
+    """
+    Return node telemetry snapshot + recent history from telemetry backend.
+    """
+    node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    _ensure_owner_or_admin_access(
+        mesh_id,
+        current_user,
+        db,
+        MeshPermission.TELEMETRY_READ,
+        allow_admin_without_mesh=True,
+    )
+
+    snapshot = _read_external_telemetry(node_id)
+    history = _read_external_telemetry_history(node_id, limit=history_limit)
+
+    return {
+        "mesh_id": mesh_id,
+        "node_id": node_id,
+        "node_status": node.status,
+        "last_seen": node.last_seen.isoformat() if node.last_seen else None,
+        "snapshot": snapshot,
+        "history": history,
+        "history_count": len(history),
+    }
+
+
+class AccessCheckRequest(BaseModel):
+    source_node_id: str
+    target_node_id: str
+
+
+@router.post("/{mesh_id}/nodes/check-access")
+def check_access(
+    mesh_id: str,
+    req: AccessCheckRequest,
+    current_user: User = Depends(require_role("operator")),
+    db: Session = Depends(get_db),
+):
+    """
+    Server-side ACL enforcement.  Returns allow/deny based on the tags of
+    both nodes and the active policies for the mesh.
+    """
+    src_node = db.query(MeshNode).filter(
+        MeshNode.id == req.source_node_id, MeshNode.mesh_id == mesh_id
+    ).first()
+    tgt_node = db.query(MeshNode).filter(
+        MeshNode.id == req.target_node_id, MeshNode.mesh_id == mesh_id
+    ).first()
+
+    if not src_node or not tgt_node:
+        raise HTTPException(status_code=404, detail="One or both nodes not found in this mesh")
+
+    _ensure_owner_or_admin_access(
+        mesh_id,
+        current_user,
+        db,
+        MeshPermission.ACL_READ,
+        allow_admin_without_mesh=True,
+    )
+
+    # Only approved nodes are allowed to pass ACL checks.
+    if src_node.status != "approved" or tgt_node.status != "approved":
+        return {
+            "verdict": "deny",
+            "policy_id": None,
+            "source_tag": src_node.acl_profile or "default",
+            "target_tag": tgt_node.acl_profile or "default",
+            "reason": "source or target node is not approved",
+        }
+
+    src_tag = src_node.acl_profile or "default"
+    tgt_tag = tgt_node.acl_profile or "default"
+
+    policies = (
+        db.query(ACLPolicy)
+        .filter(ACLPolicy.mesh_id == mesh_id)
+        .all()
+    )
+
+    # Evaluate policies in creation order (first match wins).
+    for policy in policies:
+        src_match = policy.source_tag in (src_tag, "*")
+        tgt_match = policy.target_tag in (tgt_tag, "*")
+        if src_match and tgt_match:
+            return {
+                "verdict": policy.action,
+                "policy_id": policy.id,
+                "source_tag": src_tag,
+                "target_tag": tgt_tag,
+            }
+
+    # Default zero-trust: deny if no explicit allow policy
+    return {
+        "verdict": "deny",
+        "policy_id": None,
+        "source_tag": src_tag,
+        "target_tag": tgt_tag,
+        "reason": "no matching policy (zero-trust default)",
+    }
+
+
+@router.get("/{mesh_id}/node-config/{node_id}")
+def get_node_config(
+    mesh_id: str,
+    node_id: str,
+    current_user: User = Depends(require_role("operator")),
+    db: Session = Depends(get_db),
+):
+    """
+    Called by Agent to fetch its allowed policies and peer tags.
+    This is the core of local enforcement.
+    """
+    _ensure_mesh_visibility(mesh_id, current_user, db)
+    node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    # Fetch all policies for this mesh
+    policies = db.query(ACLPolicy).filter(ACLPolicy.mesh_id == mesh_id).all()
+
+    # Fetch all approved peers
+    peers = db.query(MeshNode).filter(MeshNode.mesh_id == mesh_id, MeshNode.status == "approved").all()
+
+    # Simple tag-based evaluation logic
+
+    # In this MVP version, we return all data and let the agent enforce.
+    # In Enterprise version, we return pre-calculated allow/deny lists.
+
+    return {
+        "mesh_id": mesh_id,
+        "node_id": node_id,
+        "acl_profile": node.acl_profile,
+        "policies": [
+            {"source_tag": p.source_tag, "target_tag": p.target_tag, "action": p.action}
+            for p in policies
+        ],
+        "peers": [
+            {"id": p.id, "class": p.device_class}
+            for p in peers if p.id != node_id
+        ],
+        "enforcement": "tag-based",
+        "global_mode": "zero-trust"
+    }
+
+@router.get("/{mesh_id}/nodes/all")
+def list_all_nodes(
+    mesh_id: str,
+    node_status: Optional[str] = None,
+    current_user: User = Depends(require_role("operator")),
+    db: Session = Depends(get_db)
+):
+    _ensure_mesh_visibility(mesh_id, current_user, db)
+    query = db.query(MeshNode).filter(MeshNode.mesh_id == mesh_id)
+    if node_status:
+        query = query.filter(MeshNode.status == node_status)
+
+    nodes = query.all()
+    return {
+        "mesh_id": mesh_id,
+        "nodes": nodes,
+        "count": len(nodes)
+    }
+
+@router.post("/{mesh_id}/nodes/{node_id}/revoke")
+async def revoke_node(
+    mesh_id: str,
+    node_id: str,
+    current_user: User = Depends(require_mesh_access(MeshPermission.NODE_REVOKE)),
+    db: Session = Depends(get_db)
+) -> Dict[str, str]:
+    """Revoke a node's access to the mesh.
+
+    Requires NODE_REVOKE permission. The node's status is changed to 'revoked'
+    and it will no longer be able to send heartbeats or participate in the mesh.
+
+    Args:
+        mesh_id: The mesh identifier
+        node_id: The node identifier to revoke
+        current_user: Authenticated user (requires operator role)
+        db: Database session
+
+    Returns:
+        Dictionary with status and node_id
+
+    Raises:
+        HTTPException: 404 if mesh or node not found
+        HTTPException: 403 if user lacks NODE_REVOKE permission
+    """
+    _ensure_mesh_visibility_with_permission(
+        mesh_id, current_user, db, MeshPermission.NODE_REVOKE
+    )
+    node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    node.status = "revoked"
+    db.commit()
+    logger.info(f"🔒 Node {node_id} revoked by user {current_user.id}")
+    return {"status": "revoked", "node_id": node_id}
+
+
+@router.post("/{mesh_id}/nodes/{node_id}/approve")
+async def approve_node(
+    mesh_id: str,
+    node_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_mesh_access(MeshPermission.NODE_APPROVE)),
+    attestation_data: Optional[Dict[str, Any]] = None
+):
+    """Approve a pending node to join the mesh.
+
+    Supports TEE (Hardware) attestation verification.
+    """
+    _ensure_mesh_visibility_with_permission(
+        mesh_id, current_user, db, MeshPermission.NODE_APPROVE
+    )
+    node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    # P1 Q2: Hardware Attestation Enforcement
+    if node.enclave_enabled:
+        if not attestation_data:
+            raise HTTPException(status_code=400, detail="Hardware attestation required for this node")
+
+        from src.security.tee_attestation import TEEValidator, TEEAttestation
+        tee_validator = TEEValidator(dev_mode=True)
+
+        att = TEEAttestation(
+            provider=attestation_data.get("provider", "mock"),
+            report_data=attestation_data.get("report_data", "").encode(),
+            quote=attestation_data.get("quote", "").encode() if attestation_data.get("quote") else None
+        )
+
+        if not tee_validator.verify_report(att):
+            logger.error(f"❌ TEE Attestation failed for node {node_id}")
+            raise HTTPException(status_code=403, detail="Invalid hardware attestation report")
+
+        logger.info(f"✅ TEE Attestation verified for node {node_id}")
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    instance = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
+    if not instance:
+        raise HTTPException(status_code=404, detail="Mesh not found")
+    if not instance.join_token:
+        raise HTTPException(status_code=503, detail="Mesh enrollment token is not configured")
+    if instance.join_token_expires_at and instance.join_token_expires_at <= datetime.utcnow():
+        raise HTTPException(status_code=409, detail="Mesh enrollment token expired")
+
+    node_status = (node.status or "").lower()
+    if node_status == "approved":
+        signed = token_signer.sign_token(instance.join_token, mesh_id)
+        return {
+            "status": "approved",
+            "join_token": signed,
+            "already_approved": True,
+        }
+    if node_status not in {"pending", "pending_approval"}:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Node cannot be approved from status '{node.status}'",
+        )
+
+    node.status = "approved"
+    db.commit()
+
+    signed = token_signer.sign_token(instance.join_token, mesh_id)
+
+    logger.info(f"✅ Node {node_id} approved by user {current_user.id}")
+    return {
+        "status": "approved",
+        "join_token": signed
+    }
+
+
+@router.delete("/{mesh_id}/nodes/{node_id}")
+async def delete_node(
+    mesh_id: str,
+    node_id: str,
+    current_user: User = Depends(require_mesh_access(MeshPermission.NODE_DELETE)),
+    db: Session = Depends(get_db)
+) -> Dict[str, str]:
+    """Permanently delete a node from the mesh.
+
+    Requires NODE_DELETE permission. This is a destructive operation that
+    removes the node from the database entirely. Use revoke_node for
+    temporary access suspension.
+
+    Args:
+        mesh_id: The mesh identifier
+        node_id: The node identifier to delete
+        current_user: Authenticated user (requires operator role)
+        db: Database session
+
+    Returns:
+        Dictionary with status and node_id
+
+    Raises:
+        HTTPException: 404 if mesh or node not found
+        HTTPException: 403 if user lacks NODE_DELETE permission
+    """
+    _ensure_mesh_visibility_with_permission(
+        mesh_id, current_user, db, MeshPermission.NODE_DELETE
+    )
+    node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    db.delete(node)
+    db.commit()
+    logger.info(f"🗑️ Node {node_id} deleted by user {current_user.id}")
+    return {"status": "deleted", "node_id": node_id}
+
+
+@router.post("/{mesh_id}/nodes/{node_id}/heal")
+async def heal_node(
+    mesh_id: str,
+    node_id: str,
+    current_user: User = Depends(require_mesh_access(MeshPermission.NODE_HEAL)),
+    db: Session = Depends(get_db),
+    request: Request = None,
+) -> Dict[str, Any]:
+    """Trigger healing for a specific node.
+
+    Requires NODE_HEAL permission. This endpoint triggers the MAPE-K healing
+    loop for a specific node, attempting to restore it to a healthy state.
+
+    Args:
+        mesh_id: The mesh identifier
+        node_id: The node identifier to heal
+        current_user: Authenticated user (requires operator role)
+        db: Database session
+
+    Returns:
+        Dictionary with healing status and verification result
+
+    Raises:
+        HTTPException: 404 if mesh or node not found
+        HTTPException: 403 if user lacks NODE_HEAL permission
+        HTTPException: 503 if healing service is unavailable
+    """
+    _ensure_mesh_visibility_with_permission(
+        mesh_id, current_user, db, MeshPermission.NODE_HEAL
+    )
+    node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    # Check if healing service is available
+    if not MESH_HEALING_AVAILABLE:
+        logger.warning(f"Healing requested for node {node_id} but healing service unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Healing service unavailable. Ensure src.mesh.network_manager is installed.",
+        )
+
+    # Execute healing with proper error handling
+    try:
+        event_kwargs = _event_bus_kwargs_from_request(request)
+        event_bus = _event_bus_from_kwargs(event_kwargs)
+        manager_kwargs: Dict[str, Any] = {"node_id": node_id}
+        if event_bus is not None:
+            manager_kwargs["event_bus"] = event_bus
+        if event_kwargs.get("project_root"):
+            manager_kwargs["event_project_root"] = event_kwargs["project_root"]
+        evidence_before = _mesh_manager_event_ids(event_bus)
+
+        manager = MeshNetworkManager(**manager_kwargs)
+        healed = await manager.trigger_aggressive_healing(
+            auto_restore_nodes=True,
+            verification_mode=VerificationMode.FULL,
+        )
+        control_plane_evidence = _mesh_healing_control_plane_evidence(
+            event_bus,
+            evidence_before,
+        )
+        post_action_dataplane_revalidation = _mesh_healing_post_action_revalidation(
+            healed=healed,
+            control_plane_evidence=control_plane_evidence,
+        )
+
+        logger.info(f"🔧 Node {node_id} healing triggered by user {current_user.id}")
+        return {
+            "status": "healed" if healed > 0 else "no_action",
+            "node_id": node_id,
+            "components_healed": healed,
+            "healing_claim": (
+                "local_control_action_applied" if healed > 0 else "local_control_no_action"
+            ),
+            "dataplane_confirmed": False,
+            "post_action_dataplane_revalidation": post_action_dataplane_revalidation,
+            "restored_dataplane_claim_allowed": False,
+            "claim_boundary": _MESH_HEALING_RESPONSE_CLAIM_BOUNDARY,
+            "control_plane_evidence": control_plane_evidence,
+        }
+    except ImportError as e:
+        logger.error(f"Healing module import error for node {node_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Healing service unavailable: {str(e)}",
+        )
+    except AttributeError as e:
+        logger.error(f"Healing API mismatch for node {node_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Healing service configuration error: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"Healing failed for node {node_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Healing failed: {str(e)}",
+        )

@@ -237,32 +237,17 @@ def _include_maas_router(module_path: str, label: str) -> None:
     except Exception as exc:
         logger.warning(f"Could not import MaaS router {label}: {exc}")
 
-# Fixed-prefix MaaS routers must be registered before the legacy catch-all
-# routes such as /api/v1/maas/{mesh_id}/status.
-_include_maas_router("src.api.maas_billing", "billing")
-_include_maas_router("src.api.billing", "billing-api")
+# Historical fixed-prefix MaaS routers stay first while the combined router is
+# rolled out, otherwise /api/v1/maas/register, deploy, billing, and node routes
+# can be shadowed by the new modular aliases before they reach parity.
 _include_maas_router("src.api.maas_legacy", "legacy")
-_include_maas_router("src.api.maas_compat", "compat")
-_include_maas_router("src.api.maas_auth", "auth")
-_include_maas_router("src.api.maas_playbooks", "playbooks")
-_include_maas_router("src.api.maas_supply_chain", "supply-chain")
-_include_maas_router("src.api.maas_provisioning", "provisioning")
-_include_maas_router("src.api.maas_marketplace", "marketplace")
-_include_maas_router("src.api.maas_governance", "governance")
-_include_maas_router("src.api.maas_analytics", "analytics")
-_include_maas_router("src.api.maas_agent_mesh", "agent-mesh")
-_include_maas_router("src.api.service_identity_status", "service-identity-status")
+_include_maas_router("src.api.maas_auth", "auth-legacy")
+_include_maas_router("src.api.maas_nodes", "nodes-legacy")
 
-if not is_light_mode:
-    _include_maas_router("src.api.maas_nodes", "nodes")
-    _include_maas_router("src.api.maas_policies", "policies")
-    _include_maas_router("src.api.maas_telemetry", "telemetry")
-    _include_maas_router("src.api.vpn", "vpn")
-    _include_maas_router("src.api.users", "users")
-    _include_maas_router("src.api.swarm", "swarm")
-    _include_maas_router("src.api.ledger_endpoints", "ledger")
-    _include_maas_router("src.api.swarm_endpoints", "swarm-orchestration")
-    _include_maas_router("src.api.vision_endpoints", "vision-analytics")
+# Modular MaaS routers combined into a single entrypoint.
+from src.api.maas.endpoints.combined import get_combined_router
+app.include_router(get_combined_router())
+logger.info("✓ Modular MaaS API routers registered")
 
 _include_maas_router("src.api.maas_dashboard", "dashboard")
 _include_maas_router("src.edge.api", "edge-computing")
