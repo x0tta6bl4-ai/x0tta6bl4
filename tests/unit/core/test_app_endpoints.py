@@ -57,6 +57,21 @@ class TestStatusEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "healthy"
+        assert data["status_api_claim_gate"]["local_system_health_observation_claim_allowed"] is True
+        assert data["status_api_claim_gate"]["production_readiness_claim_allowed"] is False
+        assert data["status_api_claim_gate"]["dataplane_delivery_claim_allowed"] is False
+        assert data["status_api_claim_gate"]["external_dpi_bypass_claim_allowed"] is False
+        assert data["status_api_claim_gate"]["settlement_finality_claim_allowed"] is False
+        assert data["cross_plane_claim_gate"]["surface"] == "status_api"
+        assert data["cross_plane_claim_gate"]["allowed"] is False
+        assert data["cross_plane_claim_gate"]["requested_claim_ids"] == [
+            "production_readiness",
+            "dataplane_delivery",
+            "traffic_delivery",
+            "customer_traffic",
+            "settlement_finality",
+            "dpi_bypass",
+        ]
         mock_gcs.assert_called_once()
 
 

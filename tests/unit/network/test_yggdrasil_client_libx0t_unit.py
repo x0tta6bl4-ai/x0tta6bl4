@@ -2,6 +2,7 @@ import subprocess
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
 from libx0t.network import yggdrasil_client
 
 
@@ -24,6 +25,17 @@ def fake_run_peers(*args, **kwargs):
     )
 
 
+def fake_run_peers_fatal_zero(*args, **kwargs):
+    return FakeCompleted(
+        "",
+        (
+            "Fatal error: dial unix /var/run/yggdrasil/yggdrasil.sock: "
+            "connect: no such file or directory"
+        ),
+        0,
+    )
+
+
 def test_get_yggdrasil_status(monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run_status)
     status = yggdrasil_client.get_yggdrasil_status()
@@ -32,12 +44,101 @@ def test_get_yggdrasil_status(monkeypatch):
     assert status["node"]["ipv6_address"].startswith("200:dead:beef")
 
 
+def test_get_yggdrasil_status_publishes_canonical_redacted_evidence(monkeypatch, tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    monkeypatch.setattr(subprocess, "run", fake_run_status)
+
+    status = yggdrasil_client.get_yggdrasil_status(
+        event_bus=bus,
+        include_evidence=True,
+    )
+    events = bus.get_event_history(
+        EventType.PIPELINE_STAGE_END,
+        source_agent="yggdrasil-client",
+        limit=10,
+    )
+    payload = events[-1].data
+    payload_text = str(payload)
+
+    assert status["status"] == "online"
+    assert status["evidence"]["event_ids"] == [events[-1].event_id]
+    assert status["evidence"]["payloads_redacted"] is True
+    assert status["evidence"]["claim_boundary"] == (
+        yggdrasil_client._impl.YGGDRASIL_OBSERVED_STATE_CLAIM_BOUNDARY
+    )
+    assert status["evidence"]["redacted"] is True
+    assert payload["component"] == "network.yggdrasil_client"
+    assert payload["operation"] == "get_self"
+    assert payload["service_name"] == "yggdrasil-client"
+    assert payload["layer"] == "network_yggdrasil_observed_state"
+    assert payload["observed_state"] is True
+    assert payload["output"]["output_redacted"] is True
+    assert "TESTKEY" not in payload_text
+    assert "200:dead:beef" not in payload_text
+
+
+def test_forced_missing_binary_mock_keeps_evidence_event_id(monkeypatch, tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    monkeypatch.setattr(yggdrasil_client, "_find_yggdrasilctl", lambda: None)
+
+    status = yggdrasil_client.get_yggdrasil_status(
+        event_bus=bus,
+        include_evidence=True,
+    )
+    events = bus.get_event_history(
+        EventType.PIPELINE_STAGE_END,
+        source_agent="yggdrasil-client",
+        limit=10,
+    )
+    payload = events[-1].data
+
+    assert status["status"] == "mock"
+    assert status["evidence"]["event_ids"] == [events[-1].event_id]
+    assert status["evidence"]["payloads_redacted"] is True
+    assert payload["status"] == "mock"
+    assert payload["source_mode"] == "missing_binary_mock"
+    assert payload["returncode"] == 127
+    assert payload["output"]["output_redacted"] is True
+
+
 def test_get_yggdrasil_peers(monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run_peers)
     peers = yggdrasil_client.get_yggdrasil_peers()
     assert peers["status"] == "ok"
     assert peers["count"] == 2
     assert all("remote" in p for p in peers["peers"])
+
+
+def test_get_yggdrasil_peers_fatal_output_is_failed(monkeypatch, tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    monkeypatch.setattr(
+        yggdrasil_client,
+        "_find_yggdrasilctl",
+        lambda: "/usr/local/bin/yggdrasilctl",
+    )
+    monkeypatch.setattr(subprocess, "run", fake_run_peers_fatal_zero)
+
+    peers = yggdrasil_client.get_yggdrasil_peers(event_bus=bus)
+    events = bus.get_event_history(
+        EventType.PIPELINE_STAGE_END,
+        source_agent="yggdrasil-client",
+        limit=10,
+    )
+    payload = events[-1].data
+    payload_text = str(payload)
+
+    assert peers["status"] == "error"
+    assert peers["count"] == 0
+    assert peers["error"] == "yggdrasilctl reported fatal error"
+    assert payload["status"] == "failed"
+    assert payload["returncode"] == 0
+    assert payload["parsed_summary"] == {
+        "status": "failed",
+        "output_failure": True,
+    }
+    assert payload["error"]["type"] == "YggdrasilCommandOutputError"
+    assert "Fatal error" not in payload_text
+    assert "yggdrasil.sock" not in payload_text
 
 
 def test_get_yggdrasil_routes(monkeypatch):
