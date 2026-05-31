@@ -103,6 +103,9 @@ def _assert_settlement_runtime_evidence(
         "traffic_delivery_claim_allowed": False,
         "dataplane_delivery_claim_allowed": False,
         "external_settlement_finality_claim_allowed": False,
+        "economy_finality_claim_allowed": False,
+        "bank_settlement_claim_allowed": False,
+        "revenue_recognition_claim_allowed": False,
         "production_readiness_claim_allowed": False,
         "requires_dataplane_evidence_for_delivery_claim": True,
         "requires_external_finality_evidence_for_settlement_claim": True,
@@ -127,6 +130,9 @@ def test_settlement_runtime_evidence_never_promotes_high_risk_claims():
             "traffic_delivery_claim_allowed": True,
             "chain_finality_confirmed": True,
             "external_settlement_finality_claim_allowed": True,
+            "economy_finality_claim_allowed": True,
+            "bank_settlement_claim_allowed": True,
+            "revenue_recognition_claim_allowed": True,
             "payloads_redacted": True,
             "raw_identifiers_redacted": True,
         },
@@ -145,6 +151,9 @@ def test_settlement_runtime_evidence_never_promotes_high_risk_claims():
     assert claim_gate["traffic_delivery_claim_allowed"] is False
     assert claim_gate["dataplane_delivery_claim_allowed"] is False
     assert claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert claim_gate["economy_finality_claim_allowed"] is False
+    assert claim_gate["bank_settlement_claim_allowed"] is False
+    assert claim_gate["revenue_recognition_claim_allowed"] is False
     assert claim_gate["production_readiness_claim_allowed"] is False
     assert claim_gate["requires_cross_plane_proof_gate_for_high_risk_claims"] is True
     assert claim_gate["upstream_high_risk_claims_present"] is True

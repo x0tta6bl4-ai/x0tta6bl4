@@ -30,14 +30,17 @@ _SETTLEMENT_CLAIM_GATE_BOUNDARY = (
     "Marketplace settlement claim gate allows only local escrow lifecycle claims "
     "from this worker. Uptime, DB writes, bridge submission, and marketplace events "
     "do not prove traffic delivery, dataplane delivery, external settlement "
-    "finality, or production readiness. This worker never promotes high-risk "
-    "claims; those must be evaluated by separate cross-plane proof gates."
+    "finality, bank settlement, revenue recognition, or production readiness. "
+    "This worker never promotes high-risk claims; those must be evaluated by "
+    "separate cross-plane proof gates."
 )
 _SETTLEMENT_HIGH_RISK_BLOCKER_REASON_IDS = (
     "marketplace_settlement_local_lifecycle_only",
     "dataplane_delivery_requires_cross_plane_proof_gate",
     "traffic_delivery_requires_cross_plane_proof_gate",
     "external_settlement_finality_requires_external_proof_gate",
+    "bank_settlement_requires_external_proof_gate",
+    "revenue_recognition_requires_external_proof_gate",
     "production_readiness_requires_cross_plane_proof_gate",
 )
 
@@ -178,6 +181,9 @@ def _settlement_runtime_evidence(
             "chain_finality_confirmed",
             "external_settlement_finality_confirmed",
             "external_settlement_finality_claim_allowed",
+            "economy_finality_claim_allowed",
+            "bank_settlement_claim_allowed",
+            "revenue_recognition_claim_allowed",
         )
     )
     local_lifecycle_claim_allowed = bool(
@@ -221,6 +227,9 @@ def _settlement_runtime_evidence(
                 "traffic_delivery_claim_allowed": False,
                 "dataplane_delivery_claim_allowed": False,
                 "external_settlement_finality_claim_allowed": False,
+                "economy_finality_claim_allowed": False,
+                "bank_settlement_claim_allowed": False,
+                "revenue_recognition_claim_allowed": False,
                 "production_readiness_claim_allowed": False,
                 "requires_dataplane_evidence_for_delivery_claim": True,
                 "requires_external_finality_evidence_for_settlement_claim": True,

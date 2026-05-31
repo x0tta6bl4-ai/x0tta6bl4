@@ -218,6 +218,15 @@ def _claim_gate_evidence(value: Any) -> dict[str, Any]:
         "external_settlement_finality_claim_allowed": _safe_bool(
             value.get("external_settlement_finality_claim_allowed")
         ),
+        "economy_finality_claim_allowed": _safe_bool(
+            value.get("economy_finality_claim_allowed")
+        ),
+        "bank_settlement_claim_allowed": _safe_bool(
+            value.get("bank_settlement_claim_allowed")
+        ),
+        "revenue_recognition_claim_allowed": _safe_bool(
+            value.get("revenue_recognition_claim_allowed")
+        ),
         "production_readiness_claim_allowed": _safe_bool(
             value.get("production_readiness_claim_allowed")
         ),

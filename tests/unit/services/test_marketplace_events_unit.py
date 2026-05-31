@@ -272,6 +272,9 @@ def test_publish_marketplace_escrow_event_sanitizes_settlement_evidence(tmp_path
                 "traffic_delivery_claim_allowed": False,
                 "dataplane_delivery_claim_allowed": False,
                 "external_settlement_finality_claim_allowed": False,
+                "economy_finality_claim_allowed": False,
+                "bank_settlement_claim_allowed": False,
+                "revenue_recognition_claim_allowed": False,
                 "production_readiness_claim_allowed": False,
                 "requires_dataplane_evidence_for_delivery_claim": True,
                 "requires_external_finality_evidence_for_settlement_claim": True,
@@ -322,6 +325,9 @@ def test_publish_marketplace_escrow_event_sanitizes_settlement_evidence(tmp_path
     assert (
         evidence["claim_gate"]["external_settlement_finality_claim_allowed"] is False
     )
+    assert evidence["claim_gate"]["economy_finality_claim_allowed"] is False
+    assert evidence["claim_gate"]["bank_settlement_claim_allowed"] is False
+    assert evidence["claim_gate"]["revenue_recognition_claim_allowed"] is False
     assert evidence["claim_gate"]["production_readiness_claim_allowed"] is False
     assert (
         evidence["claim_gate"]["requires_dataplane_evidence_for_delivery_claim"]
