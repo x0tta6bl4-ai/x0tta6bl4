@@ -244,7 +244,6 @@ app.include_router(get_combined_router())
 logger.info("✓ Modular MaaS API routers registered")
 
 # Other specialized routers
-_include_maas_router("src.api.billing", "billing-api")
 _include_maas_router("src.api.maas_dashboard", "dashboard")
 _include_maas_router("src.edge.api", "edge-computing")
 _include_maas_router("src.event_sourcing.api", "event-sourcing")

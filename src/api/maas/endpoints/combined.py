@@ -66,8 +66,10 @@ def get_combined_router(
 
     if include_auth:
         router.include_router(auth_router)
+        router.include_router(auth_router, prefix="/auth")
 
     if include_mesh:
+        router.include_router(mesh_router)
         router.include_router(mesh_router, prefix="/mesh")
 
     if include_nodes:
