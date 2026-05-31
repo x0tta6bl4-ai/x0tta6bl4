@@ -66,6 +66,24 @@ def test_pbft_execute_publishes_events_with_identity(tmp_path):
     assert payload["wallet_address"] == "0xswarm"
     assert payload["resource"] == "swarm:pbft:execute"
     assert payload["context"]["operation"]["api_token"] == "<redacted>"
+    metadata = payload["safe_actuator_evidence_metadata"]
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert metadata["source_agents"] == ["swarm-pbft"]
+    assert metadata["claim_gate"]["schema"] == (
+        "x0tta6bl4.swarm_pbft.safe_actuator_claim_gate.v1"
+    )
+    assert metadata["claim_gate"][
+        "local_pbft_callback_execution_claim_allowed"
+    ] is True
+    assert metadata["claim_gate"]["cluster_consensus_finality_claim_allowed"] is False
+    assert metadata["claim_gate"]["external_settlement_finality_claim_allowed"] is False
+    assert metadata["claim_gate"]["production_readiness_claim_allowed"] is False
+    assert metadata["evidence"]["sequence"] == 1
+    assert metadata["evidence"]["view"] == 0
+    assert metadata["evidence"]["digest_present"] is True
+    assert metadata["evidence"]["operation_type"] == "scale"
+    assert metadata["evidence"]["operation_redacted"] is True
+    assert "secret-token" not in str(metadata)
     assert payload["claim_boundary"]
 
 
