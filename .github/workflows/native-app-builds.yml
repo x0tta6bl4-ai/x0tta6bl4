@@ -3,13 +3,13 @@ name: Native App Builds
 on:
   workflow_dispatch:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, "sync-main-*" ]
     paths:
       - ".github/workflows/native-app-builds.yml"
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, "sync-main-*" ]
     paths:
       - ".github/workflows/native-app-builds.yml"
       - "src-tauri/**"
