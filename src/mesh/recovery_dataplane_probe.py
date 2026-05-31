@@ -17,6 +17,9 @@ RECOVERY_DATAPLANE_PROBE_CLAIM_BOUNDARY = (
     "for recovery claim gates; it does not expose raw targets or prove customer "
     "traffic."
 )
+RECOVERY_DATAPLANE_PROBE_CLAIM_GATE_SCHEMA = (
+    "x0tta6bl4.recovery_dataplane_probe.claim_gate.v1"
+)
 
 ProbeCallable = Callable[..., Mapping[str, Any] | Awaitable[Mapping[str, Any]]]
 
@@ -84,6 +87,48 @@ def _normalize_evidence(value: Any, *, fallback_boundary: str) -> dict[str, Any]
     }
 
 
+def _probe_claim_gate(
+    *,
+    dataplane_confirmed: bool,
+    evidence: Mapping[str, Any],
+    claim_boundary: str,
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    if not dataplane_confirmed:
+        blockers.append("bounded_dataplane_probe_not_confirmed")
+    if int(evidence.get("event_ids_count") or 0) <= 0 or int(
+        evidence.get("events_total") or 0
+    ) <= 0:
+        blockers.append("dataplane_probe_event_evidence_missing")
+    if not evidence.get("source_agents"):
+        blockers.append("dataplane_probe_source_agent_missing")
+    if evidence.get("redacted") is not True:
+        blockers.append("dataplane_probe_evidence_not_redacted")
+
+    bounded_probe_allowed = not blockers
+    return {
+        "schema": RECOVERY_DATAPLANE_PROBE_CLAIM_GATE_SCHEMA,
+        "decision": (
+            "BOUNDED_DATAPLANE_PROBE_CLAIM_ALLOWED"
+            if bounded_probe_allowed
+            else "DATAPLANE_PROBE_LIFECYCLE_ONLY"
+        ),
+        "bounded_dataplane_probe_claim_allowed": bounded_probe_allowed,
+        "dataplane_confirmed": dataplane_confirmed,
+        "eventbus_evidence_present": bool(evidence.get("event_ids")),
+        "source_agent_present": bool(evidence.get("source_agents")),
+        "evidence_redacted": evidence.get("redacted") is True,
+        "restored_dataplane_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "blockers": blockers,
+        "claim_boundary": claim_boundary,
+        "redacted": True,
+    }
+
+
 def normalize_recovery_dataplane_probe_result(
     value: Any,
     *,
@@ -106,6 +151,7 @@ def normalize_recovery_dataplane_probe_result(
             )
         )
     )
+    effective_claim_boundary = str(raw.get("claim_boundary") or claim_boundary)
     return {
         "status": "ok" if dataplane_confirmed else "error",
         "dataplane_confirmed": dataplane_confirmed,
@@ -113,7 +159,12 @@ def normalize_recovery_dataplane_probe_result(
         "packet_loss_percent": raw.get("packet_loss_percent"),
         "jitter_ms": raw.get("jitter_ms"),
         "evidence": evidence,
-        "claim_boundary": str(raw.get("claim_boundary") or claim_boundary),
+        "claim_gate": _probe_claim_gate(
+            dataplane_confirmed=dataplane_confirmed,
+            evidence=evidence,
+            claim_boundary=effective_claim_boundary,
+        ),
+        "claim_boundary": effective_claim_boundary,
         "raw_target_redacted": True,
         "payloads_redacted": True,
         "redacted": True,

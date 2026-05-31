@@ -60,7 +60,54 @@ def test_normalize_recovery_dataplane_probe_result_redacts_raw_target() -> None:
     assert result["raw_target_redacted"] is True
     assert result["evidence"]["source_agents"] == ["real-network-adapter"]
     assert result["evidence"]["event_ids"] == ["evt-1"]
+    assert result["claim_gate"] == {
+        "schema": "x0tta6bl4.recovery_dataplane_probe.claim_gate.v1",
+        "decision": "BOUNDED_DATAPLANE_PROBE_CLAIM_ALLOWED",
+        "bounded_dataplane_probe_claim_allowed": True,
+        "dataplane_confirmed": True,
+        "eventbus_evidence_present": True,
+        "source_agent_present": True,
+        "evidence_redacted": True,
+        "restored_dataplane_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "blockers": [],
+        "claim_boundary": (
+            "Recovery dataplane probe adapter metadata only. It normalizes an "
+            "existing bounded dataplane probe result into redacted EventBus "
+            "evidence references for recovery claim gates; it does not expose "
+            "raw targets or prove customer traffic."
+        ),
+        "redacted": True,
+    }
     assert "10.0.0.7" not in json.dumps(result, sort_keys=True)
+
+
+def test_normalize_recovery_dataplane_probe_result_blocks_overclaim_without_event_evidence(
+) -> None:
+    result = normalize_recovery_dataplane_probe_result(
+        {
+            "status": "ok",
+            "latency_ms": 0.5,
+            "evidence": {
+                "source_agents": [],
+                "event_ids": [],
+                "events_total": 0,
+                "redacted": True,
+            },
+        }
+    )
+
+    gate = result["claim_gate"]
+    assert result["dataplane_confirmed"] is True
+    assert gate["bounded_dataplane_probe_claim_allowed"] is False
+    assert gate["restored_dataplane_claim_allowed"] is False
+    assert gate["customer_traffic_claim_allowed"] is False
+    assert gate["production_readiness_claim_allowed"] is False
+    assert "dataplane_probe_event_evidence_missing" in gate["blockers"]
+    assert "dataplane_probe_source_agent_missing" in gate["blockers"]
 
 
 def test_recovery_dataplane_ping_probe_runs_async_shared_probe(tmp_path) -> None:
@@ -95,6 +142,8 @@ def test_recovery_dataplane_ping_probe_runs_async_shared_probe(tmp_path) -> None
 
     assert result["status"] == "ok"
     assert result["dataplane_confirmed"] is True
+    assert result["claim_gate"]["bounded_dataplane_probe_claim_allowed"] is True
+    assert result["claim_gate"]["customer_traffic_claim_allowed"] is False
     assert result["evidence"]["event_ids"] == ["evt-ping-1"]
     assert calls[0]["event_bus"] is bus
     assert calls[0]["event_project_root"] == str(tmp_path)
