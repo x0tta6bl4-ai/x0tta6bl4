@@ -21,7 +21,7 @@ before feature work or larger refactors.
 Run these from the repository root:
 
 ```bash
-python3 -m pytest tests/unit/security/test_dependency_security_pins_unit.py -q -o addopts=''
+python3 -m pytest --confcutdir=tests/unit/security tests/unit/security/test_dependency_security_pins_unit.py -q -o addopts=''
 python3 scripts/check_requirements_lock_sync.py
 git diff --check
 ```
