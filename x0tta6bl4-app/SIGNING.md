@@ -5,7 +5,7 @@ The native build workflow always verifies installable development artifacts:
 - Android debug APK and unsigned release APK
 - Windows MSI
 - Ubuntu deb and AppImage
-- iOS simulator app
+- iOS simulator app and unsigned iOS device app
 
 Production Android and iOS device artifacts require private signing material. Do not commit private keys, certificates, provisioning profiles, or passwords. Store them only as GitHub Actions secrets or local environment variables.
 
@@ -104,4 +104,4 @@ python3 scripts/ops/prepare_ios_signing_secrets.py \
 
 The helper does not create Apple certificates and does not validate App Store trust or notarization. It only transfers existing local signing material into GitHub secrets through stdin and redacts secret values from reports.
 
-Without those secrets, CI still builds and uploads the unsigned iOS simulator app. That proves the Xcode project and native wrapper compile, but it is not an installable iPhone `.ipa`.
+Without those secrets, CI still builds and uploads the unsigned iOS simulator app and unsigned iOS device app. That proves the Xcode project and native wrapper compile for Apple simulator and device targets, but it is not an installable iPhone `.ipa`.
