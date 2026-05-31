@@ -15,6 +15,9 @@ on:
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   android:
     name: Android APK
@@ -80,6 +83,60 @@ jobs:
           chmod +x android/gradlew
           npm run android:release:signed
 
+      - name: Generate Android artifact manifest
+        working-directory: x0tta6bl4-app
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          output_dir = Path("android/app/build/outputs/native-manifest")
+          output_dir.mkdir(parents=True, exist_ok=True)
+
+          artifacts = []
+          for pattern, kind in (
+              ("android/app/build/outputs/apk/debug/*.apk", "debug_apk"),
+              ("android/app/build/outputs/apk/release/*.apk", "release_apk"),
+              ("android/app/build/outputs/bundle/release/*.aab", "release_aab"),
+          ):
+              for path in sorted(Path(".").glob(pattern)):
+                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                  artifacts.append(
+                      {
+                          "path": path.as_posix(),
+                          "kind": kind,
+                          "sha256": digest,
+                          "size_bytes": path.stat().st_size,
+                      }
+                  )
+
+          if not artifacts:
+              raise SystemExit("no Android artifacts found for native manifest")
+
+          lines = [f"{item['sha256']}  {item['path']}" for item in artifacts]
+          (output_dir / "SHA256SUMS").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+          manifest = {
+              "schema": "x0tta6bl4.native_build_manifest.v1",
+              "platform": "android",
+              "app_id": "net.x0tta6bl4.mesh",
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "commit": os.environ["GITHUB_SHA"],
+              "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "signing": {
+                  "release_signing_requested": "${{ steps.android_signing.outputs.enabled }}" == "true",
+                  "signed_release_present": any(item["kind"] == "release_aab" for item in artifacts),
+              },
+              "artifacts": artifacts,
+          }
+          (output_dir / "native-build-manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
       - name: Upload Android APKs
         uses: actions/upload-artifact@v4
         with:
@@ -87,6 +144,12 @@ jobs:
           path: |
             x0tta6bl4-app/android/app/build/outputs/apk/debug/*.apk
             x0tta6bl4-app/android/app/build/outputs/apk/release/*.apk
+
+      - name: Upload Android artifact manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-android-manifest
+          path: x0tta6bl4-app/android/app/build/outputs/native-manifest/*
 
       - name: Upload signed Android release bundle
         if: steps.android_signing.outputs.enabled == 'true'
@@ -125,6 +188,54 @@ jobs:
         working-directory: x0tta6bl4-app
         run: npm run desktop:build:linux
 
+      - name: Generate Ubuntu artifact manifest
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          output_dir = Path(".tmp/native-manifest/ubuntu")
+          output_dir.mkdir(parents=True, exist_ok=True)
+
+          artifacts = []
+          for pattern, kind in (
+              ("src-tauri/target/release/bundle/deb/*.deb", "deb"),
+              ("src-tauri/target/release/bundle/appimage/*.AppImage", "appimage"),
+          ):
+              for path in sorted(Path(".").glob(pattern)):
+                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                  artifacts.append(
+                      {
+                          "path": path.as_posix(),
+                          "kind": kind,
+                          "sha256": digest,
+                          "size_bytes": path.stat().st_size,
+                      }
+                  )
+
+          if not artifacts:
+              raise SystemExit("no Ubuntu artifacts found for native manifest")
+
+          lines = [f"{item['sha256']}  {item['path']}" for item in artifacts]
+          (output_dir / "SHA256SUMS").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+          manifest = {
+              "schema": "x0tta6bl4.native_build_manifest.v1",
+              "platform": "ubuntu",
+              "app_id": "net.x0tta6bl4.mesh",
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "commit": os.environ["GITHUB_SHA"],
+              "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "artifacts": artifacts,
+          }
+          (output_dir / "native-build-manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
       - name: Upload Ubuntu bundles
         uses: actions/upload-artifact@v4
         with:
@@ -132,6 +243,12 @@ jobs:
           path: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/appimage/*.AppImage
+
+      - name: Upload Ubuntu artifact manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-ubuntu-manifest
+          path: .tmp/native-manifest/ubuntu/*
 
   windows-desktop:
     name: Windows Desktop MSI
@@ -155,11 +272,55 @@ jobs:
         working-directory: x0tta6bl4-app
         run: npm run desktop:build:windows
 
+      - name: Generate Windows artifact manifest
+        shell: pwsh
+        run: |
+          $manifestDir = ".tmp/native-manifest/windows"
+          New-Item -ItemType Directory -Force -Path $manifestDir | Out-Null
+
+          $artifacts = @()
+          $lines = @()
+          $files = Get-ChildItem -Path "src-tauri/target/release/bundle/msi" -Filter "*.msi" -File -ErrorAction SilentlyContinue
+          foreach ($file in $files) {
+            $hash = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $relativePath = (Resolve-Path -Path $file.FullName -Relative).Replace("\", "/")
+            $artifacts += [pscustomobject]@{
+              path = $relativePath
+              kind = "msi"
+              sha256 = $hash
+              size_bytes = $file.Length
+            }
+            $lines += "$hash  $relativePath"
+          }
+
+          if ($artifacts.Count -eq 0) {
+            throw "no Windows MSI artifacts found for native manifest"
+          }
+
+          $manifest = [ordered]@{
+            schema = "x0tta6bl4.native_build_manifest.v1"
+            platform = "windows"
+            app_id = "net.x0tta6bl4.mesh"
+            run_id = "${{ github.run_id }}"
+            commit = "${{ github.sha }}"
+            generated_at_utc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            artifacts = $artifacts
+          }
+
+          $lines | Set-Content -Path "$manifestDir/SHA256SUMS" -Encoding utf8
+          $manifest | ConvertTo-Json -Depth 8 | Set-Content -Path "$manifestDir/native-build-manifest.json" -Encoding utf8
+
       - name: Upload Windows MSI
         uses: actions/upload-artifact@v4
         with:
           name: x0tta6bl4-windows-msi
           path: src-tauri/target/release/bundle/msi/*.msi
+
+      - name: Upload Windows artifact manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-windows-manifest
+          path: .tmp/native-manifest/windows/*
 
   ios-simulator:
     name: iOS Simulator Build
@@ -305,9 +466,77 @@ jobs:
             -exportPath build/ipa \
             -exportOptionsPlist ExportOptions.plist
 
+      - name: Generate iOS artifact manifest
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          output_dir = Path(".tmp/native-manifest/ios")
+          output_dir.mkdir(parents=True, exist_ok=True)
+
+          artifacts = []
+          app_dir = Path("x0tta6bl4-app/ios/App/build/Build/Products/Debug-iphonesimulator/App.app")
+          if app_dir.exists():
+              for path in sorted(app_dir.rglob("*")):
+                  if path.is_file():
+                      digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                      artifacts.append(
+                          {
+                              "path": path.as_posix(),
+                              "kind": "simulator_app_file",
+                              "sha256": digest,
+                              "size_bytes": path.stat().st_size,
+                          }
+                      )
+
+          for path in sorted(Path("x0tta6bl4-app/ios/App/build/ipa").glob("*.ipa")):
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              artifacts.append(
+                  {
+                      "path": path.as_posix(),
+                      "kind": "signed_ipa",
+                      "sha256": digest,
+                      "size_bytes": path.stat().st_size,
+                  }
+              )
+
+          if not artifacts:
+              raise SystemExit("no iOS artifacts found for native manifest")
+
+          lines = [f"{item['sha256']}  {item['path']}" for item in artifacts]
+          (output_dir / "SHA256SUMS").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+          manifest = {
+              "schema": "x0tta6bl4.native_build_manifest.v1",
+              "platform": "ios",
+              "app_id": "net.x0tta6bl4.mesh",
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "commit": os.environ["GITHUB_SHA"],
+              "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "signing": {
+                  "device_signing_requested": "${{ steps.ios_signing.outputs.enabled }}" == "true",
+                  "signed_ipa_present": any(item["kind"] == "signed_ipa" for item in artifacts),
+              },
+              "artifacts": artifacts,
+          }
+          (output_dir / "native-build-manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
       - name: Upload signed iOS IPA
         if: steps.ios_signing.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: x0tta6bl4-ios-signed-ipa
           path: x0tta6bl4-app/ios/App/build/ipa/*.ipa
+
+      - name: Upload iOS artifact manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-ios-manifest
+          path: .tmp/native-manifest/ios/*

@@ -32,6 +32,13 @@ The `Native App Builds` workflow builds and uploads:
 - Windows MSI on a Windows runner.
 - Ubuntu deb/AppImage on an Ubuntu runner.
 - iOS simulator app on a macOS runner, plus signed device `.ipa` when Apple signing secrets are configured.
+- One manifest artifact per platform: `SHA256SUMS` and `native-build-manifest.json`.
+
+The manifest files make each CI run auditable:
+
+- `SHA256SUMS` contains the SHA-256 checksum for every uploaded native binary or package file.
+- `native-build-manifest.json` records the platform, app id, GitHub run id, commit SHA, signing status, file sizes, and checksums.
+- Android and iOS manifests explicitly show whether production signing material was present. If signing secrets are absent, unsigned Android release APK and iOS simulator app are still built, but signed Android AAB/IPA are not claimed.
 
 ## Platform Notes
 
