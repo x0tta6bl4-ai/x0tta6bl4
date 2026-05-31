@@ -107,6 +107,30 @@ def test_helm_runner_publishes_identity_policy_and_safe_actuator_events(tmp_path
     assert payload["safe_actuator"] is True
     assert payload["context"]["extra_set"]["api_token"] == "<redacted>"
     assert payload["claim_boundary"]
+    metadata = payload["safe_actuator_evidence_metadata"]
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert metadata["source_agents"] == ["dao-proposal-executor"]
+    assert metadata["redacted"] is True
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == (
+        "x0tta6bl4.dao_proposal_executor.safe_actuator_claim_gate.v1"
+    )
+    assert claim_gate["local_helm_command_execution_claim_allowed"] is True
+    assert claim_gate["production_rollout_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
+    assert claim_gate["dataplane_delivery_claim_allowed"] is False
+    assert claim_gate["customer_traffic_claim_allowed"] is False
+    assert claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert metadata["cross_plane_claim_gate"]["allowed"] is False
+    evidence = metadata["evidence"]
+    assert evidence["operation"] == "helm_upgrade"
+    assert evidence["proposal_id_present"] is True
+    assert evidence["helm_command_present"] is True
+    assert evidence["helm_command_redacted"] is True
+    assert evidence["extra_set_redacted"] is True
+    assert evidence["return_code"] == 0
+    assert evidence["return_code_observed"] is True
+    assert "secret" not in str(metadata)
 
 
 def test_helm_runner_policy_denial_blocks_subprocess(tmp_path):
@@ -144,6 +168,11 @@ def test_helm_runner_dry_run_is_marked_simulated_without_subprocess(tmp_path):
     )
     assert failed[-1].data["stage"] == "actuator_simulated"
     assert failed[-1].data["simulated"] is True
+    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["local_helm_command_execution_claim_allowed"] is False
+    assert "safe_actuator_result_simulated" in claim_gate["blockers"]
+    assert metadata["cross_plane_claim_gate"]["allowed"] is False
 
 
 def test_dao_executor_release_script_policy_denial_blocks_popen(tmp_path):

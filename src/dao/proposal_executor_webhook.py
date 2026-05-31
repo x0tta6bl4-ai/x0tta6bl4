@@ -44,7 +44,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.integration.spine import (
+    SafeActuator,
+    SafeActuatorEvidenceMetadata,
+    SafeActuatorResult,
+)
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -84,6 +88,13 @@ _PROPOSAL_EXECUTED_TOPIC = (
 )
 
 _SERVICE_AGENT = "dao-proposal-executor"
+_HELM_EXECUTOR_STRONG_CLAIM_IDS = (
+    "production_rollout",
+    "production_readiness",
+    "dataplane_delivery",
+    "customer_traffic",
+    "external_settlement_finality",
+)
 
 HELM_EXECUTOR_CLAIM_BOUNDARY = (
     "DAO proposal executor event only. It records local identity, policy, "
@@ -216,6 +227,7 @@ class HelmRunner:
             self._execute_upgrade_through_actuator
         )
         self._last_helm_result: Optional[HelmResult] = None
+        self._last_helm_duration_ms: Optional[int] = None
 
     @staticmethod
     def _default_event_bus(project_root: str) -> Optional[EventBus]:
@@ -270,6 +282,127 @@ class HelmRunner:
             for key, value in context.items()
         }
 
+    @staticmethod
+    def _helm_cross_plane_claim_gate() -> Dict[str, Any]:
+        return {
+            "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+            "surface": "dao.proposal_executor.helm_upgrade.safe_actuator",
+            "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
+            "allowed": False,
+            "requested_claim_ids": list(_HELM_EXECUTOR_STRONG_CLAIM_IDS),
+            "blockers": ["dao_proposal_executor_helm_upgrade_local_action_only"],
+            "claim_boundary": (
+                "DAO proposal executor helm metadata records a local guarded Helm "
+                "command attempt only. Production rollout, readiness, dataplane, "
+                "customer traffic, and settlement-finality claims need external "
+                "cross-plane evidence."
+            ),
+        }
+
+    @classmethod
+    def _helm_claim_gate(
+        cls,
+        *,
+        action: str,
+        context: Dict[str, Any],
+        success: bool,
+        simulated: bool,
+        action_recognized: bool,
+        return_code: Optional[int],
+    ) -> Dict[str, Any]:
+        local_helm_execution_allowed = (
+            action_recognized
+            and success
+            and not simulated
+            and return_code == 0
+        )
+        blockers = [
+            "production_rollout_requires_deployment_evidence",
+            "production_readiness_requires_cross_plane_proof",
+            "dataplane_claim_requires_dedicated_dataplane_probe",
+            "settlement_finality_requires_external_chain_evidence",
+        ]
+        if not action_recognized:
+            blockers.append("unknown_dao_proposal_executor_action")
+        if simulated:
+            blockers.append("safe_actuator_result_simulated")
+        if not success:
+            blockers.append("helm_upgrade_not_successful")
+        if return_code is None:
+            blockers.append("helm_return_code_missing")
+        if return_code not in (None, 0):
+            blockers.append("helm_return_code_nonzero")
+
+        return {
+            "schema": "x0tta6bl4.dao_proposal_executor.safe_actuator_claim_gate.v1",
+            "surface": "dao.proposal_executor.helm_upgrade",
+            "operation": "helm_upgrade",
+            "action": str(action or ""),
+            "proposal_id_present": context.get("proposal_id") is not None,
+            "helm_command_present": bool(context.get("command")),
+            "local_helm_command_execution_claim_allowed": local_helm_execution_allowed,
+            "production_rollout_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "external_settlement_finality_claim_allowed": False,
+            "blocked_claim_ids": list(_HELM_EXECUTOR_STRONG_CLAIM_IDS),
+            "blockers": blockers,
+            "claim_boundary": (
+                "HelmRunner SafeActuator metadata proves only a local guarded Helm "
+                "command attempt and its bounded process outcome. It does not prove "
+                "production rollout, production readiness, dataplane or customer "
+                "traffic delivery, or external settlement finality."
+            ),
+        }
+
+    @classmethod
+    def _helm_evidence_metadata(
+        cls,
+        *,
+        action: str,
+        context: Dict[str, Any],
+        success: bool,
+        simulated: bool = False,
+        action_recognized: bool = True,
+        return_code: Optional[int] = None,
+        duration_ms: Optional[int] = None,
+    ) -> SafeActuatorEvidenceMetadata:
+        claim_gate = cls._helm_claim_gate(
+            action=action,
+            context=context,
+            success=success,
+            simulated=simulated,
+            action_recognized=action_recognized,
+            return_code=return_code,
+        )
+        evidence = {
+            "source_agents": [_SERVICE_AGENT],
+            "event_ids": [],
+            "operation": "helm_upgrade",
+            "action": str(action or ""),
+            "proposal_id_present": context.get("proposal_id") is not None,
+            "helm_command_present": bool(context.get("command")),
+            "helm_command_redacted": True,
+            "extra_set_redacted": True,
+            "return_code": return_code,
+            "return_code_observed": return_code is not None,
+            "duration_ms": int(duration_ms or 0),
+            "simulated": bool(simulated),
+            "raw_values_redacted": True,
+        }
+        return SafeActuatorEvidenceMetadata.from_value(
+            {
+                "claim_gate": claim_gate,
+                "cross_plane_claim_gate": cls._helm_cross_plane_claim_gate(),
+                "evidence": evidence,
+                "source_agents": [_SERVICE_AGENT],
+                "event_ids": [],
+                "claim_boundary": claim_gate["claim_boundary"],
+                "redacted": True,
+            }
+        )
+
     def _publish_upgrade_event(
         self,
         event_type: EventType,
@@ -280,6 +413,7 @@ class HelmRunner:
         reason: str = "",
         policy_decision: Any = None,
         simulated: Optional[bool] = None,
+        safe_actuator_evidence_metadata: Optional[SafeActuatorEvidenceMetadata] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -314,6 +448,11 @@ class HelmRunner:
             if policy_decision is not None
             else [],
             "safe_actuator": True,
+            "safe_actuator_evidence_metadata": (
+                safe_actuator_evidence_metadata.to_dict()
+                if safe_actuator_evidence_metadata is not None
+                else SafeActuatorEvidenceMetadata().to_dict()
+            ),
             "claim_boundary": HELM_EXECUTOR_CLAIM_BOUNDARY,
         }
         try:
@@ -369,17 +508,37 @@ class HelmRunner:
         context: Dict[str, Any],
     ) -> SafeActuatorResult:
         if action != "helm_upgrade":
-            return SafeActuatorResult(False, f"unknown DAO proposal executor action: {action}")
+            return SafeActuatorResult(
+                False,
+                f"unknown DAO proposal executor action: {action}",
+                evidence_metadata=self._helm_evidence_metadata(
+                    action=action,
+                    context=context,
+                    success=False,
+                    action_recognized=False,
+                ),
+            )
+        start = time.monotonic()
         result = self._upgrade_internal(
             proposal_id=int(context.get("proposal_id", 0)),
             command=list(context.get("command", [])),
             command_str=str(context.get("command_str", "")),
         )
+        duration_ms = int((time.monotonic() - start) * 1000)
         self._last_helm_result = result
+        self._last_helm_duration_ms = duration_ms
         return SafeActuatorResult(
             result.success,
             result.stderr or result.stdout,
             simulated=result.dry_run,
+            evidence_metadata=self._helm_evidence_metadata(
+                action=action,
+                context=context,
+                success=result.success,
+                simulated=result.dry_run,
+                return_code=result.returncode,
+                duration_ms=duration_ms,
+            ),
         )
 
     def upgrade(self, proposal_id: int, extra_set: Optional[Dict[str, str]] = None) -> HelmResult:
@@ -402,6 +561,7 @@ class HelmRunner:
             "dry_run": self.config.dry_run,
         }
         self._last_helm_result = None
+        self._last_helm_duration_ms = None
         self._publish_upgrade_event(
             EventType.COORDINATION_REQUEST,
             stage="received",
@@ -437,6 +597,7 @@ class HelmRunner:
             policy_decision=policy_decision,
         )
         actuator_result = self.safe_actuator.execute("helm_upgrade", context)
+        helm_result_observed = self._last_helm_result is not None
         result = self._last_helm_result or HelmResult(
             proposal_id=proposal_id,
             success=actuator_result.success,
@@ -447,6 +608,20 @@ class HelmRunner:
             returncode=0,
         )
         simulated = bool(actuator_result.simulated or result.dry_run)
+        if not actuator_result.evidence_metadata.claim_gate:
+            actuator_result = SafeActuatorResult(
+                success=actuator_result.success,
+                reason=actuator_result.reason,
+                simulated=actuator_result.simulated,
+                evidence_metadata=self._helm_evidence_metadata(
+                    action="helm_upgrade",
+                    context=context,
+                    success=result.success,
+                    simulated=simulated,
+                    return_code=result.returncode if helm_result_observed else None,
+                    duration_ms=getattr(self, "_last_helm_duration_ms", None),
+                ),
+            )
         event_type = (
             EventType.PIPELINE_STAGE_END
             if result.success and not simulated
@@ -469,6 +644,7 @@ class HelmRunner:
             reason=actuator_result.reason or result.stderr,
             policy_decision=policy_decision,
             simulated=simulated,
+            safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
         )
         return result
 

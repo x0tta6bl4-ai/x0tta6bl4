@@ -126,7 +126,7 @@
       "verified_contours": [
         {
           "id": "event_control_plane",
-          "what_is_proven": "EventBus, service identity, service trace filters, and SafeActuator surfaces form a shared event/control vocabulary; SafeActuatorResult can now carry typed redacted claim/evidence metadata for guarded actions, MeshActionEnforcer adopts it for local yggdrasilctl restart metadata, MPTCP control actions adopt it for local kernel/network configuration metadata, PBFT execution adopts it for local replica callback metadata, Swarm MAPE-K adopts it for local guarded proposal/decision metadata, and DAO executor adopts it for bounded local release-script metadata.",
+          "what_is_proven": "EventBus, service identity, service trace filters, and SafeActuator surfaces form a shared event/control vocabulary; SafeActuatorResult can now carry typed redacted claim/evidence metadata for guarded actions, MeshActionEnforcer adopts it for local yggdrasilctl restart metadata, MPTCP control actions adopt it for local kernel/network configuration metadata, PBFT execution adopts it for local replica callback metadata, Swarm MAPE-K adopts it for local guarded proposal/decision metadata, DAO executor adopts it for bounded local release-script metadata, and DAO proposal executor adopts it for bounded local Helm upgrade metadata.",
           "source_refs": [
             "src/coordination/events.py",
             "src/services/service_event_trace.py",
@@ -135,6 +135,7 @@
             "src/swarm/pbft.py",
             "src/swarm/intelligence/mapek.py",
             "src/dao/executor_webhook.py",
+            "src/dao/proposal_executor_webhook.py",
             "docs/architecture/CURRENT_EVENT_CONTROL_PLANE_MAP.json"
           ]
         },
@@ -186,9 +187,10 @@
         },
         {
           "id": "dao_executor_release_script_boundary",
-          "what_is_proven": "DAO executor release-script automation now carries typed SafeActuator evidence metadata for local guarded subprocess attempts while blocking production rollout, production readiness, dataplane, customer traffic, and external settlement claims.",
+          "what_is_proven": "DAO executor release-script automation and DAO proposal Helm upgrade automation now carry typed SafeActuator evidence metadata for local guarded subprocess attempts while blocking production rollout, production readiness, dataplane, customer traffic, and external settlement claims.",
           "source_refs": [
             "src/dao/executor_webhook.py",
+            "src/dao/proposal_executor_webhook.py",
             "tests/unit/dao/test_dao_executor_spine_unit.py"
           ]
         }
@@ -257,7 +259,7 @@
     {
       "id": "post_action_dataplane_probe_operationalization",
       "severity": "tracked_risk",
-      "gap": "Recovery evidence now has explicit optional post-action dataplane proof gates, the shared recovery dataplane adapter is used by self-healing executor and MeshNetworkManager, the MaaS heal surface re-sanitizes EventBus revalidation through the shared claim-gate helper, core MAPE-K healing action summaries are re-normalized through the same helper, MeshActionEnforcer restart commands, MPTCP control actions, PBFT execution, Swarm MAPE-K execution, and DAO executor release-script automation carry typed SafeActuator evidence metadata, restored-dataplane promotion uses one typed evidence/redaction rule, and SafeActuatorResult can carry typed redacted evidence metadata. The remaining risk is adoption breadth: not every SafeActuator caller attaches or consumes this typed metadata yet.",
+      "gap": "Recovery evidence now has explicit optional post-action dataplane proof gates, the shared recovery dataplane adapter is used by self-healing executor and MeshNetworkManager, the MaaS heal surface re-sanitizes EventBus revalidation through the shared claim-gate helper, core MAPE-K healing action summaries are re-normalized through the same helper, MeshActionEnforcer restart commands, MPTCP control actions, PBFT execution, Swarm MAPE-K execution, DAO executor release-script automation, and DAO proposal Helm upgrade automation carry typed SafeActuator evidence metadata, restored-dataplane promotion uses one typed evidence/redaction rule, and SafeActuatorResult can carry typed redacted evidence metadata. The remaining risk is adoption breadth: not every SafeActuator caller attaches or consumes this typed metadata yet.",
       "next_improvement": "Adopt SafeActuatorEvidenceMetadata in the self-healing MAPE-K manager once the concurrent edits in that file settle, then reconcile the Event Control Plane map drift.",
       "source_refs": [
         "src/mesh/recovery_contracts.py",
@@ -273,6 +275,7 @@
         "src/swarm/pbft.py",
         "src/swarm/intelligence/mapek.py",
         "src/dao/executor_webhook.py",
+        "src/dao/proposal_executor_webhook.py",
         "tests/unit/mesh/test_recovery_contracts_unit.py",
         "tests/unit/mesh/test_network_manager_unit.py",
         "tests/unit/mesh/test_action_enforcer_unit.py",
@@ -289,7 +292,7 @@
     {
       "id": "control_spine_fragmentation",
       "severity": "tracked_risk",
-      "gap": "Recovery contracts, self-healing executor post-action proof, MeshNetworkManager post-heal proof, MAPE-K, MeshActionEnforcer, MPTCP manager, PBFT execution, Swarm MAPE-K execution, DAO executor release-script automation, MaaS heal routes, EventBus traces, recovery dataplane proof adapters, and SafeActuatorResult now share more claim/evidence semantics, but several SafeActuator callers still do not pass typed evidence metadata through the result.",
+      "gap": "Recovery contracts, self-healing executor post-action proof, MeshNetworkManager post-heal proof, MAPE-K, MeshActionEnforcer, MPTCP manager, PBFT execution, Swarm MAPE-K execution, DAO executor release-script automation, DAO proposal Helm upgrade automation, MaaS heal routes, EventBus traces, recovery dataplane proof adapters, and SafeActuatorResult now share more claim/evidence semantics, but several SafeActuator callers still do not pass typed evidence metadata through the result.",
       "next_improvement": "Extend the typed SafeActuator evidence metadata path to additional high-risk callers and keep blocked production/dataplane/customer claims false unless the matching evidence contract is present.",
       "source_refs": [
         "src/integration/spine.py",
@@ -302,6 +305,7 @@
         "src/swarm/pbft.py",
         "src/swarm/intelligence/mapek.py",
         "src/dao/executor_webhook.py",
+        "src/dao/proposal_executor_webhook.py",
         "src/services/service_event_trace.py"
       ]
     },
@@ -349,6 +353,7 @@
       "src/swarm/pbft.py",
       "src/swarm/intelligence/mapek.py",
       "src/dao/executor_webhook.py",
+      "src/dao/proposal_executor_webhook.py",
       "src/self_healing/mape_k/manager.py",
       "src/mesh/recovery_contracts.py",
       "tests/unit/core/test_mape_k_loop_unit.py",
