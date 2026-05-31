@@ -73,6 +73,13 @@ DPI_LAB_CLAIM_ID = "dpi_lab"
 PRODUCTION_READINESS_CLAIM_ID = "production_readiness"
 EXTERNAL_SETTLEMENT_CLAIM_ID = "external_settlement"
 ECONOMY_BOUNDARY_CLAIM_ID = "economy_boundary"
+TRUST_FINALITY_CLAIM_ID = "trust_finality"
+TRUST_FINALITY_SOURCE_AGENTS = (
+    "service-identity-status",
+    "spiffe-agent-manager",
+    "spiffe-mapek-loop",
+    "spiffe-workload-api",
+)
 REQUIRED_PLANES = {
     "data_plane",
     "control_plane",
@@ -475,6 +482,102 @@ def _dataplane_candidate_blockers(
     if data.get("customer_traffic_claim_allowed") is True or data.get("live_customer_traffic_confirmed") is True:
         blockers.append("dataplane_event_overpromotes_customer_traffic")
     return blockers
+
+
+def _trust_candidate_blockers(event: Mapping[str, Any]) -> list[str]:
+    data = _mapping(event.get("data"))
+    gate = _mapping(data.get("claim_gate")) or _mapping(data.get("service_identity_claim_gate"))
+    blockers: list[str] = []
+    trust_confirmed = any(
+        value is True
+        for value in (
+            data.get("live_spire_svid_confirmed"),
+            data.get("live_spiffe_svid_confirmed"),
+            data.get("did_ownership_confirmed"),
+            data.get("wallet_control_confirmed"),
+            data.get("chain_identity_finality_confirmed"),
+            gate.get("live_spiffe_svid_claim_allowed"),
+            gate.get("did_ownership_claim_allowed"),
+            gate.get("wallet_control_claim_allowed"),
+            gate.get("chain_identity_finality_claim_allowed"),
+            gate.get("production_trust_finality_claim_allowed"),
+        )
+    )
+    redacted = any(
+        value is True
+        for value in (
+            data.get("raw_identity_values_redacted"),
+            data.get("raw_identifiers_redacted"),
+            data.get("payloads_redacted"),
+            gate.get("raw_identity_values_redacted"),
+            gate.get("payloads_redacted"),
+        )
+    )
+
+    if not gate:
+        blockers.append("trust_finality_claim_gate_missing")
+    if not trust_confirmed:
+        blockers.append("trust_finality_not_confirmed")
+    if not redacted:
+        blockers.append("trust_finality_evidence_not_redacted")
+    if not (data.get("claim_boundary") or gate.get("claim_boundary")):
+        blockers.append("trust_finality_claim_boundary_missing")
+    if gate.get("dataplane_delivery_claim_allowed") is True or data.get("dataplane_confirmed") is True:
+        blockers.append("trust_event_overpromotes_dataplane")
+    if gate.get("production_readiness_claim_allowed") is True or data.get("production_readiness_claim_allowed") is True:
+        blockers.append("trust_event_overpromotes_production_readiness")
+    return blockers
+
+
+def trust_finality_artifact_evidence(root: Path) -> dict[str, Any]:
+    path = resolve_path(root, EVENTBUS_LOG)
+    result: dict[str, Any] = {
+        "claim_id": TRUST_FINALITY_CLAIM_ID,
+        "required_for_claims": ["trust_finality", "production_readiness"],
+        "valid": False,
+        "event_log_path": EVENTBUS_LOG.as_posix(),
+        "event_log_exists": path.is_file(),
+        "events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_source_agents": sorted(TRUST_FINALITY_SOURCE_AGENTS),
+        "matching_events": 0,
+        "selected_event": None,
+        "candidate_blockers": [],
+        "blockers": [],
+        "claim_boundary": (
+            "A retained EventBus trust-finality event can support bounded SPIFFE, "
+            "DID, wallet, or chain-identity finality claims only when its own "
+            "redacted claim gate allows that trust claim. It does not prove "
+            "dataplane delivery, customer traffic, settlement finality, or "
+            "production readiness by itself."
+        ),
+    }
+    if not path.is_file():
+        result["blockers"].append("trust_finality_event_log_missing")
+        return result
+
+    for event in reversed(_bounded_event_log_entries(path, limit=EVENTBUS_TAIL_SCAN_LIMIT)):
+        if str(event.get("source_agent") or "") not in TRUST_FINALITY_SOURCE_AGENTS:
+            continue
+        candidate_blockers = _trust_candidate_blockers(event)
+        if candidate_blockers:
+            for blocker in candidate_blockers:
+                if blocker not in result["candidate_blockers"] and len(result["candidate_blockers"]) < 20:
+                    result["candidate_blockers"].append(blocker)
+            continue
+        result["matching_events"] += 1
+        result["selected_event"] = {
+            "event_id": str(event.get("event_id") or ""),
+            "event_type": str(event.get("event_type") or ""),
+            "source_agent": str(event.get("source_agent") or ""),
+            "timestamp": str(event.get("timestamp") or ""),
+            "trust_finality_confirmed": True,
+            "redacted": True,
+        }
+        result["valid"] = True
+        return result
+
+    result["blockers"].append("verified_trust_finality_event_not_found")
+    return result
 
 
 def dataplane_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
@@ -1435,6 +1538,10 @@ def evaluate_claim(
         claim_artifact_evidence = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("dataplane_delivery_eventbus_artifact_not_verified")
+    elif claim_id == "trust_finality":
+        claim_artifact_evidence = (artifact_evidence or {}).get(TRUST_FINALITY_CLAIM_ID)
+        if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
+            blockers.append("trust_finality_eventbus_artifact_not_verified")
     elif claim_id == "dpi_bypass":
         claim_artifact_evidence = (artifact_evidence or {}).get(DPI_LAB_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
@@ -1448,6 +1555,11 @@ def evaluate_claim(
             supporting_artifact_evidence[ECONOMY_BOUNDARY_CLAIM_ID] = economy_boundary
         if not economy_boundary or economy_boundary.get("valid") is not True:
             blockers.append("economy_boundary_artifact_not_verified")
+        trust_boundary = (artifact_evidence or {}).get(TRUST_FINALITY_CLAIM_ID)
+        if trust_boundary is not None:
+            supporting_artifact_evidence[TRUST_FINALITY_CLAIM_ID] = trust_boundary
+        if not trust_boundary or trust_boundary.get("valid") is not True:
+            blockers.append("trust_finality_artifact_not_verified")
     elif claim_id == "settlement_finality":
         claim_artifact_evidence = (artifact_evidence or {}).get(EXTERNAL_SETTLEMENT_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
@@ -1507,6 +1619,8 @@ def build_report(
     artifact_evidence: dict[str, Mapping[str, Any]] = {}
     if "dataplane_delivery" in claims:
         artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_delivery_artifact_evidence(root)
+    if any(claim in claims for claim in ("trust_finality", "production_readiness")):
+        artifact_evidence[TRUST_FINALITY_CLAIM_ID] = trust_finality_artifact_evidence(root)
     if any(claim in claims for claim in ("settlement_finality", "production_readiness")):
         artifact_evidence[ECONOMY_BOUNDARY_CLAIM_ID] = economy_boundary_artifact_evidence(root)
     if "dpi_bypass" in claims:

@@ -379,6 +379,47 @@ def _write_valid_dataplane_delivery_event(root: Path) -> None:
     event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
 
 
+def _write_valid_trust_finality_event(root: Path) -> None:
+    event_log = root / ".agent_coordination/events.log"
+    event_log.parent.mkdir(parents=True, exist_ok=True)
+    event = {
+        "event_id": "trust-finality-event-1",
+        "event_type": "pipeline.stage_end",
+        "source_agent": "spiffe-workload-api",
+        "timestamp": "2026-05-31T00:00:00",
+        "target_agents": None,
+        "priority": 6,
+        "requires_ack": False,
+        "acked_by": [],
+        "data": {
+            "component": "src.security.spiffe.workload.api_client",
+            "operation": "validate_svid",
+            "live_spiffe_svid_confirmed": True,
+            "raw_identity_values_redacted": True,
+            "payloads_redacted": True,
+            "claim_boundary": (
+                "Live SPIFFE SVID validation evidence only; not dataplane, "
+                "settlement, customer traffic, or production readiness proof."
+            ),
+            "claim_gate": {
+                "schema": "x0tta6bl4.trust_finality.claim_gate.v1",
+                "live_spiffe_svid_claim_allowed": True,
+                "did_ownership_claim_allowed": False,
+                "wallet_control_claim_allowed": False,
+                "chain_identity_finality_claim_allowed": False,
+                "dataplane_delivery_claim_allowed": False,
+                "production_readiness_claim_allowed": False,
+                "raw_identity_values_redacted": True,
+                "payloads_redacted": True,
+                "claim_boundary": "Bounded trust-finality gate metadata only.",
+                "redacted": True,
+            },
+        },
+    }
+    with event_log.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event) + "\n")
+
+
 def _write_valid_economy_boundary_event(root: Path) -> None:
     event_log = root / ".agent_coordination/events.log"
     event_log.parent.mkdir(parents=True, exist_ok=True)
@@ -456,6 +497,7 @@ def _write_map(
     dpi_flags: bool = False,
     production_flags: bool = False,
     settlement_flags: bool = False,
+    trust_flags: bool = False,
 ) -> None:
     architecture = root / "docs/architecture"
     architecture.mkdir(parents=True, exist_ok=True)
@@ -508,7 +550,7 @@ def _write_map(
                 "from_planes": ["trust_plane"],
                 "to_planes": ["evidence_plane"],
                 "proof_flags": {
-                    "live_spire_svid_confirmed": production_flags,
+                    "live_spire_svid_confirmed": production_flags or trust_flags,
                 },
             },
             {
@@ -685,6 +727,45 @@ def test_gate_allows_dpi_bypass_only_with_map_flags_and_verified_imported_artifa
     assert artifact["intake_context"]["ready_for_write_import"] is True
 
 
+def test_gate_blocks_trust_finality_when_map_flags_are_true_but_event_is_missing(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, trust_flags=True)
+
+    report = build_report(tmp_path, claims=("trust_finality",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    assert report["allowed"] is False
+    [trust] = report["claim_results"]
+    assert trust["allowed"] is False
+    assert trust["missing_any_flag_groups"] == []
+    assert "trust_finality_eventbus_artifact_not_verified" in trust["blockers"]
+    artifact = trust["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert artifact["event_log_path"] == ".agent_coordination/events.log"
+    assert "trust_finality_event_log_missing" in artifact["blockers"]
+
+
+def test_gate_allows_trust_finality_only_with_verified_eventbus_artifact(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, trust_flags=True)
+    _write_valid_trust_finality_event(tmp_path)
+
+    report = build_report(tmp_path, claims=("trust_finality",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_ALLOWED"
+    assert report["allowed"] is True
+    [trust] = report["claim_results"]
+    assert trust["allowed"] is True
+    assert trust["blockers"] == []
+    artifact = trust["required_artifact_evidence"]
+    assert artifact["valid"] is True
+    assert artifact["selected_event"]["event_id"] == "trust-finality-event-1"
+    assert artifact["selected_event"]["redacted"] is True
+    assert "dataplane delivery" in artifact["claim_boundary"]
+
+
 def test_gate_blocks_production_readiness_when_map_flags_are_true_but_imported_artifact_is_missing(
     tmp_path: Path,
 ) -> None:
@@ -709,6 +790,7 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
 ) -> None:
     _write_map(tmp_path, production_flags=True)
     _write_stub_production_readiness_proof(tmp_path, verified=True)
+    _write_valid_trust_finality_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
 
     report = build_report(tmp_path, claims=("production_readiness",))
@@ -725,6 +807,9 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     economy = production["supporting_artifact_evidence"]["economy_boundary"]
     assert economy["valid"] is True
     assert economy["selected_event"]["event_id"] == "economy-boundary-event-1"
+    trust = production["supporting_artifact_evidence"]["trust_finality"]
+    assert trust["valid"] is True
+    assert trust["selected_event"]["event_id"] == "trust-finality-event-1"
 
 
 def test_gate_blocks_dataplane_delivery_when_map_flags_are_true_but_eventbus_artifact_is_missing(
