@@ -1767,7 +1767,7 @@
     {
       "path": "src/mesh/network_manager.py",
       "layer": "mesh_network_manager_observed_state",
-      "role": "MeshNetworkManager get_statistics emits read-only aggregate health evidence with service identity, router/Yggdrasil source status, redacted numeric summaries, duration, and downstream Yggdrasil evidence event IDs; verify_node_state now emits bounded node-verification evidence with hashed node/config inputs, mode, retry/cache/bypass metadata, duration, redacted error hashes, trust-gate status, and a returned evidence_event_id; aggressive healing carries those verification evidence IDs into its local control-action downstream_evidence summary, while route preference and preemptive checks also emit bounded local control-action evidence without raw route/node identifiers.",
+      "role": "MeshNetworkManager get_statistics emits read-only aggregate health evidence with service identity, router/Yggdrasil source status, redacted numeric summaries, duration, and downstream Yggdrasil evidence event IDs; verify_node_state now emits bounded node-verification evidence with hashed node/config inputs, mode, retry/cache/bypass metadata, duration, redacted error hashes, trust-gate status, and a returned evidence_event_id; aggressive healing carries those verification evidence IDs into its local control-action downstream_evidence summary and uses the shared recovery dataplane probe adapter for optional post-heal restored-dataplane claim gates, while route preference and preemptive checks also emit bounded local control-action evidence without raw route/node identifiers.",
       "markers": [
         "event_bus",
         "service_identity"
@@ -1794,7 +1794,9 @@
         "src/mesh/network_manager.py:1248",
         "src/mesh/network_manager.py:1264",
         "src/mesh/network_manager.py:1452",
-        "src/mesh/network_manager.py:1478"
+        "src/mesh/network_manager.py:1478",
+        "src/mesh/network_manager.py:849",
+        "tests/unit/mesh/test_network_manager_unit.py:666"
       ]
     },
     {
@@ -1823,7 +1825,7 @@
     {
       "path": "src/mesh/recovery_dataplane_probe.py",
       "layer": "mesh_recovery_dataplane_probe_adapter",
-      "role": "RecoveryDataplanePingProbe adapts the shared real-network-adapter bounded ping probe into MeshRecoveryOrchestrator.dataplane_probe and RecoveryActionExecutor post-action revalidation. It normalizes async/sync probe results into dataplane_confirmed plus redacted EventBus evidence references for recovery proof gates without copying raw probe targets or creating a new source_agent.",
+      "role": "RecoveryDataplanePingProbe adapts the shared real-network-adapter bounded ping probe into MeshRecoveryOrchestrator.dataplane_probe, RecoveryActionExecutor post-action revalidation, and MeshNetworkManager post-heal revalidation. It normalizes async/sync probe results into dataplane_confirmed plus redacted EventBus evidence references for recovery proof gates without copying raw probe targets or creating a new source_agent.",
       "markers": [
         "event_bus"
       ],
