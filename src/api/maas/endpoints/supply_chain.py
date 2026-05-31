@@ -27,7 +27,7 @@ from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/supply-chain", tags=["MaaS Supply Chain"])
+router = APIRouter( tags=["MaaS Supply Chain"])
 
 _SUPPLY_CHAIN_SBOM_READ_SOURCE_AGENT = "maas-supply-chain-sbom-read"
 _SUPPLY_CHAIN_SBOM_READ_LAYER = "api_supply_chain_sbom_observed_state"

@@ -23,7 +23,7 @@ from src.database import User, get_db
 from src.api.maas_security import ApiKeyManager
 from src.services.maas_auth_service import find_user_by_api_key
 
-router = APIRouter(prefix="/api/v1/users", tags=["users"])
+router = APIRouter( tags=["users"])
 
 
 def _rate_limit_key(request: Request) -> str:

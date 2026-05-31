@@ -27,7 +27,7 @@ except Exception:  # pragma: no cover - exercised by fail-closed fallback
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/ledger", tags=["ledger"])
+router = APIRouter( tags=["ledger"])
 
 CLAIM_SENSITIVE_QUERY_TERMS = (
     "production",

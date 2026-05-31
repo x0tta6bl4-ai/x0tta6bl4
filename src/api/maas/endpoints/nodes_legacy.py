@@ -27,7 +27,7 @@ from src.coordination.events import EventBus, EventType, get_event_bus
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/nodes", tags=["nodes"])
+router = APIRouter( tags=["nodes"])
 
 _MODULAR_NODE_REGISTRATION_SOURCE_AGENT = "maas-modular-node-registration"
 _MODULAR_NODE_HEARTBEAT_SOURCE_AGENT = "maas-modular-node-heartbeat"

@@ -28,7 +28,7 @@ from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/playbooks", tags=["MaaS Playbooks"])
+router = APIRouter( tags=["MaaS Playbooks"])
 
 _playbook_store: Dict[str, Dict[str, Any]] = {}
 _node_queues: Dict[str, List[str]] = {}

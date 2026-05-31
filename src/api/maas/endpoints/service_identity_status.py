@@ -17,7 +17,7 @@ from src.services.service_event_trace import (
 from src.services.service_identity_registry import service_identity_registry_status
 
 
-router = APIRouter(prefix="/api/v1/service-identity", tags=["Service Identity"])
+router = APIRouter( tags=["Service Identity"])
 SERVICE_IDENTITY_CLAIM_GATE_BOUNDARY = (
     "Service identity status is redacted configuration and trace-surface "
     "evidence only. It does not prove live SPIFFE SVID issuance, DID ownership, "

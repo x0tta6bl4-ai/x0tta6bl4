@@ -35,7 +35,7 @@ from src.core.reliability_policy import mark_degraded_dependency
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v3/swarm", tags=["swarm"])
+router = APIRouter( tags=["swarm"])
 limiter = Limiter(key_func=get_remote_address)
 
 # Global swarm registry

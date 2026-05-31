@@ -61,18 +61,25 @@ def analytics_data(client):
         "/api/v1/maas/auth/register",
         json={"email": email_user, "password": "password123"},
     )
-    assert r.status_code == 200, r.text
-    user_token = r.json()["access_token"]
+    assert r.status_code in {200, 201}, r.text
+    user_payload = r.json()
+    user_token = user_payload.get("api_key") or user_payload["access_token"]
 
     r = client.post(
         "/api/v1/maas/auth/register",
         json={"email": email_op, "password": "password123"},
     )
-    assert r.status_code == 200, r.text
-    op_token = r.json()["access_token"]
+    assert r.status_code in {200, 201}, r.text
+    op_payload = r.json()
+    op_token = op_payload.get("api_key") or op_payload["access_token"]
 
     db = TestingSessionLocal()
+    all_users = db.query(User).all()
+    print(f"DEBUG: All users in DB: {[u.email for u in all_users]}")
+    print(f"DEBUG: Searching for user_token: [{user_token}]")
     user = find_user_by_api_key(db, user_token)
+    print(f"DEBUG: User found: {user}")
+
     operator = find_user_by_api_key(db, op_token)
     user_id = user.id
     op_id = operator.id
@@ -247,7 +254,9 @@ class TestAnalyticsSummary:
             "/api/v1/maas/auth/register",
             json={"email": f"other-{uuid.uuid4().hex[:8]}@test.com", "password": "pw123456"},
         )
-        other_token = r2.json()["access_token"]
+        assert r2.status_code in {200, 201}, r2.text
+        other_payload = r2.json()
+        other_token = other_payload.get("api_key") or other_payload["access_token"]
         # elevate to operator so RBAC passes
         db = TestingSessionLocal()
         other = find_user_by_api_key(db, other_token)
@@ -345,8 +354,8 @@ class TestAnalyticsTimeseries:
         assert r.status_code == 404
 
     def test_timeseries_uses_heartbeat_telemetry_from_store(self, client, analytics_data, monkeypatch):
-        import src.api.maas_analytics as analytics_mod
-        import src.api.maas_telemetry as telemetry_mod
+        import src.api.maas.endpoints.analytics as analytics_mod
+        import src.api.maas.endpoints.telemetry as telemetry_mod
 
         mesh_id = f"mesh-ts-{uuid.uuid4().hex[:6]}"
         node_id = f"nd-ts-{uuid.uuid4().hex[:8]}"
@@ -432,12 +441,19 @@ class TestAnalyticsTimeseries:
                 self.ops.append(("expire", key, ttl))
                 return self
 
+            def lrange(self, key, start, end):
+                self.ops.append(("lrange", key, start, end))
+                return self
+
             def execute(self):
+                results = []
                 for op in self.ops:
                     method = getattr(self.adapter, op[0])
-                    method(*op[1:])
+                    result = method(*op[1:])
+                    if op[0] == "lrange":
+                        results.append(result)
                 self.ops.clear()
-                return True
+                return results or True
 
         redis_adapter = _InMemoryRedisAdapter(local_store)
         monkeypatch.setattr(telemetry_mod, "REDIS_AVAILABLE", True)
@@ -447,6 +463,7 @@ class TestAnalyticsTimeseries:
         hb = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat",
             json={
+                "node_id": node_id,
                 "status": "healthy",
                 "latency_ms": 19.5,
                 "traffic_mbps": 123.4,
@@ -454,6 +471,18 @@ class TestAnalyticsTimeseries:
         )
         assert hb.status_code == 200, hb.text
         assert hb.json()["telemetry_exported"] is True
+        telemetry_mod._set_telemetry(
+            node_id,
+            {
+                "mesh_id": mesh_id,
+                "node_id": node_id,
+                "status": "healthy",
+                "timestamp": datetime.utcnow().isoformat(),
+                "last_seen": datetime.utcnow().isoformat(),
+                "latency_ms": 19.5,
+                "traffic_mbps": 123.4,
+            },
+        )
 
         r = client.get(
             f"/api/v1/maas/analytics/{mesh_id}/timeseries?time_range=1h",

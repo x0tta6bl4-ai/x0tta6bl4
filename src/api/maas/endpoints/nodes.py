@@ -144,6 +144,9 @@ async def node_heartbeat(
     db: Session = Depends(get_db),
 ):
     """Update node heartbeat and telemetry."""
+    # Ensure node_id is consistent
+    effective_node_id = req.node_id or node_id
+
     core_req = CoreHeartbeatRequest(
         status="healthy",
         cpu_percent=req.cpu_percent if req.cpu_percent is not None else req.cpu_usage,
@@ -163,7 +166,7 @@ async def node_heartbeat(
             "uptime": req.uptime,
         },
     )
-    return core_process_heartbeat(mesh_id, node_id, core_req, db, request)
+    return core_process_heartbeat(mesh_id, effective_node_id, core_req, db, request)
 
 
 @router.get("/{mesh_id}/nodes/{node_id}/telemetry")

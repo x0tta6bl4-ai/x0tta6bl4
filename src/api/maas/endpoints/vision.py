@@ -14,7 +14,7 @@ from src.core.reliability_policy import mark_degraded_dependency
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/vision", tags=["Vision Analytics"])
+router = APIRouter( tags=["Vision Analytics"])
 
 try:
     from src.vision.processor import VisionProcessor

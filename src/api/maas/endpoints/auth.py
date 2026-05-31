@@ -14,8 +14,13 @@ from collections import deque
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy.orm import Session
+from src.database import get_db
 
+from src.api.maas_auth_models import UserRegisterRequest as DBUserRegisterRequest
+from src.api.maas_security import ApiKeyManager
 from src.coordination.events import EventBus, EventType, get_event_bus
+from src.services.maas_auth_service import MaaSAuthService
 from ..auth import (
     UserContext,
     get_auth_service,
@@ -33,7 +38,12 @@ from ..models import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
+root_router = APIRouter(tags=["auth"])
+_db_auth_service = MaaSAuthService(
+    api_key_factory=ApiKeyManager.generate,
+    default_plan="starter",
+)
 
 
 # In-memory user store (replace with database in production)
@@ -339,6 +349,106 @@ def _verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
+@root_router.post(
+    "/register",
+    response_model=RegisterResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register new user",
+    description="Create a new user account.",
+)
+async def register_root(
+    request: RegisterRequest,
+    db: Session = Depends(get_db),
+    http_request: Request = None,
+) -> RegisterResponse:
+    """
+    Register a new user using the real database.
+    """
+    started = time.monotonic()
+    auth = get_auth_service()
+    normalized_email = _normalize_email(request.email)
+    request_evidence = _request_summary(
+        email=normalized_email,
+        password=request.password,
+        name=request.name,
+    )
+
+    db_req = DBUserRegisterRequest(
+        email=request.email,
+        password=request.password,
+        full_name=request.name,
+        company=None,
+    )
+
+    try:
+        user = _db_auth_service.register(db, db_req)
+        api_key = auth.generate_api_key(user.id, user.plan or "starter")
+        user.api_key = None
+        user.api_key_hash = ApiKeyManager.hash_key(api_key)
+        db.commit()
+
+        _user_store[user.id] = {
+            "email": user.email,
+            "name": request.name,
+            "plan": user.plan or "starter",
+            "password_hash": _hash_password(request.password),
+            "created_at": getattr(user, "created_at", None).isoformat()
+            if getattr(user, "created_at", None)
+            else __import__("datetime").datetime.utcnow().isoformat(),
+        }
+
+        _publish_modular_auth_event(
+            http_request=http_request,
+            source_agent=_MODULAR_AUTH_REGISTER_SOURCE_AGENT,
+            operation="modular_auth_register",
+            stage="register_created",
+            status_text="success",
+            started=started,
+            http_status_code=status.HTTP_201_CREATED,
+            request_summary=request_evidence,
+            actor_summary=_actor_summary(None),
+            store_summary=_store_summary(
+                action="create_user",
+                attempted=True,
+                committed=True,
+                matched_user_id=user.id,
+            ),
+            credential_summary=_credential_summary(api_key_issued=bool(api_key)),
+        )
+
+        return RegisterResponse(
+            user_id=user.id,
+            email=user.email,
+            api_key=api_key,
+            message="Registration successful",
+        )
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_400_BAD_REQUEST and exc.detail == "Email already registered":
+            exc = HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered",
+            )
+        _publish_modular_auth_event(
+            http_request=http_request,
+            source_agent=_MODULAR_AUTH_REGISTER_SOURCE_AGENT,
+            operation="modular_auth_register",
+            stage="register_blocked",
+            status_text="blocked",
+            started=started,
+            http_status_code=exc.status_code,
+            request_summary=request_evidence,
+            actor_summary=_actor_summary(None),
+            store_summary=_store_summary(
+                action="register_call",
+                attempted=True,
+                committed=False,
+            ),
+            credential_summary=_credential_summary(api_key_issued=False),
+            reason=str(exc.detail),
+        )
+        raise exc
+
+
 @router.post(
     "/register",
     response_model=RegisterResponse,
@@ -355,8 +465,6 @@ async def register(
 
     Creates a new user account and returns an API key.
     """
-    import secrets
-
     started = time.monotonic()
     normalized_email = _normalize_email(request.email)
     request_evidence = _request_summary(
@@ -434,6 +542,12 @@ async def register(
     )
 
 
+@root_router.post(
+    "/login",
+    response_model=LoginResponse,
+    summary="User login",
+    description="Authenticate user and get session token.",
+)
 @router.post(
     "/login",
     response_model=LoginResponse,
@@ -574,6 +688,12 @@ async def login(
     )
 
 
+@root_router.post(
+    "/api-key",
+    response_model=ApiKeyRotateResponse,
+    summary="Rotate API key",
+    description="Generate a new API key (invalidates old one).",
+)
 @router.post(
     "/api-key",
     response_model=ApiKeyRotateResponse,
@@ -631,6 +751,12 @@ async def rotate_api_key(
     )
 
 
+@root_router.get(
+    "/me",
+    response_model=UserProfileResponse,
+    summary="Get user profile",
+    description="Get the current user's profile.",
+)
 @router.get(
     "/me",
     response_model=UserProfileResponse,
@@ -673,6 +799,12 @@ async def get_profile(
     )
 
 
+@root_router.post(
+    "/logout",
+    status_code=status.HTTP_200_OK,
+    summary="Logout",
+    description="End the current session.",
+)
 @router.post(
     "/logout",
     status_code=status.HTTP_200_OK,
@@ -716,6 +848,12 @@ async def logout(
     }
 
 
+@root_router.delete(
+    "/account",
+    status_code=status.HTTP_200_OK,
+    summary="Delete account",
+    description="Delete the user account and all associated data.",
+)
 @router.delete(
     "/account",
     status_code=status.HTTP_200_OK,

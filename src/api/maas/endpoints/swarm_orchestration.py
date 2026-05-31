@@ -15,7 +15,7 @@ from src.core.reliability_policy import mark_degraded_dependency
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/swarm", tags=["Swarm Orchestration"])
+router = APIRouter( tags=["Swarm Orchestration"])
 
 try:
     from src.swarm.orchestrator import SwarmOrchestrator

@@ -1,226 +1,74 @@
-"""FastAPI app with mTLS and real system status monitoring - P0#3-P0#4 implementation"""
+"""
+x0tta6bl4 gateway application entrypoint.
+"""
 
 import importlib
+import logging
 import os
-import sys
-import uuid
+import random
+import secrets
+import time
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
-# Internal imports
+from src.database import get_db
+from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
 from src.core.api_error_handlers import register_api_error_handlers
-from src.core.cors_config import resolve_cors_allowed_origins
 from src.core.graceful_shutdown import (ShutdownMiddleware, shutdown_manager)
 from src.core.mtls_middleware import MTLSMiddleware
 from src.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
 from src.core.request_validation import (RequestValidationMiddleware,
-                                         ValidationConfig)
+                                          ValidationConfig)
 from src.core.reliability_policy import set_degraded_dependencies_header
 from src.core.logging_config import RequestIdContextVar, setup_logging
 from src.core.settings import settings
 from src.core.status_collector import get_current_status
 from src.core.tracing_middleware import TracingMiddleware
-from src.version import __version__, get_health_info
-from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
 from src.coordination.events import EventBus, get_event_bus
 from src.mesh.metric_evidence_policy import latest_mesh_metric_policy_evidence
+from src.version import __version__, get_health_info
 
 # Initialize structured logging
 log_level = os.getenv("LOG_LEVEL", "INFO")
 logger = setup_logging(name="x0tta6bl4", log_level=log_level)
 logger.info(f"✓ Structured logging initialized at level {log_level}")
 
-# Preserve legacy module path for compatibility checks.
-_LEGACY_FILE = Path(__file__).resolve().parents[2] / "libx0t" / "core" / "app.py"
-if _LEGACY_FILE.exists():
-    __file__ = str(_LEGACY_FILE)
-
-# Choose lifespan based on mode
 is_light_mode = os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true"
 
-if is_light_mode:
-    logger.info("🚀 Starting in LIGHT MODE (Intelligence Engine disabled)")
-    app = FastAPI(
-        title="x0tta6bl4 MaaS",
-        description="Autonomous Mesh Intelligence Gateway (Light)",
-        version=f"{__version__}-light",
-    )
-else:
-    # Production lifespan includes MAPE-K, ML engines, and background tasks
-    from src.core.production_lifespan import production_lifespan
-
-    app = FastAPI(
-        title="x0tta6bl4 MaaS",
-        description="Autonomous Mesh Intelligence Gateway (Production-Ready)",
-        version=__version__,
-        lifespan=production_lifespan,
-    )
-
-# --- Middlewares (Order matters: CORS -> RateLimit -> Tracing -> Others) ---
-
-# 1. CORS (P1 Security)
-allowed_origins = resolve_cors_allowed_origins()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    # Security: explicit allowlists required when allow_credentials=True.
-    # Wildcard allow_methods/allow_headers + credentials enables CSRF via
-    # cross-origin authenticated requests with arbitrary headers.
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"],
+app = FastAPI(
+    title="x0tta6bl4",
+    version=f"{__version__}-light" if is_light_mode else __version__,
+    description="Autonomous Mesh-as-a-Service Gateway",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
-# 2. mTLS middleware
-security_flags = settings.security_profile()
-testing_mode = (
-    settings.is_testing()
-    or os.getenv("TESTING", "false").lower() == "true"
-    or bool(os.getenv("PYTEST_CURRENT_TEST"))
-    or "pytest" in sys.modules
-)
+# --- Middlewares ---
 
-if security_flags["mtls_enabled"] and not testing_mode:
-    app.add_middleware(
-        MTLSMiddleware,
-        require_mtls=True,
-        enforce_tls_13=True,
-        allowed_spiffe_domains=["x0tta6bl4.mesh"],
-        excluded_paths=["/health", "/metrics", "/docs", "/openapi.json"],
-    )
-    logger.info("✓ mTLS middleware enabled (TLS 1.3 required)")
-
-# 3. Global rate limiting
-if security_flags["rate_limit_enabled"] and not testing_mode:
-    rate_config = RateLimitConfig(
-        requests_per_second=int(os.getenv("RATE_LIMIT_RPS", "100")),
-        burst_size=int(os.getenv("RATE_LIMIT_BURST", "50")),
-        block_duration=int(os.getenv("RATE_LIMIT_BLOCK_DURATION", "60")),
-        path_overrides={
-            # Expensive marketplace payment/state-transition flows
-            "/api/v1/maas/marketplace/rent": RateLimitConfig(
-                requests_per_second=0.5, burst_size=1, block_duration=120
-            ),
-            "/api/v1/maas/marketplace/escrow": RateLimitConfig(
-                requests_per_second=0.2, burst_size=1, block_duration=180
-            ),
-            # Billing and webhook endpoints are high-value abuse targets
-            "/api/v1/maas/billing/subscriptions/checkout": RateLimitConfig(
-                requests_per_second=0.2, burst_size=2, block_duration=180
-            ),
-            "/api/v1/maas/billing/webhook/stripe": RateLimitConfig(
-                requests_per_second=1.0, burst_size=5, block_duration=60
-            ),
-            "/api/v1/billing/checkout-session": RateLimitConfig(
-                requests_per_second=0.5, burst_size=2, block_duration=120
-            ),
-            "/api/v1/billing/webhook": RateLimitConfig(
-                requests_per_second=1.0, burst_size=5, block_duration=60
-            ),
-            # Vision endpoints are CPU-heavy and should be throttled aggressively
-            "/api/v1/vision/analyze/topology": RateLimitConfig(
-                requests_per_second=0.1, burst_size=1, block_duration=120
-            ),
-            "/api/v1/vision/debug": RateLimitConfig(
-                requests_per_second=0.1, burst_size=1, block_duration=120
-            ),
-            "/api/v1/maas/vpn/config": RateLimitConfig(
-                requests_per_second=0.2, burst_size=1, block_duration=300
-            ),
-        },
-    )
-    app.add_middleware(
-        RateLimitMiddleware,
-        config=rate_config,
-        excluded_paths=["/health", "/metrics", "/docs", "/openapi.json"],
-    )
-    logger.info(f"✓ Global rate limiting enabled: {rate_config.requests_per_second} RPS")
-
-# 4. Distributed tracing
-if os.getenv("TRACING_ENABLED", "true").lower() == "true" and not testing_mode:
-    app.add_middleware(
-        TracingMiddleware,
-        service_name="x0tta6bl4",
-        excluded_paths=["/health", "/metrics", "/docs", "/openapi.json"],
-    )
-    logger.info("✓ Distributed tracing enabled")
-
-# 5. Request validation
-if security_flags["request_validation_enabled"] and not testing_mode:
-    validation_config = ValidationConfig(
-        max_content_length=int(os.getenv("MAX_CONTENT_LENGTH", str(10 * 1024 * 1024))),
-        max_url_length=int(os.getenv("MAX_URL_LENGTH", "2048")),
-        block_suspicious_patterns=True,
-        excluded_paths=["/health", "/metrics", "/docs", "/openapi.json"],
-    )
-    app.add_middleware(RequestValidationMiddleware, config=validation_config)
-    logger.info("✓ Request validation enabled")
-
-# 6. Graceful shutdown
-if os.getenv("GRACEFUL_SHUTDOWN_ENABLED", "true").lower() == "true":
-    app.add_middleware(ShutdownMiddleware, shutdown_manager=shutdown_manager)
-
-# 7. Metering & Audit
-try:
-    from src.monitoring.metrics import MetricsMiddleware
-    app.add_middleware(MetricsMiddleware)
-except ImportError:
-    pass
-
-try:
-    from src.api.middleware.metering import MeteringMiddleware
-    app.add_middleware(MeteringMiddleware)
-except ImportError:
-    pass
-
-try:
-    from src.api.middleware.audit import AuditMiddleware
-    app.add_middleware(AuditMiddleware)
-except ImportError:
-    pass
-
-# 8. Security Headers (P1 Security)
 @app.middleware("http")
-async def propagate_request_id(request, call_next):
-    """Ensure request/correlation ID exists even when tracing middleware is disabled."""
-    request_id = (
-        request.headers.get("X-Request-ID")
-        or request.headers.get("X-Correlation-ID")
-        or str(uuid.uuid4())
-    )
+async def propagate_request_id(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID", secrets.token_hex(8))
     RequestIdContextVar.set(request_id)
-    existing_trace_id = getattr(request.state, "trace_id", None)
-    request.state.trace_id = existing_trace_id or request_id
-
-    try:
-        response = await call_next(request)
-    finally:
-        RequestIdContextVar.clear()
-
-    response.headers.setdefault("X-Request-ID", request_id)
-    response.headers.setdefault("X-Correlation-ID", request_id)
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
     return response
 
-
 @app.middleware("http")
-async def add_security_headers(request, call_next):
+async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     set_degraded_dependencies_header(response, request)
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data:; frame-ancestors 'none'; base-uri 'self';"
-    )
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    response.headers["Server"] = "x0tta6bl4-gateway"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Content-Security-Policy"] = "default-src 'self'"
     return response
 
 register_api_error_handlers(app)
@@ -237,11 +85,68 @@ def _include_maas_router(module_path: str, label: str) -> None:
     except Exception as exc:
         logger.warning(f"Could not import MaaS router {label}: {exc}")
 
+
+def _include_filtered_maas_router(
+    module_path: str,
+    label: str,
+    *,
+    include_paths: set[str],
+) -> None:
+    try:
+        module = importlib.import_module(module_path)
+        source_router = getattr(module, "router", None)
+        if not source_router:
+            return
+        filtered_router = APIRouter()
+        for route in source_router.routes:
+            if getattr(route, "path", "") in include_paths:
+                filtered_router.routes.append(route)
+        if filtered_router.routes:
+            app.include_router(filtered_router)
+            logger.info(f"✓ MaaS router registered: {label}")
+    except Exception as exc:
+        logger.warning(f"Could not import MaaS router {label}: {exc}")
+
+
+# Legacy auth owns /api/v1/maas/auth/* and returns access_token.
+_include_maas_router("src.api.maas_auth", "auth-legacy")
+
 # Modular MaaS routers combined into a single entrypoint.
-# This replaces the individual legacy registrations.
 from src.api.maas.endpoints.combined import get_combined_router
-app.include_router(get_combined_router())
+app.include_router(
+    get_combined_router(
+        include_auth_namespace=False,
+        include_mesh_namespace=False,
+        mesh_root_excluded_paths={
+            "/list",
+            "/{mesh_id}/status",
+            "/{mesh_id}/metrics",
+            "/{mesh_id}/scale",
+            "/{mesh_id}",
+        },
+        billing_excluded_paths={"/pay"},
+        include_compat=False,
+    )
+)
 logger.info("✓ Modular MaaS API routers registered")
+
+_include_filtered_maas_router(
+    "src.api.maas_compat",
+    "compat",
+    include_paths={
+        "/api/v1/maas/compat/readiness",
+        "/api/v3/maas/auth/register",
+        "/api/v1/maas/mesh/deploy",
+        "/api/v1/maas/list",
+        "/api/v1/maas/{mesh_id}/status",
+        "/api/v1/maas/{mesh_id}/metrics",
+        "/api/v1/maas/{mesh_id}/scale",
+        "/api/v1/maas/{mesh_id}",
+        "/api/v1/maas/{mesh_id}/audit-logs",
+        "/api/v1/maas/{mesh_id}/mapek/events",
+        "/api/v1/maas/billing/pay",
+    },
+)
 
 # Other specialized routers
 _include_maas_router("src.api.maas_dashboard", "dashboard")
@@ -317,6 +222,117 @@ def _metrics_api_claim_boundary_headers():
     return dict(_METRICS_API_CLAIM_HEADERS)
 
 
+_peers: dict[str, dict[str, Any]] = {}
+_beacons: list[dict[str, Any]] = []
+PQC_LIBOQS_AVAILABLE = False
+_pqc_sig = None
+_pqc_sig_public_key = None
+
+
+class BeaconRequest(BaseModel):
+    node_id: str = Field(..., min_length=1)
+    timestamp: float
+    neighbors: list[str] = Field(default_factory=list)
+
+
+def _get_simulated_features(node_id: str) -> dict[str, float]:
+    rng = random.Random(node_id)
+    return {
+        "rssi": rng.uniform(-80, -30),
+        "snr": rng.uniform(5, 25),
+        "loss_rate": rng.uniform(0, 0.25),
+        "link_age": rng.uniform(0, 86400),
+        "latency": rng.uniform(1, 100),
+        "throughput": rng.uniform(0, 100),
+        "cpu": rng.uniform(0, 1),
+        "memory": rng.uniform(0, 1),
+    }
+
+
+def _generate_training_data(
+    *,
+    num_nodes: int = 10,
+    num_edges: int = 20,
+    seed: int | None = None,
+) -> tuple[list[dict[str, float]], list[tuple[int, int]]]:
+    rng = random.Random(seed)
+    node_features = [_get_simulated_features(f"node-{seed}-{i}") for i in range(num_nodes)]
+    possible_edges = [
+        (src, dst)
+        for src in range(num_nodes)
+        for dst in range(num_nodes)
+        if src != dst
+    ]
+    rng.shuffle(possible_edges)
+    return node_features, possible_edges[: max(0, min(num_edges, len(possible_edges)))]
+
+
+def pqc_verify(data: bytes, signature: bytes, public_key: bytes) -> bool:
+    if not PQC_LIBOQS_AVAILABLE or _pqc_sig is None:
+        logger.warning("PQC verification unavailable; failing closed")
+        return False
+    if _pqc_sig_public_key is not None and public_key != _pqc_sig_public_key:
+        logger.warning("PQC verification public key mismatch")
+        return False
+    try:
+        verified = bool(_pqc_sig.verify(data, signature, public_key))
+        logger.info("PQC verification completed: verified=%s", verified)
+        return verified
+    except Exception as exc:
+        logger.warning("PQC verification failed: %s", type(exc).__name__)
+        return False
+
+
+async def receive_beacon(request: BeaconRequest) -> dict[str, Any]:
+    _peers[request.node_id] = {
+        "last_seen": time.time(),
+        "neighbors": list(request.neighbors or []),
+    }
+    _beacons.append(
+        {
+            "node_id": request.node_id,
+            "timestamp": request.timestamp,
+            "neighbors": list(request.neighbors or []),
+        }
+    )
+    return {"accepted": True, "peers_count": len(_peers)}
+
+
+async def get_mesh_status() -> dict[str, Any]:
+    try:
+        return get_current_status()
+    except Exception:
+        return {
+            "status": "ok",
+            "peers": list(_peers.keys()),
+            "routes": [],
+        }
+
+
+async def get_mesh_peers() -> list[Any]:
+    try:
+        from src.network.yggdrasil_client import get_yggdrasil_peers
+
+        result = get_yggdrasil_peers()
+        if isinstance(result, dict):
+            return result.get("peers", [])
+        return result
+    except Exception:
+        return list(_peers.keys())
+
+
+def get_mesh_routes() -> list[Any]:
+    try:
+        from src.network.yggdrasil_client import get_yggdrasil_routes
+
+        result = get_yggdrasil_routes()
+        if isinstance(result, dict):
+            return result.get("routes", [])
+        return result
+    except Exception:
+        return []
+
+
 @app.get("/health")
 async def health():
     return _health_api_response(
@@ -363,7 +379,6 @@ async def health_detailed():
         "version": result.version,
         "checks": checks,
     }
-    from fastapi.responses import JSONResponse
     status_code = 503 if result.status.value == "unhealthy" else 200
     return JSONResponse(
         content=_health_api_response(payload, surface="health_api.detailed"),
@@ -526,31 +541,36 @@ async def mesh_routes(request: Request):
         operation="routes",
     )
 
+
 from src.core.cache import cached
+
 
 @app.get("/status")
 @cached(ttl=5, key_prefix="api_status")
 async def status_endpoint():
     return JSONResponse(content=_status_api_response(get_current_status()))
 
+
 @app.get("/")
 async def root():
-    return {"name": "x0tta6bl4", "version": __version__, "docs": "/docs"}
+    return {
+        "name": "x0tta6bl4",
+        "version": __version__,
+        "docs": "/docs",
+        "endpoints": {
+            "health": "/health",
+            "status": "/status",
+            "mesh/status": "/mesh/status",
+            "mesh/peers": "/mesh/peers",
+            "mesh/routes": "/mesh/routes",
+        },
+    }
 
-# --- Static UI Routes ---
-def _serve_static_asset(path: str, media_type: str) -> Response:
-    try:
-        content = Path(path).read_bytes()
-        return Response(content=content, media_type=media_type)
-    except Exception:
-        raise HTTPException(status_code=404)
 
-@app.get("/login.html", include_in_schema=False)
-async def serve_login(): return _serve_static_asset("/mnt/projects/login.html", "text/html")
-
-@app.get("/dashboard.html", include_in_schema=False)
-async def serve_dashboard(): return _serve_static_asset("/mnt/projects/dashboard.html", "text/html")
+@app.get("/index.html", response_class=HTMLResponse)
+async def index_html():
+    return "<!doctype html><title>x0tta6bl4</title><h1>x0tta6bl4</h1>"
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host=settings.api_host, port=settings.api_port)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

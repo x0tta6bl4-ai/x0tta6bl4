@@ -198,7 +198,7 @@ class NodeReissueTokenResponse(BaseModel):
 class NodeHeartbeatRequest(BaseModel):
     """Node heartbeat telemetry."""
     mesh_id: Optional[str] = None
-    node_id: str
+    node_id: Optional[str] = None
     cpu_usage: float = 0.0
     memory_usage: float = 0.0
     neighbors_count: int = 0
@@ -291,6 +291,7 @@ class RegisterResponse(BaseModel):
     user_id: str
     email: str
     api_key: str
+    access_token: Optional[str] = None  # Alias for api_key
     message: str
 
 

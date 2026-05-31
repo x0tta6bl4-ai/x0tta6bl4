@@ -21,7 +21,7 @@ from ..auth import get_current_user, UserContext
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/pilot", tags=["pilot"])
+router = APIRouter( tags=["pilot"])
 _MODULAR_PILOT_SIGNUP_SOURCE_AGENT = "maas-modular-pilot-signup"
 _MODULAR_PILOT_STATUS_SOURCE_AGENT = "maas-modular-pilot-status-read"
 _MODULAR_PILOT_ACTIVATE_SOURCE_AGENT = "maas-modular-pilot-activate"

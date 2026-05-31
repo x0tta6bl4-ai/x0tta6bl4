@@ -35,7 +35,7 @@ from src.coordination.events import EventBus, EventType, get_event_bus
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/batman", tags=["batman"])
+router = APIRouter( tags=["batman"])
 
 _MODULAR_BATMAN_HEALTH_SOURCE_AGENT = "maas-modular-batman-health-read"
 _MODULAR_BATMAN_METRICS_SOURCE_AGENT = "maas-modular-batman-metrics-read"

@@ -26,7 +26,7 @@ from src.coordination.events import EventBus, EventType, get_event_bus
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/billing", tags=["billing"])
+router = APIRouter( tags=["billing"])
 
 _MODULAR_BILLING_PAYMENT_SOURCE_AGENT = "maas-modular-billing-payment-intent"
 _MODULAR_BILLING_WEBHOOK_SOURCE_AGENT = "maas-modular-billing-webhook"

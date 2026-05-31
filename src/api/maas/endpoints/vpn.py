@@ -49,7 +49,7 @@ except Exception as legacy_import_error:  # pragma: no cover - defensive runtime
     _legacy_user_db = None
     logger.warning("Legacy database module unavailable for VPN ZKP flow: %s", legacy_import_error)
 
-router = APIRouter(prefix="/vpn", tags=["vpn"])
+router = APIRouter( tags=["vpn"])
 limiter = Limiter(key_func=get_remote_address)
 
 xui: Optional[XUIAPIClient] = None
