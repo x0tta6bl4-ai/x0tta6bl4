@@ -14,6 +14,7 @@ from src.services.provisioning_service import (
     ProvisioningService,
     ProvisioningSource,
     _SimulatedXUI,
+    _mesh_provisioning_cross_plane_gate,
     _resolve_mesh_provisioner,
 )
 
@@ -273,6 +274,24 @@ async def test_provision_and_terminate_mesh_paths(monkeypatch):
         is False
     )
     assert (
+        created["mesh_provisioning_claim_gate"][
+            "economy_finality_claim_allowed"
+        ]
+        is False
+    )
+    assert (
+        created["mesh_provisioning_claim_gate"][
+            "bank_settlement_claim_allowed"
+        ]
+        is False
+    )
+    assert (
+        created["mesh_provisioning_claim_gate"][
+            "revenue_recognition_claim_allowed"
+        ]
+        is False
+    )
+    assert (
         created["cross_plane_claim_gate"]["surface"]
         == "provisioning_service.provision_mesh"
     )
@@ -360,6 +379,18 @@ def test_resolve_mesh_provisioner_returns_none_when_both_fail():
         result = _resolve_mesh_provisioner()
         # May return a module or None depending on environment; just check no exception
         assert result is None or result is not None  # no crash
+
+
+def test_mesh_provisioning_cross_plane_gate_requests_economy_claims():
+    gate = _mesh_provisioning_cross_plane_gate(
+        "provisioning_service.provision_mesh"
+    )
+
+    assert gate["allowed"] is False
+    assert "settlement_finality" in gate["requested_claim_ids"]
+    assert "economy_finality" in gate["requested_claim_ids"]
+    assert "bank_settlement" in gate["requested_claim_ids"]
+    assert "revenue_recognition" in gate["requested_claim_ids"]
 
 
 # ---------------------------------------------------------------------------

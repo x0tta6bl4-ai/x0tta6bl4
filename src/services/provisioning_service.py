@@ -42,14 +42,17 @@ _MESH_PROVISIONING_CROSS_PLANE_CLAIMS = (
     "customer_traffic",
     "dpi_bypass",
     "settlement_finality",
+    "economy_finality",
+    "bank_settlement",
+    "revenue_recognition",
 )
 MESH_PROVISIONING_CLAIM_BOUNDARY = (
     "MaaS mesh provisioning service results record a local delegate call to the "
     "configured MeshProvisioner and bounded lifecycle fields only. success, "
     "status, and nodes do not prove external infrastructure provisioning, node "
     "reachability, node dataplane join, routing convergence, customer traffic, "
-    "external DPI bypass, settlement finality, production SLOs, or production "
-    "readiness."
+    "external DPI bypass, settlement finality, bank settlement, revenue "
+    "recognition, production SLOs, or production readiness."
 )
 
 
@@ -125,6 +128,9 @@ def _mesh_provisioning_claim_gate(
         "customer_traffic_claim_allowed": False,
         "external_dpi_bypass_claim_allowed": False,
         "settlement_finality_claim_allowed": False,
+        "economy_finality_claim_allowed": False,
+        "bank_settlement_claim_allowed": False,
+        "revenue_recognition_claim_allowed": False,
         "production_slo_claim_allowed": False,
         "production_readiness_claim_allowed": False,
         "claim_boundary": MESH_PROVISIONING_CLAIM_BOUNDARY,
