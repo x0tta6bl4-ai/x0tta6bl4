@@ -54,10 +54,12 @@ Version: 2.0
 Author: Senior Systems Engineer
 """
 
+import hashlib
 import json
 import logging
 import os
 import struct
+import subprocess
 import threading
 import time
 from collections import defaultdict, deque
@@ -66,7 +68,68 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from src.coordination.events import EventBus, EventType
+from src.services.service_event_identity import service_event_identity
+
 logger = logging.getLogger(__name__)
+
+EBPF_TELEMETRY_MODULE_SERVICE_NAME = "ebpf-telemetry-module"
+EBPF_TELEMETRY_MODULE_LAYER = "network_ebpf_telemetry_module_observed_state"
+EBPF_TELEMETRY_MODULE_CLAIM_BOUNDARY = (
+    "Local legacy eBPF telemetry module evidence only. Events record BCC map "
+    "reads, bpftool availability/read attempts, cache hits, multi-map summaries, "
+    "and bounded output metadata with hashed map/command/result selectors; they "
+    "do not prove that eBPF programs are attached, kernel maps contain production "
+    "traffic, or collected values are customer-path truth."
+)
+
+
+def _sha256_text(value: str) -> Optional[str]:
+    if not value:
+        return None
+    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return hashlib.sha256(value).hexdigest()
+    return _sha256_text(str(value))
+
+
+def _bounded_hashes(values: List[Any], limit: int = 20) -> Dict[str, Any]:
+    selected = values[:limit]
+    return {
+        "hashes": [_hash_value(value) for value in selected],
+        "count": len(values),
+        "limit": limit,
+        "truncated": len(values) > limit,
+    }
+
+
+def _output_metadata(value: Any, limit: int = 512) -> Dict[str, Any]:
+    text = "" if value is None else str(value)
+    encoded = text.encode("utf-8", errors="replace")
+    return {
+        "bytes": len(encoded),
+        "sha256": hashlib.sha256(encoded).hexdigest() if encoded else None,
+        "sample_limit": limit,
+        "sample_redacted": True,
+        "truncated": len(encoded) > limit,
+    }
+
+
+def _identity_metadata() -> Dict[str, Any]:
+    identity = service_event_identity(service_name=EBPF_TELEMETRY_MODULE_SERVICE_NAME)
+    return {
+        "service_name": EBPF_TELEMETRY_MODULE_SERVICE_NAME,
+        "layer": EBPF_TELEMETRY_MODULE_LAYER,
+        "spiffe_id_configured": bool(identity.get("spiffe_id")),
+        "did_configured": bool(identity.get("did")),
+        "wallet_address_configured": bool(identity.get("wallet_address")),
+        "redacted": True,
+    }
 
 # Try to import BCC
 BCC_AVAILABLE = False
@@ -427,25 +490,162 @@ class MapReader:
     - Zero-copy where possible
     """
 
-    def __init__(self, config: TelemetryConfig, security: SecurityManager):
+    def __init__(
+        self,
+        config: TelemetryConfig,
+        security: SecurityManager,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+    ):
         self.config = config
         self.security = security
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
+        self.source_agent = EBPF_TELEMETRY_MODULE_SERVICE_NAME
         self.bpftool_available = self._check_bpftool()
         self.cache: Dict[str, Tuple[float, Any]] = {}
         self.cache_ttl = 0.5  # seconds
 
         logger.info(f"MapReader initialized (bpftool={self.bpftool_available})")
 
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        return self.event_bus
+
+    def _publish_observation(
+        self,
+        *,
+        stage: str,
+        operation: str,
+        status: str,
+        source_mode: str,
+        start: float,
+        returncode: Optional[int] = None,
+        parsed_summary: Optional[Dict[str, Any]] = None,
+        error: Optional[BaseException] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+
+        payload: Dict[str, Any] = {
+            "component": "network.ebpf.telemetry_module",
+            "stage": stage,
+            "operation": operation,
+            "operation_resource": f"network:ebpf:telemetry_module:{operation}",
+            "service_name": self.source_agent,
+            "layer": EBPF_TELEMETRY_MODULE_LAYER,
+            "identity": _identity_metadata(),
+            "status": status,
+            "source_mode": source_mode,
+            "returncode": returncode,
+            "duration_ms": round((time.monotonic() - start) * 1000, 3),
+            "read_only": True,
+            "observed_state": True,
+            "safe_observation": True,
+            "safe_actuator": False,
+            "payloads_redacted": True,
+            "parsed_summary": parsed_summary or {},
+            "claim_boundary": EBPF_TELEMETRY_MODULE_CLAIM_BOUNDARY,
+        }
+        if error is not None:
+            payload["error"] = {
+                "type": type(error).__name__,
+                "message_hash": _hash_value(str(error)),
+                "message_redacted": True,
+            }
+        if extra:
+            payload.update(extra)
+
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                self.source_agent,
+                payload,
+                priority=5,
+            )
+            return event.event_id
+        except Exception:
+            logger.exception("Failed to publish telemetry module observation")
+            return None
+
+    def _map_selector_metadata(self, map_name: str) -> Dict[str, Any]:
+        return {
+            "map_name_hash": _hash_value(map_name),
+            "map_name_redacted": True,
+        }
+
+    def _result_selector_metadata(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "result_key_hashes": _bounded_hashes(list(data.keys())),
+            "result_selectors_redacted": True,
+        }
+
+    def _result_selector_metadata_from_any(self, data: Any) -> Dict[str, Any]:
+        if isinstance(data, dict):
+            return self._result_selector_metadata(data)
+        return {"result_selectors_redacted": True}
+
     def _check_bpftool(self) -> bool:
         """Check if bpftool is available."""
+        op_start = time.monotonic()
+        command_shape = ["bpftool", "--version"]
         try:
-            import subprocess
-
             result = subprocess.run(
-                ["bpftool", "--version"], capture_output=True, timeout=2
+                command_shape, capture_output=True, timeout=2
             )
-            return result.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+            available = result.returncode == 0
+            self._publish_observation(
+                stage="telemetry_bpftool_probe_completed",
+                operation="check_bpftool",
+                status="success" if available else "failure",
+                source_mode="subprocess",
+                start=op_start,
+                returncode=result.returncode,
+                parsed_summary={"bpftool_available": available},
+                extra={
+                    "command_shape": command_shape,
+                    "command_hash": _hash_value(" ".join(command_shape)),
+                    "stdout_metadata": _output_metadata(
+                        getattr(result, "stdout", None)
+                    ),
+                    "stderr_metadata": _output_metadata(
+                        getattr(result, "stderr", None)
+                    ),
+                },
+            )
+            return available
+        except subprocess.TimeoutExpired as exc:
+            self._publish_observation(
+                stage="telemetry_bpftool_probe_timeout",
+                operation="check_bpftool",
+                status="failure",
+                source_mode="subprocess",
+                start=op_start,
+                returncode=124,
+                error=exc,
+                parsed_summary={"bpftool_available": False},
+                extra={
+                    "command_shape": command_shape,
+                    "command_hash": _hash_value(" ".join(command_shape)),
+                },
+            )
+            return False
+        except FileNotFoundError as exc:
+            self._publish_observation(
+                stage="telemetry_bpftool_probe_missing",
+                operation="check_bpftool",
+                status="failure",
+                source_mode="subprocess",
+                start=op_start,
+                returncode=127,
+                error=exc,
+                parsed_summary={"bpftool_available": False},
+                extra={
+                    "command_shape": command_shape,
+                    "command_hash": _hash_value(" ".join(command_shape)),
+                },
+            )
             return False
 
     def read_map_via_bcc(self, bpf_program: Any, map_name: str) -> Dict[str, Any]:
@@ -459,7 +659,19 @@ class MapReader:
         Returns:
             Dictionary with map data
         """
+        op_start = time.monotonic()
         if not BCC_AVAILABLE:
+            self._publish_observation(
+                stage="telemetry_bcc_map_read_unavailable",
+                operation="read_map_via_bcc",
+                status="failure",
+                source_mode="bcc",
+                start=op_start,
+                returncode=1,
+                error=RuntimeError("BCC not available"),
+                parsed_summary={"bcc_available": False, "result_count": 0},
+                extra=self._map_selector_metadata(map_name),
+            )
             raise RuntimeError("BCC not available")
 
         try:
@@ -487,10 +699,42 @@ class MapReader:
                 else:
                     result[key_str] = value
 
+            self._publish_observation(
+                stage="telemetry_bcc_map_read_completed",
+                operation="read_map_via_bcc",
+                status="success",
+                source_mode="bcc",
+                start=op_start,
+                returncode=0,
+                parsed_summary={
+                    "bcc_available": True,
+                    "result_count": len(result),
+                    "bpf_program_present": bpf_program is not None,
+                },
+                extra={
+                    **self._map_selector_metadata(map_name),
+                    **self._result_selector_metadata(result),
+                },
+            )
             return result
 
         except Exception as e:
-            logger.error(f"Error reading map {map_name} via BCC: {e}")
+            self._publish_observation(
+                stage="telemetry_bcc_map_read_failed",
+                operation="read_map_via_bcc",
+                status="failure",
+                source_mode="bcc",
+                start=op_start,
+                returncode=1,
+                error=e,
+                parsed_summary={
+                    "bcc_available": True,
+                    "result_count": 0,
+                    "bpf_program_present": bpf_program is not None,
+                },
+                extra=self._map_selector_metadata(map_name),
+            )
+            logger.error("Error reading map via BCC: %s", type(e).__name__)
             raise
 
     def read_map_via_bpftool(self, map_name: str) -> Dict[str, Any]:
@@ -503,8 +747,9 @@ class MapReader:
         Returns:
             Dictionary with map data
         """
-        import subprocess
-
+        op_start = time.monotonic()
+        command_shape = ["bpftool", "map", "dump", "name", "<map_name>", "--json"]
+        command_hash = _hash_value(" ".join(command_shape))
         try:
             result = subprocess.run(
                 ["bpftool", "map", "dump", "name", map_name, "--json"],
@@ -513,33 +758,125 @@ class MapReader:
                 timeout=self.config.read_timeout,
             )
 
-            if result.returncode != 0:
-                raise RuntimeError(f"bpftool failed: {result.stderr}")
-
-            data = json.loads(result.stdout)
-
-            # Parse map data
-            parsed = {}
-            if isinstance(data, dict) and "data" in data:
-                for entry in data["data"]:
-                    key = entry.get("key")
-                    value = entry.get("value")
-
-                    # Convert key to string
-                    if isinstance(key, list):
-                        key_str = "_".join(str(k) for k in key)
-                    else:
-                        key_str = str(key)
-
-                    parsed[key_str] = value
-
-            return parsed
-
-        except subprocess.TimeoutExpired:
-            raise RuntimeError(f"bpftool timeout reading map {map_name}")
+        except subprocess.TimeoutExpired as exc:
+            self._publish_observation(
+                stage="telemetry_bpftool_map_read_timeout",
+                operation="read_map_via_bpftool",
+                status="failure",
+                source_mode="subprocess",
+                start=op_start,
+                returncode=124,
+                error=exc,
+                parsed_summary={"result_count": 0, "timeout": self.config.read_timeout},
+                extra={
+                    **self._map_selector_metadata(map_name),
+                    "command_shape": command_shape,
+                    "command_hash": command_hash,
+                },
+            )
+            raise RuntimeError("bpftool timeout reading map") from exc
         except Exception as e:
-            logger.error(f"Error reading map {map_name} via bpftool: {e}")
+            self._publish_observation(
+                stage="telemetry_bpftool_map_read_subprocess_failed",
+                operation="read_map_via_bpftool",
+                status="failure",
+                source_mode="subprocess",
+                start=op_start,
+                returncode=1,
+                error=e,
+                parsed_summary={"result_count": 0},
+                extra={
+                    **self._map_selector_metadata(map_name),
+                    "command_shape": command_shape,
+                    "command_hash": command_hash,
+                },
+            )
+            logger.error("Error executing bpftool map read: %s", type(e).__name__)
+            raise RuntimeError("bpftool execution failed") from e
+
+        stdout_metadata = _output_metadata(getattr(result, "stdout", None))
+        stderr_metadata = _output_metadata(getattr(result, "stderr", None))
+        if result.returncode != 0:
+            self._publish_observation(
+                stage="telemetry_bpftool_map_read_failed",
+                operation="read_map_via_bpftool",
+                status="failure",
+                source_mode="subprocess",
+                start=op_start,
+                returncode=result.returncode,
+                parsed_summary={"result_count": 0},
+                extra={
+                    **self._map_selector_metadata(map_name),
+                    "command_shape": command_shape,
+                    "command_hash": command_hash,
+                    "stdout_metadata": stdout_metadata,
+                    "stderr_metadata": stderr_metadata,
+                },
+            )
+            raise RuntimeError("bpftool failed")
+
+        try:
+            data = json.loads(result.stdout)
+        except Exception as exc:
+            self._publish_observation(
+                stage="telemetry_bpftool_map_parse_failed",
+                operation="read_map_via_bpftool",
+                status="failure",
+                source_mode="subprocess",
+                start=op_start,
+                returncode=result.returncode,
+                error=exc,
+                parsed_summary={"result_count": 0},
+                extra={
+                    **self._map_selector_metadata(map_name),
+                    "command_shape": command_shape,
+                    "command_hash": command_hash,
+                    "stdout_metadata": stdout_metadata,
+                    "stderr_metadata": stderr_metadata,
+                },
+            )
+            logger.error("Error parsing bpftool map output: %s", type(exc).__name__)
             raise
+
+        # Parse map data
+        parsed = {}
+        raw_entries_count = 0
+        if isinstance(data, dict) and "data" in data:
+            raw_entries = data["data"] if isinstance(data["data"], list) else []
+            raw_entries_count = len(raw_entries)
+            for entry in raw_entries:
+                key = entry.get("key")
+                value = entry.get("value")
+
+                # Convert key to string
+                if isinstance(key, list):
+                    key_str = "_".join(str(k) for k in key)
+                else:
+                    key_str = str(key)
+
+                parsed[key_str] = value
+
+        self._publish_observation(
+            stage="telemetry_bpftool_map_read_completed",
+            operation="read_map_via_bpftool",
+            status="success",
+            source_mode="subprocess",
+            start=op_start,
+            returncode=result.returncode,
+            parsed_summary={
+                "result_count": len(parsed),
+                "raw_entries_count": raw_entries_count,
+            },
+            extra={
+                **self._map_selector_metadata(map_name),
+                **self._result_selector_metadata(parsed),
+                "command_shape": command_shape,
+                "command_hash": command_hash,
+                "stdout_metadata": stdout_metadata,
+                "stderr_metadata": stderr_metadata,
+            },
+        )
+        return parsed
 
     def read_map(
         self, bpf_program: Optional[Any], map_name: str, use_cache: bool = True
@@ -555,10 +892,34 @@ class MapReader:
         Returns:
             Dictionary with map data
         """
+        op_start = time.monotonic()
+        bcc_error: Optional[Exception] = None
+        bpftool_error: Optional[Exception] = None
+
         # Check cache
         if use_cache and map_name in self.cache:
             cached_time, cached_data = self.cache[map_name]
             if time.time() - cached_time < self.cache_ttl:
+                self._publish_observation(
+                    stage="telemetry_map_read_cache_hit",
+                    operation="read_map",
+                    status="success",
+                    source_mode="cache",
+                    start=op_start,
+                    returncode=0,
+                    parsed_summary={
+                        "backend": "cache",
+                        "result_count": len(cached_data)
+                        if hasattr(cached_data, "__len__")
+                        else 0,
+                        "use_cache": use_cache,
+                        "bpf_program_present": bpf_program is not None,
+                    },
+                    extra={
+                        **self._map_selector_metadata(map_name),
+                        **self._result_selector_metadata_from_any(cached_data),
+                    },
+                )
                 return cached_data
 
         # Try BCC first
@@ -566,21 +927,128 @@ class MapReader:
             try:
                 data = self.read_map_via_bcc(bpf_program, map_name)
                 self.cache[map_name] = (time.time(), data)
+                self._publish_observation(
+                    stage="telemetry_map_read_completed",
+                    operation="read_map",
+                    status="success",
+                    source_mode="bcc",
+                    start=op_start,
+                    returncode=0,
+                    parsed_summary={
+                        "backend": "bcc",
+                        "result_count": len(data),
+                        "use_cache": use_cache,
+                        "bpf_program_present": True,
+                    },
+                    extra={
+                        **self._map_selector_metadata(map_name),
+                        **self._result_selector_metadata(data),
+                    },
+                )
                 return data
             except Exception as e:
-                logger.warning(f"BCC read failed for {map_name}, trying bpftool: {e}")
+                bcc_error = e
+                logger.warning(
+                    "BCC map read failed, trying bpftool: %s", type(e).__name__
+                )
 
         # Fallback to bpftool
         if self.bpftool_available:
             try:
                 data = self.read_map_via_bpftool(map_name)
                 self.cache[map_name] = (time.time(), data)
+                self._publish_observation(
+                    stage="telemetry_map_read_completed",
+                    operation="read_map",
+                    status="success",
+                    source_mode="bpftool",
+                    start=op_start,
+                    returncode=0,
+                    parsed_summary={
+                        "backend": "bpftool",
+                        "result_count": len(data),
+                        "use_cache": use_cache,
+                        "bpf_program_present": bpf_program is not None,
+                        "bcc_failed_first": bcc_error is not None,
+                    },
+                    extra={
+                        **self._map_selector_metadata(map_name),
+                        **self._result_selector_metadata(data),
+                        "bcc_error": {
+                            "type": type(bcc_error).__name__,
+                            "message_hash": _hash_value(str(bcc_error)),
+                            "message_redacted": True,
+                        }
+                        if bcc_error is not None
+                        else None,
+                    },
+                )
                 return data
             except Exception as e:
-                logger.error(f"bpftool read failed for {map_name}: {e}")
+                bpftool_error = e
+                logger.error("bpftool map read failed: %s", type(e).__name__)
+                self._publish_observation(
+                    stage="telemetry_map_read_backend_failed",
+                    operation="read_map",
+                    status="failure",
+                    source_mode="bpftool",
+                    start=op_start,
+                    returncode=1,
+                    error=e,
+                    parsed_summary={
+                        "backend": "bpftool",
+                        "result_count": 0,
+                        "use_cache": use_cache,
+                        "bpf_program_present": bpf_program is not None,
+                        "bcc_failed_first": bcc_error is not None,
+                    },
+                    extra={
+                        **self._map_selector_metadata(map_name),
+                        "bcc_error": {
+                            "type": type(bcc_error).__name__,
+                            "message_hash": _hash_value(str(bcc_error)),
+                            "message_redacted": True,
+                        }
+                        if bcc_error is not None
+                        else None,
+                    },
+                )
 
         # Return empty dict if all methods fail
-        logger.error(f"All methods failed to read map {map_name}")
+        logger.error("All methods failed to read map")
+        self._publish_observation(
+            stage="telemetry_map_read_empty",
+            operation="read_map",
+            status="empty",
+            source_mode="none",
+            start=op_start,
+            returncode=1,
+            parsed_summary={
+                "backend": "none",
+                "result_count": 0,
+                "use_cache": use_cache,
+                "bpf_program_present": bpf_program is not None,
+                "bcc_available": BCC_AVAILABLE,
+                "bpftool_available": self.bpftool_available,
+            },
+            extra={
+                **self._map_selector_metadata(map_name),
+                "bcc_error": {
+                    "type": type(bcc_error).__name__,
+                    "message_hash": _hash_value(str(bcc_error)),
+                    "message_redacted": True,
+                }
+                if bcc_error is not None
+                else None,
+                "bpftool_error": {
+                    "type": type(bpftool_error).__name__,
+                    "message_hash": _hash_value(str(bpftool_error)),
+                    "message_redacted": True,
+                }
+                if bpftool_error is not None
+                else None,
+            },
+        )
         return {}
 
     def read_multiple_maps(
@@ -596,6 +1064,7 @@ class MapReader:
         Returns:
             Dictionary mapping map names to their data
         """
+        op_start = time.monotonic()
         results = {}
 
         with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
@@ -609,9 +1078,27 @@ class MapReader:
                 try:
                     results[map_name] = future.result()
                 except Exception as e:
-                    logger.error(f"Error reading map {map_name}: {e}")
+                    logger.error("Error reading map in batch: %s", type(e).__name__)
                     results[map_name] = {}
 
+        self._publish_observation(
+            stage="telemetry_multiple_maps_read_completed",
+            operation="read_multiple_maps",
+            status="success",
+            source_mode="mixed",
+            start=op_start,
+            returncode=0,
+            parsed_summary={
+                "maps_requested": len(map_names),
+                "maps_returned": len(results),
+                "empty_results": sum(1 for data in results.values() if not data),
+                "bpf_program_present": bpf_program is not None,
+            },
+            extra={
+                "map_name_hashes": _bounded_hashes(map_names),
+                "map_names_redacted": True,
+            },
+        )
         return results
 
     def clear_cache(self):
@@ -985,7 +1472,12 @@ class EBPFTelemetryCollector:
         collector.export_to_prometheus(metrics)
     """
 
-    def __init__(self, config: Optional[TelemetryConfig] = None):
+    def __init__(
+        self,
+        config: Optional[TelemetryConfig] = None,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+    ):
         """
         Initialize telemetry collector.
 
@@ -993,8 +1485,15 @@ class EBPFTelemetryCollector:
             config: Optional configuration
         """
         self.config = config or TelemetryConfig()
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
         self.security = SecurityManager(self.config)
-        self.map_reader = MapReader(self.config, self.security)
+        self.map_reader = MapReader(
+            self.config,
+            self.security,
+            event_bus=event_bus,
+            event_project_root=event_project_root,
+        )
         self.perf_reader = PerfBufferReader(self.config, self.security)
         self.prometheus = PrometheusExporter(self.config, self.security)
 
@@ -1251,7 +1750,10 @@ class EBPFTelemetryCollector:
 
 
 def create_collector(
-    prometheus_port: int = 9090, collection_interval: float = 1.0
+    prometheus_port: int = 9090,
+    collection_interval: float = 1.0,
+    event_bus: Optional[EventBus] = None,
+    event_project_root: str = ".",
 ) -> EBPFTelemetryCollector:
     """
     Create a telemetry collector with default settings.
@@ -1266,11 +1768,19 @@ def create_collector(
     config = TelemetryConfig(
         prometheus_port=prometheus_port, collection_interval=collection_interval
     )
-    return EBPFTelemetryCollector(config)
+    return EBPFTelemetryCollector(
+        config,
+        event_bus=event_bus,
+        event_project_root=event_project_root,
+    )
 
 
 def quick_start(
-    bpf_program: Any, program_name: str, prometheus_port: int = 9090
+    bpf_program: Any,
+    program_name: str,
+    prometheus_port: int = 9090,
+    event_bus: Optional[EventBus] = None,
+    event_project_root: str = ".",
 ) -> EBPFTelemetryCollector:
     """
     Quick start telemetry collection for a single eBPF program.
@@ -1283,7 +1793,11 @@ def quick_start(
     Returns:
         EBPFTelemetryCollector instance
     """
-    collector = create_collector(prometheus_port)
+    collector = create_collector(
+        prometheus_port,
+        event_bus=event_bus,
+        event_project_root=event_project_root,
+    )
     collector.register_program(bpf_program, program_name)
     collector.start()
     return collector

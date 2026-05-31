@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
 import src.network.ebpf.ebpf_loader as mod
 
 
@@ -59,6 +61,46 @@ def test_load_program_stub_when_bcc_missing(monkeypatch):
     assert program.name == "test_prog"
     assert isinstance(program.bpf, mod.StubEBPFProgram)
     assert program.loaded is True
+
+
+def test_load_program_stub_publishes_redacted_loader_evidence(monkeypatch, tmp_path):
+    monkeypatch.setenv("BCC_STUB_MODE", "true")
+    monkeypatch.setattr(mod, "BCC_AVAILABLE", False)
+    bus = EventBus(project_root=str(tmp_path))
+    loader = mod.EBPFLoader(event_bus=bus)
+    program_path = "/tmp/private/example_prog.c"
+
+    program = loader.load_program(program_path, cflags=["-DSECRET=1"])
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="ebpf-loader",
+        limit=5,
+    )
+    assert len(events) == 1
+    payload = events[-1].data
+    assert payload["stage"] == "program_stub_created"
+    assert payload["operation"] == "load_program"
+    assert payload["mode"] == "stub"
+    assert payload["bcc_available"] is False
+    assert payload["bcc_stub_mode_enabled"] is True
+    assert payload["kernel_loaded"] is False
+    assert payload["program_loaded_flag"] is True
+    assert payload["program_name_hash"] == hashlib.sha256(
+        program.name.encode("utf-8")
+    ).hexdigest()
+    assert payload["program_path_hash"] == hashlib.sha256(
+        program_path.encode("utf-8")
+    ).hexdigest()
+    assert payload["program_path_redacted"] is True
+    assert payload["program_name_redacted"] is True
+    assert payload["cflags_count"] == 1
+    assert payload["cflags_redacted"] is True
+    assert payload["payloads_redacted"] is True
+    assert payload["safe_observation"] is True
+    assert program_path not in str(payload)
+    assert "example_prog" not in str(payload)
+    assert "-DSECRET=1" not in str(payload)
 
 
 def test_load_program_bcc_success_and_default_cflags(monkeypatch, tmp_path):

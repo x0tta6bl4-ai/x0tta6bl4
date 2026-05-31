@@ -15,16 +15,93 @@ References:
 - Cilium's eBPF library patterns
 """
 
+import hashlib
 import logging
 import subprocess
 import time
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+from src.coordination.events import EventBus, EventType
 from src.core.subprocess_validator import safe_run
+from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
+
+EBPF_LEGACY_LOADER_SERVICE_NAME = "ebpf-legacy-loader"
+EBPF_LEGACY_LOADER_LAYER = "network_ebpf_legacy_loader_observed_state"
+EBPF_LEGACY_LOADER_CLAIM_BOUNDARY = (
+    "Local legacy eBPF loader evidence only. Events record bpftool/ip "
+    "command outcomes, return codes, duration, bounded output hashes, and "
+    "redacted selectors; they do not prove production traffic, remote peer "
+    "reachability, route quality, or attached kernel program correctness beyond "
+    "the local command result."
+)
+
+
+def _normalize_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
+def _sha256_text(value: str) -> Optional[str]:
+    if not value:
+        return None
+    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return _sha256_text(str(value))
+
+
+def _bounded_output_metadata(
+    stdout: Optional[Any],
+    stderr: Optional[Any],
+) -> Dict[str, Any]:
+    safe_stdout = _normalize_text(stdout)
+    safe_stderr = _normalize_text(stderr)
+    return {
+        "stdout_chars": len(safe_stdout),
+        "stderr_chars": len(safe_stderr),
+        "stdout_sha256": _sha256_text(safe_stdout),
+        "stderr_sha256": _sha256_text(safe_stderr),
+        "output_bounded": True,
+        "output_redacted": True,
+    }
+
+
+def _identity_metadata() -> Dict[str, Any]:
+    identity = service_event_identity(service_name=EBPF_LEGACY_LOADER_SERVICE_NAME)
+    return {
+        "service_name": EBPF_LEGACY_LOADER_SERVICE_NAME,
+        "layer": EBPF_LEGACY_LOADER_LAYER,
+        "spiffe_id_configured": bool(identity.get("spiffe_id")),
+        "did_configured": bool(identity.get("did")),
+        "wallet_address_configured": bool(identity.get("wallet_address")),
+        "redacted": True,
+    }
+
+
+def _redacted_command(
+    command: List[Any],
+    redacted_indices: Tuple[int, ...],
+) -> List[str]:
+    redacted = set(redacted_indices)
+    safe_command: List[str] = []
+    for index, item in enumerate(command):
+        if index == 0:
+            safe_command.append(Path(str(item)).name)
+        elif index in redacted:
+            safe_command.append("[redacted]")
+        else:
+            safe_command.append(str(item))
+    return safe_command
 
 # Monitoring metrics
 try:
@@ -109,7 +186,12 @@ class EBPFLoader:
         >>> loader.unload_program(program_id)
     """
 
-    def __init__(self, programs_dir: Optional[Path] = None):
+    def __init__(
+        self,
+        programs_dir: Optional[Path] = None,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+    ):
         """
         Initialize the eBPF loader.
 
@@ -122,8 +204,85 @@ class EBPFLoader:
         self.attached_interfaces: Dict[str, List[Dict]] = (
             {}
         )  # interface -> [attachments]
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
+        self.source_agent = EBPF_LEGACY_LOADER_SERVICE_NAME
 
         logger.info(f"eBPF Loader initialized. Programs directory: {self.programs_dir}")
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        try:
+            self.event_bus = EventBus(project_root=self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize legacy eBPF loader EventBus: %s", exc)
+            return None
+
+    def _publish_observation(
+        self,
+        *,
+        stage: str,
+        operation: str,
+        status: str,
+        source_mode: str,
+        start: float,
+        returncode: Optional[int] = None,
+        stdout: Optional[Any] = None,
+        stderr: Optional[Any] = None,
+        command: Optional[List[str]] = None,
+        read_only: bool = True,
+        parsed_summary: Optional[Dict[str, Any]] = None,
+        error: Optional[BaseException] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+
+        payload: Dict[str, Any] = {
+            "component": "network.ebpf.loader.legacy",
+            "stage": stage,
+            "operation": operation,
+            "operation_resource": f"network:ebpf:legacy_loader:{operation}",
+            "service_name": self.source_agent,
+            "layer": EBPF_LEGACY_LOADER_LAYER,
+            "identity": _identity_metadata(),
+            "status": status,
+            "source_mode": source_mode,
+            "returncode": returncode,
+            "duration_ms": round((time.monotonic() - start) * 1000, 3),
+            "command": command or [],
+            "read_only": read_only,
+            "observed_state": True,
+            "safe_observation": True,
+            "safe_actuator": False,
+            "parsed_summary": parsed_summary or {},
+            "output": _bounded_output_metadata(stdout, stderr),
+            "payloads_redacted": True,
+            "claim_boundary": EBPF_LEGACY_LOADER_CLAIM_BOUNDARY,
+        }
+        if error is not None:
+            payload["error"] = {
+                "type": type(error).__name__,
+                "message_hash": _hash_value(str(error)),
+                "message_redacted": True,
+            }
+        if extra:
+            payload.update(extra)
+
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                self.source_agent,
+                payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish legacy eBPF loader observation: %s", exc)
+            return None
 
     def _parse_elf_sections(self, elf_path: Path) -> Dict[str, Dict]:
         """
@@ -193,12 +352,38 @@ class EBPFLoader:
         Returns:
             (prog_fd, pinned_path) or (None, None) if failed
         """
+        which_start = time.monotonic()
+        which_cmd = ["which", "bpftool"]
         try:
             # Check if bpftool is available
-            result = safe_run(["which", "bpftool"], capture_output=True, text=True)
+            result = safe_run(which_cmd, capture_output=True, text=True)
             if result.returncode != 0:
+                self._publish_observation(
+                    stage="legacy_loader_bpftool_unavailable",
+                    operation="bpftool_available",
+                    status="empty",
+                    source_mode="which",
+                    start=which_start,
+                    returncode=result.returncode,
+                    stdout=getattr(result, "stdout", None),
+                    stderr=getattr(result, "stderr", None),
+                    command=_redacted_command(which_cmd, redacted_indices=()),
+                    parsed_summary={"bpftool_available": False},
+                )
                 logger.debug("bpftool not found, falling back to alternative methods")
                 return None, None
+            self._publish_observation(
+                stage="legacy_loader_bpftool_available",
+                operation="bpftool_available",
+                status="success",
+                source_mode="which",
+                start=which_start,
+                returncode=result.returncode,
+                stdout=getattr(result, "stdout", None),
+                stderr=getattr(result, "stderr", None),
+                command=_redacted_command(which_cmd, redacted_indices=()),
+                parsed_summary={"bpftool_available": True},
+            )
 
             # Load program using bpftool
             # bpftool prog load <program.o> /sys/fs/bpf/<name>
@@ -206,23 +391,106 @@ class EBPFLoader:
             bpffs_path.parent.mkdir(parents=True, exist_ok=True)
 
             cmd = ["bpftool", "prog", "load", str(program_path), str(bpffs_path)]
+            load_start = time.monotonic()
             result = safe_run(cmd, capture_output=True, text=True, timeout=10)
 
             if result.returncode == 0:
+                self._publish_observation(
+                    stage="legacy_loader_bpftool_load_succeeded",
+                    operation="bpftool_prog_load",
+                    status="success",
+                    source_mode="bpftool",
+                    start=load_start,
+                    returncode=result.returncode,
+                    stdout=getattr(result, "stdout", None),
+                    stderr=getattr(result, "stderr", None),
+                    command=_redacted_command(cmd, redacted_indices=(3, 4)),
+                    read_only=False,
+                    parsed_summary={"pinned": True, "program_type": program_type.value},
+                    extra={
+                        "program_path_hash": _hash_value(program_path),
+                        "bpffs_path_hash": _hash_value(bpffs_path),
+                        "program_path_redacted": True,
+                        "bpffs_path_redacted": True,
+                    },
+                )
                 # Extract program ID from output or by reading pinned path
                 logger.info(f"Program loaded via bpftool to {bpffs_path}")
                 return None, str(bpffs_path)  # bpftool handles FD internally
             else:
+                self._publish_observation(
+                    stage="legacy_loader_bpftool_load_failed",
+                    operation="bpftool_prog_load",
+                    status="failure",
+                    source_mode="bpftool",
+                    start=load_start,
+                    returncode=result.returncode,
+                    stdout=getattr(result, "stdout", None),
+                    stderr=getattr(result, "stderr", None),
+                    command=_redacted_command(cmd, redacted_indices=(3, 4)),
+                    read_only=False,
+                    parsed_summary={"pinned": False, "program_type": program_type.value},
+                    extra={
+                        "program_path_hash": _hash_value(program_path),
+                        "bpffs_path_hash": _hash_value(bpffs_path),
+                        "program_path_redacted": True,
+                        "bpffs_path_redacted": True,
+                    },
+                )
                 logger.warning(f"bpftool load failed: {result.stderr}")
                 return None, None
 
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
+            self._publish_observation(
+                stage="legacy_loader_bpftool_unavailable",
+                operation="bpftool_prog_load",
+                status="failure",
+                source_mode="bpftool",
+                start=which_start,
+                command=_redacted_command(which_cmd, redacted_indices=()),
+                error=exc,
+                parsed_summary={"bpftool_available": False},
+                extra={
+                    "program_path_hash": _hash_value(program_path),
+                    "program_path_redacted": True,
+                },
+            )
             logger.debug("bpftool not found")
             return None, None
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
+            self._publish_observation(
+                stage="legacy_loader_bpftool_load_timeout",
+                operation="bpftool_prog_load",
+                status="failure",
+                source_mode="bpftool",
+                start=which_start,
+                stdout=getattr(exc, "stdout", None) or getattr(exc, "output", None),
+                stderr=getattr(exc, "stderr", None),
+                command=_redacted_command(which_cmd, redacted_indices=()),
+                error=exc,
+                parsed_summary={"program_type": program_type.value},
+                extra={
+                    "program_path_hash": _hash_value(program_path),
+                    "program_path_redacted": True,
+                },
+            )
             logger.error("bpftool load timed out")
             return None, None
         except Exception as e:
+            self._publish_observation(
+                stage="legacy_loader_bpftool_load_error",
+                operation="bpftool_prog_load",
+                status="failure",
+                source_mode="bpftool",
+                start=which_start,
+                command=_redacted_command(which_cmd, redacted_indices=()),
+                error=e,
+                parsed_summary={"program_type": program_type.value},
+                extra={
+                    "program_path_hash": _hash_value(program_path),
+                    "program_path_redacted": True,
+                },
+            )
             logger.warning(f"bpftool load error: {e}")
             return None, None
 
@@ -248,6 +516,12 @@ class EBPFLoader:
         Raises:
             EBPFLoadError: If loading fails (file not found, invalid bytecode, etc.)
         """
+        if not isinstance(program_type, EBPFProgramType):
+            raise TypeError(
+                "program_type must be an EBPFProgramType, "
+                f"got {type(program_type).__name__}"
+            )
+
         full_path = self.programs_dir / program_path
 
         if not full_path.exists():
@@ -475,16 +749,61 @@ class EBPFLoader:
                 if xdp_mode != "skb":
                     cmd.extend(["mode", xdp_mode])
 
-                subprocess.run(
+                attach_start = time.monotonic()
+                result = subprocess.run(
                     cmd, check=True, capture_output=True, text=True, timeout=10
                 )
 
                 # Verify attachment
-                if self._verify_xdp_attachment(interface, xdp_mode):
+                verified = self._verify_xdp_attachment(interface, xdp_mode)
+                self._publish_observation(
+                    stage=(
+                        "legacy_loader_xdp_attach_succeeded"
+                        if verified
+                        else "legacy_loader_xdp_attach_verify_failed"
+                    ),
+                    operation="xdp_attach",
+                    status="success" if verified else "failure",
+                    source_mode="ip_link",
+                    start=attach_start,
+                    returncode=getattr(result, "returncode", 0),
+                    stdout=getattr(result, "stdout", None),
+                    stderr=getattr(result, "stderr", None),
+                    command=_redacted_command(cmd, redacted_indices=(4, 7)),
+                    read_only=False,
+                    parsed_summary={"verified": verified, "xdp_mode": xdp_mode},
+                    extra={
+                        "interface_hash": _hash_value(interface),
+                        "program_path_hash": _hash_value(program_path),
+                        "interface_redacted": True,
+                        "program_path_redacted": True,
+                    },
+                )
+                if verified:
                     logger.info(f"✅ XDP attached in {xdp_mode} mode")
                     return True
 
             except subprocess.CalledProcessError as e:
+                self._publish_observation(
+                    stage="legacy_loader_xdp_attach_failed",
+                    operation="xdp_attach",
+                    status="failure",
+                    source_mode="ip_link",
+                    start=attach_start if "attach_start" in locals() else time.monotonic(),
+                    returncode=getattr(e, "returncode", None),
+                    stdout=getattr(e, "stdout", None) or getattr(e, "output", None),
+                    stderr=getattr(e, "stderr", None),
+                    command=_redacted_command(cmd, redacted_indices=(4, 7)),
+                    read_only=False,
+                    parsed_summary={"verified": False, "xdp_mode": xdp_mode},
+                    error=e,
+                    extra={
+                        "interface_hash": _hash_value(interface),
+                        "program_path_hash": _hash_value(program_path),
+                        "interface_redacted": True,
+                        "program_path_redacted": True,
+                    },
+                )
                 logger.debug(f"Failed to attach in {xdp_mode} mode: {e.stderr}")
                 continue
 
@@ -533,9 +852,11 @@ class EBPFLoader:
 
     def _verify_xdp_attachment(self, interface: str, mode: str) -> bool:
         """Verify XDP program is attached to interface."""
+        cmd = ["ip", "link", "show", "dev", interface]
+        verify_start = time.monotonic()
         try:
             result = subprocess.run(
-                ["ip", "link", "show", "dev", interface],
+                cmd,
                 check=True,
                 capture_output=True,
                 text=True,
@@ -545,19 +866,116 @@ class EBPFLoader:
             # Check for xdp attachment
             output = result.stdout
             if "xdp off" in output.lower():
+                self._publish_observation(
+                    stage="legacy_loader_xdp_verify_off",
+                    operation="verify_xdp_attachment",
+                    status="empty",
+                    source_mode="ip_link",
+                    start=verify_start,
+                    returncode=getattr(result, "returncode", 0),
+                    stdout=result.stdout,
+                    stderr=getattr(result, "stderr", None),
+                    command=_redacted_command(cmd, redacted_indices=(4,)),
+                    parsed_summary={"verified": False, "xdp_off_seen": True, "mode": mode},
+                    extra={
+                        "interface_hash": _hash_value(interface),
+                        "interface_redacted": True,
+                    },
+                )
                 return False  # XDP is explicitly off
             if "xdp" in output.lower():
                 # Check mode matches
                 if mode == "offload" and "xdp" in output:
+                    self._publish_observation(
+                        stage="legacy_loader_xdp_verify_succeeded",
+                        operation="verify_xdp_attachment",
+                        status="success",
+                        source_mode="ip_link",
+                        start=verify_start,
+                        returncode=getattr(result, "returncode", 0),
+                        stdout=result.stdout,
+                        stderr=getattr(result, "stderr", None),
+                        command=_redacted_command(cmd, redacted_indices=(4,)),
+                        parsed_summary={"verified": True, "xdp_off_seen": False, "mode": mode},
+                        extra={
+                            "interface_hash": _hash_value(interface),
+                            "interface_redacted": True,
+                        },
+                    )
                     return True
                 elif mode == "drv" and "xdp" in output:
+                    self._publish_observation(
+                        stage="legacy_loader_xdp_verify_succeeded",
+                        operation="verify_xdp_attachment",
+                        status="success",
+                        source_mode="ip_link",
+                        start=verify_start,
+                        returncode=getattr(result, "returncode", 0),
+                        stdout=result.stdout,
+                        stderr=getattr(result, "stderr", None),
+                        command=_redacted_command(cmd, redacted_indices=(4,)),
+                        parsed_summary={"verified": True, "xdp_off_seen": False, "mode": mode},
+                        extra={
+                            "interface_hash": _hash_value(interface),
+                            "interface_redacted": True,
+                        },
+                    )
                     return True
                 elif mode == "skb" and "xdp" in output:
+                    self._publish_observation(
+                        stage="legacy_loader_xdp_verify_succeeded",
+                        operation="verify_xdp_attachment",
+                        status="success",
+                        source_mode="ip_link",
+                        start=verify_start,
+                        returncode=getattr(result, "returncode", 0),
+                        stdout=result.stdout,
+                        stderr=getattr(result, "stderr", None),
+                        command=_redacted_command(cmd, redacted_indices=(4,)),
+                        parsed_summary={"verified": True, "xdp_off_seen": False, "mode": mode},
+                        extra={
+                            "interface_hash": _hash_value(interface),
+                            "interface_redacted": True,
+                        },
+                    )
                     return True
 
+            self._publish_observation(
+                stage="legacy_loader_xdp_verify_not_observed",
+                operation="verify_xdp_attachment",
+                status="empty",
+                source_mode="ip_link",
+                start=verify_start,
+                returncode=getattr(result, "returncode", 0),
+                stdout=result.stdout,
+                stderr=getattr(result, "stderr", None),
+                command=_redacted_command(cmd, redacted_indices=(4,)),
+                parsed_summary={"verified": False, "xdp_off_seen": False, "mode": mode},
+                extra={
+                    "interface_hash": _hash_value(interface),
+                    "interface_redacted": True,
+                },
+            )
             return False
 
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as exc:
+            self._publish_observation(
+                stage="legacy_loader_xdp_verify_failed",
+                operation="verify_xdp_attachment",
+                status="failure",
+                source_mode="ip_link",
+                start=verify_start,
+                returncode=getattr(exc, "returncode", None),
+                stdout=getattr(exc, "stdout", None) or getattr(exc, "output", None),
+                stderr=getattr(exc, "stderr", None),
+                command=_redacted_command(cmd, redacted_indices=(4,)),
+                error=exc,
+                parsed_summary={"verified": False, "mode": mode},
+                extra={
+                    "interface_hash": _hash_value(interface),
+                    "interface_redacted": True,
+                },
+            )
             return False
 
     def _verify_attachment(
@@ -574,31 +992,124 @@ class EBPFLoader:
         Returns:
             True if program is verified attached, False otherwise
         """
+        cmd = ["bpftool", "prog", "show", "id", str(program_id)]
+        verify_start = time.monotonic()
         try:
             result = subprocess.run(
-                ["bpftool", "prog", "show", "id", str(program_id)],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=5,
             )
 
             if result.returncode != 0:
+                self._publish_observation(
+                    stage="legacy_loader_bpftool_verify_attachment_failed",
+                    operation="bpftool_verify_attachment",
+                    status="failure",
+                    source_mode="bpftool",
+                    start=verify_start,
+                    returncode=result.returncode,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    command=_redacted_command(cmd, redacted_indices=(4,)),
+                    parsed_summary={"verified": False, "program_type": program_type.value},
+                    extra={
+                        "program_id_hash": _hash_value(program_id),
+                        "interface_hash": _hash_value(interface),
+                        "program_id_redacted": True,
+                        "interface_redacted": True,
+                    },
+                )
                 return False
 
             # Check if program exists in output
             output = result.stdout
+            verified = f"id {program_id}" in output or str(program_id) in output
+            self._publish_observation(
+                stage=(
+                    "legacy_loader_bpftool_verify_attachment_succeeded"
+                    if verified
+                    else "legacy_loader_bpftool_verify_attachment_not_observed"
+                ),
+                operation="bpftool_verify_attachment",
+                status="success" if verified else "empty",
+                source_mode="bpftool",
+                start=verify_start,
+                returncode=result.returncode,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                command=_redacted_command(cmd, redacted_indices=(4,)),
+                parsed_summary={"verified": verified, "program_type": program_type.value},
+                extra={
+                    "program_id_hash": _hash_value(program_id),
+                    "interface_hash": _hash_value(interface),
+                    "program_id_redacted": True,
+                    "interface_redacted": True,
+                },
+            )
             if f"id {program_id}" in output or str(program_id) in output:
                 return True
 
             return False
 
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
+            self._publish_observation(
+                stage="legacy_loader_bpftool_verify_attachment_timeout",
+                operation="bpftool_verify_attachment",
+                status="failure",
+                source_mode="bpftool",
+                start=verify_start,
+                stdout=getattr(exc, "stdout", None) or getattr(exc, "output", None),
+                stderr=getattr(exc, "stderr", None),
+                command=_redacted_command(cmd, redacted_indices=(4,)),
+                error=exc,
+                parsed_summary={"verified": False, "program_type": program_type.value},
+                extra={
+                    "program_id_hash": _hash_value(program_id),
+                    "interface_hash": _hash_value(interface),
+                    "program_id_redacted": True,
+                    "interface_redacted": True,
+                },
+            )
             logger.warning(f"Timeout verifying program {program_id}")
             return False
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
+            self._publish_observation(
+                stage="legacy_loader_bpftool_verify_attachment_unavailable",
+                operation="bpftool_verify_attachment",
+                status="failure",
+                source_mode="bpftool",
+                start=verify_start,
+                command=_redacted_command(cmd, redacted_indices=(4,)),
+                error=exc,
+                parsed_summary={"verified": False, "program_type": program_type.value},
+                extra={
+                    "program_id_hash": _hash_value(program_id),
+                    "interface_hash": _hash_value(interface),
+                    "program_id_redacted": True,
+                    "interface_redacted": True,
+                },
+            )
             logger.warning("bpftool not found, cannot verify attachment")
             return False
         except Exception as e:
+            self._publish_observation(
+                stage="legacy_loader_bpftool_verify_attachment_error",
+                operation="bpftool_verify_attachment",
+                status="failure",
+                source_mode="bpftool",
+                start=verify_start,
+                command=_redacted_command(cmd, redacted_indices=(4,)),
+                error=e,
+                parsed_summary={"verified": False, "program_type": program_type.value},
+                extra={
+                    "program_id_hash": _hash_value(program_id),
+                    "interface_hash": _hash_value(interface),
+                    "program_id_redacted": True,
+                    "interface_redacted": True,
+                },
+            )
             logger.error(f"Error verifying attachment: {e}")
             return False
 
@@ -651,23 +1162,98 @@ class EBPFLoader:
                     "sec",
                     "xdp",
                 ]
+                attach_start = time.monotonic()
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
 
                 if result.returncode == 0:
+                    self._publish_observation(
+                        stage="legacy_loader_xdp_program_attach_succeeded",
+                        operation="xdp_program_attach",
+                        status="success",
+                        source_mode="ip_link",
+                        start=attach_start,
+                        returncode=result.returncode,
+                        stdout=result.stdout,
+                        stderr=result.stderr,
+                        command=_redacted_command(cmd, redacted_indices=(4, 7)),
+                        read_only=False,
+                        parsed_summary={"attempt_mode": attempt_mode.value},
+                        extra={
+                            "interface_hash": _hash_value(interface),
+                            "program_source_hash": _hash_value(program_source),
+                            "interface_redacted": True,
+                            "program_source_redacted": True,
+                        },
+                    )
                     logger.info(
                         f"✅ XDP program attached to {interface} in {attempt_mode.value} mode via ip link"
                     )
                     return True
                 else:
+                    self._publish_observation(
+                        stage="legacy_loader_xdp_program_attach_failed",
+                        operation="xdp_program_attach",
+                        status="failure",
+                        source_mode="ip_link",
+                        start=attach_start,
+                        returncode=result.returncode,
+                        stdout=result.stdout,
+                        stderr=result.stderr,
+                        command=_redacted_command(cmd, redacted_indices=(4, 7)),
+                        read_only=False,
+                        parsed_summary={"attempt_mode": attempt_mode.value},
+                        extra={
+                            "interface_hash": _hash_value(interface),
+                            "program_source_hash": _hash_value(program_source),
+                            "interface_redacted": True,
+                            "program_source_redacted": True,
+                        },
+                    )
                     logger.debug(
                         f"Failed to attach in {attempt_mode.value} mode: {result.stderr}"
                     )
                     continue
 
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as exc:
+                self._publish_observation(
+                    stage="legacy_loader_xdp_program_attach_timeout",
+                    operation="xdp_program_attach",
+                    status="failure",
+                    source_mode="ip_link",
+                    start=attach_start if "attach_start" in locals() else time.monotonic(),
+                    stdout=getattr(exc, "stdout", None) or getattr(exc, "output", None),
+                    stderr=getattr(exc, "stderr", None),
+                    command=_redacted_command(cmd, redacted_indices=(4, 7)),
+                    read_only=False,
+                    error=exc,
+                    parsed_summary={"attempt_mode": attempt_mode.value},
+                    extra={
+                        "interface_hash": _hash_value(interface),
+                        "program_source_hash": _hash_value(program_source),
+                        "interface_redacted": True,
+                        "program_source_redacted": True,
+                    },
+                )
                 logger.warning(f"ip link command timed out for {interface}")
                 continue
             except Exception as e:
+                self._publish_observation(
+                    stage="legacy_loader_xdp_program_attach_error",
+                    operation="xdp_program_attach",
+                    status="failure",
+                    source_mode="ip_link",
+                    start=attach_start if "attach_start" in locals() else time.monotonic(),
+                    command=_redacted_command(cmd, redacted_indices=(4, 7)),
+                    read_only=False,
+                    error=e,
+                    parsed_summary={"attempt_mode": attempt_mode.value},
+                    extra={
+                        "interface_hash": _hash_value(interface),
+                        "program_source_hash": _hash_value(program_source),
+                        "interface_redacted": True,
+                        "program_source_redacted": True,
+                    },
+                )
                 logger.warning(f"Error attaching XDP program: {e}")
                 continue
 
@@ -678,13 +1264,51 @@ class EBPFLoader:
         self, interface: str, program_source: str, mode_order: List[EBPFAttachMode]
     ) -> bool:
         """Try attaching XDP program using bpftool."""
+        which_cmd = ["which", "bpftool"]
+        which_start = time.monotonic()
         try:
             # Check if bpftool is available
             result = safe_run(
-                ["which", "bpftool"], capture_output=True, text=True, timeout=2
+                which_cmd, capture_output=True, text=True, timeout=2
             )
             if result.returncode != 0:
+                self._publish_observation(
+                    stage="legacy_loader_bpftool_attach_unavailable",
+                    operation="bpftool_attach_probe",
+                    status="empty",
+                    source_mode="which",
+                    start=which_start,
+                    returncode=result.returncode,
+                    stdout=getattr(result, "stdout", None),
+                    stderr=getattr(result, "stderr", None),
+                    command=_redacted_command(which_cmd, redacted_indices=()),
+                    parsed_summary={"bpftool_available": False},
+                    extra={
+                        "interface_hash": _hash_value(interface),
+                        "program_source_hash": _hash_value(program_source),
+                        "interface_redacted": True,
+                        "program_source_redacted": True,
+                    },
+                )
                 return False
+            self._publish_observation(
+                stage="legacy_loader_bpftool_attach_available",
+                operation="bpftool_attach_probe",
+                status="success",
+                source_mode="which",
+                start=which_start,
+                returncode=result.returncode,
+                stdout=getattr(result, "stdout", None),
+                stderr=getattr(result, "stderr", None),
+                command=_redacted_command(which_cmd, redacted_indices=()),
+                parsed_summary={"bpftool_available": True},
+                extra={
+                    "interface_hash": _hash_value(interface),
+                    "program_source_hash": _hash_value(program_source),
+                    "interface_redacted": True,
+                    "program_source_redacted": True,
+                },
+            )
 
             # Get program ID from pinned path or load it
             # For now, try to attach using ip link with bpftool verification
@@ -693,9 +1317,33 @@ class EBPFLoader:
 
             # Try to verify program is loaded via bpftool
             cmd = ["bpftool", "prog", "list"]
+            list_start = time.monotonic()
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
 
-            if result.returncode == 0 and program_source in result.stdout:
+            program_seen = result.returncode == 0 and program_source in result.stdout
+            self._publish_observation(
+                stage=(
+                    "legacy_loader_bpftool_attach_program_seen"
+                    if program_seen
+                    else "legacy_loader_bpftool_attach_program_not_observed"
+                ),
+                operation="bpftool_attach_probe",
+                status="success" if program_seen else "empty",
+                source_mode="bpftool",
+                start=list_start,
+                returncode=result.returncode,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                command=_redacted_command(cmd, redacted_indices=()),
+                parsed_summary={"program_seen": program_seen},
+                extra={
+                    "interface_hash": _hash_value(interface),
+                    "program_source_hash": _hash_value(program_source),
+                    "interface_redacted": True,
+                    "program_source_redacted": True,
+                },
+            )
+            if program_seen:
                 logger.debug("Program found in bpftool list")
                 # bpftool doesn't directly attach XDP, but we can verify the program exists
                 return False  # Still use ip link for actual attachment
@@ -703,6 +1351,22 @@ class EBPFLoader:
             return False
 
         except Exception as e:
+            self._publish_observation(
+                stage="legacy_loader_bpftool_attach_probe_error",
+                operation="bpftool_attach_probe",
+                status="failure",
+                source_mode="bpftool",
+                start=which_start,
+                command=_redacted_command(which_cmd, redacted_indices=()),
+                error=e,
+                parsed_summary={"program_seen": False},
+                extra={
+                    "interface_hash": _hash_value(interface),
+                    "program_source_hash": _hash_value(program_source),
+                    "interface_redacted": True,
+                    "program_source_redacted": True,
+                },
+            )
             logger.debug(f"bpftool check failed: {e}")
             return False
 
@@ -765,9 +1429,11 @@ class EBPFLoader:
 
     def _detach_xdp(self, interface: str) -> bool:
         """Detach XDP program from interface."""
+        cmd = ["ip", "link", "set", "dev", interface, "xdp", "off"]
+        detach_start = time.monotonic()
         try:
-            subprocess.run(
-                ["ip", "link", "set", "dev", interface, "xdp", "off"],
+            result = subprocess.run(
+                cmd,
                 check=True,
                 capture_output=True,
                 text=True,
@@ -775,13 +1441,53 @@ class EBPFLoader:
             )
 
             # Verify detachment
-            if not self._verify_xdp_attachment(interface, "skb"):
+            verified_detached = not self._verify_xdp_attachment(interface, "skb")
+            self._publish_observation(
+                stage=(
+                    "legacy_loader_xdp_detach_succeeded"
+                    if verified_detached
+                    else "legacy_loader_xdp_detach_verify_failed"
+                ),
+                operation="xdp_detach",
+                status="success" if verified_detached else "failure",
+                source_mode="ip_link",
+                start=detach_start,
+                returncode=getattr(result, "returncode", 0),
+                stdout=getattr(result, "stdout", None),
+                stderr=getattr(result, "stderr", None),
+                command=_redacted_command(cmd, redacted_indices=(4,)),
+                read_only=False,
+                parsed_summary={"detached": verified_detached},
+                extra={
+                    "interface_hash": _hash_value(interface),
+                    "interface_redacted": True,
+                },
+            )
+            if verified_detached:
                 return True
 
             logger.warning(f"XDP program may still be attached to {interface}")
             return False
 
         except subprocess.CalledProcessError as e:
+            self._publish_observation(
+                stage="legacy_loader_xdp_detach_failed",
+                operation="xdp_detach",
+                status="failure",
+                source_mode="ip_link",
+                start=detach_start,
+                returncode=getattr(e, "returncode", None),
+                stdout=getattr(e, "stdout", None) or getattr(e, "output", None),
+                stderr=getattr(e, "stderr", None),
+                command=_redacted_command(cmd, redacted_indices=(4,)),
+                read_only=False,
+                error=e,
+                parsed_summary={"detached": False},
+                extra={
+                    "interface_hash": _hash_value(interface),
+                    "interface_redacted": True,
+                },
+            )
             raise EBPFAttachError(f"Failed to detach XDP: {e.stderr}")
 
     def _detach_tc(self, interface: str) -> bool:
@@ -888,9 +1594,11 @@ class EBPFLoader:
         }
 
         # Try to read stats from bpftool
+        cmd = ["bpftool", "map", "dump", "name", "packet_stats"]
+        stats_start = time.monotonic()
         try:
             result = subprocess.run(
-                ["bpftool", "map", "dump", "name", "packet_stats"],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -902,6 +1610,7 @@ class EBPFLoader:
 
                 try:
                     map_data = json.loads(result.stdout)
+                    parsed_entries = len(map_data) if hasattr(map_data, "__len__") else 0
                     for entry in map_data:
                         key = entry.get("key", 0)
                         value = entry.get("value", 0)
@@ -914,16 +1623,111 @@ class EBPFLoader:
                             stats["dropped_packets"] = value
                         elif key == 3:
                             stats["forwarded_packets"] = value
+                    self._publish_observation(
+                        stage="legacy_loader_stats_map_read_succeeded",
+                        operation="bpftool_map_dump_stats",
+                        status="success",
+                        source_mode="bpftool",
+                        start=stats_start,
+                        returncode=result.returncode,
+                        stdout=result.stdout,
+                        stderr=result.stderr,
+                        command=_redacted_command(cmd, redacted_indices=(4,)),
+                        parsed_summary={
+                            "parsed_entries": parsed_entries,
+                            "stat_fields": len(stats),
+                        },
+                        extra={
+                            "map_name_hash": _hash_value("packet_stats"),
+                            "map_name_redacted": True,
+                        },
+                    )
                 except json.JSONDecodeError:
+                    self._publish_observation(
+                        stage="legacy_loader_stats_map_parse_failed",
+                        operation="bpftool_map_dump_stats",
+                        status="failure",
+                        source_mode="bpftool",
+                        start=stats_start,
+                        returncode=result.returncode,
+                        stdout=result.stdout,
+                        stderr=result.stderr,
+                        command=_redacted_command(cmd, redacted_indices=(4,)),
+                        parsed_summary={"parsed_entries": 0, "stat_fields": len(stats)},
+                        extra={
+                            "map_name_hash": _hash_value("packet_stats"),
+                            "map_name_redacted": True,
+                        },
+                    )
                     logger.debug("Failed to parse bpftool map output")
             else:
+                self._publish_observation(
+                    stage="legacy_loader_stats_map_read_failed",
+                    operation="bpftool_map_dump_stats",
+                    status="failure",
+                    source_mode="bpftool",
+                    start=stats_start,
+                    returncode=result.returncode,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    command=_redacted_command(cmd, redacted_indices=(4,)),
+                    parsed_summary={"parsed_entries": 0, "stat_fields": len(stats)},
+                    extra={
+                        "map_name_hash": _hash_value("packet_stats"),
+                        "map_name_redacted": True,
+                    },
+                )
                 logger.debug(f"bpftool map dump failed: {result.stderr}")
 
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
+            self._publish_observation(
+                stage="legacy_loader_stats_map_read_unavailable",
+                operation="bpftool_map_dump_stats",
+                status="failure",
+                source_mode="bpftool",
+                start=stats_start,
+                command=_redacted_command(cmd, redacted_indices=(4,)),
+                error=exc,
+                parsed_summary={"parsed_entries": 0, "stat_fields": len(stats)},
+                extra={
+                    "map_name_hash": _hash_value("packet_stats"),
+                    "map_name_redacted": True,
+                },
+            )
             logger.debug("bpftool not found, returning zero stats")
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
+            self._publish_observation(
+                stage="legacy_loader_stats_map_read_timeout",
+                operation="bpftool_map_dump_stats",
+                status="failure",
+                source_mode="bpftool",
+                start=stats_start,
+                stdout=getattr(exc, "stdout", None) or getattr(exc, "output", None),
+                stderr=getattr(exc, "stderr", None),
+                command=_redacted_command(cmd, redacted_indices=(4,)),
+                error=exc,
+                parsed_summary={"parsed_entries": 0, "stat_fields": len(stats)},
+                extra={
+                    "map_name_hash": _hash_value("packet_stats"),
+                    "map_name_redacted": True,
+                },
+            )
             logger.warning("bpftool map dump timed out")
         except Exception as e:
+            self._publish_observation(
+                stage="legacy_loader_stats_map_read_error",
+                operation="bpftool_map_dump_stats",
+                status="failure",
+                source_mode="bpftool",
+                start=stats_start,
+                command=_redacted_command(cmd, redacted_indices=(4,)),
+                error=e,
+                parsed_summary={"parsed_entries": 0, "stat_fields": len(stats)},
+                extra={
+                    "map_name_hash": _hash_value("packet_stats"),
+                    "map_name_redacted": True,
+                },
+            )
             logger.warning(f"Error reading eBPF stats: {e}")
 
         return stats
@@ -953,8 +1757,34 @@ class EBPFLoader:
                     next_hop_if,
                 ]
 
+                update_start = time.monotonic()
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
 
+                self._publish_observation(
+                    stage=(
+                        "legacy_loader_route_update_succeeded"
+                        if result.returncode == 0
+                        else "legacy_loader_route_update_failed"
+                    ),
+                    operation="bpftool_map_update_routes",
+                    status="success" if result.returncode == 0 else "failure",
+                    source_mode="bpftool",
+                    start=update_start,
+                    returncode=result.returncode,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    command=_redacted_command(cmd, redacted_indices=(6, 8)),
+                    read_only=False,
+                    parsed_summary={"routes_total": len(routes)},
+                    extra={
+                        "map_name_hash": _hash_value("mesh_routes"),
+                        "dest_ip_hash": _hash_value(dest_ip),
+                        "next_hop_if_hash": _hash_value(next_hop_if),
+                        "map_name_redacted": True,
+                        "dest_ip_redacted": True,
+                        "next_hop_if_redacted": True,
+                    },
+                )
                 if result.returncode != 0:
                     logger.warning(
                         f"Failed to update route {dest_ip} -> {next_hop_if}: {result.stderr}"
@@ -963,13 +1793,72 @@ class EBPFLoader:
             logger.info(f"Updated {len(routes)} routes in eBPF map")
             return True
 
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
+            self._publish_observation(
+                stage="legacy_loader_route_update_unavailable",
+                operation="bpftool_map_update_routes",
+                status="failure",
+                source_mode="bpftool",
+                start=update_start if "update_start" in locals() else time.monotonic(),
+                command=(
+                    _redacted_command(cmd, redacted_indices=(6, 8))
+                    if "cmd" in locals()
+                    else []
+                ),
+                read_only=False,
+                error=exc,
+                parsed_summary={"routes_total": len(routes)},
+                extra={
+                    "map_name_hash": _hash_value("mesh_routes"),
+                    "map_name_redacted": True,
+                },
+            )
             logger.warning("bpftool not found, cannot update routes")
             return False
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
+            self._publish_observation(
+                stage="legacy_loader_route_update_timeout",
+                operation="bpftool_map_update_routes",
+                status="failure",
+                source_mode="bpftool",
+                start=update_start if "update_start" in locals() else time.monotonic(),
+                stdout=getattr(exc, "stdout", None) or getattr(exc, "output", None),
+                stderr=getattr(exc, "stderr", None),
+                command=(
+                    _redacted_command(cmd, redacted_indices=(6, 8))
+                    if "cmd" in locals()
+                    else []
+                ),
+                read_only=False,
+                error=exc,
+                parsed_summary={"routes_total": len(routes)},
+                extra={
+                    "map_name_hash": _hash_value("mesh_routes"),
+                    "map_name_redacted": True,
+                },
+            )
             logger.error("bpftool map update timed out")
             return False
         except Exception as e:
+            self._publish_observation(
+                stage="legacy_loader_route_update_error",
+                operation="bpftool_map_update_routes",
+                status="failure",
+                source_mode="bpftool",
+                start=update_start if "update_start" in locals() else time.monotonic(),
+                command=(
+                    _redacted_command(cmd, redacted_indices=(6, 8))
+                    if "cmd" in locals()
+                    else []
+                ),
+                read_only=False,
+                error=e,
+                parsed_summary={"routes_total": len(routes)},
+                extra={
+                    "map_name_hash": _hash_value("mesh_routes"),
+                    "map_name_redacted": True,
+                },
+            )
             logger.error(f"Error updating routes: {e}")
             return False
 

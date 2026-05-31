@@ -7,15 +7,95 @@ Handles:
 - Program lifecycle management
 """
 
+import hashlib
 import logging
 import subprocess
+import time
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+from src.coordination.events import EventBus, EventType
 from src.core.subprocess_validator import safe_run
+from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
+
+EBPF_LOADER_PROGRAM_LOADER_SERVICE_NAME = "ebpf-loader-program-loader"
+EBPF_LOADER_PROGRAM_LOADER_LAYER = "network_ebpf_loader_program_loader_observed_state"
+EBPF_LOADER_PROGRAM_LOADER_CLAIM_BOUNDARY = (
+    "Local modular eBPF program loader evidence only. Events record bpftool "
+    "availability and program-load command outcomes, return codes, duration, "
+    "bounded output hashes, and redacted program/BPFFS selectors; they do not "
+    "prove production traffic, remote peer behavior, or attached kernel program "
+    "correctness beyond the local command result."
+)
+
+
+def _normalize_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
+def _sha256_text(value: str) -> Optional[str]:
+    if not value:
+        return None
+    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return _sha256_text(str(value))
+
+
+def _bounded_output_metadata(
+    stdout: Optional[Any],
+    stderr: Optional[Any],
+) -> Dict[str, Any]:
+    safe_stdout = _normalize_text(stdout)
+    safe_stderr = _normalize_text(stderr)
+    return {
+        "stdout_chars": len(safe_stdout),
+        "stderr_chars": len(safe_stderr),
+        "stdout_sha256": _sha256_text(safe_stdout),
+        "stderr_sha256": _sha256_text(safe_stderr),
+        "output_bounded": True,
+        "output_redacted": True,
+    }
+
+
+def _redacted_command(
+    command: List[Any],
+    redacted_indices: Tuple[int, ...],
+) -> List[str]:
+    redacted = set(redacted_indices)
+    safe_command: List[str] = []
+    for index, item in enumerate(command):
+        if index == 0:
+            safe_command.append(Path(str(item)).name)
+        elif index in redacted:
+            safe_command.append("[redacted]")
+        else:
+            safe_command.append(str(item))
+    return safe_command
+
+
+def _identity_metadata() -> Dict[str, Any]:
+    identity = service_event_identity(
+        service_name=EBPF_LOADER_PROGRAM_LOADER_SERVICE_NAME
+    )
+    return {
+        "service_name": EBPF_LOADER_PROGRAM_LOADER_SERVICE_NAME,
+        "layer": EBPF_LOADER_PROGRAM_LOADER_LAYER,
+        "spiffe_id_configured": bool(identity.get("spiffe_id")),
+        "did_configured": bool(identity.get("did")),
+        "wallet_address_configured": bool(identity.get("wallet_address")),
+        "redacted": True,
+    }
 
 # Optional ELF parsing library
 try:
@@ -53,7 +133,12 @@ class EBPFProgramLoader:
         >>> program_id, metadata = loader.load("xdp_firewall.o", EBPFProgramType.XDP)
     """
     
-    def __init__(self, programs_dir: Optional[Path] = None):
+    def __init__(
+        self,
+        programs_dir: Optional[Path] = None,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+    ):
         """
         Initialize the program loader.
         
@@ -62,8 +147,85 @@ class EBPFProgramLoader:
         """
         self.programs_dir = programs_dir or Path(__file__).parent.parent / "programs"
         self.loaded_programs: Dict[str, Dict] = {}
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
+        self.source_agent = EBPF_LOADER_PROGRAM_LOADER_SERVICE_NAME
         
         logger.info(f"EBPFProgramLoader initialized. Programs directory: {self.programs_dir}")
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        try:
+            self.event_bus = EventBus(project_root=self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize eBPF program loader EventBus: %s", exc)
+            return None
+
+    def _publish_observation(
+        self,
+        *,
+        stage: str,
+        operation: str,
+        status: str,
+        source_mode: str,
+        start: float,
+        command: Optional[List[str]] = None,
+        returncode: Optional[int] = None,
+        stdout: Optional[Any] = None,
+        stderr: Optional[Any] = None,
+        read_only: bool = True,
+        parsed_summary: Optional[Dict[str, Any]] = None,
+        error: Optional[BaseException] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+
+        payload: Dict[str, Any] = {
+            "component": "network.ebpf.loader.program_loader",
+            "stage": stage,
+            "operation": operation,
+            "operation_resource": f"network:ebpf:loader_program_loader:{operation}",
+            "service_name": self.source_agent,
+            "layer": EBPF_LOADER_PROGRAM_LOADER_LAYER,
+            "identity": _identity_metadata(),
+            "status": status,
+            "source_mode": source_mode,
+            "returncode": returncode,
+            "duration_ms": round((time.monotonic() - start) * 1000, 3),
+            "command": command or [],
+            "read_only": read_only,
+            "observed_state": True,
+            "safe_observation": True,
+            "safe_actuator": False,
+            "parsed_summary": parsed_summary or {},
+            "output": _bounded_output_metadata(stdout, stderr),
+            "payloads_redacted": True,
+            "claim_boundary": EBPF_LOADER_PROGRAM_LOADER_CLAIM_BOUNDARY,
+        }
+        if error is not None:
+            payload["error"] = {
+                "type": type(error).__name__,
+                "message_hash": _hash_value(str(error)),
+                "message_redacted": True,
+            }
+        if extra:
+            payload.update(extra)
+
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                self.source_agent,
+                payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception:
+            logger.exception("Failed to publish eBPF program loader observation")
+            return None
     
     def parse_elf_sections(self, elf_path: Path) -> Dict[str, Dict]:
         """
@@ -127,35 +289,159 @@ class EBPFProgramLoader:
         Returns:
             (prog_fd, pinned_path) or (None, None) if failed
         """
+        which_cmd = ["which", "bpftool"]
+        which_start = time.monotonic()
         try:
             # Check if bpftool is available
-            result = safe_run(["which", "bpftool"], capture_output=True, text=True)
+            result = safe_run(which_cmd, capture_output=True, text=True)
             if result.returncode != 0:
+                self._publish_observation(
+                    stage="loader_program_loader_bpftool_unavailable",
+                    operation="bpftool_available",
+                    status="empty",
+                    source_mode="which",
+                    start=which_start,
+                    returncode=result.returncode,
+                    stdout=getattr(result, "stdout", None),
+                    stderr=getattr(result, "stderr", None),
+                    command=_redacted_command(which_cmd, redacted_indices=()),
+                    parsed_summary={"bpftool_available": False},
+                    extra={
+                        "program_path_hash": _hash_value(program_path),
+                        "program_path_redacted": True,
+                    },
+                )
                 logger.debug("bpftool not found, falling back to alternative methods")
                 return None, None
+            self._publish_observation(
+                stage="loader_program_loader_bpftool_available",
+                operation="bpftool_available",
+                status="success",
+                source_mode="which",
+                start=which_start,
+                returncode=result.returncode,
+                stdout=getattr(result, "stdout", None),
+                stderr=getattr(result, "stderr", None),
+                command=_redacted_command(which_cmd, redacted_indices=()),
+                parsed_summary={"bpftool_available": True},
+                extra={
+                    "program_path_hash": _hash_value(program_path),
+                    "program_path_redacted": True,
+                },
+            )
             
             # Load program using bpftool
             bpffs_path = Path(f"/sys/fs/bpf/x0tta6bl4_{program_path.stem}")
             bpffs_path.parent.mkdir(parents=True, exist_ok=True)
             
             cmd = ["bpftool", "prog", "load", str(program_path), str(bpffs_path)]
+            load_start = time.monotonic()
             result = safe_run(cmd, capture_output=True, text=True, timeout=10)
             
             if result.returncode == 0:
+                self._publish_observation(
+                    stage="loader_program_loader_bpftool_load_succeeded",
+                    operation="bpftool_prog_load",
+                    status="success",
+                    source_mode="bpftool",
+                    start=load_start,
+                    returncode=result.returncode,
+                    stdout=getattr(result, "stdout", None),
+                    stderr=getattr(result, "stderr", None),
+                    command=_redacted_command(cmd, redacted_indices=(3, 4)),
+                    read_only=False,
+                    parsed_summary={"pinned": True, "program_type": program_type.value},
+                    extra={
+                        "program_path_hash": _hash_value(program_path),
+                        "bpffs_path_hash": _hash_value(bpffs_path),
+                        "program_path_redacted": True,
+                        "bpffs_path_redacted": True,
+                    },
+                )
                 logger.info(f"Program loaded via bpftool to {bpffs_path}")
                 return None, str(bpffs_path)
             else:
-                logger.warning(f"bpftool load failed: {result.stderr}")
+                self._publish_observation(
+                    stage="loader_program_loader_bpftool_load_failed",
+                    operation="bpftool_prog_load",
+                    status="failure",
+                    source_mode="bpftool",
+                    start=load_start,
+                    returncode=result.returncode,
+                    stdout=getattr(result, "stdout", None),
+                    stderr=getattr(result, "stderr", None),
+                    command=_redacted_command(cmd, redacted_indices=(3, 4)),
+                    read_only=False,
+                    parsed_summary={"pinned": False, "program_type": program_type.value},
+                    extra={
+                        "program_path_hash": _hash_value(program_path),
+                        "bpffs_path_hash": _hash_value(bpffs_path),
+                        "program_path_redacted": True,
+                        "bpffs_path_redacted": True,
+                    },
+                )
+                logger.warning("bpftool program load failed")
                 return None, None
                 
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
+            self._publish_observation(
+                stage="loader_program_loader_bpftool_unavailable",
+                operation="bpftool_prog_load",
+                status="failure",
+                source_mode="bpftool",
+                start=which_start,
+                command=_redacted_command(which_cmd, redacted_indices=()),
+                error=exc,
+                parsed_summary={
+                    "bpftool_available": False,
+                    "program_type": program_type.value,
+                },
+                extra={
+                    "program_path_hash": _hash_value(program_path),
+                    "program_path_redacted": True,
+                },
+            )
             logger.debug("bpftool not found")
             return None, None
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
+            command = cmd if "cmd" in locals() else which_cmd
+            redacted_indices = (3, 4) if "cmd" in locals() else ()
+            self._publish_observation(
+                stage="loader_program_loader_bpftool_load_timeout",
+                operation="bpftool_prog_load",
+                status="failure",
+                source_mode="bpftool",
+                start=load_start if "load_start" in locals() else which_start,
+                stdout=getattr(exc, "stdout", None) or getattr(exc, "output", None),
+                stderr=getattr(exc, "stderr", None),
+                command=_redacted_command(command, redacted_indices=redacted_indices),
+                error=exc,
+                parsed_summary={"program_type": program_type.value},
+                extra={
+                    "program_path_hash": _hash_value(program_path),
+                    "program_path_redacted": True,
+                },
+            )
             logger.error("bpftool load timed out")
             return None, None
         except Exception as e:
-            logger.warning(f"bpftool load error: {e}")
+            command = cmd if "cmd" in locals() else which_cmd
+            redacted_indices = (3, 4) if "cmd" in locals() else ()
+            self._publish_observation(
+                stage="loader_program_loader_bpftool_load_error",
+                operation="bpftool_prog_load",
+                status="failure",
+                source_mode="bpftool",
+                start=load_start if "load_start" in locals() else which_start,
+                command=_redacted_command(command, redacted_indices=redacted_indices),
+                error=e,
+                parsed_summary={"program_type": program_type.value},
+                extra={
+                    "program_path_hash": _hash_value(program_path),
+                    "program_path_redacted": True,
+                },
+            )
+            logger.warning("bpftool program load error")
             return None, None
     
     def load(
