@@ -756,6 +756,22 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "No dedicated customer-traffic proof collector" in customer_action[
         "implementation_gap"
     ]
+    trust_action = report["next_actions"][2]
+    assert trust_action["automation_status"] == (
+        "local_command_available_for_redacted_proof_intake"
+    )
+    assert trust_action["suggested_commands"][0] == [
+        "python3",
+        "scripts/ops/collect_trust_finality_eventbus_evidence.py",
+        "--proof-json",
+        "docs/verification/incoming/trust_finality.json",
+        "--allow-redacted-local-proof-intake",
+        "--write-event",
+        "--json",
+    ]
+    assert "docs/verification/incoming/trust_finality.json" in trust_action[
+        "artifact_paths"
+    ]
     dpi_action = report["next_actions"][3]
     assert dpi_action["suggested_commands"][0] == [
         "python3",

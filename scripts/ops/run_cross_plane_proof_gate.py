@@ -364,13 +364,33 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "prove dataplane delivery, customer traffic, settlement, or production "
             "readiness by itself."
         ),
-        "automation_status": "manual_evidence_required",
+        "automation_status": "local_command_available_for_redacted_proof_intake",
         "implementation_gap": (
-            "No dedicated trust-finality proof collector was found in scripts/ops. "
-            "SPIFFE/DID/wallet evidence must be collected as redacted EventBus evidence."
+            "The collector validates and records redacted local proof input only. "
+            "It does not perform live SPIFFE/DID/wallet probes by itself."
         ),
-        "suggested_commands": [],
-        "artifact_paths": [".agent_coordination/events.log"],
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/collect_trust_finality_eventbus_evidence.py",
+                "--proof-json",
+                "docs/verification/incoming/trust_finality.json",
+                "--allow-redacted-local-proof-intake",
+                "--write-event",
+                "--json",
+            ],
+            [
+                "python3",
+                "scripts/ops/run_cross_plane_proof_gate.py",
+                "--claim",
+                "trust_finality",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [
+            "docs/verification/incoming/trust_finality.json",
+            ".agent_coordination/events.log",
+        ],
     },
     {
         "action_id": "import_verified_dpi_lab_evidence",
