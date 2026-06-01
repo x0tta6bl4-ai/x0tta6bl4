@@ -68,6 +68,16 @@ def test_cross_plane_claim_gate_metadata_surfaces_claim_blockers(
             "allowed": False,
             "summary": {"claims_blocked": 2, "claims_allowed": 1},
             "context": {"source_artifact_hashes_present": True},
+            "next_actions_by_plane": {
+                "data_plane": [
+                    {
+                        "action_id": "collect_verified_dataplane_delivery_eventbus_evidence",
+                        "reason_blockers": [
+                            "production_readiness_dataplane_artifact_not_verified"
+                        ],
+                    }
+                ]
+            },
             "claim_results": [
                 {
                     "claim_id": "production_readiness",
@@ -184,6 +194,16 @@ def test_cross_plane_claim_gate_metadata_surfaces_claim_blockers(
             "trust_finality_artifact_not_verified",
         ],
     }
+    assert metadata["next_actions_by_plane"] == {
+        "data_plane": [
+            {
+                "action_id": "collect_verified_dataplane_delivery_eventbus_evidence",
+                "reason_blockers": [
+                    "production_readiness_dataplane_artifact_not_verified"
+                ],
+            }
+        ]
+    }
 
 
 def test_cross_plane_claim_gate_unavailable_blocks_every_requested_claim(
@@ -216,3 +236,4 @@ def test_cross_plane_claim_gate_unavailable_blocks_every_requested_claim(
     assert metadata["allowed_plane_ids"] == []
     assert metadata["blocked_plane_ids"] == []
     assert metadata["plane_blockers"] == {}
+    assert metadata["next_actions_by_plane"] == {}

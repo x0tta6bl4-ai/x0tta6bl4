@@ -49,6 +49,25 @@ def _safe_plane_claims(value: Any) -> dict[str, list[str]]:
     return plane_claims
 
 
+def _safe_next_actions_by_plane(value: Any) -> dict[str, list[dict[str, Any]]]:
+    if not isinstance(value, Mapping):
+        return {}
+
+    next_actions: dict[str, list[dict[str, Any]]] = {}
+    for plane, actions in value.items():
+        plane_id = str(plane)
+        if not plane_id or not isinstance(actions, list):
+            continue
+        plane_actions = [
+            dict(action)
+            for action in actions
+            if isinstance(action, Mapping)
+        ]
+        if plane_actions:
+            next_actions[plane_id] = plane_actions
+    return next_actions
+
+
 def _claim_plane_summary(
     claim_results: Any,
     *,
@@ -177,6 +196,7 @@ def _fail_closed_metadata(
         "requested_claim_ids": list(requested_claims),
         **summary,
         **_claim_plane_summary(None),
+        "next_actions_by_plane": {},
         "claim_boundary": claim_boundary,
     }
 
@@ -239,6 +259,9 @@ def cross_plane_claim_gate_metadata(
         "requested_claim_ids": requested_claims,
         **summary,
         **plane_summary,
+        "next_actions_by_plane": _safe_next_actions_by_plane(
+            report.get("next_actions_by_plane")
+        ),
         "summary": report.get("summary"),
         "context": report.get("context"),
         "claim_results": claim_results,

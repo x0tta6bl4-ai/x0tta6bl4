@@ -685,6 +685,35 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "external_settlement_artifact_not_verified" in report[
         "plane_blockers"
     ]["economy_plane"]
+    assert [
+        action["action_id"]
+        for action in report["next_actions_by_plane"]["data_plane"]
+    ] == [
+        "collect_verified_dataplane_delivery_eventbus_evidence",
+        "collect_verified_customer_traffic_eventbus_evidence",
+        "collect_verified_trust_finality_eventbus_evidence",
+        "import_verified_dpi_lab_evidence",
+        "verify_external_settlement_artifacts",
+        "import_verified_production_readiness_evidence",
+    ]
+    assert [
+        action["action_id"]
+        for action in report["next_actions_by_plane"]["trust_plane"]
+    ] == [
+        "collect_verified_dataplane_delivery_eventbus_evidence",
+        "collect_verified_customer_traffic_eventbus_evidence",
+        "collect_verified_trust_finality_eventbus_evidence",
+        "verify_external_settlement_artifacts",
+        "import_verified_production_readiness_evidence",
+    ]
+    assert report["next_actions_by_plane"]["trust_plane"][2][
+        "reason_blockers"
+    ] == [
+        "explicit_false_flag:live_spire_svid_confirmed",
+        "missing_any_true_flags:live_spire_svid_confirmed,did_ownership_confirmed,wallet_control_confirmed,chain_identity_finality_confirmed",
+        "trust_finality_artifact_not_verified",
+        "trust_finality_eventbus_artifact_not_verified",
+    ]
     assert "production_readiness_imported_artifact_not_verified" in report["blockers"]
     assert "trust_finality_eventbus_artifact_not_verified" in report["blockers"]
     assert "customer_traffic_eventbus_artifact_not_verified" in report["blockers"]

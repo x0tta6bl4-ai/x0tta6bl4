@@ -260,6 +260,119 @@ DEFAULT_CLAIMS = (
     "settlement_finality",
 )
 
+NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
+    {
+        "action_id": "repair_current_cross_plane_evidence_map",
+        "title": "Repair current cross-plane evidence map or active goal audit.",
+        "match_tokens": (
+            "current_evidence_",
+            "current_active_goal_audit",
+            "current_evidence_map",
+        ),
+        "claim_boundary": (
+            "This repairs local map/audit evidence only. It does not make any "
+            "external runtime, traffic, trust, DPI, or settlement claim true."
+        ),
+    },
+    {
+        "action_id": "collect_verified_dataplane_delivery_eventbus_evidence",
+        "title": "Collect bounded redacted EventBus dataplane delivery evidence.",
+        "match_tokens": (
+            "dataplane_delivery_eventbus_artifact_not_verified",
+            "production_readiness_dataplane_artifact_not_verified",
+            "traffic_delivery_dataplane_artifact_not_verified",
+            "dataplane_confirmed",
+            "customer_dataplane_delivery_claim_allowed",
+            "traffic_delivery_claim_allowed",
+            "traffic_delivery_confirmed",
+        ),
+        "claim_boundary": (
+            "A dataplane proof can support bounded delivery claims only. It does "
+            "not prove customer traffic, trust finality, DPI bypass, settlement, "
+            "or production readiness by itself."
+        ),
+    },
+    {
+        "action_id": "collect_verified_customer_traffic_eventbus_evidence",
+        "title": "Collect separate redacted end-to-end customer traffic evidence.",
+        "match_tokens": (
+            "customer_traffic_eventbus_artifact_not_verified",
+            "production_readiness_customer_traffic_artifact_not_verified",
+            "production_customer_traffic_confirmed",
+        ),
+        "claim_boundary": (
+            "Customer traffic requires separate end-to-end proof and must not be "
+            "inferred from local dataplane or mesh recovery evidence."
+        ),
+    },
+    {
+        "action_id": "collect_verified_trust_finality_eventbus_evidence",
+        "title": "Collect redacted SPIFFE/DID/wallet trust-finality evidence.",
+        "match_tokens": (
+            "trust_finality_eventbus_artifact_not_verified",
+            "trust_finality_artifact_not_verified",
+            "live_spire_svid_confirmed",
+            "did_ownership_confirmed",
+            "wallet_control_confirmed",
+            "chain_identity_finality_confirmed",
+        ),
+        "claim_boundary": (
+            "Trust evidence proves bounded identity finality only. It does not "
+            "prove dataplane delivery, customer traffic, settlement, or production "
+            "readiness by itself."
+        ),
+    },
+    {
+        "action_id": "import_verified_dpi_lab_evidence",
+        "title": "Import verified external DPI/proxy lab evidence with provenance.",
+        "match_tokens": (
+            "dpi_lab_imported_artifact_not_verified",
+            "external_dpi_tested",
+            "dpi_bypass_confirmed",
+            "bypass_confirmed",
+        ),
+        "claim_boundary": (
+            "DPI lab evidence is bounded external evidence. It does not prove "
+            "durable censorship resistance, customer traffic, settlement, or "
+            "production readiness by itself."
+        ),
+    },
+    {
+        "action_id": "verify_external_settlement_artifacts",
+        "title": "Verify retained settlement evidence and live-RPC/operator handoff.",
+        "match_tokens": (
+            "external_settlement_artifact_not_verified",
+            "production_readiness_external_settlement_artifact_not_verified",
+            "settlement_finality_confirmed",
+            "payment_settlement_confirmed",
+            "external_settlement_finality_confirmed",
+            "live_token_settlement_confirmed",
+            "reward_token_settlement_finality_claim_allowed",
+            "payment_provider_settlement_claim_allowed",
+            "bank_settlement_claim_allowed",
+        ),
+        "claim_boundary": (
+            "Settlement evidence is an economy-plane proof only. It does not prove "
+            "dataplane delivery, customer traffic, trust finality, DPI bypass, or "
+            "production readiness by itself."
+        ),
+    },
+    {
+        "action_id": "import_verified_production_readiness_evidence",
+        "title": "Import bounded production-readiness evidence after all supporting proofs.",
+        "match_tokens": (
+            "production_readiness_imported_artifact_not_verified",
+            "production_readiness_claim_allowed",
+            "reward_production_readiness_claim_allowed",
+        ),
+        "claim_boundary": (
+            "Production readiness can only be promoted after the proof gate has "
+            "verified supporting dataplane, customer traffic, trust, DPI, and "
+            "settlement evidence."
+        ),
+    },
+)
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -1832,6 +1945,46 @@ def evaluate_claim(
     return result
 
 
+def _next_action_matches(blocker: str, match_tokens: object) -> bool:
+    tokens = match_tokens if isinstance(match_tokens, tuple) else ()
+    return any(str(token) in blocker for token in tokens)
+
+
+def _next_actions_for_blockers(blockers: Sequence[str]) -> list[dict[str, Any]]:
+    actions: list[dict[str, Any]] = []
+    blocker_ids = [str(blocker) for blocker in blockers if str(blocker)]
+
+    for rule in NEXT_ACTION_RULES:
+        matched_blockers = sorted(
+            {
+                blocker
+                for blocker in blocker_ids
+                if _next_action_matches(blocker, rule.get("match_tokens"))
+            }
+        )
+        if not matched_blockers:
+            continue
+        actions.append(
+            {
+                "action_id": str(rule["action_id"]),
+                "title": str(rule["title"]),
+                "reason_blockers": matched_blockers,
+                "claim_boundary": str(rule["claim_boundary"]),
+            }
+        )
+    return actions
+
+
+def _next_actions_by_plane(
+    plane_blockers: Mapping[str, Sequence[str]],
+) -> dict[str, list[dict[str, Any]]]:
+    return {
+        plane: actions
+        for plane, blockers in plane_blockers.items()
+        if (actions := _next_actions_for_blockers(blockers))
+    }
+
+
 def build_report(
     root: Path,
     *,
@@ -1920,6 +2073,7 @@ def build_report(
     allowed_plane_ids = [
         plane for plane in plane_claims if plane not in set(blocked_plane_ids)
     ]
+    next_actions_by_plane = _next_actions_by_plane(plane_blockers)
     return {
         "schema": SCHEMA,
         "timestamp_utc": utc_now(),
@@ -1935,6 +2089,7 @@ def build_report(
         "allowed_plane_ids": allowed_plane_ids,
         "blocked_plane_ids": blocked_plane_ids,
         "plane_blockers": plane_blockers,
+        "next_actions_by_plane": next_actions_by_plane,
         "summary": {
             "claims_total": len(claim_results),
             "claims_allowed": sum(1 for item in claim_results if item.get("allowed") is True),
