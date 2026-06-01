@@ -77,6 +77,7 @@ PRODUCTION_READINESS_CLAIM_ID = "production_readiness"
 EXTERNAL_SETTLEMENT_CLAIM_ID = "external_settlement"
 ECONOMY_BOUNDARY_CLAIM_ID = "economy_boundary"
 TRUST_FINALITY_CLAIM_ID = "trust_finality"
+LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID = "local_service_identity_status"
 TRUST_FINALITY_SOURCE_AGENTS = (
     "service-identity-status",
     "spiffe-agent-manager",
@@ -179,6 +180,12 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
             "chain_identity_finality_confirmed",
         ),
     ),
+    "local_service_identity_status": ClaimRequirement(
+        claim_id="local_service_identity_status",
+        description="Redacted local service identity configuration inventory.",
+        high_risk=False,
+        required_planes=("trust_plane", "evidence_plane"),
+    ),
     "dpi_bypass": ClaimRequirement(
         claim_id="dpi_bypass",
         description="External DPI/proxy bypass claim.",
@@ -273,6 +280,7 @@ DEFAULT_CLAIMS = (
     "dataplane_delivery",
     "traffic_delivery",
     "customer_traffic",
+    "local_service_identity_status",
     "trust_finality",
     "dpi_bypass",
     "settlement_finality",
@@ -285,6 +293,7 @@ CLAIM_ARTIFACT_DEPENDENCIES: dict[str, tuple[str, ...]] = {
         LOCAL_RESTORED_DATAPLANE_CLAIM_ID,
         DATAPLANE_DELIVERY_CLAIM_ID,
         CUSTOMER_TRAFFIC_CLAIM_ID,
+        LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID,
         TRUST_FINALITY_CLAIM_ID,
         EXTERNAL_SETTLEMENT_CLAIM_ID,
         ECONOMY_BOUNDARY_CLAIM_ID,
@@ -293,6 +302,7 @@ CLAIM_ARTIFACT_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "dataplane_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
     "traffic_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
     "customer_traffic": (CUSTOMER_TRAFFIC_CLAIM_ID,),
+    "local_service_identity_status": (LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID,),
     "mesh_recovery_lifecycle": (MESH_RECOVERY_LIFECYCLE_CLAIM_ID,),
     "trust_finality": (TRUST_FINALITY_CLAIM_ID,),
     "dpi_bypass": (DPI_LAB_CLAIM_ID,),
@@ -526,6 +536,39 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "docs/verification/incoming/trust_finality.json",
             ".agent_coordination/events.log",
         ],
+    },
+    {
+        "action_id": "collect_local_service_identity_status_eventbus_evidence",
+        "title": "Collect redacted local service identity configuration inventory.",
+        "match_tokens": (
+            "local_service_identity_status_eventbus_artifact_not_verified",
+            "production_readiness_service_identity_status_artifact_not_verified",
+        ),
+        "claim_boundary": (
+            "Local service identity status evidence proves only redacted "
+            "configuration inventory: which identity fields are configured and "
+            "how many services have identity hints. It does not prove live SPIFFE "
+            "SVID issuance, DID ownership, wallet control, chain finality, "
+            "dataplane delivery, customer traffic, settlement, or production "
+            "readiness."
+        ),
+        "automation_status": "local_command_available",
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/collect_local_service_identity_status_eventbus_evidence.py",
+                "--write-event",
+                "--json",
+            ],
+            [
+                "python3",
+                "scripts/ops/run_cross_plane_proof_gate.py",
+                "--claim",
+                "local_service_identity_status",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [".agent_coordination/events.log"],
     },
     {
         "action_id": "import_verified_dpi_lab_evidence",
@@ -1090,6 +1133,148 @@ def trust_finality_artifact_evidence(root: Path) -> dict[str, Any]:
             return result
 
     result["blockers"].append("verified_trust_finality_event_not_found")
+    return result
+
+
+def _local_service_identity_status_candidate_blockers(
+    event: Mapping[str, Any],
+) -> list[str]:
+    data = _mapping(event.get("data"))
+    gate = _mapping(data.get("claim_gate")) or _mapping(
+        data.get("service_identity_status_claim_gate")
+    )
+    blockers: list[str] = []
+    if data.get("schema") != "x0tta6bl4.local_service_identity_status.eventbus_evidence.v1":
+        blockers.append("local_service_identity_status_schema_missing")
+    if data.get("operation") != "service_identity_status_inventory":
+        blockers.append("local_service_identity_status_operation_missing")
+    if data.get("redacted") is not True:
+        blockers.append("local_service_identity_status_event_not_redacted")
+    if data.get("raw_identity_values_redacted") is not True:
+        blockers.append("local_service_identity_status_raw_values_not_redacted")
+    if data.get("payloads_redacted") is not True:
+        blockers.append("local_service_identity_status_payloads_not_redacted")
+    if not isinstance(data.get("services_total"), int) or data.get("services_total") <= 0:
+        blockers.append("local_service_identity_status_services_total_missing")
+    if not isinstance(data.get("services_with_any_identity"), int):
+        blockers.append("local_service_identity_status_identity_count_missing")
+    if not isinstance(data.get("services_complete"), int):
+        blockers.append("local_service_identity_status_complete_count_missing")
+    if not gate:
+        blockers.append("local_service_identity_status_claim_gate_missing")
+    else:
+        if gate.get("local_service_identity_status_claim_allowed") is not True:
+            blockers.append("local_service_identity_status_claim_gate_not_allowed")
+        if gate.get("raw_identity_values_redacted") is not True:
+            blockers.append("local_service_identity_status_gate_raw_values_not_redacted")
+        if gate.get("payloads_redacted") is not True:
+            blockers.append("local_service_identity_status_gate_payloads_not_redacted")
+        if gate.get("live_spiffe_svid_claim_allowed") is True:
+            blockers.append("local_service_identity_status_overpromotes_spiffe_finality")
+        if gate.get("did_ownership_claim_allowed") is True:
+            blockers.append("local_service_identity_status_overpromotes_did_ownership")
+        if gate.get("wallet_control_claim_allowed") is True:
+            blockers.append("local_service_identity_status_overpromotes_wallet_control")
+        if gate.get("chain_identity_finality_claim_allowed") is True:
+            blockers.append("local_service_identity_status_overpromotes_chain_identity")
+        if gate.get("production_readiness_claim_allowed") is True:
+            blockers.append("local_service_identity_status_overpromotes_production")
+    if data.get("live_spiffe_svid_confirmed") is True:
+        blockers.append("local_service_identity_status_overpromotes_spiffe_finality")
+    if data.get("did_ownership_confirmed") is True:
+        blockers.append("local_service_identity_status_overpromotes_did_ownership")
+    if data.get("wallet_control_confirmed") is True:
+        blockers.append("local_service_identity_status_overpromotes_wallet_control")
+    if data.get("chain_identity_finality_confirmed") is True:
+        blockers.append("local_service_identity_status_overpromotes_chain_identity")
+    if data.get("production_readiness_claim_allowed") is True:
+        blockers.append("local_service_identity_status_overpromotes_production")
+    if not (data.get("claim_boundary") or gate.get("claim_boundary")):
+        blockers.append("local_service_identity_status_claim_boundary_missing")
+    return blockers
+
+
+def local_service_identity_status_artifact_evidence(root: Path) -> dict[str, Any]:
+    path = resolve_path(root, EVENTBUS_LOG)
+    result: dict[str, Any] = {
+        "claim_id": LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID,
+        "required_for_claims": [
+            "local_service_identity_status",
+            "production_readiness",
+        ],
+        "valid": False,
+        "event_log_path": EVENTBUS_LOG.as_posix(),
+        "event_log_exists": path.is_file(),
+        "events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "tail_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_source_agents": ["service-identity-status"],
+        "candidate_scan": None,
+        "matching_events": 0,
+        "selected_event": None,
+        "candidate_blockers": [],
+        "blockers": [],
+        "claim_boundary": (
+            "A retained service-identity status EventBus event supports only "
+            "redacted local identity configuration inventory. It does not prove "
+            "live SPIFFE SVID issuance, DID ownership, wallet control, chain "
+            "identity finality, dataplane delivery, customer traffic, settlement "
+            "finality, or production readiness."
+        ),
+    }
+    if not path.is_file():
+        result["blockers"].append("local_service_identity_status_event_log_missing")
+        return result
+
+    scanned_event_ids: set[str] = set()
+
+    def select_if_valid(event: Mapping[str, Any], scan_source: str) -> bool:
+        event_id = str(event.get("event_id") or "")
+        if event_id and event_id in scanned_event_ids:
+            return False
+        if event_id:
+            scanned_event_ids.add(event_id)
+        if str(event.get("source_agent") or "") != "service-identity-status":
+            return False
+        candidate_blockers = _local_service_identity_status_candidate_blockers(event)
+        if candidate_blockers:
+            for blocker in candidate_blockers:
+                if blocker not in result["candidate_blockers"] and len(result["candidate_blockers"]) < 20:
+                    result["candidate_blockers"].append(blocker)
+            return False
+        data = _mapping(event.get("data"))
+        result["matching_events"] += 1
+        result["selected_event"] = {
+            "event_id": event_id,
+            "event_type": str(event.get("event_type") or ""),
+            "source_agent": str(event.get("source_agent") or ""),
+            "timestamp": str(event.get("timestamp") or ""),
+            "scan_source": scan_source,
+            "services_total": int(data.get("services_total") or 0),
+            "services_with_any_identity": int(
+                data.get("services_with_any_identity") or 0
+            ),
+            "services_complete": int(data.get("services_complete") or 0),
+            "redacted": True,
+        }
+        result["valid"] = True
+        return True
+
+    for event in reversed(_bounded_event_log_entries(path, limit=EVENTBUS_TAIL_SCAN_LIMIT)):
+        if select_if_valid(event, "tail_scan"):
+            return result
+
+    source_filtered_events, candidate_scan = _source_filtered_event_log_entries(
+        path,
+        source_agents=("service-identity-status",),
+        candidate_limit=EVENTBUS_TAIL_SCAN_LIMIT,
+    )
+    result["candidate_scan"] = candidate_scan
+    for event in source_filtered_events:
+        if select_if_valid(event, "source_agent_prefiltered_reverse_scan"):
+            return result
+
+    result["blockers"].append("verified_local_service_identity_status_event_not_found")
     return result
 
 
@@ -2376,6 +2561,10 @@ def evaluate_claim(
         claim_artifact_evidence = (artifact_evidence or {}).get(TRUST_FINALITY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("trust_finality_eventbus_artifact_not_verified")
+    elif claim_id == "local_service_identity_status":
+        claim_artifact_evidence = (artifact_evidence or {}).get(LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID)
+        if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
+            blockers.append("local_service_identity_status_eventbus_artifact_not_verified")
     elif claim_id == "customer_traffic":
         claim_artifact_evidence = (artifact_evidence or {}).get(CUSTOMER_TRAFFIC_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
@@ -2422,6 +2611,15 @@ def evaluate_claim(
             supporting_artifact_evidence[TRUST_FINALITY_CLAIM_ID] = trust_boundary
         if not trust_boundary or trust_boundary.get("valid") is not True:
             blockers.append("trust_finality_artifact_not_verified")
+        service_identity_status = (artifact_evidence or {}).get(
+            LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID
+        )
+        if service_identity_status is not None:
+            supporting_artifact_evidence[
+                LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID
+            ] = service_identity_status
+        if not service_identity_status or service_identity_status.get("valid") is not True:
+            blockers.append("production_readiness_service_identity_status_artifact_not_verified")
     elif claim_id == "settlement_finality":
         claim_artifact_evidence = (artifact_evidence or {}).get(EXTERNAL_SETTLEMENT_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
@@ -2694,6 +2892,8 @@ def build_report(
         artifact_evidence[MESH_RECOVERY_LIFECYCLE_CLAIM_ID] = mesh_recovery_lifecycle_artifact_evidence(root)
     if any(claim in claims for claim in ("trust_finality", "production_readiness")):
         artifact_evidence[TRUST_FINALITY_CLAIM_ID] = trust_finality_artifact_evidence(root)
+    if any(claim in claims for claim in ("local_service_identity_status", "production_readiness")):
+        artifact_evidence[LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID] = local_service_identity_status_artifact_evidence(root)
     if any(claim in claims for claim in ("customer_traffic", "production_readiness")):
         artifact_evidence[CUSTOMER_TRAFFIC_CLAIM_ID] = customer_traffic_artifact_evidence(root)
     if any(claim in claims for claim in ("settlement_finality", "production_readiness")):

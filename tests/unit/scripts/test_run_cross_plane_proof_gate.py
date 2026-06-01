@@ -485,6 +485,60 @@ def _write_valid_trust_finality_event(root: Path) -> None:
         handle.write(json.dumps(event) + "\n")
 
 
+def _write_valid_local_service_identity_status_event(root: Path) -> None:
+    event_log = root / ".agent_coordination/events.log"
+    event_log.parent.mkdir(parents=True, exist_ok=True)
+    event = {
+        "event_id": "local-service-identity-status-event-1",
+        "event_type": "pipeline.stage_end",
+        "source_agent": "service-identity-status",
+        "timestamp": "2026-05-31T00:00:00",
+        "target_agents": None,
+        "priority": 5,
+        "requires_ack": False,
+        "acked_by": [],
+        "data": {
+            "schema": "x0tta6bl4.local_service_identity_status.eventbus_evidence.v1",
+            "component": "local_service_identity_status_collector",
+            "operation": "service_identity_status_inventory",
+            "status": "success",
+            "services_total": 3,
+            "services_with_any_identity": 1,
+            "services_complete": 0,
+            "configured_field_counts": {
+                "spiffe_id": 1,
+                "did": 0,
+                "wallet_address": 0,
+            },
+            "raw_identity_values_redacted": True,
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+            "live_spiffe_svid_confirmed": False,
+            "did_ownership_confirmed": False,
+            "wallet_control_confirmed": False,
+            "chain_identity_finality_confirmed": False,
+            "production_readiness_claim_allowed": False,
+            "claim_gate": {
+                "schema": "x0tta6bl4.local_service_identity_status.claim_gate.v1",
+                "local_service_identity_status_claim_allowed": True,
+                "raw_identity_values_redacted": True,
+                "payloads_redacted": True,
+                "live_spiffe_svid_claim_allowed": False,
+                "did_ownership_claim_allowed": False,
+                "wallet_control_claim_allowed": False,
+                "chain_identity_finality_claim_allowed": False,
+                "production_readiness_claim_allowed": False,
+                "claim_boundary": "Local service identity status only.",
+                "redacted": True,
+            },
+            "claim_boundary": "Local service identity status only.",
+            "redacted": True,
+        },
+    }
+    with event_log.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event) + "\n")
+
+
 def _write_valid_customer_traffic_event(root: Path) -> None:
     event_log = root / ".agent_coordination/events.log"
     event_log.parent.mkdir(parents=True, exist_ok=True)
@@ -701,6 +755,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "dataplane_delivery",
         "traffic_delivery",
         "customer_traffic",
+        "local_service_identity_status",
         "trust_finality",
         "dpi_bypass",
         "settlement_finality",
@@ -721,7 +776,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert report["blocked_claim_ids"] == list(expected_claims)
     assert set(report["claim_blockers"]) == set(expected_claims)
     assert report["summary"]["high_risk_claims_requested"] == (
-        len(expected_claims) - 2
+        len(expected_claims) - 3
     )
     assert report["plane_claims"] == {
         "data_plane": [
@@ -733,7 +788,11 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
             "dpi_bypass",
         ],
         "control_plane": ["production_readiness", "mesh_recovery_lifecycle"],
-        "trust_plane": ["production_readiness", "trust_finality"],
+        "trust_plane": [
+            "production_readiness",
+            "local_service_identity_status",
+            "trust_finality",
+        ],
         "evidence_plane": list(expected_claims),
         "economy_plane": ["production_readiness", "settlement_finality"],
     }
@@ -773,6 +832,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "local_restored_dataplane",
         "dataplane_delivery",
         "customer_traffic",
+        "local_service_identity_status",
         "trust_finality",
         "external_settlement",
         "economy_boundary",
@@ -784,6 +844,9 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         ".agent_coordination/events.log"
     )
     assert graph["local_restored_dataplane"]["artifact_dependencies"][0]["path"] == (
+        ".agent_coordination/events.log"
+    )
+    assert graph["local_service_identity_status"]["artifact_dependencies"][0]["path"] == (
         ".agent_coordination/events.log"
     )
     assert graph["dpi_bypass"]["next_action_ids"] == [
@@ -800,6 +863,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "collect_mesh_recovery_lifecycle_eventbus_evidence",
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
+        "collect_local_service_identity_status_eventbus_evidence",
         "import_verified_dpi_lab_evidence",
         "verify_external_settlement_artifacts",
         "import_verified_production_readiness_evidence",
@@ -812,6 +876,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "collect_mesh_recovery_lifecycle_eventbus_evidence",
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
+        "collect_local_service_identity_status_eventbus_evidence",
         "verify_external_settlement_artifacts",
         "import_verified_production_readiness_evidence",
     ]
@@ -828,6 +893,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "collect_mesh_recovery_lifecycle_eventbus_evidence",
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
+        "collect_local_service_identity_status_eventbus_evidence",
         "import_verified_dpi_lab_evidence",
         "verify_external_settlement_artifacts",
         "import_verified_production_readiness_evidence",
@@ -910,7 +976,15 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "docs/verification/incoming/trust_finality.json" in trust_action[
         "artifact_paths"
     ]
-    dpi_action = report["next_actions"][4]
+    identity_action = report["next_actions"][4]
+    assert identity_action["automation_status"] == "local_command_available"
+    assert identity_action["suggested_commands"][0] == [
+        "python3",
+        "scripts/ops/collect_local_service_identity_status_eventbus_evidence.py",
+        "--write-event",
+        "--json",
+    ]
+    dpi_action = report["next_actions"][5]
     assert dpi_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
@@ -933,7 +1007,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         dpi_action["artifact_paths"]
     )
     assert "authorized external lab/field run" in dpi_action["implementation_gap"]
-    settlement_action = report["next_actions"][5]
+    settlement_action = report["next_actions"][6]
     assert settlement_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
@@ -1184,6 +1258,32 @@ def test_gate_finds_trust_finality_event_outside_tail_scan_via_source_filter(
     ]
 
 
+def test_gate_allows_local_service_identity_status_without_trust_finality(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path)
+    _write_valid_local_service_identity_status_event(tmp_path)
+
+    report = build_report(
+        tmp_path,
+        claims=("local_service_identity_status", "trust_finality"),
+    )
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    assert report["allowed_claim_ids"] == ["local_service_identity_status"]
+    assert report["blocked_claim_ids"] == ["trust_finality"]
+    [identity, trust] = report["claim_results"]
+    assert identity["allowed"] is True
+    assert identity["blockers"] == []
+    artifact = identity["required_artifact_evidence"]
+    assert artifact["valid"] is True
+    assert artifact["selected_event"]["event_id"] == (
+        "local-service-identity-status-event-1"
+    )
+    assert artifact["selected_event"]["services_total"] == 3
+    assert "trust_finality_eventbus_artifact_not_verified" in trust["blockers"]
+
+
 def test_gate_blocks_customer_traffic_when_map_flags_are_true_but_event_is_missing(
     tmp_path: Path,
 ) -> None:
@@ -1275,6 +1375,7 @@ def test_gate_blocks_production_readiness_when_map_flags_are_true_but_imported_a
     _write_valid_dataplane_delivery_event(tmp_path)
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
+    _write_valid_local_service_identity_status_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
     _write_valid_external_settlement_artifacts(tmp_path)
 
@@ -1301,6 +1402,7 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     _write_valid_mesh_recovery_lifecycle_event(tmp_path)
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
+    _write_valid_local_service_identity_status_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
     _write_valid_external_settlement_artifacts(tmp_path)
 
@@ -1344,6 +1446,13 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     trust = production["supporting_artifact_evidence"]["trust_finality"]
     assert trust["valid"] is True
     assert trust["selected_event"]["event_id"] == "trust-finality-event-1"
+    identity = production["supporting_artifact_evidence"][
+        "local_service_identity_status"
+    ]
+    assert identity["valid"] is True
+    assert identity["selected_event"]["event_id"] == (
+        "local-service-identity-status-event-1"
+    )
 
 
 def test_gate_blocks_production_readiness_when_dataplane_artifact_is_missing(
@@ -1353,6 +1462,7 @@ def test_gate_blocks_production_readiness_when_dataplane_artifact_is_missing(
     _write_stub_production_readiness_proof(tmp_path, verified=True)
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
+    _write_valid_local_service_identity_status_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
     _write_valid_external_settlement_artifacts(tmp_path)
 
@@ -1379,6 +1489,7 @@ def test_gate_blocks_production_readiness_when_customer_traffic_artifact_is_miss
     _write_stub_production_readiness_proof(tmp_path, verified=True)
     _write_valid_dataplane_delivery_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
+    _write_valid_local_service_identity_status_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
     _write_valid_external_settlement_artifacts(tmp_path)
 
@@ -1410,6 +1521,7 @@ def test_gate_blocks_production_readiness_when_external_settlement_artifact_is_m
     _write_valid_dataplane_delivery_event(tmp_path)
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
+    _write_valid_local_service_identity_status_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
 
     report = build_report(tmp_path, claims=("production_readiness",))
@@ -1442,6 +1554,7 @@ def test_gate_blocks_production_readiness_when_customer_traffic_map_flag_is_miss
     _write_valid_dataplane_delivery_event(tmp_path)
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
+    _write_valid_local_service_identity_status_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
     _write_valid_external_settlement_artifacts(tmp_path)
 
