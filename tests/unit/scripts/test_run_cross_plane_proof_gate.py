@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import subprocess
 import sys
@@ -12,6 +13,7 @@ from scripts.ops.run_cross_plane_proof_gate import (
     build_report,
     dataplane_delivery_artifact_evidence,
     main,
+    measured_attestation_verifier_smoke_artifact_evidence,
 )
 
 
@@ -539,6 +541,111 @@ def _write_valid_local_service_identity_status_event(root: Path) -> None:
         handle.write(json.dumps(event) + "\n")
 
 
+def _canonical_json(payload: object) -> str:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _artifact_content_sha256(payload: dict) -> str:
+    normalized = json.loads(_canonical_json(payload))
+    normalized["artifact_identity"]["artifact_sha256"] = "0" * 64
+    return _sha256_text(_canonical_json(normalized))
+
+
+def _write_valid_measured_attestation_smoke_artifact(root: Path) -> None:
+    path = root / "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "x0tta6bl4.measured_attestation_verifier_smoke.v1",
+        "decision": "MEASURED_ATTESTATION_VERIFIER_SMOKE_READY",
+        "ready": True,
+        "captured_at_utc": "2026-05-31T00:00:00Z",
+        "provider": "sgx",
+        "artifact_identity": {
+            "claim_id": "measured_attestation_verifier_smoke",
+            "operator_or_lab_hash": "a" * 64,
+            "authorization_scope_hash": "b" * 64,
+            "environment_bucket": "lab-sgx-node",
+            "hardware_profile_bucket": "sgx-dcap",
+            "policy_context_hash": "c" * 64,
+            "artifact_sha256": "0" * 64,
+        },
+        "input_redaction": {
+            "raw_attestation_material_retained": False,
+            "raw_file_paths_redacted": True,
+            "report_data": {
+                "present": True,
+                "size_bytes": 17,
+                "sha256": "d" * 64,
+                "raw_value_redacted": True,
+            },
+            "quote": {
+                "present": True,
+                "size_bytes": 19,
+                "sha256": "e" * 64,
+                "raw_value_redacted": True,
+            },
+            "signature": {
+                "present": True,
+                "size_bytes": 23,
+                "sha256": "f" * 64,
+                "raw_value_redacted": True,
+            },
+        },
+        "verifier": {
+            "backend": "sgx_command",
+            "verified": True,
+            "reason": "verified_by_non_mock_local_command",
+            "production_verifier_claim_allowed": True,
+            "command_configured": True,
+            "provenance": {
+                "raw_attestation_redacted": True,
+                "verifier_id": "dcap-local",
+                "policy_id": "sgx-prod-policy",
+            },
+        },
+        "measurements": {
+            "non_mock_provider": True,
+            "hardware_quote_present": True,
+            "signature_present": True,
+            "attestation_verified": True,
+            "verifier_provenance_recorded": True,
+            "production_verifier_claim_allowed": True,
+            "production_trust_finality": False,
+            "production_ready": False,
+        },
+        "result_summary": {
+            "production_attestation_verifier_smoke_ready": True,
+            "confidence_bucket": "bounded-single-verifier-run",
+            "production_trust_finality": False,
+            "production_ready": False,
+        },
+        "claim_boundary": {
+            "summary": "Bounded local measured-attestation verifier smoke only.",
+            "not_proven": [
+                "production trust finality",
+                "fleet-wide hardware coverage",
+                "live customer traffic",
+                "payment or token settlement finality",
+                "PQC identity finality",
+                "production readiness",
+            ],
+            "proof_claims": {
+                "non_mock_attestation_verified": True,
+                "verifier_provenance_recorded": True,
+                "production_attestation_verifier_claim_allowed": True,
+                "production_trust_finality": False,
+                "production_ready": False,
+            },
+        },
+    }
+    payload["artifact_identity"]["artifact_sha256"] = _artifact_content_sha256(payload)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _write_valid_customer_traffic_event(root: Path) -> None:
     event_log = root / ".agent_coordination/events.log"
     event_log.parent.mkdir(parents=True, exist_ok=True)
@@ -937,6 +1044,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "traffic_delivery",
         "customer_traffic",
         "local_service_identity_status",
+        "measured_attestation_verifier_smoke",
         "trust_finality",
         "dpi_bypass",
         "settlement_finality",
@@ -957,7 +1065,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert report["blocked_claim_ids"] == list(expected_claims)
     assert set(report["claim_blockers"]) == set(expected_claims)
     assert report["summary"]["high_risk_claims_requested"] == (
-        len(expected_claims) - 3
+        len(expected_claims) - 4
     )
     assert report["plane_claims"] == {
         "data_plane": [
@@ -972,6 +1080,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "trust_plane": [
             "production_readiness",
             "local_service_identity_status",
+            "measured_attestation_verifier_smoke",
             "trust_finality",
         ],
         "evidence_plane": list(expected_claims),
@@ -1014,6 +1123,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "dataplane_delivery",
         "customer_traffic",
         "local_service_identity_status",
+        "measured_attestation_verifier_smoke",
         "trust_finality",
         "external_settlement",
         "economy_boundary",
@@ -1030,6 +1140,9 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert graph["local_service_identity_status"]["artifact_dependencies"][0]["path"] == (
         ".agent_coordination/events.log"
     )
+    assert graph["measured_attestation_verifier_smoke"]["artifact_dependencies"][0]["path"] == (
+        "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+    )
     assert graph["dpi_bypass"]["next_action_ids"] == [
         "import_verified_dpi_lab_evidence"
     ]
@@ -1045,6 +1158,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
         "collect_local_service_identity_status_eventbus_evidence",
+        "validate_measured_attestation_verifier_smoke_artifact",
         "import_verified_dpi_lab_evidence",
         "verify_external_settlement_artifacts",
         "import_verified_production_readiness_evidence",
@@ -1058,6 +1172,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
         "collect_local_service_identity_status_eventbus_evidence",
+        "validate_measured_attestation_verifier_smoke_artifact",
         "verify_external_settlement_artifacts",
         "import_verified_production_readiness_evidence",
     ]
@@ -1075,6 +1190,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
         "collect_local_service_identity_status_eventbus_evidence",
+        "validate_measured_attestation_verifier_smoke_artifact",
         "import_verified_dpi_lab_evidence",
         "verify_external_settlement_artifacts",
         "import_verified_production_readiness_evidence",
@@ -1165,7 +1281,19 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "--write-event",
         "--json",
     ]
-    dpi_action = report["next_actions"][5]
+    measured_attestation_action = report["next_actions"][5]
+    assert measured_attestation_action["automation_status"] == (
+        "local_command_available_with_operator_inputs"
+    )
+    assert measured_attestation_action["suggested_commands"][0][:2] == [
+        "python3",
+        "scripts/ops/verify_measured_attestation_verifier_smoke.py",
+    ]
+    assert "docs/verification/incoming/measured_attestation_verifier_smoke.json" in (
+        measured_attestation_action["artifact_paths"]
+    )
+    assert "out of chat" in measured_attestation_action["implementation_gap"]
+    dpi_action = report["next_actions"][6]
     assert dpi_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
@@ -1188,7 +1316,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         dpi_action["artifact_paths"]
     )
     assert "authorized external lab/field run" in dpi_action["implementation_gap"]
-    settlement_action = report["next_actions"][6]
+    settlement_action = report["next_actions"][7]
     assert settlement_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
@@ -1465,6 +1593,75 @@ def test_gate_allows_local_service_identity_status_without_trust_finality(
     assert "trust_finality_eventbus_artifact_not_verified" in trust["blockers"]
 
 
+def test_gate_blocks_measured_attestation_smoke_without_validated_artifact(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path)
+
+    report = build_report(tmp_path, claims=("measured_attestation_verifier_smoke",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [attestation] = report["claim_results"]
+    assert attestation["allowed"] is False
+    assert "measured_attestation_verifier_smoke_artifact_not_verified" in (
+        attestation["blockers"]
+    )
+    artifact = attestation["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert artifact["artifact_path"] == (
+        "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+    )
+    assert artifact["validation"]["decision"] == "REJECTED"
+    assert "measured_attestation_verifier_smoke_artifact_not_ready" in artifact[
+        "blockers"
+    ]
+
+
+def test_gate_allows_measured_attestation_smoke_only_with_validated_artifact(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path)
+    _write_valid_measured_attestation_smoke_artifact(tmp_path)
+
+    report = build_report(tmp_path, claims=("measured_attestation_verifier_smoke",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_ALLOWED"
+    assert report["allowed"] is True
+    [attestation] = report["claim_results"]
+    assert attestation["allowed"] is True
+    assert attestation["blockers"] == []
+    artifact = attestation["required_artifact_evidence"]
+    assert artifact["valid"] is True
+    assert artifact["validation"]["decision"] == "READY_TO_IMPORT"
+    assert artifact["validation"]["candidate_sha256_present"] is True
+    assert "production readiness by itself" in artifact["claim_boundary"]
+
+
+def test_gate_blocks_measured_attestation_smoke_when_artifact_overpromotes_production(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path)
+    _write_valid_measured_attestation_smoke_artifact(tmp_path)
+    path = tmp_path / "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["result_summary"]["production_ready"] = True
+    payload["artifact_identity"]["artifact_sha256"] = _artifact_content_sha256(payload)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("measured_attestation_verifier_smoke",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [attestation] = report["claim_results"]
+    artifact = attestation["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "measured_attestation_verifier_smoke_artifact_not_ready" in artifact[
+        "blockers"
+    ]
+    assert "result_summary.production_ready must be false" in artifact[
+        "validation"
+    ]["failures"]
+
+
 def test_gate_blocks_customer_traffic_when_map_flags_are_true_but_event_is_missing(
     tmp_path: Path,
 ) -> None:
@@ -1557,6 +1754,7 @@ def test_gate_blocks_production_readiness_when_map_flags_are_true_but_imported_a
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_local_service_identity_status_event(tmp_path)
+    _write_valid_measured_attestation_smoke_artifact(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
     _write_valid_external_settlement_artifacts(tmp_path)
 
@@ -1584,6 +1782,7 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_local_service_identity_status_event(tmp_path)
+    _write_valid_measured_attestation_smoke_artifact(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
     _write_valid_external_settlement_artifacts(tmp_path)
 
@@ -1634,6 +1833,41 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     assert identity["selected_event"]["event_id"] == (
         "local-service-identity-status-event-1"
     )
+    measured_attestation = production["supporting_artifact_evidence"][
+        "measured_attestation_verifier_smoke"
+    ]
+    assert measured_attestation["valid"] is True
+    assert measured_attestation["validation"]["decision"] == "READY_TO_IMPORT"
+
+
+def test_gate_blocks_production_readiness_when_measured_attestation_smoke_is_missing(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, production_flags=True, customer_flags=True)
+    _write_stub_production_readiness_proof(tmp_path, verified=True)
+    _write_valid_dataplane_delivery_event(tmp_path)
+    _write_valid_mesh_recovery_lifecycle_event(tmp_path)
+    _write_valid_customer_traffic_event(tmp_path)
+    _write_valid_trust_finality_event(tmp_path)
+    _write_valid_local_service_identity_status_event(tmp_path)
+    _write_valid_economy_boundary_event(tmp_path)
+    _write_valid_external_settlement_artifacts(tmp_path)
+
+    report = build_report(tmp_path, claims=("production_readiness",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [production] = report["claim_results"]
+    assert (
+        "production_readiness_measured_attestation_verifier_smoke_artifact_not_verified"
+        in production["blockers"]
+    )
+    measured_attestation = production["supporting_artifact_evidence"][
+        "measured_attestation_verifier_smoke"
+    ]
+    assert measured_attestation["valid"] is False
+    assert "measured_attestation_verifier_smoke_artifact_not_ready" in (
+        measured_attestation["blockers"]
+    )
 
 
 def test_gate_blocks_production_readiness_when_dataplane_artifact_is_missing(
@@ -1644,6 +1878,7 @@ def test_gate_blocks_production_readiness_when_dataplane_artifact_is_missing(
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_local_service_identity_status_event(tmp_path)
+    _write_valid_measured_attestation_smoke_artifact(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
     _write_valid_external_settlement_artifacts(tmp_path)
 
@@ -1671,6 +1906,7 @@ def test_gate_blocks_production_readiness_when_customer_traffic_artifact_is_miss
     _write_valid_dataplane_delivery_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_local_service_identity_status_event(tmp_path)
+    _write_valid_measured_attestation_smoke_artifact(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
     _write_valid_external_settlement_artifacts(tmp_path)
 
@@ -1703,6 +1939,7 @@ def test_gate_blocks_production_readiness_when_external_settlement_artifact_is_m
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_local_service_identity_status_event(tmp_path)
+    _write_valid_measured_attestation_smoke_artifact(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
 
     report = build_report(tmp_path, claims=("production_readiness",))
@@ -1736,6 +1973,7 @@ def test_gate_blocks_production_readiness_when_customer_traffic_map_flag_is_miss
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_local_service_identity_status_event(tmp_path)
+    _write_valid_measured_attestation_smoke_artifact(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
     _write_valid_external_settlement_artifacts(tmp_path)
 

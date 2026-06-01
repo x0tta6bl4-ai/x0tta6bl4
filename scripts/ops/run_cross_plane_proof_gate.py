@@ -32,6 +32,12 @@ GHOST_PULSE_REPLACEMENT_CANDIDATES = Path("scripts/ops/verify_ghost_pulse_replac
 GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE = Path("scripts/ops/verify_ghost_pulse_external_evidence_intake.py")
 EXTERNAL_DPI_VALIDATOR = Path("scripts/ops/verify_external_dpi_proxy_reachability_evidence.py")
 EXTERNAL_DPI_CONTRACT = Path("docs/verification/EXTERNAL_DPI_PROXY_REACHABILITY_EVIDENCE_SCHEMA.json")
+MEASURED_ATTESTATION_SMOKE_VALIDATOR = Path(
+    "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py"
+)
+MEASURED_ATTESTATION_SMOKE_CANDIDATE = Path(
+    "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+)
 GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST = Path(
     "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.json"
 )
@@ -79,6 +85,7 @@ EXTERNAL_SETTLEMENT_CLAIM_ID = "external_settlement"
 ECONOMY_BOUNDARY_CLAIM_ID = "economy_boundary"
 TRUST_FINALITY_CLAIM_ID = "trust_finality"
 LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID = "local_service_identity_status"
+MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID = "measured_attestation_verifier_smoke"
 TRUST_FINALITY_SOURCE_AGENTS = (
     "service-identity-status",
     "spiffe-agent-manager",
@@ -187,6 +194,12 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
         high_risk=False,
         required_planes=("trust_plane", "evidence_plane"),
     ),
+    "measured_attestation_verifier_smoke": ClaimRequirement(
+        claim_id="measured_attestation_verifier_smoke",
+        description="Bounded non-mock measured-attestation verifier smoke artifact.",
+        high_risk=False,
+        required_planes=("trust_plane", "evidence_plane"),
+    ),
     "dpi_bypass": ClaimRequirement(
         claim_id="dpi_bypass",
         description="External DPI/proxy bypass claim.",
@@ -282,6 +295,7 @@ DEFAULT_CLAIMS = (
     "traffic_delivery",
     "customer_traffic",
     "local_service_identity_status",
+    "measured_attestation_verifier_smoke",
     "trust_finality",
     "dpi_bypass",
     "settlement_finality",
@@ -295,6 +309,7 @@ CLAIM_ARTIFACT_DEPENDENCIES: dict[str, tuple[str, ...]] = {
         DATAPLANE_DELIVERY_CLAIM_ID,
         CUSTOMER_TRAFFIC_CLAIM_ID,
         LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID,
+        MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID,
         TRUST_FINALITY_CLAIM_ID,
         EXTERNAL_SETTLEMENT_CLAIM_ID,
         ECONOMY_BOUNDARY_CLAIM_ID,
@@ -305,6 +320,9 @@ CLAIM_ARTIFACT_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "traffic_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
     "customer_traffic": (CUSTOMER_TRAFFIC_CLAIM_ID,),
     "local_service_identity_status": (LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID,),
+    "measured_attestation_verifier_smoke": (
+        MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID,
+    ),
     "mesh_recovery_lifecycle": (MESH_RECOVERY_LIFECYCLE_CLAIM_ID,),
     "trust_finality": (TRUST_FINALITY_CLAIM_ID,),
     "dpi_bypass": (DPI_LAB_CLAIM_ID,),
@@ -645,6 +663,74 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             ],
         ],
         "artifact_paths": [".agent_coordination/events.log"],
+    },
+    {
+        "action_id": "validate_measured_attestation_verifier_smoke_artifact",
+        "title": "Validate bounded measured-attestation verifier smoke evidence.",
+        "match_tokens": (
+            "measured_attestation_verifier_smoke_artifact_not_verified",
+            "production_readiness_measured_attestation_verifier_smoke_artifact_not_verified",
+            "measured_attestation_verifier_smoke_artifact_not_ready",
+            "measured_attestation_verifier_smoke_validator_error",
+        ),
+        "claim_boundary": (
+            "Measured-attestation verifier smoke proves only that one supplied "
+            "attestation sample was accepted by a configured non-mock verifier "
+            "and saved with redacted provenance. It does not prove fleet-wide "
+            "hardware coverage, production trust finality, PQC identity finality, "
+            "customer traffic, settlement, or production readiness."
+        ),
+        "automation_status": "local_command_available_with_operator_inputs",
+        "implementation_gap": (
+            "Run the smoke against real local SGX/SEV/Nitro attestation material "
+            "and a non-mock verifier command. Keep report data, quote, signature, "
+            "operator ID, authorization scope, policy context, and verifier command "
+            "out of chat; pass them as local files/arguments."
+        ),
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/verify_measured_attestation_verifier_smoke.py",
+                "--report-data-file",
+                "<local_report_data_file>",
+                "--quote-file",
+                "<local_quote_file>",
+                "--signature-file",
+                "<local_signature_file>",
+                "--sgx-verifier-command",
+                "<local_non_mock_verifier_command>",
+                "--operator-or-lab-id",
+                "<local_operator_or_lab_id>",
+                "--authorization-scope-id",
+                "<local_authorization_scope_id>",
+                "--environment-bucket",
+                "<coarse_environment_bucket>",
+                "--hardware-profile-bucket",
+                "<coarse_hardware_profile_bucket>",
+                "--policy-context",
+                "<local_policy_context>",
+                "--allow-local-verifier-run",
+                "--json",
+            ],
+            [
+                "python3",
+                "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py",
+                "--candidate",
+                "docs/verification/incoming/measured_attestation_verifier_smoke.json",
+                "--require-ready",
+                "--json",
+            ],
+            [
+                "python3",
+                "scripts/ops/run_cross_plane_proof_gate.py",
+                "--claim",
+                "measured_attestation_verifier_smoke",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [
+            "docs/verification/incoming/measured_attestation_verifier_smoke.json",
+        ],
     },
     {
         "action_id": "import_verified_dpi_lab_evidence",
@@ -1515,6 +1601,78 @@ def local_service_identity_status_artifact_evidence(root: Path) -> dict[str, Any
             return result
 
     result["blockers"].append("verified_local_service_identity_status_event_not_found")
+    return result
+
+
+def measured_attestation_verifier_smoke_artifact_evidence(root: Path) -> dict[str, Any]:
+    candidate = resolve_path(root, MEASURED_ATTESTATION_SMOKE_CANDIDATE)
+    result: dict[str, Any] = {
+        "claim_id": MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID,
+        "required_for_claim": "measured_attestation_verifier_smoke",
+        "required_for_claims": [
+            "measured_attestation_verifier_smoke",
+            "production_readiness",
+        ],
+        "valid": False,
+        "artifact_path": MEASURED_ATTESTATION_SMOKE_CANDIDATE.as_posix(),
+        "artifact_exists": candidate.is_file(),
+        "validator_path": MEASURED_ATTESTATION_SMOKE_VALIDATOR.as_posix(),
+        "validation": None,
+        "blockers": [],
+        "claim_boundary": (
+            "A measured-attestation verifier-smoke artifact supports only a "
+            "bounded local claim that a configured non-mock verifier accepted "
+            "one supplied attestation sample and returned redacted provenance. "
+            "It does not prove production trust finality, fleet-wide hardware "
+            "coverage, PQC identity finality, customer traffic, settlement, or "
+            "production readiness by itself."
+        ),
+    }
+    try:
+        validator = load_script_module(
+            root,
+            MEASURED_ATTESTATION_SMOKE_VALIDATOR,
+            "cross_plane_measured_attestation_smoke_validator",
+        )
+        report = validator.build_report(
+            root,
+            MEASURED_ATTESTATION_SMOKE_CANDIDATE,
+            require_ready=True,
+        )
+        result["validation"] = {
+            "schema": report.get("schema"),
+            "decision": report.get("decision"),
+            "ready": report.get("ready") is True,
+            "candidate": str(report.get("candidate") or ""),
+            "candidate_sha256_present": _is_sha256_hex(report.get("candidate_sha256")),
+            "artifact_schema": report.get("artifact_schema"),
+            "artifact_ready": report.get("artifact_ready") is True,
+            "failures": [
+                str(item)
+                for item in (
+                    report.get("failures")
+                    if isinstance(report.get("failures"), list)
+                    else []
+                )[:10]
+            ],
+            "failures_total": len(report.get("failures") or [])
+            if isinstance(report.get("failures"), list)
+            else 0,
+            "claim_boundary": report.get("claim_boundary"),
+        }
+        if (
+            report.get("decision") != "READY_TO_IMPORT"
+            or report.get("ready") is not True
+        ):
+            result["blockers"].append(
+                "measured_attestation_verifier_smoke_artifact_not_ready"
+            )
+    except Exception as exc:
+        result["blockers"].append(
+            f"measured_attestation_verifier_smoke_validator_error:{type(exc).__name__}"
+        )
+
+    result["valid"] = not result["blockers"]
     return result
 
 
@@ -2811,6 +2969,12 @@ def evaluate_claim(
         claim_artifact_evidence = (artifact_evidence or {}).get(LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("local_service_identity_status_eventbus_artifact_not_verified")
+    elif claim_id == "measured_attestation_verifier_smoke":
+        claim_artifact_evidence = (artifact_evidence or {}).get(
+            MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID
+        )
+        if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
+            blockers.append("measured_attestation_verifier_smoke_artifact_not_verified")
     elif claim_id == "customer_traffic":
         claim_artifact_evidence = (artifact_evidence or {}).get(CUSTOMER_TRAFFIC_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
@@ -2866,6 +3030,17 @@ def evaluate_claim(
             ] = service_identity_status
         if not service_identity_status or service_identity_status.get("valid") is not True:
             blockers.append("production_readiness_service_identity_status_artifact_not_verified")
+        measured_attestation_smoke = (artifact_evidence or {}).get(
+            MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID
+        )
+        if measured_attestation_smoke is not None:
+            supporting_artifact_evidence[
+                MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID
+            ] = measured_attestation_smoke
+        if not measured_attestation_smoke or measured_attestation_smoke.get("valid") is not True:
+            blockers.append(
+                "production_readiness_measured_attestation_verifier_smoke_artifact_not_verified"
+            )
     elif claim_id == "settlement_finality":
         claim_artifact_evidence = (artifact_evidence or {}).get(EXTERNAL_SETTLEMENT_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
@@ -3142,6 +3317,10 @@ def build_report(
         artifact_evidence[TRUST_FINALITY_CLAIM_ID] = trust_finality_artifact_evidence(root)
     if any(claim in claims for claim in ("local_service_identity_status", "production_readiness")):
         artifact_evidence[LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID] = local_service_identity_status_artifact_evidence(root)
+    if any(claim in claims for claim in ("measured_attestation_verifier_smoke", "production_readiness")):
+        artifact_evidence[MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID] = (
+            measured_attestation_verifier_smoke_artifact_evidence(root)
+        )
     if any(claim in claims for claim in ("customer_traffic", "production_readiness")):
         artifact_evidence[CUSTOMER_TRAFFIC_CLAIM_ID] = customer_traffic_artifact_evidence(root)
     if any(claim in claims for claim in ("settlement_finality", "production_readiness")):

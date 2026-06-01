@@ -83,6 +83,51 @@ def test_sgx_command_backend_receives_base64_payload(monkeypatch):
     assert base64.b64decode(payload["signature_b64"]) == b"signature-bytes"
 
 
+def test_sgx_command_backend_context_records_redacted_provenance(monkeypatch):
+    class _Result:
+        returncode = 0
+        stdout = json.dumps(
+            {
+                "valid": True,
+                "verifier_id": "dcap-local",
+                "policy_id": "sgx-prod-policy",
+                "production_verifier_claim_allowed": True,
+            }
+        )
+        stderr = ""
+
+    monkeypatch.setattr(
+        "src.security.tee_attestation.subprocess.run",
+        lambda *args, **kwargs: _Result(),
+    )
+    validator = TEEValidator(sgx_verifier_command=["/opt/x0t/sgx-verify", "--json"])
+
+    result = validator.verify_report_with_context(_sgx_attestation())
+
+    assert result.verified is True
+    assert result.provider == "sgx"
+    assert result.verifier_backend == "sgx_command"
+    assert result.production_verifier_claim_allowed is True
+    assert result.verifier_provenance["backend_kind"] == "local_command"
+    assert result.verifier_provenance["executable_name"] == "sgx-verify"
+    assert result.verifier_provenance["raw_command_redacted"] is True
+    assert result.verifier_provenance["verifier_id"] == "dcap-local"
+    assert result.verifier_provenance["policy_id"] == "sgx-prod-policy"
+    assert "command_sha256_prefix" in result.verifier_provenance
+    assert "/opt/x0t/sgx-verify" not in json.dumps(result.verifier_provenance)
+
+
+def test_mock_context_never_allows_production_verifier_claim():
+    result = TEEValidator(allow_mock=True).verify_report_with_context(
+        TEEAttestation(provider="mock", report_data=b"TRUSTED_X0T")
+    )
+
+    assert result.verified is True
+    assert result.verifier_backend == "mock_local_allowlist"
+    assert result.production_verifier_claim_allowed is False
+    assert result.verifier_provenance["raw_attestation_redacted"] is True
+
+
 def test_sgx_command_backend_rejects_nonzero_exit(monkeypatch):
     class _Result:
         returncode = 1
