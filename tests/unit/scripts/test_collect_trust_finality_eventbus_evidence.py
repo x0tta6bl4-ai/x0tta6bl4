@@ -27,6 +27,7 @@ def _write_proof(
     *,
     live_spiffe_svid_confirmed: bool = True,
     status: str = "VERIFIED",
+    source_artifact_role: str = "redacted_local_spiffe_svid_probe_report",
 ) -> Path:
     path = tmp_path / "trust_finality.json"
     path.write_text(
@@ -42,7 +43,7 @@ def _write_proof(
                 },
                 "source_artifacts": [
                     {
-                        "role": "redacted_local_spiffe_svid_probe_report",
+                        "role": source_artifact_role,
                         "sha256": "a" * 64,
                         "redacted": True,
                     }
@@ -126,6 +127,37 @@ def test_collect_unconfirmed_proof_writes_non_promoting_event(
     assert report["event_written"] is True
     assert report["ready_for_proof_gate"] is False
     assert "trust_finality_input_has_no_confirmed_identity_fact" in report["blockers"]
+
+    artifact = trust_finality_artifact_evidence(tmp_path)
+    assert artifact["valid"] is False
+    assert "verified_trust_finality_event_not_found" in artifact["blockers"]
+    assert "trust_finality_not_confirmed" in artifact["candidate_blockers"]
+
+
+def test_collect_blocks_verified_proof_without_required_trust_probe_artifact_role(
+    tmp_path: Path,
+) -> None:
+    collector = _load_script()
+    proof = _write_proof(tmp_path, source_artifact_role="generic_redacted_identity_log")
+    args = collector.parse_args(
+        [
+            "--root",
+            str(tmp_path),
+            "--proof-json",
+            str(proof),
+            "--allow-redacted-local-proof-intake",
+            "--write-event",
+        ]
+    )
+
+    report = collector.collect(args)
+
+    assert report["decision"] == "TRUST_FINALITY_PROOF_NOT_READY"
+    assert report["event_written"] is True
+    assert report["ready_for_proof_gate"] is False
+    assert "trust_finality_input_required_source_artifact_missing" in report[
+        "blockers"
+    ]
 
     artifact = trust_finality_artifact_evidence(tmp_path)
     assert artifact["valid"] is False

@@ -96,6 +96,13 @@ TRUST_FINALITY_SOURCE_AGENTS = (
     "spiffe-mapek-loop",
     "spiffe-workload-api",
 )
+TRUST_FINALITY_REQUIRED_SOURCE_ARTIFACT_ROLES = (
+    "redacted_local_trust_probe_report",
+    "redacted_local_spiffe_svid_probe_report",
+    "redacted_did_ownership_probe_report",
+    "redacted_wallet_control_probe_report",
+    "redacted_chain_identity_finality_probe_report",
+)
 CUSTOMER_TRAFFIC_CLAIM_ID = "customer_traffic"
 CUSTOMER_TRAFFIC_SOURCE_AGENTS = (
     "customer-traffic-probe",
@@ -1416,6 +1423,12 @@ def _dataplane_traffic_delivery_allowed(
 def _trust_candidate_blockers(event: Mapping[str, Any]) -> list[str]:
     data = _mapping(event.get("data"))
     gate = _mapping(data.get("claim_gate")) or _mapping(data.get("service_identity_claim_gate"))
+    source_artifacts = data.get("source_artifacts")
+    source_artifacts_list = (
+        source_artifacts
+        if isinstance(source_artifacts, list)
+        else []
+    )
     blockers: list[str] = []
     trust_confirmed = any(
         value is True
@@ -1451,6 +1464,14 @@ def _trust_candidate_blockers(event: Mapping[str, Any]) -> list[str]:
         blockers.append("trust_finality_evidence_not_redacted")
     if not (data.get("claim_boundary") or gate.get("claim_boundary")):
         blockers.append("trust_finality_claim_boundary_missing")
+    if not source_artifacts_list:
+        blockers.append("trust_finality_source_artifacts_missing")
+    elif not any(
+        _mapping(artifact).get("role") in TRUST_FINALITY_REQUIRED_SOURCE_ARTIFACT_ROLES
+        and _mapping(artifact).get("redacted") is True
+        for artifact in source_artifacts_list
+    ):
+        blockers.append("trust_finality_required_source_artifact_missing")
     if gate.get("dataplane_delivery_claim_allowed") is True or data.get("dataplane_confirmed") is True:
         blockers.append("trust_event_overpromotes_dataplane")
     if gate.get("production_readiness_claim_allowed") is True or data.get("production_readiness_claim_allowed") is True:

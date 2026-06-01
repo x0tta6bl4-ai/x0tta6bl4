@@ -21,6 +21,13 @@ TRUST_FINALITY_SOURCE_AGENTS = (
     "spiffe-mapek-loop",
     "spiffe-workload-api",
 )
+TRUST_FINALITY_REQUIRED_SOURCE_ARTIFACT_ROLES = (
+    "redacted_local_trust_probe_report",
+    "redacted_local_spiffe_svid_probe_report",
+    "redacted_did_ownership_probe_report",
+    "redacted_wallet_control_probe_report",
+    "redacted_chain_identity_finality_probe_report",
+)
 
 
 class TrustFinalityObservedEvidence(BaseModel):
@@ -107,6 +114,11 @@ def trust_finality_input_blockers(proof: TrustFinalityLocalEvidenceInput) -> lis
         blockers.append("trust_finality_input_claim_boundary_missing")
     if not proof.source_artifacts:
         blockers.append("trust_finality_input_source_artifacts_missing")
+    elif not any(
+        artifact.role in TRUST_FINALITY_REQUIRED_SOURCE_ARTIFACT_ROLES
+        for artifact in proof.source_artifacts
+    ):
+        blockers.append("trust_finality_input_required_source_artifact_missing")
     for artifact in proof.source_artifacts:
         if artifact.redacted is not True:
             blockers.append("trust_finality_input_source_artifact_not_redacted")

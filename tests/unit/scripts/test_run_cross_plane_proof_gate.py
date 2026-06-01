@@ -501,6 +501,15 @@ def _write_valid_trust_finality_event(root: Path) -> None:
             "live_spiffe_svid_confirmed": True,
             "raw_identity_values_redacted": True,
             "payloads_redacted": True,
+            "source_artifacts_count": 1,
+            "source_artifacts": [
+                {
+                    "role": "redacted_local_spiffe_svid_probe_report",
+                    "sha256": "a" * 64,
+                    "path_redacted": True,
+                    "redacted": True,
+                }
+            ],
             "claim_boundary": (
                 "Live SPIFFE SVID validation evidence only; not dataplane, "
                 "settlement, customer traffic, or production readiness proof."
@@ -1639,6 +1648,35 @@ def test_gate_allows_trust_finality_only_with_verified_eventbus_artifact(
     assert artifact["selected_event"]["event_id"] == "trust-finality-event-1"
     assert artifact["selected_event"]["redacted"] is True
     assert "dataplane delivery" in artifact["claim_boundary"]
+
+
+def test_gate_blocks_trust_finality_without_required_source_artifact_context(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, trust_flags=True)
+    _write_valid_trust_finality_event(tmp_path)
+    event_log = tmp_path / ".agent_coordination/events.log"
+    event = json.loads(event_log.read_text(encoding="utf-8"))
+    event["data"]["source_artifacts"] = [
+        {
+            "role": "generic_redacted_identity_log",
+            "sha256": "a" * 64,
+            "path_redacted": True,
+            "redacted": True,
+        }
+    ]
+    event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("trust_finality",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [trust] = report["claim_results"]
+    assert "trust_finality_eventbus_artifact_not_verified" in trust["blockers"]
+    artifact = trust["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "trust_finality_required_source_artifact_missing" in artifact[
+        "candidate_blockers"
+    ]
 
 
 def test_gate_finds_trust_finality_event_outside_tail_scan_via_source_filter(
