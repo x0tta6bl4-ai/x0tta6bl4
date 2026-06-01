@@ -333,7 +333,11 @@ def _write_valid_external_settlement_artifacts(root: Path) -> None:
         path.write_text(json.dumps(report), encoding="utf-8")
 
 
-def _write_valid_dataplane_delivery_event(root: Path) -> None:
+def _write_valid_dataplane_delivery_event(
+    root: Path,
+    *,
+    traffic_delivery_allowed: bool = False,
+) -> None:
     event_log = root / ".agent_coordination/events.log"
     event_log.parent.mkdir(parents=True, exist_ok=True)
     event = {
@@ -349,7 +353,8 @@ def _write_valid_dataplane_delivery_event(root: Path) -> None:
             "dataplane_confirmed": True,
             "post_action_dataplane_revalidated": True,
             "restored_dataplane_claim_allowed": True,
-            "traffic_delivery_claim_allowed": False,
+            "traffic_delivery_claim_allowed": traffic_delivery_allowed,
+            "traffic_delivery_confirmed": traffic_delivery_allowed,
             "customer_traffic_claim_allowed": False,
             "production_readiness_claim_allowed": False,
             "post_action_dataplane_revalidation": {
@@ -359,10 +364,14 @@ def _write_valid_dataplane_delivery_event(root: Path) -> None:
                 "dataplane_confirmed": True,
                 "post_action_dataplane_revalidated": True,
                 "restored_dataplane_claim_allowed": True,
+                "traffic_delivery_claim_allowed": traffic_delivery_allowed,
+                "traffic_delivery_confirmed": traffic_delivery_allowed,
                 "redacted": True,
                 "claim_boundary": "Bounded dataplane probe evidence only.",
                 "claim_gate": {
                     "restored_dataplane_claim_allowed": True,
+                    "traffic_delivery_claim_allowed": traffic_delivery_allowed,
+                    "traffic_delivery_confirmed": traffic_delivery_allowed,
                     "blockers": [],
                     "observed_evidence": {
                         "probe_attempted": True,
@@ -2062,19 +2071,21 @@ def test_gate_routes_to_map_reconciliation_after_verified_dataplane_artifact(
     assert "evidence_map_dataplane_flags_not_reconciled" in dataplane[
         "blockers"
     ]
-    assert "evidence_map_traffic_delivery_flags_not_reconciled" in traffic[
+    assert "traffic_delivery_not_proven_by_local_restored_dataplane_artifact" in traffic[
         "blockers"
     ]
 
     assert [action["action_id"] for action in report["next_actions"]] == [
+        "collect_verified_traffic_delivery_eventbus_evidence",
         "reconcile_dataplane_delivery_evidence_map_flags"
     ]
-    [action] = report["next_actions"]
-    assert action["automation_status"] == (
+    traffic_action, reconcile_action = report["next_actions"]
+    assert traffic_action["automation_status"] == "manual_or_scenario_probe_required"
+    assert reconcile_action["automation_status"] == (
         "manual_review_required_with_verified_artifact"
     )
     assert "CURRENT_CROSS_PLANE_EVIDENCE_MAP.json" in " ".join(
-        action["artifact_paths"]
+        reconcile_action["artifact_paths"]
     )
 
 
@@ -2105,7 +2116,7 @@ def test_gate_allows_local_restored_dataplane_without_promoting_delivery_claims(
         "dataplane-event-1"
     )
     assert "evidence_map_dataplane_flags_not_reconciled" in dataplane["blockers"]
-    assert "evidence_map_traffic_delivery_flags_not_reconciled" in traffic[
+    assert "traffic_delivery_not_proven_by_local_restored_dataplane_artifact" in traffic[
         "blockers"
     ]
 
@@ -2152,11 +2163,38 @@ def test_gate_blocks_traffic_delivery_when_map_flags_are_true_but_artifact_is_mi
     assert "dataplane_event_log_missing" in artifact["blockers"]
 
 
-def test_gate_allows_traffic_delivery_only_with_verified_dataplane_artifact(
+def test_gate_blocks_traffic_delivery_when_artifact_is_local_restored_only(
     tmp_path: Path,
 ) -> None:
     _write_map(tmp_path, dataplane_flags=True)
     _write_valid_dataplane_delivery_event(tmp_path)
+
+    report = build_report(tmp_path, claims=("traffic_delivery",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [traffic] = report["claim_results"]
+    assert traffic["allowed"] is False
+    assert (
+        "traffic_delivery_not_proven_by_local_restored_dataplane_artifact"
+        in traffic["blockers"]
+    )
+    artifact = traffic["required_artifact_evidence"]
+    assert artifact["valid"] is True
+    assert artifact["selected_event"]["claim_scope"] == "local_restored_dataplane"
+    assert artifact["selected_event"]["traffic_delivery_claim_allowed"] is False
+    assert report["next_actions"][0]["action_id"] == (
+        "collect_verified_traffic_delivery_eventbus_evidence"
+    )
+
+
+def test_gate_allows_traffic_delivery_only_with_verified_traffic_artifact(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, dataplane_flags=True)
+    _write_valid_dataplane_delivery_event(
+        tmp_path,
+        traffic_delivery_allowed=True,
+    )
 
     report = build_report(tmp_path, claims=("traffic_delivery",))
 
@@ -2169,6 +2207,8 @@ def test_gate_allows_traffic_delivery_only_with_verified_dataplane_artifact(
     assert artifact["valid"] is True
     assert artifact["selected_event"]["event_id"] == "dataplane-event-1"
     assert artifact["selected_event"]["restored_dataplane_claim_allowed"] is True
+    assert artifact["selected_event"]["traffic_delivery_claim_allowed"] is True
+    assert artifact["selected_event"]["claim_scope"] == "traffic_delivery"
 
 
 def test_gate_allows_dataplane_delivery_only_with_map_flags_and_verified_eventbus_artifact(

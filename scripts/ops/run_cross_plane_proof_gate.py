@@ -473,6 +473,36 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
         "artifact_paths": [".agent_coordination/events.log"],
     },
     {
+        "action_id": "collect_verified_traffic_delivery_eventbus_evidence",
+        "title": "Collect bounded traffic-delivery EventBus evidence.",
+        "match_tokens": (
+            "traffic_delivery_not_proven_by_local_restored_dataplane_artifact",
+        ),
+        "claim_boundary": (
+            "Traffic-delivery evidence must be separate from a local restored-"
+            "dataplane TCP probe. A local restored-dataplane artifact can prove "
+            "only the bounded local recovery dataplane subclaim unless a retained "
+            "traffic-specific claim gate explicitly allows traffic delivery."
+        ),
+        "automation_status": "manual_or_scenario_probe_required",
+        "implementation_gap": (
+            "Add or run a traffic-delivery probe that writes redacted EventBus "
+            "evidence with traffic_delivery_claim_allowed or "
+            "traffic_delivery_confirmed true. Do not reuse the local restored-"
+            "dataplane collector as traffic-delivery proof."
+        ),
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/run_cross_plane_proof_gate.py",
+                "--claim",
+                "traffic_delivery",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [".agent_coordination/events.log"],
+    },
+    {
         "action_id": "reconcile_dataplane_delivery_evidence_map_flags",
         "title": "Reconcile current evidence-map delivery flags after verified dataplane artifact.",
         "match_tokens": (
@@ -1342,6 +1372,24 @@ def _dataplane_candidate_blockers(
     return blockers
 
 
+def _dataplane_traffic_delivery_allowed(
+    data: Mapping[str, Any],
+    revalidation: Mapping[str, Any],
+) -> bool:
+    gate = _mapping(revalidation.get("claim_gate"))
+    return any(
+        value is True
+        for value in (
+            data.get("traffic_delivery_claim_allowed"),
+            data.get("traffic_delivery_confirmed"),
+            revalidation.get("traffic_delivery_claim_allowed"),
+            revalidation.get("traffic_delivery_confirmed"),
+            gate.get("traffic_delivery_claim_allowed"),
+            gate.get("traffic_delivery_confirmed"),
+        )
+    )
+
+
 def _trust_candidate_blockers(event: Mapping[str, Any]) -> list[str]:
     data = _mapping(event.get("data"))
     gate = _mapping(data.get("claim_gate")) or _mapping(data.get("service_identity_claim_gate"))
@@ -1851,6 +1899,10 @@ def dataplane_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
                     if blocker not in result["candidate_blockers"] and len(result["candidate_blockers"]) < 20:
                         result["candidate_blockers"].append(blocker)
                 continue
+            traffic_delivery_allowed = _dataplane_traffic_delivery_allowed(
+                data,
+                revalidation,
+            )
             result["matching_events"] += 1
             result["selected_event"] = {
                 "event_id": str(event.get("event_id") or ""),
@@ -1861,6 +1913,15 @@ def dataplane_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
                 "dataplane_confirmed": True,
                 "post_action_dataplane_revalidated": True,
                 "restored_dataplane_claim_allowed": True,
+                "traffic_delivery_claim_allowed": traffic_delivery_allowed,
+                "traffic_delivery_confirmed": traffic_delivery_allowed,
+                "customer_traffic_claim_allowed": False,
+                "production_readiness_claim_allowed": False,
+                "claim_scope": (
+                    "traffic_delivery"
+                    if traffic_delivery_allowed
+                    else "local_restored_dataplane"
+                ),
                 "redacted": True,
             }
             result["valid"] = True
@@ -2960,6 +3021,12 @@ def evaluate_claim(
         claim_artifact_evidence = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("traffic_delivery_dataplane_artifact_not_verified")
+        elif not _dataplane_artifact_supports_traffic_delivery(
+            claim_artifact_evidence
+        ):
+            blockers.append(
+                "traffic_delivery_not_proven_by_local_restored_dataplane_artifact"
+            )
         elif missing_true_flags or missing_any_groups or blocking_false_flags:
             blockers.append("evidence_map_traffic_delivery_flags_not_reconciled")
     elif claim_id == "trust_finality":
@@ -3232,6 +3299,18 @@ def _artifact_dependency_summary(
         "path": _artifact_dependency_path(evidence),
         "blockers": sorted(set(blockers)),
     }
+
+
+def _dataplane_artifact_supports_traffic_delivery(
+    evidence: Mapping[str, Any] | None,
+) -> bool:
+    if not evidence:
+        return False
+    selected = _mapping(evidence.get("selected_event"))
+    return (
+        selected.get("traffic_delivery_claim_allowed") is True
+        or selected.get("traffic_delivery_confirmed") is True
+    )
 
 
 def _artifact_evidence_for_dependency(
