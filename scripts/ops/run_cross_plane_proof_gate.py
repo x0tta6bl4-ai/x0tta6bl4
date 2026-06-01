@@ -3215,9 +3215,19 @@ def _artifact_dependency_summary(
         for blocker in evidence.get("blockers", [])
         if str(blocker)
     ]
+    present = True
+    for existence_field in (
+        "artifact_exists",
+        "event_log_exists",
+        "evidence_exists",
+        "report_exists",
+    ):
+        if existence_field in evidence:
+            present = evidence.get(existence_field) is True
+            break
     return {
         "artifact_id": artifact_id,
-        "present": True,
+        "present": present,
         "valid": evidence.get("valid") is True,
         "path": _artifact_dependency_path(evidence),
         "blockers": sorted(set(blockers)),

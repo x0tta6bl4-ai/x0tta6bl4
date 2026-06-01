@@ -1631,6 +1631,14 @@ def test_gate_blocks_measured_attestation_smoke_without_validated_artifact(
     assert "measured_attestation_verifier_smoke_artifact_not_ready" in artifact[
         "blockers"
     ]
+    dependency = report["proof_dependency_graph"][
+        "measured_attestation_verifier_smoke"
+    ]["artifact_dependencies"][0]
+    assert dependency["present"] is False
+    assert dependency["valid"] is False
+    assert dependency["path"] == (
+        "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+    )
 
 
 def test_gate_allows_measured_attestation_smoke_only_with_validated_artifact(
