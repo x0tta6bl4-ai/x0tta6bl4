@@ -26,7 +26,13 @@ TRAFFIC_DELIVERY_REQUIRED_SOURCE_ARTIFACT_ROLES = (
 )
 
 
-class TrafficDeliveryObservedEvidence(BaseModel):
+class StrictTrafficDeliveryModel(BaseModel):
+    """Base traffic-delivery contract that rejects hidden overclaim fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TrafficDeliveryObservedEvidence(StrictTrafficDeliveryModel):
     """Redacted observed facts for a traffic-delivery proof."""
 
     traffic_flow_confirmed: bool = False
@@ -46,7 +52,7 @@ class TrafficDeliveryObservedEvidence(BaseModel):
         )
 
 
-class TrafficDeliverySourceArtifact(BaseModel):
+class TrafficDeliverySourceArtifact(StrictTrafficDeliveryModel):
     """A redacted source artifact reference used to justify the traffic claim."""
 
     role: str = Field(min_length=1)
@@ -54,10 +60,10 @@ class TrafficDeliverySourceArtifact(BaseModel):
     redacted: bool = True
 
 
-class TrafficDeliveryLocalEvidenceInput(BaseModel):
+class TrafficDeliveryLocalEvidenceInput(StrictTrafficDeliveryModel):
     """Input JSON accepted by the local traffic-delivery collector."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     schema_: str = Field(default=TRAFFIC_DELIVERY_INPUT_SCHEMA, alias="schema")
     status: str
@@ -70,10 +76,10 @@ class TrafficDeliveryLocalEvidenceInput(BaseModel):
     claim_boundary: str = TRAFFIC_DELIVERY_CLAIM_BOUNDARY
 
 
-class TrafficDeliveryClaimGate(BaseModel):
+class TrafficDeliveryClaimGate(StrictTrafficDeliveryModel):
     """Gate that prevents traffic evidence from becoming wider claims."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     schema_: Literal["x0tta6bl4.traffic_delivery.claim_gate.v1"] = Field(
         default=TRAFFIC_DELIVERY_CLAIM_GATE_SCHEMA,

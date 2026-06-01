@@ -180,6 +180,34 @@ def test_collect_blocks_verified_proof_without_required_customer_probe_artifact_
     assert "customer_traffic_not_confirmed" in artifact["candidate_blockers"]
 
 
+def test_collect_rejects_hidden_overclaim_fields_in_proof_json(
+    tmp_path: Path,
+) -> None:
+    collector = _load_script()
+    proof = _write_proof(tmp_path)
+    payload = json.loads(proof.read_text(encoding="utf-8"))
+    payload["production_readiness_claim_allowed"] = True
+    payload["observed_evidence"]["settlement_finality_confirmed"] = True
+    proof.write_text(json.dumps(payload), encoding="utf-8")
+    args = collector.parse_args(
+        [
+            "--root",
+            str(tmp_path),
+            "--proof-json",
+            str(proof),
+            "--allow-redacted-local-proof-intake",
+            "--write-event",
+        ]
+    )
+
+    report = collector.collect(args)
+
+    assert report["decision"] == "BLOCKED_INVALID_PROOF_JSON"
+    assert report["event_written"] is False
+    assert report["ready_for_proof_gate"] is False
+    assert "customer_traffic_input_schema_validation_failed" in report["blockers"]
+
+
 def test_collect_exposes_template_without_writing_event(tmp_path: Path) -> None:
     collector = _load_script()
     args = collector.parse_args(

@@ -25,7 +25,13 @@ CUSTOMER_TRAFFIC_REQUIRED_SOURCE_ARTIFACT_ROLES = (
 )
 
 
-class CustomerTrafficObservedEvidence(BaseModel):
+class StrictCustomerTrafficModel(BaseModel):
+    """Base customer-traffic contract that rejects hidden overclaim fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CustomerTrafficObservedEvidence(StrictCustomerTrafficModel):
     """Redacted observed facts for an end-to-end customer-path proof."""
 
     end_to_end_customer_path_confirmed: bool = False
@@ -45,7 +51,7 @@ class CustomerTrafficObservedEvidence(BaseModel):
         )
 
 
-class CustomerTrafficSourceArtifact(BaseModel):
+class CustomerTrafficSourceArtifact(StrictCustomerTrafficModel):
     """A redacted source artifact reference used to justify the traffic claim."""
 
     role: str = Field(min_length=1)
@@ -53,10 +59,10 @@ class CustomerTrafficSourceArtifact(BaseModel):
     redacted: bool = True
 
 
-class CustomerTrafficLocalEvidenceInput(BaseModel):
+class CustomerTrafficLocalEvidenceInput(StrictCustomerTrafficModel):
     """Input JSON accepted by the local customer-traffic collector."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     schema_: str = Field(default=CUSTOMER_TRAFFIC_INPUT_SCHEMA, alias="schema")
     status: str
@@ -69,10 +75,10 @@ class CustomerTrafficLocalEvidenceInput(BaseModel):
     claim_boundary: str = CUSTOMER_TRAFFIC_CLAIM_BOUNDARY
 
 
-class CustomerTrafficClaimGate(BaseModel):
+class CustomerTrafficClaimGate(StrictCustomerTrafficModel):
     """Gate that prevents customer-path evidence from becoming wider claims."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     schema_: Literal["x0tta6bl4.customer_traffic.claim_gate.v1"] = Field(
         default=CUSTOMER_TRAFFIC_CLAIM_GATE_SCHEMA,
