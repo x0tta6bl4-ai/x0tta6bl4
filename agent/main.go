@@ -8,7 +8,9 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -16,6 +18,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,6 +26,7 @@ import (
 	"github.com/x0tta6bl4/agent/internal/config"
 	"github.com/x0tta6bl4/agent/internal/crypto/pqc"
 	"github.com/x0tta6bl4/agent/internal/healing"
+	"github.com/x0tta6bl4/agent/internal/identity"
 	"github.com/x0tta6bl4/agent/internal/mesh"
 	"github.com/x0tta6bl4/agent/internal/mesh/discovery"
 	"github.com/x0tta6bl4/agent/internal/telemetry"
@@ -199,13 +203,15 @@ func (a *agent) registerAndHeartbeat() {
 	// Register
 	hostname, _ := os.Hostname()
 	resp, err := a.apiClient.Register(api.RegistrationRequest{
-		NodeID:   a.cfg.NodeID,
-		Token:    a.cfg.JoinToken,
-		Hostname: hostname,
-		Arch:     runtime.GOARCH,
-		OS:       runtime.GOOS,
-		Version:  Version,
-		Services: []string{"mesh"},
+		NodeID:      a.cfg.NodeID,
+		MeshID:      a.cfg.MeshID,
+		Token:       a.cfg.JoinToken,
+		DeviceClass: "edge",
+		Hostname:    hostname,
+		Arch:        runtime.GOARCH,
+		OS:          runtime.GOOS,
+		Version:     Version,
+		Services:    []string{"mesh"},
 	})
 
 	if err != nil {
@@ -216,27 +222,261 @@ func (a *agent) registerAndHeartbeat() {
 		a.cfg.MeshID = resp.MeshID
 	}
 
+	readJWTSVID := func() (string, error) {
+		return identity.FetchJWTSVID(context.Background(), identity.JWTSVIDConfig{
+			Source:          a.cfg.RuntimeIdentityJWTSVIDSource,
+			Audience:        a.cfg.RuntimeIdentityJWTSVIDAudience,
+			FilePath:        a.cfg.RuntimeIdentityJWTSVIDFile,
+			WorkloadAPIAddr: a.cfg.RuntimeIdentityWorkloadAPIAddr,
+		})
+	}
+
+	fetchNodeConfig := func() (*api.NodeConfigResponse, error) {
+		if !a.cfg.RuntimeIdentityAutoBindJWTSVID {
+			return a.apiClient.FetchNodeConfig(a.cfg.MeshID, a.cfg.NodeID)
+		}
+		token, err := readJWTSVID()
+		if err != nil {
+			return nil, err
+		}
+		return a.apiClient.FetchNodeConfigWithJWTSVID(a.cfg.MeshID, a.cfg.NodeID, token)
+	}
+
+	sendHeartbeat := func(hb api.HeartbeatRequest) error {
+		if !a.cfg.RuntimeIdentityAutoBindJWTSVID {
+			return a.apiClient.SendHeartbeat(hb)
+		}
+		token, err := readJWTSVID()
+		if err != nil {
+			return err
+		}
+		return a.apiClient.SendHeartbeatWithJWTSVID(hb, token)
+	}
+
+	configFetched := false
+	tryFetchConfig := func() {
+		if configFetched || a.cfg.MeshID == "" {
+			return
+		}
+		cfgResp, err := fetchNodeConfig()
+		if err != nil {
+			slog.Debug("node config fetch pending", "error", err)
+			return
+		}
+		configFetched = true
+		slog.Info("node config fetched",
+			"mesh_id", cfgResp.MeshID,
+			"node_id", cfgResp.NodeID,
+			"policies", len(cfgResp.Policies),
+			"peers", len(cfgResp.Peers),
+			"enforcement", cfgResp.Enforcement,
+			"global_mode", cfgResp.GlobalMode,
+		)
+	}
+
+	verifiedIdentityBound := false
+	jwtSVIDIdentityBound := false
+	tryBindJWTSVIDIdentity := func() {
+		if jwtSVIDIdentityBound || !a.cfg.RuntimeIdentityAutoBindJWTSVID || a.cfg.MeshID == "" {
+			return
+		}
+		token, err := readJWTSVID()
+		if err != nil {
+			slog.Debug("JWT-SVID runtime identity bind pending", "error", err)
+			return
+		}
+		bound, err := a.apiClient.BindJWTSVIDRuntimeIdentity(a.cfg.MeshID, a.cfg.NodeID, token)
+		if err != nil {
+			slog.Debug("JWT-SVID runtime identity bind pending", "error", err)
+			return
+		}
+		jwtSVIDIdentityBound = true
+		verifiedIdentityBound = true
+		slog.Info("JWT-SVID runtime identity bound",
+			"mesh_id", bound.MeshID,
+			"node_id", bound.NodeID,
+			"binding_type", bound.RuntimeIdentityBindingType,
+			"source", bound.RuntimeIdentityVerificationSource,
+		)
+	}
+	tryBindVerifiedIdentity := func() {
+		if verifiedIdentityBound || !a.cfg.RuntimeIdentityAutoBindVerified || a.cfg.MeshID == "" {
+			return
+		}
+		bound, err := a.apiClient.BindVerifiedRuntimeIdentity(a.cfg.MeshID, a.cfg.NodeID)
+		if err != nil {
+			slog.Debug("verified runtime identity bind pending", "error", err)
+			return
+		}
+		verifiedIdentityBound = true
+		slog.Info("verified runtime identity bound",
+			"mesh_id", bound.MeshID,
+			"node_id", bound.NodeID,
+			"binding_type", bound.RuntimeIdentityBindingType,
+			"source", bound.RuntimeIdentityVerificationSource,
+		)
+	}
+	tryBindJWTSVIDIdentity()
+	tryBindVerifiedIdentity()
+
+	measuredAttestationLastRefresh := time.Time{}
+	tryRefreshMeasuredAttestation := func(force bool) {
+		if !a.cfg.RuntimeIdentityAutoRefreshMeasuredAttestation || a.cfg.MeshID == "" {
+			return
+		}
+		interval := time.Duration(a.cfg.RuntimeIdentityMeasuredAttestationRefreshIntervalSec) * time.Second
+		if interval <= 0 {
+			interval = time.Hour
+		}
+		if !force && !measuredAttestationLastRefresh.IsZero() && time.Since(measuredAttestationLastRefresh) < interval {
+			return
+		}
+		attestation, err := measuredAttestationDataFromConfig(a.cfg)
+		if err != nil {
+			slog.Debug("measured attestation refresh not configured", "error", err)
+			return
+		}
+		bound, err := a.apiClient.RefreshMeasuredAttestationRuntimeIdentity(a.cfg.MeshID, a.cfg.NodeID, attestation)
+		if err != nil {
+			slog.Debug("measured attestation refresh pending", "error", err)
+			return
+		}
+		measuredAttestationLastRefresh = time.Now()
+		slog.Info("measured attestation runtime identity refreshed",
+			"mesh_id", bound.MeshID,
+			"node_id", bound.NodeID,
+			"binding_type", bound.RuntimeIdentityBindingType,
+			"source", bound.RuntimeIdentityVerificationSource,
+		)
+	}
+	tryRefreshMeasuredAttestation(true)
+	tryFetchConfig()
+
+	tryRotateCredential := func() {
+		if a.cfg.MeshID == "" || !a.apiClient.ShouldRotateNodeRuntimeCredential(5*time.Minute) {
+			return
+		}
+		var (
+			rotated *api.NodeRuntimeCredentialRotateResponse
+			err     error
+		)
+		if a.cfg.RuntimeIdentityAutoBindJWTSVID {
+			token, readErr := readJWTSVID()
+			if readErr != nil {
+				err = readErr
+			} else {
+				rotated, err = a.apiClient.RotateNodeRuntimeCredentialWithJWTSVID(
+					a.cfg.MeshID,
+					a.cfg.NodeID,
+					24*60*60,
+					token,
+				)
+			}
+		} else {
+			rotated, err = a.apiClient.RotateNodeRuntimeCredentialWithIdentityProof(
+				a.cfg.MeshID,
+				a.cfg.NodeID,
+				24*60*60,
+				runtimeIdentityProofFromConfig(a.cfg),
+			)
+		}
+		if err != nil {
+			slog.Debug("node runtime credential rotation pending", "error", err)
+			return
+		}
+		slog.Info("node runtime credential rotated",
+			"mesh_id", rotated.MeshID,
+			"node_id", rotated.NodeID,
+			"expires_at", rotated.NodeRuntimeCredentialExpiresAt,
+		)
+	}
+
 	// Heartbeat loop
 	ticker := time.NewTicker(time.Duration(a.cfg.HeartbeatIntervalSec) * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
+		tryBindJWTSVIDIdentity()
+		tryBindVerifiedIdentity()
+		tryRefreshMeasuredAttestation(false)
+		tryRotateCredential()
+		tryFetchConfig()
+
 		metrics := a.telem.Collect()
 		hb := api.HeartbeatRequest{
-			NodeID:       a.cfg.NodeID,
-			State:        a.node.State.String(),
-			PeersTotal:   metrics.PeersTotal,
-			PeersHealthy: metrics.PeersHealthy,
-			HealthScore:  metrics.HealthScore,
-			UptimeSec:    metrics.UptimeSec,
-			MsgSent:      metrics.MsgSent,
-			MsgRecv:      metrics.MsgRecv,
+			NodeID:               a.cfg.NodeID,
+			Status:               "healthy",
+			State:                a.node.State.String(),
+			PeersTotal:           metrics.PeersTotal,
+			PeersHealthy:         metrics.PeersHealthy,
+			HealthScore:          metrics.HealthScore,
+			UptimeSec:            metrics.UptimeSec,
+			MsgSent:              metrics.MsgSent,
+			MsgRecv:              metrics.MsgRecv,
+			DataplaneProbeTarget: a.cfg.DataplaneProbeTarget,
 		}
 
-		if err := a.apiClient.SendHeartbeat(hb); err != nil {
+		if err := sendHeartbeat(hb); err != nil {
 			slog.Debug("heartbeat failed", "error", err)
 		}
 	}
+}
+
+func runtimeIdentityProofFromConfig(cfg *config.Config) *api.RuntimeIdentityProof {
+	bindingType := strings.TrimSpace(cfg.RuntimeIdentityBindingType)
+	if bindingType == "" {
+		return nil
+	}
+	return &api.RuntimeIdentityProof{
+		BindingType:       bindingType,
+		SPIFFEID:          strings.TrimSpace(cfg.RuntimeIdentitySpiffeID),
+		AttestationDigest: strings.TrimSpace(cfg.RuntimeIdentityAttestationDigest),
+		Nonce:             strings.TrimSpace(cfg.RuntimeIdentityNonce),
+	}
+}
+
+func measuredAttestationDataFromConfig(cfg *config.Config) (*api.MeasuredAttestationData, error) {
+	provider := strings.TrimSpace(cfg.RuntimeIdentityMeasuredAttestationProvider)
+	if provider == "" {
+		provider = "sgx"
+	}
+	data := &api.MeasuredAttestationData{Provider: provider}
+	if reportData := strings.TrimSpace(cfg.RuntimeIdentityMeasuredAttestationReportData); reportData != "" {
+		data.ReportData = reportData
+	}
+	if path := strings.TrimSpace(cfg.RuntimeIdentityMeasuredAttestationReportFile); path != "" {
+		encoded, err := readFileBase64(path)
+		if err != nil {
+			return nil, fmt.Errorf("read measured attestation report file: %w", err)
+		}
+		data.ReportDataB64 = encoded
+	}
+	if path := strings.TrimSpace(cfg.RuntimeIdentityMeasuredAttestationQuoteFile); path != "" {
+		encoded, err := readFileBase64(path)
+		if err != nil {
+			return nil, fmt.Errorf("read measured attestation quote file: %w", err)
+		}
+		data.QuoteB64 = encoded
+	}
+	if path := strings.TrimSpace(cfg.RuntimeIdentityMeasuredAttestationSignatureFile); path != "" {
+		encoded, err := readFileBase64(path)
+		if err != nil {
+			return nil, fmt.Errorf("read measured attestation signature file: %w", err)
+		}
+		data.SignatureB64 = encoded
+	}
+	if !data.IsConfigured() {
+		return nil, fmt.Errorf("measured attestation data is not configured")
+	}
+	return data, nil
+}
+
+func readFileBase64(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(content), nil
 }
 
 func setupLogger(level string) {
