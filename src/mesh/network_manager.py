@@ -764,6 +764,7 @@ class MeshNetworkManager:
         event_project_root: str = ".",
         enable_post_heal_dataplane_probe: Optional[bool] = None,
         post_heal_dataplane_probe_provider: Optional[Any] = None,
+        enable_database_node_healing: bool = True,
     ) -> None:
         """Initialize MeshNetworkManager.
 
@@ -795,6 +796,7 @@ class MeshNetworkManager:
             else bool(enable_post_heal_dataplane_probe)
         )
         self.post_heal_dataplane_probe_provider = post_heal_dataplane_probe_provider
+        self.enable_database_node_healing = bool(enable_database_node_healing)
         # Cache for verification results
         self._verification_cache: Dict[str, NodeVerificationResult] = {}
 
@@ -1677,79 +1679,82 @@ class MeshNetworkManager:
                 logger.error(f"Aggressive routing healing failed: {e}")
 
         # 2. Database Node Healing with State Integrity Verification
-        try:
-            from src.database import SessionLocal, MeshNode
+        if not self.enable_database_node_healing:
+            logger.debug("Database node healing disabled for this manager instance")
+        else:
+            try:
+                from src.database import SessionLocal, MeshNode
 
-            with SessionLocal() as db:
-                offline_nodes = (
-                    db.query(MeshNode).filter(MeshNode.status == "offline").all()
-                )
+                with SessionLocal() as db:
+                    offline_nodes = (
+                        db.query(MeshNode).filter(MeshNode.status == "offline").all()
+                    )
 
-                if not offline_nodes:
-                    logger.debug("No offline nodes to heal")
-                elif auto_restore_nodes:
-                    for node in offline_nodes:
-                        try:
-                            is_recovered = False
+                    if not offline_nodes:
+                        logger.debug("No offline nodes to heal")
+                    elif auto_restore_nodes:
+                        for node in offline_nodes:
+                            try:
+                                is_recovered = False
 
-                            # Use custom callback if provided
-                            if node_recovery_callback is not None:
-                                is_recovered = await node_recovery_callback(node.id)
-                            else:
-                                # Use built-in verification
-                                result = await self.verify_node_state(
-                                    node_id=node.id,
-                                    mode=verification_mode,
-                                )
-                                verification_results.append(result)
-                                is_recovered = result.is_healthy
+                                # Use custom callback if provided
+                                if node_recovery_callback is not None:
+                                    is_recovered = await node_recovery_callback(node.id)
+                                else:
+                                    # Use built-in verification
+                                    result = await self.verify_node_state(
+                                        node_id=node.id,
+                                        mode=verification_mode,
+                                    )
+                                    verification_results.append(result)
+                                    is_recovered = result.is_healthy
 
-                            if is_recovered:
-                                logger.info(
-                                    f"🔧 Healing: Node {node.id} verified and restored "
-                                    f"(mode={verification_mode.value})"
-                                )
-                                node.status = "healthy"
-                                node.last_seen = datetime.utcnow()
-                                healed += 1
-                            elif not require_verification:
-                                # Allow unverified restore with warning
+                                if is_recovered:
+                                    logger.info(
+                                        f"🔧 Healing: Node {node.id} verified and restored "
+                                        f"(mode={verification_mode.value})"
+                                    )
+                                    node.status = "healthy"
+                                    node.last_seen = datetime.utcnow()
+                                    healed += 1
+                                elif not require_verification:
+                                    # Allow unverified restore with warning
+                                    logger.warning(
+                                        f"⚠️ Node {node.id} restored WITHOUT passing verification "
+                                        f"(require_verification=False)"
+                                    )
+                                    node.status = "healthy"
+                                    node.last_seen = datetime.utcnow()
+                                    healed += 1
+                                else:
+                                    logger.warning(
+                                        f"⚠️ Node {node.id} failed verification, skipping. "
+                                        f"Use require_verification=False to force restore."
+                                    )
+                            except NodeVerificationError as e:
+                                error_types.append(type(e).__name__)
+                                logger.error(f"❌ Node {node.id} verification error: {e}")
+                            except Exception as e:
+                                error_types.append(type(e).__name__)
                                 logger.warning(
-                                    f"⚠️ Node {node.id} restored WITHOUT passing verification "
-                                    f"(require_verification=False)"
+                                    f"⚠️ Node {node.id} recovery check failed: {e}"
                                 )
-                                node.status = "healthy"
-                                node.last_seen = datetime.utcnow()
-                                healed += 1
-                            else:
-                                logger.warning(
-                                    f"⚠️ Node {node.id} failed verification, skipping. "
-                                    f"Use require_verification=False to force restore."
-                                )
-                        except NodeVerificationError as e:
-                            error_types.append(type(e).__name__)
-                            logger.error(f"❌ Node {node.id} verification error: {e}")
-                        except Exception as e:
-                            error_types.append(type(e).__name__)
-                            logger.warning(
-                                f"⚠️ Node {node.id} recovery check failed: {e}"
+
+                        db.commit()
+                    else:
+                        # Default: just log offline nodes without modifying
+                        logger.info(
+                            f"📊 Found {len(offline_nodes)} offline nodes. "
+                            "Use auto_restore_nodes=True to attempt recovery."
+                        )
+                        for node in offline_nodes:
+                            logger.debug(
+                                f"  - Offline node: {node.id} (last_seen: {node.last_seen})"
                             )
 
-                    db.commit()
-                else:
-                    # Default: just log offline nodes without modifying
-                    logger.info(
-                        f"📊 Found {len(offline_nodes)} offline nodes. "
-                        "Use auto_restore_nodes=True to attempt recovery."
-                    )
-                    for node in offline_nodes:
-                        logger.debug(
-                            f"  - Offline node: {node.id} (last_seen: {node.last_seen})"
-                        )
-
-        except Exception as e:
-            error_types.append(type(e).__name__)
-            logger.error(f"Database node healing failed: {e}")
+            except Exception as e:
+                error_types.append(type(e).__name__)
+                logger.error(f"Database node healing failed: {e}")
 
         elapsed = (time.time() - start_time) / 60.0
         self._healing_log.append(

@@ -425,6 +425,30 @@ class TestAggressiveHealing:
         assert "healed" in mgr._healing_log[0]
 
     @pytest.mark.asyncio
+    async def test_healing_can_disable_database_node_healing(self, monkeypatch):
+        import builtins
+
+        original_import = builtins.__import__
+
+        def guarded_import(name, *args, **kwargs):
+            if name == "src.database":
+                raise AssertionError("database healing should be disabled")
+            return original_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+        mgr = MeshNetworkManager(enable_database_node_healing=False)
+        mock_router = MagicMock()
+        mock_router.get_routes.return_value = {}
+        mock_router.ROUTE_TIMEOUT = 60.0
+        mgr._router = mock_router
+
+        healed = await mgr.trigger_aggressive_healing()
+
+        assert healed == 0
+        assert len(mgr._healing_log) == 1
+
+    @pytest.mark.asyncio
     async def test_healing_publishes_control_action_event(self, tmp_path):
         bus = EventBus(project_root=str(tmp_path))
         mgr = MeshNetworkManager(event_bus=bus)
