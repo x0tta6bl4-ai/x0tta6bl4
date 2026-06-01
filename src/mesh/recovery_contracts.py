@@ -152,6 +152,9 @@ class RecoveryEvidenceV1(BaseModel):
     raw_values_redacted: bool = True
     duration_ms: int = Field(ge=0)
     return_code: int
+    action_error: bool = False
+    action_error_type: str | None = None
+    action_error_redacted: bool = True
     escalation_required: bool = False
     post_action_safe_mode_required: bool = False
 

@@ -119,7 +119,18 @@ class MeshRecoveryOrchestrator:
             return evidence
 
         self.policy_manager.record_action(incident_key)
-        return_code = int(self.restart_action())
+        action_error = False
+        action_error_type: str | None = None
+        try:
+            return_code = int(self.restart_action())
+        except Exception as exc:
+            action_error = True
+            action_error_type = type(exc).__name__
+            return_code = 1
+            logger.error(
+                "Mesh recovery restart action failed: %s",
+                action_error_type,
+            )
         self._sleeper(self.post_action_wait_seconds)
         after_state = self.get_node_state()
         claim_gate = self._build_claims(before_state, after_state)
@@ -160,6 +171,9 @@ class MeshRecoveryOrchestrator:
             post_action_dataplane_revalidation=post_action_dataplane_revalidation,
             duration_ms=self._duration_ms(started),
             return_code=return_code,
+            action_error=action_error,
+            action_error_type=action_error_type,
+            action_error_redacted=True,
             escalation_required=escalation_required,
             post_action_safe_mode_required=post_action_safe_mode_required,
         )
@@ -215,6 +229,9 @@ class MeshRecoveryOrchestrator:
             "duration_ms": evidence.duration_ms,
             "return_code": evidence.return_code,
             "returncode": evidence.return_code,
+            "action_error": evidence.action_error,
+            "action_error_type": evidence.action_error_type,
+            "action_error_redacted": evidence.action_error_redacted,
             "recovery_event_id": evidence.event_id,
             "incident_id": evidence.incident_id,
             "incident_key_redacted": True,

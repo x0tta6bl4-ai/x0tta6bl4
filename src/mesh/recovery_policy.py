@@ -44,7 +44,12 @@ class RecoveryPolicyManager:
 
     @property
     def execution_limit_checked(self) -> str:
-        return f"1_attempt_per_{self.cooldown_seconds}_seconds"
+        if self.cooldown_seconds % 60 == 0:
+            minutes = self.cooldown_seconds // 60
+            unit = "minute" if minutes == 1 else "minutes"
+            return f"1_attempt_per_{minutes}_{unit}"
+        unit = "second" if self.cooldown_seconds == 1 else "seconds"
+        return f"1_attempt_per_{self.cooldown_seconds}_{unit}"
 
     def check_policy(self, incident_key: str) -> RecoveryPolicyResult:
         if not incident_key:

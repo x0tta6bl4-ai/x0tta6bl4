@@ -84,6 +84,12 @@ def test_node_id_hash_uses_hmac_and_does_not_expose_node_id() -> None:
     assert digest != generate_node_id_hash(node_id, "different-local-secret")
 
 
+def test_policy_execution_limit_is_human_readable_for_default_window() -> None:
+    policy_manager = RecoveryPolicyManager(cooldown_seconds=600)
+
+    assert policy_manager.execution_limit_checked == "1_attempt_per_10_minutes"
+
+
 def test_shared_post_action_dataplane_claim_gate_requires_redacted_event_evidence() -> None:
     gate = build_post_action_dataplane_claim_gate(
         probe_attempted=True,
@@ -508,6 +514,44 @@ def test_blocked_recovery_publishes_safe_mode_task_blocked_event(tmp_path) -> No
     assert blocked_payload["escalation_required"] is True
     assert blocked_payload["recovery_event_id"] == evidence.event_id
     assert restart_mock.call_count == 1
+
+
+def test_restart_action_exception_records_redacted_escalation_event(tmp_path) -> None:
+    clock = FakeClock()
+    event_bus = EventBus(project_root=str(tmp_path))
+    restart_mock = Mock(side_effect=RuntimeError("secret node-uuid-4444-8888"))
+    state_mock = Mock(side_effect=[degraded_state(), degraded_state()])
+    orchestrator, _policy_manager = build_orchestrator(
+        state_mock,
+        restart_mock,
+        clock,
+        event_bus=event_bus,
+    )
+
+    evidence = orchestrator.run_recovery_flow(
+        incident_id="inc-01",
+        incident_key="incident-vpn-loss",
+    )
+
+    assert evidence.return_code == 1
+    assert evidence.action_error is True
+    assert evidence.action_error_type == "RuntimeError"
+    assert evidence.action_error_redacted is True
+    assert evidence.post_action_safe_mode_required is True
+    assert evidence.escalation_required is True
+    assert restart_mock.call_count == 1
+
+    event = event_bus.get_event_history(source_agent=MESH_RECOVERY_SOURCE_AGENT)[0]
+    assert event.event_type == EventType.TASK_BLOCKED
+    assert event.data["stage"] == "recovery_escalated"
+    assert event.data["return_code"] == 1
+    assert event.data["action_error"] is True
+    assert event.data["action_error_type"] == "RuntimeError"
+    assert event.data["action_error_redacted"] is True
+
+    serialized = json.dumps(event.data, sort_keys=True)
+    assert "secret node-uuid-4444-8888" not in serialized
+    assert "node-uuid-4444-8888" not in serialized
 
 
 def test_revalidation_failure_escalates_and_keeps_claims_unproven() -> None:
