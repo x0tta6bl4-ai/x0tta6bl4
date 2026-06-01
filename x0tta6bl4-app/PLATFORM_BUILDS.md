@@ -69,6 +69,17 @@ python3 scripts/ops/run_ios_signed_release_setup.py \
 
 The default local input paths are under `~/.local/share/x0tta6bl4/ios-signing/`. The command redacts private values and does not claim platform completion until the native release artifact audit reports `complete: true`.
 
+To summarize the actual four-platform goal state from a downloaded audit report plus local iOS signing readiness:
+
+```bash
+python3 scripts/ops/check_native_release_goal_status.py \
+  --audit-json .tmp/native-release-artifacts/x0tta6bl4-native-release-artifact-audit/native-release-artifact-audit.json \
+  --check-github-secrets \
+  --json
+```
+
+This command reports `goal_complete: true` only when Android, iOS, Ubuntu, and Windows are all complete in the release artifact audit. It also reports the missing local iOS signing inputs and missing iOS GitHub secret names without printing secret values.
+
 ## Platform Notes
 
 - Android builds locally after installing JDK 21 and Android SDK platform/build tools.
