@@ -289,6 +289,7 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
 
 DEFAULT_CLAIMS = (
     "production_readiness",
+    "local_observed_state",
     "mesh_recovery_lifecycle",
     "local_restored_dataplane",
     "dataplane_delivery",

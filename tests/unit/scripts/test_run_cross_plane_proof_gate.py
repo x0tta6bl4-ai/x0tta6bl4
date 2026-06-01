@@ -1038,6 +1038,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
 
     expected_claims = (
         "production_readiness",
+        "local_observed_state",
         "mesh_recovery_lifecycle",
         "local_restored_dataplane",
         "dataplane_delivery",
@@ -1065,11 +1066,12 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert report["blocked_claim_ids"] == list(expected_claims)
     assert set(report["claim_blockers"]) == set(expected_claims)
     assert report["summary"]["high_risk_claims_requested"] == (
-        len(expected_claims) - 4
+        len(expected_claims) - 5
     )
     assert report["plane_claims"] == {
         "data_plane": [
             "production_readiness",
+            "local_observed_state",
             "local_restored_dataplane",
             "dataplane_delivery",
             "traffic_delivery",
@@ -1131,6 +1133,9 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert graph["dataplane_delivery"]["artifact_dependencies"][0]["path"] == (
         ".agent_coordination/events.log"
     )
+    assert graph["local_observed_state"]["artifact_dependencies"][0]["path"] == (
+        ".agent_coordination/events.log"
+    )
     assert graph["mesh_recovery_lifecycle"]["artifact_dependencies"][0]["path"] == (
         ".agent_coordination/events.log"
     )
@@ -1153,6 +1158,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         action["action_id"]
         for action in report["next_actions_by_plane"]["data_plane"]
     ] == [
+        "collect_local_yggdrasil_observed_state_eventbus_evidence",
         "collect_verified_dataplane_delivery_eventbus_evidence",
         "collect_mesh_recovery_lifecycle_eventbus_evidence",
         "collect_verified_customer_traffic_eventbus_evidence",
@@ -1185,6 +1191,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "trust_finality_eventbus_artifact_not_verified",
     ]
     assert [action["action_id"] for action in report["next_actions"]] == [
+        "collect_local_yggdrasil_observed_state_eventbus_evidence",
         "collect_verified_dataplane_delivery_eventbus_evidence",
         "collect_mesh_recovery_lifecycle_eventbus_evidence",
         "collect_verified_customer_traffic_eventbus_evidence",
@@ -1195,7 +1202,16 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "verify_external_settlement_artifacts",
         "import_verified_production_readiness_evidence",
     ]
-    dataplane_action = report["next_actions"][0]
+    local_observed_action = report["next_actions"][0]
+    assert local_observed_action["plane_ids"] == ["data_plane", "evidence_plane"]
+    assert local_observed_action["claim_ids"] == ["local_observed_state"]
+    assert local_observed_action["automation_status"] == (
+        "local_command_available_when_yggdrasilctl_exists"
+    )
+    assert "yggdrasilctl-backed read" in local_observed_action[
+        "implementation_gap"
+    ]
+    dataplane_action = report["next_actions"][1]
     assert dataplane_action["plane_ids"] == [
         "data_plane",
         "control_plane",
@@ -1224,7 +1240,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "--write-event",
         "--json",
     ]
-    recovery_action = report["next_actions"][1]
+    recovery_action = report["next_actions"][2]
     assert recovery_action["automation_status"] == (
         "local_command_available_for_safe_simulation"
     )
@@ -1238,7 +1254,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "does not mutate live mesh state" in recovery_action[
         "implementation_gap"
     ]
-    customer_action = report["next_actions"][2]
+    customer_action = report["next_actions"][3]
     assert customer_action["automation_status"] == (
         "local_command_available_for_redacted_proof_intake"
     )
@@ -1257,7 +1273,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "does not run probes" in customer_action[
         "implementation_gap"
     ]
-    trust_action = report["next_actions"][3]
+    trust_action = report["next_actions"][4]
     assert trust_action["automation_status"] == (
         "local_command_available_for_redacted_proof_intake"
     )
@@ -1273,7 +1289,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "docs/verification/incoming/trust_finality.json" in trust_action[
         "artifact_paths"
     ]
-    identity_action = report["next_actions"][4]
+    identity_action = report["next_actions"][5]
     assert identity_action["automation_status"] == "local_command_available"
     assert identity_action["suggested_commands"][0] == [
         "python3",
@@ -1281,7 +1297,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "--write-event",
         "--json",
     ]
-    measured_attestation_action = report["next_actions"][5]
+    measured_attestation_action = report["next_actions"][6]
     assert measured_attestation_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
@@ -1293,7 +1309,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         measured_attestation_action["artifact_paths"]
     )
     assert "out of chat" in measured_attestation_action["implementation_gap"]
-    dpi_action = report["next_actions"][6]
+    dpi_action = report["next_actions"][7]
     assert dpi_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
@@ -1316,7 +1332,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         dpi_action["artifact_paths"]
     )
     assert "authorized external lab/field run" in dpi_action["implementation_gap"]
-    settlement_action = report["next_actions"][7]
+    settlement_action = report["next_actions"][8]
     assert settlement_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
