@@ -2381,6 +2381,11 @@ def _economy_boundary_candidate_blockers(summary: Mapping[str, Any]) -> list[str
         blockers.append("economy_settlement_boundary_not_demonstrated")
     if high_risk_gate.get("production_readiness_claim_allowed") is True:
         blockers.append("economy_boundary_overpromotes_production_readiness")
+    if (
+        settlement_gate.get("production_readiness_claim_allowed") is True
+        or reward_gate.get("production_readiness_claim_allowed") is True
+    ):
+        blockers.append("economy_source_gate_overpromotes_production_readiness")
     return blockers
 
 
@@ -2399,6 +2404,7 @@ def economy_boundary_artifact_evidence(root: Path) -> dict[str, Any]:
         "candidate_scan": None,
         "matching_events": 0,
         "selected_event": None,
+        "candidate_blockers": [],
         "blockers": [],
         "claim_boundary": (
             "A retained EventBus economy-boundary event can support proof-gate "
@@ -2428,6 +2434,12 @@ def economy_boundary_artifact_evidence(root: Path) -> dict[str, Any]:
             return False
         blockers = _economy_boundary_candidate_blockers(summary)
         if blockers:
+            for blocker in blockers:
+                if (
+                    blocker not in result["candidate_blockers"]
+                    and len(result["candidate_blockers"]) < 20
+                ):
+                    result["candidate_blockers"].append(blocker)
             return False
         economy = _mapping(summary.get("economy_finality_summary"))
         high_risk_gate = _mapping(economy.get("high_risk_claim_gate"))

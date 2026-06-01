@@ -2577,6 +2577,31 @@ def test_gate_blocks_settlement_finality_when_economy_boundary_event_is_missing(
     assert "economy_event_log_missing" in economy["blockers"]
 
 
+def test_gate_blocks_economy_boundary_when_source_gate_overpromotes_production(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, settlement_flags=True)
+    _write_valid_external_settlement_artifacts(tmp_path)
+    _write_valid_economy_boundary_event(tmp_path)
+    event_log = tmp_path / ".agent_coordination/events.log"
+    event = json.loads(event_log.read_text(encoding="utf-8"))
+    event["data"]["settlement_evidence"]["claim_gate"][
+        "production_readiness_claim_allowed"
+    ] = True
+    event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("settlement_finality",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [settlement] = report["claim_results"]
+    assert "economy_boundary_artifact_not_verified" in settlement["blockers"]
+    economy = settlement["supporting_artifact_evidence"]["economy_boundary"]
+    assert economy["valid"] is False
+    assert "economy_source_gate_overpromotes_production_readiness" in economy[
+        "candidate_blockers"
+    ]
+
+
 def test_gate_allows_settlement_finality_only_with_map_flags_and_verified_settlement_artifact(
     tmp_path: Path,
 ) -> None:
