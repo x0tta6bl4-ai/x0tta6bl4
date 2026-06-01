@@ -797,6 +797,43 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "--json",
         "--write-ready",
     ]
+    settlement_action = report["next_actions"][4]
+    assert settlement_action["automation_status"] == (
+        "local_command_available_with_operator_inputs"
+    )
+    assert settlement_action["suggested_commands"][1] == [
+        "python3",
+        "scripts/ops/collect_x0t_external_settlement_evidence.py",
+        "--preflight-only",
+        "--output",
+        "json",
+    ]
+    assert settlement_action["suggested_commands"][2] == [
+        "python3",
+        "scripts/ops/collect_x0t_external_settlement_evidence.py",
+        "--transaction-hash",
+        "<submitted_tx_hash>",
+        "--destination-chain",
+        "base-sepolia",
+        "--settlement-id",
+        "<settlement_id>",
+        "--write-evidence",
+        "--output",
+        "json",
+        "--require-ready",
+    ]
+    assert settlement_action["suggested_commands"][-1] == [
+        "python3",
+        "scripts/ops/run_x0t_external_settlement_operator_handoff.py",
+        "--output",
+        "json",
+        "--require-ready",
+    ]
+    assert (
+        ".tmp/validation-shards/"
+        "x0t-external-settlement-operator-handoff-current.json"
+    ) in settlement_action["artifact_paths"]
+    assert "do not submit a transaction" in settlement_action["implementation_gap"]
     production_action = report["next_actions"][-1]
     assert production_action["automation_status"] == (
         "local_command_available_after_supporting_proofs"

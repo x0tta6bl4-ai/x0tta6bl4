@@ -479,11 +479,38 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "dataplane delivery, customer traffic, trust finality, DPI bypass, or "
             "production readiness by itself."
         ),
-        "automation_status": "local_command_available",
+        "automation_status": "local_command_available_with_operator_inputs",
+        "implementation_gap": (
+            "Settlement finality still requires a real submitted transaction hash "
+            "and a local RPC endpoint supplied outside chat. The commands below "
+            "only capture and verify retained evidence; they do not submit a "
+            "transaction or mutate chain/runtime state."
+        ),
         "suggested_commands": [
             [
                 "python3",
                 "scripts/ops/scaffold_x0t_external_settlement_evidence.py",
+            ],
+            [
+                "python3",
+                "scripts/ops/collect_x0t_external_settlement_evidence.py",
+                "--preflight-only",
+                "--output",
+                "json",
+            ],
+            [
+                "python3",
+                "scripts/ops/collect_x0t_external_settlement_evidence.py",
+                "--transaction-hash",
+                "<submitted_tx_hash>",
+                "--destination-chain",
+                "base-sepolia",
+                "--settlement-id",
+                "<settlement_id>",
+                "--write-evidence",
+                "--output",
+                "json",
+                "--require-ready",
             ],
             [
                 "python3",
@@ -495,11 +522,21 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
                 "scripts/ops/verify_x0t_external_settlement_live_rpc.py",
                 "--require-ready",
             ],
+            [
+                "python3",
+                "scripts/ops/run_x0t_external_settlement_operator_handoff.py",
+                "--output",
+                "json",
+                "--require-ready",
+            ],
         ],
         "artifact_paths": [
             ".tmp/external-settlement-evidence/settlement-submit.json",
+            ".tmp/validation-shards/x0t-external-settlement-capture-preflight-current.json",
             ".tmp/validation-shards/x0t-external-settlement-evidence-current.json",
             ".tmp/validation-shards/x0t-external-settlement-live-rpc-current.json",
+            ".tmp/validation-shards/x0t-external-settlement-current-blocker-current.json",
+            ".tmp/validation-shards/x0t-external-settlement-operator-handoff-current.json",
         ],
     },
     {
