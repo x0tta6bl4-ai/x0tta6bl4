@@ -65,6 +65,9 @@ DATAPLANE_PROOF_SOURCE_AGENTS = (
     "mesh-action-enforcer",
     "mesh-recovery-orchestrator",
     "real-network-adapter",
+    "traffic-delivery-probe",
+    "mesh-traffic-delivery",
+    "synthetic-traffic-probe",
 )
 MESH_RECOVERY_LIFECYCLE_SOURCE_AGENTS = ("mesh-recovery-orchestrator",)
 LOCAL_OBSERVED_STATE_ONLY_SOURCE_AGENTS = (
@@ -494,13 +497,25 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
         "suggested_commands": [
             [
                 "python3",
+                "scripts/ops/collect_traffic_delivery_eventbus_evidence.py",
+                "--proof-json",
+                "docs/verification/incoming/traffic_delivery.json",
+                "--allow-redacted-local-proof-intake",
+                "--write-event",
+                "--json",
+            ],
+            [
+                "python3",
                 "scripts/ops/run_cross_plane_proof_gate.py",
                 "--claim",
                 "traffic_delivery",
                 "--json",
             ],
         ],
-        "artifact_paths": [".agent_coordination/events.log"],
+        "artifact_paths": [
+            ".agent_coordination/events.log",
+            "docs/verification/incoming/traffic_delivery.json",
+        ],
     },
     {
         "action_id": "reconcile_dataplane_delivery_evidence_map_flags",
