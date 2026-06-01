@@ -1474,6 +1474,47 @@ def test_gate_blocks_dataplane_delivery_when_map_flags_are_true_but_eventbus_art
     assert "dataplane_event_log_missing" in artifact["blockers"]
 
 
+def test_gate_routes_to_map_reconciliation_after_verified_dataplane_artifact(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path)
+    _write_valid_dataplane_delivery_event(tmp_path)
+
+    report = build_report(
+        tmp_path,
+        claims=("dataplane_delivery", "traffic_delivery"),
+    )
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    assert report["allowed"] is False
+    [dataplane, traffic] = report["claim_results"]
+    assert dataplane["required_artifact_evidence"]["valid"] is True
+    assert traffic["required_artifact_evidence"]["valid"] is True
+    assert "dataplane_delivery_eventbus_artifact_not_verified" not in dataplane[
+        "blockers"
+    ]
+    assert "traffic_delivery_dataplane_artifact_not_verified" not in traffic[
+        "blockers"
+    ]
+    assert "evidence_map_dataplane_flags_not_reconciled" in dataplane[
+        "blockers"
+    ]
+    assert "evidence_map_traffic_delivery_flags_not_reconciled" in traffic[
+        "blockers"
+    ]
+
+    assert [action["action_id"] for action in report["next_actions"]] == [
+        "reconcile_dataplane_delivery_evidence_map_flags"
+    ]
+    [action] = report["next_actions"]
+    assert action["automation_status"] == (
+        "manual_review_required_with_verified_artifact"
+    )
+    assert "CURRENT_CROSS_PLANE_EVIDENCE_MAP.json" in " ".join(
+        action["artifact_paths"]
+    )
+
+
 def test_gate_blocks_traffic_delivery_when_map_flags_are_true_but_artifact_is_missing(
     tmp_path: Path,
 ) -> None:

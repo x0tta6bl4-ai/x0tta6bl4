@@ -325,10 +325,6 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "dataplane_delivery_eventbus_artifact_not_verified",
             "production_readiness_dataplane_artifact_not_verified",
             "traffic_delivery_dataplane_artifact_not_verified",
-            "dataplane_confirmed",
-            "customer_dataplane_delivery_claim_allowed",
-            "traffic_delivery_claim_allowed",
-            "traffic_delivery_confirmed",
         ),
         "claim_boundary": (
             "A dataplane proof can support bounded delivery claims only. It does "
@@ -359,6 +355,43 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             ],
         ],
         "artifact_paths": [".agent_coordination/events.log"],
+    },
+    {
+        "action_id": "reconcile_dataplane_delivery_evidence_map_flags",
+        "title": "Reconcile current evidence-map delivery flags after verified dataplane artifact.",
+        "match_tokens": (
+            "evidence_map_dataplane_flags_not_reconciled",
+            "evidence_map_traffic_delivery_flags_not_reconciled",
+        ),
+        "claim_boundary": (
+            "A verified EventBus dataplane artifact does not automatically rewrite "
+            "the current evidence map. Reconciliation must update only bounded "
+            "delivery flags that the retained artifact actually proves, without "
+            "promoting customer traffic, external reachability, DPI bypass, "
+            "settlement, or production readiness."
+        ),
+        "automation_status": "manual_review_required_with_verified_artifact",
+        "implementation_gap": (
+            "The proof artifact is present, but the current cross-plane evidence "
+            "map still contains false/missing delivery flags. Review the selected "
+            "EventBus artifact and update CURRENT_CROSS_PLANE_EVIDENCE_MAP.json "
+            "in a separate focused change if the bounded claim should be promoted."
+        ),
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/run_cross_plane_proof_gate.py",
+                "--claim",
+                "dataplane_delivery",
+                "--claim",
+                "traffic_delivery",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [
+            ".agent_coordination/events.log",
+            "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
+        ],
     },
     {
         "action_id": "collect_mesh_recovery_lifecycle_eventbus_evidence",
@@ -2316,10 +2349,14 @@ def evaluate_claim(
         claim_artifact_evidence = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("dataplane_delivery_eventbus_artifact_not_verified")
+        elif missing_true_flags or missing_any_groups or blocking_false_flags:
+            blockers.append("evidence_map_dataplane_flags_not_reconciled")
     elif claim_id == "traffic_delivery":
         claim_artifact_evidence = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("traffic_delivery_dataplane_artifact_not_verified")
+        elif missing_true_flags or missing_any_groups or blocking_false_flags:
+            blockers.append("evidence_map_traffic_delivery_flags_not_reconciled")
     elif claim_id == "trust_finality":
         claim_artifact_evidence = (artifact_evidence or {}).get(TRUST_FINALITY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
