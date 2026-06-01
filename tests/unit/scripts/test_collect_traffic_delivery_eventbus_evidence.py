@@ -70,6 +70,7 @@ def _write_proof(
     request_observed: bool = True,
     response_validated: bool = True,
     status: str = "VERIFIED",
+    source_artifact_role: str = "redacted_traffic_delivery_scenario_probe_report",
 ) -> Path:
     path = tmp_path / "traffic_delivery.json"
     path.write_text(
@@ -87,7 +88,7 @@ def _write_proof(
                 },
                 "source_artifacts": [
                     {
-                        "role": "redacted_traffic_delivery_scenario_probe_report",
+                        "role": source_artifact_role,
                         "sha256": "c" * 64,
                         "redacted": True,
                     }
@@ -185,6 +186,43 @@ def test_collect_partial_proof_writes_non_promoting_event(tmp_path: Path) -> Non
     assert artifact["valid"] is False
     assert "verified_dataplane_delivery_event_not_found" in artifact["blockers"]
     assert "dataplane_probe_not_confirmed" in artifact["candidate_blockers"]
+
+
+def test_collect_blocks_verified_proof_without_required_probe_artifact_role(
+    tmp_path: Path,
+) -> None:
+    collector = _load_script()
+    _write_map(tmp_path, traffic_flags=True)
+    proof = _write_proof(tmp_path, source_artifact_role="generic_redacted_log")
+    args = collector.parse_args(
+        [
+            "--root",
+            str(tmp_path),
+            "--proof-json",
+            str(proof),
+            "--allow-redacted-local-proof-intake",
+            "--write-event",
+        ]
+    )
+
+    report = collector.collect(args)
+
+    assert report["decision"] == "TRAFFIC_DELIVERY_PROOF_NOT_READY"
+    assert report["event_written"] is True
+    assert report["ready_for_proof_gate"] is False
+    assert "traffic_delivery_input_required_source_artifact_missing" in report[
+        "blockers"
+    ]
+
+    proof_gate = build_report(tmp_path, claims=("traffic_delivery",))
+    assert proof_gate["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [traffic] = proof_gate["claim_results"]
+    assert "traffic_delivery_eventbus_artifact_not_verified" in traffic["blockers"]
+    artifact = traffic["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "restored_dataplane_claim_gate_has_blockers" in artifact[
+        "candidate_blockers"
+    ]
 
 
 def test_collect_exposes_template_without_writing_event(tmp_path: Path) -> None:

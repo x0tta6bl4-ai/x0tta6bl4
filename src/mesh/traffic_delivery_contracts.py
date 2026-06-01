@@ -21,6 +21,9 @@ TRAFFIC_DELIVERY_SOURCE_AGENTS = (
     "mesh-traffic-delivery",
     "synthetic-traffic-probe",
 )
+TRAFFIC_DELIVERY_REQUIRED_SOURCE_ARTIFACT_ROLES = (
+    "redacted_traffic_delivery_scenario_probe_report",
+)
 
 
 class TrafficDeliveryObservedEvidence(BaseModel):
@@ -129,6 +132,11 @@ def traffic_delivery_input_blockers(
         blockers.append("traffic_delivery_input_claim_boundary_missing")
     if not proof.source_artifacts:
         blockers.append("traffic_delivery_input_source_artifacts_missing")
+    elif not any(
+        artifact.role in TRAFFIC_DELIVERY_REQUIRED_SOURCE_ARTIFACT_ROLES
+        for artifact in proof.source_artifacts
+    ):
+        blockers.append("traffic_delivery_input_required_source_artifact_missing")
     for artifact in proof.source_artifacts:
         if artifact.redacted is not True:
             blockers.append("traffic_delivery_input_source_artifact_not_redacted")
