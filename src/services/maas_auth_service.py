@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from src.api.maas_auth_models import UserLoginRequest, UserRegisterRequest
 from src.api.maas_security import ApiKeyManager
+from src.database import Session as UserSession
 from src.database import User
 from src.security.password_auth import hash_password, verify_password
 
@@ -97,6 +98,23 @@ class MaaSAuthService:
             user.password_hash = hash_password(req.password)
 
         return self.issue_api_key(db, user)
+
+    def validate_session(self, db: Session, token: str | None) -> User | None:
+        """Return the DB user for a valid non-expired session token."""
+        if not token:
+            return None
+        token = token.strip()
+        if not token:
+            return None
+
+        session = (
+            db.query(UserSession)
+            .filter(UserSession.token == token, UserSession.expires_at > datetime.utcnow())
+            .first()
+        )
+        if session is None:
+            return None
+        return db.query(User).filter(User.id == session.user_id).first()
 
     def rotate_api_key(self, db: Session, user: User) -> tuple[str, datetime]:
         """Rotate user's API key and return (new_key, rotated_at)."""

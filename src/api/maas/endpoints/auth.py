@@ -7,15 +7,16 @@ Provides REST API endpoints for user registration, login, and API key management
 import hashlib
 import hmac
 import logging
+import os
 import secrets
 import threading
 import time
 from collections import deque
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
-from src.database import get_db
+from src.database import User, get_db
 
 from src.api.maas_auth_models import UserRegisterRequest as DBUserRegisterRequest
 from src.api.maas_security import ApiKeyManager
@@ -206,6 +207,120 @@ def _credential_summary(**flags: bool) -> Dict[str, Any]:
     } | {"raw_credentials_redacted": True}
 
 
+def _remember_registered_user(
+    *,
+    user_id: str,
+    email: str,
+    name: Optional[str],
+    plan: str,
+    password: str,
+    created_at: Any,
+) -> None:
+    _user_store[user_id] = {
+        "email": email,
+        "name": name,
+        "plan": plan,
+        "password_hash": _hash_password(password),
+        "created_at": created_at.isoformat()
+        if hasattr(created_at, "isoformat")
+        else __import__("datetime").datetime.utcnow().isoformat(),
+    }
+
+
+def _register_db_backed_user(
+    *,
+    db: Session,
+    request: RegisterRequest,
+    http_request: Request | None,
+    http_status_code: int,
+) -> RegisterResponse:
+    started = time.monotonic()
+    normalized_email = _normalize_email(request.email)
+    request_evidence = _request_summary(
+        email=normalized_email,
+        password=request.password,
+        name=request.name,
+    )
+
+    db_req = DBUserRegisterRequest(
+        email=request.email,
+        password=request.password,
+        full_name=request.name,
+        company=None,
+    )
+
+    try:
+        user = _db_auth_service.register(db, db_req)
+        api_key = _db_auth_service.issued_api_key(user) or ApiKeyManager.generate()
+        user.api_key = None
+        user.api_key_hash = ApiKeyManager.hash_key(api_key)
+        db.commit()
+
+        _remember_registered_user(
+            user_id=user.id,
+            email=user.email,
+            name=request.name,
+            plan=user.plan or "starter",
+            password=request.password,
+            created_at=getattr(user, "created_at", None),
+        )
+
+        _publish_modular_auth_event(
+            http_request=http_request,
+            source_agent=_MODULAR_AUTH_REGISTER_SOURCE_AGENT,
+            operation="modular_auth_register",
+            stage="register_created",
+            status_text="success",
+            started=started,
+            http_status_code=http_status_code,
+            request_summary=request_evidence,
+            actor_summary=_actor_summary(None),
+            store_summary=_store_summary(
+                action="create_user",
+                attempted=True,
+                committed=True,
+                matched_user_id=user.id,
+            ),
+            credential_summary=_credential_summary(api_key_issued=bool(api_key)),
+        )
+
+        return RegisterResponse(
+            user_id=user.id,
+            email=user.email,
+            api_key=api_key,
+            access_token=api_key,
+            message="Registration successful",
+        )
+    except HTTPException as exc:
+        if (
+            exc.status_code == status.HTTP_400_BAD_REQUEST
+            and exc.detail == "Email already registered"
+        ):
+            exc = HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered",
+            )
+        _publish_modular_auth_event(
+            http_request=http_request,
+            source_agent=_MODULAR_AUTH_REGISTER_SOURCE_AGENT,
+            operation="modular_auth_register",
+            stage="register_blocked",
+            status_text="blocked",
+            started=started,
+            http_status_code=exc.status_code,
+            request_summary=request_evidence,
+            actor_summary=_actor_summary(None),
+            store_summary=_store_summary(
+                action="register_call",
+                attempted=True,
+                committed=False,
+            ),
+            credential_summary=_credential_summary(api_key_issued=False),
+            reason=str(exc.detail),
+        )
+        raise exc
+
+
 def _http_event_type(status_code: int) -> EventType:
     if status_code >= 500:
         return EventType.TASK_FAILED
@@ -361,184 +476,38 @@ async def register_root(
     db: Session = Depends(get_db),
     http_request: Request = None,
 ) -> RegisterResponse:
-    """
-    Register a new user using the real database.
-    """
-    started = time.monotonic()
-    auth = get_auth_service()
-    normalized_email = _normalize_email(request.email)
-    request_evidence = _request_summary(
-        email=normalized_email,
-        password=request.password,
-        name=request.name,
+    """Register a new user using the durable DB-backed auth store."""
+    return _register_db_backed_user(
+        db=db,
+        request=request,
+        http_request=http_request,
+        http_status_code=status.HTTP_201_CREATED,
     )
-
-    db_req = DBUserRegisterRequest(
-        email=request.email,
-        password=request.password,
-        full_name=request.name,
-        company=None,
-    )
-
-    try:
-        user = _db_auth_service.register(db, db_req)
-        api_key = auth.generate_api_key(user.id, user.plan or "starter")
-        user.api_key = None
-        user.api_key_hash = ApiKeyManager.hash_key(api_key)
-        db.commit()
-
-        _user_store[user.id] = {
-            "email": user.email,
-            "name": request.name,
-            "plan": user.plan or "starter",
-            "password_hash": _hash_password(request.password),
-            "created_at": getattr(user, "created_at", None).isoformat()
-            if getattr(user, "created_at", None)
-            else __import__("datetime").datetime.utcnow().isoformat(),
-        }
-
-        _publish_modular_auth_event(
-            http_request=http_request,
-            source_agent=_MODULAR_AUTH_REGISTER_SOURCE_AGENT,
-            operation="modular_auth_register",
-            stage="register_created",
-            status_text="success",
-            started=started,
-            http_status_code=status.HTTP_201_CREATED,
-            request_summary=request_evidence,
-            actor_summary=_actor_summary(None),
-            store_summary=_store_summary(
-                action="create_user",
-                attempted=True,
-                committed=True,
-                matched_user_id=user.id,
-            ),
-            credential_summary=_credential_summary(api_key_issued=bool(api_key)),
-        )
-
-        return RegisterResponse(
-            user_id=user.id,
-            email=user.email,
-            api_key=api_key,
-            message="Registration successful",
-        )
-    except HTTPException as exc:
-        if exc.status_code == status.HTTP_400_BAD_REQUEST and exc.detail == "Email already registered":
-            exc = HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Email already registered",
-            )
-        _publish_modular_auth_event(
-            http_request=http_request,
-            source_agent=_MODULAR_AUTH_REGISTER_SOURCE_AGENT,
-            operation="modular_auth_register",
-            stage="register_blocked",
-            status_text="blocked",
-            started=started,
-            http_status_code=exc.status_code,
-            request_summary=request_evidence,
-            actor_summary=_actor_summary(None),
-            store_summary=_store_summary(
-                action="register_call",
-                attempted=True,
-                committed=False,
-            ),
-            credential_summary=_credential_summary(api_key_issued=False),
-            reason=str(exc.detail),
-        )
-        raise exc
 
 
 @router.post(
     "/register",
     response_model=RegisterResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_200_OK,
     summary="Register new user",
     description="Create a new user account.",
 )
 async def register(
     request: RegisterRequest,
+    db: Session = Depends(get_db),
     http_request: Request = None,
 ) -> RegisterResponse:
     """
-    Register a new user.
+    Register a new user using the same durable contract as the root endpoint.
 
-    Creates a new user account and returns an API key.
+    The namespaced endpoint keeps the historical 200 response code, but the
+    returned ``api_key``/``access_token`` is persisted as ``api_key_hash`` in DB.
     """
-    started = time.monotonic()
-    normalized_email = _normalize_email(request.email)
-    request_evidence = _request_summary(
-        email=normalized_email,
-        password=request.password,
-        name=request.name,
-    )
-
-    # Check if email already exists
-    for user_id, user_data in _user_store.items():
-        if user_data.get("email") == normalized_email:
-            _publish_modular_auth_event(
-                http_request=http_request,
-                source_agent=_MODULAR_AUTH_REGISTER_SOURCE_AGENT,
-                operation="modular_auth_register",
-                stage="register_blocked",
-                status_text="blocked",
-                started=started,
-                http_status_code=status.HTTP_409_CONFLICT,
-                request_summary=request_evidence,
-                actor_summary=_actor_summary(None),
-                store_summary=_store_summary(
-                    action="duplicate_email_lookup",
-                    attempted=True,
-                    committed=False,
-                    matched_user_id=user_id,
-                ),
-                credential_summary=_credential_summary(api_key_issued=False),
-                reason="email_already_registered",
-            )
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Email already registered",
-            )
-
-    # Generate user ID
-    user_id = f"user_{secrets.token_hex(8)}"
-
-    # Create user
-    _user_store[user_id] = {
-        "email": normalized_email,
-        "name": request.name,
-        "plan": "starter",
-        "password_hash": _hash_password(request.password),
-        "created_at": __import__("datetime").datetime.utcnow().isoformat(),
-    }
-
-    # Generate API key
-    auth = get_auth_service()
-    api_key = auth.generate_api_key(user_id, "starter")
-    _publish_modular_auth_event(
+    return _register_db_backed_user(
+        db=db,
+        request=request,
         http_request=http_request,
-        source_agent=_MODULAR_AUTH_REGISTER_SOURCE_AGENT,
-        operation="modular_auth_register",
-        stage="register_created",
-        status_text="success",
-        started=started,
-        http_status_code=status.HTTP_201_CREATED,
-        request_summary=request_evidence,
-        actor_summary=_actor_summary(None),
-        store_summary=_store_summary(
-            action="create_user",
-            attempted=True,
-            committed=True,
-            matched_user_id=user_id,
-        ),
-        credential_summary=_credential_summary(api_key_issued=True),
-    )
-
-    return RegisterResponse(
-        user_id=user_id,
-        email=normalized_email,
-        api_key=api_key,
-        message="Registration successful",
+        http_status_code=status.HTTP_200_OK,
     )
 
 
@@ -688,6 +657,49 @@ async def login(
     )
 
 
+@root_router.get("/login/oidc", summary="Start OIDC login")
+@router.get("/login/oidc", summary="Start OIDC login")
+async def login_oidc(http_request: Request) -> Any:
+    """Start OIDC login when enterprise OIDC is configured."""
+    from src.api import maas_auth as legacy_auth
+
+    oidc_validator = getattr(legacy_auth, "oidc_validator", None)
+    if not bool(getattr(oidc_validator, "enabled", False)):
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="OIDC not configured",
+        )
+    if getattr(legacy_auth, "oauth", None) is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="OIDC redirect flow not available (authlib unavailable)",
+        )
+    return await legacy_auth.login_oidc(http_request)
+
+
+@root_router.get("/callback", summary="Handle OIDC callback")
+@router.get("/callback", summary="Handle OIDC callback")
+async def auth_callback(
+    http_request: Request,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Handle OIDC callback when enterprise OIDC is configured."""
+    from src.api import maas_auth as legacy_auth
+
+    oidc_validator = getattr(legacy_auth, "oidc_validator", None)
+    if not bool(getattr(oidc_validator, "enabled", False)):
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="OIDC not configured",
+        )
+    if getattr(legacy_auth, "oauth", None) is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="OIDC redirect flow not available (authlib unavailable)",
+        )
+    return await legacy_auth.auth_callback(http_request, db)
+
+
 @root_router.post(
     "/api-key",
     response_model=ApiKeyRotateResponse,
@@ -701,9 +713,10 @@ async def login(
     description="Generate a new API key (invalidates old one).",
 )
 async def rotate_api_key(
-    request: ApiKeyRotateRequest,
+    request: ApiKeyRotateRequest | None = None,
     http_request: Request = None,
     user: UserContext = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> ApiKeyRotateResponse:
     """
         Rotate the user's API key.
@@ -711,6 +724,7 @@ async def rotate_api_key(
         Generates a new API key and optionally revokes the old one.
         """
     started = time.monotonic()
+    request = request or ApiKeyRotateRequest()
     auth = get_auth_service()
     revoked = False
 
@@ -720,7 +734,12 @@ async def rotate_api_key(
         revoked = True
 
     # Generate new key
-    new_key = auth.generate_api_key(user.user_id, user.plan)
+    new_key = ApiKeyManager.generate()
+    db_user = db.query(User).filter(User.id == user.user_id).first()
+    if db_user is not None:
+        db_user.api_key = None
+        db_user.api_key_hash = ApiKeyManager.hash_key(new_key)
+        db.commit()
     _publish_modular_auth_event(
         http_request=http_request,
         source_agent=_MODULAR_AUTH_API_KEY_SOURCE_AGENT,
@@ -766,10 +785,12 @@ async def rotate_api_key(
 async def get_profile(
     user: UserContext = Depends(get_current_user),
     http_request: Request = None,
+    db: Session = Depends(get_db),
 ) -> UserProfileResponse:
     """Get the current user's profile."""
     started = time.monotonic()
     user_data = _user_store.get(user.user_id, {})
+    db_user = db.query(User).filter(User.id == user.user_id).first()
     _publish_modular_auth_event(
         http_request=http_request,
         source_agent=_MODULAR_AUTH_PROFILE_SOURCE_AGENT,
@@ -791,12 +812,96 @@ async def get_profile(
     return UserProfileResponse(
         id=user.user_id,
         user_id=user.user_id,
-        email=user_data.get("email", "unknown"),
+        email=(getattr(db_user, "email", None) if db_user is not None else None)
+        or user_data.get("email", "unknown"),
         name=user_data.get("name"),
-        plan=str(user_data.get("plan") or user.plan),
+        plan=str(
+            (getattr(db_user, "plan", None) if db_user is not None else None)
+            or user_data.get("plan")
+            or user.plan
+        ),
+        role=(getattr(db_user, "role", None) if db_user is not None else None)
+        or user.role,
         requests_count=0,
         created_at=user_data.get("created_at"),
     )
+
+
+@root_router.post("/set-admin/{email}", summary="Promote user to admin")
+@router.post("/set-admin/{email}", summary="Promote user to admin")
+async def set_admin(
+    email: str,
+    current_user: UserContext = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Promote an existing user to admin. Requires an admin caller."""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+
+    normalized_email = _normalize_email(email)
+    user = db.query(User).filter(User.email == normalized_email).first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    user.role = "admin"
+    db.commit()
+    return {
+        "message": f"User {normalized_email} promoted to admin",
+        "email": normalized_email,
+        "role": "admin",
+    }
+
+
+@root_router.post("/bootstrap-admin", summary="Bootstrap first admin")
+@router.post("/bootstrap-admin", summary="Bootstrap first admin")
+async def bootstrap_admin(
+    request: RegisterRequest,
+    http_request: Request = None,
+    x_bootstrap_token: str | None = Header(default=None, alias="X-Bootstrap-Token"),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Create the first admin using a local bootstrap token."""
+    bootstrap_token = os.getenv("BOOTSTRAP_TOKEN", "")
+    if not bootstrap_token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bootstrap token not configured",
+        )
+    if not secrets.compare_digest(bootstrap_token, x_bootstrap_token or ""):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid bootstrap token",
+        )
+    if db.query(User).filter(User.role == "admin").first() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Admin already exists - bootstrap disabled",
+        )
+
+    response = _register_db_backed_user(
+        db=db,
+        request=request,
+        http_request=http_request,
+        http_status_code=status.HTTP_200_OK,
+    )
+    user = db.query(User).filter(User.id == response.user_id).first()
+    if user is not None:
+        user.role = "admin"
+        db.commit()
+
+    return {
+        "message": "Bootstrap admin created",
+        "user_id": response.user_id,
+        "email": response.email,
+        "api_key": response.api_key,
+        "access_token": response.access_token,
+    }
 
 
 @root_router.post(

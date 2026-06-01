@@ -4,10 +4,14 @@ import json
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.api.maas.endpoints import auth as auth_module
 from src.api.maas.auth import UserContext, get_current_user, set_auth_service, AuthService
 from src.coordination.events import EventBus, EventType
+from src.database import Base, get_db
 
 
 def _build_client(
@@ -15,6 +19,24 @@ def _build_client(
     event_bus: EventBus | None = None,
 ) -> TestClient:
     app = FastAPI()
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    testing_session_local = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=engine,
+    )
+    Base.metadata.create_all(bind=engine)
+
+    def override_get_db():
+        db = testing_session_local()
+        try:
+            yield db
+        finally:
+            db.close()
 
     if event_bus is not None:
         @app.middleware("http")
@@ -23,6 +45,7 @@ def _build_client(
             return await call_next(request)
 
     app.include_router(auth_module.router, prefix="/api/v1/maas")
+    app.dependency_overrides[get_db] = override_get_db
     if user:
         app.dependency_overrides[get_current_user] = lambda: user
     return TestClient(app)
@@ -63,7 +86,7 @@ def test_modular_auth_register_and_login_publish_redacted_evidence(tmp_path):
         json={"email": email.lower(), "password": password},
     )
 
-    assert register_response.status_code == 201, register_response.text
+    assert register_response.status_code == 200, register_response.text
     assert login_response.status_code == 200, login_response.text
 
     register_payload = _auth_payloads(bus, "maas-modular-auth-register")[-1]
@@ -73,7 +96,7 @@ def test_modular_auth_register_and_login_publish_redacted_evidence(tmp_path):
     assert register_payload["service_name"] == "maas-modular-auth-register"
     assert register_payload["layer"] == "api_modular_auth_registration_intent"
     assert register_payload["status"] == "success"
-    assert register_payload["http_status_code"] == 201
+    assert register_payload["http_status_code"] == 200
     assert register_payload["request_summary"]["email_hash"] == (
         auth_module._redacted_sha256_prefix(email.lower())
     )
@@ -195,7 +218,7 @@ def test_login_rejects_wrong_password_for_existing_user():
             "password": "CorrectPassword123!",
         },
     )
-    assert register_response.status_code == 201, register_response.text
+    assert register_response.status_code == 200, register_response.text
 
     wrong_login_response = client.post(
         "/api/v1/maas/auth/login",
@@ -220,7 +243,7 @@ def test_register_stores_password_hash_not_plaintext():
             "password": raw_password,
         },
     )
-    assert response.status_code == 201, response.text
+    assert response.status_code == 200, response.text
 
     user_id = response.json()["user_id"]
     stored_user = auth_module._user_store[user_id]
@@ -242,7 +265,7 @@ def test_register_rejects_case_insensitive_duplicate_email():
             "password": "StrongPassword123!",
         },
     )
-    assert first.status_code == 201, first.text
+    assert first.status_code == 200, first.text
 
     duplicate = client.post(
         "/api/v1/maas/auth/register",
@@ -265,7 +288,7 @@ def test_login_matches_email_case_insensitively():
             "password": "StrongPassword123!",
         },
     )
-    assert register.status_code == 201, register.text
+    assert register.status_code == 200, register.text
 
     login = client.post(
         "/api/v1/maas/auth/login",
@@ -311,7 +334,7 @@ def test_successful_login_clears_failed_attempt_counter(monkeypatch):
         "/api/v1/maas/auth/register",
         json={"email": "clear-counter@example.com", "password": "CorrectPassword123!"},
     )
-    assert register.status_code == 201, register.text
+    assert register.status_code == 200, register.text
 
     fail_one = client.post(
         "/api/v1/maas/auth/login",
