@@ -10,6 +10,7 @@ only; it does not include a live rollback command adapter.
 import asyncio
 import hashlib
 import os
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -18,12 +19,23 @@ from typing import Any, Dict
 import httpx
 
 project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
 AUTO_ROLLBACK_CLAIM_BOUNDARY = (
     "This script records local health/metrics observations and rollback "
     "recommendations. Local error-rate, latency, or health observations do not "
     "prove live customer impact, production SLO breach, traffic shifting, "
     "external DPI bypass, settlement finality, or production readiness. Live "
     "rollback requires separate authorization and rollout evidence."
+)
+AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "Auto-rollback SafeActuator metadata proves only local health/metrics "
+    "observation and a rollback recommendation. It is not proof of live "
+    "rollback execution, live customer impact, traffic shifting, production "
+    "SLO breach, external DPI bypass, settlement finality, or production "
+    "readiness."
 )
 
 
@@ -44,7 +56,68 @@ def _elapsed_ms(started_at: float) -> int:
     return int((time.perf_counter() - started_at) * 1000)
 
 
-def _claim_boundary_fields() -> Dict[str, Any]:
+def _safe_actuator_evidence_metadata(
+    *,
+    action: str,
+    health_observed: bool = False,
+    metrics_observed: bool = False,
+    rollback_recommended: bool = False,
+    live_rollback_authorized: bool = False,
+) -> Dict[str, Any]:
+    claim_gate = {
+        "schema": "x0tta6bl4.ops.auto_rollback.safe_actuator_claim_gate.v1",
+        "action": action,
+        "local_health_observation_claim_allowed": bool(health_observed),
+        "local_metrics_observation_claim_allowed": bool(metrics_observed),
+        "local_rollback_recommendation_claim_allowed": bool(rollback_recommended),
+        "live_rollback_execution_claim_allowed": False,
+        "rollback_command_adapter_configured": False,
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "external_dpi_bypass_confirmed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "claim_boundary": AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+        "redacted": True,
+    }
+    return SafeActuatorEvidenceMetadata.from_value(
+        {
+            "claim_gate": claim_gate,
+            "cross_plane_claim_gate": {
+                "schema": "x0tta6bl4.ops.auto_rollback.cross_plane_claim_gate.v1",
+                "allowed": False,
+                "requires_rollout_evidence_for_traffic_shift_claim": True,
+                "requires_live_rollback_adapter_for_rollback_execution_claim": True,
+                "requires_customer_traffic_evidence_for_customer_claim": True,
+                "requires_slo_evidence_for_production_slo_claim": True,
+                "requires_readiness_review_for_production_claim": True,
+                "redacted": True,
+            },
+            "evidence": {
+                "component": "scripts.auto_rollback",
+                "action": action,
+                "health_observed": bool(health_observed),
+                "metrics_observed": bool(metrics_observed),
+                "rollback_recommended": bool(rollback_recommended),
+                "live_rollback_authorized": bool(live_rollback_authorized),
+                "raw_output_redacted": True,
+            },
+            "source_agents": ["auto-rollback-script"],
+            "claim_boundary": AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+    ).to_dict()
+
+
+def _claim_boundary_fields(
+    *,
+    action: str = "auto_rollback_observation",
+    health_observed: bool = False,
+    metrics_observed: bool = False,
+    rollback_recommended: bool = False,
+    live_rollback_authorized: bool = False,
+) -> Dict[str, Any]:
     return {
         "rollback_recommendation_only": True,
         "live_rollback_executed": False,
@@ -55,6 +128,13 @@ def _claim_boundary_fields() -> Dict[str, Any]:
         "external_dpi_bypass_confirmed": False,
         "settlement_finality_confirmed": False,
         "claim_boundary": AUTO_ROLLBACK_CLAIM_BOUNDARY,
+        "safe_actuator_evidence_metadata": _safe_actuator_evidence_metadata(
+            action=action,
+            health_observed=health_observed,
+            metrics_observed=metrics_observed,
+            rollback_recommended=rollback_recommended,
+            live_rollback_authorized=live_rollback_authorized,
+        ),
     }
 
 
@@ -117,7 +197,11 @@ class AutoRollback:
                     "metrics_output_metadata": _bounded_output_metadata(metrics_text),
                     "raw_output_retained": False,
                     "timestamp": datetime.now().isoformat(),
-                    **_claim_boundary_fields(),
+                    **_claim_boundary_fields(
+                        action="check_metrics",
+                        health_observed=True,
+                        metrics_observed=True,
+                    ),
                 }
         except Exception as e:
             return {
@@ -127,7 +211,7 @@ class AutoRollback:
                 "raw_error_redacted": True,
                 "raw_output_retained": False,
                 "timestamp": datetime.now().isoformat(),
-                **_claim_boundary_fields(),
+                **_claim_boundary_fields(action="check_metrics"),
             }
 
     def should_rollback(self, metrics: Dict[str, Any]) -> tuple[bool, str]:
@@ -172,7 +256,10 @@ class AutoRollback:
                 "rollback_recommended": True,
                 "rollback_executed": False,
                 "live_rollback_authorized": False,
-                **_claim_boundary_fields(),
+                **_claim_boundary_fields(
+                    action="execute_rollback",
+                    rollback_recommended=True,
+                ),
             }
 
         print("LIVE ROLLBACK: AUTHORIZED")
@@ -183,7 +270,11 @@ class AutoRollback:
             "rollback_executed": False,
             "live_rollback_authorized": True,
             "rollback_command_adapter_configured": False,
-            **_claim_boundary_fields(),
+            **_claim_boundary_fields(
+                action="execute_rollback",
+                rollback_recommended=True,
+                live_rollback_authorized=True,
+            ),
         }
 
     async def monitor(self, check_interval: int = 10):

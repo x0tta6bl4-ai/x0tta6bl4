@@ -20,6 +20,8 @@ import httpx
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
 try:
     from src.monitoring.production_monitoring import get_production_monitor
 except (ImportError, ValueError):
@@ -34,6 +36,12 @@ PRODUCTION_MONITOR_CLAIM_BOUNDARY = (
     "readiness without separate rollout/evidence artifacts."
 )
 PRODUCTION_MONITOR_OBSERVATION_SCOPE = "local_http_monitoring_observation"
+PRODUCTION_MONITOR_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "Production monitor SafeActuator metadata proves only a local HTTP "
+    "health/metrics observation or local alert recommendation. It is not proof "
+    "of live customer traffic, traffic shifting, external DPI bypass, "
+    "settlement finality, production SLOs, or production readiness."
+)
 
 
 def _bounded_output_metadata(text: str) -> Dict[str, Any]:
@@ -50,7 +58,62 @@ def _elapsed_ms(started_at: float) -> int:
     return int((time.perf_counter() - started_at) * 1000)
 
 
-def _claim_boundary_fields() -> Dict[str, Any]:
+def _safe_actuator_evidence_metadata(
+    *,
+    action: str,
+    health_observed: bool = False,
+    metrics_observed: bool = False,
+    alerts_observed: bool = False,
+) -> Dict[str, Any]:
+    claim_gate = {
+        "schema": "x0tta6bl4.ops.production_monitor.safe_actuator_claim_gate.v1",
+        "action": action,
+        "local_http_health_observation_claim_allowed": bool(health_observed),
+        "local_http_metrics_observation_claim_allowed": bool(metrics_observed),
+        "local_alert_recommendation_claim_allowed": bool(alerts_observed),
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "external_dpi_bypass_confirmed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "claim_boundary": PRODUCTION_MONITOR_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+        "redacted": True,
+    }
+    return SafeActuatorEvidenceMetadata.from_value(
+        {
+            "claim_gate": claim_gate,
+            "cross_plane_claim_gate": {
+                "schema": "x0tta6bl4.ops.production_monitor.cross_plane_claim_gate.v1",
+                "allowed": False,
+                "requires_rollout_evidence_for_traffic_shift_claim": True,
+                "requires_customer_traffic_evidence_for_customer_claim": True,
+                "requires_slo_evidence_for_production_slo_claim": True,
+                "requires_readiness_review_for_production_claim": True,
+                "redacted": True,
+            },
+            "evidence": {
+                "component": "scripts.production_monitor",
+                "action": action,
+                "health_observed": bool(health_observed),
+                "metrics_observed": bool(metrics_observed),
+                "alerts_observed": bool(alerts_observed),
+                "raw_output_redacted": True,
+            },
+            "source_agents": ["production-monitor-script"],
+            "claim_boundary": PRODUCTION_MONITOR_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+    ).to_dict()
+
+
+def _claim_boundary_fields(
+    *,
+    action: str = "production_monitor_observation",
+    health_observed: bool = False,
+    metrics_observed: bool = False,
+    alerts_observed: bool = False,
+) -> Dict[str, Any]:
     return {
         "observation_scope": PRODUCTION_MONITOR_OBSERVATION_SCOPE,
         "production_readiness_claim_allowed": False,
@@ -60,6 +123,12 @@ def _claim_boundary_fields() -> Dict[str, Any]:
         "external_dpi_bypass_confirmed": False,
         "settlement_finality_confirmed": False,
         "claim_boundary": PRODUCTION_MONITOR_CLAIM_BOUNDARY,
+        "safe_actuator_evidence_metadata": _safe_actuator_evidence_metadata(
+            action=action,
+            health_observed=health_observed,
+            metrics_observed=metrics_observed,
+            alerts_observed=alerts_observed,
+        ),
     }
 
 
@@ -85,6 +154,10 @@ class ProductionMonitor:
                     "raw_output_retained": False,
                     "timestamp": datetime.now().isoformat(),
                     "observation_scope": PRODUCTION_MONITOR_OBSERVATION_SCOPE,
+                    **_claim_boundary_fields(
+                        action="check_health",
+                        health_observed=True,
+                    ),
                 }
         except Exception as e:
             return {
@@ -95,6 +168,7 @@ class ProductionMonitor:
                 "raw_output_retained": False,
                 "timestamp": datetime.now().isoformat(),
                 "observation_scope": PRODUCTION_MONITOR_OBSERVATION_SCOPE,
+                **_claim_boundary_fields(action="check_health"),
             }
 
     async def check_metrics(self) -> Dict[str, Any]:
@@ -127,6 +201,10 @@ class ProductionMonitor:
                         "raw_output_retained": False,
                         "timestamp": datetime.now().isoformat(),
                         "observation_scope": PRODUCTION_MONITOR_OBSERVATION_SCOPE,
+                        **_claim_boundary_fields(
+                            action="check_metrics",
+                            metrics_observed=True,
+                        ),
                     }
                 return {
                     "available": False,
@@ -136,6 +214,7 @@ class ProductionMonitor:
                     "raw_output_retained": False,
                     "timestamp": datetime.now().isoformat(),
                     "observation_scope": PRODUCTION_MONITOR_OBSERVATION_SCOPE,
+                    **_claim_boundary_fields(action="check_metrics"),
                 }
         except Exception as e:
             return {
@@ -146,6 +225,7 @@ class ProductionMonitor:
                 "raw_output_retained": False,
                 "timestamp": datetime.now().isoformat(),
                 "observation_scope": PRODUCTION_MONITOR_OBSERVATION_SCOPE,
+                **_claim_boundary_fields(action="check_metrics"),
             }
 
     def check_alerts(self, metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -255,7 +335,12 @@ class ProductionMonitor:
             "checks": check_count,
             "alerts": self.alerts,
             "metrics_history": self.metrics_history,
-            **_claim_boundary_fields(),
+            **_claim_boundary_fields(
+                action="monitor_summary",
+                health_observed=check_count > 0,
+                metrics_observed=check_count > 0,
+                alerts_observed=bool(self.alerts),
+            ),
         }
 
 

@@ -63,6 +63,15 @@ async def test_health_check_redacts_errors_and_records_duration(monkeypatch):
     assert "duration_ms" in result
     assert "secret-token" not in str(result)
     assert "http://internal.example" not in str(result)
+    metadata = result["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert (
+        claim_gate["schema"]
+        == "x0tta6bl4.ops.production_monitor.safe_actuator_claim_gate.v1"
+    )
+    assert claim_gate["local_http_health_observation_claim_allowed"] is False
+    assert claim_gate["traffic_shift_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
 
 
 @pytest.mark.asyncio
@@ -83,6 +92,11 @@ async def test_metrics_check_keeps_bounded_output_metadata(monkeypatch):
     assert result["bounded_output_metadata"]["raw_output_retained"] is False
     assert "sha256" in result["bounded_output_metadata"]
     assert "secret_metric" not in str(result)
+    metadata = result["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["local_http_metrics_observation_claim_allowed"] is True
+    assert claim_gate["live_customer_traffic_claim_allowed"] is False
+    assert claim_gate["production_slo_claim_allowed"] is False
 
 
 @pytest.mark.asyncio
@@ -102,6 +116,9 @@ async def test_monitor_result_is_not_production_proof():
     assert result["external_dpi_bypass_confirmed"] is False
     assert result["settlement_finality_confirmed"] is False
     assert "does not prove live customer traffic" in result["claim_boundary"]
+    metadata = result["safe_actuator_evidence_metadata"]
+    assert metadata["redacted"] is True
+    assert metadata["claim_gate"]["production_readiness_claim_allowed"] is False
 
 
 def test_monitor_shell_script_has_observation_boundary():

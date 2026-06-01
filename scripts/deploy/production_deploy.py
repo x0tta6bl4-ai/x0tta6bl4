@@ -28,12 +28,23 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
 PRODUCTION_DEPLOY_CLAIM_BOUNDARY = (
     "This script can run Kubernetes/GitOps deployment commands. Successful "
     "command completion, rollout status, pod readiness, smoke tests, canary "
     "metric checks, or service selector patches do not prove live customer "
     "traffic, traffic shifting, external DPI bypass, settlement finality, "
     "production SLOs, or production readiness without separate current evidence."
+)
+PRODUCTION_DEPLOY_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "Production deploy SafeActuator metadata proves only a locally authorized "
+    "deployment command attempt, readiness-preflight check, rollout/status "
+    "observation, smoke-test observation, or rollback command attempt. It is "
+    "not proof of traffic shifting, live customer traffic, external DPI bypass, "
+    "settlement finality, production SLOs, or production readiness."
 )
 
 
@@ -59,7 +70,78 @@ def command_result_metadata(result: subprocess.CompletedProcess[str]) -> Dict[st
     }
 
 
-def deployment_claim_boundary_fields() -> Dict[str, Any]:
+def _safe_actuator_evidence_metadata(
+    *,
+    action: str,
+    live_action_authorized: bool = False,
+    live_action_executed: bool = False,
+    real_readiness_checked: bool = False,
+    real_readiness_passed: bool | None = None,
+    health_observed: bool = False,
+    smoke_test_observed: bool = False,
+) -> Dict[str, Any]:
+    claim_gate = {
+        "schema": "x0tta6bl4.ops.production_deploy.safe_actuator_claim_gate.v1",
+        "action": action,
+        "local_deployment_command_attempt_claim_allowed": bool(
+            live_action_authorized
+        ),
+        "local_deployment_command_succeeded": bool(live_action_executed),
+        "local_real_readiness_preflight_claim_allowed": bool(
+            real_readiness_checked
+        ),
+        "local_real_readiness_preflight_passed": bool(real_readiness_passed),
+        "local_health_observation_claim_allowed": bool(health_observed),
+        "local_smoke_test_observation_claim_allowed": bool(smoke_test_observed),
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "external_dpi_bypass_confirmed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "claim_boundary": PRODUCTION_DEPLOY_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+        "redacted": True,
+    }
+    return SafeActuatorEvidenceMetadata.from_value(
+        {
+            "claim_gate": claim_gate,
+            "cross_plane_claim_gate": {
+                "schema": "x0tta6bl4.ops.production_deploy.cross_plane_claim_gate.v1",
+                "allowed": False,
+                "requires_rollout_evidence_for_traffic_shift_claim": True,
+                "requires_customer_traffic_evidence_for_customer_claim": True,
+                "requires_slo_evidence_for_production_slo_claim": True,
+                "requires_readiness_review_for_production_claim": True,
+                "redacted": True,
+            },
+            "evidence": {
+                "component": "scripts.deploy.production_deploy",
+                "action": action,
+                "live_action_authorized": bool(live_action_authorized),
+                "live_action_executed": bool(live_action_executed),
+                "real_readiness_checked": bool(real_readiness_checked),
+                "real_readiness_passed": bool(real_readiness_passed),
+                "health_observed": bool(health_observed),
+                "smoke_test_observed": bool(smoke_test_observed),
+                "raw_output_redacted": True,
+            },
+            "source_agents": ["production-deploy-script"],
+            "claim_boundary": PRODUCTION_DEPLOY_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+    ).to_dict()
+
+
+def deployment_claim_boundary_fields(
+    *,
+    action: str = "production_deploy_observation",
+    live_action_authorized: bool = False,
+    live_action_executed: bool = False,
+    real_readiness_checked: bool = False,
+    real_readiness_passed: bool | None = None,
+    health_observed: bool = False,
+    smoke_test_observed: bool = False,
+) -> Dict[str, Any]:
     return {
         "production_readiness_claim_allowed": False,
         "production_slo_claim_allowed": False,
@@ -68,6 +150,15 @@ def deployment_claim_boundary_fields() -> Dict[str, Any]:
         "external_dpi_bypass_confirmed": False,
         "settlement_finality_confirmed": False,
         "claim_boundary": PRODUCTION_DEPLOY_CLAIM_BOUNDARY,
+        "safe_actuator_evidence_metadata": _safe_actuator_evidence_metadata(
+            action=action,
+            live_action_authorized=live_action_authorized,
+            live_action_executed=live_action_executed,
+            real_readiness_checked=real_readiness_checked,
+            real_readiness_passed=real_readiness_passed,
+            health_observed=health_observed,
+            smoke_test_observed=smoke_test_observed,
+        ),
     }
 
 
@@ -555,7 +646,10 @@ class DeploymentOrchestrator:
             "live_action_authorized": self.config.allow_live_deploy,
             "real_readiness_checked": False,
             "real_readiness_passed": False,
-            **deployment_claim_boundary_fields(),
+            **deployment_claim_boundary_fields(
+                action=action,
+                live_action_authorized=self.config.allow_live_deploy,
+            ),
         }
 
         if not self.config.allow_live_deploy:
@@ -581,6 +675,14 @@ class DeploymentOrchestrator:
         )
         self.last_claim_gate["real_readiness_checked"] = True
         self.last_claim_gate["real_readiness_result"] = command_result_metadata(result)
+        self.last_claim_gate.update(
+            deployment_claim_boundary_fields(
+                action=action,
+                live_action_authorized=True,
+                real_readiness_checked=True,
+                real_readiness_passed=result.returncode == 0,
+            )
+        )
 
         if result.returncode != 0:
             logger.error("REAL READINESS GATE: BLOCKED")
@@ -599,7 +701,10 @@ class DeploymentOrchestrator:
             "live_action_authorized": self.config.allow_live_deploy,
             "real_readiness_checked": False,
             "real_readiness_passed": None,
-            **deployment_claim_boundary_fields(),
+            **deployment_claim_boundary_fields(
+                action=action,
+                live_action_authorized=self.config.allow_live_deploy,
+            ),
         }
 
         if not self.config.allow_live_deploy:
@@ -716,7 +821,10 @@ class DeploymentOrchestrator:
                 "pods_healthy": pod_count,
                 "healthy": is_healthy,
                 "timestamp": datetime.now().isoformat(),
-                **deployment_claim_boundary_fields(),
+                **deployment_claim_boundary_fields(
+                    action="status",
+                    health_observed=True,
+                ),
             }
 
         except Exception as e:
@@ -724,7 +832,7 @@ class DeploymentOrchestrator:
             return {
                 "healthy": False,
                 "error_type": type(e).__name__,
-                **deployment_claim_boundary_fields(),
+                **deployment_claim_boundary_fields(action="status"),
             }
 
 

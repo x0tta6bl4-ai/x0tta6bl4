@@ -41,6 +41,11 @@ async def test_execute_deployment_blocks_before_kubectl_without_authorization(
     assert orchestrator.last_claim_gate["live_action_authorized"] is False
     assert orchestrator.last_claim_gate["real_readiness_checked"] is False
     assert orchestrator.last_claim_gate["production_readiness_claim_allowed"] is False
+    metadata = orchestrator.last_claim_gate["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.ops.production_deploy.safe_actuator_claim_gate.v1"
+    assert claim_gate["local_deployment_command_attempt_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
 
 
 def test_live_deploy_preflight_redacts_real_readiness_output(monkeypatch):
@@ -65,6 +70,11 @@ def test_live_deploy_preflight_redacts_real_readiness_output(monkeypatch):
     assert metadata["stdout"]["raw_output_retained"] is False
     assert metadata["stderr"]["raw_output_retained"] is False
     assert "secret" not in str(metadata)
+    claim_gate = orchestrator.last_claim_gate["safe_actuator_evidence_metadata"][
+        "claim_gate"
+    ]
+    assert claim_gate["local_real_readiness_preflight_claim_allowed"] is True
+    assert claim_gate["local_real_readiness_preflight_passed"] is False
 
 
 @pytest.mark.asyncio
@@ -89,6 +99,11 @@ async def test_status_is_observation_not_production_readiness():
     assert status["live_customer_traffic_proven"] is False
     assert status["traffic_shift_claim_allowed"] is False
     assert "do not prove live customer traffic" in status["claim_boundary"]
+    metadata = status["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["local_health_observation_claim_allowed"] is True
+    assert claim_gate["traffic_shift_claim_allowed"] is False
+    assert claim_gate["production_slo_claim_allowed"] is False
 
 
 @pytest.mark.asyncio
@@ -128,6 +143,7 @@ def test_python_production_deploy_source_has_claim_gate():
 
     assert "X0TTA6BL4_ALLOW_LIVE_DEPLOY" in text
     assert "scripts/ops/check_real_readiness.py" in text
+    assert "x0tta6bl4.ops.production_deploy.safe_actuator_claim_gate.v1" in text
     assert "production_readiness_claim_allowed" in text
     assert "Canary traffic:" not in text
     assert "Deployment completed successfully" not in text

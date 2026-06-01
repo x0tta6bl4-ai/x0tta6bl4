@@ -67,6 +67,13 @@ async def test_check_metrics_redacts_http_output_and_errors(monkeypatch):
     assert "hidden" not in str(result)
     assert result["production_readiness_claim_allowed"] is False
     assert result["production_slo_claim_allowed"] is False
+    metadata = result["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.ops.auto_rollback.safe_actuator_claim_gate.v1"
+    assert claim_gate["local_health_observation_claim_allowed"] is True
+    assert claim_gate["local_metrics_observation_claim_allowed"] is True
+    assert claim_gate["live_rollback_execution_claim_allowed"] is False
+    assert claim_gate["traffic_shift_claim_allowed"] is False
 
 
 @pytest.mark.asyncio
@@ -84,6 +91,12 @@ async def test_check_metrics_redacts_exception_message(monkeypatch):
     assert result["error_type"] == "RuntimeError"
     assert result["raw_error_redacted"] is True
     assert "secret-url" not in str(result)
+    assert (
+        result["safe_actuator_evidence_metadata"]["claim_gate"][
+            "production_readiness_claim_allowed"
+        ]
+        is False
+    )
 
 
 @pytest.mark.asyncio
@@ -100,6 +113,9 @@ async def test_execute_rollback_is_blocked_without_authorization(capsys):
     assert result["rollback_executed"] is False
     assert result["live_rollback_authorized"] is False
     assert result["production_slo_claim_allowed"] is False
+    claim_gate = result["safe_actuator_evidence_metadata"]["claim_gate"]
+    assert claim_gate["local_rollback_recommendation_claim_allowed"] is True
+    assert claim_gate["live_rollback_execution_claim_allowed"] is False
 
 
 @pytest.mark.asyncio
@@ -118,6 +134,10 @@ async def test_authorized_placeholder_does_not_claim_live_rollback_execution(cap
     assert result["live_rollback_authorized"] is True
     assert result["live_rollback_executed"] is False
     assert result["rollback_command_adapter_configured"] is False
+    claim_gate = result["safe_actuator_evidence_metadata"]["claim_gate"]
+    assert claim_gate["local_rollback_recommendation_claim_allowed"] is True
+    assert claim_gate["rollback_command_adapter_configured"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
 
 
 def test_auto_rollback_source_uses_recommendation_language_and_claim_boundary():
@@ -128,6 +148,7 @@ def test_auto_rollback_source_uses_recommendation_language_and_claim_boundary():
     assert "ROLLBACK COMPLETE" not in text
     assert "ROLLBACK RECOMMENDATION" in text
     assert "X0TTA6BL4_ALLOW_LIVE_ROLLBACK" in text
+    assert "x0tta6bl4.ops.auto_rollback.safe_actuator_claim_gate.v1" in text
     assert "production_readiness_claim_allowed" in text
     assert "raw_output_retained" in text
     assert "ROLLBACK COMMAND ADAPTER: NOT CONFIGURED" in text
