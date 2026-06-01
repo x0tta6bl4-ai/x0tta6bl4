@@ -56,6 +56,19 @@ python3 scripts/ops/verify_native_release_artifacts.py \
 
 For a hard release gate, add `--require-complete`. The command exits with code `2` when any required platform artifact is missing, including the signed iOS `.ipa`.
 
+To prepare and trigger the missing signed iOS release path after receiving the Apple `.cer` and `.mobileprovision`, use:
+
+```bash
+python3 scripts/ops/run_ios_signed_release_setup.py \
+  --prepare \
+  --set-github-secrets \
+  --trigger-workflow \
+  --require-complete-release \
+  --json
+```
+
+The default local input paths are under `~/.local/share/x0tta6bl4/ios-signing/`. The command redacts private values and does not claim platform completion until the native release artifact audit reports `complete: true`.
+
 ## Platform Notes
 
 - Android builds locally after installing JDK 21 and Android SDK platform/build tools.

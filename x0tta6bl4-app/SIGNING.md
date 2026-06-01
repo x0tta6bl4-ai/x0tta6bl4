@@ -131,6 +131,30 @@ This preflight checks that the provisioning profile is not expired, has `get-tas
 
 CI runs the same verification before importing iOS signing material into the macOS keychain. When iOS signing secrets are present, the workflow uploads `x0tta6bl4-ios-signing-material-verification/ios-signing-material-verification.json`.
 
+After Apple Developer gives you the `.cer` certificate and `.mobileprovision` profile, the full local-to-CI path can be run with one orchestrator. It exports the `.p12`, verifies the `.p12` and profile match, writes the required GitHub secrets through stdin, and can trigger the hard release workflow:
+
+```bash
+read -rsp 'iOS .p12 password: ' X0T_IOS_CERTIFICATE_PASSWORD; echo
+export X0T_IOS_CERTIFICATE_PASSWORD
+read -rp 'Apple Team ID: ' X0T_IOS_TEAM_ID
+export X0T_IOS_TEAM_ID
+
+python3 scripts/ops/run_ios_signed_release_setup.py \
+  --prepare \
+  --certificate-cer ~/.local/share/x0tta6bl4/ios-signing/apple-distribution.cer \
+  --private-key ~/.local/share/x0tta6bl4/ios-signing/apple-distribution.key \
+  --p12-output ~/.local/share/x0tta6bl4/ios-signing/apple-distribution.p12 \
+  --provisioning-profile ~/.local/share/x0tta6bl4/ios-signing/x0tta6bl4.mobileprovision \
+  --bundle-id net.x0tta6bl4.mesh \
+  --export-method ad-hoc \
+  --set-github-secrets \
+  --trigger-workflow \
+  --require-complete-release \
+  --json
+```
+
+The orchestrator does not print the private key, `.p12` password, Team ID, or secret values. A triggered workflow is still only a release request: the release becomes complete only after `x0tta6bl4-native-release-artifact-audit/native-release-artifact-audit.json` reports `complete: true`.
+
 If the Apple signing certificate and provisioning profile already exist locally, upload them without printing private values:
 
 ```bash
