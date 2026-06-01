@@ -312,6 +312,12 @@ class NodeHeartbeatRequest(BaseModel):
     custom_metrics: Dict[str, Any] = Field(default_factory=dict)
     pheromones: Optional[Dict[str, Dict[str, float]]] = None  # For Stigmergy viz
 
+    @model_validator(mode="after")
+    def reject_empty_heartbeat(self) -> "NodeHeartbeatRequest":
+        if not self.model_fields_set:
+            raise ValueError("node_id or heartbeat data is required")
+        return self
+
 
 # ---------------------------------------------------------------------------
 # Policy Models
@@ -377,6 +383,8 @@ class LoginResponse(BaseModel):
     """User login response."""
     user_id: str
     session_token: str
+    access_token: Optional[str] = None  # Alias for session_token
+    token_type: str = "session_token"
     expires_in: int = 86400  # 24 hours
 
 
@@ -385,6 +393,8 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=320)
     password: str = Field(..., min_length=8, max_length=128)
     name: Optional[str] = Field(default=None, max_length=128)
+    full_name: Optional[str] = Field(default=None, max_length=128)
+    company: Optional[str] = Field(default=None, max_length=128)
 
 
 class RegisterResponse(BaseModel):
@@ -393,6 +403,8 @@ class RegisterResponse(BaseModel):
     email: str
     api_key: str
     access_token: Optional[str] = None  # Alias for api_key
+    token_type: str = "api_key"
+    expires_in: int = 31536000
     message: str
 
 

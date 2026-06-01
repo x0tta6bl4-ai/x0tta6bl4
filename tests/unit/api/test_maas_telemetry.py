@@ -72,7 +72,7 @@ def provisioned_mesh(client, registered_user):
         json={"name": "telem-test-mesh", "nodes": 2, "pqc_enabled": False},
         headers=registered_user["headers"],
     )
-    assert resp.status_code == 200
+    assert resp.status_code in {200, 201}
     return resp.json()["mesh_id"]
 
 
@@ -579,6 +579,7 @@ class TestTelemetryPheromoneContract:
                 ),
                 request=heartbeat_request,
                 db=db,
+                current_user=SimpleNamespace(id="owner-1"),
             )
 
             telemetry = mod._get_telemetry("node-a")

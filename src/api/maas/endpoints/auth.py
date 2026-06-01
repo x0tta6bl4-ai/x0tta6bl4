@@ -245,8 +245,8 @@ def _register_db_backed_user(
     db_req = DBUserRegisterRequest(
         email=request.email,
         password=request.password,
-        full_name=request.name,
-        company=None,
+        full_name=request.full_name or request.name,
+        company=request.company,
     )
 
     try:
@@ -289,6 +289,8 @@ def _register_db_backed_user(
             email=user.email,
             api_key=api_key,
             access_token=api_key,
+            token_type="api_key",
+            expires_in=31536000,
             message="Registration successful",
         )
     except HTTPException as exc:
@@ -653,6 +655,8 @@ async def login(
     return LoginResponse(
         user_id=user_id,
         session_token=session_token,
+        access_token=session_token,
+        token_type="session_token",
         expires_in=86400,  # 24 hours
     )
 

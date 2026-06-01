@@ -24,6 +24,7 @@ from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.database import MeshNode, get_db
 from src.api.maas_auth import get_current_user_from_maas
+from src.api.maas.registry import find_mesh_for_node, get_mesh
 from src.core.reliability_policy import mark_degraded_dependency
 from src.monitoring.maas_metrics import record_heartbeat as _record_heartbeat_metric
 from src.network.reputation_scoring import ReputationScoringSystem
@@ -31,6 +32,7 @@ from src.network.reputation_scoring import ReputationScoringSystem
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["MaaS Telemetry"])
+root_router = APIRouter(tags=["MaaS Telemetry"])
 _SERVICE_AGENT = "maas-telemetry"
 _TELEMETRY_LAYER = "api_telemetry_observed_state"
 _TELEMETRY_CLAIM_BOUNDARY = (
@@ -1049,19 +1051,34 @@ async def telemetry_readiness(
     return payload
 
 
+@root_router.post("/heartbeat")
 @router.post("/heartbeat")
 async def heartbeat(
     req: NodeHeartbeatRequest,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user_from_maas),
 ):
     started = time.perf_counter()
     event_bus = _telemetry_event_bus_from_request(request)
     event_project_root = _telemetry_project_root_from_request(request)
     node = db.query(MeshNode).filter(MeshNode.id == req.node_id).first()
+    mesh_id = getattr(node, "mesh_id", None)
+    db_node_found = node is not None
+    db_committed = False
+    registry_node = None
+    last_seen = datetime.utcnow()
+
     if not node:
+        mesh_id = find_mesh_for_node(req.node_id)
+        if mesh_id:
+            registry_instance = get_mesh(mesh_id)
+            registry_node = (
+                getattr(registry_instance, "node_instances", {}) or {}
+            ).get(req.node_id)
+
+    if not node and not registry_node:
         logger.warning(f"🚨 UNKNOWN NODE HEARTBEAT: {req.node_id}")
-        raise HTTPException(status_code=404, detail="Node not found")
         _publish_telemetry_observed_state(
             event_bus,
             operation="heartbeat",
@@ -1073,6 +1090,7 @@ async def heartbeat(
             heartbeat_summary={
                 "db_node_found": False,
                 "db_committed": False,
+                "registry_node_found": False,
                 "client_ip_present": bool(getattr(request, "client", None)),
                 "client_ip_hash": _redacted_sha256_prefix(
                     request.client.host if request.client else None
@@ -1097,17 +1115,25 @@ async def heartbeat(
         )
         raise HTTPException(status_code=404, detail="Node not registered")
 
-    # Fast DB update
-    node.status = "healthy"
-    node.last_seen = datetime.utcnow()
+    _verify_topology_mesh_access(str(mesh_id), current_user, db)
 
-    # Capture IP address for eBPF filtering and geographic analytics
     client_ip = request.client.host if request.client else None
-    if client_ip:
-        node.ip_address = client_ip
+    if node:
+        # Fast DB update
+        node.status = "healthy"
+        node.last_seen = last_seen
 
-    db.commit()
-    db_committed = True
+        # Capture IP address for eBPF filtering and geographic analytics
+        if client_ip:
+            node.ip_address = client_ip
+
+        db.commit()
+        db_committed = True
+    elif registry_node is not None:
+        registry_node["status"] = "healthy"
+        registry_node["last_seen"] = last_seen.isoformat()
+        if client_ip:
+            registry_node["ip_address"] = client_ip
 
     # Track long-term uptime for settlement
     uptime_tracker.record_heartbeat(req.node_id)
@@ -1135,13 +1161,13 @@ async def heartbeat(
         trust_score = proxy_trust.trust_score
 
     telemetry_data = {
-        "status": node.status,
+        "status": "healthy",
         "cpu": req.cpu_usage,
         "mem": req.memory_usage,
         "neighbors": req.neighbors_count,
         "uptime": req.uptime,
         "latency": req.latency_ms,
-        "last_seen": node.last_seen.isoformat(),
+        "last_seen": last_seen.isoformat(),
         "reputation": trust_score,
     }
     if req.pheromones:
@@ -1157,7 +1183,7 @@ async def heartbeat(
         degraded_dependencies=degraded_dependencies,
         event_bus=event_bus,
         event_project_root=event_project_root,
-        mesh_id=node.mesh_id,
+        mesh_id=mesh_id,
     )
     snapshot_event_ids = sorted(
         _telemetry_event_ids(event_bus, operation="telemetry_snapshot_write")
@@ -1172,7 +1198,7 @@ async def heartbeat(
         stage="heartbeat_processed",
         status="accepted",
         node_id=req.node_id,
-        mesh_id=node.mesh_id,
+        mesh_id=mesh_id,
         storage_backend=(
             "local_fallback"
             if "redis" in degraded_dependencies or not REDIS_AVAILABLE
@@ -1180,8 +1206,9 @@ async def heartbeat(
         ),
         read_only=False,
         heartbeat_summary={
-            "db_node_found": True,
+            "db_node_found": db_node_found,
             "db_committed": db_committed,
+            "registry_node_found": registry_node is not None,
             "client_ip_present": bool(client_ip),
             "client_ip_hash": _redacted_sha256_prefix(client_ip),
             "neighbors_count": int(req.neighbors_count),
@@ -1224,7 +1251,7 @@ async def heartbeat(
 
     return {
         "status": "ack",
-        "mesh_id": node.mesh_id,
+        "mesh_id": mesh_id,
         "trust_score": trust_score,
         "maas_telemetry_claim_gate": _maas_telemetry_claim_gate(
             surface="maas_telemetry.heartbeat_response",
@@ -1236,6 +1263,7 @@ async def heartbeat(
         ),
     }
 
+@root_router.get("/{mesh_id}/topology")
 @router.get("/{mesh_id}/topology")
 async def get_topology(
     mesh_id: str,

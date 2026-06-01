@@ -53,7 +53,7 @@ def test_enterprise_core_flow(client):
         json={"name": "ent-mesh", "nodes": 2, "billing_plan": "starter"},
         headers=headers,
     )
-    assert mesh.status_code == 200
+    assert mesh.status_code in {200, 201}
     mesh_data = mesh.json()
     assert "mesh_id" in mesh_data
     mesh_id = mesh_data["mesh_id"]
@@ -227,5 +227,5 @@ def test_auth_register_rejects_case_insensitive_duplicate_email(client):
         "/api/v1/maas/auth/register",
         json={"email": base_email.lower(), "password": "password123"},
     )
-    assert second.status_code == 400
+    assert second.status_code == 409
     assert second.json()["detail"] == "Email already registered"

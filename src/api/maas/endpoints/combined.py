@@ -19,7 +19,7 @@ from .agent_mesh import router as agent_mesh_router
 from .supply_chain import router as supply_chain_router
 from .compat import router as compat_router
 from .policies import router as policies_router
-from .telemetry import router as telemetry_router
+from .telemetry import router as telemetry_router, root_router as telemetry_root_router
 from .vpn import router as vpn_router
 from .users import router as users_router
 from .swarm import router as swarm_router
@@ -80,7 +80,7 @@ def get_combined_router(
     use_default_prefix = maas_prefix == _DEFAULT_MAAS_PREFIX
 
     # --- MaaS v1 Group ---
-    
+
     # Nodes (moved up to avoid shadowing by mesh parameters)
     if include_nodes:
         router.include_router(nodes_router, prefix=maas_prefix)
@@ -92,6 +92,10 @@ def get_combined_router(
         router.include_router(auth_root_router, prefix=maas_prefix)
         if include_auth_namespace:
             router.include_router(auth_router, prefix=maas_prefix)
+
+    # Telemetry root aliases, such as /api/v1/maas/heartbeat and
+    # /api/v1/maas/{mesh_id}/topology, are kept outside /telemetry for legacy clients.
+    router.include_router(telemetry_root_router, prefix=maas_prefix)
 
     # Mesh
     if include_mesh:

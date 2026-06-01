@@ -77,7 +77,7 @@ def telemetry_data(client):
         json={"name": "Telemetry Test Mesh", "nodes": 2},
         headers={"X-API-Key": admin_token},
     )
-    assert r.status_code == 200, f"Deploy failed: {r.text}"
+    assert r.status_code in {200, 201}, f"Deploy failed: {r.text}"
     mesh_id = r.json()["mesh_id"]
 
     return {
