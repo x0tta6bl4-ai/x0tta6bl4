@@ -18,6 +18,7 @@ on:
       - "scripts/ops/run_ios_signed_release_setup.py"
       - "scripts/ops/check_native_release_goal_status.py"
       - "scripts/ops/run_native_release_closeout.py"
+      - "scripts/ops/prepare_ios_apple_portal_packet.py"
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
   pull_request:
@@ -30,6 +31,7 @@ on:
       - "scripts/ops/run_ios_signed_release_setup.py"
       - "scripts/ops/check_native_release_goal_status.py"
       - "scripts/ops/run_native_release_closeout.py"
+      - "scripts/ops/prepare_ios_apple_portal_packet.py"
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
 

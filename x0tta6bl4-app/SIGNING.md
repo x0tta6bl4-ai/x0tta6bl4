@@ -97,6 +97,20 @@ python3 scripts/ops/prepare_ios_distribution_certificate_request.py \
 
 Upload the generated `.csr` file to Apple Developer Certificates, create an Apple Distribution certificate, then export a `.p12` that contains the downloaded certificate and the generated private key. Keep the private key under `~/.local/share/x0tta6bl4/ios-signing/` or another secure local vault; do not commit it.
 
+To avoid mixing certificate/profile files, prepare a safe Apple Developer Portal packet. It copies only the CSR and writes exact portal steps, expected download paths, and follow-up commands. It does not copy the private key:
+
+```bash
+python3 scripts/ops/prepare_ios_apple_portal_packet.py \
+  --write-packet \
+  --json \
+  --output-json .tmp/native-signing/ios/apple-portal-packet.json
+```
+
+Upload `.tmp/native-signing/ios/apple-portal-packet/apple-distribution.csr` in Apple Developer Portal, then save the downloaded files as:
+
+- `~/.local/share/x0tta6bl4/ios-signing/apple-distribution.cer`
+- `~/.local/share/x0tta6bl4/ios-signing/x0tta6bl4.mobileprovision`
+
 If Apple Developer gives you a downloaded `.cer` certificate and you used the local CSR helper above, export the `.p12` locally without printing the certificate password:
 
 ```bash
