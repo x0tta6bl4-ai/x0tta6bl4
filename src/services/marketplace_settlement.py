@@ -31,8 +31,7 @@ _SETTLEMENT_CLAIM_GATE_BOUNDARY = (
     "from this worker. Uptime, DB writes, bridge submission, and marketplace events "
     "do not prove traffic delivery, dataplane delivery, external settlement "
     "finality, bank settlement, revenue recognition, or production readiness. "
-    "This worker never promotes high-risk claims; those must be evaluated by "
-    "separate cross-plane proof gates."
+    "This worker never promotes high-risk claims; those must be evaluated by separate cross-plane proof gates."
 )
 _SETTLEMENT_HIGH_RISK_BLOCKER_REASON_IDS = (
     "marketplace_settlement_local_lifecycle_only",

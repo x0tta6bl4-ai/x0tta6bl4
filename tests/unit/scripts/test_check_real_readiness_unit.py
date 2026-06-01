@@ -360,6 +360,11 @@ const PASS = requiredEnv('ADMIN_PASS');
         """
 class User:
     api_key_hash = Column(String, unique=True, index=True, nullable=True)
+class MeshNode:
+    runtime_identity_binding_type = Column(String, index=True, nullable=True)
+    runtime_identity_binding_hash = Column(String, unique=True, index=True, nullable=True)
+    runtime_identity_bound_at = Column(DateTime, nullable=True)
+    runtime_identity_last_verified_at = Column(DateTime, nullable=True)
 def get_schema_parity_report(): pass
 def get_alembic_head_gaps(): pass
 def get_schema_compatibility_gaps(): pass
@@ -638,6 +643,11 @@ def publish():
         """
 EBPF_CLAIM_BOUNDARY = "local eBPF self-healing action event only"
 EBPF_RECOVERY_CLAIM_GATE_SCHEMA = "x0tta6bl4.self_healing.ebpf_recovery_claim_gate.v1"
+EBPF_SAFE_ACTUATOR_CLAIM_BOUNDARY = "eBPF SafeActuator metadata proves only a local action"
+
+class SafeActuatorEvidenceMetadata:
+    def to_dict(self):
+        return {}
 
 def _ebpf_recovery_claim_gate(result):
     return {
@@ -650,14 +660,362 @@ def _ebpf_recovery_claim_gate(result):
         "production_readiness_claim_allowed": False,
     }
 
+def _safe_actuator_evidence_metadata_from_flags():
+    return SafeActuatorEvidenceMetadata()
+
 payload = {
     "claim_gate": _ebpf_recovery_claim_gate(result),
+    "safe_actuator_evidence_metadata": _safe_actuator_evidence_metadata_from_flags(),
+    "safe_actuator_claim_gate": {
+        "schema": "x0tta6bl4.self_healing.ebpf.safe_actuator_claim_gate.v1",
+        "local_ebpf_recovery_action_succeeded": True,
+        "restored_dataplane_claim_allowed": False,
+        "route_convergence_claim_allowed": False,
+        "kernel_forwarding_correctness_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    },
     "restored_dataplane_claim_allowed": False,
     "route_convergence_claim_allowed": False,
     "kernel_forwarding_correctness_claim_allowed": False,
     "dataplane_delivery_claim_allowed": False,
     "traffic_delivery_claim_allowed": False,
     "production_readiness_claim_allowed": False,
+}
+""",
+    )
+    _write(
+        root,
+        "src/api/maas/endpoints/governance.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+GOVERNANCE_ACTION_SAFE_ACTUATOR_CLAIM_BOUNDARY = "MaaS governance SafeActuator metadata proves only a local API action"
+
+def _governance_action_safe_actuator_claim_gate():
+    return {
+        "schema": "x0tta6bl4.maas_governance.safe_actuator_claim_gate.v1",
+        "local_maas_governance_action_succeeded": True,
+        "dao_governance_finality_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_governance_execution_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    }
+
+def _governance_action_safe_actuator_evidence_metadata():
+    return SafeActuatorEvidenceMetadata(
+        claim_gate=_governance_action_safe_actuator_claim_gate(),
+        claim_boundary=GOVERNANCE_ACTION_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+    )
+
+payload = {
+    "safe_actuator_evidence_metadata": _governance_action_safe_actuator_evidence_metadata(),
+}
+""",
+    )
+    _write(
+        root,
+        "src/security/spiffe/server/client.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+SPIRE_SERVER_SAFE_ACTUATOR_CLAIM_BOUNDARY = "SPIRE server SafeActuator metadata proves only a local CLI action"
+
+def _safe_actuator_claim_gate():
+    return {
+        "schema": "x0tta6bl4.spire_server.safe_actuator_claim_gate.v1",
+        "local_spire_server_cli_action_succeeded": True,
+        "live_spire_mtls_claim_allowed": False,
+        "workload_svid_possession_claim_allowed": False,
+        "workload_identity_trust_finality_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_identity_readiness_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    }
+
+def _safe_actuator_evidence_metadata():
+    return SafeActuatorEvidenceMetadata(
+        claim_gate=_safe_actuator_claim_gate(),
+        claim_boundary=SPIRE_SERVER_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+    )
+
+payload = {
+    "safe_actuator_evidence_metadata": _safe_actuator_evidence_metadata(),
+}
+""",
+    )
+    _write(
+        root,
+        "src/security/spiffe/agent/manager.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+from src.security.spiffe.agent.join_token_guard import JoinTokenReplayGuard
+
+SPIRE_AGENT_SAFE_ACTUATOR_CLAIM_BOUNDARY = "SPIRE agent SafeActuator metadata proves only a local CLI action"
+
+def _safe_actuator_claim_gate():
+    return {
+        "schema": "x0tta6bl4.spire_agent.safe_actuator_claim_gate.v1",
+        "local_spire_agent_cli_action_succeeded": True,
+        "live_spire_mtls_claim_allowed": False,
+        "workload_svid_possession_claim_allowed": False,
+        "workload_identity_trust_finality_claim_allowed": False,
+        "node_attestation_finality_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_identity_readiness_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    }
+
+def _safe_actuator_evidence_metadata():
+    return SafeActuatorEvidenceMetadata(
+        claim_gate=_safe_actuator_claim_gate(),
+        claim_boundary=SPIRE_AGENT_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+    )
+
+payload = {
+    "safe_actuator_evidence_metadata": _safe_actuator_evidence_metadata(),
+}
+
+class Manager:
+    def __init__(self):
+        self.join_token_guard = JoinTokenReplayGuard()
+
+    def attest_node(self, token):
+        guard_decision = self.join_token_guard.reserve(token)
+        if not guard_decision.accepted:
+            stage = "join_token_guard_blocked"
+            return {
+                "stage": stage,
+                "attestation_guard": guard_decision.to_safe_context(),
+            }
+        success = True
+        context = {
+            "attestation_guard": guard_decision.to_safe_context(),
+        }
+        self.join_token_guard.complete(token, success=success)
+        return context
+""",
+    )
+    _write(
+        root,
+        "src/dao/bridge/core.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+TOKEN_BRIDGE_SAFE_ACTUATOR_CLAIM_BOUNDARY = "TokenBridge SafeActuator metadata proves only a local chain write"
+
+def _token_bridge_safe_actuator_claim_gate():
+    return {
+        "schema": "x0tta6bl4.token_bridge.safe_actuator_claim_gate.v1",
+        "local_chain_write_attempt_succeeded": True,
+        "pending_chain_submission_claim_allowed": True,
+        "external_settlement_finality_claim_allowed": False,
+        "payment_provider_settlement_claim_allowed": False,
+        "bank_settlement_claim_allowed": False,
+        "live_token_settlement_finality_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "revenue_recognition_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    }
+
+def _token_bridge_safe_actuator_evidence_metadata():
+    return SafeActuatorEvidenceMetadata(
+        claim_gate=_token_bridge_safe_actuator_claim_gate(),
+        claim_boundary=TOKEN_BRIDGE_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+    )
+
+payload = {
+    "safe_actuator_evidence_metadata": _token_bridge_safe_actuator_evidence_metadata(),
+}
+""",
+    )
+    _write(
+        root,
+        "src/deployment/canary_deployment.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+CANARY_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY = "Canary deployment metadata proves only a local rollout action"
+
+def _canary_safe_actuator_claim_gate():
+    return {
+        "schema": "x0tta6bl4.deployment.canary.safe_actuator_claim_gate.v1",
+        "local_canary_rollout_attempt_claim_allowed": True,
+        "local_canary_rollout_action_succeeded": False,
+        "local_canary_metrics_observation_claim_allowed": True,
+        "local_rollback_recommendation_claim_allowed": True,
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    }
+
+def _canary_safe_actuator_evidence_metadata():
+    return SafeActuatorEvidenceMetadata(
+        claim_gate=_canary_safe_actuator_claim_gate(),
+        claim_boundary=CANARY_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+    )
+
+payload = {
+    "safe_actuator_evidence_metadata": _canary_safe_actuator_evidence_metadata(),
+}
+""",
+    )
+    _write(
+        root,
+        "src/deployment/multi_cloud_deployment.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+MULTI_CLOUD_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY = "Multi-cloud deployment metadata proves only a local command attempt"
+
+def _multi_cloud_safe_actuator_claim_gate():
+    return {
+        "schema": "x0tta6bl4.deployment.multi_cloud.safe_actuator_claim_gate.v1",
+        "local_deployment_command_attempt_claim_allowed": True,
+        "local_deployment_command_succeeded": False,
+        "local_health_observation_claim_allowed": True,
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    }
+
+def _multi_cloud_safe_actuator_evidence_metadata():
+    return SafeActuatorEvidenceMetadata(
+        claim_gate=_multi_cloud_safe_actuator_claim_gate(),
+        claim_boundary=MULTI_CLOUD_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+    )
+
+payload = {
+    "safe_actuator_evidence_metadata": _multi_cloud_safe_actuator_evidence_metadata(),
+}
+""",
+    )
+    _write(
+        root,
+        "scripts/canary_deployment.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+CANARY_SAFE_ACTUATOR_CLAIM_BOUNDARY = "Canary rollout script metadata proves only local observations"
+
+def _canary_rollout_safe_actuator_claim_gate():
+    return {
+        "schema": "x0tta6bl4.ops.canary_rollout.safe_actuator_claim_gate.v1",
+        "local_requested_rollout_observation_claim_allowed": True,
+        "local_health_observation_claim_allowed": True,
+        "local_metrics_observation_claim_allowed": True,
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+    }
+
+payload = {
+    "safe_actuator_evidence_metadata": SafeActuatorEvidenceMetadata(
+        claim_gate=_canary_rollout_safe_actuator_claim_gate(),
+        claim_boundary=CANARY_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+    ),
+}
+""",
+    )
+    _write(
+        root,
+        "scripts/production_monitor.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+PRODUCTION_MONITOR_SAFE_ACTUATOR_CLAIM_BOUNDARY = "Production monitor metadata proves only local HTTP observations"
+
+def _production_monitor_safe_actuator_claim_gate():
+    return {
+        "schema": "x0tta6bl4.ops.production_monitor.safe_actuator_claim_gate.v1",
+        "local_http_health_observation_claim_allowed": True,
+        "local_http_metrics_observation_claim_allowed": True,
+        "local_alert_recommendation_claim_allowed": False,
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+    }
+
+payload = {
+    "safe_actuator_evidence_metadata": SafeActuatorEvidenceMetadata(
+        claim_gate=_production_monitor_safe_actuator_claim_gate(),
+        claim_boundary=PRODUCTION_MONITOR_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+    ),
+}
+""",
+    )
+    _write(
+        root,
+        "scripts/auto_rollback.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY = "Auto rollback metadata proves only local observations and recommendation"
+
+def _auto_rollback_safe_actuator_claim_gate():
+    return {
+        "schema": "x0tta6bl4.ops.auto_rollback.safe_actuator_claim_gate.v1",
+        "local_health_observation_claim_allowed": True,
+        "local_metrics_observation_claim_allowed": True,
+        "local_rollback_recommendation_claim_allowed": True,
+        "live_rollback_execution_claim_allowed": False,
+        "rollback_command_adapter_configured": False,
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+    }
+
+payload = {
+    "safe_actuator_evidence_metadata": SafeActuatorEvidenceMetadata(
+        claim_gate=_auto_rollback_safe_actuator_claim_gate(),
+        claim_boundary=AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+    ),
+}
+""",
+    )
+    _write(
+        root,
+        "scripts/deploy/production_deploy.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+PRODUCTION_DEPLOY_SAFE_ACTUATOR_CLAIM_BOUNDARY = "Production deploy metadata proves only local deploy command attempts"
+
+def _production_deploy_safe_actuator_claim_gate():
+    return {
+        "schema": "x0tta6bl4.ops.production_deploy.safe_actuator_claim_gate.v1",
+        "local_deployment_command_attempt_claim_allowed": True,
+        "local_deployment_command_succeeded": False,
+        "local_real_readiness_preflight_claim_allowed": True,
+        "local_health_observation_claim_allowed": True,
+        "local_smoke_test_observation_claim_allowed": False,
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+    }
+
+payload = {
+    "safe_actuator_evidence_metadata": SafeActuatorEvidenceMetadata(
+        claim_gate=_production_deploy_safe_actuator_claim_gate(),
+        claim_boundary=PRODUCTION_DEPLOY_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+    ),
 }
 """,
     )
@@ -1325,7 +1683,469 @@ class MeshStatusResponse:
 class MeshMetricsResponse:
     mesh_metrics_claim_gate = {}
     cross_plane_claim_gate = {}
+
+class NodeRuntimeIdentityProof:
+    binding_type = "local_spiffe_hint|spiffe_svid_digest|verified_spiffe_svid|verified_jwt_svid|measured_attestation"
+class NodeRuntimeIdentityBindRequest(NodeRuntimeIdentityProof):
+    pass
+class NodeRuntimeIdentityBindResponse:
+    live_spiffe_svid_claim_allowed: bool = False
+    trusted_runtime_identity_proxy_claim_allowed: bool = False
+    api_side_jwt_svid_verification_claim_allowed: bool = False
+    attestation_verifier_provenance: Dict[str, Any] = {}
+    production_attestation_verifier_claim_allowed: bool = False
+    production_trust_finality_claim_allowed: bool = False
+class NodeRuntimeCredentialRotateRequest:
+    identity_proof: Optional[NodeRuntimeIdentityProof] = None
+class NodeMeasuredAttestationRefreshRequest:
+    attestation_data: Dict[str, Any]
+class NodeRegisterRequest:
+    hardware_id: Optional[str] = None
+    attestation_data: Optional[Dict[str, Any]] = None
+    enclave_enabled: bool = False
+class NodeApproveRequest:
+    acl_profile = "default"
+    attestation_data: Optional[Dict[str, Any]] = None
 """,
+    )
+    _write(
+        root,
+        "src/api/maas/nodes/admission.py",
+        """
+import json
+import secrets
+MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ENABLED = "MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ENABLED"
+MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_CIDRS = "MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_CIDRS"
+MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ALLOW_TESTCLIENT = "MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ALLOW_TESTCLIENT"
+MAAS_JWT_SVID_VERIFIER_ENABLED = "MAAS_JWT_SVID_VERIFIER_ENABLED"
+MAAS_JWT_SVID_JWKS_JSON = "MAAS_JWT_SVID_JWKS_JSON"
+MAAS_JWT_SVID_JWKS_PATH = "MAAS_JWT_SVID_JWKS_PATH"
+MAAS_JWT_SVID_JWKS_URL = "MAAS_JWT_SVID_JWKS_URL"
+MAAS_JWT_SVID_AUDIENCE = "MAAS_JWT_SVID_AUDIENCE"
+MAAS_ALLOW_MOCK_TEE_ATTESTATION = "MAAS_ALLOW_MOCK_TEE_ATTESTATION"
+MAAS_MEASURED_ATTESTATION_FRESHNESS_SECONDS = "MAAS_MEASURED_ATTESTATION_FRESHNESS_SECONDS"
+
+def register_node(enclave_enabled: bool = False):
+    MeshNode(enclave_enabled=bool(enclave_enabled))
+
+def measured_attestation_freshness_seconds():
+    return 3600
+
+def is_node_measured_attestation_fresh(node):
+    return True
+
+def canonical_node_runtime_identity_binding_payload(proof):
+    return {"binding_type": proof.get("binding_type")}
+
+def trusted_runtime_identity_proxy_enabled():
+    return True
+
+def verified_node_runtime_identity_from_headers(headers, client_host=None):
+    if headers.get("x-verified-spiffe-id") and headers.get("x-verified-svid-sha256"):
+        return {"verified": True}
+    return {"verified": False, "reason": "untrusted_runtime_identity_proxy"}
+
+def jwt_svid_verifier_enabled():
+    return True
+
+def verified_node_runtime_identity_from_jwt_svid(headers, expected_node_id=None):
+    jwt.decode("token", key="key")
+    return {"verified": False, "reason": "jwt_svid_invalid_audience"}
+
+def jwt_svid_node_mismatch():
+    return "jwt_svid_spiffe_id_node_mismatch", "verified_jwt_svid"
+
+def runtime_identity_proof_from_verified_context(context):
+    return {"binding_type": "verified_spiffe_svid"}
+
+def hash_node_runtime_identity_binding(proof):
+    return json.dumps(proof, sort_keys=True)
+
+def verify_node_runtime_identity_binding(proof, stored_hash=None):
+    return secrets.compare_digest(hash_node_runtime_identity_binding(proof), stored_hash)
+
+def bind_node_runtime_identity(node, db, proof):
+    raise HTTPException(status_code=409, detail="Runtime identity proof is already bound to another node")
+
+def hash_verified_measured_attestation(attestation_data):
+    return "tee:digest"
+
+def verified_measured_attestation_context(attestation_data):
+    tee_validator = TEEValidator(allow_mock=True)
+    verification = tee_validator.verify_report_with_context(attestation)
+    return {
+        "binding_type": "measured_attestation",
+        "raw_hardware_attestation_redacted": True,
+        "verifier_backend": "sgx_command",
+        "verifier_provenance": {"raw_attestation_redacted": True},
+        "attestation_verifier_provenance": {"raw_attestation_redacted": True},
+        "production_attestation_verifier_claim_allowed": False,
+    }
+""",
+    )
+    _write(
+        root,
+        "src/security/tee_attestation.py",
+        """
+class TEEVerificationResult:
+    verifier_provenance = {"raw_attestation_redacted": True}
+    production_verifier_claim_allowed = False
+
+class TEEValidator:
+    def verify_report_with_context(self, attestation):
+        return TEEVerificationResult()
+
+command_sha256_prefix = "abc123"
+raw_attestation_redacted = True
+verifier_provenance = {}
+production_verifier_claim_allowed = False
+""",
+    )
+    _write(
+        root,
+        "tests/unit/security/test_tee_attestation_unit.py",
+        """
+def test_sgx_command_backend_context_records_redacted_provenance():
+    pass
+def test_mock_context_never_allows_production_verifier_claim():
+    pass
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_measured_attestation_verifier_smoke.py",
+        """
+SCHEMA = "x0tta6bl4.measured_attestation_verifier_smoke.v1"
+READY_DECISION = "MEASURED_ATTESTATION_VERIFIER_SMOKE_READY"
+BLOCKED_DECISION = "MEASURED_ATTESTATION_VERIFIER_SMOKE_BLOCKED"
+DEFAULT_OUTPUT = "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+
+def artifact_content_sha256(payload):
+    return "sha256"
+
+def build_report(args):
+    if not args.allow_local_verifier_run:
+        raise SystemExit("--allow-local-verifier-run")
+    validator = TEEValidator(allow_mock=False, sgx_verifier_command=args.sgx_verifier_command)
+    result = validator.verify_report_with_context(attestation)
+    ready = result.production_verifier_claim_allowed
+    return {
+        "input_redaction": {
+            "raw_attestation_material_retained": False,
+            "raw_file_paths_redacted": True,
+            "report_data": {"raw_value_redacted": True},
+            "quote": {"raw_value_redacted": True},
+            "signature": {"raw_value_redacted": True},
+        },
+        "artifact_identity": {
+            "operator_or_lab_hash": "hash",
+            "authorization_scope_hash": "hash",
+        },
+        "result_summary": {
+            "production_attestation_verifier_smoke_ready": ready,
+            "production_trust_finality": False,
+            "production_ready": False,
+        },
+        "measurements": {
+            "production_trust_finality": False,
+            "production_ready": False,
+        },
+        "safe_local_input_rule": (
+            "Do not paste report data, quote, signature, verifier command, operator ID"
+        ),
+    }
+""",
+    )
+    _write(
+        root,
+        "tests/unit/scripts/test_verify_measured_attestation_verifier_smoke.py",
+        """
+def test_sgx_verifier_smoke_writes_redacted_ready_artifact():
+    assert "private-value" not in output_text
+def test_sgx_verifier_smoke_blocks_without_production_verifier_claim():
+    pass
+def test_sgx_verifier_smoke_requires_explicit_local_authorization():
+    pass
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py",
+        """
+SCHEMA = "x0tta6bl4.measured_attestation_verifier_smoke_validator.v1"
+ARTIFACT_SCHEMA = "x0tta6bl4.measured_attestation_verifier_smoke.v1"
+DECISION_READY = "READY_TO_IMPORT"
+DECISION_REJECTED = "REJECTED"
+DEFAULT_CANDIDATE = "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+
+def artifact_content_sha256(payload):
+    return "sha256"
+
+def validate(payload):
+    failures = []
+    false_paths = [
+        "result_summary.production_ready",
+        "claim_boundary.proof_claims.production_ready",
+    ]
+    failures.append("candidate artifact must stay under docs/verification/incoming")
+    failures.append("input_redaction.raw_attestation_material_retained must be false")
+    failures.append("result_summary.production_ready must be false")
+    failures.append("claim_boundary.proof_claims.production_ready must be false")
+    failures.append("verifier.production_verifier_claim_allowed must be true")
+    failures.append("verifier.provenance.raw_attestation_redacted must be true")
+    return failures
+""",
+    )
+    _write(
+        root,
+        "tests/unit/scripts/test_verify_measured_attestation_verifier_smoke_artifact.py",
+        """
+def test_validator_accepts_redacted_ready_smoke_artifact():
+    pass
+def test_validator_rejects_production_ready_claim():
+    pass
+def test_validator_rejects_unredacted_attestation_material():
+    pass
+def test_validator_rejects_bad_artifact_hash():
+    pass
+""",
+    )
+    _write(
+        root,
+        "src/api/maas/nodes/__init__.py",
+        """
+from .admission import bind_node_runtime_identity, hash_node_runtime_identity_binding, verify_node_runtime_identity_binding
+from .admission import verified_node_runtime_identity_from_headers, runtime_identity_proof_from_verified_context
+from .admission import verified_node_runtime_identity_from_jwt_svid
+from .admission import hash_verified_measured_attestation, verified_measured_attestation_context
+from .admission import is_node_measured_attestation_fresh, measured_attestation_freshness_seconds
+""",
+    )
+    _write(
+        root,
+        "src/api/maas/endpoints/nodes.py",
+        """
+from ..models import NodeApproveRequest, NodeMeasuredAttestationRefreshRequest
+def register_node(req):
+    core_register_node(enclave_enabled=req.enclave_enabled)
+
+def approve_node(req: NodeApproveRequest | None = None):
+    core_approve_node(attestation_data=req.attestation_data if req else None)
+
+@router.post("/{mesh_id}/nodes/{node_id}/runtime-identity/refresh-measured-attestation")
+def refresh_measured_attestation_runtime_identity(req: NodeMeasuredAttestationRefreshRequest):
+    if not is_node_measured_attestation_fresh(node):
+        raise HTTPException(status_code=401, detail="Fresh measured attestation required")
+    return {
+        "attestation_verifier_backend": "sgx_command",
+        "attestation_verifier_provenance": {},
+        "production_attestation_verifier_claim_allowed": False,
+    }
+
+@router.post("/{mesh_id}/nodes/{node_id}/runtime-credential/rotate")
+def rotate_node_runtime_credential(req):
+    verified_identity = _verified_runtime_identity_context_from_request(request)
+    if not verify_node_runtime_identity_binding(req.identity_proof, stored_hash=node.runtime_identity_binding_hash, verified_identity_context=verified_identity):
+        raise HTTPException(status_code=401, detail="Valid runtime identity proof required")
+    raise HTTPException(status_code=401, detail="Trusted verified runtime identity required")
+    raise HTTPException(status_code=401, detail="Verified JWT-SVID runtime identity required")
+    node.runtime_identity_last_verified_at = datetime.utcnow()
+
+_LIVE_RUNTIME_IDENTITY_BINDING_TYPES = {"verified_spiffe_svid", "verified_jwt_svid"}
+
+def _live_runtime_identity_failure_detail():
+    return "Verified JWT-SVID runtime identity required"
+
+def _ensure_live_runtime_identity_for_bound_node(node, request=None, db=None):
+    verify_node_runtime_identity_binding(None, stored_hash=node.runtime_identity_binding_hash, verified_identity_context={})
+
+def node_heartbeat():
+    _ensure_live_runtime_identity_for_bound_node(node, request=request, db=db)
+
+def get_node_config():
+    _ensure_live_runtime_identity_for_bound_node(node, request=request, db=db)
+
+@router.post("/{mesh_id}/nodes/{node_id}/runtime-identity/bind")
+def bind_node_runtime_identity():
+    return {
+        "runtime_identity_binding_hash_prefix": proof_hash[:12],
+        "raw_runtime_identity_proof_redacted": True,
+        "live_spiffe_svid_claim_allowed": False,
+        "production_trust_finality_claim_allowed": False,
+    }
+
+@router.post("/{mesh_id}/nodes/{node_id}/runtime-identity/bind-verified")
+def bind_verified_node_runtime_identity():
+    verified_identity = _verified_runtime_identity_context_from_request(request)
+    proof = runtime_identity_proof_from_verified_context(verified_identity)
+    return {
+        "live_spiffe_svid_claim_allowed": True,
+        "trusted_runtime_identity_proxy_claim_allowed": True,
+        "production_trust_finality_claim_allowed": False,
+    }
+
+@router.post("/{mesh_id}/nodes/{node_id}/runtime-identity/bind-jwt-svid")
+def bind_jwt_svid_node_runtime_identity():
+    verified_identity = _jwt_svid_runtime_identity_context_from_request(request)
+    verified_node_runtime_identity_from_jwt_svid(request.headers)
+    proof = runtime_identity_proof_from_verified_context(verified_identity)
+    return {
+        "api_side_jwt_svid_verification_claim_allowed": True,
+        "trusted_runtime_identity_proxy_claim_allowed": False,
+        "production_trust_finality_claim_allowed": False,
+    }
+""",
+    )
+    _write(
+        root,
+        "alembic/versions/a8b9c0d1e2f3_add_node_runtime_identity_binding.py",
+        """
+revision: str = "a8b9c0d1e2f3"
+down_revision: str = "f6a7b8c9d0e1"
+op.add_column("mesh_nodes", sa.Column("runtime_identity_binding_type", sa.String(), nullable=True))
+op.add_column("mesh_nodes", sa.Column("runtime_identity_binding_hash", sa.String(), nullable=True))
+op.add_column("mesh_nodes", sa.Column("runtime_identity_bound_at", sa.DateTime(), nullable=True))
+op.add_column("mesh_nodes", sa.Column("runtime_identity_last_verified_at", sa.DateTime(), nullable=True))
+op.create_index("ix_mesh_nodes_runtime_identity_binding_hash", "mesh_nodes", ["runtime_identity_binding_hash"], unique=True)
+""",
+    )
+    _write(
+        root,
+        "agent/internal/api/client.go",
+        """
+type RuntimeIdentityProof struct {}
+type MeasuredAttestationData struct {}
+func (c *Client) RotateNodeRuntimeCredentialWithIdentityProof() {
+    payload["identity_proof"] = proof
+}
+func (c *Client) BindVerifiedRuntimeIdentity() {}
+func (c *Client) BindJWTSVIDRuntimeIdentity() {
+    header.Set("X-SPIFFE-JWT-SVID", token)
+}
+func (c *Client) RotateNodeRuntimeCredentialWithJWTSVID() {
+    header.Set("X-SPIFFE-JWT-SVID", token)
+}
+func (c *Client) FetchNodeConfigWithJWTSVID() {
+    header.Set("X-SPIFFE-JWT-SVID", token)
+}
+func (c *Client) SendHeartbeatWithJWTSVID() {
+    header.Set("X-SPIFFE-JWT-SVID", token)
+}
+func (c *Client) RefreshMeasuredAttestationRuntimeIdentity() {
+    path := "runtime-identity/refresh-measured-attestation"
+}
+""",
+    )
+    _write(
+        root,
+        "agent/internal/config/config.go",
+        """
+const _ = "X0T_RUNTIME_IDENTITY_BINDING_TYPE"
+const _ = "X0T_RUNTIME_IDENTITY_SPIFFE_ID"
+const _ = "X0T_RUNTIME_IDENTITY_ATTESTATION_DIGEST"
+const _ = "X0T_RUNTIME_IDENTITY_AUTO_BIND_VERIFIED"
+const _ = "X0T_RUNTIME_IDENTITY_AUTO_BIND_JWT_SVID"
+const _ = "X0T_RUNTIME_IDENTITY_JWT_SVID_FILE"
+const _ = "X0T_RUNTIME_IDENTITY_WORKLOAD_API_ADDR"
+const _ = "X0T_RUNTIME_IDENTITY_JWT_SVID_SOURCE"
+const _ = "X0T_RUNTIME_IDENTITY_JWT_SVID_AUDIENCE"
+const _ = "X0T_RUNTIME_IDENTITY_AUTO_REFRESH_MEASURED_ATTESTATION"
+const _ = "X0T_RUNTIME_IDENTITY_MEASURED_ATTESTATION_REPORT_FILE"
+const _ = "X0T_RUNTIME_IDENTITY_MEASURED_ATTESTATION_REFRESH_INTERVAL_SEC"
+RuntimeIdentityWorkloadAPIAddr = true
+RuntimeIdentityJWTSVIDSource = true
+RuntimeIdentityJWTSVIDAudience = true
+RuntimeIdentityAutoRefreshMeasuredAttestation = true
+RuntimeIdentityMeasuredAttestationProvider = true
+RuntimeIdentityMeasuredAttestationReportFile = true
+RuntimeIdentityMeasuredAttestationQuoteFile = true
+RuntimeIdentityMeasuredAttestationSignatureFile = true
+""",
+    )
+    _write(
+        root,
+        "agent/internal/identity/jwtsvid.go",
+        """
+import "github.com/spiffe/go-spiffe/v2/workloadapi"
+import "github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+const SourceAuto = "auto"
+const SourceWorkloadAPI = "workload_api"
+func FetchJWTSVIDFromWorkloadAPI() {
+    workloadapi.SocketEnv
+    workloadapi.FetchJWTSVID(ctx, jwtsvid.Params{Audience: "x0tta6bl4-maas"})
+}
+func FetchJWTSVIDFromFile() {}
+""",
+    )
+    _write(
+        root,
+        "agent/internal/identity/jwtsvid_test.go",
+        """
+func TestFetchJWTSVIDWithFetcher_WorkloadAPISource() {}
+func TestFetchJWTSVIDWithFetcher_AutoFallsBackToFile() {}
+func FetchJWTSVIDWithFetcher() {}
+WorkloadAPISource := true
+AutoFallsBackToFile := true
+""",
+    )
+    _write(
+        root,
+        "agent/go.mod",
+        """
+require github.com/spiffe/go-spiffe/v2 v2.6.0
+""",
+    )
+    _write(
+        root,
+        "agent/main.go",
+        "func runtimeIdentityProofFromConfig() {}\nfunc measuredAttestationDataFromConfig() {}\nfunc tryRefreshMeasuredAttestation() { RefreshMeasuredAttestationRuntimeIdentity() }\nfunc tryBindVerifiedIdentity() {}\nfunc tryBindJWTSVIDIdentity() {}\nfunc fetchNodeConfig() {}\nfunc sendHeartbeat() {}\nidentity.FetchJWTSVID()\nRuntimeIdentityJWTSVIDFile := true\nRuntimeIdentityWorkloadAPIAddr := true\nRuntimeIdentityJWTSVIDSource := true\nRuntimeIdentityJWTSVIDAudience := true\n",
+    )
+    _write(
+        root,
+        "agent/main_test.go",
+        "func TestMeasuredAttestationDataFromConfigReadsFilesAsBase64(t *testing.T) {}\n",
+    )
+    _write(
+        root,
+        "tests/api/test_maas_nodes.py",
+        """
+def test_bound_node_rotation_requires_matching_identity_proof():
+    assert "Valid runtime identity proof required"
+def test_operator_binds_runtime_identity_without_raw_storage():
+    pass
+def test_verified_spiffe_svid_binding_requires_trusted_headers_for_rotation():
+    pass
+def test_bind_verified_runtime_identity_requires_trusted_proxy():
+    pass
+def test_verified_jwt_svid_binding_requires_signed_token_for_rotation():
+    pass
+def test_bind_jwt_svid_runtime_identity_requires_enabled_verifier():
+    pass
+def test_verified_jwt_svid_binding_gates_heartbeat_and_node_config():
+    pass
+def test_verified_spiffe_svid_binding_gates_heartbeat():
+    pass
+def test_enclave_approval_requires_attestation_data():
+    pass
+def test_mock_attestation_is_rejected_unless_explicitly_enabled():
+    pass
+def test_valid_measured_attestation_approves_and_binds_hash_only():
+    pass
+def test_sgx_command_attestation_records_verifier_provenance():
+    pass
+def test_measured_attestation_binding_requires_fresh_runtime_refresh():
+    pass
+""",
+    )
+    _write(
+        root,
+        "agent/internal/api/client_test.go",
+        "func TestRotateNodeRuntimeCredentialWithIdentityProof_IncludesProof(t *testing.T) {}\nfunc TestBindVerifiedRuntimeIdentity_UsesCurrentCredential(t *testing.T) {}\nfunc TestBindJWTSVIDRuntimeIdentity_UsesCurrentCredentialAndSVID(t *testing.T) {}\nfunc TestRefreshMeasuredAttestationRuntimeIdentity_UsesCurrentCredentialAndRedactedBody(t *testing.T) {}\nfunc TestRotateNodeRuntimeCredentialWithJWTSVID_IncludesSVIDHeader(t *testing.T) {}\nfunc TestFetchNodeConfigWithJWTSVID_IncludesSVIDHeader(t *testing.T) {}\nfunc TestSendHeartbeatWithJWTSVID_IncludesSVIDHeader(t *testing.T) {}\n",
+    )
+    _write(
+        root,
+        "agent/internal/config/config_test.go",
+        "func TestValidate_RuntimeIdentityBinding(t *testing.T) {}\nRuntimeIdentityAutoRefreshMeasuredAttestation := true\n_ = \"expected measured attestation refresh to require report data\"\n",
     )
     _write(
         root,
@@ -2618,14 +3438,30 @@ def _post_action_dataplane_revalidation_summary(value):
         "post_action_dataplane_claim_gate_not_allowed": True,
     }
 
+def _safe_actuator_evidence_metadata_summary(value):
+    safe_actuator_metadata = {}
+    return {
+        "present": True,
+        "claim_gate": {
+            "present": True,
+            "dataplane_confirmed": True,
+            "restored_dataplane_claim_allowed": True,
+            "production_readiness_claim_allowed": False,
+        },
+    }
+
 def cross_plane_evidence_profile(summary):
     post_action_gate_allows_dataplane = False
     raw_dataplane_confirmed = True
+    safe_actuator_evidence_gate_required = True
+    safe_actuator_evidence_claim_gate_not_allowed = "safe_actuator_evidence_claim_gate_not_allowed"
     return {
         "raw_dataplane_confirmed": raw_dataplane_confirmed,
         "dataplane_claim_gate_required": True,
+        "safe_actuator_evidence_gate_required": safe_actuator_evidence_gate_required,
         "dataplane_claim_blockers": [
             "post_action_dataplane_claim_gate_not_allowed",
+            safe_actuator_evidence_claim_gate_not_allowed,
         ],
     }
 
@@ -2639,8 +3475,12 @@ def event_trace_evidence_summary(data):
     post_action_dataplane = _post_action_dataplane_revalidation_summary(
         data.get("post_action_dataplane_revalidation"),
     )
+    safe_actuator_metadata = _safe_actuator_evidence_metadata_summary(
+        data.get("safe_actuator_evidence_metadata"),
+    )
     return {
         "post_action_dataplane_revalidation": post_action_dataplane,
+        "safe_actuator_evidence_metadata": safe_actuator_metadata,
         "upstream_evidence": {
             "claim_gate_summary": claim_gate_summary,
             "cross_plane_claim_gate_summary": cross_plane_claim_gate_summary,
@@ -2656,6 +3496,82 @@ def economy_finality_summary(summary):
         "upstream_claim_gate": {},
         "upstream_cross_plane_claim_gate": {},
     }
+""",
+    )
+    _write(
+        root,
+        "src/self_healing/mape_k/manager.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+SELF_HEALING_MAPEK_SAFE_ACTUATOR_CLAIM_BOUNDARY = "bounded local control-action evidence"
+
+def _self_healing_safe_actuator_claim_gate():
+    return {
+        "schema": "x0tta6bl4.self_healing_mapek.safe_actuator_claim_gate.v1",
+        "downstream_recovery_claim_gate_present": True,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    }
+
+payload = {
+    "safe_actuator_evidence_metadata": SafeActuatorEvidenceMetadata(
+        claim_gate=_self_healing_safe_actuator_claim_gate(),
+    ).to_dict(),
+}
+""",
+    )
+    _write(
+        root,
+        "src/services/pqc_rotator_service.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+PQC_ROTATOR_SAFE_ACTUATOR_CLAIM_BOUNDARY = "bounded local PQC rotation evidence"
+
+def _pqc_claim_gate():
+    return {
+        "schema": "x0tta6bl4.pqc_rotator.safe_actuator_claim_gate.v1",
+        "local_pqc_identity_rotation_claim_allowed": True,
+        "live_pqc_trust_finality_claim_allowed": False,
+        "fleet_wide_key_rollout_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    }
+
+payload = {
+    "safe_actuator_evidence_metadata": SafeActuatorEvidenceMetadata(
+        claim_gate=_pqc_claim_gate(),
+    ).to_dict(),
+}
+""",
+    )
+    _write(
+        root,
+        "src/server/ghost_server.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+GHOST_L3_SAFE_ACTUATOR_CLAIM_BOUNDARY = "bounded local TUN/NAT setup evidence"
+
+def _ghost_l3_claim_gate():
+    return {
+        "schema": "x0tta6bl4.ghost_l3.safe_actuator_claim_gate.v1",
+        "local_tun_nat_setup_claim_allowed": True,
+        "restored_dataplane_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "kernel_forwarding_correctness_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    }
+
+payload = {
+    "safe_actuator_evidence_metadata": SafeActuatorEvidenceMetadata(
+        claim_gate=_ghost_l3_claim_gate(),
+    ).to_dict(),
+}
 """,
     )
     _write(
@@ -2969,12 +3885,16 @@ CLAIM_REQUIREMENTS = {
     "dataplane_delivery": {},
     "dpi_bypass": {},
     "settlement_finality": {},
+    "measured_attestation_verifier_smoke": {},
 }
 current_evidence_open_gaps = "current_evidence_open_gaps"
 blocking_false_flags = []
 
 EVENTBUS_LOG = ".agent_coordination/events.log"
 DATAPLANE_DELIVERY_CLAIM_ID = "dataplane_delivery"
+MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID = "measured_attestation_verifier_smoke"
+MEASURED_ATTESTATION_SMOKE_VALIDATOR = "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py"
+MEASURED_ATTESTATION_SMOKE_CANDIDATE = "docs/verification/incoming/measured_attestation_verifier_smoke.json"
 SERVICE_EVENT_TRACE_MODULE = "src/services/service_event_trace.py"
 ECONOMY_BOUNDARY_CLAIM_ID = "economy_boundary"
 ECONOMY_BOUNDARY_SOURCE_AGENTS = ("maas-marketplace", "maas-settlement")
@@ -3078,6 +3998,17 @@ def production_readiness_artifact_evidence(root):
     }
 
 production_readiness_imported_artifact_not_verified = "production_readiness_imported_artifact_not_verified"
+production_readiness_measured_attestation_verifier_smoke_artifact_not_verified = "production_readiness_measured_attestation_verifier_smoke_artifact_not_verified"
+measured_attestation_verifier_smoke_artifact_not_ready = "measured_attestation_verifier_smoke_artifact_not_ready"
+validate_measured_attestation_verifier_smoke_artifact = "validate_measured_attestation_verifier_smoke_artifact"
+
+def measured_attestation_verifier_smoke_artifact_evidence(root):
+    load_script_module(root, MEASURED_ATTESTATION_SMOKE_VALIDATOR, "validator")
+    return {
+        "required_for_claims": ["measured_attestation_verifier_smoke", "production_readiness"],
+        "artifact_path": MEASURED_ATTESTATION_SMOKE_CANDIDATE,
+        "blockers": [measured_attestation_verifier_smoke_artifact_not_ready],
+    }
 
 EXTERNAL_SETTLEMENT_CLAIM_ID = "external_settlement"
 EXTERNAL_SETTLEMENT_HANDOFF_MODULE = "src/integration/external_settlement_operator_handoff.py"
@@ -3118,6 +4049,18 @@ def external_settlement_artifact_evidence(root):
         "operator_handoff": external_settlement_operator_handoff_context(root),
         "blockers": ["external_settlement_artifact_not_verified"],
     }
+""",
+    )
+    _write(
+        root,
+        "tests/unit/scripts/test_run_cross_plane_proof_gate.py",
+        """
+def test_gate_allows_measured_attestation_smoke_only_with_validated_artifact():
+    pass
+def test_gate_blocks_measured_attestation_smoke_when_artifact_overpromotes_production():
+    pass
+def test_gate_blocks_production_readiness_when_measured_attestation_smoke_is_missing():
+    pass
 """,
     )
     _write(
@@ -3227,7 +4170,50 @@ def collect(args):
             "--claim",
             "dataplane_delivery",
         ],
+}
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py",
+        """
+SCHEMA = "x0tta6bl4.maas_heal_post_action_dataplane_probe_verifier.v1"
+CLAIM_BOUNDARY = "Local verifier only"
+
+async def run_verification(target="127.0.0.1"):
+    manager = MeshNetworkManager(
+        enable_post_heal_dataplane_probe=True,
+        enable_database_node_healing=False,
+    )
+    healed = await manager.trigger_aggressive_healing(
+        post_action_dataplane_probe_target=target
+    )
+    maas_revalidation = maas_healing._mesh_healing_post_action_revalidation(
+        healed=healed,
+        control_plane_evidence={},
+        event_bus=None,
+    )
+    ready = (
+        maas_revalidation.get("traffic_delivery_claim_allowed") is False
+        and maas_revalidation.get("customer_traffic_claim_allowed") is False
+        and maas_revalidation.get("production_readiness_claim_allowed") is False
+    )
+    return {
+        "schema": SCHEMA,
+        "decision": "MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_READY",
+        "ready": ready,
+        "target": {"raw_target_redacted": True},
     }
+""",
+    )
+    _write(
+        root,
+        "tests/unit/scripts/test_verify_maas_heal_post_action_dataplane_probe.py",
+        """
+def test_maas_heal_probe_verifier_redacts_target_and_surfaces_gate():
+    report = {"maas_heal_surface": {"production_readiness_claim_allowed": False}}
+    assert report["maas_heal_surface"]["production_readiness_claim_allowed"] is False
+    assert "10.123.45.67" not in json.dumps(report, sort_keys=True)
 """,
     )
     _write(
@@ -3473,6 +4459,19 @@ Do not edit `GHOST_PULSE_DPI_LAB_LATEST.json` by hand.
         """
 from dataclasses import field
 from typing import Any, Dict
+
+SAFE_ACTUATOR_EVIDENCE_METADATA_SCHEMA = "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+
+class SafeActuatorEvidenceMetadata:
+    @classmethod
+    def from_value(cls, value):
+        safe_actuator_evidence = value.get("safe_actuator_evidence", {})
+        evidence_metadata = value.get("evidence_metadata", safe_actuator_evidence)
+        return evidence_metadata
+
+def _result_from_raw(raw):
+    evidence_metadata=SafeActuatorEvidenceMetadata.from_value(raw)
+    return evidence_metadata
 
 def _spine_claim_gate():
     return {
@@ -4293,6 +5292,24 @@ def _passing_runner(
         return CommandResult(0, "")
     if tuple(args[-2:]) == ("alembic", "heads"):
         return CommandResult(0, "d7c8f1a2b3c4 (head)\n")
+    if len(args) > 1 and args[1] == "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py":
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "decision": "MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_READY",
+                    "ready": True,
+                    "maas_heal_surface": {
+                        "dataplane_confirmed": True,
+                        "post_action_dataplane_revalidated": True,
+                        "restored_dataplane_claim_allowed": True,
+                        "traffic_delivery_claim_allowed": False,
+                        "customer_traffic_claim_allowed": False,
+                        "production_readiness_claim_allowed": False,
+                    },
+                }
+            ),
+        )
     return CommandResult(0, "ok\n")
 
 
@@ -4340,6 +5357,46 @@ def test_ready_contract_passes_with_clean_static_and_command_evidence(tmp_path: 
     assert report["decision"] == "REAL_READINESS_READY"
     assert report["current_evidence_context"]["included"] is True
     assert report["current_evidence_context"]["current_gap_count"] == 0
+
+
+def test_maas_heal_post_action_probe_smoke_blocks_readiness_on_bad_output(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_BLOCKED",
+                        "ready": False,
+                        "maas_heal_surface": {
+                            "dataplane_confirmed": False,
+                            "post_action_dataplane_revalidated": False,
+                            "restored_dataplane_claim_allowed": False,
+                            "traffic_delivery_claim_allowed": False,
+                            "customer_traffic_claim_allowed": False,
+                            "production_readiness_claim_allowed": False,
+                        },
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "maas_heal_post_action_dataplane_probe_smoke" in blocker_ids
+    assert report["ready"] is False
 
 
 def test_env_example_secret_placeholders_must_be_empty(tmp_path: Path) -> None:
@@ -4587,7 +5644,7 @@ def test_generated_audit_wrapper_uses_nested_current_evidence_context(
                     "non_blocking_gap_count": 4,
                     "open_gap_ids": ["external-dpi-proof-missing"],
                     "non_blocking_gap_ids": [
-                        "cross-plane-proof-gate-wiring-incomplete"
+                        "proof-gate-artifact-retention-risk"
                     ],
                     "next_action_count": 1,
                     "next_action_ids": ["external-dpi-real-artifact-intake"],
@@ -4769,6 +5826,34 @@ def test_missing_post_action_dataplane_gate_blocks_readiness(tmp_path: Path) -> 
 
     blocker_ids = {item["check_id"] for item in report["blockers"]}
     assert "post_action_dataplane_gate_contract" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_missing_maas_heal_post_action_probe_verifier_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py",
+        "SCHEMA = 'incomplete'\n",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "post_action_dataplane_gate_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "post_action_dataplane_gate_contract"
+    ]
+    assert "maas_heal_post_action_dataplane_probe_verifier" in blocker["details"]
     assert report["ready"] is False
 
 
@@ -6043,6 +7128,318 @@ class SpineOutcome:
     assert report["ready"] is False
 
 
+def test_missing_pqc_safe_actuator_metadata_blocks_readiness(tmp_path: Path) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/services/pqc_rotator_service.py",
+        """
+payload = {
+    "claim_boundary": "local PQC rotation only",
+}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_runtime_metadata_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "safe_actuator_runtime_metadata_contract"
+    ]
+    assert "pqc_rotator_safe_actuator_metadata" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_missing_ebpf_safe_actuator_metadata_blocks_readiness(tmp_path: Path) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/self_healing/ebpf_anomaly_detector.py",
+        """
+EBPF_CLAIM_BOUNDARY = "local eBPF self-healing action event only"
+EBPF_RECOVERY_CLAIM_GATE_SCHEMA = "x0tta6bl4.self_healing.ebpf_recovery_claim_gate.v1"
+
+def _ebpf_recovery_claim_gate(result):
+    return {
+        "schema": EBPF_RECOVERY_CLAIM_GATE_SCHEMA,
+        "restored_dataplane_claim_allowed": False,
+        "route_convergence_claim_allowed": False,
+        "kernel_forwarding_correctness_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+    }
+
+payload = {
+    "claim_gate": _ebpf_recovery_claim_gate(result),
+    "restored_dataplane_claim_allowed": False,
+    "route_convergence_claim_allowed": False,
+    "kernel_forwarding_correctness_claim_allowed": False,
+    "dataplane_delivery_claim_allowed": False,
+    "traffic_delivery_claim_allowed": False,
+    "production_readiness_claim_allowed": False,
+}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_runtime_metadata_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "safe_actuator_runtime_metadata_contract"
+    ]
+    assert "ebpf_self_healing_safe_actuator_metadata" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_missing_maas_governance_safe_actuator_metadata_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/api/maas/endpoints/governance.py",
+        """
+payload = {
+    "claim_boundary": "local MaaS governance action only",
+}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_runtime_metadata_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "safe_actuator_runtime_metadata_contract"
+    ]
+    assert "maas_governance_safe_actuator_metadata" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_missing_spire_safe_actuator_metadata_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/security/spiffe/server/client.py",
+        """
+payload = {
+    "claim_boundary": "local SPIRE server control event only",
+}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_runtime_metadata_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "safe_actuator_runtime_metadata_contract"
+    ]
+    assert "spire_server_safe_actuator_metadata" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_missing_spire_agent_safe_actuator_metadata_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/security/spiffe/agent/manager.py",
+        """
+payload = {
+    "claim_boundary": "local SPIRE agent control event only",
+}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_runtime_metadata_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "safe_actuator_runtime_metadata_contract"
+    ]
+    assert "spire_agent_safe_actuator_metadata" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_missing_token_bridge_safe_actuator_metadata_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/dao/bridge/core.py",
+        """
+payload = {
+    "claim_boundary": "local TokenBridge chain-write event only",
+}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_runtime_metadata_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "safe_actuator_runtime_metadata_contract"
+    ]
+    assert "token_bridge_safe_actuator_metadata" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_missing_deployment_safe_actuator_metadata_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/deployment/canary_deployment.py",
+        """
+payload = {
+    "claim_boundary": "local canary deployment status only",
+}
+""",
+    )
+    _write(
+        tmp_path,
+        "src/deployment/multi_cloud_deployment.py",
+        """
+payload = {
+    "claim_boundary": "local multi-cloud deployment status only",
+}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_runtime_metadata_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "safe_actuator_runtime_metadata_contract"
+    ]
+    assert "deployment_canary_safe_actuator_metadata" in blocker["details"]
+    assert "deployment_multi_cloud_safe_actuator_metadata" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_missing_ops_safe_actuator_metadata_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "scripts/canary_deployment.py",
+        """
+payload = {
+    "claim_boundary": "local canary rollout observation only",
+}
+""",
+    )
+    _write(
+        tmp_path,
+        "scripts/production_monitor.py",
+        """
+payload = {
+    "claim_boundary": "local monitor observation only",
+}
+""",
+    )
+    _write(
+        tmp_path,
+        "scripts/auto_rollback.py",
+        """
+payload = {
+    "claim_boundary": "local rollback recommendation only",
+}
+""",
+    )
+    _write(
+        tmp_path,
+        "scripts/deploy/production_deploy.py",
+        """
+payload = {
+    "claim_boundary": "local deploy command only",
+}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_runtime_metadata_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "safe_actuator_runtime_metadata_contract"
+    ]
+    assert "ops_canary_rollout_safe_actuator_metadata" in blocker["details"]
+    assert "ops_production_monitor_safe_actuator_metadata" in blocker["details"]
+    assert "ops_auto_rollback_safe_actuator_metadata" in blocker["details"]
+    assert "ops_production_deploy_safe_actuator_metadata" in blocker["details"]
+    assert report["ready"] is False
+
+
 def test_missing_required_evidence_consistency_context_gate_blocks_readiness(tmp_path: Path) -> None:
     _ready_root(tmp_path)
     _write(
@@ -7067,6 +8464,164 @@ class SPIREAgentManager:
     ]
     assert "hash-only" in blocker["details"]
     assert "reused" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_node_runtime_identity_binding_blocks_missing_rotation_gate(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/api/maas/endpoints/nodes.py",
+        """
+@router.post("/{mesh_id}/nodes/{node_id}/runtime-credential/rotate")
+def rotate_node_runtime_credential(req):
+    return {"status": "rotated"}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "node_runtime_identity_binding_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "node_runtime_identity_binding_contract"
+    ]
+    assert "fail-closed" in blocker["details"]
+    assert "Go agent" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_node_runtime_identity_binding_blocks_missing_measured_attestation_gate(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/api/maas/nodes/admission.py",
+        """
+def register_node(enclave_enabled: bool = False):
+    MeshNode(enclave_enabled=bool(enclave_enabled))
+
+def bind_node_runtime_identity(node, db, proof):
+    return {"runtime_identity_binding_type": "local_spiffe_hint"}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "node_runtime_identity_binding_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "node_runtime_identity_binding_contract"
+    ]
+    assert "measured attestation" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_node_runtime_identity_binding_blocks_missing_attestation_smoke_contract(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "scripts/ops/verify_measured_attestation_verifier_smoke.py",
+        """
+def build_report(args):
+    return {"ready": True, "production_ready": True}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "node_runtime_identity_binding_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "node_runtime_identity_binding_contract"
+    ]
+    assert "measured-attestation verifier smoke" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_node_runtime_identity_binding_blocks_missing_attestation_smoke_validator(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py",
+        """
+def validate(payload):
+    return []
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "node_runtime_identity_binding_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "node_runtime_identity_binding_contract"
+    ]
+    assert "validator" in blocker["details"]
+    assert "measured_attestation_verifier_smoke_contract" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_node_runtime_identity_binding_blocks_missing_attestation_smoke_proof_gate(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "scripts/ops/run_cross_plane_proof_gate.py",
+        """
+SCHEMA = "x0tta6bl4.cross_plane_proof_gate.v1"
+def build_report(root):
+    return {"allowed": True}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "node_runtime_identity_binding_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "node_runtime_identity_binding_contract"
+    ]
+    assert "proof gate" in blocker["details"]
+    assert "measured_attestation_verifier_smoke_contract" in blocker["details"]
     assert report["ready"] is False
 
 

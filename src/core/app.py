@@ -8,10 +8,11 @@ import os
 import random
 import secrets
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -19,7 +20,6 @@ from sqlalchemy.orm import Session
 
 from src.database import get_db
 from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
-from src.core.api_error_handlers import register_api_error_handlers
 from src.core.graceful_shutdown import (ShutdownMiddleware, shutdown_manager)
 from src.core.mtls_middleware import MTLSMiddleware
 from src.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
@@ -30,6 +30,7 @@ from src.core.logging_config import RequestIdContextVar, setup_logging
 from src.core.settings import settings
 from src.core.status_collector import get_current_status
 from src.core.tracing_middleware import TracingMiddleware
+from src.core.api_error_handlers import register_api_error_handlers
 from src.coordination.events import EventBus, get_event_bus
 from src.mesh.metric_evidence_policy import latest_mesh_metric_policy_evidence
 from src.version import __version__, get_health_info
@@ -39,18 +40,17 @@ log_level = os.getenv("LOG_LEVEL", "INFO")
 logger = setup_logging(name="x0tta6bl4", log_level=log_level)
 logger.info(f"✓ Structured logging initialized at level {log_level}")
 
-is_light_mode = os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true"
+_LIGHT_MODE = os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true"
+_APP_VERSION = f"{__version__}-light" if _LIGHT_MODE else __version__
 
 app = FastAPI(
     title="x0tta6bl4",
-    version=f"{__version__}-light" if is_light_mode else __version__,
+    version=_APP_VERSION,
     description="Autonomous Mesh-as-a-Service Gateway",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
 )
-
-# --- Middlewares ---
 
 @app.middleware("http")
 async def propagate_request_id(request: Request, call_next):
@@ -73,8 +73,6 @@ async def add_security_headers(request: Request, call_next):
 
 register_api_error_handlers(app)
 
-# --- Routes Registration ---
-
 def _include_maas_router(module_path: str, label: str) -> None:
     try:
         module = importlib.import_module(module_path)
@@ -85,75 +83,17 @@ def _include_maas_router(module_path: str, label: str) -> None:
     except Exception as exc:
         logger.warning(f"Could not import MaaS router {label}: {exc}")
 
-
-def _include_filtered_maas_router(
-    module_path: str,
-    label: str,
-    *,
-    include_paths: set[str],
-) -> None:
-    try:
-        module = importlib.import_module(module_path)
-        source_router = getattr(module, "router", None)
-        if not source_router:
-            return
-        filtered_router = APIRouter()
-        for route in source_router.routes:
-            if getattr(route, "path", "") in include_paths:
-                filtered_router.routes.append(route)
-        if filtered_router.routes:
-            app.include_router(filtered_router)
-            logger.info(f"✓ MaaS router registered: {label}")
-    except Exception as exc:
-        logger.warning(f"Could not import MaaS router {label}: {exc}")
-
-
-# Legacy auth owns /api/v1/maas/auth/* and returns access_token.
-_include_maas_router("src.api.maas_auth", "auth-legacy")
-
 # Modular MaaS routers combined into a single entrypoint.
 from src.api.maas.endpoints.combined import get_combined_router
-app.include_router(
-    get_combined_router(
-        include_auth_namespace=False,
-        include_mesh_namespace=False,
-        mesh_root_excluded_paths={
-            "/list",
-            "/{mesh_id}/status",
-            "/{mesh_id}/metrics",
-            "/{mesh_id}/scale",
-            "/{mesh_id}",
-        },
-        billing_excluded_paths={"/pay"},
-        include_compat=False,
-    )
-)
+app.include_router(get_combined_router())
 logger.info("✓ Modular MaaS API routers registered")
 
-_include_filtered_maas_router(
-    "src.api.maas_compat",
-    "compat",
-    include_paths={
-        "/api/v1/maas/compat/readiness",
-        "/api/v3/maas/auth/register",
-        "/api/v1/maas/mesh/deploy",
-        "/api/v1/maas/list",
-        "/api/v1/maas/{mesh_id}/status",
-        "/api/v1/maas/{mesh_id}/metrics",
-        "/api/v1/maas/{mesh_id}/scale",
-        "/api/v1/maas/{mesh_id}",
-        "/api/v1/maas/{mesh_id}/audit-logs",
-        "/api/v1/maas/{mesh_id}/mapek/events",
-        "/api/v1/maas/billing/pay",
-    },
-)
-
-# Other specialized routers
+# legacy/v1 routers (not yet fully modularized or needed for specialized v1 paths)
+_include_maas_router("src.api.billing", "billing-v1")
 _include_maas_router("src.api.maas_dashboard", "dashboard")
 _include_maas_router("src.edge.api", "edge-computing")
 _include_maas_router("src.event_sourcing.api", "event-sourcing")
 
-# --- Basic Endpoints ---
 _HEALTH_API_CROSS_PLANE_CLAIMS = (
     "production_readiness",
     "dataplane_delivery",
@@ -256,7 +196,9 @@ def _generate_training_data(
     seed: int | None = None,
 ) -> tuple[list[dict[str, float]], list[tuple[int, int]]]:
     rng = random.Random(seed)
-    node_features = [_get_simulated_features(f"node-{seed}-{i}") for i in range(num_nodes)]
+    node_features = [
+        _get_simulated_features(f"node-{seed}-{i}") for i in range(num_nodes)
+    ]
     possible_edges = [
         (src, dst)
         for src in range(num_nodes)
@@ -347,48 +289,22 @@ async def health():
 
 @app.get("/health/live")
 async def health_live():
-    """Kubernetes liveness probe - is the app running?"""
-    from datetime import datetime
     return _health_api_response(
-        {"status": "ok", "timestamp": datetime.utcnow().isoformat() + "Z"},
+        {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()},
         surface="health_api.live",
     )
 
 
 @app.get("/health/ready")
 async def health_ready():
-    """Kubernetes readiness probe - is the app ready to serve traffic?"""
-    from datetime import datetime
     return _health_api_response(
-        {"status": "ready", "timestamp": datetime.utcnow().isoformat() + "Z"},
+        {"status": "ready", "timestamp": datetime.now(timezone.utc).isoformat()},
         surface="health_api.ready",
-    )
-
-
-@app.get("/health/detailed")
-async def health_detailed():
-    """Detailed health status including all component checks."""
-    from src.core.health_check import get_health_status
-    result = await get_health_status()
-    checks = [
-        {"name": c.name, "status": c.status.value, "message": c.message}
-        for c in result.checks
-    ]
-    payload = {
-        "status": result.status.value,
-        "version": result.version,
-        "checks": checks,
-    }
-    status_code = 503 if result.status.value == "unhealthy" else 200
-    return JSONResponse(
-        content=_health_api_response(payload, surface="health_api.detailed"),
-        status_code=status_code,
     )
 
 
 @app.get("/metrics")
 async def metrics():
-    """Expose Prometheus-compatible metrics for scraping."""
     from src.monitoring.metrics import get_metrics
 
     metrics_payload = get_metrics()
@@ -399,7 +315,6 @@ async def metrics():
     )
 
 
-# --- Mesh / Yggdrasil Status Endpoints ---
 _MESH_API_CROSS_PLANE_CLAIMS = (
     "dataplane_delivery",
     "traffic_delivery",
@@ -515,6 +430,7 @@ def _call_yggdrasil_with_api_evidence(func, request: Request, *, operation: str)
 @app.get("/mesh/status")
 async def mesh_status(request: Request):
     from src.network import yggdrasil_client as yc
+
     return _call_yggdrasil_with_api_evidence(
         yc.get_yggdrasil_status,
         request,
@@ -525,6 +441,7 @@ async def mesh_status(request: Request):
 @app.get("/mesh/peers")
 async def mesh_peers(request: Request):
     from src.network import yggdrasil_client as yc
+
     return _call_yggdrasil_with_api_evidence(
         yc.get_yggdrasil_peers,
         request,
@@ -535,6 +452,7 @@ async def mesh_peers(request: Request):
 @app.get("/mesh/routes")
 async def mesh_routes(request: Request):
     from src.network import yggdrasil_client as yc
+
     return _call_yggdrasil_with_api_evidence(
         yc.get_yggdrasil_routes,
         request,
@@ -542,14 +460,9 @@ async def mesh_routes(request: Request):
     )
 
 
-from src.core.cache import cached
-
-
 @app.get("/status")
-@cached(ttl=5, key_prefix="api_status")
 async def status_endpoint():
     return JSONResponse(content=_status_api_response(get_current_status()))
-
 
 @app.get("/")
 async def root():

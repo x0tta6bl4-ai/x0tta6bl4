@@ -1,1 +1,4 @@
-from .maas.endpoints import playbooks as modular; router = modular.router; from .maas.endpoints.playbooks import *
+from .maas.endpoints.playbooks import (
+    router,
+    _db_query_available,
+)

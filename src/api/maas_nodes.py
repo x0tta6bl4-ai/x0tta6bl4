@@ -12,4 +12,8 @@ import sys
 
 from src.api import maas_nodes_legacy as _legacy
 
+_parent = sys.modules.get(__name__.rsplit(".", 1)[0])
+if _parent is not None:
+    setattr(_parent, "maas_nodes", _legacy)
+
 sys.modules[__name__] = _legacy

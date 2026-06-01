@@ -31,6 +31,7 @@ MARKER_REQUIREMENTS = {
         "get_service_event_replay",
     ),
     "safe_actuator": ("SafeActuator",),
+    "safe_actuator_evidence_metadata": ("safe_actuator_evidence_metadata",),
     "async_safe_actuator": ("AsyncSafeActuator",),
     "bounded_output_metadata": (
         "_bounded_output_metadata",
@@ -144,6 +145,25 @@ def test_event_control_plane_surface_markers_match_sources():
         for marker in item["markers"]:
             requirements = MARKER_REQUIREMENTS[marker]
             assert any(text in source for text in requirements), (item["path"], marker)
+
+
+def test_event_control_plane_map_records_token_bridge_safe_actuator_boundary():
+    event_map = _load_map()
+    surfaces = {item["path"]: item for item in event_map["event_surface_files"]}
+
+    token_bridge = surfaces["src/dao/bridge/core.py"]
+    assert "safe_actuator_evidence_metadata" in token_bridge["markers"]
+    assert "typed SafeActuatorEvidenceMetadata" in token_bridge["role"]
+    assert "pending transaction submission" in token_bridge["role"]
+    assert "external settlement finality" in token_bridge["role"]
+    assert "payment-provider settlement" in token_bridge["role"]
+    assert "bank settlement" in token_bridge["role"]
+    assert "live token-settlement finality" in token_bridge["role"]
+    assert "dataplane delivery" in token_bridge["role"]
+    assert "traffic/customer delivery" in token_bridge["role"]
+    assert "revenue recognition" in token_bridge["role"]
+    assert "production readiness" in token_bridge["role"]
+    assert "src/dao/bridge/core.py:605" in token_bridge["source_refs"]
 
 
 def test_non_obvious_links_reference_mapped_event_surfaces():

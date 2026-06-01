@@ -10,7 +10,7 @@ tracked without blocking the local gate.
 
 | gap id | status | reason |
 |---|---|---|
-| `current-evidence-dpi-json-missing` | `BLOCKED_BY_GATE` | The working map records the bounded DPI/proxy subclaim from retained local summary evidence, but `check_real_readiness` now requires the machine-readable `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json` artifact before the current evidence context can pass. |
+| _none_ | `CLEAR` | The current working map has no blocking gaps and makes no external DPI, production, settlement, customer traffic, or production SLO claim without its own proof artifact. |
 
 ## Cleared Evidence
 
@@ -22,7 +22,7 @@ tracked without blocking the local gate.
 
 | gap id | status |
 |---|---|
-| `cross-plane-proof-gate-wiring-incomplete` | `NON_BLOCKING_TRACKED_RISK` |
+| `proof-gate-artifact-retention-risk` | `NON_BLOCKING_TRACKED_RISK` |
 | `post-action-dataplane-probe-operationalization` | `NON_BLOCKING_TRACKED_RISK` |
 | `economy-dataplane-separation-still-manual` | `NON_BLOCKING_TRACKED_RISK` |
 | `historical-doc-claim-ingestion-risk` | `NON_BLOCKING_TRACKED_RISK` |

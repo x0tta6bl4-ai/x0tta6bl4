@@ -1998,9 +1998,9 @@ async def deploy_mesh_alias(
             ),
             compat_lifecycle_control_headers_present=http_response is not None,
         ),
-        http_status_code=201,
+        http_status_code=200,
         duration_ms=(time.monotonic() - started) * 1000.0,
-        reason="delegated_deploy_created",
+        reason="delegated_deploy_recorded",
     )
     return result
 

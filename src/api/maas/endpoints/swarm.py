@@ -619,7 +619,7 @@ async def terminate_swarm(
     return {"swarm_id": swarm_id, "status": "terminated", "graceful": graceful}
 
 
-@router.get("")
+@router.get("/")
 @limiter.limit("100/minute")
 async def list_swarms(
     request: Request,

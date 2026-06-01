@@ -229,7 +229,7 @@ def test_compat_deploy_success_publishes_redacted_alias_evidence(
     assert payload["actor_user_id_hash"] == compat_mod._redacted_sha256_prefix(owner_id)
     assert payload["delegated_to_modular"] is True
     assert payload["registry_mutated"] is True
-    assert payload["http_status_code"] == 201
+    assert payload["http_status_code"] == 200
     assert payload["request_summary"]["name_present"] is True
     assert payload["request_summary"]["name_length"] == len(mesh_name)
     assert payload["request_summary"]["nodes"] == 3

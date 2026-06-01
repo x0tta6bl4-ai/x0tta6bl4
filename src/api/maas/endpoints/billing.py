@@ -139,6 +139,10 @@ async def create_checkout_session(
     
     if inv.status == "paid":
         return {"message": "Invoice already paid", "url": None}
+
+    from src.api import maas_billing as legacy_billing
+    if not getattr(legacy_billing, "STRIPE_SECRET_KEY", None):
+        raise HTTPException(status_code=500, detail="Stripe not configured")
     
     return {"url": "http://mock-checkout.stripe.com/session_abc", "id": "sess_abc"}
 
@@ -185,17 +189,28 @@ async def billing_webhook_root(
 @router.post("/webhook/stripe", summary="Stripe webhook")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     """Stripe webhook endpoint."""
-    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+    from src.api import maas_billing as legacy_billing
+
+    webhook_secret = (
+        getattr(legacy_billing, "STRIPE_WEBHOOK_SECRET", None)
+        or os.getenv("STRIPE_WEBHOOK_SECRET")
+    )
     if not webhook_secret:
         raise HTTPException(status_code=500, detail="Webhook secret not configured")
 
-    sig_header = request.headers.get('stripe-signature')
-    if not sig_header or sig_header == "invalid-sig":
-         raise HTTPException(status_code=400, detail="Invalid signature")
+    sig_header = request.headers.get("stripe-signature")
+    if not sig_header:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    if stripe is None:
+        raise HTTPException(status_code=500, detail="Stripe SDK not available")
 
-    payload = await request.json()
-    # Mock event construction
-    event = payload 
+    payload = await request.body()
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid signature")
     
     if event.get('type') == 'checkout.session.completed':
         session = event.get('data', {}).get('object', {})

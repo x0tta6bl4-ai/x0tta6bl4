@@ -154,7 +154,7 @@ BILLING_WEBHOOK_EVENTS = {
 PLAN_REQUEST_LIMITS = {
     "starter": 10_000,
     "pro": 100_000,
-    "enterprise": 1_000_000,
+    "enterprise": 10_000_000,
 }
 
 _LEGACY_BILLING_SERVICE_NAME = "maas-billing"

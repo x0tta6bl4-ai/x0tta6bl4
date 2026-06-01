@@ -1061,6 +1061,7 @@ async def heartbeat(
     node = db.query(MeshNode).filter(MeshNode.id == req.node_id).first()
     if not node:
         logger.warning(f"🚨 UNKNOWN NODE HEARTBEAT: {req.node_id}")
+        raise HTTPException(status_code=404, detail="Node not found")
         _publish_telemetry_observed_state(
             event_bus,
             operation="heartbeat",

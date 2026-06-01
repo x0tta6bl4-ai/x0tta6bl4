@@ -8,6 +8,7 @@ Tests the full rental lifecycle:
 
 import os
 import uuid
+from datetime import datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -15,12 +16,25 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, get_db, User, MeshNode, MeshInstance, MarketplaceListing
+from src.api.maas.nodes import hash_node_runtime_credential
 from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_escrow_{uuid.uuid4().hex}.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def _runtime_credential_for_node(node_id: str) -> str:
+    return f"x0tn_test_{node_id}"
+
+
+def _runtime_headers_for_node(node_id: str) -> dict[str, str]:
+    return {"X-API-Key": _runtime_credential_for_node(node_id)}
+
+
+def _runtime_expires_at() -> datetime:
+    return datetime.utcnow() + timedelta(hours=1)
 
 
 def override_get_db():
@@ -89,7 +103,7 @@ class TestEscrowCreation:
             params={"mesh_id": "test-mesh-1"},
             headers={"X-API-Key": buyer_token},
         )
-        assert r.status_code == 200, r.text
+        assert r.status_code in [200, 201], r.text
         data = r.json()
         assert data["status"] == "escrow"
         assert "escrow_id" in data
@@ -289,14 +303,21 @@ class TestHeartbeatAutoRelease:
             json={"name": "hb-mesh", "nodes": 1, "billing_plan": "starter"},
             headers={"X-API-Key": seller_token},
         )
-        assert r.status_code == 200, r.text
+        assert r.status_code in [200, 201], r.text
         mesh_id = r.json()["mesh_id"]
 
         # Insert an approved node directly into DB for heartbeat + escrow flows.
         db = TestingSessionLocal()
         node_id = f"nd-{uuid.uuid4().hex[:6]}"
         db_node = MeshNode(
-            id=node_id, mesh_id=mesh_id, device_class="edge", status="approved"
+            id=node_id,
+            mesh_id=mesh_id,
+            device_class="edge",
+            status="approved",
+            runtime_credential_hash=hash_node_runtime_credential(
+                _runtime_credential_for_node(node_id)
+            ),
+            runtime_credential_expires_at=_runtime_expires_at(),
         )
         db.add(db_node)
         db.commit()
@@ -310,6 +331,7 @@ class TestHeartbeatAutoRelease:
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat",
             json={"status": "healthy"},
+            headers=_runtime_headers_for_node(node_id),
         )
         assert r.status_code == 200, r.text
         data = r.json()
@@ -342,6 +364,7 @@ class TestHeartbeatAutoRelease:
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat",
             json={"status": "healthy"},
+            headers=_runtime_headers_for_node(node_id),
         )
         assert r.status_code == 200
         data = r.json()

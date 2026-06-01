@@ -22,6 +22,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, get_db, User, MeshInstance, MeshNode, MarketplaceListing
+from src.api.maas.nodes import hash_node_runtime_credential
 from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_analytics_{uuid.uuid4().hex}.db"
@@ -29,6 +30,18 @@ engine = create_engine(
     f"sqlite:///{_TEST_DB_PATH}", connect_args={"check_same_thread": False}
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def _runtime_credential_for_node(node_id: str) -> str:
+    return f"x0tn_test_{node_id}"
+
+
+def _runtime_headers_for_node(node_id: str) -> dict[str, str]:
+    return {"X-API-Key": _runtime_credential_for_node(node_id)}
+
+
+def _runtime_expires_at() -> datetime:
+    return datetime.utcnow() + timedelta(hours=1)
 
 
 def override_get_db():
@@ -100,25 +113,35 @@ def analytics_data(client):
 
     # 2 healthy nodes (recently seen)
     for _ in range(2):
+        node_id = f"nd-{uuid.uuid4().hex[:8]}"
         db.add(MeshNode(
-            id=f"nd-{uuid.uuid4().hex[:8]}",
+            id=node_id,
             mesh_id=mesh_id,
             status="approved",
             device_class="gateway",
             hardware_id=f"tpm-{uuid.uuid4().hex[:6]}",
             enclave_enabled=True,
             last_seen=datetime.utcnow() - timedelta(minutes=1),
+            runtime_credential_hash=hash_node_runtime_credential(
+                _runtime_credential_for_node(node_id)
+            ),
+            runtime_credential_expires_at=_runtime_expires_at(),
         ))
 
     # 1 stale node
+    stale_node_id = f"nd-{uuid.uuid4().hex[:8]}"
     db.add(MeshNode(
-        id=f"nd-{uuid.uuid4().hex[:8]}",
+        id=stale_node_id,
         mesh_id=mesh_id,
         status="approved",
         device_class="edge",
         hardware_id=None,
         enclave_enabled=False,
         last_seen=datetime.utcnow() - timedelta(minutes=20),
+        runtime_credential_hash=hash_node_runtime_credential(
+            _runtime_credential_for_node(stale_node_id)
+        ),
+        runtime_credential_expires_at=_runtime_expires_at(),
     ))
 
     # Marketplace listings
@@ -374,6 +397,10 @@ class TestAnalyticsTimeseries:
             status="approved",
             device_class="edge",
             last_seen=datetime.utcnow(),
+            runtime_credential_hash=hash_node_runtime_credential(
+                _runtime_credential_for_node(node_id)
+            ),
+            runtime_credential_expires_at=_runtime_expires_at(),
         ))
         db.commit()
         db.close()
@@ -468,21 +495,10 @@ class TestAnalyticsTimeseries:
                 "latency_ms": 19.5,
                 "traffic_mbps": 123.4,
             },
+            headers=_runtime_headers_for_node(node_id),
         )
         assert hb.status_code == 200, hb.text
         assert hb.json()["telemetry_exported"] is True
-        telemetry_mod._set_telemetry(
-            node_id,
-            {
-                "mesh_id": mesh_id,
-                "node_id": node_id,
-                "status": "healthy",
-                "timestamp": datetime.utcnow().isoformat(),
-                "last_seen": datetime.utcnow().isoformat(),
-                "latency_ms": 19.5,
-                "traffic_mbps": 123.4,
-            },
-        )
 
         r = client.get(
             f"/api/v1/maas/analytics/{mesh_id}/timeseries?time_range=1h",

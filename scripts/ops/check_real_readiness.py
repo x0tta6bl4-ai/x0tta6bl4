@@ -40,6 +40,9 @@ EXTERNAL_DPI_SCHEMA_VERSION = "x0tta6bl4.external_dpi_proxy_reachability_evidenc
 DATAPLANE_DELIVERY_EVENTBUS_COLLECTOR = (
     "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py"
 )
+MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER = (
+    "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py"
+)
 REQUIRED_CROSS_PLANE_PLANES = {
     "data_plane",
     "control_plane",
@@ -278,6 +281,7 @@ def check_required_files(root: Path) -> list[CheckResult]:
         "alembic/versions/d7c8f1a2b3c4_add_hashed_api_keys.py",
         "scripts/ops/run_cross_plane_proof_gate.py",
         DATAPLANE_DELIVERY_EVENTBUS_COLLECTOR,
+        MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER,
         "src/mesh/metric_evidence_policy.py",
         "src/ml/graphsage_anomaly_detector.py",
         "src/ml/graphsage_observe_mode.py",
@@ -567,6 +571,14 @@ def check_post_action_dataplane_gate_contract(root: Path) -> list[CheckResult]:
     service_trace = _read(root, "src/services/service_event_trace.py")
     recovery_executor = _read(root, "src/self_healing/recovery/executor.py")
     ebpf_self_healing = _read(root, "src/self_healing/ebpf_anomaly_detector.py")
+    maas_heal_probe_verifier = _read(
+        root,
+        MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER,
+    )
+    maas_heal_probe_verifier_tests = _read(
+        root,
+        "tests/unit/scripts/test_verify_maas_heal_post_action_dataplane_probe.py",
+    )
 
     required = {
         "post_action_probe_env": "X0TTA6BL4_MESH_ACTION_ENFORCER_POST_ACTION_PROBE" in action_enforcer,
@@ -635,6 +647,35 @@ def check_post_action_dataplane_gate_contract(root: Path) -> list[CheckResult]:
             and '"production_readiness_claim_allowed": False'
             in ebpf_self_healing
         ),
+        "maas_heal_post_action_dataplane_probe_verifier": (
+            "x0tta6bl4.maas_heal_post_action_dataplane_probe_verifier.v1"
+            in maas_heal_probe_verifier
+            and "MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_READY"
+            in maas_heal_probe_verifier
+            and "Local verifier only" in maas_heal_probe_verifier
+            and "MeshNetworkManager(" in maas_heal_probe_verifier
+            and "enable_post_heal_dataplane_probe=True" in maas_heal_probe_verifier
+            and "enable_database_node_healing=False" in maas_heal_probe_verifier
+            and "post_action_dataplane_probe_target=target"
+            in maas_heal_probe_verifier
+            and "maas_healing._mesh_healing_post_action_revalidation"
+            in maas_heal_probe_verifier
+            and '"raw_target_redacted": True' in maas_heal_probe_verifier
+            and 'maas_revalidation.get("traffic_delivery_claim_allowed") is False'
+            in maas_heal_probe_verifier
+            and 'maas_revalidation.get("customer_traffic_claim_allowed") is False'
+            in maas_heal_probe_verifier
+            and 'maas_revalidation.get("production_readiness_claim_allowed") is False'
+            in maas_heal_probe_verifier
+        ),
+        "maas_heal_post_action_dataplane_probe_verifier_tests": (
+            "test_maas_heal_probe_verifier_redacts_target_and_surfaces_gate"
+            in maas_heal_probe_verifier_tests
+            and "10.123.45.67" in maas_heal_probe_verifier_tests
+            and "not in json.dumps(report" in maas_heal_probe_verifier_tests
+            and '"production_readiness_claim_allowed"] is False'
+            in maas_heal_probe_verifier_tests
+        ),
     }
     missing = [name for name, ok in required.items() if not ok]
     if missing:
@@ -642,14 +683,14 @@ def check_post_action_dataplane_gate_contract(root: Path) -> list[CheckResult]:
             fail_check(
                 "post_action_dataplane_gate_contract",
                 "Missing post-action dataplane gate fragments: " + ", ".join(missing),
-                "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/api/maas_nodes_legacy.py; src/api/maas/endpoints/nodes.py; src/api/maas/endpoints/nodes_legacy.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py",
+                "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/api/maas_nodes_legacy.py; src/api/maas/endpoints/nodes.py; src/api/maas/endpoints/nodes_legacy.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py; scripts/ops/verify_maas_heal_post_action_dataplane_probe.py",
             )
         ]
     return [
         pass_check(
             "post_action_dataplane_gate_contract",
             "Mesh heal/restart, self-healing recovery, and eBPF self-healing paths keep restored-dataplane/route/traffic/production claims behind bounded proof or fail-closed claim gates, and service traces keep post-action dataplane profile claims behind the nested claim gate",
-            "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/api/maas_nodes_legacy.py; src/api/maas/endpoints/nodes.py; src/api/maas/endpoints/nodes_legacy.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py",
+            "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/api/maas_nodes_legacy.py; src/api/maas/endpoints/nodes.py; src/api/maas/endpoints/nodes_legacy.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py; scripts/ops/verify_maas_heal_post_action_dataplane_probe.py",
         )
     ]
 
@@ -1118,6 +1159,465 @@ def check_spire_join_token_replay_guard_contract(root: Path) -> list[CheckResult
                 "fail-closed"
             ),
             "src/security/spiffe/agent/join_token_guard.py; src/security/spiffe/agent/manager.py",
+        )
+    ]
+
+
+def check_node_runtime_identity_binding_contract(root: Path) -> list[CheckResult]:
+    database = _read(root, "src/database/__init__.py")
+    models = _read(root, "src/api/maas/models.py")
+    endpoints = _read(root, "src/api/maas/endpoints/nodes.py")
+    admission = _read(root, "src/api/maas/nodes/admission.py")
+    node_exports = _read(root, "src/api/maas/nodes/__init__.py")
+    tee_attestation = _read(root, "src/security/tee_attestation.py")
+    tee_tests = _read(root, "tests/unit/security/test_tee_attestation_unit.py")
+    measured_attestation_smoke = _read(
+        root,
+        "scripts/ops/verify_measured_attestation_verifier_smoke.py",
+    )
+    measured_attestation_smoke_validator = _read(
+        root,
+        "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py",
+    )
+    measured_attestation_smoke_tests = _read(
+        root,
+        "tests/unit/scripts/test_verify_measured_attestation_verifier_smoke.py",
+    )
+    measured_attestation_smoke_validator_tests = _read(
+        root,
+        "tests/unit/scripts/test_verify_measured_attestation_verifier_smoke_artifact.py",
+    )
+    cross_plane_proof_gate = _read(root, "scripts/ops/run_cross_plane_proof_gate.py")
+    cross_plane_proof_gate_tests = _read(
+        root,
+        "tests/unit/scripts/test_run_cross_plane_proof_gate.py",
+    )
+    migration = _read(
+        root,
+        "alembic/versions/a8b9c0d1e2f3_add_node_runtime_identity_binding.py",
+    )
+    agent_client = _read(root, "agent/internal/api/client.go")
+    agent_config = _read(root, "agent/internal/config/config.go")
+    agent_identity = _read(root, "agent/internal/identity/jwtsvid.go")
+    agent_identity_tests = _read(root, "agent/internal/identity/jwtsvid_test.go")
+    agent_main = _read(root, "agent/main.go")
+    agent_main_tests = _read(root, "agent/main_test.go")
+    agent_go_mod = _read(root, "agent/go.mod")
+    api_tests = _read(root, "tests/api/test_maas_nodes.py")
+    agent_api_tests = _read(root, "agent/internal/api/client_test.go")
+    agent_config_tests = _read(root, "agent/internal/config/config_test.go")
+
+    required = {
+        "orm_hash_only_binding_columns": (
+            "runtime_identity_binding_type" in database
+            and "runtime_identity_binding_hash" in database
+            and "runtime_identity_bound_at" in database
+            and "runtime_identity_last_verified_at" in database
+        ),
+        "alembic_binding_columns_and_indexes": (
+            "runtime_identity_binding_type" in migration
+            and "runtime_identity_binding_hash" in migration
+            and "ix_mesh_nodes_runtime_identity_binding_hash" in migration
+            and ("unique=True" in migration or "unique=unique" in migration)
+            and 'down_revision: str = "f6a7b8c9d0e1"' in migration
+        ),
+        "api_models_bound_identity_proof": (
+            "class NodeRuntimeIdentityProof" in models
+            and "class NodeRuntimeIdentityBindRequest" in models
+            and "class NodeRuntimeIdentityBindResponse" in models
+            and "local_spiffe_hint" in models
+            and "spiffe_svid_digest" in models
+            and "verified_spiffe_svid" in models
+            and "verified_jwt_svid" in models
+            and "measured_attestation" in models
+            and "identity_proof: Optional[NodeRuntimeIdentityProof]" in models
+            and "live_spiffe_svid_claim_allowed: bool = False" in models
+            and "trusted_runtime_identity_proxy_claim_allowed: bool = False" in models
+            and "api_side_jwt_svid_verification_claim_allowed: bool = False" in models
+            and "production_trust_finality_claim_allowed: bool = False" in models
+        ),
+        "admission_hashes_canonical_identity_proof": (
+            "canonical_node_runtime_identity_binding_payload" in admission
+            and "hash_node_runtime_identity_binding" in admission
+            and "verify_node_runtime_identity_binding" in admission
+            and "bind_node_runtime_identity" in admission
+            and "json.dumps(" in admission
+            and "sort_keys=True" in admission
+            and "secrets.compare_digest" in admission
+            and "Runtime identity proof is already bound to another node" in admission
+        ),
+        "trusted_proxy_spiffe_identity_verifier": (
+            "trusted_runtime_identity_proxy_enabled" in admission
+            and "MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ENABLED" in admission
+            and "MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_CIDRS" in admission
+            and "MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ALLOW_TESTCLIENT" in admission
+            and "verified_node_runtime_identity_from_headers" in admission
+            and "x-verified-spiffe-id" in admission
+            and "x-verified-svid-sha256" in admission
+            and "untrusted_runtime_identity_proxy" in admission
+            and "runtime_identity_proof_from_verified_context" in admission
+        ),
+        "api_side_jwt_svid_verifier": (
+            "jwt_svid_verifier_enabled" in admission
+            and "MAAS_JWT_SVID_VERIFIER_ENABLED" in admission
+            and "MAAS_JWT_SVID_JWKS_JSON" in admission
+            and "MAAS_JWT_SVID_JWKS_PATH" in admission
+            and "MAAS_JWT_SVID_JWKS_URL" in admission
+            and "MAAS_JWT_SVID_AUDIENCE" in admission
+            and "verified_node_runtime_identity_from_jwt_svid" in admission
+            and "jwt.decode(" in admission
+            and "jwt_svid_invalid_audience" in admission
+            and "jwt_svid_spiffe_id_node_mismatch" in admission
+            and "verified_jwt_svid" in admission
+        ),
+        "measured_attestation_approval_gate": (
+            "hardware_id: Optional[str]" in models
+            and "attestation_data: Optional[Dict[str, Any]]" in models
+            and "enclave_enabled: bool = False" in models
+            and "class NodeApproveRequest" in models
+            and "attestation_data: Optional[Dict[str, Any]] = None" in models
+            and "class NodeMeasuredAttestationRefreshRequest" in models
+            and "attestation_verifier_provenance: Dict[str, Any]" in models
+            and "production_attestation_verifier_claim_allowed: bool = False"
+            in models
+            and "enclave_enabled: bool = False" in admission
+            and "enclave_enabled=bool(enclave_enabled)" in admission
+            and "verified_measured_attestation_context" in admission
+            and "hash_verified_measured_attestation" in admission
+            and "verifier_backend" in admission
+            and "verifier_provenance" in admission
+            and "production_attestation_verifier_claim_allowed" in admission
+            and "measured_attestation_freshness_seconds" in admission
+            and "MAAS_MEASURED_ATTESTATION_FRESHNESS_SECONDS" in admission
+            and "is_node_measured_attestation_fresh" in admission
+            and "MAAS_ALLOW_MOCK_TEE_ATTESTATION" in admission
+            and "TEEValidator(" in admission
+            and "verify_report_with_context" in admission
+            and "allow_mock=" in admission
+            and "raw_hardware_attestation_redacted" in admission
+            and "attestation_verifier_provenance" in admission
+            and "production_attestation_verifier_claim_allowed" in admission
+            and '"binding_type": "measured_attestation"' in admission
+            and "NodeApproveRequest" in endpoints
+            and "NodeMeasuredAttestationRefreshRequest" in endpoints
+            and "attestation_data=req.attestation_data if req else None" in endpoints
+            and "enclave_enabled=req.enclave_enabled" in endpoints
+            and "runtime-identity/refresh-measured-attestation" in endpoints
+            and "Fresh measured attestation required" in endpoints
+            and "is_node_measured_attestation_fresh(node)" in endpoints
+            and "attestation_verifier_backend" in endpoints
+            and "attestation_verifier_provenance" in endpoints
+            and "production_attestation_verifier_claim_allowed" in endpoints
+            and "hash_verified_measured_attestation" in node_exports
+            and "is_node_measured_attestation_fresh" in node_exports
+            and "measured_attestation_freshness_seconds" in node_exports
+            and "verified_measured_attestation_context" in node_exports
+            and "test_enclave_approval_requires_attestation_data" in api_tests
+            and "test_mock_attestation_is_rejected_unless_explicitly_enabled"
+            in api_tests
+            and "test_valid_measured_attestation_approves_and_binds_hash_only"
+            in api_tests
+            and "test_sgx_command_attestation_records_verifier_provenance"
+            in api_tests
+            and "test_measured_attestation_binding_requires_fresh_runtime_refresh"
+            in api_tests
+            and "class TEEVerificationResult" in tee_attestation
+            and "verify_report_with_context" in tee_attestation
+            and "verifier_provenance" in tee_attestation
+            and "production_verifier_claim_allowed" in tee_attestation
+            and "raw_attestation_redacted" in tee_attestation
+            and "command_sha256_prefix" in tee_attestation
+            and "test_sgx_command_backend_context_records_redacted_provenance"
+            in tee_tests
+            and "test_mock_context_never_allows_production_verifier_claim"
+            in tee_tests
+            and "type MeasuredAttestationData struct" in agent_client
+            and "RefreshMeasuredAttestationRuntimeIdentity" in agent_client
+            and "runtime-identity/refresh-measured-attestation" in agent_client
+            and "TestRefreshMeasuredAttestationRuntimeIdentity_UsesCurrentCredentialAndRedactedBody"
+            in agent_api_tests
+            and "RuntimeIdentityAutoRefreshMeasuredAttestation" in agent_config
+            and "RuntimeIdentityMeasuredAttestationProvider" in agent_config
+            and "RuntimeIdentityMeasuredAttestationReportFile" in agent_config
+            and "RuntimeIdentityMeasuredAttestationQuoteFile" in agent_config
+            and "RuntimeIdentityMeasuredAttestationSignatureFile" in agent_config
+            and "X0T_RUNTIME_IDENTITY_AUTO_REFRESH_MEASURED_ATTESTATION"
+            in agent_config
+            and "X0T_RUNTIME_IDENTITY_MEASURED_ATTESTATION_REPORT_FILE"
+            in agent_config
+            and "X0T_RUNTIME_IDENTITY_MEASURED_ATTESTATION_REFRESH_INTERVAL_SEC"
+            in agent_config
+            and "measuredAttestationDataFromConfig" in agent_main
+            and "tryRefreshMeasuredAttestation" in agent_main
+            and "RefreshMeasuredAttestationRuntimeIdentity" in agent_main
+            and "TestMeasuredAttestationDataFromConfigReadsFilesAsBase64"
+            in agent_main_tests
+            and "RuntimeIdentityAutoRefreshMeasuredAttestation" in agent_config_tests
+            and "expected measured attestation refresh to require report data"
+            in agent_config_tests
+        ),
+        "measured_attestation_verifier_smoke_contract": (
+            "x0tta6bl4.measured_attestation_verifier_smoke.v1"
+            in measured_attestation_smoke
+            and "MEASURED_ATTESTATION_VERIFIER_SMOKE_READY"
+            in measured_attestation_smoke
+            and "MEASURED_ATTESTATION_VERIFIER_SMOKE_BLOCKED"
+            in measured_attestation_smoke
+            and "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+            in measured_attestation_smoke
+            and "--allow-local-verifier-run" in measured_attestation_smoke
+            and "TEEValidator(" in measured_attestation_smoke
+            and "allow_mock=False" in measured_attestation_smoke
+            and "sgx_verifier_command" in measured_attestation_smoke
+            and "verify_report_with_context" in measured_attestation_smoke
+            and '"raw_attestation_material_retained": False'
+            in measured_attestation_smoke
+            and '"raw_file_paths_redacted": True' in measured_attestation_smoke
+            and '"raw_value_redacted": True' in measured_attestation_smoke
+            and '"operator_or_lab_hash"' in measured_attestation_smoke
+            and '"authorization_scope_hash"' in measured_attestation_smoke
+            and "artifact_content_sha256" in measured_attestation_smoke
+            and '"production_attestation_verifier_smoke_ready": ready'
+            in measured_attestation_smoke
+            and '"production_trust_finality": False' in measured_attestation_smoke
+            and '"production_ready": False' in measured_attestation_smoke
+            and '"safe_local_input_rule"' in measured_attestation_smoke
+            and "Do not paste report data, quote, signature" in measured_attestation_smoke
+            and "test_sgx_verifier_smoke_writes_redacted_ready_artifact"
+            in measured_attestation_smoke_tests
+            and "test_sgx_verifier_smoke_blocks_without_production_verifier_claim"
+            in measured_attestation_smoke_tests
+            and "test_sgx_verifier_smoke_requires_explicit_local_authorization"
+            in measured_attestation_smoke_tests
+            and "not in output_text" in measured_attestation_smoke_tests
+            and "x0tta6bl4.measured_attestation_verifier_smoke_validator.v1"
+            in measured_attestation_smoke_validator
+            and "x0tta6bl4.measured_attestation_verifier_smoke.v1"
+            in measured_attestation_smoke_validator
+            and "READY_TO_IMPORT" in measured_attestation_smoke_validator
+            and "REJECTED" in measured_attestation_smoke_validator
+            and "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+            in measured_attestation_smoke_validator
+            and "artifact_content_sha256" in measured_attestation_smoke_validator
+            and "candidate artifact must stay under" in measured_attestation_smoke_validator
+            and "input_redaction.raw_attestation_material_retained must be false"
+            in measured_attestation_smoke_validator
+            and '"result_summary.production_ready"' in measured_attestation_smoke_validator
+            and '"claim_boundary.proof_claims.production_ready"'
+            in measured_attestation_smoke_validator
+            and "must be false" in measured_attestation_smoke_validator
+            and "verifier.production_verifier_claim_allowed must be true"
+            in measured_attestation_smoke_validator
+            and "verifier.provenance.raw_attestation_redacted must be true"
+            in measured_attestation_smoke_validator
+            and "test_validator_accepts_redacted_ready_smoke_artifact"
+            in measured_attestation_smoke_validator_tests
+            and "test_validator_rejects_production_ready_claim"
+            in measured_attestation_smoke_validator_tests
+            and "test_validator_rejects_unredacted_attestation_material"
+            in measured_attestation_smoke_validator_tests
+            and "test_validator_rejects_bad_artifact_hash"
+            in measured_attestation_smoke_validator_tests
+            and "MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID"
+            in cross_plane_proof_gate
+            and "measured_attestation_verifier_smoke_artifact_evidence"
+            in cross_plane_proof_gate
+            and "verify_measured_attestation_verifier_smoke_artifact.py"
+            in cross_plane_proof_gate
+            and "validate_measured_attestation_verifier_smoke_artifact"
+            in cross_plane_proof_gate
+            and "production_readiness_measured_attestation_verifier_smoke_artifact_not_verified"
+            in cross_plane_proof_gate
+            and "measured_attestation_verifier_smoke_artifact_not_ready"
+            in cross_plane_proof_gate
+            and "test_gate_allows_measured_attestation_smoke_only_with_validated_artifact"
+            in cross_plane_proof_gate_tests
+            and "test_gate_blocks_measured_attestation_smoke_when_artifact_overpromotes_production"
+            in cross_plane_proof_gate_tests
+            and "test_gate_blocks_production_readiness_when_measured_attestation_smoke_is_missing"
+            in cross_plane_proof_gate_tests
+        ),
+        "node_exports_runtime_identity_helpers": (
+            "bind_node_runtime_identity" in node_exports
+            and "hash_node_runtime_identity_binding" in node_exports
+            and "hash_verified_measured_attestation" in node_exports
+            and "is_node_measured_attestation_fresh" in node_exports
+            and "measured_attestation_freshness_seconds" in node_exports
+            and "verified_node_runtime_identity_from_headers" in node_exports
+            and "verified_node_runtime_identity_from_jwt_svid" in node_exports
+            and "verified_measured_attestation_context" in node_exports
+            and "runtime_identity_proof_from_verified_context" in node_exports
+            and "verify_node_runtime_identity_binding" in node_exports
+        ),
+        "rotation_requires_matching_identity_when_bound": (
+            "runtime-credential/rotate" in endpoints
+            and "verify_node_runtime_identity_binding(" in endpoints
+            and "Valid runtime identity proof required" in endpoints
+            and "Trusted verified runtime identity required" in endpoints
+            and "Verified JWT-SVID runtime identity required" in endpoints
+            and "verified_identity_context=verified_identity" in endpoints
+            and "runtime_identity_last_verified_at" in endpoints
+        ),
+        "sensitive_runtime_actions_require_live_svid_when_verified_bound": (
+            "_LIVE_RUNTIME_IDENTITY_BINDING_TYPES" in endpoints
+            and "_ensure_live_runtime_identity_for_bound_node" in endpoints
+            and "_live_runtime_identity_failure_detail" in endpoints
+            and "node_heartbeat" in endpoints
+            and "get_node_config" in endpoints
+            and "_ensure_live_runtime_identity_for_bound_node(node, request=request, db=db)"
+            in endpoints
+            and "FetchNodeConfigWithJWTSVID" in agent_client
+            and "SendHeartbeatWithJWTSVID" in agent_client
+            and "fetchNodeConfig" in agent_main
+            and "sendHeartbeat" in agent_main
+        ),
+        "go_agent_fetches_jwt_svid_from_spiffe_workload_api": (
+            "github.com/spiffe/go-spiffe/v2" in agent_go_mod
+            and 'workloadapi.SocketEnv' in agent_identity
+            and "FetchJWTSVIDFromWorkloadAPI" in agent_identity
+            and "workloadapi.FetchJWTSVID" in agent_identity
+            and "jwtsvid.Params{Audience:" in agent_identity
+            and "SourceWorkloadAPI" in agent_identity
+            and "SourceAuto" in agent_identity
+            and "FetchJWTSVIDFromFile" in agent_identity
+            and "FetchJWTSVIDWithFetcher" in agent_identity_tests
+            and "AutoFallsBackToFile" in agent_identity_tests
+            and "WorkloadAPISource" in agent_identity_tests
+            and "RuntimeIdentityWorkloadAPIAddr" in agent_config
+            and "RuntimeIdentityJWTSVIDSource" in agent_config
+            and "RuntimeIdentityJWTSVIDAudience" in agent_config
+            and "X0T_RUNTIME_IDENTITY_WORKLOAD_API_ADDR" in agent_config
+            and "X0T_RUNTIME_IDENTITY_JWT_SVID_SOURCE" in agent_config
+            and "X0T_RUNTIME_IDENTITY_JWT_SVID_AUDIENCE" in agent_config
+            and "identity.FetchJWTSVID" in agent_main
+        ),
+        "operator_binding_endpoint_redacts_raw_identity": (
+            "runtime-identity/bind" in endpoints
+            and "runtime_identity_binding_hash_prefix" in endpoints
+            and "raw_runtime_identity_proof_redacted" in endpoints
+            and '"live_spiffe_svid_claim_allowed": False' in endpoints
+            and '"production_trust_finality_claim_allowed": False' in endpoints
+        ),
+        "verified_bind_endpoint_requires_trusted_proxy_identity": (
+            "runtime-identity/bind-verified" in endpoints
+            and "bind_verified_node_runtime_identity" in endpoints
+            and "_verified_runtime_identity_context_from_request" in endpoints
+            and "runtime_identity_proof_from_verified_context(verified_identity)"
+            in endpoints
+            and '"live_spiffe_svid_claim_allowed": True' in endpoints
+            and '"trusted_runtime_identity_proxy_claim_allowed": True' in endpoints
+            and '"production_trust_finality_claim_allowed": False' in endpoints
+        ),
+        "jwt_svid_bind_endpoint_requires_api_verified_identity": (
+            "runtime-identity/bind-jwt-svid" in endpoints
+            and "bind_jwt_svid_node_runtime_identity" in endpoints
+            and "_jwt_svid_runtime_identity_context_from_request" in endpoints
+            and "verified_node_runtime_identity_from_jwt_svid" in endpoints
+            and "runtime_identity_proof_from_verified_context(verified_identity)"
+            in endpoints
+            and '"api_side_jwt_svid_verification_claim_allowed": True' in endpoints
+            and '"trusted_runtime_identity_proxy_claim_allowed": False' in endpoints
+            and '"production_trust_finality_claim_allowed": False' in endpoints
+        ),
+        "go_agent_can_send_optional_identity_proof": (
+            "type RuntimeIdentityProof struct" in agent_client
+            and "RotateNodeRuntimeCredentialWithIdentityProof" in agent_client
+            and "BindVerifiedRuntimeIdentity" in agent_client
+            and "BindJWTSVIDRuntimeIdentity" in agent_client
+            and "RotateNodeRuntimeCredentialWithJWTSVID" in agent_client
+            and "FetchNodeConfigWithJWTSVID" in agent_client
+            and "SendHeartbeatWithJWTSVID" in agent_client
+            and "X-SPIFFE-JWT-SVID" in agent_client
+            and 'payload["identity_proof"] = proof' in agent_client
+            and "runtimeIdentityProofFromConfig" in agent_main
+            and "tryBindVerifiedIdentity" in agent_main
+            and "tryBindJWTSVIDIdentity" in agent_main
+            and "fetchNodeConfig" in agent_main
+            and "sendHeartbeat" in agent_main
+            and "RuntimeIdentityJWTSVIDFile" in agent_main
+            and "RuntimeIdentityWorkloadAPIAddr" in agent_main
+            and "RuntimeIdentityJWTSVIDSource" in agent_main
+            and "RuntimeIdentityJWTSVIDAudience" in agent_main
+            and "X0T_RUNTIME_IDENTITY_BINDING_TYPE" in agent_config
+            and "X0T_RUNTIME_IDENTITY_SPIFFE_ID" in agent_config
+            and "X0T_RUNTIME_IDENTITY_ATTESTATION_DIGEST" in agent_config
+            and "X0T_RUNTIME_IDENTITY_AUTO_BIND_VERIFIED" in agent_config
+            and "X0T_RUNTIME_IDENTITY_AUTO_BIND_JWT_SVID" in agent_config
+            and "X0T_RUNTIME_IDENTITY_JWT_SVID_FILE" in agent_config
+            and "X0T_RUNTIME_IDENTITY_WORKLOAD_API_ADDR" in agent_config
+            and "X0T_RUNTIME_IDENTITY_JWT_SVID_SOURCE" in agent_config
+            and "X0T_RUNTIME_IDENTITY_JWT_SVID_AUDIENCE" in agent_config
+        ),
+        "tests_cover_bound_rotation_fail_closed": (
+            "test_bound_node_rotation_requires_matching_identity_proof" in api_tests
+            and "test_operator_binds_runtime_identity_without_raw_storage" in api_tests
+            and "test_verified_spiffe_svid_binding_requires_trusted_headers_for_rotation"
+            in api_tests
+            and "test_bind_verified_runtime_identity_requires_trusted_proxy" in api_tests
+            and "test_verified_jwt_svid_binding_requires_signed_token_for_rotation"
+            in api_tests
+            and "test_bind_jwt_svid_runtime_identity_requires_enabled_verifier"
+            in api_tests
+            and "test_verified_jwt_svid_binding_gates_heartbeat_and_node_config"
+            in api_tests
+            and "test_verified_spiffe_svid_binding_gates_heartbeat" in api_tests
+            and "Valid runtime identity proof required" in api_tests
+            and "RotateNodeRuntimeCredentialWithIdentityProof" in agent_api_tests
+            and "TestBindVerifiedRuntimeIdentity_UsesCurrentCredential" in agent_api_tests
+            and "TestBindJWTSVIDRuntimeIdentity_UsesCurrentCredentialAndSVID"
+            in agent_api_tests
+            and "TestRotateNodeRuntimeCredentialWithJWTSVID_IncludesSVIDHeader"
+            in agent_api_tests
+            and "TestFetchNodeConfigWithJWTSVID_IncludesSVIDHeader"
+            in agent_api_tests
+            and "TestSendHeartbeatWithJWTSVID_IncludesSVIDHeader" in agent_api_tests
+            and "TestValidate_RuntimeIdentityBinding" in agent_config_tests
+        ),
+    }
+    missing = [name for name, ok in required.items() if not ok]
+    if missing:
+        return [
+            fail_check(
+                "node_runtime_identity_binding_contract",
+                (
+                    "Node runtime identity binding must be hash-only, redacted, "
+                    "fail-closed for bound node rotation, support trusted-proxy "
+                    "SPIFFE verified binding plus API-side JWT-SVID verification, "
+                    "require measured attestation for enclave node approval and "
+                    "runtime freshness with verifier provenance, "
+                    "keep the measured-attestation verifier smoke and validator "
+                    "redacted and bounded, wire that bounded smoke into the "
+                    "cross-plane proof gate without promoting production trust finality, "
+                    "enforce live SVID on heartbeat/node-config for verified-bound nodes, "
+                    "fetch JWT-SVID from SPIFFE Workload API with file fallback, "
+                    "and be supported by the Go agent: "
+                    + ", ".join(missing)
+                ),
+                "src/api/maas/endpoints/nodes.py; src/api/maas/nodes/admission.py; src/database/__init__.py; agent/internal/api/client.go; scripts/ops/verify_measured_attestation_verifier_smoke.py; scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py; scripts/ops/run_cross_plane_proof_gate.py",
+            )
+        ]
+    return [
+        pass_check(
+            "node_runtime_identity_binding_contract",
+            (
+                "MaaS node runtime identity binding stores hash-only proof "
+                "metadata, redacts raw proof values, requires matching proof for "
+                "bound node credential rotation, supports trusted-proxy SPIFFE "
+                "verified binding plus API-side JWT-SVID verification, enforces "
+                "measured attestation for enclave node approval plus runtime "
+                "freshness with redacted verifier provenance, keeps the local "
+                "measured-attestation verifier smoke artifact writer and validator "
+                "redacted and production-claim bounded, enforces "
+                "live SVID on heartbeat/node-config for verified-bound nodes, "
+                "lets the Go agent fetch JWT-SVID from SPIFFE Workload API "
+                "with file fallback, "
+                "and lets the Go agent send optional configured proof, request "
+                "proxy verified binding, or send a live JWT-SVID; the cross-plane "
+                "proof gate now treats the bounded measured-attestation verifier "
+                "smoke as a separate trust/evidence artifact and a production "
+                "readiness dependency without promoting production trust finality"
+            ),
+            "src/api/maas/endpoints/nodes.py; src/api/maas/nodes/admission.py; src/database/__init__.py; agent/internal/api/client.go; scripts/ops/verify_measured_attestation_verifier_smoke.py; scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py; scripts/ops/run_cross_plane_proof_gate.py",
         )
     ]
 
@@ -4618,6 +5118,336 @@ def check_integration_spine_claim_gate_contract(root: Path) -> list[CheckResult]
     ]
 
 
+def check_safe_actuator_runtime_metadata_contract(root: Path) -> list[CheckResult]:
+    spine = _read(root, "src/integration/spine.py")
+    self_healing_mapek = _read(root, "src/self_healing/mape_k/manager.py")
+    service_trace = _read(root, "src/services/service_event_trace.py")
+    pqc_rotator = _read(root, "src/services/pqc_rotator_service.py")
+    ghost_l3 = _read(root, "src/server/ghost_server.py")
+    ebpf_self_healing = _read(root, "src/self_healing/ebpf_anomaly_detector.py")
+    maas_governance = _read(root, "src/api/maas/endpoints/governance.py")
+    spire_server_client = _read(root, "src/security/spiffe/server/client.py")
+    spire_agent_manager = _read(root, "src/security/spiffe/agent/manager.py")
+    token_bridge = _read(root, "src/dao/bridge/core.py")
+    canary_deployment = _read(root, "src/deployment/canary_deployment.py")
+    multi_cloud_deployment = _read(
+        root,
+        "src/deployment/multi_cloud_deployment.py",
+    )
+    canary_rollout_script = _read(root, "scripts/canary_deployment.py")
+    production_monitor_script = _read(root, "scripts/production_monitor.py")
+    auto_rollback_script = _read(root, "scripts/auto_rollback.py")
+    production_deploy_script = _read(root, "scripts/deploy/production_deploy.py")
+
+    required = {
+        "spine_metadata_contract": (
+            "SAFE_ACTUATOR_EVIDENCE_METADATA_SCHEMA" in spine
+            and "class SafeActuatorEvidenceMetadata" in spine
+            and "safe_actuator_evidence" in spine
+            and "evidence_metadata" in spine
+            and "evidence_metadata=SafeActuatorEvidenceMetadata.from_value(raw)"
+            in spine
+        ),
+        "self_healing_mapek_metadata": (
+            "x0tta6bl4.self_healing_mapek.safe_actuator_claim_gate.v1"
+            in self_healing_mapek
+            and "safe_actuator_evidence_metadata" in self_healing_mapek
+            and "downstream_recovery_claim_gate_present" in self_healing_mapek
+            and '"traffic_delivery_claim_allowed": False' in self_healing_mapek
+            and '"customer_traffic_claim_allowed": False' in self_healing_mapek
+            and '"production_readiness_claim_allowed": False'
+            in self_healing_mapek
+        ),
+        "service_trace_consumes_safe_actuator_metadata": (
+            "def _safe_actuator_evidence_metadata_summary" in service_trace
+            and '"safe_actuator_evidence_metadata": safe_actuator_metadata'
+            in service_trace
+            and "safe_actuator_evidence_gate_required" in service_trace
+            and "safe_actuator_evidence_claim_gate_not_allowed" in service_trace
+        ),
+        "pqc_rotator_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in pqc_rotator
+            and "x0tta6bl4.pqc_rotator.safe_actuator_claim_gate.v1"
+            in pqc_rotator
+            and '"safe_actuator_evidence_metadata"' in pqc_rotator
+            and '"local_pqc_identity_rotation_claim_allowed"' in pqc_rotator
+            and '"live_pqc_trust_finality_claim_allowed": False'
+            in pqc_rotator
+            and '"fleet_wide_key_rollout_claim_allowed": False'
+            in pqc_rotator
+            and '"dataplane_delivery_claim_allowed": False' in pqc_rotator
+            and '"customer_traffic_claim_allowed": False' in pqc_rotator
+            and '"production_readiness_claim_allowed": False' in pqc_rotator
+        ),
+        "ghost_l3_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in ghost_l3
+            and "x0tta6bl4.ghost_l3.safe_actuator_claim_gate.v1" in ghost_l3
+            and '"safe_actuator_evidence_metadata"' in ghost_l3
+            and '"local_tun_nat_setup_claim_allowed"' in ghost_l3
+            and '"restored_dataplane_claim_allowed": False' in ghost_l3
+            and '"dataplane_delivery_claim_allowed": False' in ghost_l3
+            and '"customer_traffic_claim_allowed": False' in ghost_l3
+            and '"kernel_forwarding_correctness_claim_allowed": False'
+            in ghost_l3
+            and '"production_readiness_claim_allowed": False' in ghost_l3
+        ),
+        "ebpf_self_healing_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in ebpf_self_healing
+            and "x0tta6bl4.self_healing.ebpf.safe_actuator_claim_gate.v1"
+            in ebpf_self_healing
+            and '"safe_actuator_evidence_metadata"' in ebpf_self_healing
+            and '"local_ebpf_recovery_action_succeeded"' in ebpf_self_healing
+            and '"restored_dataplane_claim_allowed": False'
+            in ebpf_self_healing
+            and '"route_convergence_claim_allowed": False'
+            in ebpf_self_healing
+            and '"kernel_forwarding_correctness_claim_allowed": False'
+            in ebpf_self_healing
+            and '"dataplane_delivery_claim_allowed": False'
+            in ebpf_self_healing
+            and '"customer_traffic_claim_allowed": False'
+            in ebpf_self_healing
+            and '"production_readiness_claim_allowed": False'
+            in ebpf_self_healing
+        ),
+        "maas_governance_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in maas_governance
+            and "x0tta6bl4.maas_governance.safe_actuator_claim_gate.v1"
+            in maas_governance
+            and '"safe_actuator_evidence_metadata"' in maas_governance
+            and '"local_maas_governance_action_succeeded"' in maas_governance
+            and '"dao_governance_finality_claim_allowed": False'
+            in maas_governance
+            and '"external_settlement_finality_claim_allowed": False'
+            in maas_governance
+            and '"dataplane_delivery_claim_allowed": False'
+            in maas_governance
+            and '"customer_traffic_claim_allowed": False'
+            in maas_governance
+            and '"production_governance_execution_claim_allowed": False'
+            in maas_governance
+            and '"production_readiness_claim_allowed": False'
+            in maas_governance
+        ),
+        "spire_server_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in spire_server_client
+            and "x0tta6bl4.spire_server.safe_actuator_claim_gate.v1"
+            in spire_server_client
+            and '"safe_actuator_evidence_metadata"' in spire_server_client
+            and '"local_spire_server_cli_action_succeeded"'
+            in spire_server_client
+            and '"live_spire_mtls_claim_allowed": False'
+            in spire_server_client
+            and '"workload_svid_possession_claim_allowed": False'
+            in spire_server_client
+            and '"workload_identity_trust_finality_claim_allowed": False'
+            in spire_server_client
+            and '"dataplane_delivery_claim_allowed": False'
+            in spire_server_client
+            and '"customer_traffic_claim_allowed": False'
+            in spire_server_client
+            and '"production_identity_readiness_claim_allowed": False'
+            in spire_server_client
+            and '"production_readiness_claim_allowed": False'
+            in spire_server_client
+        ),
+        "spire_agent_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in spire_agent_manager
+            and "x0tta6bl4.spire_agent.safe_actuator_claim_gate.v1"
+            in spire_agent_manager
+            and '"safe_actuator_evidence_metadata"' in spire_agent_manager
+            and '"local_spire_agent_cli_action_succeeded"'
+            in spire_agent_manager
+            and '"live_spire_mtls_claim_allowed": False'
+            in spire_agent_manager
+            and '"workload_svid_possession_claim_allowed": False'
+            in spire_agent_manager
+            and '"workload_identity_trust_finality_claim_allowed": False'
+            in spire_agent_manager
+            and '"node_attestation_finality_claim_allowed": False'
+            in spire_agent_manager
+            and '"dataplane_delivery_claim_allowed": False'
+            in spire_agent_manager
+            and '"customer_traffic_claim_allowed": False'
+            in spire_agent_manager
+            and '"production_identity_readiness_claim_allowed": False'
+            in spire_agent_manager
+            and '"production_readiness_claim_allowed": False'
+            in spire_agent_manager
+        ),
+        "token_bridge_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in token_bridge
+            and "x0tta6bl4.token_bridge.safe_actuator_claim_gate.v1"
+            in token_bridge
+            and '"safe_actuator_evidence_metadata"' in token_bridge
+            and '"local_chain_write_attempt_succeeded"' in token_bridge
+            and '"pending_chain_submission_claim_allowed"' in token_bridge
+            and '"external_settlement_finality_claim_allowed"' in token_bridge
+            and '"payment_provider_settlement_claim_allowed"' in token_bridge
+            and '"bank_settlement_claim_allowed"' in token_bridge
+            and '"live_token_settlement_finality_claim_allowed"' in token_bridge
+            and '"dataplane_delivery_claim_allowed"' in token_bridge
+            and '"traffic_delivery_claim_allowed"' in token_bridge
+            and '"customer_traffic_claim_allowed"' in token_bridge
+            and '"revenue_recognition_claim_allowed"' in token_bridge
+            and '"production_readiness_claim_allowed"' in token_bridge
+            and "TOKEN_BRIDGE_SAFE_ACTUATOR_CLAIM_BOUNDARY" in token_bridge
+        ),
+        "deployment_canary_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in canary_deployment
+            and "x0tta6bl4.deployment.canary.safe_actuator_claim_gate.v1"
+            in canary_deployment
+            and '"safe_actuator_evidence_metadata"' in canary_deployment
+            and '"local_canary_rollout_attempt_claim_allowed"'
+            in canary_deployment
+            and '"local_canary_metrics_observation_claim_allowed"'
+            in canary_deployment
+            and '"local_rollback_recommendation_claim_allowed"'
+            in canary_deployment
+            and '"traffic_shift_claim_allowed": False'
+            in canary_deployment
+            and '"live_customer_traffic_claim_allowed": False'
+            in canary_deployment
+            and '"production_slo_claim_allowed": False'
+            in canary_deployment
+            and '"production_readiness_claim_allowed": False'
+            in canary_deployment
+            and "CANARY_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY"
+            in canary_deployment
+        ),
+        "deployment_multi_cloud_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in multi_cloud_deployment
+            and "x0tta6bl4.deployment.multi_cloud.safe_actuator_claim_gate.v1"
+            in multi_cloud_deployment
+            and '"safe_actuator_evidence_metadata"' in multi_cloud_deployment
+            and '"local_deployment_command_attempt_claim_allowed"'
+            in multi_cloud_deployment
+            and '"local_deployment_command_succeeded"' in multi_cloud_deployment
+            and '"local_health_observation_claim_allowed"'
+            in multi_cloud_deployment
+            and '"traffic_shift_claim_allowed": False'
+            in multi_cloud_deployment
+            and '"live_customer_traffic_claim_allowed": False'
+            in multi_cloud_deployment
+            and '"production_slo_claim_allowed": False'
+            in multi_cloud_deployment
+            and '"production_readiness_claim_allowed": False'
+            in multi_cloud_deployment
+            and "MULTI_CLOUD_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY"
+            in multi_cloud_deployment
+        ),
+        "ops_production_monitor_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in production_monitor_script
+            and "x0tta6bl4.ops.production_monitor.safe_actuator_claim_gate.v1"
+            in production_monitor_script
+            and '"safe_actuator_evidence_metadata"' in production_monitor_script
+            and '"local_http_health_observation_claim_allowed"'
+            in production_monitor_script
+            and '"local_http_metrics_observation_claim_allowed"'
+            in production_monitor_script
+            and '"local_alert_recommendation_claim_allowed"'
+            in production_monitor_script
+            and '"traffic_shift_claim_allowed": False' in production_monitor_script
+            and '"live_customer_traffic_claim_allowed": False'
+            in production_monitor_script
+            and '"production_slo_claim_allowed": False'
+            in production_monitor_script
+            and '"production_readiness_claim_allowed": False'
+            in production_monitor_script
+            and '"external_settlement_finality_claim_allowed": False'
+            in production_monitor_script
+            and "PRODUCTION_MONITOR_SAFE_ACTUATOR_CLAIM_BOUNDARY"
+            in production_monitor_script
+        ),
+        "ops_canary_rollout_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in canary_rollout_script
+            and "x0tta6bl4.ops.canary_rollout.safe_actuator_claim_gate.v1"
+            in canary_rollout_script
+            and '"safe_actuator_evidence_metadata"' in canary_rollout_script
+            and '"local_requested_rollout_observation_claim_allowed"'
+            in canary_rollout_script
+            and '"local_health_observation_claim_allowed"' in canary_rollout_script
+            and '"local_metrics_observation_claim_allowed"' in canary_rollout_script
+            and '"traffic_shift_claim_allowed": False' in canary_rollout_script
+            and '"live_customer_traffic_claim_allowed": False'
+            in canary_rollout_script
+            and '"production_slo_claim_allowed": False' in canary_rollout_script
+            and '"production_readiness_claim_allowed": False'
+            in canary_rollout_script
+            and '"external_settlement_finality_claim_allowed": False'
+            in canary_rollout_script
+            and "CANARY_SAFE_ACTUATOR_CLAIM_BOUNDARY" in canary_rollout_script
+        ),
+        "ops_auto_rollback_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in auto_rollback_script
+            and "x0tta6bl4.ops.auto_rollback.safe_actuator_claim_gate.v1"
+            in auto_rollback_script
+            and '"safe_actuator_evidence_metadata"' in auto_rollback_script
+            and '"local_health_observation_claim_allowed"' in auto_rollback_script
+            and '"local_metrics_observation_claim_allowed"' in auto_rollback_script
+            and '"local_rollback_recommendation_claim_allowed"'
+            in auto_rollback_script
+            and '"live_rollback_execution_claim_allowed": False'
+            in auto_rollback_script
+            and '"rollback_command_adapter_configured": False'
+            in auto_rollback_script
+            and '"traffic_shift_claim_allowed": False' in auto_rollback_script
+            and '"live_customer_traffic_claim_allowed": False'
+            in auto_rollback_script
+            and '"production_slo_claim_allowed": False' in auto_rollback_script
+            and '"production_readiness_claim_allowed": False'
+            in auto_rollback_script
+            and '"external_settlement_finality_claim_allowed": False'
+            in auto_rollback_script
+            and "AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY"
+            in auto_rollback_script
+        ),
+        "ops_production_deploy_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in production_deploy_script
+            and "x0tta6bl4.ops.production_deploy.safe_actuator_claim_gate.v1"
+            in production_deploy_script
+            and '"safe_actuator_evidence_metadata"' in production_deploy_script
+            and '"local_deployment_command_attempt_claim_allowed"'
+            in production_deploy_script
+            and '"local_deployment_command_succeeded"' in production_deploy_script
+            and '"local_real_readiness_preflight_claim_allowed"'
+            in production_deploy_script
+            and '"local_health_observation_claim_allowed"'
+            in production_deploy_script
+            and '"local_smoke_test_observation_claim_allowed"'
+            in production_deploy_script
+            and '"traffic_shift_claim_allowed": False' in production_deploy_script
+            and '"live_customer_traffic_claim_allowed": False'
+            in production_deploy_script
+            and '"production_slo_claim_allowed": False'
+            in production_deploy_script
+            and '"production_readiness_claim_allowed": False'
+            in production_deploy_script
+            and '"external_settlement_finality_claim_allowed": False'
+            in production_deploy_script
+            and "PRODUCTION_DEPLOY_SAFE_ACTUATOR_CLAIM_BOUNDARY"
+            in production_deploy_script
+        ),
+    }
+    missing = [name for name, ok in required.items() if not ok]
+    if missing:
+        return [
+            fail_check(
+                "safe_actuator_runtime_metadata_contract",
+                "Missing SafeActuator runtime metadata fragments: "
+                + ", ".join(missing),
+                "src/integration/spine.py; src/self_healing/mape_k/manager.py; src/self_healing/ebpf_anomaly_detector.py; src/services/service_event_trace.py; src/services/pqc_rotator_service.py; src/server/ghost_server.py; src/api/maas/endpoints/governance.py; src/security/spiffe/server/client.py; src/security/spiffe/agent/manager.py; src/dao/bridge/core.py; src/deployment/canary_deployment.py; src/deployment/multi_cloud_deployment.py; scripts/canary_deployment.py; scripts/production_monitor.py; scripts/auto_rollback.py; scripts/deploy/production_deploy.py",
+            )
+        ]
+    return [
+        pass_check(
+            "safe_actuator_runtime_metadata_contract",
+            "SafeActuator runtime paths carry typed redacted evidence metadata and keep SPIRE trust, PQC trust, governance finality, dataplane, route convergence, traffic, kernel-forwarding, settlement, revenue, deployment rollout, ops canary/monitor/rollback/deploy, production SLO, and production claims blocked unless dedicated proof exists",
+            "src/integration/spine.py; src/self_healing/mape_k/manager.py; src/self_healing/ebpf_anomaly_detector.py; src/services/service_event_trace.py; src/services/pqc_rotator_service.py; src/server/ghost_server.py; src/api/maas/endpoints/governance.py; src/security/spiffe/server/client.py; src/security/spiffe/agent/manager.py; src/dao/bridge/core.py; src/deployment/canary_deployment.py; src/deployment/multi_cloud_deployment.py; scripts/canary_deployment.py; scripts/production_monitor.py; scripts/auto_rollback.py; scripts/deploy/production_deploy.py",
+        )
+    ]
+
+
 def check_rollup_approval_context_gate_contract(root: Path) -> list[CheckResult]:
     rollup = _read(root, "src/integration/rollup_approval_contract.py")
     required = {
@@ -5712,6 +6542,67 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
             )
         )
 
+    heal_probe = runner(
+        (
+            sys.executable,
+            MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER,
+            "--target",
+            "127.0.0.1",
+            "--count",
+            "1",
+            "--timeout-seconds",
+            "1",
+        ),
+        None,
+        60,
+    )
+    if heal_probe.returncode != 0:
+        checks.append(
+            fail_check(
+                "maas_heal_post_action_dataplane_probe_smoke",
+                _format_command_failure(heal_probe),
+                f"python {MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER} --target 127.0.0.1 --count 1 --timeout-seconds 1",
+            )
+        )
+    else:
+        try:
+            heal_probe_payload = json.loads(heal_probe.stdout)
+        except json.JSONDecodeError:
+            heal_probe_payload = {}
+        heal_surface = (
+            heal_probe_payload.get("maas_heal_surface", {})
+            if isinstance(heal_probe_payload, Mapping)
+            else {}
+        )
+        heal_probe_ready = (
+            isinstance(heal_probe_payload, Mapping)
+            and heal_probe_payload.get("ready") is True
+            and heal_probe_payload.get("decision")
+            == "MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_READY"
+            and heal_surface.get("dataplane_confirmed") is True
+            and heal_surface.get("post_action_dataplane_revalidated") is True
+            and heal_surface.get("restored_dataplane_claim_allowed") is True
+            and heal_surface.get("traffic_delivery_claim_allowed") is False
+            and heal_surface.get("customer_traffic_claim_allowed") is False
+            and heal_surface.get("production_readiness_claim_allowed") is False
+        )
+        if heal_probe_ready:
+            checks.append(
+                pass_check(
+                    "maas_heal_post_action_dataplane_probe_smoke",
+                    "MaaS heal local post-action dataplane probe smoke passes with restored-dataplane bounded and customer/production claims false",
+                    f"python {MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER} --target 127.0.0.1 --count 1 --timeout-seconds 1",
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "maas_heal_post_action_dataplane_probe_smoke",
+                    "Verifier output did not prove bounded MaaS heal post-action dataplane revalidation with strong claims blocked",
+                    f"python {MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER} --target 127.0.0.1 --count 1 --timeout-seconds 1",
+                )
+            )
+
     app_env = {
         "DATABASE_URL": "postgresql://readiness:readiness@localhost:5432/readiness",
         "ADMIN_USER": "readiness-admin",
@@ -5846,6 +6737,7 @@ def build_report(
         checks.extend(check_service_identity_trust_claim_gate_contract(root))
         checks.extend(check_spire_local_socket_boundary_contract(root))
         checks.extend(check_spire_join_token_replay_guard_contract(root))
+        checks.extend(check_node_runtime_identity_binding_contract(root))
         checks.extend(check_mapek_safe_mode_contract(root))
         checks.extend(check_mapek_recovery_plan_cid_contract(root))
         checks.extend(check_ebpf_telemetry_loss_fail_closed_contract(root))
@@ -5882,6 +6774,7 @@ def build_report(
         checks.extend(check_telegram_control_boundary_contract(root))
         checks.extend(check_external_dpi_collector_import_bridge_contract(root))
         checks.extend(check_integration_spine_claim_gate_contract(root))
+        checks.extend(check_safe_actuator_runtime_metadata_contract(root))
         checks.extend(check_rollup_approval_context_gate_contract(root))
         checks.extend(check_required_evidence_consistency_context_gate_contract(root))
         checks.extend(check_semantic_blocker_queue_context_gate_contract(root))

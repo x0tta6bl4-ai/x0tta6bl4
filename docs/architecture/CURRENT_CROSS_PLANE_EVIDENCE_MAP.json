@@ -24,7 +24,10 @@
     "data_plane": {
       "role": "Local mesh/dataplane observations and bounded delivery evidence.",
       "verified_contours": [
-        "local observed-state and redacted EventBus evidence"
+        "local observed-state and redacted EventBus evidence",
+        "bounded local MaaS heal post-action dataplane probe evidence",
+        "Ghost L3 local TUN/NAT setup metadata remains bounded from dataplane-delivery claims",
+        "eBPF recovery SafeActuator metadata remains bounded from route/dataplane proof"
       ],
       "claim_boundaries": [
         "not customer traffic proof",
@@ -32,13 +35,16 @@
       ],
       "source_refs": [
         "src/network/yggdrasil_client.py:1",
-        "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py:1"
+        "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py:1",
+        "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py:1"
       ]
     },
     "control_plane": {
       "role": "Policy, MAPE-K, action-enforcement, and readiness control surfaces.",
       "verified_contours": [
-        "local control decisions and fail-closed claim gates"
+        "local control decisions and fail-closed claim gates",
+        "MaaS heal post-action dataplane revalidation smoke",
+        "PQC rotator, Ghost L3, eBPF, MaaS governance, SPIRE, TokenBridge, and deployment SafeActuator runtime metadata contracts"
       ],
       "claim_boundaries": [
         "not live remediation proof",
@@ -46,26 +52,45 @@
       ],
       "source_refs": [
         "src/mesh/metric_evidence_policy.py:1",
-        "src/mesh/action_enforcer.py:1"
+        "src/mesh/action_enforcer.py:1",
+        "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py:1",
+        "src/services/pqc_rotator_service.py:1",
+        "src/server/ghost_server.py:1",
+        "src/self_healing/ebpf_anomaly_detector.py:1",
+        "src/api/maas/endpoints/governance.py:1",
+        "src/security/spiffe/server/client.py:1",
+        "src/security/spiffe/agent/manager.py:1",
+        "src/dao/bridge/core.py:1",
+        "src/deployment/canary_deployment.py:1",
+        "src/deployment/multi_cloud_deployment.py:1"
       ]
     },
     "trust_plane": {
       "role": "Service identity and trust configuration evidence.",
       "verified_contours": [
-        "redacted local identity configuration and lifecycle events"
+        "redacted local identity configuration and lifecycle events",
+        "bounded measured-attestation verifier-smoke artifact validation",
+        "PQC rotation intent metadata remains bounded from live trust-finality claims",
+        "SPIRE server/agent SafeActuator metadata remains bounded from live SVID, mTLS, node-attestation, and production trust claims"
       ],
       "claim_boundaries": [
         "not live SPIFFE SVID proof",
-        "not DID, wallet, or chain finality proof"
+        "not DID, wallet, or chain finality proof",
+        "not production trust finality proof"
       ],
       "source_refs": [
-        "src/api/service_identity_status.py:1"
+        "src/api/service_identity_status.py:1",
+        "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py:1",
+        "src/services/pqc_rotator_service.py:1",
+        "src/security/spiffe/server/client.py:1",
+        "src/security/spiffe/agent/manager.py:1"
       ]
     },
     "evidence_plane": {
       "role": "Current proof gates, source artifacts, and local validation shards.",
       "verified_contours": [
-        "source artifact identity and fail-closed proof-gate metadata"
+        "source artifact identity and fail-closed proof-gate metadata",
+        "SafeActuator runtime metadata contract is checked for high-risk PQC/Ghost/eBPF/MaaS-governance/SPIRE/TokenBridge/deployment callers"
       ],
       "claim_boundaries": [
         "not independent external-world proof",
@@ -73,13 +98,24 @@
       ],
       "source_refs": [
         "scripts/ops/run_cross_plane_proof_gate.py:1",
-        "scripts/ops/check_real_readiness.py:1"
+        "scripts/ops/check_real_readiness.py:1",
+        "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py:1",
+        "tests/unit/scripts/test_verify_maas_heal_post_action_dataplane_probe.py:1",
+        "tests/unit/scripts/test_check_real_readiness_unit.py:1",
+        "tests/unit/self_healing/test_ebpf_anomaly_detector_unit.py:1",
+        "tests/unit/api/test_maas_governance_spine_unit.py:1",
+        "tests/unit/security/spiffe/test_spire_server_client_spine_unit.py:1",
+        "tests/unit/security/spiffe/test_spire_agent_manager_spine_unit.py:1",
+        "tests/unit/dao/test_token_bridge_spine_unit.py:1",
+        "tests/unit/deployment/test_canary_deployment_unit.py:1",
+        "tests/unit/deployment/test_multi_cloud_deployment_unit.py:1"
       ]
     },
     "economy_plane": {
       "role": "Billing, reward, escrow, and marketplace lifecycle evidence.",
       "verified_contours": [
-        "local or pending economy lifecycle records"
+        "local or pending economy lifecycle records",
+        "TokenBridge chain-write SafeActuator metadata remains bounded from settlement-finality, delivery, revenue, and production claims"
       ],
       "claim_boundaries": [
         "not payment settlement proof",
@@ -89,7 +125,8 @@
       "source_refs": [
         "src/api/billing.py:1",
         "src/dao/token_rewards.py:1",
-        "src/services/marketplace_events.py:1"
+        "src/services/marketplace_events.py:1",
+        "src/dao/bridge/core.py:1"
       ]
     }
   },
@@ -146,6 +183,251 @@
       }
     },
     {
+      "id": "maas-heal-post-action-probe-to-bounded-restored-dataplane",
+      "from_planes": [
+        "control_plane",
+        "data_plane"
+      ],
+      "to_planes": [
+        "evidence_plane"
+      ],
+      "current_path": "The local verifier runs MeshNetworkManager aggressive healing against a synthetic stale route, attaches a bounded loopback post-action dataplane probe, and surfaces the sanitized MaaS heal revalidation.",
+      "verified_evidence": [
+        "Verifier readiness requires a local healing action, EventBus dataplane evidence, MaaS heal surface revalidation, bounded restored-dataplane claim allowance, and traffic/customer/production claims remaining false."
+      ],
+      "boundary": "This proves only bounded local post-action dataplane revalidation for one local healing event; it is not customer traffic delivery, external reachability, sustained mesh quality, production SLO, or production readiness.",
+      "source_refs": [
+        "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py:1",
+        "tests/unit/scripts/test_verify_maas_heal_post_action_dataplane_probe.py:1",
+        "src/mesh/network_manager.py:1",
+        "src/api/maas/nodes/healing.py:1"
+      ],
+      "proof_flags": {
+        "local_healing_action_applied": true,
+        "bounded_post_action_probe_executed": true,
+        "maas_heal_surface_revalidated": true,
+        "bounded_restored_dataplane_claim_allowed": true,
+        "traffic_delivery_claim_allowed": false,
+        "customer_traffic_claim_allowed": false,
+        "external_reachability_claim_allowed": false,
+        "production_slo_claim_allowed": false,
+        "production_readiness_claim_allowed": false
+      }
+    },
+    {
+      "id": "ebpf-safe-actuator-runtime-metadata-boundary",
+      "from_planes": [
+        "control_plane",
+        "data_plane"
+      ],
+      "to_planes": [
+        "evidence_plane"
+      ],
+      "current_path": "eBPF self-healing recovery actions now attach typed redacted SafeActuator metadata to local guarded action attempts, publish that metadata into EventBus payloads, and are checked by real-readiness as a static runtime contract.",
+      "verified_evidence": [
+        "eBPF recovery events carry SafeActuatorEvidenceMetadata with local eBPF recovery action metadata.",
+        "The metadata keeps restored-dataplane, route-convergence, kernel-forwarding correctness, dataplane delivery, traffic, customer traffic, DPI, settlement, SLO, and production-readiness claims false.",
+        "The eBPF unit tests verify metadata emission on successful and simulated actuator paths."
+      ],
+      "boundary": "This is typed redacted SafeActuator metadata for local policy-gated eBPF recovery attempts only. It does not prove restored dataplane delivery, route convergence, kernel forwarding correctness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or production readiness.",
+      "source_refs": [
+        "src/self_healing/ebpf_anomaly_detector.py:1",
+        "src/integration/spine.py:1",
+        "src/services/service_event_trace.py:1",
+        "scripts/ops/check_real_readiness.py:1",
+        "tests/unit/self_healing/test_ebpf_anomaly_detector_unit.py:1",
+        "tests/unit/scripts/test_check_real_readiness_unit.py:1"
+      ],
+      "proof_flags": {
+        "ebpf_self_healing_safe_actuator_metadata_present": true,
+        "local_ebpf_recovery_action_metadata_present": true,
+        "service_trace_safe_actuator_metadata_profile_present": true,
+        "restored_dataplane_claim_allowed": false,
+        "route_convergence_claim_allowed": false,
+        "kernel_forwarding_correctness_claim_allowed": false,
+        "dataplane_delivery_claim_allowed": false,
+        "traffic_delivery_claim_allowed": false,
+        "customer_traffic_claim_allowed": false,
+        "external_dpi_bypass_confirmed": false,
+        "settlement_finality_confirmed": false,
+        "production_slo_claim_allowed": false,
+        "production_readiness_claim_allowed": false
+      }
+    },
+    {
+      "id": "maas-governance-safe-actuator-runtime-metadata-boundary",
+      "from_planes": [
+        "control_plane",
+        "economy_plane"
+      ],
+      "to_planes": [
+        "evidence_plane"
+      ],
+      "current_path": "MaaS governance API action dispatch now attaches typed redacted SafeActuator metadata to local guarded API action attempts, publishes that metadata into EventBus payloads, and is checked by real-readiness as a static runtime contract.",
+      "verified_evidence": [
+        "MaaS governance action events carry SafeActuatorEvidenceMetadata with local action dispatch metadata.",
+        "The metadata keeps DAO governance finality, external settlement finality, dataplane delivery, customer traffic, production governance execution, and production-readiness claims false.",
+        "The MaaS governance unit tests verify metadata emission on successful and simulated actuator paths."
+      ],
+      "boundary": "This is typed redacted SafeActuator metadata for local policy-gated MaaS governance API action attempts only. It does not prove DAO governance finality, external settlement finality, dataplane delivery, customer traffic, production governance execution, or production readiness.",
+      "source_refs": [
+        "src/api/maas/endpoints/governance.py:1",
+        "src/integration/spine.py:1",
+        "src/services/service_event_trace.py:1",
+        "scripts/ops/check_real_readiness.py:1",
+        "tests/unit/api/test_maas_governance_spine_unit.py:1",
+        "tests/unit/scripts/test_check_real_readiness_unit.py:1"
+      ],
+      "proof_flags": {
+        "maas_governance_safe_actuator_metadata_present": true,
+        "local_maas_governance_action_metadata_present": true,
+        "service_trace_safe_actuator_metadata_profile_present": true,
+        "dao_governance_finality_claim_allowed": false,
+        "external_settlement_finality_claim_allowed": false,
+        "dataplane_delivery_claim_allowed": false,
+        "customer_traffic_claim_allowed": false,
+        "production_governance_execution_claim_allowed": false,
+        "production_readiness_claim_allowed": false
+      }
+    },
+    {
+      "id": "spire-safe-actuator-runtime-metadata-boundary",
+      "from_planes": [
+        "control_plane",
+        "trust_plane"
+      ],
+      "to_planes": [
+        "evidence_plane"
+      ],
+      "current_path": "SPIRE server client and SPIRE agent manager control actions now attach typed redacted SafeActuator metadata to local guarded SPIRE CLI attempts, publish that metadata into EventBus payloads, and are checked by real-readiness as a static trust/control contract.",
+      "verified_evidence": [
+        "SPIRE server client events carry SafeActuatorEvidenceMetadata with local SPIRE server CLI action metadata.",
+        "SPIRE agent manager events carry SafeActuatorEvidenceMetadata with local SPIRE agent/server CLI lifecycle metadata.",
+        "The metadata keeps live SPIRE mTLS, workload SVID possession, workload identity trust finality, node attestation finality, dataplane delivery, customer traffic, production identity readiness, and production-readiness claims false."
+      ],
+      "boundary": "This is typed redacted SafeActuator metadata for local policy-gated SPIRE CLI attempts only. It does not prove live SPIFFE/SPIRE trust finality, workload SVID possession, node attestation finality, mTLS dataplane delivery, customer traffic, or production readiness.",
+      "source_refs": [
+        "src/security/spiffe/server/client.py:1",
+        "src/security/spiffe/agent/manager.py:1",
+        "src/integration/spine.py:1",
+        "src/services/service_event_trace.py:1",
+        "scripts/ops/check_real_readiness.py:1",
+        "tests/unit/security/spiffe/test_spire_server_client_spine_unit.py:1",
+        "tests/unit/security/spiffe/test_spire_agent_manager_spine_unit.py:1",
+        "tests/unit/scripts/test_check_real_readiness_unit.py:1"
+      ],
+      "proof_flags": {
+        "spire_server_safe_actuator_metadata_present": true,
+        "spire_agent_safe_actuator_metadata_present": true,
+        "local_spire_server_cli_action_metadata_present": true,
+        "local_spire_agent_cli_action_metadata_present": true,
+        "live_spire_mtls_claim_allowed": false,
+        "workload_svid_possession_claim_allowed": false,
+        "workload_identity_trust_finality_claim_allowed": false,
+        "node_attestation_finality_claim_allowed": false,
+        "dataplane_delivery_claim_allowed": false,
+        "customer_traffic_claim_allowed": false,
+        "production_identity_readiness_claim_allowed": false,
+        "production_readiness_claim_allowed": false
+      }
+    },
+    {
+      "id": "token-bridge-safe-actuator-runtime-metadata-boundary",
+      "from_planes": [
+        "control_plane",
+        "economy_plane"
+      ],
+      "to_planes": [
+        "evidence_plane"
+      ],
+      "current_path": "TokenBridge chain-write actions now attach typed redacted SafeActuator metadata to local guarded reward, escrow, and relayer attempts, publish that metadata into EventBus payloads, and are checked by real-readiness as a static economy/control contract.",
+      "verified_evidence": [
+        "TokenBridge chain-write events carry SafeActuatorEvidenceMetadata with local chain-write attempt metadata.",
+        "The metadata distinguishes pending transaction submission from external settlement finality.",
+        "The metadata keeps external settlement finality, payment-provider settlement, bank settlement, live token-settlement finality, dataplane delivery, traffic delivery, customer traffic, revenue recognition, and production-readiness claims false."
+      ],
+      "boundary": "This is typed redacted SafeActuator metadata for local policy-gated TokenBridge chain-write attempts only. It does not prove external settlement finality, payment provider settlement, bank settlement, live token settlement finality, dataplane delivery, customer traffic, revenue recognition, or production readiness.",
+      "source_refs": [
+        "src/dao/bridge/core.py:1",
+        "src/dao/bridge/policy.py:1",
+        "src/integration/spine.py:1",
+        "src/services/reward_events.py:1",
+        "src/services/marketplace_events.py:1",
+        "scripts/ops/check_real_readiness.py:1",
+        "tests/unit/dao/test_token_bridge_spine_unit.py:1",
+        "tests/unit/scripts/test_check_real_readiness_unit.py:1"
+      ],
+      "proof_flags": {
+        "token_bridge_safe_actuator_metadata_present": true,
+        "local_chain_write_attempt_metadata_present": true,
+        "pending_chain_submission_claim_allowed": true,
+        "external_settlement_finality_claim_allowed": false,
+        "payment_provider_settlement_claim_allowed": false,
+        "bank_settlement_claim_allowed": false,
+        "live_token_settlement_finality_claim_allowed": false,
+        "dataplane_delivery_claim_allowed": false,
+        "traffic_delivery_claim_allowed": false,
+        "customer_traffic_claim_allowed": false,
+        "revenue_recognition_claim_allowed": false,
+        "production_readiness_claim_allowed": false
+      }
+    },
+    {
+      "id": "deployment-safe-actuator-runtime-metadata-boundary",
+      "from_planes": [
+        "control_plane"
+      ],
+      "to_planes": [
+        "evidence_plane"
+      ],
+      "current_path": "Canary and multi-cloud deployment actions plus ops canary rollout, production monitor, auto-rollback, and production_deploy.py now attach typed redacted SafeActuator metadata to local gated rollout, rollback, build/push, deploy, readiness-preflight, monitoring, and health-observation attempts, and are checked by real-readiness as a static deployment/control contract.",
+      "verified_evidence": [
+        "Canary deployment status and rollback records carry SafeActuatorEvidenceMetadata with local rollout, metrics, and rollback-recommendation metadata.",
+        "Multi-cloud deployment results and command records carry SafeActuatorEvidenceMetadata with local command-attempt and health-observation metadata.",
+        "Ops canary rollout, production monitor, auto-rollback, and production_deploy.py records carry SafeActuatorEvidenceMetadata for requested rollout observations, local monitor observations, rollback recommendations, deployment command attempts, and real-readiness preflight state.",
+        "The metadata keeps traffic shifting, live customer traffic, production SLO, external DPI bypass, settlement finality, and production-readiness claims false."
+      ],
+      "boundary": "This is typed redacted SafeActuator metadata for local deployment-control attempts only. It does not prove traffic shifting, live customer traffic, production SLOs, external DPI bypass, settlement finality, or production readiness.",
+      "source_refs": [
+        "src/deployment/canary_deployment.py:1",
+        "src/deployment/multi_cloud_deployment.py:1",
+        "scripts/canary_deployment.py:1",
+        "scripts/production_monitor.py:1",
+        "scripts/auto_rollback.py:1",
+        "scripts/deploy/production_deploy.py:1",
+        "src/integration/spine.py:1",
+        "scripts/ops/check_real_readiness.py:1",
+        "tests/unit/deployment/test_canary_deployment_unit.py:1",
+        "tests/unit/deployment/test_multi_cloud_deployment_unit.py:1",
+        "tests/unit/scripts/test_canary_deployment_claim_boundary.py:1",
+        "tests/unit/scripts/test_production_monitor_claim_boundary.py:1",
+        "tests/unit/scripts/test_auto_rollback_claim_boundary.py:1",
+        "tests/unit/scripts/test_python_production_deploy_boundary.py:1",
+        "tests/unit/scripts/test_check_real_readiness_unit.py:1"
+      ],
+      "proof_flags": {
+        "canary_deployment_safe_actuator_metadata_present": true,
+        "multi_cloud_deployment_safe_actuator_metadata_present": true,
+        "ops_canary_rollout_safe_actuator_metadata_present": true,
+        "ops_production_monitor_safe_actuator_metadata_present": true,
+        "ops_auto_rollback_safe_actuator_metadata_present": true,
+        "ops_production_deploy_safe_actuator_metadata_present": true,
+        "local_canary_rollout_attempt_metadata_present": true,
+        "local_deployment_command_attempt_metadata_present": true,
+        "local_deployment_health_observation_metadata_present": true,
+        "local_ops_canary_rollout_observation_metadata_present": true,
+        "local_ops_monitor_observation_metadata_present": true,
+        "local_ops_rollback_recommendation_metadata_present": true,
+        "local_ops_real_readiness_preflight_metadata_present": true,
+        "traffic_shift_claim_allowed": false,
+        "live_customer_traffic_claim_allowed": false,
+        "production_slo_claim_allowed": false,
+        "external_dpi_bypass_confirmed": false,
+        "external_settlement_finality_claim_allowed": false,
+        "production_readiness_claim_allowed": false
+      }
+    },
+    {
       "id": "identity-configuration-to-redacted-runtime-traces",
       "from_planes": [
         "trust_plane"
@@ -167,6 +449,79 @@
         "did_ownership_confirmed": false,
         "wallet_control_confirmed": false,
         "chain_identity_finality_confirmed": false
+      }
+    },
+    {
+      "id": "measured-attestation-smoke-to-proof-gate-boundary",
+      "from_planes": [
+        "trust_plane"
+      ],
+      "to_planes": [
+        "evidence_plane"
+      ],
+      "current_path": "A local operator can retain docs/verification/incoming/measured_attestation_verifier_smoke.json, validate it with scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py, and have scripts/ops/run_cross_plane_proof_gate.py evaluate the bounded measured_attestation_verifier_smoke claim.",
+      "verified_evidence": [
+        "The validator rejects broken hashes, unredacted attestation material, missing verifier provenance, mock provider status, and production-claim overpromotion.",
+        "The cross-plane proof gate treats validator-ready measured-attestation smoke as a trust/evidence artifact and production-readiness dependency without making production trust finality true."
+      ],
+      "boundary": "Measured-attestation verifier smoke proves only that one supplied attestation sample was accepted by a configured non-mock verifier and saved with redacted provenance. It does not prove production trust finality, fleet-wide hardware coverage, PQC identity finality, customer traffic, settlement, or production readiness.",
+      "source_refs": [
+        "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py:1",
+        "scripts/ops/run_cross_plane_proof_gate.py:1"
+      ],
+      "proof_flags": {
+        "measured_attestation_verifier_smoke_claim_available": true,
+        "measured_attestation_verifier_smoke_validator_present": true,
+        "production_attestation_verifier_claim_allowed": true,
+        "production_trust_finality": false,
+        "production_ready": false,
+        "fleet_wide_hardware_coverage_confirmed": false,
+        "pqc_identity_finality_confirmed": false,
+        "production_readiness_claim_allowed": false
+      }
+    },
+    {
+      "id": "pqc-ghost-safe-actuator-runtime-metadata-boundary",
+      "from_planes": [
+        "control_plane",
+        "trust_plane",
+        "data_plane"
+      ],
+      "to_planes": [
+        "evidence_plane"
+      ],
+      "current_path": "PQC rotator and Ghost L3 setup now attach typed redacted SafeActuator metadata to local guarded runtime attempts, publish that metadata into EventBus payloads, and are checked by real-readiness as a static runtime contract.",
+      "verified_evidence": [
+        "PQC rotation events carry SafeActuatorEvidenceMetadata with local_pqc_identity_rotation_claim_allowed while live PQC trust finality, fleet-wide rollout, dataplane, customer traffic, settlement, and production claims remain false.",
+        "Ghost L3 TUN/NAT setup events carry SafeActuatorEvidenceMetadata with local_tun_nat_setup_claim_allowed while restored-dataplane, kernel-forwarding correctness, traffic, customer, external reachability, SLO, and production claims remain false.",
+        "Service event trace and real-readiness checks recognize SafeActuator metadata as bounded evidence, not as production proof."
+      ],
+      "boundary": "This is typed redacted SafeActuator metadata for local policy-gated runtime attempts only. It does not prove live PQC trust finality, fleet-wide key rollout, restored dataplane delivery, kernel forwarding correctness, customer traffic, external settlement finality, production SLOs, or production readiness.",
+      "source_refs": [
+        "src/services/pqc_rotator_service.py:1",
+        "src/server/ghost_server.py:1",
+        "src/integration/spine.py:1",
+        "src/services/service_event_trace.py:1",
+        "scripts/ops/check_real_readiness.py:1",
+        "tests/unit/services/test_pqc_rotator_service_unit.py:1",
+        "tests/unit/server/test_ghost_server_unit.py:1",
+        "tests/unit/scripts/test_check_real_readiness_unit.py:1"
+      ],
+      "proof_flags": {
+        "pqc_rotator_safe_actuator_metadata_present": true,
+        "ghost_l3_safe_actuator_metadata_present": true,
+        "service_trace_safe_actuator_metadata_profile_present": true,
+        "local_pqc_identity_rotation_claim_allowed": true,
+        "local_tun_nat_setup_claim_allowed": true,
+        "live_pqc_trust_finality_claim_allowed": false,
+        "fleet_wide_key_rollout_claim_allowed": false,
+        "restored_dataplane_claim_allowed": false,
+        "dataplane_delivery_claim_allowed": false,
+        "kernel_forwarding_correctness_claim_allowed": false,
+        "customer_traffic_claim_allowed": false,
+        "external_settlement_finality_claim_allowed": false,
+        "production_slo_claim_allowed": false,
+        "production_readiness_claim_allowed": false
       }
     },
     {
@@ -294,12 +649,12 @@
   ],
   "current_gaps": [
     {
-      "id": "cross-plane-proof-gate-wiring-incomplete",
+      "id": "proof-gate-artifact-retention-risk",
       "blocks_real_readiness": false,
       "blocking_status": "NON_BLOCKING_TRACKED_RISK",
-      "gap": "Strong production/dataplane/traffic/settlement claims still require their own proof-gate artifacts.",
+      "gap": "Strong production/dataplane/traffic/settlement claims require retained proof-gate artifacts before promotion.",
       "risk": "Future changes could over-promote local evidence if proof gates are bypassed.",
-      "practical_next_action": "Keep proof-gate checks in readiness and expand dynamic evidence only with retained artifacts.",
+      "practical_next_action": "Keep proof-gate checks in readiness and expand dynamic evidence only with validator-ready retained artifacts.",
       "source_refs": [
         "scripts/ops/run_cross_plane_proof_gate.py:1"
       ]
@@ -308,23 +663,35 @@
       "id": "post-action-dataplane-probe-operationalization",
       "blocks_real_readiness": false,
       "blocking_status": "NON_BLOCKING_TRACKED_RISK",
-      "gap": "Post-action dataplane probes are scaffolded and claim-gated, but live target execution remains operator-controlled.",
-      "risk": "A local recovery action could be mistaken for restored dataplane delivery.",
-      "practical_next_action": "Run the opt-in local collector only in an authorized environment.",
+      "gap": "MaaS heal now has a local bounded post-action dataplane verifier, and PQC rotator/Ghost L3/eBPF/MaaS governance/SPIRE/TokenBridge/deployment now carry typed SafeActuator metadata, but broader SafeActuator adoption and non-loopback operator-run targets remain separate work.",
+      "risk": "A local recovery, setup, governance, identity, economy, or deployment action outside these verified paths could still be mistaken for restored dataplane delivery, route convergence, governance finality, trust finality, settlement finality, revenue recognition, traffic shifting, production SLO, or production readiness.",
+      "practical_next_action": "Keep the local verifier and SafeActuator runtime metadata contract in readiness, then extend typed evidence only where the caller can attach redacted EventBus or probe evidence.",
       "source_refs": [
-        "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py:1"
+        "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py:1",
+        "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py:1",
+        "src/services/pqc_rotator_service.py:1",
+        "src/server/ghost_server.py:1",
+        "src/self_healing/ebpf_anomaly_detector.py:1",
+        "src/api/maas/endpoints/governance.py:1",
+        "src/security/spiffe/server/client.py:1",
+        "src/security/spiffe/agent/manager.py:1",
+        "src/dao/bridge/core.py:1",
+        "src/deployment/canary_deployment.py:1",
+        "src/deployment/multi_cloud_deployment.py:1",
+        "scripts/ops/check_real_readiness.py:1"
       ]
     },
     {
       "id": "economy-dataplane-separation-still-manual",
       "blocks_real_readiness": false,
       "blocking_status": "NON_BLOCKING_TRACKED_RISK",
-      "gap": "Economy lifecycle and dataplane delivery remain separate evidence domains.",
-      "risk": "Billing, escrow, or reward records could be read as customer delivery or settlement finality.",
-      "practical_next_action": "Keep economy surfaces behind explicit claim gates and source-prefiltered EventBus scans.",
+      "gap": "Economy lifecycle and dataplane delivery remain separate evidence domains; TokenBridge now has typed SafeActuator metadata for bounded chain-write attempts, but external settlement finality still requires dedicated finality evidence.",
+      "risk": "Billing, escrow, reward, or pending TokenBridge transaction records could be read as customer delivery, settlement finality, or revenue recognition.",
+      "practical_next_action": "Keep economy surfaces behind explicit claim gates, TokenBridge SafeActuator metadata, and source-prefiltered EventBus scans.",
       "source_refs": [
         "src/api/billing.py:1",
-        "src/services/marketplace_events.py:1"
+        "src/services/marketplace_events.py:1",
+        "src/dao/bridge/core.py:1"
       ]
     },
     {
