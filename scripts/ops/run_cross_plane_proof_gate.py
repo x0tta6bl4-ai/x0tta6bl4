@@ -3223,6 +3223,17 @@ def _artifact_dependency_summary(
     }
 
 
+def _artifact_evidence_for_dependency(
+    artifact_id: str,
+    artifact_evidence: Mapping[str, Mapping[str, Any]],
+) -> Mapping[str, Any] | None:
+    if artifact_id == LOCAL_RESTORED_DATAPLANE_CLAIM_ID:
+        return artifact_evidence.get(
+            LOCAL_RESTORED_DATAPLANE_CLAIM_ID,
+        ) or artifact_evidence.get(DATAPLANE_DELIVERY_CLAIM_ID)
+    return artifact_evidence.get(artifact_id)
+
+
 def _proof_dependency_graph(
     claim_results: Sequence[Mapping[str, Any]],
     claim_blockers: Mapping[str, Sequence[str]],
@@ -3260,7 +3271,10 @@ def _proof_dependency_graph(
             "artifact_dependencies": [
                 _artifact_dependency_summary(
                     artifact_id,
-                    artifact_evidence.get(artifact_id),
+                    _artifact_evidence_for_dependency(
+                        artifact_id,
+                        artifact_evidence,
+                    ),
                 )
                 for artifact_id in CLAIM_ARTIFACT_DEPENDENCIES.get(claim_id, ())
             ],

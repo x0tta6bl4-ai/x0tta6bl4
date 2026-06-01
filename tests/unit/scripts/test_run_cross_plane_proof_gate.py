@@ -2086,6 +2086,30 @@ def test_gate_allows_local_restored_dataplane_without_promoting_delivery_claims(
     ]
 
 
+def test_production_dependency_graph_uses_dataplane_artifact_for_local_restored_dataplane(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path)
+    _write_valid_dataplane_delivery_event(tmp_path)
+
+    report = build_report(tmp_path, claims=("production_readiness",))
+
+    dependencies = {
+        item["artifact_id"]: item
+        for item in report["proof_dependency_graph"]["production_readiness"][
+            "artifact_dependencies"
+        ]
+    }
+    local_restored = dependencies["local_restored_dataplane"]
+    assert local_restored["present"] is True
+    assert local_restored["valid"] is True
+    assert local_restored["path"] == ".agent_coordination/events.log"
+    assert local_restored["blockers"] == []
+    assert "production_readiness_dataplane_artifact_not_verified" not in report[
+        "claim_blockers"
+    ]["production_readiness"]
+
+
 def test_gate_blocks_traffic_delivery_when_map_flags_are_true_but_artifact_is_missing(
     tmp_path: Path,
 ) -> None:
