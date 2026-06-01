@@ -738,6 +738,38 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "dataplane_delivery_eventbus_artifact_not_verified" in dataplane_action[
         "reason_blockers"
     ]
+    assert dataplane_action["automation_status"] == "local_command_available"
+    assert dataplane_action["suggested_commands"][0] == [
+        "python3",
+        "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "<local_port>",
+        "--allow-local-probe",
+        "--write-event",
+        "--json",
+    ]
+    customer_action = report["next_actions"][1]
+    assert customer_action["automation_status"] == "manual_evidence_required"
+    assert customer_action["suggested_commands"] == []
+    assert "No dedicated customer-traffic proof collector" in customer_action[
+        "implementation_gap"
+    ]
+    dpi_action = report["next_actions"][3]
+    assert dpi_action["suggested_commands"][0] == [
+        "python3",
+        "scripts/ops/run_external_dpi_intake_local.py",
+        "--json",
+        "--write-ready",
+    ]
+    production_action = report["next_actions"][-1]
+    assert production_action["automation_status"] == (
+        "local_command_available_after_supporting_proofs"
+    )
+    assert "docs/verification/incoming/production_readiness.json" in production_action[
+        "artifact_paths"
+    ]
     assert "production_readiness_imported_artifact_not_verified" in report["blockers"]
     assert "trust_finality_eventbus_artifact_not_verified" in report["blockers"]
     assert "customer_traffic_eventbus_artifact_not_verified" in report["blockers"]

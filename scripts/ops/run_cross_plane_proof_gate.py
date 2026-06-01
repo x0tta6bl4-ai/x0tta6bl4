@@ -273,6 +273,18 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "This repairs local map/audit evidence only. It does not make any "
             "external runtime, traffic, trust, DPI, or settlement claim true."
         ),
+        "automation_status": "local_command_available",
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/run_cross_plane_proof_gate.py",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [
+            "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
+            "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md",
+        ],
     },
     {
         "action_id": "collect_verified_dataplane_delivery_eventbus_evidence",
@@ -291,6 +303,30 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "not prove customer traffic, trust finality, DPI bypass, settlement, "
             "or production readiness by itself."
         ),
+        "automation_status": "local_command_available",
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "<local_port>",
+                "--allow-local-probe",
+                "--write-event",
+                "--json",
+            ],
+            [
+                "python3",
+                "scripts/ops/run_cross_plane_proof_gate.py",
+                "--claim",
+                "dataplane_delivery",
+                "--claim",
+                "traffic_delivery",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [".agent_coordination/events.log"],
     },
     {
         "action_id": "collect_verified_customer_traffic_eventbus_evidence",
@@ -304,6 +340,13 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "Customer traffic requires separate end-to-end proof and must not be "
             "inferred from local dataplane or mesh recovery evidence."
         ),
+        "automation_status": "manual_evidence_required",
+        "implementation_gap": (
+            "No dedicated customer-traffic proof collector was found in scripts/ops. "
+            "Do not promote customer traffic from dataplane/local recovery evidence."
+        ),
+        "suggested_commands": [],
+        "artifact_paths": [".agent_coordination/events.log"],
     },
     {
         "action_id": "collect_verified_trust_finality_eventbus_evidence",
@@ -321,6 +364,13 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "prove dataplane delivery, customer traffic, settlement, or production "
             "readiness by itself."
         ),
+        "automation_status": "manual_evidence_required",
+        "implementation_gap": (
+            "No dedicated trust-finality proof collector was found in scripts/ops. "
+            "SPIFFE/DID/wallet evidence must be collected as redacted EventBus evidence."
+        ),
+        "suggested_commands": [],
+        "artifact_paths": [".agent_coordination/events.log"],
     },
     {
         "action_id": "import_verified_dpi_lab_evidence",
@@ -336,6 +386,37 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "durable censorship resistance, customer traffic, settlement, or "
             "production readiness by itself."
         ),
+        "automation_status": "local_command_available",
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/run_external_dpi_intake_local.py",
+                "--json",
+                "--write-ready",
+            ],
+            [
+                "python3",
+                "scripts/ops/import_ghost_pulse_external_evidence.py",
+                "--claim",
+                "dpi_lab",
+                "--candidate",
+                "docs/verification/incoming/dpi_lab.json",
+                "--require-ready",
+                "--json",
+            ],
+            [
+                "python3",
+                "scripts/ops/verify_ghost_pulse_external_evidence.py",
+                "--claim",
+                "dpi_lab",
+                "--require-pass",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [
+            "docs/verification/incoming/dpi_lab.json",
+            "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json",
+        ],
     },
     {
         "action_id": "verify_external_settlement_artifacts",
@@ -356,6 +437,28 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "dataplane delivery, customer traffic, trust finality, DPI bypass, or "
             "production readiness by itself."
         ),
+        "automation_status": "local_command_available",
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/scaffold_x0t_external_settlement_evidence.py",
+            ],
+            [
+                "python3",
+                "scripts/ops/verify_x0t_external_settlement_evidence.py",
+                "--require-ready",
+            ],
+            [
+                "python3",
+                "scripts/ops/verify_x0t_external_settlement_live_rpc.py",
+                "--require-ready",
+            ],
+        ],
+        "artifact_paths": [
+            ".tmp/external-settlement-evidence/settlement-submit.json",
+            ".tmp/validation-shards/x0t-external-settlement-evidence-current.json",
+            ".tmp/validation-shards/x0t-external-settlement-live-rpc-current.json",
+        ],
     },
     {
         "action_id": "import_verified_production_readiness_evidence",
@@ -370,6 +473,37 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "verified supporting dataplane, customer traffic, trust, DPI, and "
             "settlement evidence."
         ),
+        "automation_status": "local_command_available_after_supporting_proofs",
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/import_ghost_pulse_external_evidence.py",
+                "--claim",
+                "production_readiness",
+                "--candidate",
+                "docs/verification/incoming/production_readiness.json",
+                "--require-ready",
+                "--json",
+            ],
+            [
+                "python3",
+                "scripts/ops/verify_ghost_pulse_external_evidence.py",
+                "--claim",
+                "production_readiness",
+                "--require-pass",
+                "--json",
+            ],
+            [
+                "python3",
+                "scripts/ops/verify_ghost_pulse_proof_gate.py",
+                "--require-all-proven",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [
+            "docs/verification/incoming/production_readiness.json",
+            "docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json",
+        ],
     },
 )
 
@@ -1968,8 +2102,16 @@ def _next_actions_for_blockers(blockers: Sequence[str]) -> list[dict[str, Any]]:
             {
                 "action_id": str(rule["action_id"]),
                 "title": str(rule["title"]),
+                "automation_status": str(rule.get("automation_status") or "unknown"),
+                "suggested_commands": list(rule.get("suggested_commands") or []),
+                "artifact_paths": list(rule.get("artifact_paths") or []),
                 "reason_blockers": matched_blockers,
                 "claim_boundary": str(rule["claim_boundary"]),
+                **(
+                    {"implementation_gap": str(rule["implementation_gap"])}
+                    if rule.get("implementation_gap")
+                    else {}
+                ),
             }
         )
     return actions
@@ -2003,8 +2145,16 @@ def _next_actions_summary(
                     "title": str(action.get("title") or ""),
                     "plane_ids": [],
                     "claim_ids": [],
+                    "automation_status": str(action.get("automation_status") or "unknown"),
+                    "suggested_commands": list(action.get("suggested_commands") or []),
+                    "artifact_paths": list(action.get("artifact_paths") or []),
                     "reason_blockers": [],
                     "claim_boundary": str(action.get("claim_boundary") or ""),
+                    **(
+                        {"implementation_gap": str(action["implementation_gap"])}
+                        if action.get("implementation_gap")
+                        else {}
+                    ),
                 },
             )
             entry["plane_ids"].append(str(plane))

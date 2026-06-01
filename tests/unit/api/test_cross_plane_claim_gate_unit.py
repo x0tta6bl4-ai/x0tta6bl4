@@ -73,6 +73,15 @@ def test_cross_plane_claim_gate_metadata_surfaces_claim_blockers(
                     "action_id": "collect_verified_dataplane_delivery_eventbus_evidence",
                     "plane_ids": ["data_plane"],
                     "claim_ids": ["production_readiness"],
+                    "automation_status": "local_command_available",
+                    "suggested_commands": [
+                        [
+                            "python3",
+                            "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py",
+                            "--port",
+                            "<local_port>",
+                        ]
+                    ],
                 }
             ],
             "next_actions_by_plane": {
@@ -216,6 +225,15 @@ def test_cross_plane_claim_gate_metadata_surfaces_claim_blockers(
             "action_id": "collect_verified_dataplane_delivery_eventbus_evidence",
             "plane_ids": ["data_plane"],
             "claim_ids": ["production_readiness"],
+            "automation_status": "local_command_available",
+            "suggested_commands": [
+                [
+                    "python3",
+                    "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py",
+                    "--port",
+                    "<local_port>",
+                ]
+            ],
         }
     ]
 
