@@ -90,6 +90,18 @@ def test_executor_publishes_events_with_identity(tmp_path):
     assert payload["claim_gate"]["schema"] == (
         "x0tta6bl4.self_healing.ebpf_recovery_claim_gate.v1"
     )
+    metadata = payload["safe_actuator_evidence_metadata"]
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert metadata["claim_gate"]["schema"] == (
+        "x0tta6bl4.self_healing.ebpf.safe_actuator_claim_gate.v1"
+    )
+    assert metadata["claim_gate"]["local_ebpf_recovery_action_succeeded"] is True
+    assert metadata["claim_gate"]["restored_dataplane_claim_allowed"] is False
+    assert metadata["claim_gate"]["route_convergence_claim_allowed"] is False
+    assert metadata["claim_gate"]["kernel_forwarding_correctness_claim_allowed"] is False
+    assert metadata["claim_gate"]["customer_traffic_claim_allowed"] is False
+    assert metadata["claim_gate"]["production_readiness_claim_allowed"] is False
+    assert "restored dataplane" in metadata["claim_boundary"]
     assert payload["claim_gate"]["claim_allowed"] == {
         "local_ebpf_recovery_lifecycle": True,
         "local_safe_actuator_success": True,
@@ -184,6 +196,10 @@ def test_executor_simulated_safe_actuator_fails_closed(tmp_path):
     assert failed[-1].data["stage"] == "actuator_simulated"
     assert failed[-1].data["success"] is False
     assert failed[-1].data["result"]["simulated"] is True
+    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
+    assert metadata["claim_gate"]["safe_actuator_result_recorded"] is True
+    assert metadata["claim_gate"]["local_ebpf_recovery_action_succeeded"] is False
+    assert metadata["claim_gate"]["production_readiness_claim_allowed"] is False
 
 
 def test_internal_adjust_routes_flushes_route_cache(tmp_path):

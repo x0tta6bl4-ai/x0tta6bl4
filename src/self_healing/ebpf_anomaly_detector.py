@@ -24,7 +24,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..coordination.events import EventBus, EventType, get_event_bus
-from ..integration.spine import SafeActuator, SafeActuatorResult
+from ..integration.spine import (
+    SafeActuator,
+    SafeActuatorEvidenceMetadata,
+    SafeActuatorResult,
+)
 from ..network.ebpf.bcc_probes import MeshNetworkProbes
 from ..network.ebpf.loader import EBPFLoader
 from src.security.policy_decision_adapter import (
@@ -43,6 +47,12 @@ EBPF_CLAIM_BOUNDARY = (
     "actuator state; it is not restored dataplane, route convergence, kernel "
     "forwarding correctness, production rollout, live traffic, or live "
     "throughput evidence."
+)
+EBPF_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "eBPF SafeActuator metadata proves only a local, policy-gated recovery "
+    "action attempt for one interface. It is not restored dataplane, route "
+    "convergence, kernel forwarding correctness, live customer traffic, "
+    "external DPI bypass, settlement finality, or production readiness proof."
 )
 EBPF_RECOVERY_CLAIM_GATE_SCHEMA = "x0tta6bl4.self_healing.ebpf_recovery_claim_gate.v1"
 
@@ -375,6 +385,72 @@ class EBPFExecutor(MAPEKExecutor):
             slug = slug.replace("__", "_")
         return slug or "unknown_action"
 
+    def _safe_actuator_evidence_metadata_from_flags(
+        self,
+        *,
+        action_type: str,
+        success: bool,
+        simulated: bool,
+        policy_allowed: bool,
+    ) -> SafeActuatorEvidenceMetadata:
+        action_resource = self._action_resource_name(action_type)
+        local_action_succeeded = bool(success and not simulated)
+        claim_gate = {
+            "schema": "x0tta6bl4.self_healing.ebpf.safe_actuator_claim_gate.v1",
+            "surface": "self_healing.ebpf.execute",
+            "action_type": str(action_type),
+            "action_resource": action_resource,
+            "local_ebpf_recovery_action_recorded": True,
+            "local_ebpf_recovery_action_succeeded": local_action_succeeded,
+            "local_policy_decision_recorded": True,
+            "policy_allowed": bool(policy_allowed),
+            "safe_actuator_result_recorded": True,
+            "local_safe_actuator_success": local_action_succeeded,
+            "restored_dataplane_claim_allowed": False,
+            "route_convergence_claim_allowed": False,
+            "kernel_forwarding_correctness_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "traffic_delivery_claim_allowed": False,
+            "live_customer_traffic_confirmed": False,
+            "customer_traffic_claim_allowed": False,
+            "external_dpi_bypass_confirmed": False,
+            "settlement_finality_confirmed": False,
+            "external_settlement_finality_claim_allowed": False,
+            "production_slo_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "claim_boundary": EBPF_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "payloads_redacted": True,
+        }
+        return SafeActuatorEvidenceMetadata(
+            claim_gate=claim_gate,
+            evidence={
+                "component": "self_healing.ebpf_anomaly_detector",
+                "resource": f"self_healing:ebpf:{action_resource}",
+                "action_type": str(action_type),
+                "payloads_redacted": True,
+            },
+            source_agents=[self.source_agent],
+            claim_boundary=EBPF_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            redacted=True,
+        )
+
+    def _safe_actuator_evidence_metadata(
+        self,
+        action_type: str,
+        actuator_result: SafeActuatorResult,
+        *,
+        policy_allowed: bool,
+    ) -> SafeActuatorEvidenceMetadata:
+        metadata = actuator_result.evidence_metadata
+        if metadata.claim_gate:
+            return metadata
+        return self._safe_actuator_evidence_metadata_from_flags(
+            action_type=action_type,
+            success=actuator_result.success,
+            simulated=actuator_result.simulated,
+            policy_allowed=policy_allowed,
+        )
+
     def _publish_recovery_event(
         self,
         event_type: EventType,
@@ -385,6 +461,9 @@ class EBPFExecutor(MAPEKExecutor):
         result: Optional[Dict[str, Any]] = None,
         reason: str = "",
         policy_decision: Any = None,
+        safe_actuator_evidence_metadata: Optional[
+            SafeActuatorEvidenceMetadata
+        ] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -426,6 +505,13 @@ class EBPFExecutor(MAPEKExecutor):
             "production_readiness_claim_allowed": False,
             "claim_boundary": EBPF_CLAIM_BOUNDARY,
         }
+        if safe_actuator_evidence_metadata is not None:
+            payload["safe_actuator_evidence_metadata"] = (
+                safe_actuator_evidence_metadata.to_dict()
+            )
+            payload["safe_actuator_claim_gate"] = dict(
+                safe_actuator_evidence_metadata.claim_gate
+            )
         try:
             event = self.event_bus.publish(event_type, self.source_agent, payload, priority=7)
             return event.event_id
@@ -517,6 +603,11 @@ class EBPFExecutor(MAPEKExecutor):
                 policy_decision=policy_decision,
             )
             actuator_result = self.safe_actuator.execute(action_type, context)
+            actuator_metadata = self._safe_actuator_evidence_metadata(
+                action_type,
+                actuator_result,
+                policy_allowed=True,
+            )
             if actuator_result.simulated:
                 reason = actuator_result.reason or "safe actuator returned simulated result"
                 result = {
@@ -532,6 +623,7 @@ class EBPFExecutor(MAPEKExecutor):
                     result=result,
                     reason=reason,
                     policy_decision=policy_decision,
+                    safe_actuator_evidence_metadata=actuator_metadata,
                 )
                 return False
 
@@ -552,6 +644,7 @@ class EBPFExecutor(MAPEKExecutor):
                 result=result,
                 reason=actuator_result.reason or policy_reason,
                 policy_decision=policy_decision,
+                safe_actuator_evidence_metadata=actuator_metadata,
             )
             return actuator_result.success
 
@@ -567,25 +660,88 @@ class EBPFExecutor(MAPEKExecutor):
         interface = str(context.get("interface", ""))
 
         if action_type == "clear_packet_queues":
-            return SafeActuatorResult(self._clear_queues(interface))
+            success = self._clear_queues(interface)
+            return SafeActuatorResult(
+                success,
+                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
+                    action_type=action_type,
+                    success=success,
+                    simulated=False,
+                    policy_allowed=True,
+                ),
+            )
 
         if action_type == "adjust_route_weights":
-            return SafeActuatorResult(self._adjust_routes(interface))
+            success = self._adjust_routes(interface)
+            return SafeActuatorResult(
+                success,
+                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
+                    action_type=action_type,
+                    success=success,
+                    simulated=False,
+                    policy_allowed=True,
+                ),
+            )
 
         if action_type == "optimize_ebpf_program":
-            return SafeActuatorResult(self._reload_ebpf(interface))
+            success = self._reload_ebpf(interface)
+            return SafeActuatorResult(
+                success,
+                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
+                    action_type=action_type,
+                    success=success,
+                    simulated=False,
+                    policy_allowed=True,
+                ),
+            )
 
         if action_type == "enable_hw_offload":
-            return SafeActuatorResult(self._enable_hw_offload(interface))
+            success = self._enable_hw_offload(interface)
+            return SafeActuatorResult(
+                success,
+                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
+                    action_type=action_type,
+                    success=success,
+                    simulated=False,
+                    policy_allowed=True,
+                ),
+            )
 
         if action_type == "increase_queue_size":
-            return SafeActuatorResult(self._increase_queue_size(interface))
+            success = self._increase_queue_size(interface)
+            return SafeActuatorResult(
+                success,
+                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
+                    action_type=action_type,
+                    success=success,
+                    simulated=False,
+                    policy_allowed=True,
+                ),
+            )
 
         if action_type == "throttle_traffic":
-            return SafeActuatorResult(self._throttle_traffic(interface))
+            success = self._throttle_traffic(interface)
+            return SafeActuatorResult(
+                success,
+                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
+                    action_type=action_type,
+                    success=success,
+                    simulated=False,
+                    policy_allowed=True,
+                ),
+            )
 
         logger.warning(f"Unknown action: {action_type}")
-        return SafeActuatorResult(False, f"unknown eBPF action: {action_type}")
+        return SafeActuatorResult(
+            False,
+            f"unknown eBPF action: {action_type}",
+            evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
+                action_type=action_type,
+                success=False,
+                simulated=False,
+                policy_allowed=True,
+            ),
+        )
 
     @staticmethod
     def _interface_exists(interface: str) -> bool:
