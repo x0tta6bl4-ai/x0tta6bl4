@@ -791,12 +791,28 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "artifact_paths"
     ]
     dpi_action = report["next_actions"][3]
+    assert dpi_action["automation_status"] == (
+        "local_command_available_with_operator_inputs"
+    )
     assert dpi_action["suggested_commands"][0] == [
+        "python3",
+        "scripts/ops/run_external_dpi_intake_local.py",
+        "--dry-run",
+        "--json",
+    ]
+    assert dpi_action["suggested_commands"][1] == [
         "python3",
         "scripts/ops/run_external_dpi_intake_local.py",
         "--json",
         "--write-ready",
     ]
+    assert "docs/verification/incoming/artifacts/dpi_lab" in dpi_action[
+        "artifact_paths"
+    ]
+    assert "ghost-pulse-external-evidence-import-*/import-report.json" in " ".join(
+        dpi_action["artifact_paths"]
+    )
+    assert "authorized external lab/field run" in dpi_action["implementation_gap"]
     settlement_action = report["next_actions"][4]
     assert settlement_action["automation_status"] == (
         "local_command_available_with_operator_inputs"

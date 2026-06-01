@@ -428,8 +428,20 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "durable censorship resistance, customer traffic, settlement, or "
             "production readiness by itself."
         ),
-        "automation_status": "local_command_available",
+        "automation_status": "local_command_available_with_operator_inputs",
+        "implementation_gap": (
+            "DPI bypass still requires an authorized external lab/field run with "
+            "private target/proxy/scope values entered locally. These commands "
+            "collect and import bounded redacted evidence only; they do not prove "
+            "durable censorship resistance, customer traffic, or production readiness."
+        ),
         "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/run_external_dpi_intake_local.py",
+                "--dry-run",
+                "--json",
+            ],
             [
                 "python3",
                 "scripts/ops/run_external_dpi_intake_local.py",
@@ -457,7 +469,11 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
         ],
         "artifact_paths": [
             "docs/verification/incoming/dpi_lab.json",
+            "docs/verification/incoming/artifacts/dpi_lab",
             "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json",
+            "docs/verification/ghost-pulse-external-evidence-import-*/import-report.json",
+            "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
+            "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
         ],
     },
     {

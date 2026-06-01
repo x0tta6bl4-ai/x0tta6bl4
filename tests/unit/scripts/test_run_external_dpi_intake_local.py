@@ -199,6 +199,16 @@ def test_ready_run_redacts_child_reports_without_hiding_collector_inputs(monkeyp
     assert "--treatment-proxy" in collector.calls[0]
     assert private["Authorized treatment proxy URL"] in collector.calls[0]
     assert len(importer.calls) == 2
+    assert importer.calls[1] == [
+        "--root",
+        str(module.ROOT.resolve()),
+        "--claim",
+        "dpi_lab",
+        "--candidate",
+        "docs/verification/incoming/dpi_lab.json",
+        "--write",
+        "--json",
+    ]
     assert [label for label, _secret, _required in prompts] == [
         "Confirmation",
         "Authorized target URL",
