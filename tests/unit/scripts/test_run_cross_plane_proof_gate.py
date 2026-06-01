@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from scripts.ops.run_cross_plane_proof_gate import build_report, main
+from scripts.ops.run_cross_plane_proof_gate import DEFAULT_CLAIMS, build_report, main
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -624,6 +624,33 @@ def test_gate_allows_local_claim_when_required_flags_are_true(tmp_path: Path) ->
         "local_observed_state",
         "local_billing_lifecycle",
     }
+
+
+def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> None:
+    _write_map(tmp_path)
+
+    expected_claims = (
+        "production_readiness",
+        "dataplane_delivery",
+        "traffic_delivery",
+        "customer_traffic",
+        "trust_finality",
+        "dpi_bypass",
+        "settlement_finality",
+    )
+
+    assert DEFAULT_CLAIMS == expected_claims
+
+    report = build_report(tmp_path)
+
+    assert [item["claim_id"] for item in report["claim_results"]] == list(
+        expected_claims
+    )
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    assert report["allowed"] is False
+    assert report["summary"]["claims_total"] == len(expected_claims)
+    assert report["summary"]["claims_blocked"] == len(expected_claims)
+    assert report["summary"]["high_risk_claims_requested"] == len(expected_claims)
 
 
 def test_gate_blocks_high_risk_claims_when_current_gaps_are_open(tmp_path: Path) -> None:

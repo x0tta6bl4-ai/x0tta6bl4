@@ -236,6 +236,9 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
 DEFAULT_CLAIMS = (
     "production_readiness",
     "dataplane_delivery",
+    "traffic_delivery",
+    "customer_traffic",
+    "trust_finality",
     "dpi_bypass",
     "settlement_finality",
 )
