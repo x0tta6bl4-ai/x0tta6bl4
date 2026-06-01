@@ -2,11 +2,18 @@ name: Native App Builds
 
 on:
   workflow_dispatch:
+    inputs:
+      require_complete_release:
+        description: "Fail the release audit unless Android, iOS, Windows, and Ubuntu release artifacts are complete."
+        required: false
+        type: boolean
+        default: false
   push:
     branches: [ main, develop, "sync-main-*" ]
     paths:
       - ".github/workflows/native-app-builds.yml"
       - "scripts/ops/check_native_signing_readiness.py"
+      - "scripts/ops/verify_native_release_artifacts.py"
       - "scripts/ops/verify_ios_signing_material.py"
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
@@ -15,6 +22,7 @@ on:
     paths:
       - ".github/workflows/native-app-builds.yml"
       - "scripts/ops/check_native_signing_readiness.py"
+      - "scripts/ops/verify_native_release_artifacts.py"
       - "scripts/ops/verify_ios_signing_material.py"
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
@@ -643,3 +651,43 @@ jobs:
         with:
           name: x0tta6bl4-ios-manifest
           path: .tmp/native-manifest/ios/*
+
+  native-release-audit:
+    name: Native Release Artifact Audit
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - signing-readiness
+      - android
+      - ubuntu-desktop
+      - windows-desktop
+      - ios-simulator
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download native build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: .tmp/native-release-artifacts
+
+      - name: Verify native release artifacts
+        run: |
+          REQUIRE_COMPLETE=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && \
+             [ "${{ inputs.require_complete_release }}" = "true" ]; then
+            REQUIRE_COMPLETE="--require-complete"
+          fi
+
+          python3 scripts/ops/verify_native_release_artifacts.py \
+            --artifact-root .tmp/native-release-artifacts \
+            --output .tmp/native-release-audit/native-release-artifact-audit.json \
+            --json \
+            $REQUIRE_COMPLETE
+
+      - name: Upload native release artifact audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-native-release-artifact-audit
+          path: .tmp/native-release-audit/native-release-artifact-audit.json
+          if-no-files-found: ignore
