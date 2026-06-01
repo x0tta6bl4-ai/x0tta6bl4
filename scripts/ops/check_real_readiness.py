@@ -41,9 +41,57 @@ EXTERNAL_DPI_SCHEMA_VERSION = "x0tta6bl4.external_dpi_proxy_reachability_evidenc
 DATAPLANE_DELIVERY_EVENTBUS_COLLECTOR = (
     "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py"
 )
+DATAPLANE_DELIVERY_OPERATOR_HANDOFF = (
+    "scripts/ops/run_dataplane_delivery_operator_handoff.py"
+)
+DATAPLANE_DELIVERY_OPERATOR_EVIDENCE_RUNNER = (
+    "scripts/ops/run_dataplane_delivery_operator_evidence.py"
+)
+DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER = (
+    "scripts/ops/verify_dataplane_delivery_operator_flow.py"
+)
+DATAPLANE_DELIVERY_PRIVATE_TARGET_OPERATOR_RUN_VERIFIER = (
+    "scripts/ops/verify_dataplane_delivery_private_target_operator_run.py"
+)
+PRODUCTION_DEPLOY_BLOCKED_PREFLIGHT_EVIDENCE_RUNNER = (
+    "scripts/ops/run_production_deploy_blocked_preflight_evidence.py"
+)
 MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER = (
     "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py"
 )
+MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_VERIFIER = (
+    "scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py"
+)
+MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER = (
+    "scripts/ops/verify_maas_real_agent_control_loop.py"
+)
+CROSS_PLANE_PROOF_GATE_RETENTION_VERIFIER = (
+    "scripts/ops/verify_cross_plane_proof_gate_retention.py"
+)
+SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER = (
+    "scripts/ops/verify_safe_actuator_metadata_adoption.py"
+)
+SAFE_ACTUATOR_RUNTIME_METADATA_RETENTION_VERIFIER = (
+    "scripts/ops/verify_safe_actuator_runtime_metadata_retention.py"
+)
+SAFE_ACTUATOR_ACTIVE_AUDIT_REQUIRED_MARKERS = (
+    "control_spine_fragmentation",
+    "parse-error-free",
+    "20/20",
+    "63/63",
+    "18 EventBus",
+    "4 ops result-metadata",
+    SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER,
+    SAFE_ACTUATOR_RUNTIME_METADATA_RETENTION_VERIFIER,
+)
+SAFE_ACTUATOR_ACTIVE_AUDIT_FORBIDDEN_MARKERS = (
+    "`14/14` local cases",
+    "`18/18` local cases",
+)
+ECONOMY_DATAPLANE_SEPARATION_VERIFIER = (
+    "scripts/ops/verify_economy_dataplane_separation.py"
+)
+SWARM_COORDINATION_CONTRACT_CHECK = "scripts/agents/check_coordination_contract.sh"
 REQUIRED_CROSS_PLANE_PLANES = {
     "data_plane",
     "control_plane",
@@ -280,9 +328,21 @@ def check_required_files(root: Path) -> list[CheckResult]:
         "x0tta6bl4-app/.env.example",
         "alembic/env.py",
         "alembic/versions/d7c8f1a2b3c4_add_hashed_api_keys.py",
+        "src/integration/external_settlement_operator_handoff.py",
         "scripts/ops/run_cross_plane_proof_gate.py",
+        CROSS_PLANE_PROOF_GATE_RETENTION_VERIFIER,
+        SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER,
+        SAFE_ACTUATOR_RUNTIME_METADATA_RETENTION_VERIFIER,
+        ECONOMY_DATAPLANE_SEPARATION_VERIFIER,
         DATAPLANE_DELIVERY_EVENTBUS_COLLECTOR,
+        DATAPLANE_DELIVERY_OPERATOR_HANDOFF,
+        DATAPLANE_DELIVERY_OPERATOR_EVIDENCE_RUNNER,
+        DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER,
+        DATAPLANE_DELIVERY_PRIVATE_TARGET_OPERATOR_RUN_VERIFIER,
+        PRODUCTION_DEPLOY_BLOCKED_PREFLIGHT_EVIDENCE_RUNNER,
         MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER,
+        MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_VERIFIER,
+        MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER,
         "src/mesh/metric_evidence_policy.py",
         "src/ml/graphsage_anomaly_detector.py",
         "src/ml/graphsage_observe_mode.py",
@@ -576,9 +636,17 @@ def check_post_action_dataplane_gate_contract(root: Path) -> list[CheckResult]:
         root,
         MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER,
     )
+    maas_heal_api_probe_verifier = _read(
+        root,
+        MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_VERIFIER,
+    )
     maas_heal_probe_verifier_tests = _read(
         root,
         "tests/unit/scripts/test_verify_maas_heal_post_action_dataplane_probe.py",
+    )
+    maas_heal_api_probe_verifier_tests = _read(
+        root,
+        "tests/unit/scripts/test_verify_maas_heal_api_post_action_dataplane_probe.py",
     )
 
     required = {
@@ -677,6 +745,35 @@ def check_post_action_dataplane_gate_contract(root: Path) -> list[CheckResult]:
             and '"production_readiness_claim_allowed"] is False'
             in maas_heal_probe_verifier_tests
         ),
+        "maas_heal_api_post_action_dataplane_probe_verifier": (
+            "x0tta6bl4.maas_heal_api_post_action_dataplane_probe.v1"
+            in maas_heal_api_probe_verifier
+            and "MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_READY"
+            in maas_heal_api_probe_verifier
+            and "TestClient(app)" in maas_heal_api_probe_verifier
+            and "dataplane_probe_target" in maas_heal_api_probe_verifier
+            and "/nodes/{seeded['node_id']}/heartbeat"
+            in maas_heal_api_probe_verifier
+            and "/nodes/{seeded['node_id']}/heal" in maas_heal_api_probe_verifier
+            and "manager_received_probe_target" in maas_heal_api_probe_verifier
+            and '"traffic_delivery_claim_allowed": revalidation.get('
+            in maas_heal_api_probe_verifier
+            and '"customer_traffic_claim_allowed": revalidation.get('
+            in maas_heal_api_probe_verifier
+            and '"production_readiness_claim_allowed": revalidation.get('
+            in maas_heal_api_probe_verifier
+            and "raw_target_leaked" in maas_heal_api_probe_verifier
+            and "does not prove live customer traffic"
+            in maas_heal_api_probe_verifier
+        ),
+        "maas_heal_api_post_action_dataplane_probe_verifier_tests": (
+            "test_maas_heal_api_verifier_redacts_target_and_surfaces_gate"
+            in maas_heal_api_probe_verifier_tests
+            and "10.123.45.67" in maas_heal_api_probe_verifier_tests
+            and "target not in rendered" in maas_heal_api_probe_verifier_tests
+            and '"production_readiness_claim_allowed"] is False'
+            in maas_heal_api_probe_verifier_tests
+        ),
     }
     missing = [name for name, ok in required.items() if not ok]
     if missing:
@@ -684,20 +781,27 @@ def check_post_action_dataplane_gate_contract(root: Path) -> list[CheckResult]:
             fail_check(
                 "post_action_dataplane_gate_contract",
                 "Missing post-action dataplane gate fragments: " + ", ".join(missing),
-                "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/api/maas_nodes_legacy.py; src/api/maas/endpoints/nodes.py; src/api/maas/endpoints/nodes_legacy.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py; scripts/ops/verify_maas_heal_post_action_dataplane_probe.py",
+                "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/api/maas_nodes_legacy.py; src/api/maas/endpoints/nodes.py; src/api/maas/endpoints/nodes_legacy.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py; scripts/ops/verify_maas_heal_post_action_dataplane_probe.py; scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py",
             )
         ]
     return [
         pass_check(
             "post_action_dataplane_gate_contract",
-            "Mesh heal/restart, self-healing recovery, and eBPF self-healing paths keep restored-dataplane/route/traffic/production claims behind bounded proof or fail-closed claim gates, and service traces keep post-action dataplane profile claims behind the nested claim gate",
-            "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/api/maas_nodes_legacy.py; src/api/maas/endpoints/nodes.py; src/api/maas/endpoints/nodes_legacy.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py; scripts/ops/verify_maas_heal_post_action_dataplane_probe.py",
+            "Mesh heal/restart, self-healing recovery, and eBPF self-healing paths keep restored-dataplane/route/traffic/production claims behind bounded proof or fail-closed claim gates; service traces keep post-action dataplane profile claims behind the nested claim gate; and MaaS API heartbeat->heal caller path has a redacted bounded verifier",
+            "src/mesh/action_enforcer.py; src/core/mape_k_loop.py; src/api/maas_nodes.py; src/api/maas_nodes_legacy.py; src/api/maas/endpoints/nodes.py; src/api/maas/endpoints/nodes_legacy.py; src/services/service_event_trace.py; src/self_healing/recovery/executor.py; src/self_healing/ebpf_anomaly_detector.py; scripts/ops/verify_maas_heal_post_action_dataplane_probe.py; scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py",
         )
     ]
 
 
 def check_dataplane_delivery_eventbus_collector_contract(root: Path) -> list[CheckResult]:
     collector = _read(root, DATAPLANE_DELIVERY_EVENTBUS_COLLECTOR)
+    handoff = _read(root, DATAPLANE_DELIVERY_OPERATOR_HANDOFF)
+    operator_runner = _read(root, DATAPLANE_DELIVERY_OPERATOR_EVIDENCE_RUNNER)
+    flow_verifier = _read(root, DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER)
+    private_target_verifier = _read(
+        root,
+        DATAPLANE_DELIVERY_PRIVATE_TARGET_OPERATOR_RUN_VERIFIER,
+    )
     required = {
         "collector_schema": (
             'SCHEMA = "x0tta6bl4.dataplane_delivery_eventbus_evidence_collector.v1"'
@@ -759,6 +863,99 @@ def check_dataplane_delivery_eventbus_collector_contract(root: Path) -> list[Che
             and '"dpi_bypass_claim_allowed": False' in collector
             and '"settlement_finality_claim_allowed": False' in collector
         ),
+        "operator_handoff_schema": (
+            'SCHEMA = "x0tta6bl4.dataplane_delivery_operator_handoff.v1"'
+            in handoff
+            and "DATAPLANE_DELIVERY_OPERATOR_HANDOFF_READY" in handoff
+            and "DATAPLANE_DELIVERY_OPERATOR_HANDOFF_BLOCKED_ON_OPERATOR" in handoff
+        ),
+        "operator_handoff_uses_local_env_inputs": (
+            "X0T_DATAPLANE_PROBE_HOST" in handoff
+            and "X0T_DATAPLANE_PROBE_PORT" in handoff
+            and "X0T_DATAPLANE_PROBE_LABEL" in handoff
+        ),
+        "operator_handoff_blocks_nonlocal_targets": (
+            "def is_localish_target" in handoff
+            and "target_must_be_loopback_private_or_link_local" in handoff
+        ),
+        "operator_handoff_redacts_target": (
+            '"host_hash": sha256_text(host)' in handoff
+            and '"raw_target_redacted": True' in handoff
+        ),
+        "operator_handoff_command_surface": (
+            "collect_dataplane_delivery_eventbus_evidence.py" in handoff
+            and "--allow-local-probe --write-event --json" in handoff
+            and "run_cross_plane_proof_gate.py" in handoff
+            and "verify_cross_plane_proof_gate_retention.py" in handoff
+            and "run_dataplane_delivery_operator_evidence.py" in handoff
+            and "--allow-operator-probe --require-retained --json" in handoff
+            and "entrypoint_exists" in handoff
+            and "shell_redirection_placeholder_detected" in handoff
+        ),
+        "operator_handoff_read_only_boundary": (
+            '"mutates_runtime": False' in handoff
+            and '"runs_probe": False' in handoff
+            and '"writes_eventbus": False' in handoff
+            and "does not prove customer traffic" in handoff
+            and "do not paste private targets into chat" in handoff
+        ),
+        "operator_flow_verifier_contract": (
+            'SCHEMA = "x0tta6bl4.dataplane_delivery_operator_flow.v1"'
+            in flow_verifier
+            and "DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIED" in flow_verifier
+            and "run_dataplane_delivery_operator_handoff" in flow_verifier
+            and "collect_dataplane_delivery_eventbus_evidence" in flow_verifier
+            and "dataplane_delivery_artifact_evidence" in flow_verifier
+            and '"runs_live_probe": False' in flow_verifier
+            and '"mutates_project_runtime": False' in flow_verifier
+            and '"operator_run_evidence_claimed": False' in flow_verifier
+            and '"real_operator_run_evidence_retained": False' in flow_verifier
+            and '"customer_traffic_claimed": False' in flow_verifier
+            and '"production_readiness_claimed": False' in flow_verifier
+            and "--require-verified" in flow_verifier
+            and "does not prove" in flow_verifier
+            and "real operator-run evidence" in flow_verifier
+        ),
+        "operator_evidence_runner_contract": (
+            'SCHEMA = "x0tta6bl4.dataplane_delivery_operator_evidence_run.v1"'
+            in operator_runner
+            and "DATAPLANE_OPERATOR_EVIDENCE_PROBE_NOT_AUTHORIZED" in operator_runner
+            and "DATAPLANE_OPERATOR_EVIDENCE_RETAINED" in operator_runner
+            and "--allow-operator-probe" in operator_runner
+            and "--require-retained" in operator_runner
+            and "run_dataplane_delivery_operator_handoff" in operator_runner
+            and "collect_dataplane_delivery_eventbus_evidence" in operator_runner
+            and "run_cross_plane_proof_gate" in operator_runner
+            and '"opens_socket": False' in operator_runner
+            and '"writes_eventbus": False' in operator_runner
+            and '"writes_validation_artifacts": False' in operator_runner
+            and '"mutates_services": False' in operator_runner
+            and '"raw_targets_redacted": True' in operator_runner
+            and '"customer_traffic_claimed": False' in operator_runner
+            and '"traffic_delivery_claimed": False' in operator_runner
+            and '"production_readiness_claimed": False' in operator_runner
+            and "Do not paste private targets" in operator_runner
+            and "does not prove customer traffic" in operator_runner
+        ),
+        "private_target_operator_run_contract": (
+            'SCHEMA = "x0tta6bl4.dataplane_delivery_private_target_operator_run.v1"'
+            in private_target_verifier
+            and "DATAPLANE_PRIVATE_TARGET_OPERATOR_RUN_RETAINED"
+            in private_target_verifier
+            and "--allow-private-target-probe" in private_target_verifier
+            and "is_private_non_loopback_target" in private_target_verifier
+            and "run_dataplane_delivery_operator_evidence"
+            in private_target_verifier
+            and '"raw_target_redacted": True' in private_target_verifier
+            and '"operator_run_evidence_retained": False'
+            in private_target_verifier
+            and '"customer_traffic_claimed": False' in private_target_verifier
+            and '"external_reachability_claimed": False' in private_target_verifier
+            and '"traffic_delivery_claimed": False' in private_target_verifier
+            and '"production_readiness_claimed": False' in private_target_verifier
+            and "raw_target_leaked" in private_target_verifier
+            and "does not prove customer traffic" in private_target_verifier
+        ),
     }
     missing = [name for name, ok in required.items() if not ok]
     if missing:
@@ -773,8 +970,8 @@ def check_dataplane_delivery_eventbus_collector_contract(root: Path) -> list[Che
     return [
         pass_check(
             "dataplane_delivery_eventbus_collector_contract",
-            "Dataplane delivery collector is local-only, opt-in for probing and EventBus writes, redacts targets, emits proof-gate-compatible post-action revalidation evidence, and keeps traffic/customer/DPI/settlement/production claims false",
-            DATAPLANE_DELIVERY_EVENTBUS_COLLECTOR,
+            "Dataplane delivery collector is local-only, opt-in for probing and EventBus writes, redacts targets, emits proof-gate-compatible post-action revalidation evidence, exposes a read-only operator handoff and explicit operator evidence runner for private/local targets, has a bounded operator-flow verifier, and keeps traffic/customer/DPI/settlement/production claims false",
+            f"{DATAPLANE_DELIVERY_EVENTBUS_COLLECTOR}; {DATAPLANE_DELIVERY_OPERATOR_HANDOFF}; {DATAPLANE_DELIVERY_OPERATOR_EVIDENCE_RUNNER}; {DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER}; {DATAPLANE_DELIVERY_PRIVATE_TARGET_OPERATOR_RUN_VERIFIER}",
         )
     ]
 
@@ -1176,6 +1373,10 @@ def check_node_runtime_identity_binding_contract(root: Path) -> list[CheckResult
         root,
         "scripts/ops/verify_measured_attestation_verifier_smoke.py",
     )
+    measured_attestation_handoff = _read(
+        root,
+        "scripts/ops/run_measured_attestation_verifier_handoff.py",
+    )
     measured_attestation_smoke_validator = _read(
         root,
         "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py",
@@ -1183,6 +1384,10 @@ def check_node_runtime_identity_binding_contract(root: Path) -> list[CheckResult
     measured_attestation_smoke_tests = _read(
         root,
         "tests/unit/scripts/test_verify_measured_attestation_verifier_smoke.py",
+    )
+    measured_attestation_handoff_tests = _read(
+        root,
+        "tests/unit/scripts/test_run_measured_attestation_verifier_handoff.py",
     )
     measured_attestation_smoke_validator_tests = _read(
         root,
@@ -1323,6 +1528,10 @@ def check_node_runtime_identity_binding_contract(root: Path) -> list[CheckResult
             and "test_measured_attestation_binding_requires_fresh_runtime_refresh"
             in api_tests
             and "class TEEVerificationResult" in tee_attestation
+            and "COMMAND_VERIFIER_PROVIDERS" in tee_attestation
+            and '"sev"' in tee_attestation
+            and '"nitro"' in tee_attestation
+            and "verifier_commands" in tee_attestation
             and "verify_report_with_context" in tee_attestation
             and "verifier_provenance" in tee_attestation
             and "production_verifier_claim_allowed" in tee_attestation
@@ -1369,6 +1578,9 @@ def check_node_runtime_identity_binding_contract(root: Path) -> list[CheckResult
             and "--allow-local-verifier-run" in measured_attestation_smoke
             and "TEEValidator(" in measured_attestation_smoke
             and "allow_mock=False" in measured_attestation_smoke
+            and 'choices=["sgx", "sev", "nitro"]' in measured_attestation_smoke
+            and "--verifier-command" in measured_attestation_smoke
+            and "verifier_commands" in measured_attestation_smoke
             and "sgx_verifier_command" in measured_attestation_smoke
             and "verify_report_with_context" in measured_attestation_smoke
             and '"raw_attestation_material_retained": False'
@@ -1390,7 +1602,44 @@ def check_node_runtime_identity_binding_contract(root: Path) -> list[CheckResult
             in measured_attestation_smoke_tests
             and "test_sgx_verifier_smoke_requires_explicit_local_authorization"
             in measured_attestation_smoke_tests
+            and "test_nitro_verifier_smoke_uses_generic_provider_command"
+            in measured_attestation_smoke_tests
             and "not in output_text" in measured_attestation_smoke_tests
+            and "x0tta6bl4.measured_attestation_verifier_handoff.v1"
+            in measured_attestation_handoff
+            and "MEASURED_ATTESTATION_VERIFIER_HANDOFF_READY"
+            in measured_attestation_handoff
+            and "MEASURED_ATTESTATION_VERIFIER_HANDOFF_BLOCKED_ON_OPERATOR"
+            in measured_attestation_handoff
+            and "X0T_MEASURED_ATTESTATION_REPORT_DATA_FILE"
+            in measured_attestation_handoff
+            and "X0T_MEASURED_ATTESTATION_PROVIDER"
+            in measured_attestation_handoff
+            and "X0T_MEASURED_ATTESTATION_VERIFIER_COMMAND"
+            in measured_attestation_handoff
+            and "X0T_MEASURED_ATTESTATION_SGX_VERIFIER_COMMAND"
+            in measured_attestation_handoff
+            and "--verifier-command" in measured_attestation_handoff
+            and "run_measured_attestation_verifier_smoke"
+            in measured_attestation_handoff
+            and "verify_measured_attestation_verifier_smoke_artifact.py"
+            in measured_attestation_handoff
+            and "run_cross_plane_proof_gate.py" in measured_attestation_handoff
+            and '"runs_verifier": False' in measured_attestation_handoff
+            and '"writes_artifacts": False' in measured_attestation_handoff
+            and '"raw_inputs_redacted": True' in measured_attestation_handoff
+            and '"production_readiness_claimed": False'
+            in measured_attestation_handoff
+            and "Do not paste" in measured_attestation_handoff
+            and "test_handoff_ready_with_redacted_local_inputs"
+            in measured_attestation_handoff_tests
+            and "test_handoff_blocks_missing_inputs_without_running_verifier"
+            in measured_attestation_handoff_tests
+            and "test_handoff_blocks_symlink_attestation_input"
+            in measured_attestation_handoff_tests
+            and "test_handoff_ready_for_sev_with_generic_verifier_command"
+            in measured_attestation_handoff_tests
+            and "not in rendered" in measured_attestation_handoff_tests
             and "x0tta6bl4.measured_attestation_verifier_smoke_validator.v1"
             in measured_attestation_smoke_validator
             and "x0tta6bl4.measured_attestation_verifier_smoke.v1"
@@ -1421,15 +1670,21 @@ def check_node_runtime_identity_binding_contract(root: Path) -> list[CheckResult
             in measured_attestation_smoke_validator_tests
             and "MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID"
             in cross_plane_proof_gate
+            and "MEASURED_ATTESTATION_HANDOFF" in cross_plane_proof_gate
             and "measured_attestation_verifier_smoke_artifact_evidence"
+            in cross_plane_proof_gate
+            and "measured_attestation_verifier_handoff_status"
             in cross_plane_proof_gate
             and "verify_measured_attestation_verifier_smoke_artifact.py"
             in cross_plane_proof_gate
             and "validate_measured_attestation_verifier_smoke_artifact"
             in cross_plane_proof_gate
+            and '"operator_handoff"' in cross_plane_proof_gate
             and "production_readiness_measured_attestation_verifier_smoke_artifact_not_verified"
             in cross_plane_proof_gate
             and "measured_attestation_verifier_smoke_artifact_not_ready"
+            in cross_plane_proof_gate
+            and "measured_attestation_verifier_handoff_not_ready"
             in cross_plane_proof_gate
             and "test_gate_allows_measured_attestation_smoke_only_with_validated_artifact"
             in cross_plane_proof_gate_tests
@@ -1437,6 +1692,7 @@ def check_node_runtime_identity_binding_contract(root: Path) -> list[CheckResult
             in cross_plane_proof_gate_tests
             and "test_gate_blocks_production_readiness_when_measured_attestation_smoke_is_missing"
             in cross_plane_proof_gate_tests
+            and "operator_handoff" in cross_plane_proof_gate_tests
         ),
         "node_exports_runtime_identity_helpers": (
             "bind_node_runtime_identity" in node_exports
@@ -1616,7 +1872,9 @@ def check_node_runtime_identity_binding_contract(root: Path) -> list[CheckResult
                 "proxy verified binding, or send a live JWT-SVID; the cross-plane "
                 "proof gate now treats the bounded measured-attestation verifier "
                 "smoke as a separate trust/evidence artifact and a production "
-                "readiness dependency without promoting production trust finality"
+                "readiness dependency without promoting production trust finality, "
+                "and surfaces redacted handoff blockers when the smoke artifact "
+                "is missing"
             ),
             "src/api/maas/endpoints/nodes.py; src/api/maas/nodes/admission.py; src/database/__init__.py; agent/internal/api/client.go; scripts/ops/verify_measured_attestation_verifier_smoke.py; scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py; scripts/ops/run_cross_plane_proof_gate.py",
         )
@@ -4094,6 +4352,7 @@ def check_economy_dataplane_claim_gate_contract(root: Path) -> list[CheckResult]
         "scripts/ops/smoke_ledger_event_trace_citation.py",
     )
     billing_api = _read(root, "src/api/billing.py")
+    modular_billing = _read(root, "src/api/maas/endpoints/billing.py")
     maas_billing = _read(root, "src/api/maas_billing.py")
     maas_compat = _read_with_optional(
         root,
@@ -4230,6 +4489,19 @@ def check_economy_dataplane_claim_gate_contract(root: Path) -> list[CheckResult]
             and 'surface="maas_billing.customer_portal"' in maas_billing
             and 'surface="maas_billing.invoice_checkout"' in maas_billing
         ),
+        "modular_billing_payment_response_claim_gate": (
+            "async def create_payment(" in modular_billing
+            and '"claim_gate": settlement["claim_gate"]' in modular_billing
+            and '"cross_plane_claim_gate": _modular_cross_plane_claim_gate("create_payment")'
+            in modular_billing
+            and '"serviceability_claim_allowed": False' in modular_billing
+            and '"paid_customer_serviceability_claim_allowed": False'
+            in modular_billing
+            and '"customer_access_claim_allowed": False' in modular_billing
+            and '"node_provisioning_claim_allowed": False' in modular_billing
+            and '"requires_service_runtime_evidence_for_access_claim": True'
+            in modular_billing
+        ),
         "compat_billing_pay_claim_headers": "_COMPAT_BILLING_PAY_CLAIM_HEADERS"
         in maas_compat
         and "def _set_compat_billing_pay_claim_headers" in maas_compat,
@@ -4318,14 +4590,19 @@ def check_economy_dataplane_claim_gate_contract(root: Path) -> list[CheckResult]
         pass_check(
             "economy_dataplane_claim_gate_contract",
             "Economy, reward, marketplace, billing config/checkout/order-status/revenue/webhook responses, compat billing, relay, service trace, RAG, Ledger API, and Ledger citation smoke evidence keep settlement/dataplane claims behind explicit gates and redacted upstream gate summaries",
-            "billing/reward/share-to-earn/marketplace/compat/relay/service-trace/rag/ledger-api/smoke static file scan",
+            "billing/modular-billing/reward/share-to-earn/marketplace/compat/relay/service-trace/rag/ledger-api/smoke static file scan",
         )
     ]
 
 
 def check_cross_plane_proof_gate_contract(root: Path) -> list[CheckResult]:
     gate = _read(root, "scripts/ops/run_cross_plane_proof_gate.py")
+    retention_verifier = _read(root, CROSS_PLANE_PROOF_GATE_RETENTION_VERIFIER)
     external_settlement = _read(root, "src/integration/external_settlement.py")
+    external_settlement_handoff = _read(
+        root,
+        "src/integration/external_settlement_operator_handoff.py",
+    )
     required = {
         "cross_plane_schema": 'SCHEMA = "x0tta6bl4.cross_plane_proof_gate.v1"' in gate,
         "claim_requirements": "CLAIM_REQUIREMENTS" in gate,
@@ -4371,6 +4648,34 @@ def check_cross_plane_proof_gate_contract(root: Path) -> list[CheckResult]:
             and "not live traffic, production SLO, DPI bypass, or settlement-finality proof"
             in gate
         ),
+        "proof_gate_retention_artifact_validator": (
+            'SCHEMA = "x0tta6bl4.cross_plane_proof_gate.retention_validator.v1"'
+            in retention_verifier
+            and 'PROOF_GATE_SCHEMA = "x0tta6bl4.cross_plane_proof_gate.v1"'
+            in retention_verifier
+            and 'RETENTION_SCHEMA = "x0tta6bl4.cross_plane_proof_gate.retention.v1"'
+            in retention_verifier
+            and "DEFAULT_ARTIFACT = Path(\".tmp/validation-shards/cross-plane-proof-gate-current.json\")"
+            in retention_verifier
+            and "DEFAULT_MAX_AGE_HOURS = 168" in retention_verifier
+            and "FUTURE_SKEW_TOLERANCE_SECONDS = 300" in retention_verifier
+            and "def source_artifact_failures" in retention_verifier
+            and "source_artifacts_missing" in retention_verifier
+            and "source_artifact_sha256_mismatch" in retention_verifier
+            and "retained_proof_gate_artifact_stale" in retention_verifier
+            and "retained_artifact_is_symlink" in retention_verifier
+            and "retention_mutates_runtime_not_false" in retention_verifier
+            and "retention_collects_live_evidence_not_false" in retention_verifier
+            and "retained_artifact_path_mismatch" in retention_verifier
+            and "canonical_artifact_path_mismatch" in retention_verifier
+            and "retention_context_source_artifact_roles_mismatch"
+            in retention_verifier
+            and "source_artifact_hashes_verified" in retention_verifier
+            and "--require-valid" in retention_verifier
+            and "does not prove production readiness" in retention_verifier
+            and "live traffic, DPI bypass" in retention_verifier
+            and "settlement finality" in retention_verifier
+        ),
         "dataplane_delivery_eventbus_artifact_evidence": (
             "def dataplane_delivery_artifact_evidence" in gate
             and "DATAPLANE_DELIVERY_CLAIM_ID" in gate
@@ -4389,6 +4694,17 @@ def check_cross_plane_proof_gate_contract(root: Path) -> list[CheckResult]:
             and "restored_dataplane_claim_gate_probe_not_observed" in gate
             and "restored_dataplane_claim_gate_dataplane_not_observed" in gate
             and '"candidate_blockers": []' in gate
+        ),
+        "dataplane_delivery_eventbus_artifact_requires_fresh_evidence": (
+            "EVENTBUS_EVIDENCE_MAX_AGE_HOURS" in gate
+            and "EVENTBUS_FUTURE_SKEW_TOLERANCE_SECONDS" in gate
+            and "def _parse_event_timestamp" in gate
+            and "def _event_freshness_blockers" in gate
+            and "datetime.now(timezone.utc)" in gate
+            and 'prefix="dataplane_evidence"' in gate
+            and "_event_stale" in gate
+            and "_timestamp_missing_or_invalid" in gate
+            and "_timestamp_too_far_in_future" in gate
         ),
         "dpi_imported_artifact_evidence": "def dpi_lab_artifact_evidence" in gate,
         "dpi_artifact_required_for_claim": '"required_for_claim": "dpi_bypass"' in gate,
@@ -4464,6 +4780,33 @@ def check_cross_plane_proof_gate_contract(root: Path) -> list[CheckResult]:
             and "operator_sequence_ready" in gate
             and "operator_handoff" in gate
         ),
+        "external_settlement_operator_handoff_claim_gate": (
+            "x0tta6bl4.external_settlement.operator_handoff.claim_gate.v1"
+            in external_settlement_handoff
+            and "def _claim_gate" in external_settlement_handoff
+            and '"external_settlement_finality_claim_allowed": settlement_finality_ready'
+            in external_settlement_handoff
+            and '"economy_finality_claim_allowed": settlement_finality_ready'
+            in external_settlement_handoff
+            and '"retained_evidence_claim_allowed": retained_evidence_ready'
+            in external_settlement_handoff
+            and '"live_rpc_receipt_claim_allowed": live_rpc_ready'
+            in external_settlement_handoff
+            and '"operator_blockers": operator_blockers' in external_settlement_handoff
+            and '"dataplane_delivery_claim_allowed": False'
+            in external_settlement_handoff
+            and '"customer_traffic_claim_allowed": False'
+            in external_settlement_handoff
+            and '"customer_dataplane_delivery_claim_allowed": False'
+            in external_settlement_handoff
+            and '"revenue_recognition_claim_allowed": False'
+            in external_settlement_handoff
+            and '"production_readiness_claim_allowed": False'
+            in external_settlement_handoff
+            and '"claim_gate": claim_gate' in external_settlement_handoff
+            and '"claim_gate_present": True' in external_settlement_handoff
+            and "never allows dataplane" in external_settlement_handoff
+        ),
         "economy_boundary_event_artifact_evidence": (
             "def economy_boundary_artifact_evidence" in gate
             and "ECONOMY_BOUNDARY_CLAIM_ID" in gate
@@ -4478,6 +4821,14 @@ def check_cross_plane_proof_gate_contract(root: Path) -> list[CheckResult]:
             and "candidate_events_scanned_limit" in gate
             and "event_log_lines_seen" in gate
         ),
+        "economy_boundary_event_artifact_requires_fresh_evidence": (
+            "EVENTBUS_EVIDENCE_MAX_AGE_HOURS" in gate
+            and "_event_freshness_blockers" in gate
+            and 'prefix="economy_boundary"' in gate
+            and "_event_stale" in gate
+            and "_timestamp_missing_or_invalid" in gate
+            and "_timestamp_too_far_in_future" in gate
+        ),
         "economy_boundary_event_artifact_blocker": (
             "economy_boundary_artifact_not_verified" in gate
         ),
@@ -4487,6 +4838,13 @@ def check_cross_plane_proof_gate_contract(root: Path) -> list[CheckResult]:
             and "required_for_high_risk_claims" in gate
             and "external_settlement_finality_missing" in gate
             and "economy_event_redaction_metadata_missing" in gate
+        ),
+        "economy_boundary_blocks_dataplane_overpromotion": (
+            "economy_boundary_overpromotes_dataplane_confirmation" in gate
+            and "economy_boundary_overpromotes_dataplane_delivery" in gate
+            and "economy_source_gate_overpromotes_dataplane_delivery" in gate
+            and "customer_dataplane_delivery_claim_allowed" in gate
+            and "traffic_delivery_claim_allowed" in gate
         ),
     }
     missing = [name for name, ok in required.items() if not ok]
@@ -4501,7 +4859,7 @@ def check_cross_plane_proof_gate_contract(root: Path) -> list[CheckResult]:
     return [
         pass_check(
             "cross_plane_proof_gate_contract",
-            "Cross-plane proof gate can fail-close strong production/dataplane/DPI/settlement claims, write its canonical validation shard, identify current map/audit source artifacts by hash, emit a proof-gate artifact retention manifest, keep dynamic repo imports working in CLI mode, require nested dataplane claim-gate evidence, require fresh dpi_lab import provenance, surface bounded DPI replacement/intake context, redact external settlement RPC endpoint metadata, surface bounded external-settlement operator handoff context, and require retained economy-boundary evidence with source-prefiltered EventBus retention scan for settlement/production promotion",
+            "Cross-plane proof gate can fail-close strong production/dataplane/DPI/settlement claims, write its canonical validation shard, identify current map/audit source artifacts by hash, emit and validate a proof-gate artifact retention manifest, keep dynamic repo imports working in CLI mode, require nested dataplane claim-gate evidence, require fresh dpi_lab import provenance, surface bounded DPI replacement/intake context, redact external settlement RPC endpoint metadata, surface bounded external-settlement operator handoff context, and require retained economy-boundary evidence with source-prefiltered EventBus retention scan for settlement/production promotion",
             "scripts/ops/run_cross_plane_proof_gate.py",
         )
     ]
@@ -5143,6 +5501,10 @@ def check_safe_actuator_runtime_metadata_contract(root: Path) -> list[CheckResul
     spire_server_client = _read(root, "src/security/spiffe/server/client.py")
     spire_agent_manager = _read(root, "src/security/spiffe/agent/manager.py")
     token_bridge = _read(root, "src/dao/bridge/core.py")
+    dao_executor = _read(root, "src/dao/executor_webhook.py")
+    dao_proposal_executor = _read(root, "src/dao/proposal_executor_webhook.py")
+    dao_governance = _read(root, "src/dao/governance.py")
+    governance_contract = _read(root, "src/dao/governance_contract.py")
     canary_deployment = _read(root, "src/deployment/canary_deployment.py")
     multi_cloud_deployment = _read(
         root,
@@ -5156,11 +5518,18 @@ def check_safe_actuator_runtime_metadata_contract(root: Path) -> list[CheckResul
     required = {
         "spine_metadata_contract": (
             "SAFE_ACTUATOR_EVIDENCE_METADATA_SCHEMA" in spine
+            and "SAFE_ACTUATOR_ADAPTER_CLAIM_BOUNDARY" in spine
             and "class SafeActuatorEvidenceMetadata" in spine
+            and "def _safe_actuator_adapter_evidence_metadata" in spine
+            and "x0tta6bl4.safe_actuator.adapter_claim_gate.v1" in spine
             and "safe_actuator_evidence" in spine
             and "evidence_metadata" in spine
-            and "evidence_metadata=SafeActuatorEvidenceMetadata.from_value(raw)"
-            in spine
+            and "SafeActuatorEvidenceMetadata.from_value(raw)" in spine
+            and '"raw_context_values_redacted": True' in spine
+            and '"action_redacted": True' in spine
+            and '"external_settlement_finality_claim_allowed": False' in spine
+            and '"revenue_recognition_claim_allowed": False' in spine
+            and '"production_slo_claim_allowed": False' in spine
         ),
         "self_healing_mapek_metadata": (
             "x0tta6bl4.self_healing_mapek.safe_actuator_claim_gate.v1"
@@ -5307,6 +5676,96 @@ def check_safe_actuator_runtime_metadata_contract(root: Path) -> list[CheckResul
             and '"production_readiness_claim_allowed"' in token_bridge
             and "TOKEN_BRIDGE_SAFE_ACTUATOR_CLAIM_BOUNDARY" in token_bridge
         ),
+        "dao_executor_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in dao_executor
+            and "x0tta6bl4.dao_executor.safe_actuator_claim_gate.v1"
+            in dao_executor
+            and '"safe_actuator_evidence_metadata"' in dao_executor
+            and '"local_release_script_execution_claim_allowed"' in dao_executor
+            and '"safe_actuator_result_recorded": True' in dao_executor
+            and '"return_code_observed": return_code is not None' in dao_executor
+            and '"raw_context_values_redacted": True' in dao_executor
+            and '"raw_command_output_redacted": True' in dao_executor
+            and '"production_rollout_claim_allowed": False' in dao_executor
+            and '"traffic_shift_claim_allowed": False' in dao_executor
+            and '"live_customer_traffic_claim_allowed": False' in dao_executor
+            and '"dataplane_delivery_claim_allowed": False' in dao_executor
+            and '"customer_traffic_claim_allowed": False' in dao_executor
+            and '"external_settlement_finality_claim_allowed": False'
+            in dao_executor
+            and "DAO_EXECUTOR_CLAIM_BOUNDARY" in dao_executor
+            and "_RELEASE_SCRIPT_RESOURCE" in dao_executor
+        ),
+        "dao_proposal_executor_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in dao_proposal_executor
+            and "x0tta6bl4.dao_proposal_executor.safe_actuator_claim_gate.v1"
+            in dao_proposal_executor
+            and '"safe_actuator_evidence_metadata"' in dao_proposal_executor
+            and '"local_helm_command_execution_claim_allowed"'
+            in dao_proposal_executor
+            and '"safe_actuator_result_recorded": True'
+            in dao_proposal_executor
+            and '"return_code_observed": return_code is not None'
+            in dao_proposal_executor
+            and '"raw_context_values_redacted": True' in dao_proposal_executor
+            and '"raw_command_output_redacted": True' in dao_proposal_executor
+            and '"production_rollout_claim_allowed": False'
+            in dao_proposal_executor
+            and '"traffic_shift_claim_allowed": False' in dao_proposal_executor
+            and '"live_customer_traffic_claim_allowed": False'
+            in dao_proposal_executor
+            and '"dataplane_delivery_claim_allowed": False'
+            in dao_proposal_executor
+            and '"customer_traffic_claim_allowed": False' in dao_proposal_executor
+            and '"external_settlement_finality_claim_allowed": False'
+            in dao_proposal_executor
+            and '"reason_redacted"' in dao_proposal_executor
+            and "HELM_EXECUTOR_CLAIM_BOUNDARY" in dao_proposal_executor
+            and "_HELM_UPGRADE_RESOURCE" in dao_proposal_executor
+        ),
+        "dao_governance_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in dao_governance
+            and "x0tta6bl4.dao_governance.safe_actuator_claim_gate.v1"
+            in dao_governance
+            and '"safe_actuator_evidence_metadata"' in dao_governance
+            and '"local_handler_execution_claim_allowed"' in dao_governance
+            and '"safe_actuator_result_recorded": True' in dao_governance
+            and '"raw_context_values_redacted": True' in dao_governance
+            and '"raw_result_values_redacted": True' in dao_governance
+            and '"governance_execution_finality_claim_allowed": False'
+            in dao_governance
+            and '"production_governance_execution_claim_allowed": False'
+            in dao_governance
+            and '"dataplane_delivery_claim_allowed": False' in dao_governance
+            and '"customer_traffic_claim_allowed": False' in dao_governance
+            and '"external_settlement_finality_claim_allowed": False'
+            in dao_governance
+            and '"production_readiness_claim_allowed": False' in dao_governance
+            and "DAO_GOVERNANCE_CLAIM_BOUNDARY" in dao_governance
+        ),
+        "governance_contract_safe_actuator_metadata": (
+            "SafeActuatorEvidenceMetadata" in governance_contract
+            and "x0tta6bl4.governance_contract.safe_actuator_claim_gate.v1"
+            in governance_contract
+            and '"safe_actuator_evidence_metadata"' in governance_contract
+            and '"local_transaction_submission_claim_allowed"'
+            in governance_contract
+            and '"transaction_hash_observed_claim_allowed"' in governance_contract
+            and '"safe_actuator_result_recorded": True' in governance_contract
+            and '"raw_context_values_redacted": True' in governance_contract
+            and '"raw_result_values_redacted": True' in governance_contract
+            and '"external_settlement_finality_claim_allowed": False'
+            in governance_contract
+            and '"governance_execution_finality_claim_allowed": False'
+            in governance_contract
+            and '"production_governance_execution_claim_allowed": False'
+            in governance_contract
+            and '"dataplane_delivery_claim_allowed": False' in governance_contract
+            and '"customer_traffic_claim_allowed": False' in governance_contract
+            and '"production_readiness_claim_allowed": False'
+            in governance_contract
+            and "GOVERNANCE_CONTRACT_CLAIM_BOUNDARY" in governance_contract
+        ),
         "deployment_canary_safe_actuator_metadata": (
             "SafeActuatorEvidenceMetadata" in canary_deployment
             and "x0tta6bl4.deployment.canary.safe_actuator_claim_gate.v1"
@@ -5450,14 +5909,14 @@ def check_safe_actuator_runtime_metadata_contract(root: Path) -> list[CheckResul
                 "safe_actuator_runtime_metadata_contract",
                 "Missing SafeActuator runtime metadata fragments: "
                 + ", ".join(missing),
-                "src/integration/spine.py; src/self_healing/mape_k/manager.py; src/self_healing/ebpf_anomaly_detector.py; src/services/service_event_trace.py; src/services/pqc_rotator_service.py; src/server/ghost_server.py; src/api/maas/endpoints/governance.py; src/security/spiffe/server/client.py; src/security/spiffe/agent/manager.py; src/dao/bridge/core.py; src/deployment/canary_deployment.py; src/deployment/multi_cloud_deployment.py; scripts/canary_deployment.py; scripts/production_monitor.py; scripts/auto_rollback.py; scripts/deploy/production_deploy.py",
+                "src/integration/spine.py; src/self_healing/mape_k/manager.py; src/self_healing/ebpf_anomaly_detector.py; src/services/service_event_trace.py; src/services/pqc_rotator_service.py; src/server/ghost_server.py; src/api/maas/endpoints/governance.py; src/security/spiffe/server/client.py; src/security/spiffe/agent/manager.py; src/dao/bridge/core.py; src/dao/executor_webhook.py; src/dao/proposal_executor_webhook.py; src/dao/governance.py; src/dao/governance_contract.py; src/deployment/canary_deployment.py; src/deployment/multi_cloud_deployment.py; scripts/canary_deployment.py; scripts/production_monitor.py; scripts/auto_rollback.py; scripts/deploy/production_deploy.py",
             )
         ]
     return [
         pass_check(
             "safe_actuator_runtime_metadata_contract",
-            "SafeActuator runtime paths carry typed redacted evidence metadata and keep SPIRE trust, PQC trust, governance finality, dataplane, route convergence, traffic, kernel-forwarding, settlement, revenue, deployment rollout, ops canary/monitor/rollback/deploy, production SLO, and production claims blocked unless dedicated proof exists",
-            "src/integration/spine.py; src/self_healing/mape_k/manager.py; src/self_healing/ebpf_anomaly_detector.py; src/services/service_event_trace.py; src/services/pqc_rotator_service.py; src/server/ghost_server.py; src/api/maas/endpoints/governance.py; src/security/spiffe/server/client.py; src/security/spiffe/agent/manager.py; src/dao/bridge/core.py; src/deployment/canary_deployment.py; src/deployment/multi_cloud_deployment.py; scripts/canary_deployment.py; scripts/production_monitor.py; scripts/auto_rollback.py; scripts/deploy/production_deploy.py",
+            "SafeActuator runtime paths carry typed redacted evidence metadata and keep SPIRE trust, PQC trust, governance finality, dataplane, route convergence, traffic, kernel-forwarding, settlement, revenue, DAO release/Helm execution, deployment rollout, ops canary/monitor/rollback/deploy, production SLO, and production claims blocked unless dedicated proof exists",
+            "src/integration/spine.py; src/self_healing/mape_k/manager.py; src/self_healing/ebpf_anomaly_detector.py; src/services/service_event_trace.py; src/services/pqc_rotator_service.py; src/server/ghost_server.py; src/api/maas/endpoints/governance.py; src/security/spiffe/server/client.py; src/security/spiffe/agent/manager.py; src/dao/bridge/core.py; src/dao/executor_webhook.py; src/dao/proposal_executor_webhook.py; src/dao/governance.py; src/dao/governance_contract.py; src/deployment/canary_deployment.py; src/deployment/multi_cloud_deployment.py; scripts/canary_deployment.py; scripts/production_monitor.py; scripts/auto_rollback.py; scripts/deploy/production_deploy.py",
         )
     ]
 
@@ -6323,6 +6782,27 @@ def current_evidence_context(root: Path) -> dict[str, object]:
             and isinstance(data.get("next_actions"), list)
         )
     )
+    try:
+        audit_text = audit_path.read_text(encoding="utf-8")
+        audit_read_error = None
+    except Exception as exc:
+        audit_text = ""
+        audit_read_error = str(exc)
+    active_audit_missing_safe_actuator_markers = [
+        marker
+        for marker in SAFE_ACTUATOR_ACTIVE_AUDIT_REQUIRED_MARKERS
+        if marker not in audit_text
+    ]
+    active_audit_stale_safe_actuator_markers = [
+        marker
+        for marker in SAFE_ACTUATOR_ACTIVE_AUDIT_FORBIDDEN_MARKERS
+        if marker in audit_text
+    ]
+    active_audit_safe_actuator_current = (
+        audit_read_error is None
+        and not active_audit_missing_safe_actuator_markers
+        and not active_audit_stale_safe_actuator_markers
+    )
 
     gaps = source_data.get("current_gaps")
     gap_items = gaps if isinstance(gaps, list) else []
@@ -6390,6 +6870,14 @@ def current_evidence_context(root: Path) -> dict[str, object]:
             "status": source_data.get("status"),
             "source_format": source_format,
             "source_shape_valid": source_shape_valid,
+            "active_audit_safe_actuator_current": active_audit_safe_actuator_current,
+            "active_audit_safe_actuator_missing_markers": (
+                active_audit_missing_safe_actuator_markers
+            ),
+            "active_audit_safe_actuator_stale_markers": (
+                active_audit_stale_safe_actuator_markers
+            ),
+            "active_audit_read_error": audit_read_error,
             "current_gap_count": current_gap_count,
             "tracked_gap_count": tracked_gap_count,
             "non_blocking_gap_count": non_blocking_gap_count,
@@ -6459,6 +6947,20 @@ def check_current_evidence_context(root: Path) -> list[CheckResult]:
                 CURRENT_CROSS_PLANE_MAP,
             )
         ]
+    if context.get("active_audit_safe_actuator_current") is not True:
+        return [
+            fail_check(
+                "current_evidence_active_audit_safe_actuator_drift",
+                (
+                    "Active goal gap audit SafeActuator control-spine summary is stale "
+                    "or missing current verifier markers: "
+                    f"missing={context.get('active_audit_safe_actuator_missing_markers')}; "
+                    f"stale={context.get('active_audit_safe_actuator_stale_markers')}; "
+                    f"read_error={context.get('active_audit_read_error')}"
+                ),
+                CURRENT_ACTIVE_AUDIT,
+            )
+        ]
     gap_count = context.get("current_gap_count")
     next_action_count = context.get("next_action_count")
     if gap_count or next_action_count:
@@ -6514,7 +7016,7 @@ def check_current_evidence_context(root: Path) -> list[CheckResult]:
 def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
     checks: list[CheckResult] = []
 
-    for zone in ("authoritative", "active_claim_surface"):
+    for zone in ("authoritative", "active_claim_surface", "architecture"):
         claim_hygiene = runner(
             (
                 sys.executable,
@@ -6616,6 +7118,597 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
                     f"python {MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER} --target 127.0.0.1 --count 1 --timeout-seconds 1",
                 )
             )
+
+    api_heal_probe = runner(
+        (
+            sys.executable,
+            MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_VERIFIER,
+            "--target",
+            "10.123.45.67",
+            "--require-ready",
+            "--json",
+        ),
+        None,
+        90,
+    )
+    if api_heal_probe.returncode != 0:
+        checks.append(
+            fail_check(
+                "maas_heal_api_post_action_dataplane_probe_smoke",
+                _format_command_failure(api_heal_probe),
+                f"python {MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_VERIFIER} --target 10.123.45.67 --require-ready --json",
+            )
+        )
+    else:
+        try:
+            api_heal_probe_payload = json.loads(api_heal_probe.stdout)
+        except json.JSONDecodeError:
+            api_heal_probe_payload = {}
+        api_summary = (
+            api_heal_probe_payload.get("summary", {})
+            if isinstance(api_heal_probe_payload, Mapping)
+            else {}
+        )
+        api_heal_probe_ready = (
+            isinstance(api_heal_probe_payload, Mapping)
+            and api_heal_probe_payload.get("ok") is True
+            and api_heal_probe_payload.get("decision")
+            == "MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_READY"
+            and api_summary.get("api_path_exercised") is True
+            and api_summary.get("heartbeat_registered_probe_target") is True
+            and api_summary.get("manager_received_probe_target") is True
+            and api_summary.get("dataplane_confirmed") is True
+            and api_summary.get("post_action_dataplane_revalidated") is True
+            and api_summary.get("restored_dataplane_claim_allowed") is True
+            and api_summary.get("traffic_delivery_claim_allowed") is False
+            and api_summary.get("customer_traffic_claim_allowed") is False
+            and api_summary.get("external_reachability_claim_allowed") is False
+            and api_summary.get("production_slo_claim_allowed") is False
+            and api_summary.get("production_readiness_claim_allowed") is False
+        )
+        if api_heal_probe_ready:
+            checks.append(
+                pass_check(
+                    "maas_heal_api_post_action_dataplane_probe_smoke",
+                    "MaaS API heartbeat->heal post-action dataplane probe smoke passes with target redacted and traffic/customer/production claims blocked",
+                    f"python {MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_VERIFIER} --target 10.123.45.67 --require-ready --json",
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "maas_heal_api_post_action_dataplane_probe_smoke",
+                    "Verifier output did not prove bounded MaaS API heartbeat->heal post-action dataplane revalidation with strong claims blocked",
+                    f"python {MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_VERIFIER} --target 10.123.45.67 --require-ready --json",
+                )
+            )
+
+    real_agent = runner(
+        (
+            sys.executable,
+            MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER,
+            "--dataplane-probe-target",
+            "10.123.45.67",
+            "--timeout-seconds",
+            "90",
+        ),
+        None,
+        150,
+    )
+    if real_agent.returncode != 0:
+        checks.append(
+            fail_check(
+                "maas_real_agent_control_loop_smoke",
+                _format_command_failure(real_agent),
+                f"python {MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER} --dataplane-probe-target 10.123.45.67 --timeout-seconds 90",
+            )
+        )
+    else:
+        try:
+            real_agent_payload = json.loads(real_agent.stdout)
+        except json.JSONDecodeError:
+            real_agent_payload = {}
+        real_agent_summary = (
+            real_agent_payload.get("agent", {})
+            if isinstance(real_agent_payload, Mapping)
+            else {}
+        )
+        real_agent_healing = (
+            real_agent_payload.get("healing_surface", {})
+            if isinstance(real_agent_payload, Mapping)
+            else {}
+        )
+        stage_names = {
+            str(stage.get("name"))
+            for stage in real_agent_payload.get("stages", [])
+            if isinstance(stage, Mapping)
+        } if isinstance(real_agent_payload, Mapping) else set()
+        target_summary = (
+            real_agent_payload.get("dataplane_probe_target", {})
+            if isinstance(real_agent_payload, Mapping)
+            else {}
+        )
+        try:
+            real_agent_components_healed = int(
+                real_agent_healing.get("components_healed") or 0
+            )
+        except (TypeError, ValueError):
+            real_agent_components_healed = 0
+        real_agent_ready = (
+            isinstance(real_agent_payload, Mapping)
+            and real_agent_payload.get("ready") is True
+            and real_agent_payload.get("decision")
+            == "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY"
+            and real_agent_summary.get("binary_built") is True
+            and real_agent_summary.get("process_started") is True
+            and real_agent_summary.get("node_runtime_credential_hash_stored") is True
+            and real_agent_summary.get("node_runtime_credential_expiry_stored") is True
+            and real_agent_summary.get("node_runtime_credential_rotation_observed") is True
+            and real_agent_summary.get("node_config_fetch_observed") is True
+            and real_agent_summary.get("heartbeat_observed") is True
+            and real_agent_summary.get("operator_heal_observed") is True
+            and real_agent_healing.get("status") == "healed"
+            and real_agent_healing.get("healing_claim")
+            == "local_control_action_applied"
+            and real_agent_components_healed > 0
+            and real_agent_healing.get("post_heal_node_status") == "healthy"
+            and real_agent_healing.get("post_action_revalidation_present") is True
+            and real_agent_healing.get("dataplane_confirmed") is True
+            and real_agent_healing.get("post_action_dataplane_revalidated") is True
+            and real_agent_healing.get("restored_dataplane_claim_allowed") is True
+            and real_agent_healing.get("traffic_delivery_claim_allowed") is False
+            and real_agent_healing.get("customer_traffic_claim_allowed") is False
+            and real_agent_healing.get("external_reachability_claim_allowed") is False
+            and real_agent_healing.get("production_slo_claim_allowed") is False
+            and real_agent_healing.get("production_readiness_claim_allowed") is False
+            and real_agent_healing.get("raw_target_redacted") is True
+            and target_summary.get("raw_value_redacted") is True
+            and target_summary.get("requested_raw_value_redacted") is True
+            and target_summary.get("local_listener_target") is True
+            and "agent_heartbeat_persisted" in stage_names
+            and "agent_node_marked_offline_for_local_heal" in stage_names
+            and "operator_heal_after_real_agent_heartbeat" in stage_names
+            and "10.123.45.67" not in real_agent.stdout
+        )
+        if real_agent_ready:
+            checks.append(
+                pass_check(
+                    "maas_real_agent_control_loop_smoke",
+                    "Real Go agent control loop smoke passes through temp uvicorn with node-config, credential rotation, heartbeat, local offline-node heal, and bounded post-heal dataplane revalidation",
+                    f"python {MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER} --dataplane-probe-target 10.123.45.67 --timeout-seconds 90",
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "maas_real_agent_control_loop_smoke",
+                    "Verifier output did not prove real Go-agent node-config, credential rotation, heartbeat, local offline-node heal, and bounded post-heal dataplane revalidation",
+                    f"python {MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER} --dataplane-probe-target 10.123.45.67 --timeout-seconds 90",
+                )
+            )
+
+    dataplane_operator_flow = runner(
+        (
+            sys.executable,
+            DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER,
+            "--require-verified",
+            "--json",
+        ),
+        None,
+        120,
+    )
+    if dataplane_operator_flow.returncode != 0:
+        checks.append(
+            fail_check(
+                "dataplane_delivery_operator_flow_runtime",
+                _format_command_failure(dataplane_operator_flow),
+                f"python {DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
+            )
+        )
+    else:
+        try:
+            dataplane_operator_payload = json.loads(dataplane_operator_flow.stdout)
+        except json.JSONDecodeError:
+            dataplane_operator_payload = {}
+        dataplane_operator_summary = (
+            dataplane_operator_payload.get("summary", {})
+            if isinstance(dataplane_operator_payload, Mapping)
+            else {}
+        )
+        dataplane_operator_ready = (
+            isinstance(dataplane_operator_payload, Mapping)
+            and dataplane_operator_payload.get("decision")
+            == "DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIED"
+            and dataplane_operator_summary.get("cases_run")
+            == dataplane_operator_summary.get("cases_checked")
+            and dataplane_operator_summary.get("handoff_cases") == 2
+            and dataplane_operator_summary.get("collector_cases") == 3
+            and dataplane_operator_summary.get("proof_gate_artifacts_checked") == 1
+            and dataplane_operator_summary.get("command_surface_checked") is True
+            and dataplane_operator_summary.get("local_simulated_harness") is True
+            and dataplane_operator_summary.get("runs_live_probe") is False
+            and dataplane_operator_summary.get("mutates_project_runtime") is False
+            and dataplane_operator_summary.get("writes_temp_eventbus") is True
+            and dataplane_operator_summary.get("operator_run_evidence_claimed") is False
+            and dataplane_operator_summary.get("real_operator_run_evidence_retained") is False
+            and dataplane_operator_summary.get("eventbus_evidence_recognized_by_proof_gate") is True
+            and dataplane_operator_summary.get("raw_targets_redacted") is True
+            and dataplane_operator_summary.get("customer_traffic_claimed") is False
+            and dataplane_operator_summary.get("external_reachability_claimed") is False
+            and dataplane_operator_summary.get("dpi_bypass_claimed") is False
+            and dataplane_operator_summary.get("settlement_finality_claimed") is False
+            and dataplane_operator_summary.get("traffic_delivery_claimed") is False
+            and dataplane_operator_summary.get("production_readiness_claimed") is False
+            and not dataplane_operator_payload.get("failures")
+            and "does not prove real operator-run evidence"
+            in str(dataplane_operator_payload.get("claim_boundary", ""))
+        )
+        if dataplane_operator_ready:
+            checks.append(
+                pass_check(
+                    "dataplane_delivery_operator_flow_runtime",
+                    (
+                        "Dataplane operator-flow smoke keeps "
+                        f"{dataplane_operator_summary.get('cases_checked', 0)}/"
+                        f"{dataplane_operator_summary.get('cases_run', 0)} "
+                        "handoff, collector, and proof-gate paths bounded, "
+                        "redacted, and fail-closed for customer/traffic/production claims"
+                    ),
+                    f"python {DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "dataplane_delivery_operator_flow_runtime",
+                    "Dataplane operator-flow verifier did not prove the local handoff/collector/proof-gate path remains bounded and redacted",
+                    f"python {DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
+                )
+            )
+
+    safe_actuator_adoption = runner(
+        (
+            sys.executable,
+            SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER,
+            "--require-high-risk-covered",
+            "--require-full-coverage",
+            "--json",
+        ),
+        None,
+        120,
+    )
+    if safe_actuator_adoption.returncode != 0:
+        checks.append(
+            fail_check(
+                "safe_actuator_metadata_adoption_inventory",
+                _format_command_failure(safe_actuator_adoption),
+                f"python {SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER} --require-high-risk-covered --require-full-coverage --json",
+            )
+        )
+    else:
+        try:
+            adoption_payload = json.loads(safe_actuator_adoption.stdout)
+        except json.JSONDecodeError:
+            adoption_payload = {}
+        adoption_summary = (
+            adoption_payload.get("summary", {})
+            if isinstance(adoption_payload, Mapping)
+            else {}
+        )
+        adoption_ready = (
+            isinstance(adoption_payload, Mapping)
+            and adoption_payload.get("decision")
+            == "SAFE_ACTUATOR_METADATA_FULL_COVERAGE"
+            and adoption_summary.get("high_risk_coverage_ready") is True
+            and adoption_summary.get("full_metadata_coverage_ready") is True
+            and adoption_summary.get("parse_errors") == 0
+            and adoption_summary.get("parse_error_free") is True
+            and adoption_summary.get("result_calls_without_evidence_metadata") == 0
+            and not adoption_payload.get("blockers")
+            and "does not prove runtime execution"
+            in str(adoption_payload.get("claim_boundary", ""))
+        )
+        if adoption_ready:
+            checks.append(
+                pass_check(
+                    "safe_actuator_metadata_adoption_inventory",
+                    (
+                        "SafeActuator metadata adoption inventory covers "
+                        f"{adoption_summary.get('high_risk_files_metadata_aware', 0)}/"
+                        f"{adoption_summary.get('high_risk_files_checked', 0)} "
+                        "high-risk control paths and "
+                        f"{adoption_summary.get('result_calls_with_evidence_metadata', 0)}/"
+                        f"{adoption_summary.get('safe_actuator_result_calls', 0)} "
+                        "SafeActuatorResult calls with a parse-error-free scan "
+                        "and without runtime/production overclaim"
+                    ),
+                    f"python {SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER} --require-high-risk-covered --require-full-coverage --json",
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "safe_actuator_metadata_adoption_inventory",
+                    "SafeActuator adoption inventory did not prove high-risk and full result-call coverage with bounded claim boundary",
+                    f"python {SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER} --require-high-risk-covered --require-full-coverage --json",
+                )
+            )
+
+    safe_actuator_runtime_retention = runner(
+        (
+            sys.executable,
+            SAFE_ACTUATOR_RUNTIME_METADATA_RETENTION_VERIFIER,
+            "--require-retained",
+            "--json",
+        ),
+        None,
+        120,
+    )
+    if safe_actuator_runtime_retention.returncode != 0:
+        checks.append(
+            fail_check(
+                "safe_actuator_runtime_metadata_retention",
+                _format_command_failure(safe_actuator_runtime_retention),
+                f"python {SAFE_ACTUATOR_RUNTIME_METADATA_RETENTION_VERIFIER} --require-retained --json",
+            )
+        )
+    else:
+        try:
+            retention_payload = json.loads(safe_actuator_runtime_retention.stdout)
+        except json.JSONDecodeError:
+            retention_payload = {}
+        retention_summary = (
+            retention_payload.get("summary", {})
+            if isinstance(retention_payload, Mapping)
+            else {}
+        )
+        retention_cases_run = _non_negative_int(
+            retention_summary.get("cases_run"),
+            0,
+        )
+        retention_events_checked = _non_negative_int(
+            retention_summary.get("events_checked"),
+            0,
+        )
+        retention_metadata_events = _non_negative_int(
+            retention_summary.get("metadata_events"),
+            0,
+        )
+        retention_result_metadata_cases = _non_negative_int(
+            retention_summary.get("result_metadata_cases_checked"),
+            0,
+        )
+        retention_ready = (
+            isinstance(retention_payload, Mapping)
+            and retention_payload.get("decision")
+            == "SAFE_ACTUATOR_RUNTIME_METADATA_RETAINED"
+            and retention_cases_run > 0
+            and retention_metadata_events == retention_cases_run
+            and retention_events_checked + retention_result_metadata_cases
+            == retention_cases_run
+            and retention_events_checked >= 18
+            and retention_result_metadata_cases >= 4
+            and retention_summary.get("claim_gates_fail_closed") is True
+            and retention_summary.get("local_simulated_harness") is True
+            and retention_summary.get("live_spire_or_dataplane_claimed") is False
+            and retention_summary.get("production_readiness_claimed") is False
+            and not retention_payload.get("failures")
+            and "does not prove live SPIFFE/SPIRE trust"
+            in str(retention_payload.get("claim_boundary", ""))
+        )
+        if retention_ready:
+            checks.append(
+                pass_check(
+                    "safe_actuator_runtime_metadata_retention",
+                    (
+                        "SafeActuator runtime metadata retention smoke keeps "
+                        f"{retention_metadata_events}/{retention_cases_run} "
+                        "local EventBus/result metadata cases typed, redacted, "
+                        "and fail-closed"
+                    ),
+                    f"python {SAFE_ACTUATOR_RUNTIME_METADATA_RETENTION_VERIFIER} --require-retained --json",
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "safe_actuator_runtime_metadata_retention",
+                    "Runtime verifier did not prove retained typed fail-closed SafeActuator metadata in local EventBus events",
+                    f"python {SAFE_ACTUATOR_RUNTIME_METADATA_RETENTION_VERIFIER} --require-retained --json",
+                )
+            )
+
+    production_deploy_blocked_preflight = runner(
+        (
+            sys.executable,
+            PRODUCTION_DEPLOY_BLOCKED_PREFLIGHT_EVIDENCE_RUNNER,
+            "--require-retained",
+            "--json",
+        ),
+        None,
+        120,
+    )
+    if production_deploy_blocked_preflight.returncode != 0:
+        checks.append(
+            fail_check(
+                "production_deploy_blocked_preflight_evidence",
+                _format_command_failure(production_deploy_blocked_preflight),
+                f"python {PRODUCTION_DEPLOY_BLOCKED_PREFLIGHT_EVIDENCE_RUNNER} --require-retained --json",
+            )
+        )
+    else:
+        try:
+            preflight_payload = json.loads(production_deploy_blocked_preflight.stdout)
+        except json.JSONDecodeError:
+            preflight_payload = {}
+        preflight_summary = (
+            preflight_payload.get("summary", {})
+            if isinstance(preflight_payload, Mapping)
+            else {}
+        )
+        preflight_metadata = (
+            preflight_payload.get("safe_actuator_evidence_metadata", {})
+            if isinstance(preflight_payload, Mapping)
+            else {}
+        )
+        preflight_claim_gate = (
+            preflight_metadata.get("claim_gate", {})
+            if isinstance(preflight_metadata, Mapping)
+            else {}
+        )
+        preflight_ready = (
+            isinstance(preflight_payload, Mapping)
+            and preflight_payload.get("decision")
+            == "PRODUCTION_DEPLOY_BLOCKED_PREFLIGHT_EVIDENCE_RETAINED"
+            and preflight_payload.get("ok") is True
+            and preflight_summary.get("blocked_before_live_subprocess") is True
+            and preflight_summary.get("blocked_before_kubectl_prerequisites") is True
+            and preflight_summary.get("deploy_result_blocked") is True
+            and preflight_summary.get("safe_actuator_metadata_retained") is True
+            and preflight_summary.get("claim_gate_fail_closed") is True
+            and preflight_summary.get("live_deploy_authorized") is False
+            and preflight_summary.get("live_deploy_subprocess_attempted") is False
+            and preflight_summary.get("kubectl_prerequisites_attempted") is False
+            and preflight_summary.get("mutates_runtime") is False
+            and preflight_summary.get("writes_eventbus") is False
+            and preflight_summary.get("raw_outputs_retained") is False
+            and preflight_summary.get("traffic_shift_claimed") is False
+            and preflight_summary.get("customer_traffic_claimed") is False
+            and preflight_summary.get("production_slo_claimed") is False
+            and preflight_summary.get("production_readiness_claimed") is False
+            and isinstance(preflight_metadata, Mapping)
+            and preflight_metadata.get("schema")
+            == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+            and preflight_metadata.get("redacted") is True
+            and preflight_claim_gate.get("schema")
+            == "x0tta6bl4.ops.production_deploy.safe_actuator_claim_gate.v1"
+            and preflight_claim_gate.get("local_deployment_command_attempt_claim_allowed")
+            is False
+            and preflight_claim_gate.get("production_readiness_claim_allowed") is False
+            and not preflight_payload.get("failures")
+            and "does not prove live deployment"
+            in str(preflight_payload.get("claim_boundary", ""))
+        )
+        if preflight_ready:
+            checks.append(
+                pass_check(
+                    "production_deploy_blocked_preflight_evidence",
+                    (
+                        "production_deploy.py blocked-preflight evidence "
+                        "retains redacted SafeActuator metadata before any "
+                        "live subprocess/kubectl path and keeps production "
+                        "claims fail-closed"
+                    ),
+                    f"python {PRODUCTION_DEPLOY_BLOCKED_PREFLIGHT_EVIDENCE_RUNNER} --require-retained --json",
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "production_deploy_blocked_preflight_evidence",
+                    "Blocked-preflight runner did not prove production_deploy.py refuses live deploy before subprocess while retaining fail-closed SafeActuator metadata",
+                    f"python {PRODUCTION_DEPLOY_BLOCKED_PREFLIGHT_EVIDENCE_RUNNER} --require-retained --json",
+                )
+            )
+
+    economy_dataplane_separation = runner(
+        (
+            sys.executable,
+            ECONOMY_DATAPLANE_SEPARATION_VERIFIER,
+            "--require-separated",
+            "--json",
+        ),
+        None,
+        120,
+    )
+    if economy_dataplane_separation.returncode != 0:
+        checks.append(
+            fail_check(
+                "economy_dataplane_separation_runtime",
+                _format_command_failure(economy_dataplane_separation),
+                f"python {ECONOMY_DATAPLANE_SEPARATION_VERIFIER} --require-separated --json",
+            )
+        )
+    else:
+        try:
+            separation_payload = json.loads(economy_dataplane_separation.stdout)
+        except json.JSONDecodeError:
+            separation_payload = {}
+        separation_summary = (
+            separation_payload.get("summary", {})
+            if isinstance(separation_payload, Mapping)
+            else {}
+        )
+        separation_ready = (
+            isinstance(separation_payload, Mapping)
+            and separation_payload.get("decision")
+            == "ECONOMY_DATAPLANE_SEPARATION_VERIFIED"
+            and separation_summary.get("cases_run")
+            == separation_summary.get("cases_checked")
+            and separation_summary.get("external_settlement_handoff_cases") == 2
+            and separation_summary.get("reward_events_checked") == 1
+            and separation_summary.get("marketplace_events_checked") == 1
+            and separation_summary.get("modular_billing_events_checked") == 1
+            and separation_summary.get("modular_billing_response_claim_gates_checked")
+            == 1
+            and separation_summary.get("service_trace_economy_summaries_checked") == 3
+            and separation_summary.get("high_risk_claim_gates_fail_closed") is True
+            and separation_summary.get("local_simulated_harness") is True
+            and separation_summary.get("mutates_chain") is False
+            and separation_summary.get("runs_live_rpc") is False
+            and separation_summary.get("submits_transaction") is False
+            and separation_summary.get("dataplane_or_production_claimed") is False
+            and separation_summary.get("customer_traffic_claimed") is False
+            and separation_summary.get("revenue_recognition_claimed") is False
+            and separation_summary.get("production_readiness_claimed") is False
+            and not separation_payload.get("failures")
+            and "does not prove dataplane delivery"
+            in str(separation_payload.get("claim_boundary", ""))
+        )
+        if separation_ready:
+            checks.append(
+                pass_check(
+                    "economy_dataplane_separation_runtime",
+                    (
+                        "Economy/dataplane separation smoke keeps "
+                        f"{separation_summary.get('cases_checked', 0)}/"
+                        f"{separation_summary.get('cases_run', 0)} "
+                        "handoff and EventBus economy surfaces fail-closed for "
+                        "dataplane, customer, revenue, and production claims"
+                    ),
+                    f"python {ECONOMY_DATAPLANE_SEPARATION_VERIFIER} --require-separated --json",
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "economy_dataplane_separation_runtime",
+                    "Economy/dataplane verifier did not prove fail-closed separation for local handoff/EventBus economy surfaces",
+                    f"python {ECONOMY_DATAPLANE_SEPARATION_VERIFIER} --require-separated --json",
+                )
+            )
+
+    swarm_coordination = runner(("bash", SWARM_COORDINATION_CONTRACT_CHECK), None, 30)
+    if swarm_coordination.returncode == 0:
+        checks.append(
+            pass_check(
+                "swarm_coordination_contract",
+                (
+                    "Swarm coordination contract is installed: executable git "
+                    "hooks, ownership map coverage, pre-commit staged-file "
+                    "lease enforcement, and post-commit lease release are present"
+                ),
+                f"bash {SWARM_COORDINATION_CONTRACT_CHECK}",
+            )
+        )
+    else:
+        checks.append(
+            fail_check(
+                "swarm_coordination_contract",
+                _format_command_failure(swarm_coordination),
+                f"bash {SWARM_COORDINATION_CONTRACT_CHECK}",
+            )
+        )
 
     app_env = {
         "DATABASE_URL": "postgresql://readiness:readiness@localhost:5432/readiness",

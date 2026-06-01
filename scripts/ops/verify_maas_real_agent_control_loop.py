@@ -7,6 +7,8 @@ agent binary with a temporary config, approves the pending node, and waits for:
 1. agent registration through /api/v1/maas/{mesh_id}/nodes/register
 2. agent node-config fetch through /api/v1/maas/{mesh_id}/node-config/{node_id}
 3. agent heartbeat through /api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat
+4. operator heal call after that real-agent heartbeat, with production/customer
+   claims still fail-closed
 
 It uses a temporary SQLite database and temporary EventBus working directory.
 No real API keys, join tokens, shared database, production network state, or
@@ -48,10 +50,12 @@ BLOCKED_DECISION = "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_BLOCKED"
 CLAIM_BOUNDARY = (
     "Local real-agent smoke only. It proves a locally built Go agent can talk "
     "to a temporary MaaS API for registration, approved node-config fetch, and "
-    "heartbeat persistence. It does not prove external infrastructure "
-    "provisioning, customer traffic delivery, VPN availability, external DPI "
-    "bypass, payment settlement finality, production SLOs, or production "
-    "readiness."
+    "heartbeat persistence, then lets an operator heal a locally forced offline "
+    "node while post-heal traffic/customer/external/SLO/production claims remain "
+    "fail-closed. It "
+    "does not prove external infrastructure provisioning, customer traffic "
+    "delivery, VPN availability, external DPI bypass, payment settlement "
+    "finality, production SLOs, or production readiness."
 )
 
 
@@ -146,6 +150,51 @@ def _stop_process(proc: subprocess.Popen[str], *, timeout_seconds: float = 5.0) 
         proc.wait(timeout=timeout_seconds)
 
 
+def _start_local_tcp_listener(
+    host: str = "127.0.0.1",
+) -> tuple[socket.socket, int, threading.Event, threading.Thread]:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((host, 0))
+    sock.listen(16)
+    sock.settimeout(0.2)
+    port = int(sock.getsockname()[1])
+    stop_event = threading.Event()
+
+    def accept_loop() -> None:
+        while not stop_event.is_set():
+            try:
+                conn, _addr = sock.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            try:
+                conn.close()
+            except OSError:
+                pass
+
+    thread = threading.Thread(target=accept_loop, daemon=True)
+    thread.start()
+    return sock, port, stop_event, thread
+
+
+def _stop_local_tcp_listener(
+    sock: socket.socket | None,
+    stop_event: threading.Event | None,
+    thread: threading.Thread | None,
+) -> None:
+    if stop_event is not None:
+        stop_event.set()
+    if sock is not None:
+        try:
+            sock.close()
+        except OSError:
+            pass
+    if thread is not None:
+        thread.join(timeout=1.0)
+
+
 def _stage(
     name: str,
     *,
@@ -168,7 +217,11 @@ def _make_report(
     api_port: int,
     agent_node_id: str,
     dataplane_probe_target: str,
+    requested_dataplane_probe_target: str | None = None,
+    local_listener_target: bool = False,
 ) -> dict[str, Any]:
+    requested_target = requested_dataplane_probe_target or dataplane_probe_target
+    target_host = dataplane_probe_target.rsplit(":", 1)[0]
     return {
         "schema": SCHEMA,
         "decision": BLOCKED_DECISION,
@@ -198,12 +251,28 @@ def _make_report(
             "config_file_temporary": True,
             "node_config_fetch_observed": False,
             "heartbeat_observed": False,
+            "operator_heal_observed": False,
+        },
+        "healing_surface": {
+            "observed": False,
+            "post_action_revalidation_present": False,
+            "dataplane_confirmed": False,
+            "post_action_dataplane_revalidated": False,
+            "restored_dataplane_claim_allowed": False,
+            "traffic_delivery_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "external_reachability_claim_allowed": False,
+            "production_slo_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "raw_target_redacted": True,
         },
         "dataplane_probe_target": {
             "sha256": _sha256_text(dataplane_probe_target),
+            "requested_sha256": _sha256_text(requested_target),
             "raw_value_redacted": True,
-            "loopback_lab_target": dataplane_probe_target
-            in {"127.0.0.1", "::1", "localhost"},
+            "requested_raw_value_redacted": True,
+            "local_listener_target": bool(local_listener_target),
+            "loopback_lab_target": target_host in {"127.0.0.1", "::1", "localhost"},
         },
         "event_project_root": str(event_project_root),
         "claim_boundary": CLAIM_BOUNDARY,
@@ -225,6 +294,7 @@ def run_verification(
     work_dir: str,
     dataplane_probe_target: str = "127.0.0.1",
     timeout_seconds: float = 45.0,
+    use_local_listener_target: bool = True,
 ) -> dict[str, Any]:
     started = time.monotonic()
     work_path = Path(work_dir)
@@ -233,12 +303,23 @@ def run_verification(
     api_port = _free_tcp_port()
     api_url = f"http://127.0.0.1:{api_port}"
     agent_node_id = f"agent-{uuid.uuid4().hex[:16]}"
+    requested_dataplane_probe_target = dataplane_probe_target
+    listener_sock: socket.socket | None = None
+    listener_stop: threading.Event | None = None
+    listener_thread: threading.Thread | None = None
+    if use_local_listener_target:
+        listener_sock, listener_port, listener_stop, listener_thread = (
+            _start_local_tcp_listener()
+        )
+        dataplane_probe_target = f"127.0.0.1:{listener_port}"
     report = _make_report(
         event_project_root=work_path,
         db_path=db_path,
         api_port=api_port,
         agent_node_id=agent_node_id,
         dataplane_probe_target=dataplane_probe_target,
+        requested_dataplane_probe_target=requested_dataplane_probe_target,
+        local_listener_target=use_local_listener_target,
     )
 
     def finalize(result: dict[str, Any]) -> dict[str, Any]:
@@ -265,6 +346,7 @@ def run_verification(
                 "PYTHONPATH": str(ROOT),
                 "MAAS_LIGHT_MODE": "true",
                 "LOG_LEVEL": "WARNING",
+                "X0TTA6BL4_MESH_HEAL_POST_ACTION_PROBE": "1",
             }
         )
         server_proc = subprocess.Popen(
@@ -943,6 +1025,171 @@ def run_verification(
                 )
             )
 
+        def mark_agent_offline_for_heal() -> dict[str, Any] | None:
+            db = SessionLocal()
+            try:
+                node = (
+                    db.query(MeshNode)
+                    .filter(MeshNode.mesh_id == mesh_id, MeshNode.id == agent_node_id)
+                    .first()
+                )
+                if node is None:
+                    return None
+                previous_status = str(node.status)
+                node.status = "offline"
+                db.commit()
+                return {
+                    "previous_status": previous_status,
+                    "offline_status_persisted": True,
+                    "raw_node_id_redacted": True,
+                }
+            finally:
+                db.close()
+
+        offline_for_heal = mark_agent_offline_for_heal()
+        report["stages"].append(
+            _stage(
+                "agent_node_marked_offline_for_local_heal",
+                ok=bool(offline_for_heal),
+                details=offline_for_heal
+                or {
+                    "offline_status_persisted": False,
+                    "raw_node_id_redacted": True,
+                },
+            )
+        )
+        if not offline_for_heal:
+            return finalize(
+                _fail(
+                    report,
+                    "agent_node_marked_offline_for_local_heal",
+                    {"raw_node_id_redacted": True},
+                )
+            )
+
+        status_code, heal_body, _raw = _http_json(
+            "POST",
+            f"{api_url}/api/v1/maas/{mesh_id}/nodes/{agent_node_id}/heal",
+            headers={"X-API-Key": api_key},
+        )
+        revalidation = (
+            heal_body.get("post_action_dataplane_revalidation")
+            if isinstance(heal_body, dict)
+            else None
+        )
+        if not isinstance(revalidation, dict):
+            revalidation = {}
+        rendered_heal = json.dumps(heal_body, sort_keys=True)
+
+        def post_heal_node_state() -> dict[str, Any]:
+            db = SessionLocal()
+            try:
+                node = (
+                    db.query(MeshNode)
+                    .filter(MeshNode.mesh_id == mesh_id, MeshNode.id == agent_node_id)
+                    .first()
+                )
+                return {
+                    "status": str(node.status) if node is not None else None,
+                    "last_seen_present": bool(
+                        node is not None and node.last_seen is not None
+                    ),
+                    "raw_node_id_redacted": True,
+                }
+            finally:
+                db.close()
+
+        post_heal_state = post_heal_node_state()
+        try:
+            components_healed = int(heal_body.get("components_healed") or 0)
+        except (TypeError, ValueError):
+            components_healed = 0
+        healing_surface = {
+            "observed": status_code == 200,
+            "status": heal_body.get("status") if isinstance(heal_body, dict) else None,
+            "healing_claim": heal_body.get("healing_claim")
+            if isinstance(heal_body, dict)
+            else None,
+            "components_healed": components_healed,
+            "post_heal_node_status": post_heal_state["status"],
+            "post_action_revalidation_present": bool(revalidation),
+            "dataplane_confirmed": (
+                heal_body.get("dataplane_confirmed") is True
+                if isinstance(heal_body, dict)
+                else False
+            ),
+            "post_action_dataplane_revalidated": (
+                heal_body.get("post_action_dataplane_revalidated") is True
+                if isinstance(heal_body, dict)
+                else False
+            ),
+            "restored_dataplane_claim_allowed": (
+                heal_body.get("restored_dataplane_claim_allowed") is True
+                if isinstance(heal_body, dict)
+                else False
+            ),
+            "traffic_delivery_claim_allowed": revalidation.get(
+                "traffic_delivery_claim_allowed"
+            )
+            is True,
+            "customer_traffic_claim_allowed": revalidation.get(
+                "customer_traffic_claim_allowed"
+            )
+            is True,
+            "external_reachability_claim_allowed": revalidation.get(
+                "external_reachability_claim_allowed"
+            )
+            is True,
+            "production_slo_claim_allowed": revalidation.get(
+                "production_slo_claim_allowed"
+            )
+            is True,
+            "production_readiness_claim_allowed": revalidation.get(
+                "production_readiness_claim_allowed"
+            )
+            is True,
+            "raw_target_redacted": dataplane_probe_target not in rendered_heal,
+        }
+        report["healing_surface"] = healing_surface
+        heal_checked = (
+            status_code == 200
+            and healing_surface["status"] == "healed"
+            and healing_surface["healing_claim"] == "local_control_action_applied"
+            and healing_surface["components_healed"] > 0
+            and healing_surface["post_heal_node_status"] == "healthy"
+            and healing_surface["post_action_revalidation_present"] is True
+            and healing_surface["dataplane_confirmed"] is True
+            and healing_surface["post_action_dataplane_revalidated"] is True
+            and healing_surface["restored_dataplane_claim_allowed"] is True
+            and healing_surface["traffic_delivery_claim_allowed"] is False
+            and healing_surface["customer_traffic_claim_allowed"] is False
+            and healing_surface["external_reachability_claim_allowed"] is False
+            and healing_surface["production_slo_claim_allowed"] is False
+            and healing_surface["production_readiness_claim_allowed"] is False
+            and healing_surface["raw_target_redacted"] is True
+        )
+        report["agent"]["operator_heal_observed"] = heal_checked
+        report["stages"].append(
+            _stage(
+                "operator_heal_after_real_agent_heartbeat",
+                ok=heal_checked,
+                http_status_code=status_code,
+                details=healing_surface,
+            )
+        )
+        if not heal_checked:
+            return finalize(
+                _fail(
+                    report,
+                    "operator_heal_after_real_agent_heartbeat",
+                    {
+                        "actual_status": status_code,
+                        "healing_surface": healing_surface,
+                        "raw_response_redacted": True,
+                    },
+                )
+            )
+
         report["decision"] = READY_DECISION
         report["ready"] = True
         return finalize(report)
@@ -962,6 +1209,7 @@ def run_verification(
             _stop_process(agent_proc)
         if server_proc is not None:
             _stop_process(server_proc)
+        _stop_local_tcp_listener(listener_sock, listener_stop, listener_thread)
         engine.dispose()
 
 
@@ -973,6 +1221,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Temporary verifier working directory. Defaults to a temp directory.",
     )
     parser.add_argument("--dataplane-probe-target", default="127.0.0.1")
+    parser.add_argument(
+        "--no-local-listener-target",
+        action="store_false",
+        dest="use_local_listener_target",
+        help=(
+            "Use the supplied dataplane probe target directly instead of a "
+            "temporary local TCP listener."
+        ),
+    )
+    parser.set_defaults(use_local_listener_target=True)
     parser.add_argument("--timeout-seconds", type=float, default=45.0)
     return parser.parse_args(argv)
 
@@ -984,6 +1242,7 @@ def main(argv: list[str] | None = None) -> int:
             work_dir=args.work_dir,
             dataplane_probe_target=args.dataplane_probe_target,
             timeout_seconds=args.timeout_seconds,
+            use_local_listener_target=args.use_local_listener_target,
         )
     else:
         with tempfile.TemporaryDirectory(prefix="maas-real-agent-smoke-") as tmpdir:
@@ -991,6 +1250,7 @@ def main(argv: list[str] | None = None) -> int:
                 work_dir=tmpdir,
                 dataplane_probe_target=args.dataplane_probe_target,
                 timeout_seconds=args.timeout_seconds,
+                use_local_listener_target=args.use_local_listener_target,
             )
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["ready"] else 1

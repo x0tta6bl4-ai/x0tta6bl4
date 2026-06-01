@@ -49,7 +49,7 @@ async def test_check_metrics_redacts_http_output_and_errors(monkeypatch):
     monkeypatch.setattr(
         module.httpx,
         "AsyncClient",
-        lambda: _FakeAsyncClient(
+        lambda *args, **kwargs: _FakeAsyncClient(
             responses=[
                 _FakeResponse(200, health_body),
                 _FakeResponse(200, metrics_body),
@@ -82,7 +82,7 @@ async def test_check_metrics_redacts_exception_message(monkeypatch):
     monkeypatch.setattr(
         module.httpx,
         "AsyncClient",
-        lambda: _FakeAsyncClient(exc=RuntimeError("secret-url")),
+        lambda *args, **kwargs: _FakeAsyncClient(exc=RuntimeError("secret-url")),
     )
 
     result = await module.AutoRollback().check_metrics()

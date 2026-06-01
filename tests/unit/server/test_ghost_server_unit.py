@@ -91,11 +91,15 @@ def test_setup_tun_publishes_events_with_identity(tmp_path):
     claim_gate = metadata["claim_gate"]
     assert claim_gate["schema"] == "x0tta6bl4.ghost_l3.safe_actuator_claim_gate.v1"
     assert claim_gate["local_tun_nat_setup_claim_allowed"] is True
+    assert claim_gate["safe_actuator_result_recorded"] is True
     assert claim_gate["restored_dataplane_claim_allowed"] is False
     assert claim_gate["dataplane_delivery_claim_allowed"] is False
     assert claim_gate["customer_traffic_claim_allowed"] is False
     assert claim_gate["kernel_forwarding_correctness_claim_allowed"] is False
     assert claim_gate["production_readiness_claim_allowed"] is False
+    assert metadata["evidence"]["raw_context_values_redacted"] is True
+    assert metadata["evidence"]["raw_command_output_redacted"] is True
+    assert metadata["evidence"]["resource"] == "server:ghost_l3:setup_tun"
     assert payload["claim_gate"] == claim_gate
     assert payload["claim_boundary"]
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Run a bounded non-mock measured-attestation verifier smoke.
 
-This script is for local operators with access to a real SGX verifier command
-and real attestation material. It writes only hashes, sizes, verifier
+This script is for local operators with access to a real SGX, SEV, or Nitro
+verifier command and real attestation material. It writes only hashes, sizes, verifier
 provenance, and claim gates. Raw report data, quote, signature, file paths, and
 operator identifiers are not written to the artifact.
 """
@@ -75,10 +75,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--provider", choices=["sgx"], default="sgx")
+    parser.add_argument("--provider", choices=["sgx", "sev", "nitro"], default="sgx")
     parser.add_argument("--report-data-file", type=Path, required=True)
     parser.add_argument("--quote-file", type=Path, required=True)
     parser.add_argument("--signature-file", type=Path, required=True)
+    parser.add_argument(
+        "--verifier-command",
+        help="Provider-specific non-mock verifier command for sgx, sev, or nitro.",
+    )
     parser.add_argument("--sgx-verifier-command")
     parser.add_argument("--operator-or-lab-id", required=True)
     parser.add_argument("--authorization-scope-id", required=True)
@@ -116,6 +120,14 @@ def redacted_blob_summary(value: bytes) -> dict[str, Any]:
     }
 
 
+def effective_verifier_command(args: argparse.Namespace) -> str | None:
+    if args.verifier_command:
+        return args.verifier_command
+    if args.provider == "sgx" and args.sgx_verifier_command:
+        return args.sgx_verifier_command
+    return None
+
+
 def build_report(args: argparse.Namespace) -> dict[str, Any]:
     if not args.allow_local_verifier_run:
         raise SystemExit("--allow-local-verifier-run is required")
@@ -128,9 +140,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     quote = read_bytes(resolve_path(root, args.quote_file), label="quote")
     signature = read_bytes(resolve_path(root, args.signature_file), label="signature")
 
+    verifier_command = effective_verifier_command(args)
     validator = TEEValidator(
         allow_mock=False,
-        sgx_verifier_command=args.sgx_verifier_command,
+        verifier_commands={args.provider: verifier_command} if verifier_command else None,
     )
     attestation = TEEAttestation(
         provider=args.provider,
@@ -191,7 +204,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 result.production_verifier_claim_allowed
             ),
             "provenance": provenance,
-            "command_configured": bool(validator.sgx_verifier_command),
+            "command_configured": bool(
+                validator.verifier_command_for_provider(args.provider)
+            ),
         },
         "measurements": {
             "non_mock_provider": non_mock_provider,

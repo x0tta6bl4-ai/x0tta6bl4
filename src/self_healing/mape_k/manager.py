@@ -185,6 +185,7 @@ def _self_healing_safe_actuator_claim_gate(
     return {
         "schema": "x0tta6bl4.self_healing_mapek.safe_actuator_claim_gate.v1",
         "surface": "self_healing.mapek.execute",
+        "resource": _MAPEK_RESOURCES["execute"],
         "local_control_action_claim_allowed": local_action_allowed,
         "safe_actuator_result_recorded": True,
         "safe_actuator_result_successful": bool(success),
@@ -227,6 +228,15 @@ def _safe_actuator_evidence_metadata(
         downstream_event_ids,
         limit=_DOWNSTREAM_EVENT_ID_LIMIT,
     )
+    evidence = {
+        **downstream_evidence,
+        "resource": _MAPEK_RESOURCES["execute"],
+        "operation": "execute",
+        "raw_context_values_redacted": True,
+        "raw_result_values_redacted": True,
+        "payloads_redacted": True,
+        "redacted": True,
+    }
     downstream_payloads = _event_payloads_for_ids(
         event_bus,
         source_agent=_RECOVERY_EXECUTOR_AGENT,
@@ -241,9 +251,9 @@ def _safe_actuator_evidence_metadata(
     )
     return SafeActuatorEvidenceMetadata(
         claim_gate=claim_gate,
-        evidence=downstream_evidence,
-        source_agents=downstream_evidence.get("source_agents", []),
-        event_ids=downstream_evidence.get("event_ids", []),
+        evidence=evidence,
+        source_agents=evidence.get("source_agents", []),
+        event_ids=evidence.get("event_ids", []),
         claim_boundary=SELF_HEALING_MAPEK_SAFE_ACTUATOR_CLAIM_BOUNDARY,
         redacted=True,
     )

@@ -151,10 +151,14 @@ class TestSelfHealingManager:
         assert metadata["claim_gate"]["schema"] == (
             "x0tta6bl4.self_healing_mapek.safe_actuator_claim_gate.v1"
         )
+        assert metadata["claim_gate"]["resource"] == "self_healing:mapek:execute"
         assert metadata["claim_gate"]["local_control_action_claim_allowed"] is True
         assert metadata["claim_gate"]["restored_dataplane_claim_allowed"] is False
         assert metadata["claim_gate"]["traffic_delivery_claim_allowed"] is False
         assert metadata["claim_gate"]["production_readiness_claim_allowed"] is False
+        assert metadata["evidence"]["resource"] == "self_healing:mapek:execute"
+        assert metadata["evidence"]["raw_context_values_redacted"] is True
+        assert metadata["evidence"]["raw_result_values_redacted"] is True
         assert data["action"]["redacted"] is True
         assert data["issue"]["redacted"] is True
         assert "raw-node-id" not in event_text
@@ -209,6 +213,10 @@ class TestSelfHealingManager:
         metadata = data["safe_actuator_evidence_metadata"]
         assert metadata["event_ids"] == [recovery_events[0].event_id]
         assert metadata["claim_gate"]["downstream_recovery_evidence_present"] is True
+        assert metadata["claim_gate"]["resource"] == "self_healing:mapek:execute"
+        assert metadata["evidence"]["resource"] == "self_healing:mapek:execute"
+        assert metadata["evidence"]["raw_context_values_redacted"] is True
+        assert metadata["evidence"]["raw_result_values_redacted"] is True
         assert "raw-node-id" not in event_text
         assert "10.0.0.1" not in event_text
         assert "restart private service" not in event_text

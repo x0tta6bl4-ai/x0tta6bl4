@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -36,6 +37,9 @@ EXTERNAL_DPI_CONTRACT = Path("docs/verification/EXTERNAL_DPI_PROXY_REACHABILITY_
 MEASURED_ATTESTATION_SMOKE_VALIDATOR = Path(
     "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py"
 )
+MEASURED_ATTESTATION_HANDOFF = Path(
+    "scripts/ops/run_measured_attestation_verifier_handoff.py"
+)
 MEASURED_ATTESTATION_SMOKE_CANDIDATE = Path(
     "docs/verification/incoming/measured_attestation_verifier_smoke.json"
 )
@@ -53,6 +57,8 @@ EXTERNAL_SETTLEMENT_HANDOFF_MODULE = Path("src/integration/external_settlement_o
 SERVICE_EVENT_TRACE_MODULE = Path("src/services/service_event_trace.py")
 EVENTBUS_LOG = Path(".agent_coordination/events.log")
 EVENTBUS_TAIL_SCAN_LIMIT = 1000
+EVENTBUS_EVIDENCE_MAX_AGE_HOURS = 168
+EVENTBUS_FUTURE_SKEW_TOLERANCE_SECONDS = 300
 ECONOMY_BOUNDARY_CANDIDATE_SCAN_LIMIT = 500
 ECONOMY_BOUNDARY_SOURCE_AGENTS = (
     "maas-marketplace",
@@ -730,6 +736,7 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
         "action_id": "validate_measured_attestation_verifier_smoke_artifact",
         "title": "Validate bounded measured-attestation verifier smoke evidence.",
         "match_tokens": (
+            "measured_attestation_verifier_handoff_not_ready",
             "measured_attestation_verifier_smoke_artifact_not_verified",
             "production_readiness_measured_attestation_verifier_smoke_artifact_not_verified",
             "measured_attestation_verifier_smoke_artifact_not_ready",
@@ -1189,6 +1196,41 @@ def _is_sha256_hex(value: Any) -> bool:
     return len(text) == 64 and all(char in "0123456789abcdef" for char in text)
 
 
+def _parse_event_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _event_freshness_blockers(
+    event: Mapping[str, Any],
+    *,
+    prefix: str,
+    max_age_hours: float = EVENTBUS_EVIDENCE_MAX_AGE_HOURS,
+) -> list[str]:
+    parsed = _parse_event_timestamp(event.get("timestamp"))
+    if parsed is None:
+        return [f"{prefix}_timestamp_missing_or_invalid"]
+
+    age_seconds = int((datetime.now(timezone.utc) - parsed).total_seconds())
+    if age_seconds < -EVENTBUS_FUTURE_SKEW_TOLERANCE_SECONDS:
+        return [f"{prefix}_timestamp_too_far_in_future"]
+    if max_age_hours <= 0:
+        return [f"{prefix}_freshness_policy_invalid"]
+    if age_seconds > int(max_age_hours * 3600):
+        return [f"{prefix}_event_stale"]
+    return []
+
+
 def _local_observed_state_candidate_blockers(
     event: Mapping[str, Any],
 ) -> list[str]:
@@ -1421,6 +1463,12 @@ def _dataplane_candidate_blockers(
     events_total = _count_list_or_field(evidence, "events_total", "event_ids")
     source_agents_count = _count_list_or_field(evidence, "source_agents_count", "source_agents")
     source_agents = _safe_string_list(evidence.get("source_agents"))
+    blockers.extend(
+        _event_freshness_blockers(
+            event,
+            prefix="dataplane_evidence",
+        )
+    )
     if evidence.get("redacted") is not True:
         blockers.append("dataplane_evidence_not_redacted")
     if event_ids_count <= 0 or events_total <= 0:
@@ -1736,6 +1784,179 @@ def local_service_identity_status_artifact_evidence(root: Path) -> dict[str, Any
     return result
 
 
+def _safe_measured_attestation_handoff_inputs(report: Mapping[str, Any]) -> dict[str, Any]:
+    inputs = _mapping(report.get("inputs"))
+
+    def file_input(name: str) -> dict[str, Any]:
+        value = _mapping(inputs.get(name))
+        return {
+            "path_present": value.get("path_present") is True,
+            "exists": value.get("exists") is True,
+            "is_file": value.get("is_file") is True,
+            "non_empty": value.get("non_empty") is True,
+            "raw_path_redacted": value.get("raw_path_redacted") is True,
+        }
+
+    provider = _mapping(inputs.get("provider"))
+    command = _mapping(inputs.get("verifier_command"))
+    if not command:
+        command = _mapping(inputs.get("sgx_verifier_command"))
+    return {
+        "provider": {
+            "value": str(provider.get("value") or "sgx"),
+            "supported": provider.get("supported") is True,
+            "raw_value_redacted": provider.get("raw_value_redacted") is True,
+        },
+        "report_data": file_input("report_data"),
+        "quote": file_input("quote"),
+        "signature": file_input("signature"),
+        "verifier_command": {
+            "command_present": command.get("command_present") is True,
+            "argv0_present": command.get("argv0_present") is True,
+            "argv0_found": command.get("argv0_found") is True,
+            "raw_command_redacted": command.get("raw_command_redacted") is True,
+        },
+        "sgx_verifier_command": {
+            "command_present": command.get("command_present") is True,
+            "argv0_present": command.get("argv0_present") is True,
+            "argv0_found": command.get("argv0_found") is True,
+            "raw_command_redacted": command.get("raw_command_redacted") is True,
+        },
+        "operator_or_lab_id_present": bool(inputs.get("operator_or_lab_hash")),
+        "authorization_scope_id_present": bool(
+            inputs.get("authorization_scope_hash")
+        ),
+        "environment_bucket_present": inputs.get("environment_bucket_present") is True,
+        "hardware_profile_bucket_present": (
+            inputs.get("hardware_profile_bucket_present") is True
+        ),
+        "policy_context_present": bool(inputs.get("policy_context_hash")),
+    }
+
+
+def measured_attestation_verifier_handoff_status(root: Path) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "path": MEASURED_ATTESTATION_HANDOFF.as_posix(),
+        "available": False,
+        "ready_for_operator_run": False,
+        "raw_inputs_redacted": True,
+        "runs_verifier": False,
+        "writes_artifacts": False,
+        "blockers": [],
+        "blockers_total": 0,
+        "inputs": {},
+        "operator_command_checks": [],
+        "claim_boundary": (
+            "This handoff status is a redacted local preflight for operator "
+            "inputs only. It does not run the verifier, read raw attestation "
+            "material into the gate, or prove production trust finality."
+        ),
+    }
+    try:
+        handoff = load_script_module(
+            root,
+            MEASURED_ATTESTATION_HANDOFF,
+            "cross_plane_measured_attestation_handoff",
+        )
+        env_kwargs = {
+            "provider": os.environ.get(
+                "X0T_MEASURED_ATTESTATION_PROVIDER",
+                "sgx",
+            ),
+            "report_data_file": os.environ.get(
+                "X0T_MEASURED_ATTESTATION_REPORT_DATA_FILE",
+                "",
+            ),
+            "quote_file": os.environ.get(
+                "X0T_MEASURED_ATTESTATION_QUOTE_FILE",
+                "",
+            ),
+            "signature_file": os.environ.get(
+                "X0T_MEASURED_ATTESTATION_SIGNATURE_FILE",
+                "",
+            ),
+            "verifier_command": os.environ.get(
+                "X0T_MEASURED_ATTESTATION_VERIFIER_COMMAND",
+                "",
+            ),
+            "sgx_verifier_command": os.environ.get(
+                "X0T_MEASURED_ATTESTATION_SGX_VERIFIER_COMMAND",
+                "",
+            ),
+            "operator_or_lab_id": os.environ.get(
+                "X0T_MEASURED_ATTESTATION_OPERATOR_OR_LAB_ID",
+                "",
+            ),
+            "authorization_scope_id": os.environ.get(
+                "X0T_MEASURED_ATTESTATION_AUTHORIZATION_SCOPE_ID",
+                "",
+            ),
+            "environment_bucket": os.environ.get(
+                "X0T_MEASURED_ATTESTATION_ENVIRONMENT_BUCKET",
+                "",
+            ),
+            "hardware_profile_bucket": os.environ.get(
+                "X0T_MEASURED_ATTESTATION_HARDWARE_PROFILE_BUCKET",
+                "",
+            ),
+            "policy_context": os.environ.get(
+                "X0T_MEASURED_ATTESTATION_POLICY_CONTEXT",
+                "",
+            ),
+        }
+        report = handoff.build_report(root, **env_kwargs)
+        blockers = [
+            str(blocker)
+            for blocker in (
+                report.get("blockers")
+                if isinstance(report.get("blockers"), list)
+                else []
+            )
+            if str(blocker)
+        ]
+        command_checks = [
+            {
+                "action_id": str(check.get("action_id") or ""),
+                "entrypoint_exists": check.get("entrypoint_exists") is True,
+                "raw_operator_inputs_embedded": (
+                    check.get("raw_operator_inputs_embedded") is True
+                ),
+            }
+            for check in (
+                report.get("operator_command_checks")
+                if isinstance(report.get("operator_command_checks"), list)
+                else []
+            )
+            if isinstance(check, Mapping)
+        ]
+        result.update(
+            {
+                "available": True,
+                "schema": report.get("schema"),
+                "decision": report.get("decision"),
+                "ready_for_operator_run": (
+                    report.get("ready_for_operator_run") is True
+                ),
+                "raw_inputs_redacted": report.get("raw_inputs_redacted") is True,
+                "runs_verifier": report.get("runs_verifier") is True,
+                "writes_artifacts": report.get("writes_artifacts") is True,
+                "blockers": blockers[:12],
+                "blockers_total": len(blockers),
+                "inputs": _safe_measured_attestation_handoff_inputs(report),
+                "operator_command_checks": command_checks,
+                "safe_local_input_steps_present": bool(
+                    report.get("safe_local_input_steps")
+                ),
+            }
+        )
+    except Exception as exc:
+        result["blockers"] = [
+            f"measured_attestation_verifier_handoff_error:{type(exc).__name__}"
+        ]
+        result["blockers_total"] = 1
+    return result
+
+
 def measured_attestation_verifier_smoke_artifact_evidence(root: Path) -> dict[str, Any]:
     candidate = resolve_path(root, MEASURED_ATTESTATION_SMOKE_CANDIDATE)
     result: dict[str, Any] = {
@@ -1749,6 +1970,7 @@ def measured_attestation_verifier_smoke_artifact_evidence(root: Path) -> dict[st
         "artifact_path": MEASURED_ATTESTATION_SMOKE_CANDIDATE.as_posix(),
         "artifact_exists": candidate.is_file(),
         "validator_path": MEASURED_ATTESTATION_SMOKE_VALIDATOR.as_posix(),
+        "operator_handoff": measured_attestation_verifier_handoff_status(root),
         "validation": None,
         "blockers": [],
         "claim_boundary": (
@@ -1806,6 +2028,12 @@ def measured_attestation_verifier_smoke_artifact_evidence(root: Path) -> dict[st
         result["blockers"].append(
             f"measured_attestation_verifier_smoke_validator_error:{type(exc).__name__}"
         )
+    if (
+        not candidate.is_file()
+        and _mapping(result.get("operator_handoff")).get("ready_for_operator_run")
+        is not True
+    ):
+        result["blockers"].append("measured_attestation_verifier_handoff_not_ready")
 
     result["valid"] = not result["blockers"]
     return result
@@ -2032,6 +2260,8 @@ def dataplane_delivery_artifact_evidence(
                 "source_agent": str(event.get("source_agent") or ""),
                 "timestamp": str(event.get("timestamp") or ""),
                 "scan_source": scan_source,
+                "evidence_fresh": True,
+                "max_age_hours": EVENTBUS_EVIDENCE_MAX_AGE_HOURS,
                 "dataplane_confirmed": True,
                 "post_action_dataplane_revalidated": True,
                 "restored_dataplane_claim_allowed": True,
@@ -2307,6 +2537,7 @@ def external_settlement_operator_handoff_context(root: Path) -> dict[str, Any]:
         )
         report = handoff.build_report(root)
         summary = _mapping(report.get("summary"))
+        claim_gate = _mapping(report.get("claim_gate"))
         result.update(
             {
                 "available": True,
@@ -2339,6 +2570,61 @@ def external_settlement_operator_handoff_context(root: Path) -> dict[str, Any]:
                     "operator_sequence_ready": summary.get("operator_sequence_ready") is True,
                     "source_alignment_ready": summary.get("source_alignment_ready") is True,
                     "safety_flags_ready": summary.get("safety_flags_ready") is True,
+                    "claim_gate_present": bool(claim_gate),
+                    "external_settlement_finality_claim_allowed": (
+                        claim_gate.get("external_settlement_finality_claim_allowed") is True
+                    ),
+                    "economy_finality_claim_allowed": (
+                        claim_gate.get("economy_finality_claim_allowed") is True
+                    ),
+                    "dataplane_delivery_claim_allowed": (
+                        claim_gate.get("dataplane_delivery_claim_allowed") is True
+                    ),
+                    "customer_traffic_claim_allowed": (
+                        claim_gate.get("customer_traffic_claim_allowed") is True
+                    ),
+                    "revenue_recognition_claim_allowed": (
+                        claim_gate.get("revenue_recognition_claim_allowed") is True
+                    ),
+                    "production_readiness_claim_allowed": (
+                        claim_gate.get("production_readiness_claim_allowed") is True
+                    ),
+                },
+                "claim_gate": {
+                    "schema": str(claim_gate.get("schema", "")),
+                    "external_settlement_finality_claim_allowed": (
+                        claim_gate.get("external_settlement_finality_claim_allowed") is True
+                    ),
+                    "economy_finality_claim_allowed": (
+                        claim_gate.get("economy_finality_claim_allowed") is True
+                    ),
+                    "retained_evidence_claim_allowed": (
+                        claim_gate.get("retained_evidence_claim_allowed") is True
+                    ),
+                    "live_rpc_receipt_claim_allowed": (
+                        claim_gate.get("live_rpc_receipt_claim_allowed") is True
+                    ),
+                    "dataplane_delivery_claim_allowed": (
+                        claim_gate.get("dataplane_delivery_claim_allowed") is True
+                    ),
+                    "customer_traffic_claim_allowed": (
+                        claim_gate.get("customer_traffic_claim_allowed") is True
+                    ),
+                    "revenue_recognition_claim_allowed": (
+                        claim_gate.get("revenue_recognition_claim_allowed") is True
+                    ),
+                    "production_readiness_claim_allowed": (
+                        claim_gate.get("production_readiness_claim_allowed") is True
+                    ),
+                    "redacted": claim_gate.get("redacted") is True,
+                    "blockers": [
+                        str(item)
+                        for item in (
+                            claim_gate.get("blockers")
+                            if isinstance(claim_gate.get("blockers"), list)
+                            else []
+                        )[:10]
+                    ],
                 },
                 "missing_inputs": [
                     {
@@ -2423,11 +2709,27 @@ def _economy_boundary_candidate_blockers(summary: Mapping[str, Any]) -> list[str
         blockers.append("economy_settlement_boundary_not_demonstrated")
     if high_risk_gate.get("production_readiness_claim_allowed") is True:
         blockers.append("economy_boundary_overpromotes_production_readiness")
+    if economy.get("dataplane_confirmed") is True:
+        blockers.append("economy_boundary_overpromotes_dataplane_confirmation")
+    if (
+        high_risk_gate.get("dataplane_delivery_claim_allowed") is True
+        or high_risk_gate.get("traffic_delivery_claim_allowed") is True
+    ):
+        blockers.append("economy_boundary_overpromotes_dataplane_delivery")
     if (
         settlement_gate.get("production_readiness_claim_allowed") is True
         or reward_gate.get("production_readiness_claim_allowed") is True
     ):
         blockers.append("economy_source_gate_overpromotes_production_readiness")
+    if (
+        settlement_gate.get("dataplane_delivery_claim_allowed") is True
+        or settlement_gate.get("customer_dataplane_delivery_claim_allowed") is True
+        or settlement_gate.get("traffic_delivery_claim_allowed") is True
+        or reward_gate.get("dataplane_delivery_claim_allowed") is True
+        or reward_gate.get("customer_dataplane_delivery_claim_allowed") is True
+        or reward_gate.get("traffic_delivery_claim_allowed") is True
+    ):
+        blockers.append("economy_source_gate_overpromotes_dataplane_delivery")
     return blockers
 
 
@@ -2475,6 +2777,12 @@ def economy_boundary_artifact_evidence(root: Path) -> dict[str, Any]:
             trace_errors.append(type(exc).__name__)
             return False
         blockers = _economy_boundary_candidate_blockers(summary)
+        blockers.extend(
+            _event_freshness_blockers(
+                event,
+                prefix="economy_boundary",
+            )
+        )
         if blockers:
             for blocker in blockers:
                 if (
@@ -2492,6 +2800,8 @@ def economy_boundary_artifact_evidence(root: Path) -> dict[str, Any]:
             "source_agent": str(event.get("source_agent") or ""),
             "timestamp": str(event.get("timestamp") or ""),
             "scan_source": scan_source,
+            "evidence_fresh": True,
+            "max_age_hours": EVENTBUS_EVIDENCE_MAX_AGE_HOURS,
             "economy_evidence_present": True,
             "local_or_pending_only": economy.get("local_or_pending_only") is True,
             "external_settlement_finality_claim_allowed": (

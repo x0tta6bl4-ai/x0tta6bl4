@@ -119,11 +119,15 @@ def test_maas_governance_action_publishes_identity_policy_and_safe_actuator_even
         "x0tta6bl4.maas_governance.safe_actuator_claim_gate.v1"
     )
     assert claim_gate["local_maas_governance_action_succeeded"] is True
+    assert claim_gate["redacted"] is True
     assert claim_gate["dao_governance_finality_claim_allowed"] is False
     assert claim_gate["external_settlement_finality_claim_allowed"] is False
     assert claim_gate["dataplane_delivery_claim_allowed"] is False
     assert claim_gate["customer_traffic_claim_allowed"] is False
     assert claim_gate["production_readiness_claim_allowed"] is False
+    assert metadata["evidence"]["raw_context_values_redacted"] is True
+    assert metadata["evidence"]["raw_result_values_redacted"] is True
+    assert metadata["evidence"]["resource"] == "api:maas_governance:update_config"
     assert "local, policy-gated API action dispatch" in metadata["claim_boundary"]
     assert payload["claim_boundary"]
 

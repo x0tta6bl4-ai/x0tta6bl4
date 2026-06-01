@@ -9,16 +9,16 @@
       ".json",
       ".jsonl"
     ],
-        "current_indexable_files": 1122,
-        "current_latest_alias_files": 38,
+        "current_indexable_files": 1383,
+        "current_latest_alias_files": 39,
         "by_suffix": {
-            ".json": 582,
-            ".md": 501,
+            ".json": 719,
+            ".md": 625,
             ".jsonl": 39
         },
         "latest_by_suffix": {
             ".md": 19,
-            ".json": 19
+            ".json": 20
         },
         "external_dpi_intake_boundary": {
             "candidate_path": "docs/verification/incoming/dpi_lab.json",
@@ -38,9 +38,9 @@
                 "src/ledger/rag_search.py:38",
                 "src/ledger/rag_search.py:271",
                 "src/ledger/rag_search.py:342",
-                "src/api/ledger_endpoints.py:167",
-                "src/api/ledger_endpoints.py:194",
-                "src/api/ledger_endpoints.py:326"
+                "src/api/maas/endpoints/ledger.py:167",
+                "src/api/maas/endpoints/ledger.py:194",
+                "src/api/maas/endpoints/ledger.py:326"
             ]
         }
     },
@@ -68,13 +68,14 @@
     ]
   },
   "runtime_surface": {
-    "router": "src/api/ledger_endpoints.py",
+    "router": "src/api/maas/endpoints/ledger.py",
     "prefix": "/api/v1/ledger",
     "registered_by": "src/core/app.py",
     "registration_mode": "full_mode_only",
     "source_refs": [
-      "src/core/app.py:259",
-      "src/api/ledger_endpoints.py:21"
+      "src/core/app.py:87",
+      "src/api/maas/endpoints/combined.py:165",
+      "src/api/maas/endpoints/ledger.py:30"
     ],
     "endpoints": [
       {
@@ -82,10 +83,10 @@
         "path": "/api/v1/ledger/search",
         "bridge_role": "Searches the current RAG runtime surface. Body field include_verification=true explicitly indexes verification evidence before querying.",
         "source_refs": [
-          "src/api/ledger_endpoints.py:21",
-          "src/api/ledger_endpoints.py:156",
-          "src/api/ledger_endpoints.py:177",
-          "src/api/ledger_endpoints.py:184"
+          "src/api/maas/endpoints/ledger.py:638",
+          "src/api/maas/endpoints/ledger.py:683",
+          "src/api/maas/endpoints/ledger.py:704",
+          "src/api/maas/endpoints/ledger.py:730"
         ]
       },
       {
@@ -93,8 +94,8 @@
         "path": "/api/v1/ledger/index",
         "bridge_role": "Indexes CONTINUITY.md and can include verification evidence when include_verification=true.",
         "source_refs": [
-          "src/api/ledger_endpoints.py:207",
-          "src/api/ledger_endpoints.py:220"
+          "src/api/maas/endpoints/ledger.py:786",
+          "src/api/maas/endpoints/ledger.py:798"
         ]
       },
       {
@@ -102,7 +103,7 @@
         "path": "/api/v1/ledger/status",
         "bridge_role": "Reports continuity ledger indexing status.",
         "source_refs": [
-          "src/api/ledger_endpoints.py:243"
+          "src/api/maas/endpoints/ledger.py:822"
         ]
       },
       {
@@ -110,8 +111,8 @@
         "path": "/api/v1/ledger/evidence/index",
         "bridge_role": "Indexes docs/verification text-like artifacts into the same LedgerRAGSearch RAG pipeline.",
         "source_refs": [
-          "src/api/ledger_endpoints.py:260",
-          "src/api/ledger_endpoints.py:272"
+          "src/api/maas/endpoints/ledger.py:838",
+          "src/api/maas/endpoints/ledger.py:850"
         ]
       },
       {
@@ -119,8 +120,8 @@
         "path": "/api/v1/ledger/evidence/status",
         "bridge_role": "Reports docs/verification availability and indexing counters without indexing files.",
         "source_refs": [
-          "src/api/ledger_endpoints.py:296",
-          "src/api/ledger_endpoints.py:303"
+          "src/api/maas/endpoints/ledger.py:874",
+          "src/api/maas/endpoints/ledger.py:881"
         ]
       },
       {
@@ -128,9 +129,9 @@
         "path": "/api/v1/ledger/event-traces/index",
         "bridge_role": "Builds a redacted EventBus trace payload through the service registry and indexes it into the same LedgerRAGSearch RAG pipeline.",
         "source_refs": [
-          "src/api/ledger_endpoints.py:311",
-          "src/api/ledger_endpoints.py:326",
-          "src/api/ledger_endpoints.py:335"
+          "src/api/maas/endpoints/ledger.py:889",
+          "src/api/maas/endpoints/ledger.py:904",
+          "src/api/maas/endpoints/ledger.py:913"
         ]
       },
       {
@@ -138,8 +139,8 @@
         "path": "/api/v1/ledger/event-traces/status",
         "bridge_role": "Reports EventBus trace indexing counters and source metadata without reading event history.",
         "source_refs": [
-          "src/api/ledger_endpoints.py:359",
-          "src/api/ledger_endpoints.py:366"
+          "src/api/maas/endpoints/ledger.py:937",
+          "src/api/maas/endpoints/ledger.py:944"
         ]
       }
     ]
@@ -164,17 +165,16 @@
             "claim_sensitive_citation_gate"
         ],
         "source_refs": [
-            "src/api/ledger_endpoints.py:52",
-            "src/api/ledger_endpoints.py:56",
-            "src/api/ledger_endpoints.py:88",
-            "src/api/ledger_endpoints.py:94",
-            "src/api/ledger_endpoints.py:96",
-            "src/api/ledger_endpoints.py:114",
-            "src/api/ledger_endpoints.py:136",
-            "src/api/ledger_endpoints.py:194",
-            "src/api/ledger_endpoints.py:219",
-            "src/api/ledger_endpoints.py:326",
-            "src/api/ledger_endpoints.py:380"
+            "src/api/maas/endpoints/ledger.py:132",
+            "src/api/maas/endpoints/ledger.py:167",
+            "src/api/maas/endpoints/ledger.py:194",
+            "src/api/maas/endpoints/ledger.py:263",
+            "src/api/maas/endpoints/ledger.py:326",
+            "src/api/maas/endpoints/ledger.py:382",
+            "src/api/maas/endpoints/ledger.py:390",
+            "src/api/maas/endpoints/ledger.py:396",
+            "src/api/maas/endpoints/ledger.py:638",
+            "src/api/maas/endpoints/ledger.py:730"
         ]
     },
   "rag_bridge": {
@@ -357,7 +357,100 @@
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:146",
       "tests/unit/services/test_share_to_earn_service_unit.py:89"
     ]
-  },
+    },
+    "real_agent_control_loop_smoke": {
+        "command": "python3 scripts/ops/verify_maas_real_agent_control_loop.py --dataplane-probe-target 10.123.45.67 --timeout-seconds 90",
+        "schema": "x0tta6bl4.maas_real_agent_control_loop_smoke.v1",
+        "scenario": "real_go_agent_to_temporary_maas_api_control_loop",
+        "bridge_role": "Turns a locally built Go agent plus temporary MaaS API run into bounded runtime evidence for registration, approved node-config fetch, heartbeat persistence, scoped runtime credential checks, and operator heal after the real-agent heartbeat.",
+        "ready_decision": "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY",
+        "blocked_decision": "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_BLOCKED",
+        "claim_boundary": "Local real-agent smoke only. It proves a locally built Go agent can talk to a temporary MaaS API for registration, approved node-config fetch, and heartbeat persistence, then lets an operator call heal while post-heal traffic/customer/external/SLO/production claims remain fail-closed. It does not prove external infrastructure provisioning, customer traffic delivery, VPN availability, external DPI bypass, payment settlement finality, production SLOs, or production readiness.",
+        "proves": [
+            "temporary MaaS API starts with isolated SQLite state and temporary EventBus working directory",
+            "locally built Go agent registers through /api/v1/maas/{mesh_id}/nodes/register",
+            "agent receives and uses scoped node runtime credential metadata instead of reusing the enrollment token",
+            "approved node-config fetch is observed from the real agent process",
+            "heartbeat persistence is observed in the temporary MaaS database after the real agent runs",
+            "negative credential checks reject missing, wrong, rotated-old, cross-node, path/body mismatch, and revoked-node access",
+            "operator heal after the real-agent heartbeat returns post-action revalidation metadata while customer, external, SLO, and production readiness claims stay false",
+            "dataplane probe target and node identifiers are redacted in the verifier report"
+        ],
+        "does_not_prove": [
+            "production network provisioning",
+            "customer traffic delivery",
+            "VPN availability",
+            "external DPI bypass",
+            "payment settlement finality",
+            "production SLOs",
+            "production readiness"
+        ],
+        "required_stages": [
+            "local_maas_api_started",
+            "operator_register",
+            "temporary_operator_role_assigned",
+            "mesh_deploy",
+            "go_agent_build",
+            "go_agent_started",
+            "agent_registration_pending",
+            "agent_node_runtime_credential_metadata_stored",
+            "operator_approved_agent_node",
+            "enrollment_token_node_config_rejected",
+            "missing_heartbeat_credential_rejected",
+            "wrong_heartbeat_credential_rejected",
+            "secondary_node_registered_for_negative_acl",
+            "secondary_node_approved_for_negative_acl",
+            "secondary_node_runtime_credential_rotated",
+            "old_rotated_runtime_credential_rejected",
+            "heartbeat_path_body_node_mismatch_rejected",
+            "cross_node_credential_rejected",
+            "secondary_node_revoked_for_negative_acl",
+            "revoked_node_credential_rejected",
+            "agent_node_config_fetch_observed",
+            "agent_heartbeat_persisted",
+            "operator_heal_after_real_agent_heartbeat"
+        ],
+        "source_refs": [
+            "scripts/ops/verify_maas_real_agent_control_loop.py:4",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:47",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:50",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:175",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:287",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:416",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:465",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:572",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:591",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:624",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:732",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:894",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:938",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:963",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:976",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:1021",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:1053",
+            "scripts/ops/verify_maas_real_agent_control_loop.py:1087",
+            "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:14",
+            "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:26",
+            "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:37",
+            "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:45",
+            "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:73",
+            "agent/main.go:202",
+            "agent/main.go:261",
+            "agent/main.go:394",
+            "agent/internal/api/client.go:160",
+            "agent/internal/api/client.go:284",
+            "agent/internal/api/client.go:335",
+            "agent/internal/api/client.go:388",
+            "src/api/maas/endpoints/nodes.py:255",
+            "src/api/maas/endpoints/nodes.py:322",
+            "src/api/maas/endpoints/nodes.py:366",
+            "src/api/maas/endpoints/nodes.py:675",
+            "src/api/maas/endpoints/nodes.py:763",
+            "src/api/maas/endpoints/nodes.py:799",
+            "scripts/ops/check_real_readiness.py:7153",
+            "scripts/ops/check_real_readiness.py:7199"
+        ]
+    },
   "non_obvious_links": [
     {
       "id": "verification-docs-are-runtime-memory-now",
@@ -386,6 +479,10 @@
         {
             "id": "incoming-external-dpi-gap-record-is-not-proof",
             "description": "The staged docs/verification/incoming/dpi_lab.json file is indexable, but Ledger/RAG classifies the current EXTERNAL_EVIDENCE_GAP_RECORD as external_dpi_gap_record and attaches external_dpi_intake_claim_gate_summary so claim-sensitive citations block DPI/proof promotion."
+        },
+        {
+            "id": "real-go-agent-smoke-is-runtime-evidence-not-production-proof",
+            "description": "The real Go-agent verifier bridges built agent behavior into local runtime evidence through a temporary MaaS API and isolated SQLite/EventBus state, while explicitly blocking customer traffic, external reachability, DPI bypass, SLO, and production readiness claims."
         }
     ],
     "guardrails": {
@@ -393,12 +490,14 @@
         "text_like_only": "Only .md, .json, and .jsonl are indexed; packet captures and other binary artifacts stay out of RAG.",
         "metadata_preserves_claim_boundary": "Every verification chunk is tagged with source_class, relative_path, claim_status, claim_scope, and current/context flags; incoming external DPI gap records are source_class=external_dpi_gap_record rather than generic verification proof.",
         "incoming_gap_records_are_blocked_claim_context": "The current docs/verification/incoming/dpi_lab.json record can be cited as local intake context only. It is not READY_TO_IMPORT, does not update latest evidence, and has proof_gate_dpi_bypass_claim_allowed=false plus production_readiness_claim_allowed=false.",
-        "event_trace_redaction_required": "EventBus traces enter RAG only when the trace payload and each indexed event have redacted=true."
+        "event_trace_redaction_required": "EventBus traces enter RAG only when the trace payload and each indexed event have redacted=true.",
+        "real_agent_smoke_claim_boundary_required": "The real Go-agent control-loop verifier may be used as local runtime evidence only when the report keeps customer traffic, external reachability, DPI bypass, SLO, and production readiness claims fail-closed."
     },
   "drift_checks": [
     "tests/unit/ledger/test_rag_evidence_bridge_unit.py",
     "tests/unit/api/test_ledger_evidence_endpoints_unit.py",
     "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py",
+    "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py",
     "tests/unit/test_evidence_runtime_bridge_map_unit.py"
   ]
 }

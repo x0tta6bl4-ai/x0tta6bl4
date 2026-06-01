@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -224,6 +225,8 @@ def _download_audit(
 ) -> tuple[Path | None, dict[str, Any]]:
     closeout_dir = Path(args.download_dir)
     audit_dir = closeout_dir / str(run_id) / "audit"
+    if audit_dir.exists():
+        shutil.rmtree(audit_dir)
     audit_dir.mkdir(parents=True, exist_ok=True)
     command = [
         "gh",
@@ -244,6 +247,7 @@ def _download_audit(
         "stdout": result.stdout.strip(),
         "stderr": result.stderr.strip(),
         "audit_dir": str(audit_dir),
+        "audit_dir_reset": True,
     }
     if result.returncode != 0:
         return None, details

@@ -96,12 +96,17 @@ def test_executor_publishes_events_with_identity(tmp_path):
         "x0tta6bl4.self_healing.ebpf.safe_actuator_claim_gate.v1"
     )
     assert metadata["claim_gate"]["local_ebpf_recovery_action_succeeded"] is True
+    assert metadata["claim_gate"]["safe_actuator_result_recorded"] is True
+    assert metadata["claim_gate"]["redacted"] is True
     assert metadata["claim_gate"]["restored_dataplane_claim_allowed"] is False
     assert metadata["claim_gate"]["route_convergence_claim_allowed"] is False
     assert metadata["claim_gate"]["kernel_forwarding_correctness_claim_allowed"] is False
     assert metadata["claim_gate"]["customer_traffic_claim_allowed"] is False
     assert metadata["claim_gate"]["production_readiness_claim_allowed"] is False
     assert "restored dataplane" in metadata["claim_boundary"]
+    assert metadata["evidence"]["raw_context_values_redacted"] is True
+    assert metadata["evidence"]["raw_command_output_redacted"] is True
+    assert metadata["evidence"]["resource"] == "self_healing:ebpf:adjust_route_weights"
     assert payload["claim_gate"]["claim_allowed"] == {
         "local_ebpf_recovery_lifecycle": True,
         "local_safe_actuator_success": True,

@@ -166,6 +166,24 @@ def test_event_control_plane_map_records_token_bridge_safe_actuator_boundary():
     assert "src/dao/bridge/core.py:605" in token_bridge["source_refs"]
 
 
+def test_event_control_plane_map_records_current_safe_actuator_adoption_state():
+    event_map = _load_map()
+    links = {item["id"]: item for item in event_map["non_obvious_links"]}
+    link = links["safe-actuator-is-cross-layer-not-local"]
+    summary = link["summary"]
+
+    assert "parse-error-free adoption inventory" in summary
+    assert "20/20" in summary
+    assert "63/63" in summary
+    assert "18/18" in summary
+    assert "production, dataplane, trust-finality, settlement" in summary
+    assert "customer-traffic claims" in summary
+    assert "still incremental" not in summary
+    assert "src/integration/spine.py:14" in link["source_refs"]
+    assert "src/api/maas/endpoints/governance.py:26" in link["source_refs"]
+    assert "src/network/mptcp_manager.py:16" in link["source_refs"]
+
+
 def test_non_obvious_links_reference_mapped_event_surfaces():
     event_map = _load_map()
     mapped_paths = {item["path"] for item in event_map["event_surface_files"]}

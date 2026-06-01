@@ -115,22 +115,34 @@ def test_helm_runner_publishes_identity_policy_and_safe_actuator_events(tmp_path
     assert claim_gate["schema"] == (
         "x0tta6bl4.dao_proposal_executor.safe_actuator_claim_gate.v1"
     )
+    assert claim_gate["safe_actuator_result_recorded"] is True
+    assert claim_gate["redacted"] is True
     assert claim_gate["local_helm_command_execution_claim_allowed"] is True
     assert claim_gate["production_rollout_claim_allowed"] is False
     assert claim_gate["production_readiness_claim_allowed"] is False
     assert claim_gate["dataplane_delivery_claim_allowed"] is False
     assert claim_gate["customer_traffic_claim_allowed"] is False
+    assert claim_gate["traffic_shift_claim_allowed"] is False
+    assert claim_gate["live_customer_traffic_claim_allowed"] is False
     assert claim_gate["external_settlement_finality_claim_allowed"] is False
     assert metadata["cross_plane_claim_gate"]["allowed"] is False
     evidence = metadata["evidence"]
     assert evidence["operation"] == "helm_upgrade"
+    assert evidence["resource"] == "dao:proposal_executor:helm_upgrade"
     assert evidence["proposal_id_present"] is True
     assert evidence["helm_command_present"] is True
     assert evidence["helm_command_redacted"] is True
     assert evidence["extra_set_redacted"] is True
     assert evidence["return_code"] == 0
     assert evidence["return_code_observed"] is True
+    assert evidence["raw_context_values_redacted"] is True
+    assert evidence["raw_command_output_redacted"] is True
+    assert payload["context"]["command"] == "<redacted>"
+    assert payload["context"]["command_str"] == "<redacted>"
+    assert payload["reason_redacted"] is True
     assert "secret" not in str(metadata)
+    assert "api_token=secret" not in str(payload)
+    assert "upgraded" not in str(payload)
 
 
 def test_helm_runner_policy_denial_blocks_subprocess(tmp_path):
@@ -231,21 +243,31 @@ def test_dao_executor_release_script_runs_through_safe_actuator(tmp_path):
     assert metadata["redacted"] is True
     claim_gate = metadata["claim_gate"]
     assert claim_gate["schema"] == "x0tta6bl4.dao_executor.safe_actuator_claim_gate.v1"
+    assert claim_gate["safe_actuator_result_recorded"] is True
+    assert claim_gate["redacted"] is True
     assert claim_gate["local_release_script_execution_claim_allowed"] is True
     assert claim_gate["production_rollout_claim_allowed"] is False
     assert claim_gate["production_readiness_claim_allowed"] is False
     assert claim_gate["dataplane_delivery_claim_allowed"] is False
     assert claim_gate["customer_traffic_claim_allowed"] is False
+    assert claim_gate["traffic_shift_claim_allowed"] is False
+    assert claim_gate["live_customer_traffic_claim_allowed"] is False
     assert claim_gate["external_settlement_finality_claim_allowed"] is False
     assert metadata["cross_plane_claim_gate"]["allowed"] is False
     evidence = metadata["evidence"]
     assert evidence["operation"] == "release_script"
+    assert evidence["resource"] == "dao:executor:release_script"
     assert evidence["proposal_id_present"] is True
     assert evidence["script_path_redacted"] is True
     assert evidence["title_redacted"] is True
     assert evidence["return_code"] == 0
     assert evidence["return_code_observed"] is True
+    assert evidence["raw_context_values_redacted"] is True
+    assert evidence["raw_command_output_redacted"] is True
+    assert payload["proposal_title"] == "<redacted>"
+    assert payload["script_path"] == "<redacted>"
     assert "HELM_UPGRADE: allowed" not in str(metadata)
+    assert "scripts/release_to_main.sh" not in str(payload)
 
 
 def test_dao_executor_simulated_actuator_blocks_release_script(tmp_path):

@@ -623,6 +623,7 @@ def _governance_action_safe_actuator_claim_gate(
         "blockers": blockers,
         "claim_boundary": GOVERNANCE_ACTION_SAFE_ACTUATOR_CLAIM_BOUNDARY,
         "payloads_redacted": True,
+        "redacted": True,
     }
 
 
@@ -665,6 +666,8 @@ def _governance_action_safe_actuator_evidence_metadata(
         "action_values_redacted": True,
         "result_detail_redacted": True,
         "raw_values_redacted": True,
+        "raw_context_values_redacted": True,
+        "raw_result_values_redacted": True,
     }
     return SafeActuatorEvidenceMetadata.from_value(
         {

@@ -6,9 +6,11 @@ import os
 import shlex
 import subprocess
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 logger = logging.getLogger(__name__)
+
+COMMAND_VERIFIER_PROVIDERS = {"sgx", "sev", "nitro"}
 
 @dataclass
 class TEEAttestation:
@@ -37,24 +39,49 @@ class TEEValidator:
         allow_mock: bool = False,
         sgx_verifier: Optional[Callable[[TEEAttestation], bool]] = None,
         sgx_verifier_command: Optional[Sequence[str] | str] = None,
+        sev_verifier_command: Optional[Sequence[str] | str] = None,
+        nitro_verifier_command: Optional[Sequence[str] | str] = None,
+        verifier_commands: Optional[Mapping[str, Sequence[str] | str]] = None,
     ):
         self.allow_mock = allow_mock
         self.sgx_verifier = sgx_verifier
-        self.sgx_verifier_command = self._resolve_sgx_verifier_command(
-            sgx_verifier_command
-        )
+        configured_commands = dict(verifier_commands or {})
+        if sgx_verifier_command is not None:
+            configured_commands["sgx"] = sgx_verifier_command
+        if sev_verifier_command is not None:
+            configured_commands["sev"] = sev_verifier_command
+        if nitro_verifier_command is not None:
+            configured_commands["nitro"] = nitro_verifier_command
+        self.verifier_commands = {
+            provider: self._resolve_verifier_command(provider, configured_commands.get(provider))
+            for provider in COMMAND_VERIFIER_PROVIDERS
+        }
+        self.sgx_verifier_command = self.verifier_commands["sgx"]
+        self.sev_verifier_command = self.verifier_commands["sev"]
+        self.nitro_verifier_command = self.verifier_commands["nitro"]
         logger.info("TEE Validator initialized (allow_mock=%s)", allow_mock)
 
     @staticmethod
-    def _resolve_sgx_verifier_command(
+    def _resolve_verifier_command(
+        provider: str,
         command: Optional[Sequence[str] | str],
     ) -> list[str]:
         if isinstance(command, str):
             return shlex.split(command)
         if command is not None:
             return list(command)
-        env_command = os.getenv("X0TTA6BL4_SGX_VERIFIER_CMD")
+        normalized = provider.strip().upper()
+        env_command = os.getenv(f"X0TTA6BL4_{normalized}_VERIFIER_CMD")
         return shlex.split(env_command) if env_command else []
+
+    @staticmethod
+    def _resolve_sgx_verifier_command(
+        command: Optional[Sequence[str] | str],
+    ) -> list[str]:
+        return TEEValidator._resolve_verifier_command("sgx", command)
+
+    def verifier_command_for_provider(self, provider: str) -> list[str]:
+        return list(self.verifier_commands.get(provider.strip().lower(), []))
 
     def verify_report(self, attestation: TEEAttestation) -> bool:
         return self.verify_report_with_context(attestation).verified
@@ -82,8 +109,8 @@ class TEEValidator:
                 reason="" if verified else "mock_attestation_rejected",
             )
         
-        if provider == "sgx":
-            return self._verify_sgx_with_context(attestation)
+        if provider in COMMAND_VERIFIER_PROVIDERS:
+            return self._verify_provider_with_context(attestation, provider)
             
         logger.warning("Unknown TEE provider: %s", attestation.provider)
         return self._result(
@@ -109,25 +136,32 @@ class TEEValidator:
         Intel DCAP/PCS verifier wrapper. Without a backend this method rejects
         the report instead of simulating success.
         """
-        provider = "sgx"
+        return self._verify_provider_with_context(attestation, "sgx")
+
+    def _verify_provider_with_context(
+        self,
+        attestation: TEEAttestation,
+        provider: str,
+    ) -> TEEVerificationResult:
+        provider = provider.strip().lower()
         if not attestation.quote or not attestation.signature:
-            logger.warning("SGX attestation missing quote/signature")
+            logger.warning("%s attestation missing quote/signature", provider.upper())
             return self._result(
                 False,
                 provider,
-                verifier_backend="sgx_missing_quote_or_signature",
-                reason="sgx_attestation_missing_quote_or_signature",
+                verifier_backend=f"{provider}_missing_quote_or_signature",
+                reason=f"{provider}_attestation_missing_quote_or_signature",
             )
         if not attestation.report_data:
-            logger.warning("SGX attestation missing report_data")
+            logger.warning("%s attestation missing report_data", provider.upper())
             return self._result(
                 False,
                 provider,
-                verifier_backend="sgx_missing_report_data",
-                reason="sgx_attestation_missing_report_data",
+                verifier_backend=f"{provider}_missing_report_data",
+                reason=f"{provider}_attestation_missing_report_data",
             )
 
-        if self.sgx_verifier is not None:
+        if provider == "sgx" and self.sgx_verifier is not None:
             try:
                 verified = bool(self.sgx_verifier(attestation))
                 return self._result(
@@ -145,31 +179,43 @@ class TEEValidator:
                     reason="sgx_callable_failed",
                 )
 
-        if self.sgx_verifier_command:
-            return self._verify_sgx_with_command_context(attestation)
+        if self.verifier_command_for_provider(provider):
+            return self._verify_with_command_context(attestation, provider)
 
-        logger.error("SGX attestation backend is not configured; rejecting attestation")
+        logger.error(
+            "%s attestation backend is not configured; rejecting attestation",
+            provider.upper(),
+        )
         return self._result(
             False,
             provider,
-            verifier_backend="sgx_backend_not_configured",
-            reason="sgx_attestation_backend_not_configured",
+            verifier_backend=f"{provider}_backend_not_configured",
+            reason=f"{provider}_attestation_backend_not_configured",
         )
 
     def _verify_sgx_with_command(self, attestation: TEEAttestation) -> bool:
         return self._verify_sgx_with_command_context(attestation).verified
 
     def _verify_sgx_with_command_context(self, attestation: TEEAttestation) -> TEEVerificationResult:
+        return self._verify_with_command_context(attestation, "sgx")
+
+    def _verify_with_command_context(
+        self,
+        attestation: TEEAttestation,
+        provider: str,
+    ) -> TEEVerificationResult:
+        provider = provider.strip().lower()
+        command = self.verifier_command_for_provider(provider)
         payload = {
-            "provider": "sgx",
+            "provider": provider,
             "report_data_b64": self._b64(attestation.report_data),
             "quote_b64": self._b64(attestation.quote or b""),
             "signature_b64": self._b64(attestation.signature or b""),
         }
-        provenance = self._command_provenance()
+        provenance = self._command_provenance(provider)
         try:
             result = subprocess.run(
-                self.sgx_verifier_command,
+                command,
                 input=json.dumps(payload),
                 capture_output=True,
                 text=True,
@@ -177,44 +223,44 @@ class TEEValidator:
                 check=False,
             )
         except FileNotFoundError as exc:
-            logger.error("SGX verifier command not found: %s", self.sgx_verifier_command[0])
+            logger.error("%s verifier command not found: %s", provider.upper(), command[0])
             return self._result(
                 False,
-                "sgx",
-                verifier_backend="sgx_command",
+                provider,
+                verifier_backend=f"{provider}_command",
                 verifier_provenance=provenance,
-                reason="sgx_verifier_command_not_found",
+                reason=f"{provider}_verifier_command_not_found",
             )
         except (OSError, subprocess.SubprocessError, ValueError) as exc:
-            logger.error("SGX verifier command failed to run: %s", exc)
+            logger.error("%s verifier command failed to run: %s", provider.upper(), exc)
             return self._result(
                 False,
-                "sgx",
-                verifier_backend="sgx_command",
+                provider,
+                verifier_backend=f"{provider}_command",
                 verifier_provenance=provenance,
-                reason="sgx_verifier_command_failed",
+                reason=f"{provider}_verifier_command_failed",
             )
 
         if result.returncode != 0:
-            logger.warning("SGX verifier command rejected attestation")
+            logger.warning("%s verifier command rejected attestation", provider.upper())
             return self._result(
                 False,
-                "sgx",
-                verifier_backend="sgx_command",
+                provider,
+                verifier_backend=f"{provider}_command",
                 verifier_provenance={
                     **provenance,
                     "exit_code": result.returncode,
                     "stdout_json_fields": [],
                 },
-                reason="sgx_verifier_command_rejected",
+                reason=f"{provider}_verifier_command_rejected",
             )
 
         stdout = result.stdout.strip()
         if not stdout:
             return self._result(
                 True,
-                "sgx",
-                verifier_backend="sgx_command",
+                provider,
+                verifier_backend=f"{provider}_command",
                 verifier_provenance={
                     **provenance,
                     "exit_code": result.returncode,
@@ -227,8 +273,8 @@ class TEEValidator:
         except json.JSONDecodeError:
             return self._result(
                 True,
-                "sgx",
-                verifier_backend="sgx_command",
+                provider,
+                verifier_backend=f"{provider}_command",
                 verifier_provenance={
                     **provenance,
                     "exit_code": result.returncode,
@@ -241,8 +287,8 @@ class TEEValidator:
         verified = bool(response.get("valid"))
         return self._result(
             verified,
-            "sgx",
-            verifier_backend="sgx_command",
+            provider,
+            verifier_backend=f"{provider}_command",
             verifier_provenance={
                 **provenance,
                 "exit_code": result.returncode,
@@ -253,19 +299,20 @@ class TEEValidator:
             production_verifier_claim_allowed=(
                 verified and bool(response.get("production_verifier_claim_allowed"))
             ),
-            reason="" if verified else "sgx_verifier_command_rejected",
+            reason="" if verified else f"{provider}_verifier_command_rejected",
         )
 
     @staticmethod
     def _b64(value: bytes) -> str:
         return base64.b64encode(value).decode("ascii")
 
-    def _command_provenance(self) -> dict[str, Any]:
-        command = list(self.sgx_verifier_command or [])
+    def _command_provenance(self, provider: str = "sgx") -> dict[str, Any]:
+        command = self.verifier_command_for_provider(provider)
         encoded = json.dumps(command, sort_keys=True, separators=(",", ":")).encode("utf-8")
         executable = command[0] if command else ""
         return {
             "backend_kind": "local_command",
+            "provider": provider.strip().lower(),
             "command_sha256_prefix": self._sha256_prefix(encoded),
             "command_arg_count": len(command),
             "executable_name": os.path.basename(executable),

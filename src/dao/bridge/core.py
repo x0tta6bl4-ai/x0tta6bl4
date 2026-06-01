@@ -550,6 +550,41 @@ class TokenBridge:
             }
         )
 
+    def _chain_write_safe_actuator_result(
+        self,
+        operation: str,
+        context: Dict[str, Any],
+        *,
+        success: bool,
+        reason: str,
+        simulated: bool = False,
+        submitted_transaction: bool = False,
+        transaction_hash: Optional[str] = None,
+        policy_decision: Any = None,
+        event_ids: Optional[List[str]] = None,
+    ) -> SafeActuatorResult:
+        seed_result = SafeActuatorResult(
+            success=success,
+            reason=reason,
+            simulated=simulated,
+            evidence_metadata=SafeActuatorEvidenceMetadata(),
+        )
+        metadata = self._chain_write_evidence_metadata(
+            operation=operation,
+            context=context,
+            result=seed_result,
+            submitted_transaction=submitted_transaction,
+            transaction_hash=transaction_hash,
+            policy_decision=policy_decision,
+            event_ids=event_ids,
+        )
+        return SafeActuatorResult(
+            success=success,
+            reason=reason,
+            simulated=simulated,
+            evidence_metadata=metadata,
+        )
+
     def _publish_chain_write_event(
         self,
         event_type: EventType,
@@ -571,7 +606,12 @@ class TokenBridge:
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
-        result = result or SafeActuatorResult(False, reason, simulated=bool(simulated))
+        result = result or SafeActuatorResult(
+            success=bool(success),
+            reason=reason,
+            simulated=bool(simulated),
+            evidence_metadata=metadata or SafeActuatorEvidenceMetadata(),
+        )
         payload = {
             "component": "dao.token_bridge",
             "stage": stage,
@@ -666,16 +706,18 @@ class TokenBridge:
             operation
         )
         if not policy_allowed:
-            result = SafeActuatorResult(False, policy_reason)
-            metadata = self._chain_write_evidence_metadata(
+            result = self._chain_write_safe_actuator_result(
                 operation=operation,
                 context=context,
-                result=result,
+                success=False,
+                reason=policy_reason,
+                simulated=False,
                 submitted_transaction=False,
                 transaction_hash=None,
                 policy_decision=policy_decision,
                 event_ids=event_ids,
             )
+            metadata = result.evidence_metadata
             blocked_id = self._publish_chain_write_event(
                 EventType.TASK_BLOCKED,
                 stage="policy_denied",
@@ -695,11 +737,7 @@ class TokenBridge:
             if blocked_id:
                 event_ids.append(blocked_id)
             self._last_chain_write_event_ids = event_ids[-_EVENT_ID_LIMIT:]
-            return SafeActuatorResult(
-                False,
-                policy_reason,
-                evidence_metadata=metadata,
-            )
+            return result
 
         start_id = self._publish_chain_write_event(
             EventType.PIPELINE_STAGE_START,
@@ -807,7 +845,17 @@ class TokenBridge:
         }
         handler = handlers.get(operation)
         if handler is None:
-            return SafeActuatorResult(False, f"unsupported TokenBridge operation: {operation}")
+            reason = f"unsupported TokenBridge operation: {operation}"
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": reason,
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason=reason,
+            )
         try:
             return handler(operation, context)
         except Exception as exc:
@@ -816,21 +864,62 @@ class TokenBridge:
                 "submitted_transaction": False,
                 "error": str(exc),
             }
-            return SafeActuatorResult(False, f"TokenBridge chain write failed: {exc}")
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason=f"TokenBridge chain write failed: {exc}",
+            )
 
     def _submit_rewards_transaction(
         self,
-        _operation: str,
+        operation: str,
         context: Dict[str, Any],
     ) -> SafeActuatorResult:
         if not self._init_web3():
-            return SafeActuatorResult(False, "TokenBridge Web3 is unavailable")
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": "web3_unavailable",
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason="TokenBridge Web3 is unavailable",
+            )
         if self.contract is None:
-            return SafeActuatorResult(False, "TokenBridge contract is unavailable")
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": "contract_unavailable",
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason="TokenBridge contract is unavailable",
+            )
         if self.account is None:
-            return SafeActuatorResult(False, "TokenBridge account is unavailable")
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": "account_unavailable",
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason="TokenBridge account is unavailable",
+            )
         if not self.contract.functions.canDistributeRewards().call():
-            return SafeActuatorResult(False, "TokenBridge rewards cannot be distributed now")
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": "rewards_distribution_unavailable",
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason="TokenBridge rewards cannot be distributed now",
+            )
 
         rewards = context.get("rewards") if isinstance(context.get("rewards"), dict) else {}
         uptimes = context.get("uptimes") if isinstance(context.get("uptimes"), dict) else {}
@@ -845,7 +934,16 @@ class TokenBridge:
             uptime_values.append(int(uptimes.get(node_id, 100)))
             reward_values_wei.append(int(float(amount) * _WEI_PER_XOT))
         if not recipients:
-            return SafeActuatorResult(False, "TokenBridge has no valid reward recipients")
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": "no_valid_reward_recipients",
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason="TokenBridge has no valid reward recipients",
+            )
 
         fn = self.contract.functions.distributeEpochRewards(
             recipients,
@@ -854,7 +952,18 @@ class TokenBridge:
         )
         tx_hash, receipt = self._send_contract_transaction(fn)
         if not tx_hash or getattr(receipt, "status", 0) != 1:
-            return SafeActuatorResult(False, "TokenBridge reward transaction failed")
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": "reward_transaction_failed",
+                "transaction_hash": tx_hash,
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason="TokenBridge reward transaction failed",
+                transaction_hash=tx_hash,
+            )
 
         total_amount = sum(float(value) for value in rewards.values())
         self._tx_history.append(
@@ -876,7 +985,14 @@ class TokenBridge:
             "transaction_hash": tx_hash,
             "block_number": getattr(receipt, "blockNumber", None),
         }
-        return SafeActuatorResult(True, "TokenBridge reward transaction submitted")
+        return self._chain_write_safe_actuator_result(
+            operation,
+            context,
+            success=True,
+            reason="TokenBridge reward transaction submitted",
+            submitted_transaction=True,
+            transaction_hash=tx_hash,
+        )
 
     def _submit_escrow_transaction(
         self,
@@ -890,41 +1006,103 @@ class TokenBridge:
                     "submitted_transaction": False,
                     "simulated_tx_id": simulated_tx,
                 }
-                return SafeActuatorResult(
-                    True,
-                    "TokenBridge escrow simulation recorded locally",
+                return self._chain_write_safe_actuator_result(
+                    operation,
+                    context,
+                    success=True,
+                    reason="TokenBridge escrow simulation recorded locally",
                     simulated=True,
                 )
-            return SafeActuatorResult(False, "TokenBridge Web3 is unavailable")
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": "web3_unavailable",
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason="TokenBridge Web3 is unavailable",
+            )
 
-        return SafeActuatorResult(
-            False,
-            f"TokenBridge {operation} has no real submission implementation yet",
+        self._last_chain_write_result = {
+            "submitted_transaction": False,
+            "error": "submission_not_implemented",
+        }
+        return self._chain_write_safe_actuator_result(
+            operation,
+            context,
+            success=False,
+            reason=f"TokenBridge {operation} has no real submission implementation yet",
         )
 
     def _submit_authorize_relayer(
         self,
-        _operation: str,
+        operation: str,
         context: Dict[str, Any],
     ) -> SafeActuatorResult:
         if not self._init_web3():
-            return SafeActuatorResult(False, "TokenBridge Web3 is unavailable")
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": "web3_unavailable",
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason="TokenBridge Web3 is unavailable",
+            )
         if self.contract is None or self.account is None:
-            return SafeActuatorResult(False, "TokenBridge contract/account unavailable")
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": "contract_or_account_unavailable",
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason="TokenBridge contract/account unavailable",
+            )
         node_id = str(context.get("node_id") or "")
         address = self.get_eth_address(node_id)
         if not address:
-            return SafeActuatorResult(False, "TokenBridge relayer address is unknown")
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": "relayer_address_unknown",
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason="TokenBridge relayer address is unknown",
+            )
         authorized = bool(context.get("authorized", True))
         fn = self.contract.functions.setRelayerAuthorized(address, authorized)
         tx_hash, receipt = self._send_contract_transaction(fn)
         if not tx_hash or getattr(receipt, "status", 0) != 1:
-            return SafeActuatorResult(False, "TokenBridge relayer authorization failed")
+            self._last_chain_write_result = {
+                "submitted_transaction": False,
+                "error": "relayer_authorization_failed",
+                "transaction_hash": tx_hash,
+            }
+            return self._chain_write_safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason="TokenBridge relayer authorization failed",
+                transaction_hash=tx_hash,
+            )
         self._last_chain_write_result = {
             "submitted_transaction": True,
             "transaction_hash": tx_hash,
         }
-        return SafeActuatorResult(True, "TokenBridge relayer authorization submitted")
+        return self._chain_write_safe_actuator_result(
+            operation,
+            context,
+            success=True,
+            reason="TokenBridge relayer authorization submitted",
+            submitted_transaction=True,
+            transaction_hash=tx_hash,
+        )
 
     async def push_rewards_to_chain(
         self,

@@ -55,6 +55,10 @@ def _manager(tmp_path, **overrides):
         )
 
 
+def _metadata_dict(result):
+    return result.evidence_metadata.to_dict()
+
+
 def test_start_agent_publishes_identity_policy_and_safe_actuator_events(tmp_path):
     manager = _manager(tmp_path)
     process = MagicMock()
@@ -126,6 +130,15 @@ def test_register_workload_policy_denial_blocks_spire_server_command(tmp_path):
     assert blocked[-1].data["stage"] == "policy_denied"
     assert blocked[-1].data["policy_allowed"] is False
     assert blocked[-1].data["resource"] == "identity:spire_agent:register_workload"
+    metadata = blocked[-1].data["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.spire_agent.safe_actuator_claim_gate.v1"
+    assert claim_gate["operation"] == "register_workload"
+    assert claim_gate["local_spire_agent_cli_action_succeeded"] is False
+    assert claim_gate["live_spire_mtls_claim_allowed"] is False
+    assert claim_gate["workload_svid_possession_claim_allowed"] is False
+    assert claim_gate["node_attestation_finality_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
 
 
 def test_join_token_attestation_redacts_token_in_event_payload(tmp_path):
@@ -231,3 +244,77 @@ def test_stop_agent_runs_through_safe_actuator(tmp_path):
     assert payload["resource"] == "identity:spire_agent:stop_agent"
     assert payload["policy_allowed"] is True
     assert payload["safe_actuator"] is True
+
+
+def test_attest_join_token_internal_result_carries_bounded_metadata(tmp_path):
+    manager = _manager(
+        tmp_path,
+        policy_engine=_allow_policy("identity:spire_agent:attest_node"),
+    )
+
+    result = manager._attest_join_token_internal(
+        "secret-token",
+        agent_running=False,
+        operation="attest_node",
+        context={"agent_running": False, "token": "secret-token"},
+    )
+
+    assert result.success is True
+    metadata = _metadata_dict(result)
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.spire_agent.safe_actuator_claim_gate.v1"
+    assert claim_gate["operation"] == "attest_node"
+    assert claim_gate["local_spire_agent_cli_action_succeeded"] is True
+    assert claim_gate["workload_svid_possession_claim_allowed"] is False
+    assert claim_gate["node_attestation_finality_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
+    assert metadata["evidence"]["context_keys"] == ["agent_running", "token"]
+    assert metadata["evidence"]["raw_context_values_redacted"] is True
+    assert "secret-token" not in str(metadata)
+
+
+def test_register_workload_internal_failure_result_carries_bounded_metadata(tmp_path):
+    manager = _manager(
+        tmp_path,
+        policy_engine=_allow_policy("identity:spire_agent:register_workload"),
+    )
+    entry = WorkloadEntry(
+        spiffe_id="spiffe://x0tta6bl4.mesh/workload/secret-api",
+        parent_id="spiffe://x0tta6bl4.mesh/node/secret-worker",
+        selectors={"unix:uid": "1000"},
+    )
+
+    with patch(
+        "src.security.spiffe.agent.manager.subprocess.run",
+        side_effect=FileNotFoundError,
+    ):
+        result = manager._register_workload_internal(
+            entry,
+            operation="register_workload",
+            context={
+                "spiffe_id": entry.spiffe_id,
+                "parent_id": entry.parent_id,
+                "selectors": dict(entry.selectors),
+                "ttl": entry.ttl,
+            },
+        )
+
+    assert result.success is False
+    metadata = _metadata_dict(result)
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.spire_agent.safe_actuator_claim_gate.v1"
+    assert claim_gate["operation"] == "register_workload"
+    assert claim_gate["local_spire_agent_cli_action_succeeded"] is False
+    assert claim_gate["live_spire_mtls_claim_allowed"] is False
+    assert claim_gate["workload_identity_trust_finality_claim_allowed"] is False
+    assert claim_gate["production_identity_readiness_claim_allowed"] is False
+    assert metadata["cross_plane_claim_gate"]["allowed"] is False
+    assert metadata["evidence"]["context_keys"] == [
+        "parent_id",
+        "selectors",
+        "spiffe_id",
+        "ttl",
+    ]
+    assert metadata["evidence"]["raw_command_output_redacted"] is True
+    assert "secret-api" not in str(metadata)
+    assert "secret-worker" not in str(metadata)

@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-05-28",
+  "captured_at": "2026-06-01",
   "status": "working_map_not_production_completion_proof",
   "scope": "Canonical import direction for libx0t and src.libx0t package surfaces.",
   "canonical_import_policy": {
@@ -17,8 +17,8 @@
       "libx0t"
     ],
     "repo_direct_import_statements": {
-      "libx0t": 43,
-      "src.libx0t": 97
+      "libx0t": 44,
+      "src.libx0t": 101
     },
     "src_libx0t_top_level_libx0t_import_statements": {
       "total": 0,
@@ -28,7 +28,7 @@
   },
   "test_compatibility_import_surface": {
     "contract": "Remaining direct libx0t.* imports are test-only public compatibility surface checks. Runtime src files outside src/libx0t and scripts must not import top-level libx0t while the top-level libx0t source tree is absent.",
-    "imports_total": 35,
+    "imports_total": 36,
     "runtime_src_imports_total": 0,
     "scripts_imports_total": 0,
     "source_refs": [
@@ -40,6 +40,7 @@
       "tests/unit/core/test_libx0t_consciousness.py:4",
       "tests/unit/core/test_libx0t_mape_k_loop.py:3",
       "tests/unit/core/test_libx0t_mape_k_loop.py:4",
+      "tests/unit/core/test_libx0t_mape_k_loop.py:5",
       "tests/unit/libx0t/core/test_settings_security_profile_unit.py:3",
       "tests/unit/libx0t/core/test_settings_validation_unit.py:6",
       "tests/unit/libx0t/network/obfuscation/test_base_unit.py:4",
@@ -120,11 +121,11 @@
       "previous_problem": "src/libx0t runtime modules imported top-level libx0t.network modules directly while the top-level libx0t tree is now absent.",
       "current_target": "src.libx0t.network modules and src.network canonical bridges",
       "source_refs": [
-        "src/libx0t/core/app.py:97",
-        "src/libx0t/core/app.py:108",
-        "src/libx0t/core/app.py:549",
-        "src/libx0t/core/app.py:561",
-        "src/libx0t/core/app.py:573",
+        "src/libx0t/core/app.py:98",
+        "src/libx0t/core/app.py:109",
+        "src/libx0t/core/app.py:721",
+        "src/libx0t/core/app.py:737",
+        "src/libx0t/core/app.py:753",
         "src/libx0t/core/app_minimal_with_byzantine.py:23",
         "src/libx0t/core/app_minimal_with_byzantine.py:25",
         "src/libx0t/core/app_minimal_with_byzantine.py:188",
@@ -163,12 +164,12 @@
       "previous_problem": "Runtime files outside src/libx0t imported libx0t.* directly even though the top-level libx0t source tree is absent.",
       "current_target": "src.libx0t.* imports for runtime Batman/CLI/governance compatibility",
       "source_refs": [
-        "src/api/maas/endpoints/batman.py:151",
-        "src/api/maas/endpoints/batman.py:164",
-        "src/api/maas/endpoints/batman.py:177",
-        "src/api/maas/endpoints/batman.py:384",
-        "src/api/maas/endpoints/batman.py:700",
-        "src/api/maas/endpoints/batman.py:742",
+        "src/api/maas/endpoints/batman.py:544",
+        "src/api/maas/endpoints/batman.py:557",
+        "src/api/maas/endpoints/batman.py:570",
+        "src/api/maas/endpoints/batman.py:1631",
+        "src/api/maas/endpoints/batman.py:2307",
+        "src/api/maas/endpoints/batman.py:2449",
         "src/cli/node_cli.py:11",
         "src/cli/node_cli.py:12",
         "src/dao/governance_mvp.py:22"

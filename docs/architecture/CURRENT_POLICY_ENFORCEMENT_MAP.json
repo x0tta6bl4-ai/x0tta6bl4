@@ -1,7 +1,7 @@
 {
-  "captured_at": "2026-05-27",
+  "captured_at": "2026-06-01",
   "status": "working_map_not_production_completion_proof",
-  "scope": "Policy decision normalization and runtime enforcement gates from governance/API/control-plane callers into SafeActuator guarded actions.",
+  "scope": "Policy decision normalization, runtime access enforcement, repository coordination policy, and guarded control-plane actions. This map records local enforcement contracts only; it is not production completion proof.",
   "decision_dialects": {
     "zero_trust": {
       "primary_path": "src/security/zero_trust/policy_engine.py",
@@ -62,14 +62,14 @@
   "guarded_components": [
     {
       "component": "MaaS governance API action execution",
-      "path": "src/api/maas_governance.py",
+      "path": "src/api/maas/endpoints/governance.py",
       "resource_prefix": "api:maas_governance",
       "actuator": "SafeActuator",
       "source_refs": [
-        "src/api/maas_governance.py:26",
-        "src/api/maas_governance.py:106",
-        "src/api/maas_governance.py:221",
-        "src/api/maas_governance.py:364"
+        "src/api/maas/endpoints/governance.py:29",
+        "src/api/maas/endpoints/governance.py:33",
+        "src/api/maas/endpoints/governance.py:781",
+        "src/api/maas/endpoints/governance.py:923"
       ]
     },
     {
@@ -122,14 +122,19 @@
     },
     {
       "component": "Token bridge chain writes",
-      "path": "src/dao/token_bridge.py",
+      "path": "src/dao/bridge/core.py",
       "resource_prefix": "dao:token_bridge",
       "actuator": "AsyncSafeActuator",
+      "policy_evaluator_paths": [
+        "src/dao/bridge/policy.py"
+      ],
       "source_refs": [
-        "src/dao/token_bridge.py:32",
-        "src/dao/token_bridge.py:427",
-        "src/dao/token_bridge.py:535",
-        "src/dao/token_bridge.py:638"
+        "src/dao/bridge/core.py:21",
+        "src/dao/bridge/core.py:26",
+        "src/dao/bridge/core.py:673",
+        "src/dao/bridge/core.py:755",
+        "src/dao/bridge/policy.py:28",
+        "src/dao/bridge/policy.py:41"
       ]
     },
     {
@@ -182,14 +187,14 @@
     },
     {
       "component": "Swarm MAPE-K intelligence",
-      "path": "src/swarm/intelligence.py",
+      "path": "src/swarm/intelligence/mapek.py",
       "resource_prefix": "swarm:mapek",
       "actuator": "AsyncSafeActuator",
       "source_refs": [
-        "src/swarm/intelligence.py:38",
-        "src/swarm/intelligence.py:280",
-        "src/swarm/intelligence.py:398",
-        "src/swarm/intelligence.py:413"
+        "src/swarm/intelligence/mapek.py:12",
+        "src/swarm/intelligence/mapek.py:16",
+        "src/swarm/intelligence/mapek.py:389",
+        "src/swarm/intelligence/mapek.py:405"
       ]
     },
     {
@@ -263,6 +268,75 @@
       ]
     }
   ],
+  "runtime_access_enforcement": {
+    "id": "maas-real-agent-runtime-access-policy",
+    "verifier": "scripts/ops/verify_maas_real_agent_control_loop.py",
+    "readiness_check_id": "maas_real_agent_control_loop_smoke",
+    "ready_decision": "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY",
+    "blocked_decision": "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_BLOCKED",
+    "policy_surface": "MaaS node runtime access is enforced through scoped node runtime credentials, explicit approval/revocation, node-config credential checks, heartbeat credential checks, and operator heal authorization after a real-agent heartbeat.",
+    "bounded_claim": "The verifier proves local temporary MaaS API access enforcement with a locally built Go agent. It does not prove production network access, customer traffic delivery, external reachability, DPI bypass, SLOs, or production readiness.",
+    "enforced_cases": [
+      "enrollment token cannot fetch node-config after registration",
+      "missing heartbeat credential is rejected",
+      "wrong heartbeat credential is rejected",
+      "old rotated runtime credential is rejected",
+      "heartbeat path/body node mismatch is rejected",
+      "cross-node credential use is rejected",
+      "revoked node credential is rejected",
+      "operator heal is checked only after the real-agent heartbeat path is observed"
+    ],
+    "source_refs": [
+      "scripts/ops/verify_maas_real_agent_control_loop.py:47",
+      "scripts/ops/verify_maas_real_agent_control_loop.py:50",
+      "scripts/ops/verify_maas_real_agent_control_loop.py:658",
+      "scripts/ops/verify_maas_real_agent_control_loop.py:691",
+      "scripts/ops/verify_maas_real_agent_control_loop.py:799",
+      "scripts/ops/verify_maas_real_agent_control_loop.py:863",
+      "scripts/ops/verify_maas_real_agent_control_loop.py:889",
+      "scripts/ops/verify_maas_real_agent_control_loop.py:938",
+      "scripts/ops/verify_maas_real_agent_control_loop.py:1028",
+      "scripts/ops/verify_maas_real_agent_control_loop.py:1086",
+      "scripts/ops/check_real_readiness.py:7153",
+      "scripts/ops/check_real_readiness.py:7199",
+      "src/api/maas/endpoints/nodes.py:366",
+      "src/api/maas/endpoints/nodes.py:675",
+      "src/api/maas/endpoints/nodes.py:763",
+      "src/api/maas/endpoints/nodes.py:799",
+      "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:14",
+      "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:45"
+    ]
+  },
+  "repo_coordination_enforcement": {
+    "id": "swarm-agent-lease-policy",
+    "verifier": "scripts/agents/check_coordination_contract.sh",
+    "readiness_check_id": "swarm_coordination_contract",
+    "policy_surface": "Repository-level multi-agent coordination is enforced by executable git hooks, ownership checks, staged-file lease validation before commit, and lease release after commit.",
+    "bounded_claim": "This proves local repository coordination guardrails are installed. It does not prove semantic correctness of another agent's code changes or production runtime safety.",
+    "enforced_cases": [
+      "pre-commit requires a swarm agent identity",
+      "pre-commit runs ownership checks",
+      "pre-commit requires staged files to be covered by active leases",
+      "post-commit releases leases for committed paths",
+      "coordination landing documentation must match its template"
+    ],
+    "source_refs": [
+      "scripts/agents/check_coordination_contract.sh:27",
+      "scripts/agents/check_coordination_contract.sh:33",
+      "scripts/agents/check_coordination_contract.sh:35",
+      "scripts/agents/check_coordination_contract.sh:36",
+      "scripts/agents/check_coordination_contract.sh:37",
+      "scripts/agents/check_coordination_contract.sh:39",
+      ".githooks/pre-commit:11",
+      ".githooks/pre-commit:18",
+      ".githooks/pre-commit:24",
+      ".githooks/pre-commit:25",
+      ".githooks/post-commit:17",
+      ".githooks/post-commit:22",
+      "scripts/ops/check_real_readiness.py:89",
+      "scripts/ops/check_real_readiness.py:7530"
+    ]
+  },
   "non_obvious_links": [
     {
       "id": "two-policy-decision-dialects",
@@ -279,6 +353,18 @@
     {
       "id": "challenge-is-fail-closed-in-normalizer",
       "description": "The adapter treats CHALLENGE as blocked unless a caller implements an explicit challenge flow."
+    },
+    {
+      "id": "compatibility-shims-are-not-enforcement-surfaces",
+      "description": "Legacy modules such as src/api/maas_governance.py, src/dao/token_bridge.py, and src/swarm/intelligence.py are import shims; this map points to canonical modules that actually evaluate policy and invoke SafeActuator paths."
+    },
+    {
+      "id": "real-agent-smoke-is-access-policy-evidence",
+      "description": "The real Go-agent control-loop smoke is policy evidence for local MaaS runtime access checks, not proof of production traffic, external reachability, or production readiness."
+    },
+    {
+      "id": "swarm-coordination-is-repo-policy-not-runtime-policy",
+      "description": "Git hook and lease checks enforce repository coordination between agents; they are tracked separately from runtime SafeActuator policy gates."
     }
   ],
   "drift_checks": [
@@ -286,6 +372,8 @@
     "tests/unit/test_policy_enforcement_map_unit.py",
     "tests/unit/dao/test_governance_spine_unit.py",
     "tests/unit/api/test_maas_governance_spine_unit.py",
-    "tests/unit/security/test_zero_trust_policy_engine.py"
+    "tests/unit/security/test_zero_trust_policy_engine.py",
+    "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py",
+    "scripts/agents/check_coordination_contract.sh"
   ]
 }

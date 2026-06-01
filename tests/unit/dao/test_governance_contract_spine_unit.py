@@ -108,6 +108,9 @@ def test_governance_contract_create_proposal_emits_identity_policy_and_actuator_
     assert claim_gate["schema"] == (
         "x0tta6bl4.governance_contract.safe_actuator_claim_gate.v1"
     )
+    assert claim_gate["resource"] == "dao:governance_contract:create_proposal"
+    assert claim_gate["safe_actuator_result_recorded"] is True
+    assert claim_gate["redacted"] is True
     assert claim_gate["local_transaction_submission_claim_allowed"] is True
     assert claim_gate["transaction_hash_observed_claim_allowed"] is True
     assert claim_gate["external_settlement_finality_claim_allowed"] is False
@@ -118,9 +121,12 @@ def test_governance_contract_create_proposal_emits_identity_policy_and_actuator_
     assert claim_gate["customer_traffic_claim_allowed"] is False
     assert metadata["cross_plane_claim_gate"]["allowed"] is False
     evidence = metadata["evidence"]
+    assert evidence["resource"] == "dao:governance_contract:create_proposal"
     assert evidence["operation"] == "create_proposal"
     assert evidence["operation_resource"] == "create_proposal"
     assert evidence["context_values_redacted"] is True
+    assert evidence["raw_context_values_redacted"] is True
+    assert evidence["raw_result_values_redacted"] is True
     assert evidence["transaction_hash_present"] is True
     assert evidence["transaction_hash_redacted"] is True
     assert evidence["submitted_transaction"] is True

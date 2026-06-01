@@ -299,6 +299,8 @@ class PBFTNode:
             blockers.append("local_pbft_callback_failed")
         return {
             "schema": "x0tta6bl4.swarm_pbft.safe_actuator_claim_gate.v1",
+            "safe_actuator_result_recorded": True,
+            "local_safe_actuator_success": bool(success),
             "local_pbft_callback_execution_claim_allowed": bool(
                 success and callback_configured
             ),
@@ -332,11 +334,14 @@ class PBFTNode:
                     "source_agents": [_SERVICE_AGENT],
                     "event_ids": [],
                     "events_total": 0,
+                    "resource": "swarm:pbft:execute",
                     "sequence": context.get("sequence"),
                     "view": context.get("view"),
                     "digest_present": bool(context.get("digest")),
                     "operation_type": cls._operation_type(context.get("operation")),
                     "operation_redacted": True,
+                    "raw_context_values_redacted": True,
+                    "raw_result_values_redacted": True,
                     "redacted": True,
                 },
                 "source_agents": [_SERVICE_AGENT],

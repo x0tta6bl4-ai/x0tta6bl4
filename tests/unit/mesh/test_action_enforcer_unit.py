@@ -356,8 +356,16 @@ class TestMeshActionEnforcer:
         assert safe_metadata["claim_gate"][
             "local_yggdrasil_reconfiguration_claim_allowed"
         ] is True
+        assert safe_metadata["claim_gate"]["resource"] == (
+            "mesh:action_enforcer:recommendations"
+        )
         assert safe_metadata["claim_gate"]["restored_dataplane_claim_allowed"] is False
         assert safe_metadata["claim_gate"]["customer_traffic_claim_allowed"] is False
+        assert safe_metadata["evidence"]["resource"] == (
+            "mesh:action_enforcer:recommendations"
+        )
+        assert safe_metadata["evidence"]["raw_context_values_redacted"] is True
+        assert safe_metadata["evidence"]["raw_command_output_redacted"] is True
         assert safe_metadata["evidence"]["commands"] == ["removePeer", "addPeer"]
         assert safe_metadata["evidence"]["outputs_redacted"] is True
         assert data["result"]["metric_evidence_policy"]["decision_basis"] == (
@@ -673,7 +681,15 @@ class TestRestartPeer:
         assert safe_metadata["claim_gate"][
             "local_yggdrasil_reconfiguration_claim_allowed"
         ] is True
+        assert safe_metadata["claim_gate"]["resource"] == (
+            "mesh:action_enforcer:recommendations"
+        )
         assert safe_metadata["claim_gate"]["restored_dataplane_claim_allowed"] is False
+        assert safe_metadata["evidence"]["resource"] == (
+            "mesh:action_enforcer:recommendations"
+        )
+        assert safe_metadata["evidence"]["raw_context_values_redacted"] is True
+        assert safe_metadata["evidence"]["raw_command_output_redacted"] is True
         assert safe_metadata["evidence"]["returncodes"] == [0, 0]
         assert safe_metadata["redacted"] is True
         assert "10.0.0.1" not in str(result)

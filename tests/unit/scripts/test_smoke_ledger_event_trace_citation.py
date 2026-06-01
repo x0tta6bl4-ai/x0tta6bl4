@@ -23,6 +23,34 @@ def _load_module():
     return module
 
 
+def test_ledger_smoke_safe_actuator_result_carries_bounded_metadata():
+    smoke = _load_module()
+
+    result = smoke._ledger_smoke_safe_actuator_result(
+        "mptcp-manager",
+        "enable_mptcp",
+        {"secret_target": "do-not-leak"},
+    )
+
+    metadata = result.evidence_metadata.to_dict()
+    assert result.success is True
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert metadata["redacted"] is True
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.ledger_smoke.safe_actuator_claim_gate.v1"
+    assert claim_gate["source_agent"] == "mptcp-manager"
+    assert claim_gate["local_smoke_callback_result_recorded"] is True
+    assert claim_gate["event_trace_citation_smoke_only"] is True
+    assert claim_gate["live_control_execution_claim_allowed"] is False
+    assert claim_gate["dataplane_delivery_claim_allowed"] is False
+    assert claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
+    assert metadata["cross_plane_claim_gate"]["allowed"] is False
+    assert metadata["evidence"]["context_keys"] == ["secret_target"]
+    assert metadata["evidence"]["raw_context_values_redacted"] is True
+    assert "do-not-leak" not in str(metadata)
+
+
 @pytest.mark.asyncio
 async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     smoke = _load_module()

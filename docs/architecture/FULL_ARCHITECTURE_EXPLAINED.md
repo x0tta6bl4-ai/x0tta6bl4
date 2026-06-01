@@ -2,7 +2,9 @@
 
 **Дата:** 28 декабря 2025  
 **Версия:** 1.0  
-**Статус:** ✅ Production-Ready
+> Truth-surface note: historical architecture draft. Superseded for current readiness claims by `STATUS_REALITY.md`, `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`, and proof-gate outputs. Strong readiness wording below is not current production proof.
+
+**Статус:** historical draft, not current production proof
 
 ---
 
@@ -618,4 +620,3 @@
 **Документ:** FULL_ARCHITECTURE_EXPLAINED.md  
 **Версия:** 1.0  
 **Дата:** 28 декабря 2025
-

@@ -342,6 +342,37 @@ class SPIREAgentManager:
             }
         )
 
+    def _safe_actuator_result(
+        self,
+        operation: str,
+        context: Dict[str, Any],
+        *,
+        success: bool,
+        reason: str,
+        simulated: bool = False,
+        policy_decision: Any = None,
+        event_ids: Optional[List[str]] = None,
+    ) -> SafeActuatorResult:
+        seed_result = SafeActuatorResult(
+            success=success,
+            reason=reason,
+            simulated=simulated,
+            evidence_metadata=SafeActuatorEvidenceMetadata(),
+        )
+        metadata = self._safe_actuator_evidence_metadata(
+            operation=operation,
+            context=context,
+            actuator_result=seed_result,
+            policy_decision=policy_decision,
+            event_ids=event_ids,
+        )
+        return SafeActuatorResult(
+            success=success,
+            reason=reason,
+            simulated=simulated,
+            evidence_metadata=metadata,
+        )
+
     def _publish_control_event(
         self,
         event_type: EventType,
@@ -446,6 +477,14 @@ class SPIREAgentManager:
             event_ids.append(received_event_id)
         allowed, decision, reason = self._evaluate_control_policy(operation)
         if not allowed:
+            result = self._safe_actuator_result(
+                operation,
+                context,
+                success=False,
+                reason=reason,
+                policy_decision=decision,
+                event_ids=event_ids,
+            )
             self._publish_control_event(
                 EventType.TASK_BLOCKED,
                 stage="policy_denied",
@@ -455,8 +494,9 @@ class SPIREAgentManager:
                 policy_decision=decision,
                 success=False,
                 simulated=False,
+                safe_actuator_evidence_metadata=result.evidence_metadata,
             )
-            return SafeActuatorResult(False, reason)
+            return result
 
         start_event_id = self._publish_control_event(
             EventType.PIPELINE_STAGE_START,
@@ -567,16 +607,36 @@ class SPIREAgentManager:
             for _ in range(20):
                 if self.socket_path.exists():
                     logger.info("SPIRE Agent socket is ready at %s", self.socket_path)
-                    return SafeActuatorResult(True, "SPIRE Agent started")
+                    return self._safe_actuator_result(
+                        _operation,
+                        _context,
+                        success=True,
+                        reason="SPIRE Agent started",
+                    )
                 time.sleep(0.5)
 
             logger.error("SPIRE Agent socket did not appear within timeout")
             self.stop()
-            return SafeActuatorResult(False, "SPIRE Agent socket did not appear")
+            return self._safe_actuator_result(
+                _operation,
+                _context,
+                success=False,
+                reason="SPIRE Agent socket did not appear",
+            )
         except Exception:
             logger.exception("Failed to start SPIRE Agent")
-            return SafeActuatorResult(False, "Failed to start SPIRE Agent")
-        return SafeActuatorResult(True, "SPIRE Agent started")
+            return self._safe_actuator_result(
+                _operation,
+                _context,
+                success=False,
+                reason="Failed to start SPIRE Agent",
+            )
+        return self._safe_actuator_result(
+            _operation,
+            _context,
+            success=True,
+            reason="SPIRE Agent started",
+        )
 
     def stop(self) -> bool:
         """
@@ -612,17 +672,32 @@ class SPIREAgentManager:
                 if self.agent_process.poll() is not None:
                     logger.info("SPIRE Agent stopped gracefully")
                     self._cleanup()
-                    return SafeActuatorResult(True, "SPIRE Agent stopped gracefully")
+                    return self._safe_actuator_result(
+                        _operation,
+                        _context,
+                        success=True,
+                        reason="SPIRE Agent stopped gracefully",
+                    )
                 time.sleep(0.5)
 
             logger.warning("SPIRE Agent did not stop gracefully, sending SIGKILL")
             os.killpg(os.getpgid(self.agent_process.pid), signal.SIGKILL)
             self.agent_process.wait(timeout=5)
             self._cleanup()
-            return SafeActuatorResult(True, "SPIRE Agent stopped with SIGKILL")
+            return self._safe_actuator_result(
+                _operation,
+                _context,
+                success=True,
+                reason="SPIRE Agent stopped with SIGKILL",
+            )
         except Exception:
             logger.exception("Failed to stop SPIRE Agent")
-            return SafeActuatorResult(False, "Failed to stop SPIRE Agent")
+            return self._safe_actuator_result(
+                _operation,
+                _context,
+                success=False,
+                reason="Failed to stop SPIRE Agent",
+            )
 
     def attest_node(self, strategy: AttestationStrategy, **attestation_data) -> bool:
         """
@@ -682,6 +757,8 @@ class SPIREAgentManager:
                         self._attest_join_token_internal(
                             token,
                             agent_running=agent_running,
+                            operation=_operation,
+                            context=_context,
                         )
                     ),
                 )
@@ -700,7 +777,10 @@ class SPIREAgentManager:
         token: str,
         *,
         agent_running: bool,
+        operation: str = "attest_node",
+        context: Optional[Dict[str, Any]] = None,
     ) -> SafeActuatorResult:
+        safe_context = dict(context or {"agent_running": agent_running, "token": token})
         self._join_token = token
         logger.info(
             "Join token has been set. It will be used for agent attestation."
@@ -710,18 +790,32 @@ class SPIREAgentManager:
         if agent_running:
             logger.info("Restarting agent to apply new join token.")
             if not self.stop():
-                return SafeActuatorResult(
-                    False,
-                    "SPIRE Agent stop failed during attestation",
+                return self._safe_actuator_result(
+                    operation,
+                    safe_context,
+                    success=False,
+                    reason="SPIRE Agent stop failed during attestation",
                 )
             if not self.start():
-                return SafeActuatorResult(
-                    False,
-                    "SPIRE Agent restart failed during attestation",
+                return self._safe_actuator_result(
+                    operation,
+                    safe_context,
+                    success=False,
+                    reason="SPIRE Agent restart failed during attestation",
                 )
-            return SafeActuatorResult(True, "SPIRE Agent restarted with join token")
+            return self._safe_actuator_result(
+                operation,
+                safe_context,
+                success=True,
+                reason="SPIRE Agent restarted with join token",
+            )
 
-        return SafeActuatorResult(True, "Join token stored for next SPIRE Agent start")
+        return self._safe_actuator_result(
+            operation,
+            safe_context,
+            success=True,
+            reason="Join token stored for next SPIRE Agent start",
+        )
 
     def register_workload(self, entry: WorkloadEntry) -> bool:
         """
@@ -746,12 +840,29 @@ class SPIREAgentManager:
                 "ttl": entry.ttl,
             },
             executor=lambda _operation, _context: self._register_workload_internal(
-                entry
+                entry,
+                operation=_operation,
+                context=_context,
             ),
         )
         return bool(result.success) and not bool(result.simulated)
 
-    def _register_workload_internal(self, entry: WorkloadEntry) -> SafeActuatorResult:
+    def _register_workload_internal(
+        self,
+        entry: WorkloadEntry,
+        *,
+        operation: str = "register_workload",
+        context: Optional[Dict[str, Any]] = None,
+    ) -> SafeActuatorResult:
+        safe_context = dict(
+            context
+            or {
+                "spiffe_id": entry.spiffe_id,
+                "parent_id": entry.parent_id,
+                "selectors": dict(entry.selectors),
+                "ttl": entry.ttl,
+            }
+        )
         cmd = [
             self._spire_server_bin,
             "entry",
@@ -773,24 +884,41 @@ class SPIREAgentManager:
             logger.info(
                 "Successfully registered workload entry: %s", result.stdout.strip()
             )
-            return SafeActuatorResult(True, "SPIRE workload registered")
+            return self._safe_actuator_result(
+                operation,
+                safe_context,
+                success=True,
+                reason="SPIRE workload registered",
+            )
         except FileNotFoundError:
             logger.error("`spire-server` binary not found, cannot register workload.")
-            return SafeActuatorResult(False, "spire-server binary not found")
+            return self._safe_actuator_result(
+                operation,
+                safe_context,
+                success=False,
+                reason="spire-server binary not found",
+            )
         except subprocess.CalledProcessError as e:
             logger.error(
                 "Failed to register workload %s. Error: %s",
                 entry.spiffe_id,
                 e.stderr,
             )
-            return SafeActuatorResult(False, "SPIRE workload registration failed")
+            return self._safe_actuator_result(
+                operation,
+                safe_context,
+                success=False,
+                reason="SPIRE workload registration failed",
+            )
         except Exception:
             logger.exception(
                 "An unexpected error occurred during workload registration."
             )
-            return SafeActuatorResult(
-                False,
-                "Unexpected SPIRE workload registration error",
+            return self._safe_actuator_result(
+                operation,
+                safe_context,
+                success=False,
+                reason="Unexpected SPIRE workload registration error",
             )
 
     def list_workloads(self) -> List[WorkloadEntry]:
@@ -954,16 +1082,26 @@ class SPIREAgentManager:
                 capture_output=True,
                 timeout=5,
             )
-            return SafeActuatorResult(
-                result.returncode == 0,
-                "SPIRE Agent healthcheck passed"
-                if result.returncode == 0
-                else "SPIRE Agent healthcheck returned non-zero",
+            success = result.returncode == 0
+            return self._safe_actuator_result(
+                _operation,
+                _context,
+                success=success,
+                reason=(
+                    "SPIRE Agent healthcheck passed"
+                    if success
+                    else "SPIRE Agent healthcheck returned non-zero"
+                ),
             )
         except Exception:
             logger.exception("SPIRE Agent healthcheck command failed")
             # Fallback: if process is running and socket exists, treat as healthy.
-            return SafeActuatorResult(True, "SPIRE Agent healthcheck fallback healthy")
+            return self._safe_actuator_result(
+                _operation,
+                _context,
+                success=True,
+                reason="SPIRE Agent healthcheck fallback healthy",
+            )
 
     # ------------------------------------------------------------------
     # Internal helpers

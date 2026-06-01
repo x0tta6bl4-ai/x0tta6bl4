@@ -420,6 +420,7 @@ class EBPFExecutor(MAPEKExecutor):
             "production_readiness_claim_allowed": False,
             "claim_boundary": EBPF_SAFE_ACTUATOR_CLAIM_BOUNDARY,
             "payloads_redacted": True,
+            "redacted": True,
         }
         return SafeActuatorEvidenceMetadata(
             claim_gate=claim_gate,
@@ -427,7 +428,10 @@ class EBPFExecutor(MAPEKExecutor):
                 "component": "self_healing.ebpf_anomaly_detector",
                 "resource": f"self_healing:ebpf:{action_resource}",
                 "action_type": str(action_type),
+                "raw_context_values_redacted": True,
+                "raw_command_output_redacted": True,
                 "payloads_redacted": True,
+                "redacted": True,
             },
             source_agents=[self.source_agent],
             claim_boundary=EBPF_SAFE_ACTUATOR_CLAIM_BOUNDARY,

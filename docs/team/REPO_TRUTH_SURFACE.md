@@ -1,6 +1,6 @@
 # Repo Truth Surface
 
-Last updated: 2026-05-20
+Last updated: 2026-06-01
 
 This document defines which repo files can be used as current evidence and
 which files are only planning, sales, or historical material. It is a routing
@@ -48,6 +48,7 @@ The gate must have `active=0` before a change is treated as clean.
 
 Planning and desired-future material:
 
+- `docs/vision/**`
 - `plans/**`
 - `deploy/**`
 - `config/**`
@@ -55,8 +56,8 @@ Planning and desired-future material:
 - `chaos/**`
 - `grafana/**`
 
-These files may describe targets, but they are not evidence that a capability is
-delivered.
+These files may describe targets, pitch language, persona language, or future
+architecture, but they are not evidence that a capability is delivered.
 
 ### legacy
 

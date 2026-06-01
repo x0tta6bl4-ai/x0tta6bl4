@@ -7,6 +7,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 MAP_PATH = ROOT / "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json"
+AUDIT_PATH = ROOT / "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md"
 
 REQUIRED_PLANES = {
     "data_plane",
@@ -14,6 +15,37 @@ REQUIRED_PLANES = {
     "trust_plane",
     "evidence_plane",
     "economy_plane",
+}
+
+REQUIRED_PLANE_SOURCE_REFS = {
+    "data_plane": {
+        "scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py:1",
+        "scripts/ops/verify_maas_real_agent_control_loop.py:1",
+        "scripts/ops/verify_dataplane_delivery_private_target_operator_run.py:1",
+        "tests/unit/scripts/test_run_dataplane_delivery_operator_evidence.py:1",
+        "tests/unit/scripts/test_verify_dataplane_delivery_private_target_operator_run.py:1",
+        "tests/unit/scripts/test_verify_maas_heal_api_post_action_dataplane_probe.py:1",
+        "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:1",
+    },
+    "control_plane": {
+        "scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py:1",
+        "scripts/ops/verify_maas_real_agent_control_loop.py:1",
+        "scripts/ops/run_production_deploy_blocked_preflight_evidence.py:1",
+        "src/self_healing/mape_k/manager.py:1",
+        "src/dao/proposal_executor_webhook.py:1",
+        "src/dao/governance.py:1",
+        "src/dao/governance_contract.py:1",
+    },
+    "evidence_plane": {
+        "scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py:1",
+        "scripts/ops/verify_maas_real_agent_control_loop.py:1",
+        "scripts/ops/run_production_deploy_blocked_preflight_evidence.py:1",
+        "tests/unit/scripts/test_run_dataplane_delivery_operator_evidence.py:1",
+        "tests/unit/scripts/test_verify_dataplane_delivery_private_target_operator_run.py:1",
+        "tests/unit/scripts/test_run_production_deploy_blocked_preflight_evidence.py:1",
+        "tests/unit/scripts/test_verify_maas_heal_api_post_action_dataplane_probe.py:1",
+        "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:1",
+    },
 }
 
 REQUIRED_LINK_IDS = {
@@ -88,6 +120,8 @@ REQUIRED_LINK_FALSE_FLAGS = {
         "production_readiness_claim_allowed",
     },
     "deployment-safe-actuator-runtime-metadata-boundary": {
+        "live_deploy_subprocess_attempted",
+        "kubectl_prerequisites_attempted",
         "traffic_shift_claim_allowed",
         "live_customer_traffic_claim_allowed",
         "production_slo_claim_allowed",
@@ -207,6 +241,20 @@ def test_cross_plane_evidence_map_links_current_authoritative_maps():
     }.issubset(linked_paths)
 
 
+def test_active_goal_gap_audit_tracks_current_safe_actuator_verifiers():
+    audit_text = AUDIT_PATH.read_text(encoding="utf-8")
+
+    assert "control_spine_fragmentation" in audit_text
+    assert "parse-error-free" in audit_text
+    assert "`20/20`" in audit_text
+    assert "`63/63`" in audit_text
+    assert "`18 EventBus + 4 ops result-metadata local cases`" in audit_text
+    assert "`18/18` local cases" not in audit_text
+    assert "`14/14` local cases" not in audit_text
+    assert "scripts/ops/verify_safe_actuator_metadata_adoption.py" in audit_text
+    assert "scripts/ops/verify_safe_actuator_runtime_metadata_retention.py" in audit_text
+
+
 def test_cross_plane_evidence_map_source_refs_resolve_to_existing_lines():
     evidence_map = _load_map()
 
@@ -229,6 +277,32 @@ def test_cross_plane_evidence_map_has_required_planes_with_boundaries():
         assert plane["claim_boundaries"], plane_id
         assert plane["source_refs"], plane_id
         assert any("not" in item.lower() for item in plane["claim_boundaries"]), plane_id
+
+
+def test_cross_plane_evidence_map_plane_source_refs_cover_current_verifiers():
+    evidence_map = _load_map()
+
+    for plane_id, required_refs in REQUIRED_PLANE_SOURCE_REFS.items():
+        refs = set(evidence_map["planes"][plane_id]["source_refs"])
+        assert required_refs.issubset(refs), plane_id
+
+
+def test_cross_plane_evidence_map_tracks_real_go_agent_control_loop():
+    evidence_map = _load_map()
+    link = next(
+        item
+        for item in evidence_map["cross_plane_links"]
+        if item["id"] == "maas-heal-post-action-probe-to-bounded-restored-dataplane"
+    )
+    text = json.dumps(link)
+
+    assert "scripts/ops/verify_maas_real_agent_control_loop.py:1" in link["source_refs"]
+    assert "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:1" in link["source_refs"]
+    assert "temporary MaaS API" in text
+    assert "heartbeat persistence" in text
+    assert link["proof_flags"]["real_go_agent_control_loop_verified"] is True
+    assert link["proof_flags"]["customer_traffic_claim_allowed"] is False
+    assert link["proof_flags"]["production_readiness_claim_allowed"] is False
 
 
 def test_cross_plane_links_cover_required_links_and_known_planes():
@@ -410,6 +484,11 @@ def test_cross_plane_deployment_safe_actuator_metadata_is_bounded_runtime_eviden
     assert proof_flags["local_ops_monitor_observation_metadata_present"] is True
     assert proof_flags["local_ops_rollback_recommendation_metadata_present"] is True
     assert proof_flags["local_ops_real_readiness_preflight_metadata_present"] is True
+    assert proof_flags["production_deploy_blocked_preflight_evidence_retained"] is True
+    assert proof_flags["production_deploy_blocked_before_live_subprocess"] is True
+    assert proof_flags["production_deploy_blocked_before_kubectl_prerequisites"] is True
+    assert proof_flags["live_deploy_subprocess_attempted"] is False
+    assert proof_flags["kubectl_prerequisites_attempted"] is False
     assert proof_flags["traffic_shift_claim_allowed"] is False
     assert proof_flags["live_customer_traffic_claim_allowed"] is False
     assert proof_flags["production_slo_claim_allowed"] is False
@@ -423,6 +502,8 @@ def test_cross_plane_deployment_safe_actuator_metadata_is_bounded_runtime_eviden
     assert "scripts/production_monitor.py:1" in link["source_refs"]
     assert "scripts/auto_rollback.py:1" in link["source_refs"]
     assert "scripts/deploy/production_deploy.py:1" in link["source_refs"]
+    assert "scripts/ops/run_production_deploy_blocked_preflight_evidence.py:1" in link["source_refs"]
+    assert "tests/unit/scripts/test_run_production_deploy_blocked_preflight_evidence.py:1" in link["source_refs"]
     assert "scripts/ops/check_real_readiness.py:1" in link["source_refs"]
 
 

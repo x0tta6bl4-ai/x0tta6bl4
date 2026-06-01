@@ -40,6 +40,10 @@ def _client(tmp_path, **overrides):
     return SPIREServerClient(spire_server_bin="spire-server", **kwargs)
 
 
+def _metadata_dict(result):
+    return result.evidence_metadata.to_dict()
+
+
 def test_create_entry_publishes_identity_policy_and_safe_actuator_events(tmp_path):
     client = _client(tmp_path)
 
@@ -112,6 +116,14 @@ def test_delete_entry_policy_denial_blocks_spire_server_command(tmp_path):
     assert blocked[-1].data["stage"] == "policy_denied"
     assert blocked[-1].data["policy_allowed"] is False
     assert blocked[-1].data["resource"] == "identity:spire_server:delete_entry"
+    metadata = blocked[-1].data["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.spire_server.safe_actuator_claim_gate.v1"
+    assert claim_gate["operation"] == "delete_entry"
+    assert claim_gate["local_spire_server_cli_action_succeeded"] is False
+    assert claim_gate["live_spire_mtls_claim_allowed"] is False
+    assert claim_gate["workload_svid_possession_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
 
 
 def test_simulated_actuator_blocks_create_entry(tmp_path):
@@ -208,3 +220,39 @@ def test_get_server_status_records_failed_health_without_losing_status(tmp_path)
     )
     assert failed[-1].data["stage"] == "actuator_failed"
     assert failed[-1].data["resource"] == "identity:spire_server:get_server_status"
+
+
+def test_local_cli_result_carries_bounded_metadata_and_redacts_secrets(tmp_path):
+    client = _client(
+        tmp_path,
+        policy_engine=_allow_policy("identity:spire_server:create_entry"),
+    )
+
+    result = client._local_cli_result(
+        operation="create_entry",
+        success=False,
+        reason="SPIRE entry creation failed",
+        evidence={
+            "secret_token": "do-not-leak",
+            "selector_count": 1,
+            "returncode": 1,
+        },
+    )
+
+    assert result.success is False
+    metadata = _metadata_dict(result)
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert metadata["redacted"] is True
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.spire_server.safe_actuator_claim_gate.v1"
+    assert claim_gate["operation"] == "create_entry"
+    assert claim_gate["local_spire_server_cli_action_succeeded"] is False
+    assert claim_gate["live_spire_mtls_claim_allowed"] is False
+    assert claim_gate["workload_identity_trust_finality_claim_allowed"] is False
+    assert claim_gate["dataplane_delivery_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
+    assert metadata["cross_plane_claim_gate"]["allowed"] is False
+    assert metadata["evidence"]["resource"] == "identity:spire_server:create_entry"
+    assert metadata["evidence"]["secret_token"] == "<redacted>"
+    assert metadata["evidence"]["raw_command_output_redacted"] is True
+    assert "do-not-leak" not in str(metadata)

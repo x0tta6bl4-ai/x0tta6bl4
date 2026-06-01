@@ -315,13 +315,16 @@ class GovernanceContract:
             blockers.append("chain_write_not_successful")
         if not transaction_hash:
             blockers.append("transaction_hash_missing")
+        resource = f"dao:governance_contract:{cls._operation_resource_name(operation)}"
 
         return {
             "schema": "x0tta6bl4.governance_contract.safe_actuator_claim_gate.v1",
             "surface": "dao.governance_contract.chain_write",
+            "resource": resource,
             "operation": str(operation or ""),
             "local_transaction_submission_claim_allowed": submitted_transaction,
             "transaction_hash_observed_claim_allowed": bool(transaction_hash),
+            "safe_actuator_result_recorded": True,
             "external_settlement_finality_claim_allowed": False,
             "governance_execution_finality_claim_allowed": False,
             "production_governance_execution_claim_allowed": False,
@@ -330,6 +333,8 @@ class GovernanceContract:
             "customer_traffic_claim_allowed": False,
             "blocked_claim_ids": list(_GOVERNANCE_CONTRACT_STRONG_CLAIM_IDS),
             "blockers": blockers,
+            "payloads_redacted": True,
+            "redacted": True,
             "claim_boundary": (
                 "GovernanceContract SafeActuator metadata proves only a local "
                 "guarded chain-write attempt and bounded transaction-hash "
@@ -358,19 +363,25 @@ class GovernanceContract:
             transaction_hash=transaction_hash,
             operation_recognized=operation_recognized,
         )
+        resource = f"dao:governance_contract:{cls._operation_resource_name(operation)}"
         evidence = {
             "source_agents": [_SERVICE_AGENT],
             "event_ids": [],
+            "resource": resource,
             "operation": str(operation or ""),
             "operation_resource": cls._operation_resource_name(operation),
             "context_keys": sorted(str(key) for key in context.keys()),
             "context_values_redacted": True,
+            "raw_context_values_redacted": True,
             "transaction_hash_present": bool(transaction_hash),
             "transaction_hash_redacted": bool(transaction_hash),
             "submitted_transaction": bool(transaction_hash and success and not simulated),
             "duration_ms": int(duration_ms or 0),
             "simulated": bool(simulated),
+            "raw_result_values_redacted": True,
             "raw_values_redacted": True,
+            "payloads_redacted": True,
+            "redacted": True,
         }
         return SafeActuatorEvidenceMetadata.from_value(
             {

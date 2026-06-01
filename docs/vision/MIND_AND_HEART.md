@@ -1,3 +1,11 @@
+> Truth-surface note: mission / vision narrative.
+> Superseded for current readiness claims by `STATUS_REALITY.md`,
+> `docs/05-operations/REAL_READINESS_GATE.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`.
+> Production-ready, compliance, unblockable, tracking, MTTR, and benchmark
+> wording below is historical/aspirational language, not current production
+> deployment evidence.
+
 # 🧠❤️ РАЗУМ И СЕРДЦЕ: x0tta6bl4
 
 > *"Технология без миссии — это просто код. Миссия без технологии — это просто мечта.  
@@ -514,4 +522,3 @@ Compliance + Свобода = Непреодолимая сила
 *"Wake up. Update. Save yourself."*
 
 **x0tta6bl4 — Готов защищать свободу. 🚀🌍**
-

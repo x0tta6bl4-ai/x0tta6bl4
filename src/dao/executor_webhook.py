@@ -42,6 +42,7 @@ _DEPLOYMENTS_DIR = Path(__file__).parent / "deployments"
 _DEFAULT_PROCESSED = _DEPLOYMENTS_DIR / "executed_proposals.json"
 _DEFAULT_LEDGER = _DEPLOYMENTS_DIR / "audit.jsonl"
 _SERVICE_AGENT = "dao-executor"
+_RELEASE_SCRIPT_RESOURCE = "dao:executor:release_script"
 _DAO_EXECUTOR_STRONG_CLAIM_IDS = (
     "production_rollout",
     "production_readiness",
@@ -176,7 +177,7 @@ class DAOExecutor:
 
     @classmethod
     def _safe_value(cls, key: str, value: Any, depth: int = 0) -> Any:
-        blocked_fragments = ("secret", "password", "token", "key", "private")
+        blocked_fragments = ("secret", "password", "token", "key", "private", "title", "path")
         if any(fragment in str(key).lower() for fragment in blocked_fragments):
             return "<redacted>"
         if value is None or isinstance(value, (str, int, float, bool)):
@@ -253,16 +254,24 @@ class DAOExecutor:
             "surface": "dao.executor.release_script",
             "operation": "release_script",
             "action": str(action or ""),
+            "resource": _RELEASE_SCRIPT_RESOURCE,
             "proposal_id_present": context.get("proposal_id") is not None,
             "script_path_present": bool(context.get("script_path")),
+            "safe_actuator_result_recorded": True,
+            "local_safe_actuator_success": bool(success),
+            "return_code_observed": return_code is not None,
             "local_release_script_execution_claim_allowed": local_execution_allowed,
             "production_rollout_claim_allowed": False,
             "production_readiness_claim_allowed": False,
             "dataplane_delivery_claim_allowed": False,
             "customer_traffic_claim_allowed": False,
             "external_settlement_finality_claim_allowed": False,
+            "traffic_shift_claim_allowed": False,
+            "live_customer_traffic_claim_allowed": False,
             "blocked_claim_ids": list(_DAO_EXECUTOR_STRONG_CLAIM_IDS),
             "blockers": blockers,
+            "payloads_redacted": True,
+            "redacted": True,
             "claim_boundary": (
                 "DAOExecutor SafeActuator metadata proves only a local guarded "
                 "release-script attempt and its bounded process outcome. It does "
@@ -294,6 +303,7 @@ class DAOExecutor:
         evidence = {
             "source_agents": [_SERVICE_AGENT],
             "event_ids": [],
+            "resource": _RELEASE_SCRIPT_RESOURCE,
             "operation": "release_script",
             "action": str(action or ""),
             "proposal_id_present": context.get("proposal_id") is not None,
@@ -305,6 +315,10 @@ class DAOExecutor:
             "duration_ms": int(duration_ms or 0),
             "simulated": bool(simulated),
             "raw_values_redacted": True,
+            "raw_context_values_redacted": True,
+            "raw_command_output_redacted": True,
+            "payloads_redacted": True,
+            "redacted": True,
         }
         return SafeActuatorEvidenceMetadata.from_value(
             {
@@ -336,10 +350,12 @@ class DAOExecutor:
             "component": "dao.executor_webhook",
             "stage": stage,
             "operation": "release_script",
-            "resource": "dao:executor:release_script",
+            "resource": _RELEASE_SCRIPT_RESOURCE,
             "proposal_id": context.get("proposal_id"),
-            "proposal_title": context.get("title"),
-            "script_path": context.get("script_path"),
+            "proposal_title": "<redacted>" if context.get("title") else None,
+            "proposal_title_redacted": context.get("title") is not None,
+            "script_path": "<redacted>" if context.get("script_path") else None,
+            "script_path_redacted": bool(context.get("script_path")),
             "node_id": self.identity["node_id"],
             "spiffe_id": self.identity["spiffe_id"],
             "did": self.identity["did"],
@@ -385,7 +401,7 @@ class DAOExecutor:
         try:
             decision = self.policy_engine.evaluate(
                 spiffe_id,
-                resource="dao:executor:release_script",
+                resource=_RELEASE_SCRIPT_RESOURCE,
                 workload_type="dao-executor",
             )
         except Exception as exc:

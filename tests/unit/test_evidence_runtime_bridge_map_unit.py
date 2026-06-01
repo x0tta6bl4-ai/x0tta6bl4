@@ -82,7 +82,9 @@ def test_evidence_runtime_bridge_source_refs_resolve_to_existing_files_and_lines
 
 def test_evidence_runtime_bridge_claims_match_code_markers():
     bridge_map = _load_map()
-    endpoint_source = (ROOT / "src/api/ledger_endpoints.py").read_text(encoding="utf-8")
+    endpoint_source = (ROOT / "src/api/maas/endpoints/ledger.py").read_text(
+        encoding="utf-8"
+    )
     rag_source = (ROOT / "src/ledger/rag_search.py").read_text(encoding="utf-8")
     smoke_source = (
         ROOT / "scripts/ops/smoke_ledger_event_trace_citation.py"
@@ -208,3 +210,90 @@ def test_evidence_runtime_bridge_claims_match_code_markers():
     assert "marketplace_event_id_matches" in smoke_source
     assert "swarm_event_id_matches" in smoke_source
     assert "secret_values_absent" in smoke_source
+
+
+def test_evidence_runtime_bridge_tracks_real_go_agent_smoke_boundary():
+    bridge_map = _load_map()
+    real_agent = bridge_map["real_agent_control_loop_smoke"]
+    verifier_source = (
+        ROOT / "scripts/ops/verify_maas_real_agent_control_loop.py"
+    ).read_text(encoding="utf-8")
+    verifier_test_source = (
+        ROOT / "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py"
+    ).read_text(encoding="utf-8")
+    readiness_source = (ROOT / "scripts/ops/check_real_readiness.py").read_text(
+        encoding="utf-8"
+    )
+    agent_main_source = (ROOT / "agent/main.go").read_text(encoding="utf-8")
+    agent_client_source = (ROOT / "agent/internal/api/client.go").read_text(
+        encoding="utf-8"
+    )
+    nodes_source = (ROOT / "src/api/maas/endpoints/nodes.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert real_agent["schema"] == (
+        "x0tta6bl4.maas_real_agent_control_loop_smoke.v1"
+    )
+    assert real_agent["command"] == (
+        "python3 scripts/ops/verify_maas_real_agent_control_loop.py "
+        "--dataplane-probe-target 10.123.45.67 --timeout-seconds 90"
+    )
+    assert real_agent["ready_decision"] == (
+        "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY"
+    )
+    assert real_agent["blocked_decision"] == (
+        "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_BLOCKED"
+    )
+    assert "temporary MaaS API" in real_agent["claim_boundary"]
+    assert "production readiness" in real_agent["claim_boundary"]
+    assert {
+        "production network provisioning",
+        "customer traffic delivery",
+        "VPN availability",
+        "external DPI bypass",
+        "payment settlement finality",
+        "production SLOs",
+        "production readiness",
+    }.issubset(set(real_agent["does_not_prove"]))
+
+    required_stages = set(real_agent["required_stages"])
+    assert {
+        "local_maas_api_started",
+        "go_agent_build",
+        "agent_registration_pending",
+        "agent_node_runtime_credential_metadata_stored",
+        "enrollment_token_node_config_rejected",
+        "cross_node_credential_rejected",
+        "revoked_node_credential_rejected",
+        "agent_node_config_fetch_observed",
+        "agent_heartbeat_persisted",
+        "operator_heal_after_real_agent_heartbeat",
+    }.issubset(required_stages)
+
+    assert "Local real-agent smoke only" in verifier_source
+    assert "temporary SQLite database" in verifier_source
+    assert "No real API keys" in verifier_source
+    assert "production/customer" in verifier_source
+    assert "operator_heal_after_real_agent_heartbeat" in verifier_source
+    assert "production_readiness_claim_allowed" in verifier_source
+    assert "raw_target_redacted" in verifier_source
+    assert "MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER" in readiness_source
+    assert "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY" in readiness_source
+    assert "run_verification" in verifier_test_source
+    assert "operator_heal_observed" in verifier_test_source
+    assert "customer_traffic_claim_allowed" in verifier_test_source
+    assert "target not in json.dumps(report" in verifier_test_source
+    assert "registerAndHeartbeat" in agent_main_source
+    assert "FetchNodeConfig" in agent_main_source
+    assert "SendHeartbeat" in agent_main_source
+    assert "Register(req RegistrationRequest)" in agent_client_source
+    assert "FetchNodeConfigWithJWTSVID" in agent_client_source
+    assert "SendHeartbeatWithJWTSVID" in agent_client_source
+    assert '"/{mesh_id}/nodes/register"' in nodes_source
+    assert '"/{mesh_id}/node-config/{node_id}"' in nodes_source
+    assert '"/{mesh_id}/nodes/{node_id}/heal"' in nodes_source
+    assert (
+        bridge_map["guardrails"]["real_agent_smoke_claim_boundary_required"]
+        .startswith("The real Go-agent control-loop verifier")
+    )

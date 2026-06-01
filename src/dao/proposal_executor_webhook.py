@@ -88,6 +88,7 @@ _PROPOSAL_EXECUTED_TOPIC = (
 )
 
 _SERVICE_AGENT = "dao-proposal-executor"
+_HELM_UPGRADE_RESOURCE = "dao:proposal_executor:helm_upgrade"
 _HELM_EXECUTOR_STRONG_CLAIM_IDS = (
     "production_rollout",
     "production_readiness",
@@ -261,7 +262,7 @@ class HelmRunner:
 
     @classmethod
     def _safe_value(cls, key: str, value: Any, depth: int = 0) -> Any:
-        blocked_fragments = ("secret", "password", "token", "key", "private")
+        blocked_fragments = ("secret", "password", "token", "key", "private", "command")
         if any(fragment in str(key).lower() for fragment in blocked_fragments):
             return "<redacted>"
         if value is None or isinstance(value, (str, int, float, bool)):
@@ -338,16 +339,24 @@ class HelmRunner:
             "surface": "dao.proposal_executor.helm_upgrade",
             "operation": "helm_upgrade",
             "action": str(action or ""),
+            "resource": _HELM_UPGRADE_RESOURCE,
             "proposal_id_present": context.get("proposal_id") is not None,
             "helm_command_present": bool(context.get("command")),
+            "safe_actuator_result_recorded": True,
+            "local_safe_actuator_success": bool(success),
+            "return_code_observed": return_code is not None,
             "local_helm_command_execution_claim_allowed": local_helm_execution_allowed,
             "production_rollout_claim_allowed": False,
             "production_readiness_claim_allowed": False,
             "dataplane_delivery_claim_allowed": False,
             "customer_traffic_claim_allowed": False,
             "external_settlement_finality_claim_allowed": False,
+            "traffic_shift_claim_allowed": False,
+            "live_customer_traffic_claim_allowed": False,
             "blocked_claim_ids": list(_HELM_EXECUTOR_STRONG_CLAIM_IDS),
             "blockers": blockers,
+            "payloads_redacted": True,
+            "redacted": True,
             "claim_boundary": (
                 "HelmRunner SafeActuator metadata proves only a local guarded Helm "
                 "command attempt and its bounded process outcome. It does not prove "
@@ -379,6 +388,7 @@ class HelmRunner:
         evidence = {
             "source_agents": [_SERVICE_AGENT],
             "event_ids": [],
+            "resource": _HELM_UPGRADE_RESOURCE,
             "operation": "helm_upgrade",
             "action": str(action or ""),
             "proposal_id_present": context.get("proposal_id") is not None,
@@ -390,6 +400,10 @@ class HelmRunner:
             "duration_ms": int(duration_ms or 0),
             "simulated": bool(simulated),
             "raw_values_redacted": True,
+            "raw_context_values_redacted": True,
+            "raw_command_output_redacted": True,
+            "payloads_redacted": True,
+            "redacted": True,
         }
         return SafeActuatorEvidenceMetadata.from_value(
             {
@@ -417,11 +431,15 @@ class HelmRunner:
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
+        reason_redacted = bool(
+            reason
+            and stage in {"actuator_completed", "actuator_failed", "actuator_simulated"}
+        )
         payload = {
             "component": "dao.proposal_executor_webhook",
             "stage": stage,
             "operation": "helm_upgrade",
-            "resource": "dao:proposal_executor:helm_upgrade",
+            "resource": _HELM_UPGRADE_RESOURCE,
             "proposal_id": context.get("proposal_id"),
             "helm_release": self.config.helm_release,
             "helm_chart": self.config.helm_chart,
@@ -436,7 +454,8 @@ class HelmRunner:
             "dry_run": result.dry_run if result is not None else context.get("dry_run"),
             "simulated": simulated,
             "returncode": result.returncode if result is not None else None,
-            "reason": reason,
+            "reason": "<redacted>" if reason_redacted else reason,
+            "reason_redacted": reason_redacted,
             "policy_required": self.require_policy or self.policy_engine is not None,
             "policy_allowed": self._policy_allowed(policy_decision)
             if policy_decision is not None
@@ -473,7 +492,7 @@ class HelmRunner:
         try:
             decision = self.policy_engine.evaluate(
                 spiffe_id,
-                resource="dao:proposal_executor:helm_upgrade",
+                resource=_HELM_UPGRADE_RESOURCE,
                 workload_type="dao-proposal-executor",
             )
         except Exception as exc:
@@ -649,7 +668,7 @@ class HelmRunner:
         return result
 
     def _upgrade_internal(self, *, proposal_id: int, command: List[str], command_str: str) -> HelmResult:
-        logger.info("[DAO Executor] helm command: %s", command_str)
+        logger.info("[DAO Executor] helm command: <redacted>")
         if self.config.dry_run:
             logger.info("[DAO Executor] DRY_RUN — helm not executed")
             return HelmResult(

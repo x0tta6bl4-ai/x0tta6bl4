@@ -51,7 +51,7 @@ async def test_health_check_redacts_errors_and_records_duration(monkeypatch):
     monkeypatch.setattr(
         module.httpx,
         "AsyncClient",
-        lambda: _FakeAsyncClient(exc=secret_error),
+        lambda *args, **kwargs: _FakeAsyncClient(exc=secret_error),
     )
 
     result = await module.ProductionMonitor("http://localhost:8080").check_health()
@@ -81,7 +81,9 @@ async def test_metrics_check_keeps_bounded_output_metadata(monkeypatch):
     monkeypatch.setattr(
         module.httpx,
         "AsyncClient",
-        lambda: _FakeAsyncClient(response=_FakeResponse(200, raw_metrics)),
+        lambda *args, **kwargs: _FakeAsyncClient(
+            response=_FakeResponse(200, raw_metrics)
+        ),
     )
 
     result = await module.ProductionMonitor("http://localhost:8080").check_metrics()

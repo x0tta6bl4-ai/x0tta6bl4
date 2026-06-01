@@ -198,6 +198,52 @@ def test_existing_complete_audit_closes_goal(tmp_path: Path) -> None:
     assert report["goal_status"]["platforms"]["ios"]["artifact_kinds"][-1] == "signed_ipa"
 
 
+def test_download_audit_resets_existing_audit_dir(tmp_path: Path) -> None:
+    module = _load()
+    audit_dir = tmp_path / "closeout" / "456" / "audit"
+    audit_dir.mkdir(parents=True)
+    stale_audit = audit_dir / "native-release-artifact-audit.json"
+    stale_audit.write_text("stale\n", encoding="utf-8")
+
+    def runner(
+        args: list[str],
+        text: bool,
+        capture_output: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        if args[:3] == ["gh", "run", "view"]:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                json.dumps({"status": "completed", "conclusion": "success"}),
+                "",
+            )
+        if args[:3] == ["gh", "run", "download"]:
+            target_dir = Path(args[args.index("--dir") + 1])
+            assert not (target_dir / "native-release-artifact-audit.json").exists()
+            _audit(target_dir / "native-release-artifact-audit.json", ios_complete=True)
+            return subprocess.CompletedProcess(args, 0, "", "")
+        raise AssertionError(f"unexpected command: {args}")
+
+    args = module.parse_args(
+        [
+            "--run-id",
+            "456",
+            "--download-audit",
+            "--download-dir",
+            str(tmp_path / "closeout"),
+        ]
+    )
+
+    report = module.run(args, runner=runner)
+
+    assert report["status"] == "COMPLETE"
+    download_stage = [
+        stage for stage in report["stages"] if stage["stage"] == "download_native_release_audit"
+    ][0]
+    assert download_stage["details"]["audit_dir_reset"] is True
+
+
 def test_wait_timeout_fails_closed() -> None:
     module = _load()
 

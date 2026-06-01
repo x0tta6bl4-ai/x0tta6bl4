@@ -72,6 +72,7 @@ def test_pbft_execute_publishes_events_with_identity(tmp_path):
     assert metadata["claim_gate"]["schema"] == (
         "x0tta6bl4.swarm_pbft.safe_actuator_claim_gate.v1"
     )
+    assert metadata["claim_gate"]["safe_actuator_result_recorded"] is True
     assert metadata["claim_gate"][
         "local_pbft_callback_execution_claim_allowed"
     ] is True
@@ -80,9 +81,12 @@ def test_pbft_execute_publishes_events_with_identity(tmp_path):
     assert metadata["claim_gate"]["production_readiness_claim_allowed"] is False
     assert metadata["evidence"]["sequence"] == 1
     assert metadata["evidence"]["view"] == 0
+    assert metadata["evidence"]["resource"] == "swarm:pbft:execute"
     assert metadata["evidence"]["digest_present"] is True
     assert metadata["evidence"]["operation_type"] == "scale"
     assert metadata["evidence"]["operation_redacted"] is True
+    assert metadata["evidence"]["raw_context_values_redacted"] is True
+    assert metadata["evidence"]["raw_result_values_redacted"] is True
     assert "secret-token" not in str(metadata)
     assert payload["claim_boundary"]
 

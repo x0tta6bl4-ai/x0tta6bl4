@@ -120,6 +120,50 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _split_endpoint_host_port(
+    value: Any,
+    *,
+    default_port: int = 8080,
+) -> Optional[Tuple[str, int]]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+
+    if text.startswith("["):
+        bracket_end = text.find("]")
+        if bracket_end > 0:
+            host = text[1:bracket_end].strip()
+            suffix = text[bracket_end + 1 :]
+            if not host:
+                return None
+            if suffix.startswith(":") and suffix[1:].isdigit():
+                port = int(suffix[1:])
+                if 1 <= port <= 65535:
+                    return (host, port)
+                return None
+            if not suffix:
+                return (host, default_port)
+            return None
+
+    if text.count(":") == 1:
+        host, port_text = text.rsplit(":", 1)
+        if not host.strip() or not port_text.isdigit():
+            return None
+        port = int(port_text)
+        if not 1 <= port <= 65535:
+            return None
+        return (host.strip(), port)
+
+    return (text, default_port)
+
+
+def _host_for_dataplane_ping_target(value: Any) -> Optional[str]:
+    parsed = _split_endpoint_host_port(value)
+    if parsed is None:
+        return None
+    return parsed[0]
+
+
 def _safe_float(value: Any) -> Optional[float]:
     try:
         return None if value is None else round(float(value), 4)
@@ -824,8 +868,11 @@ class MeshNetworkManager:
                 else:
                     raw_result = provider(target)
             else:
+                ping_target = _host_for_dataplane_ping_target(target)
+                if not ping_target:
+                    raise ValueError("post-heal dataplane probe target is invalid")
                 raw_result = build_recovery_dataplane_ping_probe(
-                    target,
+                    ping_target,
                     event_bus=self.event_bus,
                     event_project_root=self.event_project_root,
                 )
@@ -1374,11 +1421,13 @@ class MeshNetworkManager:
             with SessionLocal() as db:
                 node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
                 if node and hasattr(node, "endpoint") and node.endpoint:
-                    # Parse endpoint (format: "host:port")
-                    parts = node.endpoint.split(":")
-                    if len(parts) == 2:
-                        return (parts[0], int(parts[1]))
-                    return (node.endpoint, 8080)  # Default port
+                    parsed_endpoint = _split_endpoint_host_port(node.endpoint)
+                    if parsed_endpoint is not None:
+                        return parsed_endpoint
+                if node and getattr(node, "ip_address", None):
+                    parsed_ip_address = _split_endpoint_host_port(node.ip_address)
+                    if parsed_ip_address is not None:
+                        return parsed_ip_address
         except Exception as e:
             logger.debug(f"Failed to get node address for {node_id}: {e}")
 

@@ -1,3 +1,10 @@
+> Truth-surface note: historical ancestry / vision narrative.
+> Superseded for current readiness claims by `STATUS_REALITY.md`,
+> `docs/05-operations/REAL_READINESS_GATE.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`.
+> MTTR, uptime, unblockable, privacy, and production-style wording below is
+> historical/aspirational language, not current production deployment evidence.
+
 # 🌳 THE ANCESTORS: x0tta6bl4
 
 > *"Чтобы понять, кто мы есть, нужно найти наших предков.  
@@ -954,4 +961,3 @@ Future: Quantum + Autonomous
 ---
 
 **Глубина предков достигнута. Десятилетний поиск раскрыт. Цели поняты.** 🎯
-

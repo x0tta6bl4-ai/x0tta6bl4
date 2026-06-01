@@ -21,6 +21,7 @@ from src.integration.spine import (
     CLAIM_BOUNDARY,
     IntegrationSpine,
     SafeActuator,
+    SafeActuatorEvidenceMetadata,
     SafeActuatorResult,
     SpineIdentity,
     SpineRequest,
@@ -108,6 +109,43 @@ def _request(**overrides: Any) -> SpineRequest:
     }
     data.update(overrides)
     return SpineRequest(**data)
+
+
+def _simulated_actuator_metadata() -> SafeActuatorEvidenceMetadata:
+    return SafeActuatorEvidenceMetadata.from_value(
+        {
+            "claim_gate": {
+                "schema": "x0tta6bl4.integration_spine.demo_safe_actuator_claim_gate.v1",
+                "surface": "integration.code_wiring.simulated_actuator",
+                "local_actuator_execution_claim_allowed": False,
+                "safe_actuator_result_successful": True,
+                "safe_actuator_result_simulated": True,
+                "production_readiness_claim_allowed": False,
+                "dataplane_delivery_claim_allowed": False,
+                "traffic_delivery_claim_allowed": False,
+                "customer_traffic_claim_allowed": False,
+                "external_dpi_bypass_claim_allowed": False,
+                "external_settlement_finality_claim_allowed": False,
+                "claim_boundary": CLAIM_BOUNDARY,
+                "redacted": True,
+            },
+            "cross_plane_claim_gate": {
+                "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+                "surface": "integration.code_wiring.simulated_actuator",
+                "allowed": False,
+                "blockers": ["simulated_actuator_result"],
+                "claim_boundary": CLAIM_BOUNDARY,
+            },
+            "evidence": {
+                "local_demo_trace_only": True,
+                "raw_context_values_redacted": True,
+                "raw_command_output_redacted": True,
+            },
+            "source_agents": ["integration-code-wiring"],
+            "claim_boundary": CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+    )
 
 
 def _allowing_policy() -> PolicyEngine:
@@ -339,7 +377,14 @@ def build_report(root: Path) -> Dict[str, Any]:
             name="simulated_actuator_blocks_settlement",
             request=_request(),
             policy_engine=_allowing_policy(),
-            executor=_Executor(SafeActuatorResult(success=True, reason="dry run", simulated=True)),
+            executor=_Executor(
+                SafeActuatorResult(
+                    success=True,
+                    reason="dry run",
+                    simulated=True,
+                    evidence_metadata=_simulated_actuator_metadata(),
+                )
+            ),
             reward_manager=_RewardManager(),
             expected_status="ACTUATOR_SIMULATED",
             expected_event_types=[

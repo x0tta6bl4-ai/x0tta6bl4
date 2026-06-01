@@ -201,6 +201,7 @@ class PQCRotatorService:
             "surface": "services.pqc_rotator.rotate_identity",
             "local_pqc_identity_rotation_claim_allowed": local_rotation_allowed,
             "policy_allowed": bool(policy_allowed),
+            "safe_actuator_result_recorded": True,
             "safe_actuator_result_successful": bool(success),
             "safe_actuator_result_simulated": bool(simulated),
             "live_pqc_trust_finality_claim_allowed": False,
@@ -220,6 +221,12 @@ class PQCRotatorService:
             "event_ids": [],
             "events_total": 0,
             "event_ids_count": 0,
+            "operation": "rotate_identity",
+            "resource": "services:pqc_rotator:rotate_identity",
+            "local_pqc_identity_rotation_claim_allowed": local_rotation_allowed,
+            "raw_context_values_redacted": True,
+            "raw_result_values_redacted": True,
+            "payloads_redacted": True,
             "redacted": True,
         }
         return SafeActuatorEvidenceMetadata(
@@ -245,6 +252,26 @@ class PQCRotatorService:
             simulated=actuator_result.simulated,
             policy_allowed=policy_allowed,
             reason=actuator_result.reason,
+        )
+
+    def _safe_actuator_result_from_flags(
+        self,
+        *,
+        success: bool,
+        reason: str,
+        simulated: bool = False,
+        policy_allowed: bool = True,
+    ) -> SafeActuatorResult:
+        return SafeActuatorResult(
+            success,
+            reason,
+            simulated=simulated,
+            evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
+                success=success,
+                simulated=simulated,
+                policy_allowed=policy_allowed,
+                reason=reason,
+            ),
         )
 
     def _publish_rotation_event(
@@ -418,9 +445,15 @@ class PQCRotatorService:
         _context: Dict[str, Any],
     ) -> SafeActuatorResult:
         if action != "rotate_identity":
-            return SafeActuatorResult(False, f"unknown PQC rotator action: {action}")
+            return self._safe_actuator_result_from_flags(
+                success=False,
+                reason=f"unknown PQC rotator action: {action}",
+            )
         if not self.signer_cmd:
-            return SafeActuatorResult(False, "PQC signer command is not configured")
+            return self._safe_actuator_result_from_flags(
+                success=False,
+                reason="PQC signer command is not configured",
+            )
 
         self.temp_identity_file.parent.mkdir(parents=True, exist_ok=True)
         self.identity_file.parent.mkdir(parents=True, exist_ok=True)
@@ -435,11 +468,17 @@ class PQCRotatorService:
                 returncode = await proc.wait()
         except Exception as exc:
             self.temp_identity_file.unlink(missing_ok=True)
-            return SafeActuatorResult(False, f"PQC signer execution failed: {exc}")
+            return self._safe_actuator_result_from_flags(
+                success=False,
+                reason=f"PQC signer execution failed: {exc}",
+            )
 
         if returncode != 0:
             self.temp_identity_file.unlink(missing_ok=True)
-            return SafeActuatorResult(False, f"PQC signer exited with code {returncode}")
+            return self._safe_actuator_result_from_flags(
+                success=False,
+                reason=f"PQC signer exited with code {returncode}",
+            )
 
         self.temp_identity_file.replace(self.identity_file)
 
@@ -449,16 +488,14 @@ class PQCRotatorService:
                 if asyncio.iscoroutine(maybe_result):
                     await maybe_result
         except Exception as exc:
-            return SafeActuatorResult(False, f"PQC report generation failed: {exc}")
+            return self._safe_actuator_result_from_flags(
+                success=False,
+                reason=f"PQC report generation failed: {exc}",
+            )
 
-        return SafeActuatorResult(
-            True,
-            "PQC identity rotated and report regenerated",
-            evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
-                success=True,
-                simulated=False,
-                policy_allowed=True,
-            ),
+        return self._safe_actuator_result_from_flags(
+            success=True,
+            reason="PQC identity rotated and report regenerated",
         )
 
     async def run_forever(self) -> None:

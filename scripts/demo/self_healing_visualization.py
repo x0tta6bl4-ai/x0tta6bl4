@@ -57,8 +57,7 @@ def run_visualizer():
             print("="*60)
             
             # Phi-Ratio Section
-            print(f"
-{bold}SYSTEM CONSCIOUSNESS (Phi-Ratio):{reset}")
+            print(f"\n{bold}SYSTEM CONSCIOUSNESS (Phi-Ratio):{reset}")
             print(f"{color}{draw_bar(phi)}{reset}")
             state_map = {
                 1.4: "EUPHORIC - All desires fulfilled.",
@@ -74,32 +73,28 @@ def run_visualizer():
             print(f"Status: {color}{state_text}{reset}")
             
             # Node Section
-            print(f"
-{bold}MESH NODES ({len(online_nodes)}/{len(nodes)} ONLINE):{reset}")
+            print(f"\n{bold}MESH NODES ({len(online_nodes)}/{len(nodes)} ONLINE):{reset}")
             for node in nodes:
                 n_color = "\033[92m" if node.status == "healthy" else "\033[91m"
                 n_icon = "●" if node.status == "healthy" else "✖"
                 print(f"  {n_color}{n_icon} {node.id}{reset} [{node.status.upper()}]")
             
             # Chaos/Healing Logs
-            print(f"
-{bold}AUTONOMIC EVENTS (MAPE-K):{reset}")
+            print(f"\n{bold}AUTONOMIC EVENTS (MAPE-K):{reset}")
             if len(offline_nodes) > 0:
                 print(f"\033[91m[!] CRITICAL: {len(offline_nodes)} node failure(s) detected.{reset}")
                 print(f"\033[93m[*] MAPE-K: Initiating aggressive healing protocol...{reset}")
             else:
                 print("\033[92m[✓] System stable. No anomalies detected.{reset}")
             
-            print("
-" + "="*60)
+            print("\n" + "="*60)
             print("Press Ctrl+C to exit visualizer.")
             
             db.expire_all() # Refresh DB cache
             time.sleep(2)
             
     except KeyboardInterrupt:
-        print("
-Visualizer stopped.")
+        print("\nVisualizer stopped.")
     finally:
         db.close()
 

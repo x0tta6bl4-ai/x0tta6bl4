@@ -26,6 +26,17 @@ SETTLEMENT_TX_HASH = "0x" + "a" * 64
 SETTLEMENT_BLOCK_HASH = "0x" + "b" * 64
 SETTLEMENT_FROM = "0x" + "1" * 40
 SETTLEMENT_TO = "0x" + "2" * 40
+MEASURED_ATTESTATION_ENV_VARS = (
+    "X0T_MEASURED_ATTESTATION_REPORT_DATA_FILE",
+    "X0T_MEASURED_ATTESTATION_QUOTE_FILE",
+    "X0T_MEASURED_ATTESTATION_SIGNATURE_FILE",
+    "X0T_MEASURED_ATTESTATION_SGX_VERIFIER_COMMAND",
+    "X0T_MEASURED_ATTESTATION_OPERATOR_OR_LAB_ID",
+    "X0T_MEASURED_ATTESTATION_AUTHORIZATION_SCOPE_ID",
+    "X0T_MEASURED_ATTESTATION_ENVIRONMENT_BUCKET",
+    "X0T_MEASURED_ATTESTATION_HARDWARE_PROFILE_BUCKET",
+    "X0T_MEASURED_ATTESTATION_POLICY_CONTEXT",
+)
 
 
 def _load_script(path: Path, name: str):
@@ -35,6 +46,11 @@ def _load_script(path: Path, name: str):
     sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _clear_measured_attestation_env(monkeypatch) -> None:
+    for name in MEASURED_ATTESTATION_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
 
 
 def _write_contract(root: Path) -> None:
@@ -339,6 +355,7 @@ def _write_valid_dataplane_delivery_event(
     root: Path,
     *,
     traffic_delivery_allowed: bool = False,
+    timestamp: str | None = None,
 ) -> None:
     event_log = root / ".agent_coordination/events.log"
     event_log.parent.mkdir(parents=True, exist_ok=True)
@@ -346,7 +363,11 @@ def _write_valid_dataplane_delivery_event(
         "event_id": "dataplane-event-1",
         "event_type": "pipeline.stage_end",
         "source_agent": "mesh-action-enforcer",
-        "timestamp": "2026-05-31T00:00:00",
+        "timestamp": timestamp
+        or datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z"),
         "target_agents": None,
         "priority": 6,
         "requires_ack": False,
@@ -765,14 +786,22 @@ def _write_valid_customer_traffic_event(root: Path) -> None:
         handle.write(json.dumps(event) + "\n")
 
 
-def _write_valid_economy_boundary_event(root: Path) -> None:
+def _write_valid_economy_boundary_event(
+    root: Path,
+    *,
+    timestamp: str | None = None,
+) -> None:
     event_log = root / ".agent_coordination/events.log"
     event_log.parent.mkdir(parents=True, exist_ok=True)
     event = {
         "event_id": "economy-boundary-event-1",
         "event_type": "marketplace.escrow.released",
         "source_agent": "maas-marketplace",
-        "timestamp": "2026-05-31T00:00:00",
+        "timestamp": timestamp
+        or datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z"),
         "target_agents": None,
         "priority": 6,
         "requires_ack": False,
@@ -1753,7 +1782,9 @@ def test_gate_allows_local_service_identity_status_without_trust_finality(
 
 def test_gate_blocks_measured_attestation_smoke_without_validated_artifact(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
+    _clear_measured_attestation_env(monkeypatch)
     _write_map(tmp_path)
 
     report = build_report(tmp_path, claims=("measured_attestation_verifier_smoke",))
@@ -1773,6 +1804,38 @@ def test_gate_blocks_measured_attestation_smoke_without_validated_artifact(
     assert "measured_attestation_verifier_smoke_artifact_not_ready" in artifact[
         "blockers"
     ]
+    assert "measured_attestation_verifier_handoff_not_ready" in artifact["blockers"]
+    handoff = artifact["operator_handoff"]
+    assert handoff["available"] is True
+    assert handoff["ready_for_operator_run"] is False
+    assert handoff["raw_inputs_redacted"] is True
+    assert handoff["runs_verifier"] is False
+    assert handoff["writes_artifacts"] is False
+    assert "report_data_file_required" in handoff["blockers"]
+    assert handoff["inputs"]["report_data"] == {
+        "path_present": False,
+        "exists": False,
+        "is_file": False,
+        "non_empty": False,
+        "raw_path_redacted": True,
+    }
+    assert handoff["inputs"]["provider"] == {
+        "value": "sgx",
+        "supported": True,
+        "raw_value_redacted": True,
+    }
+    assert handoff["inputs"]["verifier_command"] == {
+        "command_present": False,
+        "argv0_present": False,
+        "argv0_found": False,
+        "raw_command_redacted": True,
+    }
+    assert handoff["inputs"]["sgx_verifier_command"] == {
+        "command_present": False,
+        "argv0_present": False,
+        "argv0_found": False,
+        "raw_command_redacted": True,
+    }
     dependency = report["proof_dependency_graph"][
         "measured_attestation_verifier_smoke"
     ]["artifact_dependencies"][0]
@@ -1781,11 +1844,14 @@ def test_gate_blocks_measured_attestation_smoke_without_validated_artifact(
     assert dependency["path"] == (
         "docs/verification/incoming/measured_attestation_verifier_smoke.json"
     )
+    assert "measured_attestation_verifier_handoff_not_ready" in dependency["blockers"]
 
 
 def test_gate_allows_measured_attestation_smoke_only_with_validated_artifact(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
+    _clear_measured_attestation_env(monkeypatch)
     _write_map(tmp_path)
     _write_valid_measured_attestation_smoke_artifact(tmp_path)
 
@@ -1798,9 +1864,11 @@ def test_gate_allows_measured_attestation_smoke_only_with_validated_artifact(
     assert attestation["blockers"] == []
     artifact = attestation["required_artifact_evidence"]
     assert artifact["valid"] is True
+    assert artifact["blockers"] == []
     assert artifact["validation"]["decision"] == "READY_TO_IMPORT"
     assert artifact["validation"]["candidate_sha256_present"] is True
     assert artifact["validation"]["artifact_freshness"]["fresh"] is True
+    assert artifact["operator_handoff"]["ready_for_operator_run"] is False
     assert "production readiness by itself" in artifact["claim_boundary"]
 
 
@@ -2113,7 +2181,9 @@ def test_gate_blocks_production_readiness_when_traffic_delivery_artifact_is_miss
 
 def test_gate_blocks_production_readiness_when_measured_attestation_smoke_is_missing(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
+    _clear_measured_attestation_env(monkeypatch)
     _write_map(tmp_path, production_flags=True, customer_flags=True)
     _write_stub_production_readiness_proof(tmp_path, verified=True)
     _write_valid_dataplane_delivery_event(tmp_path, traffic_delivery_allowed=True)
@@ -2139,6 +2209,10 @@ def test_gate_blocks_production_readiness_when_measured_attestation_smoke_is_mis
     assert "measured_attestation_verifier_smoke_artifact_not_ready" in (
         measured_attestation["blockers"]
     )
+    assert "measured_attestation_verifier_handoff_not_ready" in (
+        measured_attestation["blockers"]
+    )
+    assert measured_attestation["operator_handoff"]["ready_for_operator_run"] is False
 
 
 def test_gate_blocks_production_readiness_when_dataplane_artifact_is_missing(
@@ -2520,6 +2594,26 @@ def test_gate_blocks_dataplane_delivery_when_eventbus_artifact_lacks_probe_evide
     assert "verified_dataplane_delivery_event_not_found" in artifact["blockers"]
 
 
+def test_gate_blocks_dataplane_delivery_when_eventbus_artifact_is_stale(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, dataplane_flags=True)
+    stale_timestamp = (
+        datetime.now(timezone.utc).replace(microsecond=0) - timedelta(hours=169)
+    ).isoformat().replace("+00:00", "Z")
+    _write_valid_dataplane_delivery_event(tmp_path, timestamp=stale_timestamp)
+
+    report = build_report(tmp_path, claims=("dataplane_delivery",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [dataplane] = report["claim_results"]
+    assert "dataplane_delivery_eventbus_artifact_not_verified" in dataplane["blockers"]
+    artifact = dataplane["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "dataplane_evidence_event_stale" in artifact["candidate_blockers"]
+    assert "verified_dataplane_delivery_event_not_found" in artifact["blockers"]
+
+
 def test_gate_blocks_dataplane_delivery_without_nested_claim_gate(
     tmp_path: Path,
 ) -> None:
@@ -2608,6 +2702,13 @@ def test_gate_blocks_settlement_finality_when_map_flags_are_true_but_artifact_is
     handoff = artifact["operator_handoff"]
     assert handoff["available"] is True
     assert handoff["ready_for_completion_rerun"] is False
+    assert handoff["claim_gate"]["external_settlement_finality_claim_allowed"] is False
+    assert handoff["claim_gate"]["economy_finality_claim_allowed"] is False
+    assert handoff["claim_gate"]["dataplane_delivery_claim_allowed"] is False
+    assert handoff["claim_gate"]["customer_traffic_claim_allowed"] is False
+    assert handoff["claim_gate"]["revenue_recognition_claim_allowed"] is False
+    assert handoff["claim_gate"]["production_readiness_claim_allowed"] is False
+    assert "retained_settlement_receipt" in handoff["claim_gate"]["blockers"]
     assert any(item["id"] == "retained_settlement_receipt" for item in handoff["missing_inputs"])
     assert "settlement finality" in handoff["claim_boundary"]
 
@@ -2657,6 +2758,52 @@ def test_gate_blocks_economy_boundary_when_source_gate_overpromotes_production(
     ]
 
 
+def test_gate_blocks_economy_boundary_when_source_gate_overpromotes_dataplane(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, settlement_flags=True)
+    _write_valid_external_settlement_artifacts(tmp_path)
+    _write_valid_economy_boundary_event(tmp_path)
+    event_log = tmp_path / ".agent_coordination/events.log"
+    event = json.loads(event_log.read_text(encoding="utf-8"))
+    claim_gate = event["data"]["settlement_evidence"]["claim_gate"]
+    claim_gate["dataplane_delivery_claim_allowed"] = True
+    claim_gate["traffic_delivery_claim_allowed"] = True
+    event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("settlement_finality",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [settlement] = report["claim_results"]
+    assert "economy_boundary_artifact_not_verified" in settlement["blockers"]
+    economy = settlement["supporting_artifact_evidence"]["economy_boundary"]
+    assert economy["valid"] is False
+    assert "economy_source_gate_overpromotes_dataplane_delivery" in economy[
+        "candidate_blockers"
+    ]
+
+
+def test_gate_blocks_settlement_finality_when_economy_boundary_event_is_stale(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, settlement_flags=True)
+    _write_valid_external_settlement_artifacts(tmp_path)
+    stale_timestamp = (
+        datetime.now(timezone.utc).replace(microsecond=0) - timedelta(hours=169)
+    ).isoformat().replace("+00:00", "Z")
+    _write_valid_economy_boundary_event(tmp_path, timestamp=stale_timestamp)
+
+    report = build_report(tmp_path, claims=("settlement_finality",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [settlement] = report["claim_results"]
+    assert "economy_boundary_artifact_not_verified" in settlement["blockers"]
+    economy = settlement["supporting_artifact_evidence"]["economy_boundary"]
+    assert economy["valid"] is False
+    assert "economy_boundary_event_stale" in economy["candidate_blockers"]
+    assert "verified_economy_boundary_event_not_found" in economy["blockers"]
+
+
 def test_gate_allows_settlement_finality_only_with_map_flags_and_verified_settlement_artifact(
     tmp_path: Path,
 ) -> None:
@@ -2679,10 +2826,37 @@ def test_gate_allows_settlement_finality_only_with_map_flags_and_verified_settle
     assert artifact["operator_handoff"]["available"] is True
     assert artifact["operator_handoff"]["summary"]["evidence_file_ready"] is True
     assert artifact["operator_handoff"]["summary"]["live_rpc_ready"] is True
+    assert artifact["operator_handoff"]["summary"]["claim_gate_present"] is True
+    assert artifact["operator_handoff"]["claim_gate"][
+        "external_settlement_finality_claim_allowed"
+    ] is True
+    assert artifact["operator_handoff"]["claim_gate"][
+        "economy_finality_claim_allowed"
+    ] is True
+    assert artifact["operator_handoff"]["claim_gate"][
+        "retained_evidence_claim_allowed"
+    ] is True
+    assert artifact["operator_handoff"]["claim_gate"][
+        "live_rpc_receipt_claim_allowed"
+    ] is True
+    assert artifact["operator_handoff"]["claim_gate"][
+        "dataplane_delivery_claim_allowed"
+    ] is False
+    assert artifact["operator_handoff"]["claim_gate"][
+        "customer_traffic_claim_allowed"
+    ] is False
+    assert artifact["operator_handoff"]["claim_gate"][
+        "revenue_recognition_claim_allowed"
+    ] is False
+    assert artifact["operator_handoff"]["claim_gate"][
+        "production_readiness_claim_allowed"
+    ] is False
+    assert artifact["operator_handoff"]["claim_gate"]["redacted"] is True
     assert "required_command" not in json.dumps(artifact["operator_handoff"])
     assert "customer traffic" in artifact["claim_boundary"]
     economy = settlement["supporting_artifact_evidence"]["economy_boundary"]
     assert economy["valid"] is True
+    assert economy["selected_event"]["evidence_fresh"] is True
     assert economy["selected_event"]["local_or_pending_only"] is True
     assert economy["selected_event"]["production_readiness_claim_allowed"] is False
 

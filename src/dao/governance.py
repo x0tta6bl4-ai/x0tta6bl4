@@ -270,12 +270,15 @@ class ActionDispatcher:
             blockers.append("dao_governance_handler_not_successful")
         if not result_present:
             blockers.append("dao_governance_action_result_missing")
+        resource = f"dao:governance:{cls._action_resource_name(action_type)}"
 
         return {
             "schema": "x0tta6bl4.dao_governance.safe_actuator_claim_gate.v1",
             "surface": "dao.governance.dispatch",
+            "resource": resource,
             "action_type": str(action_type or ""),
             "local_handler_execution_claim_allowed": local_handler_execution_allowed,
+            "safe_actuator_result_recorded": True,
             "governance_execution_finality_claim_allowed": False,
             "production_governance_execution_claim_allowed": False,
             "production_readiness_claim_allowed": False,
@@ -284,6 +287,8 @@ class ActionDispatcher:
             "external_settlement_finality_claim_allowed": False,
             "blocked_claim_ids": list(_DAO_GOVERNANCE_STRONG_CLAIM_IDS),
             "blockers": blockers,
+            "payloads_redacted": True,
+            "redacted": True,
             "claim_boundary": (
                 "ActionDispatcher SafeActuator metadata proves only a local guarded "
                 "handler attempt and bounded handler result. It does not prove DAO "
@@ -317,9 +322,11 @@ class ActionDispatcher:
             simulated=simulated,
             result_present=result_present,
         )
+        resource = f"dao:governance:{cls._action_resource_name(action_type)}"
         evidence = {
             "source_agents": [_SERVICE_AGENT],
             "event_ids": [],
+            "resource": resource,
             "operation": "governance_action_dispatch",
             "action_type": str(action_type or ""),
             "action_present": action_present,
@@ -330,7 +337,11 @@ class ActionDispatcher:
             "duration_ms": int(duration_ms or 0),
             "action_values_redacted": True,
             "result_detail_redacted": True,
+            "raw_context_values_redacted": True,
+            "raw_result_values_redacted": True,
             "raw_values_redacted": True,
+            "payloads_redacted": True,
+            "redacted": True,
         }
         return SafeActuatorEvidenceMetadata.from_value(
             {

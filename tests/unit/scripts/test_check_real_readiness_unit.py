@@ -843,6 +843,188 @@ payload = {
     )
     _write(
         root,
+        "src/dao/executor_webhook.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+_RELEASE_SCRIPT_RESOURCE = "dao:executor:release_script"
+DAO_EXECUTOR_CLAIM_BOUNDARY = "DAO executor SafeActuator metadata proves only a local release script action"
+
+def _release_claim_gate(return_code=None):
+    return {
+        "schema": "x0tta6bl4.dao_executor.safe_actuator_claim_gate.v1",
+        "resource": _RELEASE_SCRIPT_RESOURCE,
+        "safe_actuator_result_recorded": True,
+        "return_code_observed": return_code is not None,
+        "local_release_script_execution_claim_allowed": True,
+        "production_rollout_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "payloads_redacted": True,
+        "redacted": True,
+    }
+
+def _release_evidence_metadata(return_code=None):
+    return SafeActuatorEvidenceMetadata.from_value({
+        "claim_gate": _release_claim_gate(return_code=return_code),
+        "evidence": {
+            "resource": _RELEASE_SCRIPT_RESOURCE,
+            "return_code_observed": return_code is not None,
+            "raw_context_values_redacted": True,
+            "raw_command_output_redacted": True,
+            "payloads_redacted": True,
+            "redacted": True,
+        },
+        "claim_boundary": DAO_EXECUTOR_CLAIM_BOUNDARY,
+        "redacted": True,
+    })
+
+payload = {
+    "safe_actuator_evidence_metadata": _release_evidence_metadata(return_code=0),
+}
+""",
+    )
+    _write(
+        root,
+        "src/dao/proposal_executor_webhook.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+_HELM_UPGRADE_RESOURCE = "dao:proposal_executor:helm_upgrade"
+HELM_EXECUTOR_CLAIM_BOUNDARY = "DAO proposal executor SafeActuator metadata proves only a local Helm action"
+
+def _helm_claim_gate(return_code=None):
+    return {
+        "schema": "x0tta6bl4.dao_proposal_executor.safe_actuator_claim_gate.v1",
+        "resource": _HELM_UPGRADE_RESOURCE,
+        "safe_actuator_result_recorded": True,
+        "return_code_observed": return_code is not None,
+        "local_helm_command_execution_claim_allowed": True,
+        "production_rollout_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "payloads_redacted": True,
+        "redacted": True,
+    }
+
+def _helm_evidence_metadata(return_code=None):
+    return SafeActuatorEvidenceMetadata.from_value({
+        "claim_gate": _helm_claim_gate(return_code=return_code),
+        "evidence": {
+            "resource": _HELM_UPGRADE_RESOURCE,
+            "return_code_observed": return_code is not None,
+            "raw_context_values_redacted": True,
+            "raw_command_output_redacted": True,
+            "payloads_redacted": True,
+            "redacted": True,
+        },
+        "claim_boundary": HELM_EXECUTOR_CLAIM_BOUNDARY,
+        "redacted": True,
+    })
+
+payload = {
+    "reason_redacted": True,
+    "safe_actuator_evidence_metadata": _helm_evidence_metadata(return_code=0),
+}
+""",
+    )
+    _write(
+        root,
+        "src/dao/governance.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+DAO_GOVERNANCE_CLAIM_BOUNDARY = "DAO governance metadata proves only a local guarded handler attempt"
+
+def _dao_governance_claim_gate():
+    return {
+        "schema": "x0tta6bl4.dao_governance.safe_actuator_claim_gate.v1",
+        "resource": "dao:governance:update_config",
+        "safe_actuator_result_recorded": True,
+        "local_handler_execution_claim_allowed": True,
+        "governance_execution_finality_claim_allowed": False,
+        "production_governance_execution_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "payloads_redacted": True,
+        "redacted": True,
+    }
+
+def _dao_governance_evidence_metadata():
+    return SafeActuatorEvidenceMetadata.from_value({
+        "claim_gate": _dao_governance_claim_gate(),
+        "evidence": {
+            "resource": "dao:governance:update_config",
+            "raw_context_values_redacted": True,
+            "raw_result_values_redacted": True,
+            "payloads_redacted": True,
+            "redacted": True,
+        },
+        "claim_boundary": DAO_GOVERNANCE_CLAIM_BOUNDARY,
+        "redacted": True,
+    })
+
+payload = {
+    "safe_actuator_evidence_metadata": _dao_governance_evidence_metadata(),
+}
+""",
+    )
+    _write(
+        root,
+        "src/dao/governance_contract.py",
+        """
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
+GOVERNANCE_CONTRACT_CLAIM_BOUNDARY = "GovernanceContract metadata proves only a local chain-write attempt"
+
+def _governance_contract_claim_gate():
+    return {
+        "schema": "x0tta6bl4.governance_contract.safe_actuator_claim_gate.v1",
+        "resource": "dao:governance_contract:create_proposal",
+        "safe_actuator_result_recorded": True,
+        "local_transaction_submission_claim_allowed": True,
+        "transaction_hash_observed_claim_allowed": True,
+        "external_settlement_finality_claim_allowed": False,
+        "governance_execution_finality_claim_allowed": False,
+        "production_governance_execution_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "payloads_redacted": True,
+        "redacted": True,
+    }
+
+def _governance_contract_evidence_metadata():
+    return SafeActuatorEvidenceMetadata.from_value({
+        "claim_gate": _governance_contract_claim_gate(),
+        "evidence": {
+            "resource": "dao:governance_contract:create_proposal",
+            "raw_context_values_redacted": True,
+            "raw_result_values_redacted": True,
+            "payloads_redacted": True,
+            "redacted": True,
+        },
+        "claim_boundary": GOVERNANCE_CONTRACT_CLAIM_BOUNDARY,
+        "redacted": True,
+    })
+
+payload = {
+    "safe_actuator_evidence_metadata": _governance_contract_evidence_metadata(),
+}
+""",
+    )
+    _write(
+        root,
         "src/deployment/canary_deployment.py",
         """
 from src.integration.spine import SafeActuatorEvidenceMetadata
@@ -1796,7 +1978,10 @@ class TEEVerificationResult:
     verifier_provenance = {"raw_attestation_redacted": True}
     production_verifier_claim_allowed = False
 
+COMMAND_VERIFIER_PROVIDERS = {"sgx", "sev", "nitro"}
+
 class TEEValidator:
+    verifier_commands = {"sgx": [], "sev": [], "nitro": []}
     def verify_report_with_context(self, attestation):
         return TEEVerificationResult()
 
@@ -1831,7 +2016,9 @@ def artifact_content_sha256(payload):
 def build_report(args):
     if not args.allow_local_verifier_run:
         raise SystemExit("--allow-local-verifier-run")
-    validator = TEEValidator(allow_mock=False, sgx_verifier_command=args.sgx_verifier_command)
+    parser.add_argument("--provider", choices=["sgx", "sev", "nitro"])
+    parser.add_argument("--verifier-command")
+    validator = TEEValidator(allow_mock=False, verifier_commands={args.provider: args.verifier_command}, sgx_verifier_command=args.sgx_verifier_command)
     result = validator.verify_report_with_context(attestation)
     ready = result.production_verifier_claim_allowed
     return {
@@ -1870,6 +2057,53 @@ def test_sgx_verifier_smoke_writes_redacted_ready_artifact():
 def test_sgx_verifier_smoke_blocks_without_production_verifier_claim():
     pass
 def test_sgx_verifier_smoke_requires_explicit_local_authorization():
+    pass
+def test_nitro_verifier_smoke_uses_generic_provider_command():
+    pass
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/run_measured_attestation_verifier_handoff.py",
+        """
+SCHEMA = "x0tta6bl4.measured_attestation_verifier_handoff.v1"
+DECISION_READY = "MEASURED_ATTESTATION_VERIFIER_HANDOFF_READY"
+DECISION_BLOCKED = "MEASURED_ATTESTATION_VERIFIER_HANDOFF_BLOCKED_ON_OPERATOR"
+ENV_VARS = [
+    "X0T_MEASURED_ATTESTATION_PROVIDER",
+    "X0T_MEASURED_ATTESTATION_REPORT_DATA_FILE",
+    "X0T_MEASURED_ATTESTATION_VERIFIER_COMMAND",
+    "X0T_MEASURED_ATTESTATION_SGX_VERIFIER_COMMAND",
+]
+
+def build_report(root):
+    return {
+        "runs_verifier": False,
+        "writes_artifacts": False,
+        "raw_inputs_redacted": True,
+        "claim_flags": {
+            "production_readiness_claimed": False,
+        },
+        "operator_commands": [
+            {"id": "run_measured_attestation_verifier_smoke", "command": "--verifier-command"},
+            {"command": "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py"},
+            {"command": "scripts/ops/run_cross_plane_proof_gate.py"},
+        ],
+        "safe_local_input_steps": ["Do not paste private attestation inputs"],
+    }
+""",
+    )
+    _write(
+        root,
+        "tests/unit/scripts/test_run_measured_attestation_verifier_handoff.py",
+        """
+def test_handoff_ready_with_redacted_local_inputs():
+    assert "private" not in rendered
+def test_handoff_blocks_missing_inputs_without_running_verifier():
+    pass
+def test_handoff_blocks_symlink_attestation_input():
+    pass
+def test_handoff_ready_for_sev_with_generic_verifier_command():
     pass
 """,
     )
@@ -3766,6 +4000,29 @@ claim_gate: dict[str, Any] = Field(default_factory=dict)
     )
     _write(
         root,
+        "src/api/maas/endpoints/billing.py",
+        """
+def _modular_billing_claim_gate():
+    return {
+        "serviceability_claim_allowed": False,
+        "paid_customer_serviceability_claim_allowed": False,
+        "customer_access_claim_allowed": False,
+        "node_provisioning_claim_allowed": False,
+        "requires_service_runtime_evidence_for_access_claim": True,
+    }
+def _modular_cross_plane_claim_gate(surface):
+    return {"allowed": False, "surface": surface}
+async def create_payment():
+    settlement = {"claim_gate": _modular_billing_claim_gate()}
+    response = {
+        "claim_gate": settlement["claim_gate"],
+        "cross_plane_claim_gate": _modular_cross_plane_claim_gate("create_payment"),
+    }
+    return response
+""",
+    )
+    _write(
+        root,
         "src/services/reward_events.py",
         """
 def _safe_claim_gate_summary(value):
@@ -3920,6 +4177,7 @@ EVENTBUS_LOG = ".agent_coordination/events.log"
 DATAPLANE_DELIVERY_CLAIM_ID = "dataplane_delivery"
 MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID = "measured_attestation_verifier_smoke"
 MEASURED_ATTESTATION_SMOKE_VALIDATOR = "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py"
+MEASURED_ATTESTATION_HANDOFF = "scripts/ops/run_measured_attestation_verifier_handoff.py"
 MEASURED_ATTESTATION_SMOKE_CANDIDATE = "docs/verification/incoming/measured_attestation_verifier_smoke.json"
 SERVICE_EVENT_TRACE_MODULE = "src/services/service_event_trace.py"
 ECONOMY_BOUNDARY_CLAIM_ID = "economy_boundary"
@@ -3938,9 +4196,24 @@ def _source_filtered_event_log_entries(path, source_agents, candidate_limit):
         "event_log_lines_seen": event_log_lines_seen,
     }
 
+EVENTBUS_EVIDENCE_MAX_AGE_HOURS = 168
+EVENTBUS_FUTURE_SKEW_TOLERANCE_SECONDS = 300
+
+def _parse_event_timestamp(value):
+    return value
+
+def _event_freshness_blockers(event, prefix, max_age_hours=EVENTBUS_EVIDENCE_MAX_AGE_HOURS):
+    datetime.now(timezone.utc)
+    return [
+        "dataplane_evidence_event_stale",
+        "dataplane_evidence_timestamp_missing_or_invalid",
+        "dataplane_evidence_timestamp_too_far_in_future",
+    ]
+
 def dataplane_delivery_artifact_evidence(root):
     post_action_dataplane_revalidated = True
     restored_dataplane_claim_allowed = True
+    _event_freshness_blockers({}, prefix="dataplane_evidence")
     bounded_dataplane_probe_not_attempted = "bounded_dataplane_probe_not_attempted"
     dataplane_evidence_not_redacted = "dataplane_evidence_not_redacted"
     restored_dataplane_claim_gate_missing = "restored_dataplane_claim_gate_missing"
@@ -3959,6 +4232,12 @@ def economy_boundary_artifact_evidence(root):
     required_for_high_risk_claims = {"settlement_finality": "provider finality"}
     external_settlement_finality_missing = "external_settlement_finality_missing"
     economy_event_redaction_metadata_missing = "economy_event_redaction_metadata_missing"
+    economy_boundary_overpromotes_dataplane_confirmation = "economy_boundary_overpromotes_dataplane_confirmation"
+    economy_boundary_overpromotes_dataplane_delivery = "economy_boundary_overpromotes_dataplane_delivery"
+    economy_source_gate_overpromotes_dataplane_delivery = "economy_source_gate_overpromotes_dataplane_delivery"
+    customer_dataplane_delivery_claim_allowed = False
+    traffic_delivery_claim_allowed = False
+    _event_freshness_blockers({}, prefix="economy_boundary")
     return {
         "required_for_claims": ["settlement_finality", "production_readiness"],
         "blockers": ["economy_boundary_artifact_not_verified"],
@@ -4026,14 +4305,30 @@ def production_readiness_artifact_evidence(root):
 production_readiness_imported_artifact_not_verified = "production_readiness_imported_artifact_not_verified"
 production_readiness_measured_attestation_verifier_smoke_artifact_not_verified = "production_readiness_measured_attestation_verifier_smoke_artifact_not_verified"
 measured_attestation_verifier_smoke_artifact_not_ready = "measured_attestation_verifier_smoke_artifact_not_ready"
+measured_attestation_verifier_handoff_not_ready = "measured_attestation_verifier_handoff_not_ready"
 validate_measured_attestation_verifier_smoke_artifact = "validate_measured_attestation_verifier_smoke_artifact"
+
+def measured_attestation_verifier_handoff_status(root):
+    load_script_module(root, MEASURED_ATTESTATION_HANDOFF, "handoff")
+    return {
+        "path": MEASURED_ATTESTATION_HANDOFF,
+        "ready_for_operator_run": False,
+        "raw_inputs_redacted": True,
+        "runs_verifier": False,
+        "writes_artifacts": False,
+        "blockers": [measured_attestation_verifier_handoff_not_ready],
+    }
 
 def measured_attestation_verifier_smoke_artifact_evidence(root):
     load_script_module(root, MEASURED_ATTESTATION_SMOKE_VALIDATOR, "validator")
     return {
         "required_for_claims": ["measured_attestation_verifier_smoke", "production_readiness"],
         "artifact_path": MEASURED_ATTESTATION_SMOKE_CANDIDATE,
-        "blockers": [measured_attestation_verifier_smoke_artifact_not_ready],
+        "operator_handoff": measured_attestation_verifier_handoff_status(root),
+        "blockers": [
+            measured_attestation_verifier_smoke_artifact_not_ready,
+            measured_attestation_verifier_handoff_not_ready,
+        ],
     }
 
 EXTERNAL_SETTLEMENT_CLAIM_ID = "external_settlement"
@@ -4082,11 +4377,234 @@ def external_settlement_artifact_evidence(root):
         "tests/unit/scripts/test_run_cross_plane_proof_gate.py",
         """
 def test_gate_allows_measured_attestation_smoke_only_with_validated_artifact():
+    operator_handoff = {}
     pass
 def test_gate_blocks_measured_attestation_smoke_when_artifact_overpromotes_production():
     pass
 def test_gate_blocks_production_readiness_when_measured_attestation_smoke_is_missing():
     pass
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_cross_plane_proof_gate_retention.py",
+        """
+SCHEMA = "x0tta6bl4.cross_plane_proof_gate.retention_validator.v1"
+PROOF_GATE_SCHEMA = "x0tta6bl4.cross_plane_proof_gate.v1"
+RETENTION_SCHEMA = "x0tta6bl4.cross_plane_proof_gate.retention.v1"
+DEFAULT_ARTIFACT = Path(".tmp/validation-shards/cross-plane-proof-gate-current.json")
+DEFAULT_MAX_AGE_HOURS = 168
+FUTURE_SKEW_TOLERANCE_SECONDS = 300
+def source_artifact_failures(root, source_artifacts):
+    source_artifacts_missing = "source_artifacts_missing"
+    source_artifact_sha256_mismatch = "source_artifact_sha256_mismatch"
+    return [source_artifacts_missing, source_artifact_sha256_mismatch]
+def freshness_errors(payload, max_age_hours=168):
+    retained_proof_gate_artifact_stale = "retained_proof_gate_artifact_stale"
+    return [retained_proof_gate_artifact_stale], 1
+def parse_args(argv=None):
+    return "--require-valid"
+retained_artifact_is_symlink = "retained_artifact_is_symlink"
+retention_mutates_runtime_not_false = "retention_mutates_runtime_not_false"
+retention_collects_live_evidence_not_false = "retention_collects_live_evidence_not_false"
+retained_artifact_path_mismatch = "retained_artifact_path_mismatch"
+canonical_artifact_path_mismatch = "canonical_artifact_path_mismatch"
+retention_context_source_artifact_roles_mismatch = (
+    "retention_context_source_artifact_roles_mismatch"
+)
+source_artifact_hashes_verified = True
+claim_boundary = "does not prove production readiness, live traffic, DPI bypass, or settlement finality"
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_safe_actuator_metadata_adoption.py",
+        """
+SCHEMA = "x0tta6bl4.safe_actuator_metadata_adoption.v1"
+CLAIM_BOUNDARY = (
+    "SafeActuator metadata adoption inventory is a static source scan only. "
+    "It does not prove runtime execution, dataplane delivery, settlement "
+    "finality, production SLOs, or production readiness."
+)
+DEFAULT_HIGH_RISK_FILES = ("src/mesh/action_enforcer.py",)
+def build_report(root):
+    return {
+        "schema": SCHEMA,
+        "decision": "SAFE_ACTUATOR_METADATA_FULL_COVERAGE",
+        "claim_boundary": CLAIM_BOUNDARY,
+        "summary": {
+            "high_risk_coverage_ready": True,
+            "full_metadata_coverage_ready": True,
+            "high_risk_files_checked": 1,
+            "high_risk_files_metadata_aware": 1,
+            "parse_errors": 0,
+            "parse_error_free": True,
+            "safe_actuator_result_calls": 1,
+            "result_calls_with_evidence_metadata": 1,
+            "result_calls_without_evidence_metadata": 0,
+        },
+        "blockers": [],
+    }
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_safe_actuator_runtime_metadata_retention.py",
+        """
+SCHEMA = "x0tta6bl4.safe_actuator_runtime_metadata_retention.v1"
+CLAIM_BOUNDARY = (
+    "SafeActuator runtime metadata retention verifier is a local simulated "
+    "EventBus smoke test only. It does not prove live SPIFFE/SPIRE trust, "
+    "dataplane delivery, settlement finality, production SLOs, or production readiness."
+)
+def build_report(root):
+    return {
+        "schema": SCHEMA,
+        "decision": "SAFE_ACTUATOR_RUNTIME_METADATA_RETAINED",
+        "claim_boundary": CLAIM_BOUNDARY,
+        "summary": {
+            "cases_run": 22,
+            "events_checked": 18,
+            "result_metadata_cases_checked": 4,
+            "metadata_events": 22,
+            "claim_gates_fail_closed": True,
+            "local_simulated_harness": True,
+            "live_spire_or_dataplane_claimed": False,
+            "production_readiness_claimed": False,
+        },
+        "failures": [],
+    }
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/run_production_deploy_blocked_preflight_evidence.py",
+        """
+SCHEMA = "x0tta6bl4.production_deploy.blocked_preflight_evidence.v1"
+CLAIM_BOUNDARY = (
+    "Local blocked-preflight evidence for scripts/deploy/production_deploy.py. "
+    "It does not prove live deployment, traffic shifting, customer traffic, "
+    "production SLOs, or production readiness."
+)
+def build_report(root):
+    return {
+        "schema": SCHEMA,
+        "decision": "PRODUCTION_DEPLOY_BLOCKED_PREFLIGHT_EVIDENCE_RETAINED",
+        "ok": True,
+        "claim_boundary": CLAIM_BOUNDARY,
+        "summary": {
+            "blocked_before_live_subprocess": True,
+            "blocked_before_kubectl_prerequisites": True,
+            "deploy_result_blocked": True,
+            "safe_actuator_metadata_retained": True,
+            "claim_gate_fail_closed": True,
+            "live_deploy_authorized": False,
+            "live_deploy_subprocess_attempted": False,
+            "kubectl_prerequisites_attempted": False,
+            "mutates_runtime": False,
+            "writes_eventbus": False,
+            "raw_outputs_retained": False,
+            "traffic_shift_claimed": False,
+            "customer_traffic_claimed": False,
+            "production_slo_claimed": False,
+            "production_readiness_claimed": False,
+        },
+        "safe_actuator_evidence_metadata": {
+            "schema": "x0tta6bl4.safe_actuator.evidence_metadata.v1",
+            "redacted": True,
+            "claim_gate": {
+                "schema": "x0tta6bl4.ops.production_deploy.safe_actuator_claim_gate.v1",
+                "local_deployment_command_attempt_claim_allowed": False,
+                "production_readiness_claim_allowed": False,
+            },
+        },
+        "failures": [],
+    }
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_economy_dataplane_separation.py",
+        """
+SCHEMA = "x0tta6bl4.economy_dataplane_separation.v1"
+CLAIM_BOUNDARY = (
+    "Economy/dataplane separation verifier is a local simulated report and "
+    "EventBus smoke test only. It does not prove dataplane delivery, customer "
+    "traffic, revenue recognition, production SLOs, or production readiness."
+)
+def build_report(root):
+    return {
+        "schema": SCHEMA,
+        "decision": "ECONOMY_DATAPLANE_SEPARATION_VERIFIED",
+        "claim_boundary": CLAIM_BOUNDARY,
+        "summary": {
+            "cases_run": 5,
+            "cases_checked": 5,
+            "external_settlement_handoff_cases": 2,
+            "reward_events_checked": 1,
+            "marketplace_events_checked": 1,
+            "modular_billing_events_checked": 1,
+            "modular_billing_response_claim_gates_checked": 1,
+            "service_trace_economy_summaries_checked": 3,
+            "high_risk_claim_gates_fail_closed": True,
+            "local_simulated_harness": True,
+            "mutates_chain": False,
+            "runs_live_rpc": False,
+            "submits_transaction": False,
+            "dataplane_or_production_claimed": False,
+            "customer_traffic_claimed": False,
+            "revenue_recognition_claimed": False,
+            "production_readiness_claimed": False,
+        },
+        "failures": [],
+    }
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_dataplane_delivery_operator_flow.py",
+        """
+SCHEMA = "x0tta6bl4.dataplane_delivery_operator_flow.v1"
+DECISION_VERIFIED = "DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIED"
+CLAIM_BOUNDARY = (
+    "Dataplane delivery operator-flow verifier is a local simulated harness "
+    "only. It proves the read-only handoff, opt-in collector, redaction, and "
+    "proof-gate EventBus recognition path work together; it does not prove real operator-run evidence, customer traffic, external reachability, DPI "
+    "bypass, settlement finality, production SLOs, or production readiness."
+)
+from scripts.ops import run_dataplane_delivery_operator_handoff
+from scripts.ops import collect_dataplane_delivery_eventbus_evidence
+from scripts.ops.run_cross_plane_proof_gate import dataplane_delivery_artifact_evidence
+def build_report(root):
+    return {
+        "schema": SCHEMA,
+        "decision": DECISION_VERIFIED,
+        "claim_boundary": CLAIM_BOUNDARY,
+        "summary": {
+            "cases_run": 5,
+            "cases_checked": 5,
+            "handoff_cases": 2,
+            "collector_cases": 3,
+            "proof_gate_artifacts_checked": 1,
+            "command_surface_checked": True,
+            "local_simulated_harness": True,
+            "runs_live_probe": False,
+            "mutates_project_runtime": False,
+            "writes_temp_eventbus": True,
+            "operator_run_evidence_claimed": False,
+            "real_operator_run_evidence_retained": False,
+            "eventbus_evidence_recognized_by_proof_gate": True,
+            "raw_targets_redacted": True,
+            "customer_traffic_claimed": False,
+            "external_reachability_claimed": False,
+            "dpi_bypass_claimed": False,
+            "settlement_finality_claimed": False,
+            "traffic_delivery_claimed": False,
+            "production_readiness_claimed": False,
+        },
+        "failures": [],
+    }
+REQUIRE_FLAG = "--require-verified"
 """,
     )
     _write(
@@ -4100,6 +4618,62 @@ def _redacted_rpc_endpoint_metadata(rpc_url):
         "rpc_endpoint": None,
         "rpc_endpoint_redacted": rpc_endpoint_redacted,
         "rpc_endpoint_hash": rpc_endpoint_hash,
+    }
+""",
+    )
+    _write(
+        root,
+        "src/integration/external_settlement_operator_handoff.py",
+        """
+def _claim_gate(
+    settlement_finality_ready,
+    retained_evidence_ready,
+    live_rpc_ready,
+    finality_blockers,
+    operator_blockers,
+):
+    claim_gate = {
+        "schema": "x0tta6bl4.external_settlement.operator_handoff.claim_gate.v1",
+        "external_settlement_finality_claim_allowed": settlement_finality_ready,
+        "economy_finality_claim_allowed": settlement_finality_ready,
+        "retained_evidence_claim_allowed": retained_evidence_ready,
+        "live_rpc_receipt_claim_allowed": live_rpc_ready,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "customer_dataplane_delivery_claim_allowed": False,
+        "revenue_recognition_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "operator_blockers": operator_blockers,
+        "claim_boundary": "It never allows dataplane delivery or production readiness claims.",
+    }
+    return claim_gate
+
+def build_report(root):
+    settlement_finality_ready = False
+    claim_gate = _claim_gate(settlement_finality_ready, False, False, [], [])
+    return {
+        "claim_gate": claim_gate,
+        "summary": {
+            "claim_gate_present": True,
+            "external_settlement_finality_claim_allowed": claim_gate[
+                "external_settlement_finality_claim_allowed"
+            ],
+            "economy_finality_claim_allowed": claim_gate[
+                "economy_finality_claim_allowed"
+            ],
+            "dataplane_delivery_claim_allowed": claim_gate[
+                "dataplane_delivery_claim_allowed"
+            ],
+            "customer_traffic_claim_allowed": claim_gate[
+                "customer_traffic_claim_allowed"
+            ],
+            "revenue_recognition_claim_allowed": claim_gate[
+                "revenue_recognition_claim_allowed"
+            ],
+            "production_readiness_claim_allowed": claim_gate[
+                "production_readiness_claim_allowed"
+            ],
+        },
     }
 """,
     )
@@ -4201,6 +4775,131 @@ def collect(args):
     )
     _write(
         root,
+        "scripts/ops/run_dataplane_delivery_operator_handoff.py",
+        """
+SCHEMA = "x0tta6bl4.dataplane_delivery_operator_handoff.v1"
+DECISION_READY = "DATAPLANE_DELIVERY_OPERATOR_HANDOFF_READY"
+DECISION_BLOCKED = "DATAPLANE_DELIVERY_OPERATOR_HANDOFF_BLOCKED_ON_OPERATOR"
+COLLECT_COMMAND = "python3 scripts/ops/collect_dataplane_delivery_eventbus_evidence.py --allow-local-probe --write-event --json"
+PROOF_GATE_COMMAND = "python3 scripts/ops/run_cross_plane_proof_gate.py --claim dataplane_delivery"
+RETENTION_COMMAND = "python3 scripts/ops/verify_cross_plane_proof_gate_retention.py --require-valid --json"
+OPERATOR_EVIDENCE_COMMAND = "python3 scripts/ops/run_dataplane_delivery_operator_evidence.py --allow-operator-probe --require-retained --json"
+
+def is_localish_target(host):
+    return True
+
+def sha256_text(host):
+    return "0" * 64
+
+def operator_command_checks(root):
+    return [
+        {
+            "entrypoint_exists": True,
+            "shell_redirection_placeholder_detected": False,
+        }
+    ]
+
+def build_report(root, target_host="", target_port="", target_label="operator-target"):
+    host = target_host
+    return {
+        "schema": SCHEMA,
+        "decision": DECISION_READY,
+        "mutates_runtime": False,
+        "runs_probe": False,
+        "writes_eventbus": False,
+        "target": {
+            "host_hash": sha256_text(host),
+            "raw_target_redacted": True,
+        },
+        "operator_env_vars": [
+            "X0T_DATAPLANE_PROBE_HOST",
+            "X0T_DATAPLANE_PROBE_PORT",
+            "X0T_DATAPLANE_PROBE_LABEL",
+        ],
+        "operator_commands": [
+            {"command": COLLECT_COMMAND},
+            {"command": PROOF_GATE_COMMAND},
+            {"command": RETENTION_COMMAND},
+            {"command": OPERATOR_EVIDENCE_COMMAND},
+        ],
+        "operator_command_checks": operator_command_checks(root),
+        "safe_local_input_steps": [
+            "do not paste private targets into chat",
+        ],
+        "claim_boundary": "does not prove customer traffic",
+    }
+target_must_be_loopback_private_or_link_local = "target_must_be_loopback_private_or_link_local"
+entrypoint_exists = True
+shell_redirection_placeholder_detected = False
+X0T_DATAPLANE_PROBE_HOST = "X0T_DATAPLANE_PROBE_HOST"
+X0T_DATAPLANE_PROBE_PORT = "X0T_DATAPLANE_PROBE_PORT"
+X0T_DATAPLANE_PROBE_LABEL = "X0T_DATAPLANE_PROBE_LABEL"
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/run_dataplane_delivery_operator_evidence.py",
+        """
+SCHEMA = "x0tta6bl4.dataplane_delivery_operator_evidence_run.v1"
+DECISION_PROBE_NOT_AUTHORIZED = "DATAPLANE_OPERATOR_EVIDENCE_PROBE_NOT_AUTHORIZED"
+DECISION_RETAINED = "DATAPLANE_OPERATOR_EVIDENCE_RETAINED"
+CLAIM_BOUNDARY = "does not prove customer traffic"
+from scripts.ops import run_dataplane_delivery_operator_handoff
+from scripts.ops import collect_dataplane_delivery_eventbus_evidence
+from scripts.ops import run_cross_plane_proof_gate
+def build_report(root):
+    return {
+        "schema": SCHEMA,
+        "decision": DECISION_PROBE_NOT_AUTHORIZED,
+        "summary": {
+            "opens_socket": False,
+            "writes_eventbus": False,
+            "writes_validation_artifacts": False,
+            "mutates_services": False,
+            "raw_targets_redacted": True,
+            "customer_traffic_claimed": False,
+            "traffic_delivery_claimed": False,
+            "production_readiness_claimed": False,
+        },
+        "safe_local_input_steps": ["Do not paste private targets into chat."],
+    }
+ALLOW_FLAG = "--allow-operator-probe"
+REQUIRE_FLAG = "--require-retained"
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_dataplane_delivery_private_target_operator_run.py",
+        """
+SCHEMA = "x0tta6bl4.dataplane_delivery_private_target_operator_run.v1"
+DECISION_RETAINED = "DATAPLANE_PRIVATE_TARGET_OPERATOR_RUN_RETAINED"
+CLAIM_BOUNDARY = "does not prove customer traffic"
+from scripts.ops import run_dataplane_delivery_operator_evidence
+
+def is_private_non_loopback_target(host):
+    return True
+
+def build_report(root):
+    return {
+        "schema": SCHEMA,
+        "decision": DECISION_RETAINED,
+        "summary": {
+            "operator_run_evidence_retained": False,
+            "raw_targets_redacted": True,
+            "customer_traffic_claimed": False,
+            "external_reachability_claimed": False,
+            "traffic_delivery_claimed": False,
+            "production_readiness_claimed": False,
+        },
+        "target": {"raw_target_redacted": True},
+        "blockers": ["raw_target_leaked"],
+        "claim_boundary": CLAIM_BOUNDARY,
+    }
+ALLOW_FLAG = "--allow-private-target-probe"
+""",
+    )
+    _write(
+        root,
         "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py",
         """
 SCHEMA = "x0tta6bl4.maas_heal_post_action_dataplane_probe_verifier.v1"
@@ -4240,6 +4939,125 @@ def test_maas_heal_probe_verifier_redacts_target_and_surfaces_gate():
     report = {"maas_heal_surface": {"production_readiness_claim_allowed": False}}
     assert report["maas_heal_surface"]["production_readiness_claim_allowed"] is False
     assert "10.123.45.67" not in json.dumps(report, sort_keys=True)
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py",
+        """
+SCHEMA = "x0tta6bl4.maas_heal_api_post_action_dataplane_probe.v1"
+DECISION_READY = "MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_READY"
+CLAIM_BOUNDARY = "does not prove live customer traffic"
+
+def build_report(root, target="10.123.45.67"):
+    with TestClient(app) as client:
+        heartbeat = client.post(
+            f"/api/v1/maas/{seeded['mesh_id']}/nodes/{seeded['node_id']}/heartbeat",
+            json={"dataplane_probe_target": target},
+        )
+        heal = client.post(
+            f"/api/v1/maas/{seeded['mesh_id']}/nodes/{seeded['node_id']}/heal",
+        )
+    revalidation = {"traffic_delivery_claim_allowed": False}
+    return {
+        "schema": SCHEMA,
+        "decision": DECISION_READY,
+        "ok": True,
+        "summary": {
+            "api_path_exercised": True,
+            "heartbeat_registered_probe_target": True,
+            "manager_received_probe_target": True,
+            "traffic_delivery_claim_allowed": revalidation.get("traffic_delivery_claim_allowed"),
+            "customer_traffic_claim_allowed": revalidation.get("customer_traffic_claim_allowed", False),
+            "external_reachability_claim_allowed": revalidation.get("external_reachability_claim_allowed", False),
+            "production_slo_claim_allowed": revalidation.get("production_slo_claim_allowed", False),
+            "production_readiness_claim_allowed": revalidation.get("production_readiness_claim_allowed", False),
+        },
+        "failures": ["raw_target_leaked"],
+        "claim_boundary": CLAIM_BOUNDARY,
+    }
+""",
+    )
+    _write(
+        root,
+        "tests/unit/scripts/test_verify_maas_heal_api_post_action_dataplane_probe.py",
+        """
+def test_maas_heal_api_verifier_redacts_target_and_surfaces_gate():
+    target = "10.123.45.67"
+    report = {"summary": {"production_readiness_claim_allowed": False}}
+    rendered = json.dumps(report, sort_keys=True)
+    assert report["summary"]["production_readiness_claim_allowed"] is False
+    assert target not in rendered
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_maas_real_agent_control_loop.py",
+        """
+SCHEMA = "x0tta6bl4.maas_real_agent_control_loop_smoke.v1"
+READY_DECISION = "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY"
+CLAIM_BOUNDARY = "local real-agent smoke only"
+
+def run_verification(work_dir, dataplane_probe_target="10.123.45.67", timeout_seconds=90.0):
+    bounded_local_probe_confirmed = True
+    return {
+        "schema": SCHEMA,
+        "decision": READY_DECISION,
+        "ready": True,
+        "agent": {
+            "binary_built": True,
+            "process_started": True,
+            "node_runtime_credential_hash_stored": True,
+            "node_runtime_credential_expiry_stored": True,
+            "node_runtime_credential_rotation_observed": True,
+            "node_config_fetch_observed": True,
+            "heartbeat_observed": True,
+            "operator_heal_observed": True,
+        },
+        "healing_surface": {
+            "status": "healed",
+            "healing_claim": "local_control_action_applied",
+            "components_healed": 1,
+            "post_heal_node_status": "healthy",
+            "post_action_revalidation_present": True,
+            "dataplane_confirmed": bounded_local_probe_confirmed,
+            "post_action_dataplane_revalidated": True,
+            "restored_dataplane_claim_allowed": bounded_local_probe_confirmed,
+            "traffic_delivery_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "external_reachability_claim_allowed": False,
+            "production_slo_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "raw_target_redacted": True,
+        },
+        "dataplane_probe_target": {
+            "raw_value_redacted": True,
+            "requested_raw_value_redacted": True,
+            "local_listener_target": True,
+            "sha256": "redacted-target-hash",
+        },
+        "stages": [
+            {"name": "agent_heartbeat_persisted", "ok": True},
+            {"name": "agent_node_marked_offline_for_local_heal", "ok": True},
+            {"name": "operator_heal_after_real_agent_heartbeat", "ok": True},
+        ],
+        "claim_boundary": CLAIM_BOUNDARY,
+    }
+""",
+    )
+    _write(
+        root,
+        "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py",
+        """
+def test_real_go_agent_control_loop_smoke_redacts_target():
+    report = {
+        "decision": "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY",
+        "ready": True,
+        "dataplane_probe_target": {"raw_value_redacted": True},
+    }
+    rendered = json.dumps(report, sort_keys=True)
+    assert report["dataplane_probe_target"]["raw_value_redacted"] is True
+    assert "10.123.45.67" not in rendered
 """,
     )
     _write(
@@ -4487,6 +5305,7 @@ from dataclasses import field
 from typing import Any, Dict
 
 SAFE_ACTUATOR_EVIDENCE_METADATA_SCHEMA = "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+SAFE_ACTUATOR_ADAPTER_CLAIM_BOUNDARY = "SafeActuator adapter metadata proves only local adapter normalization"
 
 class SafeActuatorEvidenceMetadata:
     @classmethod
@@ -4495,8 +5314,22 @@ class SafeActuatorEvidenceMetadata:
         evidence_metadata = value.get("evidence_metadata", safe_actuator_evidence)
         return evidence_metadata
 
+def _safe_actuator_adapter_evidence_metadata():
+    return {
+        "claim_gate": {
+            "schema": "x0tta6bl4.safe_actuator.adapter_claim_gate.v1",
+            "external_settlement_finality_claim_allowed": False,
+            "revenue_recognition_claim_allowed": False,
+            "production_slo_claim_allowed": False,
+        },
+        "evidence": {
+            "raw_context_values_redacted": True,
+            "action_redacted": True,
+        },
+    }
+
 def _result_from_raw(raw):
-    evidence_metadata=SafeActuatorEvidenceMetadata.from_value(raw)
+    evidence_metadata = SafeActuatorEvidenceMetadata.from_value(raw)
     return evidence_metadata
 
 def _spine_claim_gate():
@@ -5281,7 +6114,18 @@ def _write_current_evidence(
     _write(
         root,
         "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md",
-        "# Current Active Goal Gap Audit\n\nStatus: test fixture.\n",
+        """# Current Active Goal Gap Audit
+
+Status: test fixture.
+
+Separate reality-map tracked risk: `control_spine_fragmentation` is monitored
+by `scripts/ops/verify_safe_actuator_metadata_adoption.py`. The latest local
+parse-error-free inventory shows known high-risk control files are
+metadata-aware (`20/20`) and generic `SafeActuatorResult` result-call coverage
+is complete in source (`63/63`). The local runtime verifier
+`scripts/ops/verify_safe_actuator_runtime_metadata_retention.py` also proves
+18 EventBus cases plus 4 ops result-metadata cases retain typed metadata.
+""",
     )
     _write(
         root,
@@ -5336,6 +6180,260 @@ def _passing_runner(
                 }
             ),
         )
+    if (
+        len(args) > 1
+        and args[1]
+        == "scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py"
+    ):
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "decision": (
+                        "MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_READY"
+                    ),
+                    "ok": True,
+                    "summary": {
+                        "api_path_exercised": True,
+                        "heartbeat_registered_probe_target": True,
+                        "manager_received_probe_target": True,
+                        "dataplane_confirmed": True,
+                        "post_action_dataplane_revalidated": True,
+                        "restored_dataplane_claim_allowed": True,
+                        "traffic_delivery_claim_allowed": False,
+                        "customer_traffic_claim_allowed": False,
+                        "external_reachability_claim_allowed": False,
+                        "production_slo_claim_allowed": False,
+                        "production_readiness_claim_allowed": False,
+                    },
+                }
+            ),
+        )
+    if len(args) > 1 and args[1] == "scripts/ops/verify_maas_real_agent_control_loop.py":
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "decision": "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY",
+                    "ready": True,
+                    "agent": {
+                        "binary_built": True,
+                        "process_started": True,
+                        "node_runtime_credential_hash_stored": True,
+                        "node_runtime_credential_expiry_stored": True,
+                        "node_runtime_credential_rotation_observed": True,
+                        "node_config_fetch_observed": True,
+                        "heartbeat_observed": True,
+                        "operator_heal_observed": True,
+                    },
+                    "healing_surface": {
+                        "status": "healed",
+                        "healing_claim": "local_control_action_applied",
+                        "components_healed": 1,
+                        "post_heal_node_status": "healthy",
+                        "post_action_revalidation_present": True,
+                        "dataplane_confirmed": True,
+                        "post_action_dataplane_revalidated": True,
+                        "restored_dataplane_claim_allowed": True,
+                        "traffic_delivery_claim_allowed": False,
+                        "customer_traffic_claim_allowed": False,
+                        "external_reachability_claim_allowed": False,
+                        "production_slo_claim_allowed": False,
+                        "production_readiness_claim_allowed": False,
+                        "raw_target_redacted": True,
+                    },
+                    "dataplane_probe_target": {
+                        "raw_value_redacted": True,
+                        "requested_raw_value_redacted": True,
+                        "local_listener_target": True,
+                        "sha256": "redacted-target-hash",
+                    },
+                    "stages": [
+                        {
+                            "name": "agent_heartbeat_persisted",
+                            "ok": True,
+                        },
+                        {
+                            "name": "agent_node_marked_offline_for_local_heal",
+                            "ok": True,
+                        },
+                        {
+                            "name": "operator_heal_after_real_agent_heartbeat",
+                            "ok": True,
+                        }
+                    ],
+                }
+            ),
+        )
+    if len(args) > 1 and args[1] == "scripts/ops/verify_safe_actuator_metadata_adoption.py":
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "decision": "SAFE_ACTUATOR_METADATA_FULL_COVERAGE",
+                    "claim_boundary": "static inventory only; does not prove runtime execution",
+                    "summary": {
+                        "high_risk_coverage_ready": True,
+                        "full_metadata_coverage_ready": True,
+                        "high_risk_files_checked": 20,
+                        "high_risk_files_metadata_aware": 20,
+                        "parse_errors": 0,
+                        "parse_error_free": True,
+                        "safe_actuator_result_calls": 62,
+                        "result_calls_with_evidence_metadata": 62,
+                        "result_calls_without_evidence_metadata": 0,
+                    },
+                    "blockers": [],
+                }
+            ),
+        )
+    if (
+        len(args) > 1
+        and args[1] == "scripts/ops/verify_safe_actuator_runtime_metadata_retention.py"
+    ):
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "decision": "SAFE_ACTUATOR_RUNTIME_METADATA_RETAINED",
+                    "claim_boundary": (
+                        "local smoke only; does not prove live SPIFFE/SPIRE trust, "
+                        "dataplane delivery, settlement finality, production SLOs, or production readiness"
+                    ),
+                    "summary": {
+                        "cases_run": 22,
+                        "events_checked": 18,
+                        "result_metadata_cases_checked": 4,
+                        "metadata_events": 22,
+                        "claim_gates_fail_closed": True,
+                        "local_simulated_harness": True,
+                        "live_spire_or_dataplane_claimed": False,
+                        "production_readiness_claimed": False,
+                    },
+                    "failures": [],
+                }
+            ),
+        )
+    if (
+        len(args) > 1
+        and args[1] == "scripts/ops/verify_economy_dataplane_separation.py"
+    ):
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "decision": "ECONOMY_DATAPLANE_SEPARATION_VERIFIED",
+                    "claim_boundary": (
+                        "local smoke only; does not prove dataplane delivery, "
+                        "customer traffic, revenue recognition, or production readiness"
+                    ),
+                    "summary": {
+                        "cases_run": 5,
+                        "cases_checked": 5,
+                        "external_settlement_handoff_cases": 2,
+                        "reward_events_checked": 1,
+                        "marketplace_events_checked": 1,
+                        "modular_billing_events_checked": 1,
+                        "modular_billing_response_claim_gates_checked": 1,
+                        "service_trace_economy_summaries_checked": 3,
+                        "high_risk_claim_gates_fail_closed": True,
+                        "local_simulated_harness": True,
+                        "mutates_chain": False,
+                        "runs_live_rpc": False,
+                        "submits_transaction": False,
+                        "dataplane_or_production_claimed": False,
+                        "customer_traffic_claimed": False,
+                        "revenue_recognition_claimed": False,
+                        "production_readiness_claimed": False,
+                    },
+                    "failures": [],
+                }
+            ),
+        )
+    if (
+        len(args) > 1
+        and args[1]
+        == "scripts/ops/run_production_deploy_blocked_preflight_evidence.py"
+    ):
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "decision": "PRODUCTION_DEPLOY_BLOCKED_PREFLIGHT_EVIDENCE_RETAINED",
+                    "ok": True,
+                    "claim_boundary": (
+                        "local blocked preflight only; does not prove live deployment, "
+                        "traffic shifting, customer traffic, production SLOs, or production readiness"
+                    ),
+                    "summary": {
+                        "blocked_before_live_subprocess": True,
+                        "blocked_before_kubectl_prerequisites": True,
+                        "deploy_result_blocked": True,
+                        "safe_actuator_metadata_retained": True,
+                        "claim_gate_fail_closed": True,
+                        "live_deploy_authorized": False,
+                        "live_deploy_subprocess_attempted": False,
+                        "kubectl_prerequisites_attempted": False,
+                        "mutates_runtime": False,
+                        "writes_eventbus": False,
+                        "raw_outputs_retained": False,
+                        "traffic_shift_claimed": False,
+                        "customer_traffic_claimed": False,
+                        "production_slo_claimed": False,
+                        "production_readiness_claimed": False,
+                    },
+                    "safe_actuator_evidence_metadata": {
+                        "schema": "x0tta6bl4.safe_actuator.evidence_metadata.v1",
+                        "redacted": True,
+                        "claim_gate": {
+                            "schema": "x0tta6bl4.ops.production_deploy.safe_actuator_claim_gate.v1",
+                            "local_deployment_command_attempt_claim_allowed": False,
+                            "production_readiness_claim_allowed": False,
+                        },
+                    },
+                    "failures": [],
+                }
+            ),
+        )
+    if (
+        len(args) > 1
+        and args[1] == "scripts/ops/verify_dataplane_delivery_operator_flow.py"
+    ):
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "decision": "DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIED",
+                    "claim_boundary": (
+                        "local smoke only; does not prove real operator-run evidence, "
+                        "customer traffic, traffic delivery, or production readiness"
+                    ),
+                    "summary": {
+                        "cases_run": 5,
+                        "cases_checked": 5,
+                        "handoff_cases": 2,
+                        "collector_cases": 3,
+                        "proof_gate_artifacts_checked": 1,
+                        "command_surface_checked": True,
+                        "local_simulated_harness": True,
+                        "runs_live_probe": False,
+                        "mutates_project_runtime": False,
+                        "writes_temp_eventbus": True,
+                        "operator_run_evidence_claimed": False,
+                        "real_operator_run_evidence_retained": False,
+                        "eventbus_evidence_recognized_by_proof_gate": True,
+                        "raw_targets_redacted": True,
+                        "customer_traffic_claimed": False,
+                        "external_reachability_claimed": False,
+                        "dpi_bypass_claimed": False,
+                        "settlement_finality_claimed": False,
+                        "traffic_delivery_claimed": False,
+                        "production_readiness_claimed": False,
+                    },
+                    "failures": [],
+                }
+            ),
+        )
     return CommandResult(0, "ok\n")
 
 
@@ -5386,6 +6484,125 @@ def test_ready_contract_passes_with_clean_static_and_command_evidence(tmp_path: 
     assert report["current_evidence_context"]["current_gap_count"] == 0
 
 
+def test_maas_real_agent_control_loop_smoke_blocks_readiness_on_bad_output(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/verify_maas_real_agent_control_loop.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY",
+                        "ready": True,
+                        "agent": {
+                            "binary_built": True,
+                            "process_started": True,
+                            "node_runtime_credential_hash_stored": True,
+                            "node_runtime_credential_expiry_stored": True,
+                            "node_runtime_credential_rotation_observed": True,
+                            "node_config_fetch_observed": True,
+                            "heartbeat_observed": False,
+                        },
+                        "dataplane_probe_target": {
+                            "raw_value_redacted": True,
+                            "sha256": "redacted-target-hash",
+                        },
+                        "stages": [],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "maas_real_agent_control_loop_smoke" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_maas_real_agent_heal_overclaim_blocks_readiness(tmp_path: Path) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/verify_maas_real_agent_control_loop.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY",
+                        "ready": True,
+                        "agent": {
+                            "binary_built": True,
+                            "process_started": True,
+                            "node_runtime_credential_hash_stored": True,
+                            "node_runtime_credential_expiry_stored": True,
+                            "node_runtime_credential_rotation_observed": True,
+                            "node_config_fetch_observed": True,
+                            "heartbeat_observed": True,
+                            "operator_heal_observed": True,
+                        },
+                        "healing_surface": {
+                            "status": "healed",
+                            "healing_claim": "local_control_action_applied",
+                            "components_healed": 1,
+                            "post_heal_node_status": "healthy",
+                            "post_action_revalidation_present": True,
+                            "dataplane_confirmed": True,
+                            "post_action_dataplane_revalidated": True,
+                            "restored_dataplane_claim_allowed": True,
+                            "traffic_delivery_claim_allowed": False,
+                            "customer_traffic_claim_allowed": False,
+                            "external_reachability_claim_allowed": False,
+                            "production_slo_claim_allowed": False,
+                            "production_readiness_claim_allowed": True,
+                            "raw_target_redacted": True,
+                        },
+                        "dataplane_probe_target": {
+                            "raw_value_redacted": True,
+                            "requested_raw_value_redacted": True,
+                            "local_listener_target": True,
+                            "sha256": "redacted-target-hash",
+                        },
+                        "stages": [
+                            {"name": "agent_heartbeat_persisted", "ok": True},
+                            {
+                                "name": "agent_node_marked_offline_for_local_heal",
+                                "ok": True,
+                            },
+                            {
+                                "name": "operator_heal_after_real_agent_heartbeat",
+                                "ok": True,
+                            },
+                        ],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "maas_real_agent_control_loop_smoke" in blocker_ids
+    assert report["ready"] is False
+
+
 def test_maas_heal_post_action_probe_smoke_blocks_readiness_on_bad_output(
     tmp_path: Path,
 ) -> None:
@@ -5423,6 +6640,300 @@ def test_maas_heal_post_action_probe_smoke_blocks_readiness_on_bad_output(
 
     blocker_ids = {item["check_id"] for item in report["blockers"]}
     assert "maas_heal_post_action_dataplane_probe_smoke" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_safe_actuator_metadata_adoption_inventory_blocks_readiness_on_gaps(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/verify_safe_actuator_metadata_adoption.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "SAFE_ACTUATOR_METADATA_HIGH_RISK_GAPS",
+                        "claim_boundary": "static inventory only; does not prove runtime execution",
+                        "summary": {
+                            "high_risk_coverage_ready": False,
+                            "full_metadata_coverage_ready": False,
+                            "high_risk_files_checked": 20,
+                            "high_risk_files_metadata_aware": 19,
+                            "parse_errors": 0,
+                            "parse_error_free": True,
+                            "safe_actuator_result_calls": 62,
+                            "result_calls_with_evidence_metadata": 61,
+                            "result_calls_without_evidence_metadata": 1,
+                        },
+                        "blockers": [
+                            "high_risk_file_lacks_metadata_marker:src/mesh/action_enforcer.py"
+                        ],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_metadata_adoption_inventory" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_safe_actuator_metadata_adoption_inventory_blocks_readiness_on_partial_result_coverage(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/verify_safe_actuator_metadata_adoption.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "SAFE_ACTUATOR_METADATA_HIGH_RISK_COVERED",
+                        "claim_boundary": "static inventory only; does not prove runtime execution",
+                        "summary": {
+                            "high_risk_coverage_ready": True,
+                            "full_metadata_coverage_ready": False,
+                            "high_risk_files_checked": 20,
+                            "high_risk_files_metadata_aware": 20,
+                            "parse_errors": 0,
+                            "parse_error_free": True,
+                            "safe_actuator_result_calls": 62,
+                            "result_calls_with_evidence_metadata": 61,
+                            "result_calls_without_evidence_metadata": 1,
+                        },
+                        "blockers": [],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_metadata_adoption_inventory" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_safe_actuator_metadata_adoption_inventory_blocks_readiness_on_parse_errors(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/verify_safe_actuator_metadata_adoption.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "SAFE_ACTUATOR_METADATA_FULL_COVERAGE",
+                        "claim_boundary": "static inventory only; does not prove runtime execution",
+                        "summary": {
+                            "high_risk_coverage_ready": True,
+                            "full_metadata_coverage_ready": True,
+                            "high_risk_files_checked": 20,
+                            "high_risk_files_metadata_aware": 20,
+                            "parse_errors": 1,
+                            "parse_error_free": False,
+                            "safe_actuator_result_calls": 62,
+                            "result_calls_with_evidence_metadata": 62,
+                            "result_calls_without_evidence_metadata": 0,
+                        },
+                        "blockers": [],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_metadata_adoption_inventory" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_safe_actuator_runtime_metadata_retention_blocks_readiness_on_gaps(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/verify_safe_actuator_runtime_metadata_retention.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "SAFE_ACTUATOR_RUNTIME_METADATA_GAPS",
+                        "claim_boundary": (
+                            "local smoke only; does not prove live SPIFFE/SPIRE trust"
+                        ),
+                        "summary": {
+                            "cases_run": 22,
+                            "events_checked": 18,
+                            "result_metadata_cases_checked": 4,
+                            "metadata_events": 1,
+                            "claim_gates_fail_closed": False,
+                            "local_simulated_harness": True,
+                            "live_spire_or_dataplane_claimed": False,
+                            "production_readiness_claimed": False,
+                        },
+                        "failures": ["spire_agent_start:claim_gate_missing"],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_runtime_metadata_retention" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_economy_dataplane_separation_blocks_readiness_on_overpromotion(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/verify_economy_dataplane_separation.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "ECONOMY_DATAPLANE_SEPARATION_GAPS",
+                        "claim_boundary": (
+                            "local smoke only; does not prove dataplane delivery"
+                        ),
+                        "summary": {
+                            "cases_run": 5,
+                            "cases_checked": 4,
+                            "external_settlement_handoff_cases": 2,
+                            "reward_events_checked": 1,
+                            "marketplace_events_checked": 1,
+                            "modular_billing_events_checked": 1,
+                            "modular_billing_response_claim_gates_checked": 1,
+                            "service_trace_economy_summaries_checked": 3,
+                            "high_risk_claim_gates_fail_closed": False,
+                            "local_simulated_harness": True,
+                            "mutates_chain": False,
+                            "runs_live_rpc": False,
+                            "submits_transaction": False,
+                            "dataplane_or_production_claimed": True,
+                            "customer_traffic_claimed": False,
+                            "revenue_recognition_claimed": False,
+                            "production_readiness_claimed": False,
+                        },
+                        "failures": [
+                            "reward_event:reward_claim_gate:dataplane_delivery_claim_allowed_not_false:True"
+                        ],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "economy_dataplane_separation_runtime" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_dataplane_delivery_operator_flow_blocks_readiness_on_overpromotion(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/verify_dataplane_delivery_operator_flow.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "DATAPLANE_DELIVERY_OPERATOR_FLOW_GAPS",
+                        "claim_boundary": (
+                            "local smoke only; does not prove real operator-run evidence"
+                        ),
+                        "summary": {
+                            "cases_run": 5,
+                            "cases_checked": 4,
+                            "handoff_cases": 2,
+                            "collector_cases": 3,
+                            "proof_gate_artifacts_checked": 1,
+                            "command_surface_checked": True,
+                            "local_simulated_harness": True,
+                            "runs_live_probe": False,
+                            "mutates_project_runtime": False,
+                            "writes_temp_eventbus": True,
+                            "operator_run_evidence_claimed": False,
+                            "real_operator_run_evidence_retained": False,
+                            "eventbus_evidence_recognized_by_proof_gate": True,
+                            "raw_targets_redacted": False,
+                            "customer_traffic_claimed": False,
+                            "external_reachability_claimed": False,
+                            "dpi_bypass_claimed": False,
+                            "settlement_finality_claimed": False,
+                            "traffic_delivery_claimed": True,
+                            "production_readiness_claimed": False,
+                        },
+                        "failures": [
+                            "collector_to_gate:traffic_delivery_claim_not_false"
+                        ],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "dataplane_delivery_operator_flow_runtime" in blocker_ids
     assert report["ready"] is False
 
 
@@ -5573,6 +7084,47 @@ def test_current_evidence_open_gap_blocks_readiness(tmp_path: Path) -> None:
     assert detail["claim_gate"]["dataplane_confirmed_claim_allowed"] is False
     assert detail["claim_gate"]["customer_traffic_claim_allowed"] is False
     assert detail["claim_gate"]["production_readiness_claim_allowed"] is False
+    assert report["ready"] is False
+
+
+def test_current_evidence_active_audit_safe_actuator_drift_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write_current_evidence(tmp_path)
+    _write(
+        tmp_path,
+        "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md",
+        """# Current Active Goal Gap Audit
+
+Separate reality-map tracked risk: `control_spine_fragmentation` is monitored
+by `scripts/ops/verify_safe_actuator_metadata_adoption.py`. The latest local
+inventory shows known high-risk control files are metadata-aware (`20/20`) and
+generic `SafeActuatorResult` result-call coverage is complete in source
+(`63/63`). The local runtime verifier
+`scripts/ops/verify_safe_actuator_runtime_metadata_retention.py` proves local
+events retain typed metadata (`14/14` local cases).
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "current_evidence_active_audit_safe_actuator_drift" in blocker_ids
+    context = report["current_evidence_context"]
+    assert context["active_audit_safe_actuator_current"] is False
+    assert "parse-error-free" in context["active_audit_safe_actuator_missing_markers"]
+    assert "18 EventBus" in context["active_audit_safe_actuator_missing_markers"]
+    assert (
+        "4 ops result-metadata"
+        in context["active_audit_safe_actuator_missing_markers"]
+    )
+    assert "`14/14` local cases" in context["active_audit_safe_actuator_stale_markers"]
     assert report["ready"] is False
 
 
@@ -5997,6 +7549,32 @@ def collect(args):
         "dpi_bypass_claim_allowed": False,
         "settlement_finality_claim_allowed": False,
     }
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "dataplane_delivery_eventbus_collector_contract" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_dataplane_delivery_operator_handoff_without_redaction_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "scripts/ops/run_dataplane_delivery_operator_handoff.py",
+        """
+SCHEMA = "x0tta6bl4.dataplane_delivery_operator_handoff.v1"
+DECISION_READY = "DATAPLANE_DELIVERY_OPERATOR_HANDOFF_READY"
+DECISION_BLOCKED = "DATAPLANE_DELIVERY_OPERATOR_HANDOFF_BLOCKED_ON_OPERATOR"
 """,
     )
 
@@ -7155,6 +8733,35 @@ class SpineOutcome:
     assert report["ready"] is False
 
 
+def test_missing_spine_safe_actuator_adapter_metadata_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    spine_path = tmp_path / "src/integration/spine.py"
+    spine_text = spine_path.read_text(encoding="utf-8").replace(
+        '            "schema": "x0tta6bl4.safe_actuator.adapter_claim_gate.v1",\n',
+        "",
+    )
+    _write(tmp_path, "src/integration/spine.py", spine_text)
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_runtime_metadata_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "safe_actuator_runtime_metadata_contract"
+    ]
+    assert "spine_metadata_contract" in blocker["details"]
+    assert report["ready"] is False
+
+
 def test_missing_pqc_safe_actuator_metadata_blocks_readiness(tmp_path: Path) -> None:
     _ready_root(tmp_path)
     _write(
@@ -7360,6 +8967,48 @@ payload = {
         if item["check_id"] == "safe_actuator_runtime_metadata_contract"
     ]
     assert "token_bridge_safe_actuator_metadata" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_missing_dao_executor_safe_actuator_metadata_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/dao/executor_webhook.py",
+        """
+payload = {
+    "claim_boundary": "local DAO release script event only",
+}
+""",
+    )
+    _write(
+        tmp_path,
+        "src/dao/proposal_executor_webhook.py",
+        """
+payload = {
+    "claim_boundary": "local DAO Helm upgrade event only",
+}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "safe_actuator_runtime_metadata_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "safe_actuator_runtime_metadata_contract"
+    ]
+    assert "dao_executor_safe_actuator_metadata" in blocker["details"]
+    assert "dao_proposal_executor_safe_actuator_metadata" in blocker["details"]
     assert report["ready"] is False
 
 
@@ -7978,6 +9627,115 @@ def test_missing_cross_plane_proof_gate_retention_manifest_blocks_readiness(
     assert report["ready"] is False
 
 
+def test_missing_cross_plane_proof_gate_retention_validator_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    (tmp_path / "scripts/ops/verify_cross_plane_proof_gate_retention.py").unlink()
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "required_files" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_missing_cross_plane_proof_gate_retention_validator_contract_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "scripts/ops/verify_cross_plane_proof_gate_retention.py",
+        """
+SCHEMA = "x0tta6bl4.cross_plane_proof_gate.retention_validator.v1"
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "cross_plane_proof_gate_contract" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_missing_cross_plane_dataplane_event_freshness_gate_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    gate_path = tmp_path / "scripts/ops/run_cross_plane_proof_gate.py"
+    gate = gate_path.read_text(encoding="utf-8")
+    gate = gate.replace("def _event_freshness_blockers", "def _event_freshness_removed")
+    gate_path.write_text(gate, encoding="utf-8")
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "cross_plane_proof_gate_contract" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_missing_cross_plane_economy_boundary_freshness_gate_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    gate_path = tmp_path / "scripts/ops/run_cross_plane_proof_gate.py"
+    gate = gate_path.read_text(encoding="utf-8")
+    gate = gate.replace('prefix="economy_boundary"', 'prefix="economy_boundary_removed"')
+    gate_path.write_text(gate, encoding="utf-8")
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "cross_plane_proof_gate_contract" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_missing_external_settlement_operator_handoff_claim_gate_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/integration/external_settlement_operator_handoff.py",
+        """
+def build_report(root):
+    return {"summary": {}}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "cross_plane_proof_gate_contract" in blocker_ids
+    assert report["ready"] is False
+
+
 def test_missing_cross_plane_dpi_artifact_gate_blocks_readiness(
     tmp_path: Path,
 ) -> None:
@@ -8448,6 +10206,30 @@ def test_command_failure_blocks_readiness(tmp_path: Path) -> None:
 
     blocker_ids = {item["check_id"] for item in report["blockers"]}
     assert "compose_app_config" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_swarm_coordination_contract_failure_blocks_readiness(tmp_path: Path) -> None:
+    _ready_root(tmp_path)
+
+    def failing_runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if tuple(args) == ("bash", "scripts/agents/check_coordination_contract.sh"):
+            return CommandResult(1, "", "missing executable hook")
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=failing_runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "swarm_coordination_contract" in blocker_ids
+    blocker = next(
+        item for item in report["blockers"]
+        if item["check_id"] == "swarm_coordination_contract"
+    )
+    assert "missing executable hook" in blocker["details"]
     assert report["ready"] is False
 
 
@@ -8966,4 +10748,5 @@ def test_claim_hygiene_failure_blocks_readiness(tmp_path: Path) -> None:
     blocker_ids = {item["check_id"] for item in report["blockers"]}
     assert "claim_hygiene_authoritative" in blocker_ids
     assert "claim_hygiene_active_claim_surface" in blocker_ids
+    assert "claim_hygiene_architecture" in blocker_ids
     assert report["ready"] is False

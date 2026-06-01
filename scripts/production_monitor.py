@@ -144,7 +144,7 @@ class ProductionMonitor:
         """Check health endpoint."""
         started_at = time.perf_counter()
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(trust_env=False) as client:
                 response = await client.get(f"{self.base_url}/health", timeout=5)
                 return {
                     "healthy": response.status_code == 200,
@@ -175,7 +175,7 @@ class ProductionMonitor:
         """Check Prometheus metrics."""
         started_at = time.perf_counter()
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(trust_env=False) as client:
                 response = await client.get(f"{self.base_url}/metrics", timeout=5)
                 if response.status_code == 200:
                     # Parse key metrics (simplified)

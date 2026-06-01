@@ -189,6 +189,8 @@ class MAPEKIntegration:
             "schema": "x0tta6bl4.swarm_mapek.safe_actuator_claim_gate.v1",
             "surface": "swarm.intelligence.mapek",
             "action_type": str(action_type or ""),
+            "safe_actuator_result_recorded": True,
+            "local_safe_actuator_success": bool(success),
             "local_swarm_action_observed_claim_allowed": action_present,
             "local_swarm_decision_result_claim_allowed": local_decision_claim_allowed,
             "cluster_wide_consensus_finality_claim_allowed": False,
@@ -206,6 +208,7 @@ class MAPEKIntegration:
                 "customer traffic recovery, external settlement finality, or "
                 "production readiness."
             ),
+            "redacted": True,
         }
 
     @staticmethod
@@ -252,6 +255,7 @@ class MAPEKIntegration:
             "event_ids": [],
             "action_id": str(action_id),
             "action_type": str(action_type or ""),
+            "resource": f"swarm:mapek:{cls._action_resource_name(action_type)}",
             "action_resource": cls._action_resource_name(action_type),
             "action_present": action_present,
             "requires_consensus": bool(getattr(action, "requires_consensus", False))
@@ -270,6 +274,8 @@ class MAPEKIntegration:
             "votes_abstain": int(getattr(decision_result, "votes_abstain", 0) or 0),
             "parameters_redacted": True,
             "identity_values_redacted": True,
+            "raw_context_values_redacted": True,
+            "raw_result_values_redacted": True,
         }
         claim_gate = cls._action_claim_gate(
             action_type=action_type,

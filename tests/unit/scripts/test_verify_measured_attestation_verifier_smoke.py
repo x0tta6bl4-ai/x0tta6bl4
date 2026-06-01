@@ -180,3 +180,50 @@ def test_sgx_verifier_smoke_requires_explicit_local_authorization(tmp_path: Path
         assert "--allow-local-verifier-run is required" in str(exc)
     else:
         raise AssertionError("smoke should require explicit local verifier authorization")
+
+
+def test_nitro_verifier_smoke_uses_generic_provider_command(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load("verify_measured_attestation_verifier_smoke_nitro")
+    calls = []
+
+    def fake_run(command, input, capture_output, text, timeout, check):
+        calls.append({"command": command, "payload": json.loads(input)})
+        return SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "valid": True,
+                    "verifier_id": "nitro-local",
+                    "policy_id": "nitro-prod-policy",
+                    "production_verifier_claim_allowed": True,
+                }
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("src.security.tee_attestation.subprocess.run", fake_run)
+    args = _args(
+        module,
+        tmp_path,
+        "--provider",
+        "nitro",
+        "--verifier-command",
+        "/opt/x0t/nitro-verify --json",
+        "--allow-local-verifier-run",
+    )
+
+    report = module.run_smoke(args)
+    output_text = (
+        tmp_path / "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+    ).read_text(encoding="utf-8")
+
+    assert report["ready"] is True
+    assert report["provider"] == "nitro"
+    assert report["verifier"]["backend"] == "nitro_command"
+    assert report["verifier"]["provenance"]["provider"] == "nitro"
+    assert calls[0]["command"] == ["/opt/x0t/nitro-verify", "--json"]
+    assert calls[0]["payload"]["provider"] == "nitro"
+    assert "/opt/x0t/nitro-verify" not in output_text

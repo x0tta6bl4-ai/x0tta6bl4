@@ -81,6 +81,9 @@ def test_dao_dispatcher_publishes_identity_policy_and_safe_actuator_events(tmp_p
     assert metadata["redacted"] is True
     claim_gate = metadata["claim_gate"]
     assert claim_gate["schema"] == "x0tta6bl4.dao_governance.safe_actuator_claim_gate.v1"
+    assert claim_gate["resource"] == "dao:governance:update_config"
+    assert claim_gate["safe_actuator_result_recorded"] is True
+    assert claim_gate["redacted"] is True
     assert claim_gate["local_handler_execution_claim_allowed"] is True
     assert claim_gate["governance_execution_finality_claim_allowed"] is False
     assert claim_gate["production_governance_execution_claim_allowed"] is False
@@ -90,6 +93,7 @@ def test_dao_dispatcher_publishes_identity_policy_and_safe_actuator_events(tmp_p
     assert claim_gate["external_settlement_finality_claim_allowed"] is False
     assert metadata["cross_plane_claim_gate"]["allowed"] is False
     evidence = metadata["evidence"]
+    assert evidence["resource"] == "dao:governance:update_config"
     assert evidence["operation"] == "governance_action_dispatch"
     assert evidence["action_type"] == "update_config"
     assert evidence["action_present"] is True
@@ -98,6 +102,8 @@ def test_dao_dispatcher_publishes_identity_policy_and_safe_actuator_events(tmp_p
     assert evidence["result_success"] is True
     assert evidence["action_values_redacted"] is True
     assert evidence["result_detail_redacted"] is True
+    assert evidence["raw_context_values_redacted"] is True
+    assert evidence["raw_result_values_redacted"] is True
     assert "secret-token" not in str(metadata)
 
 

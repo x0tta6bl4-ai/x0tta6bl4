@@ -31,6 +31,12 @@ SPINE_STRONG_CLAIM_IDS = (
 SAFE_ACTUATOR_EVIDENCE_METADATA_SCHEMA = (
     "x0tta6bl4.safe_actuator.evidence_metadata.v1"
 )
+SAFE_ACTUATOR_ADAPTER_CLAIM_BOUNDARY = (
+    "SafeActuator adapter metadata proves only local adapter normalization for "
+    "one guarded action result. It does not prove runtime execution beyond the "
+    "local executor result, dataplane delivery, customer traffic, DPI bypass, "
+    "external settlement finality, production SLOs, or production readiness."
+)
 
 
 def _safe_string_list(value: Any) -> List[str]:
@@ -232,6 +238,88 @@ class SafeActuatorResult:
     )
 
 
+def _safe_actuator_context_keys(context: Any) -> List[str]:
+    if not isinstance(context, dict):
+        return []
+    return sorted(str(key) for key in context.keys())[:50]
+
+
+def _safe_actuator_adapter_evidence_metadata(
+    *,
+    surface: str,
+    action: str,
+    context: Dict[str, Any],
+    success: bool,
+    reason: str,
+    simulated: bool,
+    executor_configured: bool,
+    executor_callable: bool,
+    executor_invoked: bool,
+) -> SafeActuatorEvidenceMetadata:
+    blockers: List[str] = []
+    if not executor_configured:
+        blockers.append("executor_not_configured")
+    if executor_configured and not executor_callable:
+        blockers.append("executor_not_callable")
+    if executor_invoked and not success:
+        blockers.append("local_executor_result_not_successful")
+    if simulated:
+        blockers.append("local_executor_result_simulated")
+
+    claim_gate = {
+        "schema": "x0tta6bl4.safe_actuator.adapter_claim_gate.v1",
+        "surface": surface,
+        "local_safe_actuator_adapter_claim_allowed": True,
+        "local_executor_configured": executor_configured,
+        "local_executor_callable": executor_callable,
+        "local_executor_invoked": executor_invoked,
+        "local_executor_result_claim_allowed": executor_invoked and success,
+        "simulated_result": simulated,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "external_dpi_bypass_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "revenue_recognition_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "blocked_claim_ids": list(SPINE_STRONG_CLAIM_IDS),
+        "blockers": blockers,
+        "claim_boundary": SAFE_ACTUATOR_ADAPTER_CLAIM_BOUNDARY,
+        "redacted": True,
+    }
+    return SafeActuatorEvidenceMetadata(
+        claim_gate=claim_gate,
+        cross_plane_claim_gate={
+            "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+            "surface": surface,
+            "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
+            "allowed": False,
+            "requested_claim_ids": list(SPINE_STRONG_CLAIM_IDS),
+            "blockers": ["safe_actuator_adapter_local_metadata_only"],
+            "claim_boundary": SAFE_ACTUATOR_ADAPTER_CLAIM_BOUNDARY,
+        },
+        evidence={
+            "surface": surface,
+            "action_present": bool(str(action).strip()),
+            "action_redacted": True,
+            "context_keys": _safe_actuator_context_keys(context),
+            "context_keys_total": len(_safe_actuator_context_keys(context)),
+            "raw_context_values_redacted": True,
+            "reason_present": bool(reason),
+            "raw_reason_redacted": True,
+            "local_result_success": success,
+            "simulated": simulated,
+            "executor_configured": executor_configured,
+            "executor_callable": executor_callable,
+            "executor_invoked": executor_invoked,
+        },
+        source_agents=[surface],
+        claim_boundary=SAFE_ACTUATOR_ADAPTER_CLAIM_BOUNDARY,
+        redacted=True,
+    )
+
+
 @dataclass(frozen=True)
 class SpineOutcome:
     request_id: str
@@ -271,12 +359,29 @@ class SpineOutcome:
 class SafeActuator:
     """Adapter that normalizes actuator execution and blocks missing executors."""
 
+    surface = "src.integration.spine.SafeActuator"
+
     def __init__(self, executor: Any = None):
         self.executor = executor
 
     def execute(self, action: str, context: Dict[str, Any]) -> SafeActuatorResult:
         if self.executor is None:
-            return SafeActuatorResult(False, "safe actuator executor is not configured")
+            reason = "safe actuator executor is not configured"
+            return SafeActuatorResult(
+                False,
+                reason,
+                evidence_metadata=_safe_actuator_adapter_evidence_metadata(
+                    surface=self.surface,
+                    action=action,
+                    context=context,
+                    success=False,
+                    reason=reason,
+                    simulated=False,
+                    executor_configured=False,
+                    executor_callable=False,
+                    executor_invoked=False,
+                ),
+            )
 
         try:
             if hasattr(self.executor, "execute"):
@@ -284,32 +389,97 @@ class SafeActuator:
             elif callable(self.executor):
                 raw = self.executor(action, context)
             else:
-                return SafeActuatorResult(False, "safe actuator executor is not callable")
+                reason = "safe actuator executor is not callable"
+                return SafeActuatorResult(
+                    False,
+                    reason,
+                    evidence_metadata=_safe_actuator_adapter_evidence_metadata(
+                        surface=self.surface,
+                        action=action,
+                        context=context,
+                        success=False,
+                        reason=reason,
+                        simulated=False,
+                        executor_configured=True,
+                        executor_callable=False,
+                        executor_invoked=False,
+                    ),
+                )
         except Exception as exc:  # pragma: no cover - exact exception is caller-owned
-            return SafeActuatorResult(False, f"safe actuator exception: {exc}")
+            reason = f"safe actuator exception: {exc}"
+            return SafeActuatorResult(
+                False,
+                reason,
+                evidence_metadata=_safe_actuator_adapter_evidence_metadata(
+                    surface=self.surface,
+                    action=action,
+                    context=context,
+                    success=False,
+                    reason=reason,
+                    simulated=False,
+                    executor_configured=True,
+                    executor_callable=True,
+                    executor_invoked=True,
+                ),
+            )
 
         simulated = bool(getattr(self.executor, "was_simulated", False))
         if isinstance(raw, SafeActuatorResult):
             return raw
         if isinstance(raw, dict):
+            success = bool(raw.get("success", raw.get("ok", False)))
+            reason = str(raw.get("reason", ""))
+            simulated_result = bool(raw.get("simulated", simulated))
             return SafeActuatorResult(
-                success=bool(raw.get("success", raw.get("ok", False))),
-                reason=str(raw.get("reason", "")),
-                simulated=bool(raw.get("simulated", simulated)),
+                success=success,
+                reason=reason,
+                simulated=simulated_result,
                 evidence_metadata=SafeActuatorEvidenceMetadata.from_value(raw),
             )
-        return SafeActuatorResult(bool(raw), simulated=simulated)
+        success = bool(raw)
+        return SafeActuatorResult(
+            success,
+            simulated=simulated,
+            evidence_metadata=_safe_actuator_adapter_evidence_metadata(
+                surface=self.surface,
+                action=action,
+                context=context,
+                success=success,
+                reason="",
+                simulated=simulated,
+                executor_configured=True,
+                executor_callable=True,
+                executor_invoked=True,
+            ),
+        )
 
 
 class AsyncSafeActuator:
     """Async adapter that normalizes actuator execution and blocks missing executors."""
+
+    surface = "src.integration.spine.AsyncSafeActuator"
 
     def __init__(self, executor: Any = None):
         self.executor = executor
 
     async def execute(self, action: str, context: Dict[str, Any]) -> SafeActuatorResult:
         if self.executor is None:
-            return SafeActuatorResult(False, "async safe actuator executor is not configured")
+            reason = "async safe actuator executor is not configured"
+            return SafeActuatorResult(
+                False,
+                reason,
+                evidence_metadata=_safe_actuator_adapter_evidence_metadata(
+                    surface=self.surface,
+                    action=action,
+                    context=context,
+                    success=False,
+                    reason=reason,
+                    simulated=False,
+                    executor_configured=False,
+                    executor_callable=False,
+                    executor_invoked=False,
+                ),
+            )
 
         try:
             if hasattr(self.executor, "execute"):
@@ -317,23 +487,71 @@ class AsyncSafeActuator:
             elif callable(self.executor):
                 raw = self.executor(action, context)
             else:
-                return SafeActuatorResult(False, "async safe actuator executor is not callable")
+                reason = "async safe actuator executor is not callable"
+                return SafeActuatorResult(
+                    False,
+                    reason,
+                    evidence_metadata=_safe_actuator_adapter_evidence_metadata(
+                        surface=self.surface,
+                        action=action,
+                        context=context,
+                        success=False,
+                        reason=reason,
+                        simulated=False,
+                        executor_configured=True,
+                        executor_callable=False,
+                        executor_invoked=False,
+                    ),
+                )
             if asyncio.iscoroutine(raw):
                 raw = await raw
         except Exception as exc:  # pragma: no cover - exact exception is caller-owned
-            return SafeActuatorResult(False, f"async safe actuator exception: {exc}")
+            reason = f"async safe actuator exception: {exc}"
+            return SafeActuatorResult(
+                False,
+                reason,
+                evidence_metadata=_safe_actuator_adapter_evidence_metadata(
+                    surface=self.surface,
+                    action=action,
+                    context=context,
+                    success=False,
+                    reason=reason,
+                    simulated=False,
+                    executor_configured=True,
+                    executor_callable=True,
+                    executor_invoked=True,
+                ),
+            )
 
         simulated = bool(getattr(self.executor, "was_simulated", False))
         if isinstance(raw, SafeActuatorResult):
             return raw
         if isinstance(raw, dict):
+            success = bool(raw.get("success", raw.get("ok", False)))
+            reason = str(raw.get("reason", raw.get("error", "")) or "")
+            simulated_result = bool(raw.get("simulated", simulated))
             return SafeActuatorResult(
-                success=bool(raw.get("success", raw.get("ok", False))),
-                reason=str(raw.get("reason", raw.get("error", "")) or ""),
-                simulated=bool(raw.get("simulated", simulated)),
+                success=success,
+                reason=reason,
+                simulated=simulated_result,
                 evidence_metadata=SafeActuatorEvidenceMetadata.from_value(raw),
             )
-        return SafeActuatorResult(bool(raw), simulated=simulated)
+        success = bool(raw)
+        return SafeActuatorResult(
+            success,
+            simulated=simulated,
+            evidence_metadata=_safe_actuator_adapter_evidence_metadata(
+                surface=self.surface,
+                action=action,
+                context=context,
+                success=success,
+                reason="",
+                simulated=simulated,
+                executor_configured=True,
+                executor_callable=True,
+                executor_invoked=True,
+            ),
+        )
 
 
 def _flag_true(value: Any) -> bool:

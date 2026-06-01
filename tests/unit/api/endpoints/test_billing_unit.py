@@ -491,13 +491,25 @@ def test_create_payment_publishes_redacted_payment_intent_evidence(
         )
     )
 
-    assert response == {
-        "payment_url": raw_url,
-        "session_id": raw_session_id,
-        "status": "created",
-        "method": "stripe",
-        "plan": "pro",
-    }
+    assert response["payment_url"] == raw_url
+    assert response["session_id"] == raw_session_id
+    assert response["status"] == "created"
+    assert response["method"] == "stripe"
+    assert response["plan"] == "pro"
+    assert response["claim_gate"]["checkout_intent_claim_allowed"] is True
+    assert response["claim_gate"]["serviceability_claim_allowed"] is False
+    assert response["claim_gate"]["paid_customer_serviceability_claim_allowed"] is False
+    assert response["claim_gate"]["customer_access_claim_allowed"] is False
+    assert response["claim_gate"]["node_provisioning_claim_allowed"] is False
+    assert response["claim_gate"]["dataplane_delivery_claim_allowed"] is False
+    assert response["claim_gate"]["production_readiness_claim_allowed"] is False
+    assert (
+        response["claim_gate"]["requires_service_runtime_evidence_for_access_claim"]
+        is True
+    )
+    assert response["cross_plane_claim_gate"]["allowed"] is False
+    assert response["cross_plane_claim_gate"]["surface"] == "create_payment"
+    assert "does not prove dataplane delivery" in response["claim_boundary"]
 
     payloads = _event_payloads(
         bus,
@@ -515,6 +527,7 @@ def test_create_payment_publishes_redacted_payment_intent_evidence(
     assert payload["raw_session_id_redacted"] is True
 
     settlement = payload["settlement_evidence"]
+    event_claim_gate = settlement["claim_gate"]
     assert settlement["settlement_action"] == "payment_session_intent_only"
     assert settlement["dataplane_confirmed"] is False
     assert settlement["live_provider_settlement_confirmed"] is False
@@ -523,6 +536,12 @@ def test_create_payment_publishes_redacted_payment_intent_evidence(
     assert settlement["db_write_evidence"]["committed"] is False
     assert settlement["output_summary"]["payment_url_present"] is True
     assert settlement["output_summary"]["session_id_present"] is True
+    assert event_claim_gate["serviceability_claim_allowed"] is False
+    assert event_claim_gate["paid_customer_serviceability_claim_allowed"] is False
+    assert event_claim_gate["customer_access_claim_allowed"] is False
+    assert event_claim_gate["vpn_access_claim_allowed"] is False
+    assert event_claim_gate["node_provisioning_claim_allowed"] is False
+    assert event_claim_gate["requires_service_runtime_evidence_for_access_claim"] is True
 
     trace_summary = event_trace_evidence_summary(payload)
     assert trace_summary["settlement_evidence"]["present"] is True

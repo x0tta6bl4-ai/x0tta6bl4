@@ -793,6 +793,148 @@ class TestAggressiveHealing:
         assert "10.0.0.2" not in str(action_data)
         assert "dest-secret-adapter" not in str(action_data)
 
+    @pytest.mark.asyncio
+    async def test_get_node_address_falls_back_to_meshnode_ip_address_endpoint(
+        self,
+        monkeypatch,
+    ):
+        import src.database as database_mod
+
+        class FakeMeshNode:
+            id = "node-local"
+
+            def __init__(self):
+                self.ip_address = "127.0.0.1:43123"
+
+        class FakeQuery:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def first(self):
+                return FakeMeshNode()
+
+        class FakeDB:
+            def query(self, _model):
+                return FakeQuery()
+
+        class FakeSession:
+            def __init__(self, db):
+                self.db = db
+
+            def __enter__(self):
+                return self.db
+
+            def __exit__(self, *_args):
+                return False
+
+        monkeypatch.setattr(database_mod, "MeshNode", FakeMeshNode)
+        monkeypatch.setattr(database_mod, "SessionLocal", lambda: FakeSession(FakeDB()))
+
+        mgr = MeshNetworkManager()
+
+        assert await mgr._get_node_address("node-local") == ("127.0.0.1", 43123)
+
+    @pytest.mark.asyncio
+    async def test_healing_default_probe_uses_host_only_for_endpoint_target(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        import src.database as database_mod
+
+        bus = EventBus(project_root=str(tmp_path))
+        calls = []
+
+        def fake_probe_builder(target, **kwargs):
+            calls.append({"target": target, **kwargs})
+
+            def _probe():
+                event = bus.publish(
+                    EventType.PIPELINE_STAGE_END,
+                    "real-network-adapter",
+                    {
+                        "operation": "dataplane_ping_probe",
+                        "status": "success",
+                        "redacted": True,
+                        "target_redacted": True,
+                    },
+                )
+                return {
+                    "status": "ok",
+                    "dataplane_confirmed": True,
+                    "latency_ms": 4.25,
+                    "packet_loss_percent": 0.0,
+                    "evidence": {
+                        "source_agents": ["real-network-adapter"],
+                        "event_ids": [event.event_id],
+                        "events_total": 1,
+                        "redacted": True,
+                    },
+                    "claim_boundary": "bounded adapter dataplane probe",
+                    "raw_target_redacted": True,
+                    "redacted": True,
+                }
+
+            return _probe
+
+        class FakeMeshNode:
+            status = "offline"
+
+        class FakeQuery:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return []
+
+        class FakeDB:
+            def query(self, _model):
+                return FakeQuery()
+
+        class FakeSession:
+            def __init__(self, db):
+                self.db = db
+
+            def __enter__(self):
+                return self.db
+
+            def __exit__(self, *_args):
+                return False
+
+        monkeypatch.setattr(database_mod, "MeshNode", FakeMeshNode)
+        monkeypatch.setattr(database_mod, "SessionLocal", lambda: FakeSession(FakeDB()))
+        monkeypatch.setattr(
+            "src.mesh.network_manager.build_recovery_dataplane_ping_probe",
+            fake_probe_builder,
+        )
+
+        mgr = MeshNetworkManager(
+            event_bus=bus,
+            enable_post_heal_dataplane_probe=True,
+        )
+        stale_route = MagicMock()
+        stale_route.age = 49.0
+        mock_router = MagicMock()
+        mock_router.get_routes.return_value = {"dest-secret-endpoint": [stale_route]}
+        mock_router.ROUTE_TIMEOUT = 60.0
+        mock_router._discover_route = AsyncMock()
+        mgr._router = mock_router
+
+        healed = await mgr.trigger_aggressive_healing(
+            post_action_dataplane_probe_target="127.0.0.1:45678"
+        )
+        action_event = _latest_mesh_manager_event(bus)
+        action_data = action_event.data
+        revalidation = action_data["post_action_dataplane_revalidation"]
+
+        assert healed == 1
+        assert calls
+        assert calls[0]["target"] == "127.0.0.1"
+        assert calls[0]["event_bus"] is bus
+        assert revalidation["restored_dataplane_claim_allowed"] is True
+        assert "127.0.0.1:45678" not in str(action_data)
+        assert "dest-secret-endpoint" not in str(action_data)
+
 
 class TestPreemptiveChecks:
     @pytest.mark.asyncio

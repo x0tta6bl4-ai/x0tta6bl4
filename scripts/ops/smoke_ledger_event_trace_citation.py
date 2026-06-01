@@ -42,9 +42,11 @@ from src.coordination.events import EventBus, EventType
 from src.database import Base, User
 from src.dao.executor_webhook import DAOExecutor
 from src.dao.token_rewards import TokenRewards
+import src.ledger.rag_search as ledger_rag_module
 from src.integration.spine import (
     AsyncSafeActuator,
     SafeActuator,
+    SafeActuatorEvidenceMetadata,
     SafeActuatorResult,
 )
 from src.ledger.rag_search import LedgerRAGSearch
@@ -93,6 +95,12 @@ PQC_HEALER_SERVICE_NAME = "pqc-zero-trust-executor"
 PQC_HEALER_SOURCE_AGENT = "pqc-zero-trust-healer"
 PQC_HEALER_SERVICE_LAYER = "self_healing_pqc_identity"
 PQC_HEALER_HEALTH_RESOURCE = "self_healing:pqc:perform_health_check"
+LEDGER_SMOKE_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "Ledger event trace smoke SafeActuator metadata proves only an in-memory "
+    "local smoke callback result used to exercise EventBus citation indexing. "
+    "It does not prove live control execution, dataplane delivery, settlement "
+    "finality, customer traffic, production SLOs, or production readiness."
+)
 SEARCH_QUERY = (
     "swarm-pbft maas-settlement maas-marketplace maas-governance maas-billing "
     "dao-executor recovery-action-executor mesh-vpn-bridge share-to-earn "
@@ -237,6 +245,79 @@ def _required_economy_services_have_local_only_gates(
         if not _economy_summary_is_fail_closed(citations_by_service[service_name]):
             return False
     return True
+
+
+def _ledger_smoke_safe_actuator_metadata(
+    *,
+    source_agent: str,
+    action: Any,
+    context: Any,
+) -> SafeActuatorEvidenceMetadata:
+    context_keys = (
+        sorted(str(key) for key in context)
+        if isinstance(context, dict)
+        else []
+    )
+    return SafeActuatorEvidenceMetadata.from_value(
+        {
+            "claim_gate": {
+                "schema": "x0tta6bl4.ledger_smoke.safe_actuator_claim_gate.v1",
+                "source_agent": source_agent,
+                "operation": str(action),
+                "local_smoke_callback_result_recorded": True,
+                "event_trace_citation_smoke_only": True,
+                "live_control_execution_claim_allowed": False,
+                "dataplane_delivery_claim_allowed": False,
+                "customer_traffic_claim_allowed": False,
+                "external_settlement_finality_claim_allowed": False,
+                "production_slo_claim_allowed": False,
+                "production_readiness_claim_allowed": False,
+                "claim_boundary": LEDGER_SMOKE_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+                "redacted": True,
+            },
+            "cross_plane_claim_gate": {
+                "schema": (
+                    "x0tta6bl4.ledger_smoke."
+                    "safe_actuator_cross_plane_claim_gate.v1"
+                ),
+                "allowed": False,
+                "requires_runtime_evidence_for_control_claim": True,
+                "requires_dataplane_evidence_for_delivery_claim": True,
+                "requires_settlement_evidence_for_finality_claim": True,
+                "requires_slo_evidence_for_production_claim": True,
+                "redacted": True,
+            },
+            "evidence": {
+                "source_agent": source_agent,
+                "operation": str(action),
+                "context_keys": context_keys,
+                "raw_context_values_redacted": True,
+                "raw_result_values_redacted": True,
+                "smoke_only": True,
+            },
+            "source_agents": [source_agent],
+            "event_ids": [],
+            "claim_boundary": LEDGER_SMOKE_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+    )
+
+
+def _ledger_smoke_safe_actuator_result(
+    source_agent: str,
+    action: Any,
+    context: Any,
+) -> SafeActuatorResult:
+    return SafeActuatorResult(
+        success=True,
+        reason="ledger event trace citation smoke",
+        simulated=False,
+        evidence_metadata=_ledger_smoke_safe_actuator_metadata(
+            source_agent=source_agent,
+            action=action,
+            context=context,
+        ),
+    )
 
 
 class _SmokeRAG:
@@ -515,7 +596,7 @@ async def _publish_trace_events(
     billing_bridge = _SmokeBillingBridge()
     original_webhook_secret = maas_billing_api.STRIPE_WEBHOOK_SECRET
     original_construct_event = maas_billing_api.stripe.Webhook.construct_event
-    original_token_bridge = maas_marketplace_api._get_token_bridge
+    original_token_bridge = getattr(maas_marketplace_api, "_get_token_bridge", None)
     try:
         billing_user = _create_billing_user(billing_db)
         billing_event = {
@@ -549,7 +630,10 @@ async def _publish_trace_events(
     finally:
         maas_billing_api.STRIPE_WEBHOOK_SECRET = original_webhook_secret
         maas_billing_api.stripe.Webhook.construct_event = original_construct_event
-        maas_marketplace_api._get_token_bridge = original_token_bridge
+        if original_token_bridge is None and hasattr(maas_marketplace_api, "_get_token_bridge"):
+            delattr(maas_marketplace_api, "_get_token_bridge")
+        elif original_token_bridge is not None:
+            maas_marketplace_api._get_token_bridge = original_token_bridge
         billing_db.close()
         billing_bind.dispose()
     assert billing_result["status"] == "success"
@@ -727,10 +811,10 @@ async def _publish_trace_events(
         policy_engine=_allow_policy(SECRET_VALUES[0], MPTCP_ENABLE_RESOURCE),
         require_policy=True,
         safe_actuator=SafeActuator(
-            lambda _action, _context: SafeActuatorResult(
-                success=True,
-                reason="ledger event trace citation smoke",
-                simulated=False,
+            lambda action, context: _ledger_smoke_safe_actuator_result(
+                MPTCP_SERVICE_NAME,
+                action,
+                context,
             )
         ),
         source_agent=MPTCP_SERVICE_NAME,
@@ -756,10 +840,10 @@ async def _publish_trace_events(
         ),
         require_policy=True,
         safe_actuator=SafeActuator(
-            lambda _action, _context: SafeActuatorResult(
-                success=True,
-                reason="ledger event trace citation smoke",
-                simulated=False,
+            lambda action, context: _ledger_smoke_safe_actuator_result(
+                SPIRE_SERVER_SERVICE_NAME,
+                action,
+                context,
             )
         ),
         source_agent=SPIRE_SERVER_SERVICE_NAME,
@@ -795,10 +879,10 @@ async def _publish_trace_events(
         policy_engine=_allow_policy(SECRET_VALUES[0], PQC_ROTATOR_ROTATE_RESOURCE),
         require_policy=True,
         safe_actuator=AsyncSafeActuator(
-            lambda _action, _context: SafeActuatorResult(
-                success=True,
-                reason="ledger event trace citation smoke",
-                simulated=False,
+            lambda action, context: _ledger_smoke_safe_actuator_result(
+                PQC_ROTATOR_SERVICE_NAME,
+                action,
+                context,
             )
         ),
         source_agent=PQC_ROTATOR_SERVICE_NAME,
@@ -929,20 +1013,46 @@ def _patch_ledger_endpoint_dependencies(
     *,
     ledger: LedgerRAGSearch,
     bus: EventBus,
-) -> tuple[Any, Any]:
-    original_get_ledger_rag = ledger_endpoints.get_ledger_rag
-    original_event_bus = ledger_endpoints.EventBus
+) -> dict[str, Any]:
+    original_endpoint_get_ledger_rag = ledger_endpoints.get_ledger_rag
+    original_endpoint_event_bus = ledger_endpoints.EventBus
+    original_rag_module_get_ledger_rag = ledger_rag_module.get_ledger_rag
+    original_modular_get_ledger_rag = getattr(
+        ledger_endpoints.modular,
+        "get_ledger_rag",
+        None,
+    )
+    original_modular_has_get_ledger_rag = hasattr(
+        ledger_endpoints.modular,
+        "get_ledger_rag",
+    )
+    original_modular_event_bus = getattr(ledger_endpoints.modular, "EventBus", None)
     ledger_endpoints.get_ledger_rag = lambda: ledger
     ledger_endpoints.EventBus = lambda project_root=".": bus
-    return original_get_ledger_rag, original_event_bus
+    ledger_rag_module.get_ledger_rag = lambda: ledger
+    ledger_endpoints.modular.get_ledger_rag = lambda: ledger
+    ledger_endpoints.modular.EventBus = lambda project_root=".": bus
+    return {
+        "endpoint_get_ledger_rag": original_endpoint_get_ledger_rag,
+        "endpoint_event_bus": original_endpoint_event_bus,
+        "rag_module_get_ledger_rag": original_rag_module_get_ledger_rag,
+        "modular_get_ledger_rag": original_modular_get_ledger_rag,
+        "modular_has_get_ledger_rag": original_modular_has_get_ledger_rag,
+        "modular_event_bus": original_modular_event_bus,
+    }
 
 
 def _restore_ledger_endpoint_dependencies(
-    original_get_ledger_rag: Any,
-    original_event_bus: Any,
+    originals: dict[str, Any],
 ) -> None:
-    ledger_endpoints.get_ledger_rag = original_get_ledger_rag
-    ledger_endpoints.EventBus = original_event_bus
+    ledger_endpoints.get_ledger_rag = originals["endpoint_get_ledger_rag"]
+    ledger_endpoints.EventBus = originals["endpoint_event_bus"]
+    ledger_rag_module.get_ledger_rag = originals["rag_module_get_ledger_rag"]
+    if originals["modular_has_get_ledger_rag"]:
+        ledger_endpoints.modular.get_ledger_rag = originals["modular_get_ledger_rag"]
+    elif hasattr(ledger_endpoints.modular, "get_ledger_rag"):
+        delattr(ledger_endpoints.modular, "get_ledger_rag")
+    ledger_endpoints.modular.EventBus = originals["modular_event_bus"]
 
 
 def _prepare_smoke_root(root: Path) -> None:
@@ -962,7 +1072,7 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
         bus = EventBus(project_root=str(root))
         expected_events = await _publish_trace_events(bus, root)
         ledger = _build_ledger(root)
-        original_get_ledger_rag, original_event_bus = _patch_ledger_endpoint_dependencies(
+        ledger_dependency_originals = _patch_ledger_endpoint_dependencies(
             ledger=ledger,
             bus=bus,
         )
@@ -987,10 +1097,7 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
                 )
                 search_response.raise_for_status()
         finally:
-            _restore_ledger_endpoint_dependencies(
-                original_get_ledger_rag,
-                original_event_bus,
-            )
+            _restore_ledger_endpoint_dependencies(ledger_dependency_originals)
 
         index_body = index_response.json()
         search_body = search_response.json()

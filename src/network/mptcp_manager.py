@@ -270,6 +270,7 @@ class MPTCPManager:
         return {
             "schema": "x0tta6bl4.network_mptcp.safe_actuator_claim_gate.v1",
             "operation": operation,
+            "safe_actuator_result_recorded": True,
             "local_mptcp_configuration_claim_allowed": bool(success),
             "local_kernel_setting_claim_allowed": bool(
                 success and operation == "enable_mptcp"
@@ -311,6 +312,9 @@ class MPTCPManager:
                     "source_agents": [_SERVICE_AGENT],
                     "event_ids": [],
                     "events_total": 0,
+                    "resource": f"network:mptcp:{operation}",
+                    "raw_context_values_redacted": True,
+                    "raw_command_output_redacted": True,
                     **dict(evidence),
                     "redacted": True,
                 },

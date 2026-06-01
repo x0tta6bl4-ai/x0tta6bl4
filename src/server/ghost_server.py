@@ -224,6 +224,7 @@ class GhostL3Server:
             "surface": "server.ghost_l3.setup_tun",
             "local_tun_nat_setup_claim_allowed": local_setup_allowed,
             "policy_allowed": bool(policy_allowed),
+            "safe_actuator_result_recorded": True,
             "safe_actuator_result_successful": bool(success),
             "safe_actuator_result_simulated": bool(simulated),
             "restored_dataplane_claim_allowed": False,
@@ -244,6 +245,11 @@ class GhostL3Server:
             "event_ids": [],
             "events_total": 0,
             "event_ids_count": 0,
+            "operation": "setup_tun",
+            "resource": "server:ghost_l3:setup_tun",
+            "local_tun_nat_setup_claim_allowed": local_setup_allowed,
+            "raw_context_values_redacted": True,
+            "raw_command_output_redacted": True,
             "redacted": True,
         }
         return SafeActuatorEvidenceMetadata(
@@ -463,7 +469,16 @@ class GhostL3Server:
             )
         except Exception as e:
             logger.error(f"Failed to setup server TUN: {e}")
-            return SafeActuatorResult(False, str(e))
+            return SafeActuatorResult(
+                False,
+                str(e),
+                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
+                    success=False,
+                    simulated=False,
+                    policy_allowed=True,
+                    reason=str(e),
+                ),
+            )
 
     @staticmethod
     def _enable_ip_forward() -> None:

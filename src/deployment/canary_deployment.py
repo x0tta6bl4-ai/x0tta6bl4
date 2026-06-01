@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
+from src.coordination.events import EventBus, EventType
 from src.integration.spine import SafeActuatorEvidenceMetadata
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ def _safe_actuator_evidence_metadata(
     claim_gate = {
         "schema": "x0tta6bl4.deployment.canary.safe_actuator_claim_gate.v1",
         "action": action,
+        "safe_actuator_result_recorded": True,
         "local_canary_rollout_attempt_claim_allowed": bool(live_action_authorized),
         "local_canary_rollout_action_succeeded": bool(live_action_executed),
         "local_canary_metrics_observation_claim_allowed": bool(metrics_observed),
@@ -97,9 +99,11 @@ def _safe_actuator_evidence_metadata(
             "evidence": {
                 "component": "deployment.canary",
                 "action": action,
+                "resource": f"deployment:canary:{action}",
                 "command_metadata_present": command_metadata is not None,
                 "metrics_observed": bool(metrics_observed),
                 "rollback_recommended": bool(rollback_recommended),
+                "raw_context_values_redacted": True,
                 "raw_command_output_redacted": True,
             },
             "source_agents": ["canary-deployment"],
@@ -187,6 +191,9 @@ class CanaryDeployment:
         config: Optional[DeploymentConfig] = None,
         health_check_fn: Optional[Callable[[], bool]] = None,
         metrics_collector: Optional[Callable[[], Dict[str, Any]]] = None,
+        event_bus: Optional[EventBus] = None,
+        source_agent: str = "canary-deployment",
+        node_id: str = "canary-deployment",
     ):
         """
         Инициализация Canary Deployment.
@@ -202,6 +209,9 @@ class CanaryDeployment:
 
         self.health_check_fn = health_check_fn
         self.metrics_collector = metrics_collector
+        self.event_bus = event_bus
+        self.source_agent = source_agent
+        self.node_id = node_id
         self.allow_live_actions = (
             _env_flag("X0TTA6BL4_ALLOW_CANARY_LIVE_ACTIONS")
             if self.config.allow_live_actions is None
@@ -245,6 +255,64 @@ class CanaryDeployment:
             f"live_actions_authorized={self.allow_live_actions}"
         )
 
+    def _publish_live_action_result(
+        self,
+        result: Dict[str, Any],
+        *,
+        event_type: Optional[EventType] = None,
+        stage: Optional[str] = None,
+    ) -> Optional[str]:
+        if self.event_bus is None:
+            return None
+        action = str(result.get("action") or "canary_action")
+        success = bool(result.get("live_action_executed"))
+        selected_type = event_type or (
+            EventType.PIPELINE_STAGE_END if success else EventType.TASK_FAILED
+        )
+        selected_stage = stage or ("actuator_completed" if success else "actuator_failed")
+        payload = {
+            "component": "deployment.canary",
+            "stage": selected_stage,
+            "operation": action,
+            "resource": f"deployment:canary:{action}",
+            "node_id": self.node_id,
+            "context": {
+                "live_action_authorized": bool(result.get("live_action_authorized")),
+                "command_metadata_present": result.get("command_metadata") is not None,
+                "rollback_recommended": bool(result.get("rollback_recommended")),
+                "raw_context_values_redacted": True,
+            },
+            "success": success,
+            "simulated": False,
+            "safe_actuator": True,
+            "safe_actuator_evidence_metadata": result.get(
+                "safe_actuator_evidence_metadata",
+                _safe_actuator_evidence_metadata(
+                    action=action,
+                    live_action_authorized=bool(result.get("live_action_authorized")),
+                    live_action_executed=success,
+                    rollback_recommended=bool(result.get("rollback_recommended")),
+                ),
+            ),
+            "traffic_shift_claim_allowed": False,
+            "live_customer_traffic_proven": False,
+            "production_readiness_claim_allowed": False,
+            "production_slo_claim_allowed": False,
+            "claim_boundary": CANARY_DEPLOYMENT_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+        try:
+            event = self.event_bus.publish(
+                selected_type,
+                self.source_agent,
+                payload,
+                priority=7,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish canary deployment event: %s", exc)
+            return None
+
     def _live_action_blocked_result(
         self,
         action: str,
@@ -265,6 +333,11 @@ class CanaryDeployment:
     def _record_live_action_blocked(self, action: str) -> Dict[str, Any]:
         result = self._live_action_blocked_result(action)
         self.last_live_action_result = result
+        self._publish_live_action_result(
+            result,
+            event_type=EventType.TASK_BLOCKED,
+            stage="live_action_blocked",
+        )
         logger.warning(
             "Canary live action blocked: %s. Set "
             "X0TTA6BL4_ALLOW_CANARY_LIVE_ACTIONS=yes only after current rollout "
@@ -321,6 +394,7 @@ class CanaryDeployment:
                 command_metadata=command_metadata,
             ),
         }
+        self._publish_live_action_result(self.last_live_action_result)
         if result.returncode == 0:
             logger.info("✅ Canary version deployment command completed")
             return True
@@ -366,6 +440,7 @@ class CanaryDeployment:
                 command_metadata=command_metadata,
             ),
         }
+        self._publish_live_action_result(self.last_live_action_result)
         if result.returncode == 0:
             logger.info("✅ Helm canary traffic-weight command completed")
             return True
@@ -408,6 +483,7 @@ class CanaryDeployment:
                 rollback_recommended=True,
             ),
         }
+        self._publish_live_action_result(self.last_live_action_result)
         if result.returncode == 0:
             logger.info("✅ Helm rollback command completed")
             return True

@@ -33,6 +33,21 @@ def test_real_go_agent_control_loop_smoke(tmp_path) -> None:
     assert report["agent"]["raw_node_runtime_credential_redacted"] is True
     assert report["agent"]["node_config_fetch_observed"] is True
     assert report["agent"]["heartbeat_observed"] is True
+    assert report["agent"]["operator_heal_observed"] is True
+    assert report["healing_surface"]["status"] == "healed"
+    assert report["healing_surface"]["healing_claim"] == "local_control_action_applied"
+    assert report["healing_surface"]["components_healed"] > 0
+    assert report["healing_surface"]["post_heal_node_status"] == "healthy"
+    assert report["healing_surface"]["post_action_revalidation_present"] is True
+    assert report["healing_surface"]["dataplane_confirmed"] is True
+    assert report["healing_surface"]["post_action_dataplane_revalidated"] is True
+    assert report["healing_surface"]["restored_dataplane_claim_allowed"] is True
+    assert report["healing_surface"]["traffic_delivery_claim_allowed"] is False
+    assert report["healing_surface"]["customer_traffic_claim_allowed"] is False
+    assert report["healing_surface"]["external_reachability_claim_allowed"] is False
+    assert report["healing_surface"]["production_slo_claim_allowed"] is False
+    assert report["healing_surface"]["production_readiness_claim_allowed"] is False
+    assert report["healing_surface"]["raw_target_redacted"] is True
 
     stage_names = {stage["name"] for stage in report["stages"]}
     assert {
@@ -56,9 +71,13 @@ def test_real_go_agent_control_loop_smoke(tmp_path) -> None:
         "revoked_node_credential_rejected",
         "agent_node_config_fetch_observed",
         "agent_heartbeat_persisted",
+        "agent_node_marked_offline_for_local_heal",
+        "operator_heal_after_real_agent_heartbeat",
     }.issubset(stage_names)
 
     assert report["entities"]["mesh"]["present"] is True
     assert report["entities"]["node"]["present"] is True
     assert report["dataplane_probe_target"]["raw_value_redacted"] is True
+    assert report["dataplane_probe_target"]["requested_raw_value_redacted"] is True
+    assert report["dataplane_probe_target"]["local_listener_target"] is True
     assert target not in json.dumps(report, sort_keys=True)

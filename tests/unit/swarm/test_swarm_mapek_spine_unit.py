@@ -113,6 +113,7 @@ async def test_mapek_execute_publishes_identity_policy_and_safe_actuator_events(
     assert metadata["redacted"] is True
     claim_gate = metadata["claim_gate"]
     assert claim_gate["schema"] == "x0tta6bl4.swarm_mapek.safe_actuator_claim_gate.v1"
+    assert claim_gate["safe_actuator_result_recorded"] is True
     assert claim_gate["local_swarm_action_observed_claim_allowed"] is True
     assert claim_gate["local_swarm_decision_result_claim_allowed"] is True
     assert claim_gate["cluster_wide_consensus_finality_claim_allowed"] is False
@@ -125,12 +126,15 @@ async def test_mapek_execute_publishes_identity_policy_and_safe_actuator_events(
     assert cross_plane["allowed"] is False
     evidence = metadata["evidence"]
     assert evidence["action_type"] == "healing"
+    assert evidence["resource"] == "swarm:mapek:healing"
     assert evidence["action_resource"] == "healing"
     assert evidence["decision_result_present"] is True
     assert evidence["decision_approved"] is True
     assert evidence["consensus_mode"] == "simple"
     assert evidence["parameters_redacted"] is True
     assert evidence["identity_values_redacted"] is True
+    assert evidence["raw_context_values_redacted"] is True
+    assert evidence["raw_result_values_redacted"] is True
     assert "secret-token" not in str(metadata)
     assert result["safe_actuator_evidence_metadata"]["claim_gate"] == claim_gate
 

@@ -1,35 +1,50 @@
 {
-  "captured_at": "2026-05-27",
+  "captured_at": "2026-06-01",
   "status": "working_map_not_production_completion_proof",
-  "scope": "FastAPI router registration compared with explicit runtime startup and shutdown hooks.",
+  "scope": "Current FastAPI router registration, route-local readiness surfaces, and lifecycle-hook binding gaps for the combined MaaS router plus direct legacy/v1 routers.",
   "interpretation": {
-    "route_import_only": "The router is registered by src/core/app.py, but this map found no explicit startup/shutdown hook called by src/core/production_lifespan.py for that router module.",
-    "production_lifespan_hook": "The router is registered by src/core/app.py and src/core/production_lifespan.py imports and awaits explicit startup/shutdown hooks for the same module.",
-    "always": "Registered in both light and non-light app modes.",
-    "full_mode_only": "Registered only inside `if not is_light_mode` in src/core/app.py."
+    "route_import_only": "The router is registered by src/core/app.py directly or through src.api.maas.endpoints.combined, but no app-bound startup/shutdown hook is proven for that router.",
+    "production_lifespan_hook_defined_not_app_bound": "The router module has explicit startup/shutdown hooks referenced by src/core/production_lifespan.py, but current src/core/app.py does not bind production_lifespan as the FastAPI lifespan.",
+    "always": "Registered by current src/core/app.py regardless of MAAS_LIGHT_MODE; MAAS_LIGHT_MODE now changes version labelling, not router inclusion.",
+    "none_explicit": "The current router has no dedicated readiness endpoint; readiness must be inferred from narrower endpoint tests or higher-level gates, not from route registration alone."
   },
   "app_lifespan_modes": {
     "light_mode": {
       "condition": "MAAS_LIGHT_MODE=true",
-      "lifespan": "FastAPI app without src.core.production_lifespan.production_lifespan",
+      "lifespan": "Same FastAPI app construction; version label gains -light. Router inclusion is not gated by MAAS_LIGHT_MODE in current src/core/app.py.",
       "source_refs": [
-        "src/core/app.py:39",
-        "src/core/app.py:41",
-        "src/core/app.py:43"
+        "src/core/app.py:43",
+        "src/core/app.py:46",
+        "src/core/app.py:88"
       ]
     },
     "non_light_mode": {
       "condition": "MAAS_LIGHT_MODE is not true",
-      "lifespan": "FastAPI app with src.core.production_lifespan.production_lifespan",
+      "lifespan": "Same FastAPI app construction with base version label. Current src/core/app.py does not pass lifespan=production_lifespan.",
       "source_refs": [
-        "src/core/app.py:48",
-        "src/core/app.py:50",
-        "src/core/app.py:56"
+        "src/core/app.py:43",
+        "src/core/app.py:46",
+        "src/core/app.py:53"
       ]
     }
   },
+  "combined_router_entrypoint": {
+    "module": "src.api.maas.endpoints.combined",
+    "app_binding": "app.include_router(get_combined_router())",
+    "registration_mode": "always",
+    "source_refs": [
+      "src/core/app.py:87",
+      "src/core/app.py:88",
+      "src/api/maas/endpoints/combined.py:61",
+      "src/api/maas/endpoints/combined.py:82",
+      "src/api/maas/endpoints/combined.py:160"
+    ]
+  },
   "production_lifespan_runtime": {
-    "startup_sequence": [
+    "module": "src/core/production_lifespan.py",
+    "app_bound_by_core_app": false,
+    "binding_gap": "Current src/core/app.py does not bind production_lifespan as FastAPI lifespan; production_lifespan.py defines startup/shutdown orchestration, but hook-defined modules cannot be treated as started by app import alone.",
+    "startup_sequence_defined": [
       "database_schema_guard",
       "MeshNetworkManager",
       "PrometheusExporter",
@@ -41,7 +56,7 @@
       "edge_startup",
       "event_sourcing_startup"
     ],
-    "shutdown_sequence": [
+    "shutdown_sequence_defined": [
       "event_sourcing_shutdown",
       "edge_shutdown",
       "MAPEKLoop_stop",
@@ -50,598 +65,496 @@
       "federated_learning_shutdown"
     ],
     "source_refs": [
+      "src/core/production_lifespan.py:64",
       "src/core/production_lifespan.py:102",
-      "src/core/production_lifespan.py:122",
-      "src/core/production_lifespan.py:127",
-      "src/core/production_lifespan.py:131",
-      "src/core/production_lifespan.py:132",
-      "src/core/production_lifespan.py:136",
-      "src/core/production_lifespan.py:140",
-      "src/core/production_lifespan.py:146",
-      "src/core/production_lifespan.py:151",
       "src/core/production_lifespan.py:161",
-      "src/core/production_lifespan.py:170",
-      "src/core/production_lifespan.py:179",
       "src/core/production_lifespan.py:202",
       "src/core/production_lifespan.py:209",
       "src/core/production_lifespan.py:218",
-      "src/core/production_lifespan.py:227",
-      "src/core/production_lifespan.py:237"
+      "src/core/production_lifespan.py:247",
+      "src/core/app.py:46"
     ]
   },
   "routers": [
     {
-      "id": "maas-billing",
-      "module": "src.api.maas_billing",
-      "label": "billing",
+      "id": "maas-nodes",
+      "module": "src.api.maas.endpoints.nodes",
+      "label": "nodes",
+      "registration_source": "combined_router",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
-      "router_prefix": "/api/v1/maas/billing",
+      "router_prefix": "/api/v1/maas and /api/v1/maas/nodes",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/maas/billing/readiness",
-      "runtime_readiness_field": "stripe_config_ready",
-      "hidden_dependency": "MaaS billing routes are registered in light mode and do not have a production_lifespan startup hook, but subscription checkout and invoice checkout require Stripe configuration, invoice/customer database writes, and legacy MaaS metering imports. The readiness endpoint exposes route availability separately from Stripe config, price IDs, DB write readiness, and legacy metering readiness.",
+      "readiness_signal": "/api/v1/maas/{mesh_id}/nodes/{node_id}/readiness",
+      "runtime_readiness_field": "core_node_readiness",
+      "hidden_dependency": "Combined-router node lifecycle routes depend on DB-backed MeshNode/MeshInstance state, node runtime credentials, approval/revocation state, heartbeat credentials, node-config access control, and operator heal wiring. The real Go-agent verifier proves this only against a temporary MaaS API and does not prove live customer traffic, production dataplane delivery, external reachability, production SLOs, or production readiness.",
       "source_refs": [
-        "src/core/app.py:239",
-        "src/api/maas_billing.py:61",
-        "src/api/maas_billing.py:68",
-        "src/api/maas_billing.py:111"
-      ]
-    },
-    {
-      "id": "billing-api",
-      "module": "src.api.billing",
-      "label": "billing-api",
-      "registration_mode": "always",
-      "route_present_in_light_mode": true,
-      "router_prefix": "/api/v1/billing",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/billing/readiness",
-      "runtime_readiness_field": "billing_api_runtime_ready",
-      "hidden_dependency": "Commercial billing routes are registered in light mode and do not have a production_lifespan startup hook, but checkout, Stripe webhook processing, order status, and revenue metrics require Stripe checkout/webhook configuration, SQLAlchemy billing models, DB write methods, httpx plus the Stripe circuit wrapper, VLESS link generation, deferred provisioning imports, EventBus trace publication, and redacted service identity status. Config, checkout, webhook, order-status, and revenue-metrics endpoints now emit redacted EventBus evidence for local config state, Stripe call status, webhook signature/idempotency state, DB/provisioning intent, VLESS-link readiness, aggregate revenue counts, HTTP status, and duration without copying raw emails, Stripe secrets, Stripe IDs, checkout URLs, payloads, license tokens, VPN UUIDs, VLESS links, payment rows, or invoice rows. The readiness endpoint exposes these local dependency surfaces without making live Stripe or database calls.",
-      "source_refs": [
-        "src/core/app.py:240",
-        "src/api/billing.py:38",
-        "src/api/billing.py:41",
-        "src/api/billing.py:193",
-        "src/api/billing.py:357",
-        "src/api/billing.py:476",
-        "src/api/billing.py:653",
-        "src/api/billing.py:941",
-        "src/api/billing.py:1264",
-        "src/api/billing.py:1466"
-      ]
-    },
-    {
-      "id": "maas-legacy",
-      "module": "src.api.maas_legacy",
-      "label": "legacy",
-      "registration_mode": "always",
-      "route_present_in_light_mode": true,
-      "router_prefix": "/api/v1/maas",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/maas/readiness",
-      "runtime_readiness_field": "maas_legacy_runtime_ready",
-      "hidden_dependency": "The legacy MaaS router is registered in light mode before the modular MaaS routers and owns broad /api/v1/maas/{mesh_id}/... paths. It has no production_lifespan startup hook, but auth, mesh lifecycle, node approval/reissue, billing webhook, usage, telemetry, ACL, audit, MAPE-K, and pending-approval flows depend on module-level in-memory registries guarded by _registry_lock, MeshProvisioner, BillingService, UsageMeteringService, AuthService, SQLAlchemy User/BillingWebhookEvent/DBMeshInstance models, DB session methods, token_signer, AttestationService, optional PQC identity, local X-API-Key auth, MaaS auth RBAC dependencies, OIDC helpers, and dashboard static files with JSON fallback. Legacy deploy, lifecycle list/status/metrics reads, MAPE-K event-stream reads, node register/approve/revoke/reissue mutations, pending/all-node reads, join-token rotation, policy creation, policy-list reads, node-config policy decision reads, heartbeat, billing webhook, and billing usage reads emit redacted EventBus evidence for local registry/DB/auth/economy/trust state. Readiness exposes those local surfaces without mutating mesh state.",
-      "source_refs": [
-        "src/core/app.py:241",
-        "src/api/maas_legacy.py:67",
-        "src/api/maas_legacy.py:809",
-        "src/api/maas_legacy.py:914"
-      ]
-    },
-    {
-      "id": "maas-compat",
-      "module": "src.api.maas_compat",
-      "label": "compat",
-      "registration_mode": "always",
-      "route_present_in_light_mode": true,
-      "router_prefix": "",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/maas/compat/readiness",
-      "runtime_readiness_field": "compat_runtime_ready",
-      "hidden_dependency": "MaaS compatibility routes use a prefixless router with absolute hidden alias paths for /api/v3/maas/auth/register, /api/v1/maas/deploy, /api/v1/maas/mesh/deploy, /api/v1/maas/list, /api/v1/maas/{mesh_id}/status, /api/v1/maas/{mesh_id}/metrics, /api/v1/maas/{mesh_id}/scale, /api/v1/maas/{mesh_id}/audit-logs, /api/v1/maas/{mesh_id}/mapek/events, and /api/v1/maas/billing/pay. They are registered in light mode and do not have a production_lifespan startup hook, but they depend on canonical maas_auth register/current-user surfaces, maas_legacy permission/request-shape helpers, modular maas mesh lifecycle/status/metrics/runtime registry surfaces, maas_billing create_subscription_session, User identity/API-key fields, auth request/response models, a DB session passed through to delegated handlers, and modular in-memory lifecycle, audit-log, and MAPE-K event state. The auth/register alias emits redacted EventBus registration-intent evidence for delegated success/failure without copying email, password, profile fields, or API keys; the deploy aliases emit redacted EventBus lifecycle control-action evidence for delegated modular deploy success/failure without copying mesh names, join tokens, dashboard URLs, or provider payload values; the mesh scale and terminate aliases emit redacted EventBus control-action evidence for ownership/modular denials, local scale or delegated terminate mutation state, audit append state, and MAPE-K append state where applicable; the billing/pay alias emits redacted EventBus payment-intent evidence for crypto-disabled rejection, delegated Stripe checkout success, and delegated checkout failures while keeping checkout URLs and provider identifiers out of evidence; mesh list/status/metrics, audit-log, and MAPE-K event read aliases emit redacted EventBus evidence for permission/ownership denials and successful local reads. Readiness keeps the legacy_deploy_ready compatibility field and exposes alias wiring without executing any delegated operation.",
-      "source_refs": [
-        "src/core/app.py:242",
-        "src/api/maas_compat.py:21",
-        "src/api/maas_compat.py:54",
-        "src/api/maas_compat.py:79",
-        "src/api/maas_compat.py:88",
-        "src/api/maas_compat.py:96",
-        "src/api/maas_compat.py:139",
-        "src/api/maas_compat.py:1094",
-        "src/api/maas_compat.py:1144",
-        "src/api/maas_compat.py:1638"
+        "src/api/maas/endpoints/combined.py:86",
+        "src/api/maas/endpoints/combined.py:88",
+        "src/api/maas/endpoints/nodes.py:36",
+        "src/api/maas/endpoints/nodes.py:811"
       ]
     },
     {
       "id": "maas-auth",
-      "module": "src.api.maas_auth",
+      "module": "src.api.maas.endpoints.auth",
       "label": "auth",
+      "registration_source": "combined_router",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
-      "router_prefix": "/api/v1/maas/auth",
+      "router_prefix": "/api/v1/maas and /api/v1/maas/auth",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/maas/auth/readiness",
-      "runtime_readiness_field": "maas_auth_runtime_ready",
-      "hidden_dependency": "MaaS auth routes are registered in light mode and do not have a production_lifespan startup hook, but register/login/profile/API-key/admin/OIDC/bootstrap flows depend on SQLAlchemy User and Session models, a DB session, MaaSAuthService, ApiKeyManager.generate, RBAC role/permission helpers, token helpers, audit logging, optional authlib OAuth when OIDC is enabled, and optional BOOTSTRAP_TOKEN for first-admin creation. Register, login, credential resolver, profile read, API-key list read, OIDC redirect/callback, API-key rotation, admin promotion, and bootstrap-admin now emit redacted EventBus evidence for credential intent/outcome, API-key or bearer-session resolution, authenticated profile reads, masked key-list reads, OIDC redirect intent, callback token/claim handling, local account linkage, local session creation, privilege-control decisions, local DB write state, audit-log attempt state, HTTP status, and duration without copying raw emails, passwords, OIDC ID tokens, OIDC subjects/issuers, redirect URLs, API keys, stored API-key hashes, bootstrap tokens, session tokens, old key hashes, target user IDs, or private failure details. Readiness exposes those local dependency surfaces without creating users or contacting an OIDC provider.",
+      "readiness_signal": "none_explicit",
+      "runtime_readiness_field": "no_explicit_readiness_endpoint",
+      "hidden_dependency": "Auth routes are registered through the combined router but this module has no explicit readiness endpoint. Runtime confidence comes from auth endpoint tests and downstream readiness gates rather than a route-local readiness handler.",
       "source_refs": [
-        "src/core/app.py:243",
-        "src/api/maas_auth.py:38",
-        "src/api/maas_auth.py:48",
-        "src/api/maas_auth.py:56",
-        "src/api/maas_auth.py:63",
-        "src/api/maas_auth.py:70",
-        "src/api/maas_auth.py:78",
-        "src/api/maas_auth.py:86",
-        "src/api/maas_auth.py:93",
-        "src/api/maas_auth.py:101",
-        "src/api/maas_auth.py:108",
-        "src/api/maas_auth.py:115",
-        "src/api/maas_auth.py:635",
-        "src/api/maas_auth.py:698",
-        "src/api/maas_auth.py:750",
-        "src/api/maas_auth.py:878",
-        "src/api/maas_auth.py:1000",
-        "src/api/maas_auth.py:1142",
-        "src/api/maas_auth.py:1244",
-        "src/api/maas_auth.py:1286",
-        "src/api/maas_auth.py:1337",
-        "src/api/maas_auth.py:1387",
-        "src/api/maas_auth.py:1458",
-        "src/api/maas_auth.py:1519",
-        "src/api/maas_auth.py:1668",
-        "src/api/maas_auth.py:1691",
-        "src/api/maas_auth.py:1786"
+        "src/api/maas/endpoints/combined.py:92",
+        "src/api/maas/endpoints/combined.py:94",
+        "src/api/maas/endpoints/auth.py:42",
+        "src/api/maas/endpoints/auth.py:783"
+      ]
+    },
+    {
+      "id": "maas-mesh",
+      "module": "src.api.maas.endpoints.mesh",
+      "label": "mesh",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas and /api/v1/maas/mesh",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "runtime_readiness_field": "no_explicit_readiness_endpoint",
+      "hidden_dependency": "Mesh lifecycle routes are registered through the combined router and expose claim gates on deploy/status/metrics/control surfaces, but there is no dedicated route-local readiness endpoint for the mesh module itself. This is a no explicit readiness endpoint boundary.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:102",
+        "src/api/maas/endpoints/combined.py:110",
+        "src/api/maas/endpoints/mesh.py:33",
+        "src/api/maas/endpoints/mesh.py:1360"
+      ]
+    },
+    {
+      "id": "maas-billing",
+      "module": "src.api.maas.endpoints.billing",
+      "label": "billing",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/billing",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "runtime_readiness_field": "no_explicit_readiness_endpoint",
+      "hidden_dependency": "Modular MaaS billing routes expose billing plans, usage, invoices, checkout, and claim gates, but the modular endpoint has no explicit readiness route; commercial readiness remains covered by the separate /api/v1/billing readiness surface.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:114",
+        "src/api/maas/endpoints/billing.py:43",
+        "src/api/maas/endpoints/billing.py:307",
+        "src/api/maas/endpoints/billing.py:725"
+      ]
+    },
+    {
+      "id": "maas-batman",
+      "module": "src.api.maas.endpoints.batman",
+      "label": "batman",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/batman",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "runtime_readiness_field": "no_explicit_readiness_endpoint",
+      "hidden_dependency": "BATMAN observed-state/control routes are registered through the combined router and carry local-only claim gates, but the module has no explicit readiness endpoint distinct from its health/status responses.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:124",
+        "src/api/maas/endpoints/batman.py:38",
+        "src/api/maas/endpoints/batman.py:1311",
+        "src/api/maas/endpoints/batman.py:2510"
+      ]
+    },
+    {
+      "id": "maas-pilot",
+      "module": "src.api.maas.endpoints.pilot",
+      "label": "pilot",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/pilot",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "runtime_readiness_field": "no_explicit_readiness_endpoint",
+      "hidden_dependency": "Pilot signup/status/activation routes are registered through the combined router and emit bounded local API/DB evidence, but the module has no explicit readiness endpoint.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:126",
+        "src/api/maas/endpoints/pilot.py:24",
+        "src/api/maas/endpoints/pilot.py:342",
+        "src/api/maas/endpoints/pilot.py:611"
       ]
     },
     {
       "id": "maas-playbooks",
-      "module": "src.api.maas_playbooks",
+      "module": "src.api.maas.endpoints.playbooks",
       "label": "playbooks",
+      "registration_source": "combined_router",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/playbooks",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v1/maas/playbooks/readiness",
       "runtime_readiness_field": "playbook_control_plane_ready",
-      "hidden_dependency": "Route is registered in light mode without a production_lifespan hook. Signed playbook dispatch depends on in-memory per-node delivery queues, token_signer signing/verification, durable SignedPlaybook and PlaybookAck database state, and audit-log persistence. Create, poll, ack, list, and status endpoints now emit redacted EventBus evidence with bounded token_signer, queue, durable playbook/ack, audit-log, delivery, skip, target-count, action-count, algorithm-bucket, ack-count, HTTP status, duration, and hashed actor/mesh/node/playbook context without copying raw emails, user IDs, mesh IDs, node IDs, playbook IDs, playbook names, payloads, signatures, action params, join tokens, API keys, or session tokens. Readiness separates route availability from signed command dispatch, queue state, durable history, and acknowledgement persistence.",
+      "hidden_dependency": "Playbook readiness depends on memory delivery queues, token signing, durable playbook/ack database state, and audit-log persistence. It does not prove a node executed a playbook action.",
       "source_refs": [
-        "src/core/app.py:244",
-        "src/api/maas_playbooks.py:23",
-        "src/api/maas_playbooks.py:37",
-        "src/api/maas_playbooks.py:39",
-        "src/api/maas_playbooks.py:41",
-        "src/api/maas_playbooks.py:153",
-        "src/api/maas_playbooks.py:284",
-        "src/api/maas_playbooks.py:514",
-        "src/api/maas_playbooks.py:526",
-        "src/api/maas_playbooks.py:613",
-        "src/api/maas_playbooks.py:643",
-        "src/api/maas_playbooks.py:704",
-        "src/api/maas_playbooks.py:727",
-        "src/api/maas_playbooks.py:827",
-        "src/api/maas_playbooks.py:845",
-        "src/api/maas_playbooks.py:887",
-        "src/api/maas_playbooks.py:903",
-        "src/api/maas_playbooks.py:952"
-      ]
-    },
-    {
-      "id": "maas-supply-chain",
-      "module": "src.api.maas_supply_chain",
-      "label": "supply-chain",
-      "registration_mode": "always",
-      "route_present_in_light_mode": true,
-      "router_prefix": "/api/v1/maas/supply-chain",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/maas/supply-chain/readiness",
-      "runtime_readiness_field": "persistent_supply_chain_ready",
-      "hidden_dependency": "Route is registered in light mode without a production_lifespan hook. Durable SBOM and binary attestation evidence depend on database-backed SBOMEntry and NodeBinaryAttestation state, audit-log persistence, a legacy in-memory SBOM registry for compatibility verification, and a lazy eBPF attestation filter adapter. SBOM reads/list reads, artifact registration, binary verification, node attestation history, and mesh attestation reports now emit redacted EventBus evidence with bounded local DB/compat-registry/audit/eBPF-adapter metadata, status/count/integrity buckets, hashed actor/version/checksum/node/mesh/SBOM context, HTTP status, and duration without copying raw emails, user IDs, node IDs, mesh IDs, SBOM IDs, versions, checksums, component names, attestation signer or bundle URLs, API keys, or session tokens. Readiness separates route availability from persistent supply-chain evidence and kernel-filter adapter availability.",
-      "source_refs": [
-        "src/core/app.py:245",
-        "src/api/maas_supply_chain.py:22",
-        "src/api/maas_supply_chain.py:31",
-        "src/api/maas_supply_chain.py:35",
-        "src/api/maas_supply_chain.py:37",
-        "src/api/maas_supply_chain.py:39",
-        "src/api/maas_supply_chain.py:41",
-        "src/api/maas_supply_chain.py:206",
-        "src/api/maas_supply_chain.py:347",
-        "src/api/maas_supply_chain.py:401",
-        "src/api/maas_supply_chain.py:503",
-        "src/api/maas_supply_chain.py:582",
-        "src/api/maas_supply_chain.py:624",
-        "src/api/maas_supply_chain.py:774",
-        "src/api/maas_supply_chain.py:959",
-        "src/api/maas_supply_chain.py:1003"
+        "src/api/maas/endpoints/combined.py:127",
+        "src/api/maas/endpoints/playbooks.py:278",
+        "src/api/maas/endpoints/playbooks.py:518"
       ]
     },
     {
       "id": "maas-provisioning",
-      "module": "src.api.maas_provisioning",
+      "module": "src.api.maas.endpoints.provisioning",
       "label": "provisioning",
+      "registration_source": "combined_router",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/provisioning",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v1/maas/provisioning/readiness",
       "runtime_readiness_field": "provisioning_runtime_ready",
-      "hidden_dependency": "MaaS provisioning setup routes are registered in light mode and do not have a production_lifespan startup hook. Generate-setup depends on MaaS auth, a database-backed pending MeshNode write, local join-token and install-command generation, and EventBus trace publication. The setup endpoint emits redacted EventBus evidence for local DB write state, setup package metadata, HTTP status, duration, and hashed actor/mesh/device/node/token/config context without copying raw mesh IDs, device names, node IDs, join tokens, install commands, config blobs, user IDs, or emails. Readiness separates route availability from pending-node persistence and does not prove that the install command ran, a node joined the dataplane, PQC was negotiated, or ZKP auth completed.",
+      "hidden_dependency": "Provisioning readiness checks local DB write ability, EventBus availability, and auth dependency. It does not prove generated install commands ran, a node joined, dataplane traffic passed, or PQC/ZKP was negotiated.",
       "source_refs": [
-        "src/core/app.py:248",
-        "src/api/maas_provisioning.py:23",
-        "src/api/maas_provisioning.py:98",
-        "src/api/maas_provisioning.py:145",
-        "src/api/maas_provisioning.py:221",
-        "src/api/maas_provisioning.py:231"
+        "src/api/maas/endpoints/combined.py:128",
+        "src/api/maas/endpoints/provisioning.py:155",
+        "src/api/maas/endpoints/provisioning.py:284"
       ]
     },
     {
       "id": "maas-marketplace",
-      "module": "src.api.maas_marketplace",
+      "module": "src.api.maas.endpoints.marketplace",
       "label": "marketplace",
+      "registration_source": "combined_router",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/marketplace",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v1/maas/marketplace/status",
       "runtime_readiness_field": "write_db_ready",
-      "hidden_dependency": "Marketplace routes are registered in light mode and do not have a production_lifespan startup hook, but state-changing escrow/listing operations require a database-backed write path. The status endpoint exposes route availability separately from database readiness and marks database degradation.",
+      "hidden_dependency": "Marketplace readiness distinguishes route availability from state-changing database readiness. It does not prove live chain settlement, payment finality, or production revenue recognition.",
       "source_refs": [
-        "src/core/app.py:246",
-        "src/api/maas_marketplace.py:42",
-        "src/api/maas_marketplace.py:272",
-        "src/api/maas_marketplace.py:300"
+        "src/api/maas/endpoints/combined.py:132",
+        "src/api/maas/endpoints/marketplace.py:582",
+        "src/api/maas/endpoints/marketplace.py:613"
       ]
     },
     {
       "id": "maas-governance",
-      "module": "src.api.maas_governance",
+      "module": "src.api.maas.endpoints.governance",
       "label": "governance",
+      "registration_source": "combined_router",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/governance",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v1/maas/governance/readiness",
       "runtime_readiness_field": "control_plane_ready",
-      "hidden_dependency": "MaaS governance routes are registered in light mode and do not have a production_lifespan startup hook, but proposal/vote writes require a database session and execution requires EventBus trace publication, service identity resolution, optional production policy evaluation, SafeActuator dispatch, and lazy PQC finality attestation. The readiness endpoint exposes route availability separately from local control-plane dispatch readiness.",
+      "hidden_dependency": "Governance readiness checks DB session shape, EventBus importability, SafeActuator importability, service identity, and optional production policy engine availability. It does not prove a proposal executed in production.",
       "source_refs": [
-        "src/core/app.py:247",
-        "src/api/maas_governance.py:37",
-        "src/api/maas_governance.py:100",
-        "src/api/maas_governance.py:163"
+        "src/api/maas/endpoints/combined.py:136",
+        "src/api/maas/endpoints/governance.py:138",
+        "src/api/maas/endpoints/governance.py:204"
       ]
     },
     {
       "id": "maas-analytics",
-      "module": "src.api.maas_analytics",
+      "module": "src.api.maas.endpoints.analytics",
       "label": "analytics",
+      "registration_source": "combined_router",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/analytics",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v1/maas/analytics/readiness",
       "runtime_readiness_field": "analytics_runtime_ready",
-      "hidden_dependency": "Route is registered in light mode without a production_lifespan hook. Analytics summary, timeseries, and ROI routes depend on database-backed mesh, node, invoice, and listing state through MaaSAnalyticsService, with optional Redis real-time telemetry for traffic and latency enrichment. Summary, timeseries, and ROI routes now emit redacted read-only EventBus evidence with hashed actor/mesh context, bounded health/cost/timeseries/listing/revenue metadata, optional Redis telemetry readiness, HTTP status, and duration without copying raw emails, user IDs, mesh IDs, node IDs, listing IDs, invoice IDs, API keys, session tokens, or Redis payloads. Readiness separates route availability from DB aggregation readiness and Redis telemetry degradation.",
+      "hidden_dependency": "Analytics readiness checks DB aggregation and service construction, with Redis telemetry marked as a degraded dependency instead of production proof.",
       "source_refs": [
-        "src/core/app.py:248",
-        "src/api/maas_analytics.py:22",
-        "src/api/maas_analytics.py:55",
-        "src/api/maas_analytics.py:57",
-        "src/api/maas_analytics.py:59",
-        "src/api/maas_analytics.py:120",
-        "src/api/maas_analytics.py:229",
-        "src/api/maas_analytics.py:279",
-        "src/api/maas_analytics.py:290",
-        "src/api/maas_analytics.py:298",
-        "src/api/maas_analytics.py:335",
-        "src/api/maas_analytics.py:350",
-        "src/api/maas_analytics.py:359",
-        "src/api/maas_analytics.py:398",
-        "src/api/maas_analytics.py:414",
-        "src/api/maas_analytics.py:422",
-        "src/api/maas_analytics.py:443"
+        "src/api/maas/endpoints/combined.py:137",
+        "src/api/maas/endpoints/analytics.py:228",
+        "src/api/maas/endpoints/analytics.py:283"
       ]
     },
     {
       "id": "maas-agent-mesh",
-      "module": "src.api.maas_agent_mesh",
+      "module": "src.api.maas.endpoints.agent_mesh",
       "label": "agent-mesh",
+      "registration_source": "combined_router",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/agents",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v1/maas/agents/health/status",
       "runtime_readiness_field": "agent_mesh_runtime_ready",
-      "hidden_dependency": "Always-registered route-import-only health-bot API with no production_lifespan hook. Health status, health run, and history routes depend on the import-time MaasHealthBot instance, HealthBotConfig.from_env, local SOCKS probe configuration, local health URL configuration, get_current_user_from_maas auth dependency, dry-run status payload shape, history storage, EventBus trace publication, and MAAS_AGENT_BOT_TOKEN when non-dry-run execution is enabled. Status/run/history endpoints emit redacted EventBus evidence for local health-bot status, guarded run intent, history metadata, readiness flags, token guard state, HTTP status, duration, and bounded signal/action counts without copying raw health URLs, command strings, command output, actor IDs, emails, or agent tokens. Readiness reports those local surfaces and execution guard status but does not prove SOCKS, local health URLs, or self-heal commands are healthy.",
+      "hidden_dependency": "Agent-mesh health-bot readiness depends on local health-bot surface/config, auth dependency, status payload shape, and non-dry-run execution token guard. It does not prove SOCKS reachability or executed self-heal commands.",
       "source_refs": [
-        "src/core/app.py:249",
-        "src/api/maas_agent_mesh.py:16",
-        "src/api/maas_agent_mesh.py:100",
-        "src/api/maas_agent_mesh.py:221",
-        "src/api/maas_agent_mesh.py:298",
-        "src/api/maas_agent_mesh.py:381"
+        "src/api/maas/endpoints/combined.py:138",
+        "src/api/maas/endpoints/agent_mesh.py:299",
+        "src/api/maas/endpoints/agent_mesh.py:385"
+      ]
+    },
+    {
+      "id": "maas-supply-chain",
+      "module": "src.api.maas.endpoints.supply_chain",
+      "label": "supply-chain",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/supply-chain",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/maas/supply-chain/readiness",
+      "runtime_readiness_field": "persistent_supply_chain_ready",
+      "hidden_dependency": "Supply-chain readiness checks durable attestation/SBOM storage, audit-log persistence, compatibility SBOM registry, and eBPF adapter importability. It does not prove a kernel filter is loaded.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:139",
+        "src/api/maas/endpoints/supply_chain.py:343",
+        "src/api/maas/endpoints/supply_chain.py:405"
+      ]
+    },
+    {
+      "id": "maas-policies",
+      "module": "src.api.maas.endpoints.policies",
+      "label": "policies",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/policies",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/maas/policies/readiness",
+      "runtime_readiness_field": "policy_runtime_ready",
+      "hidden_dependency": "Policy readiness checks DB-backed ACL policy surfaces and RBAC dependencies. It does not prove dataplane policy enforcement on nodes.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:143",
+        "src/api/maas/endpoints/policies.py:185",
+        "src/api/maas/endpoints/policies.py:248"
+      ]
+    },
+    {
+      "id": "maas-telemetry",
+      "module": "src.api.maas.endpoints.telemetry",
+      "label": "telemetry",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas and /api/v1/maas/telemetry",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/maas/telemetry/readiness",
+      "runtime_readiness_field": "telemetry_runtime_ready",
+      "hidden_dependency": "Telemetry readiness checks DB session shape, MeshNode model, Redis/fallback cache, uptime tracker, reputation system, metrics export, and auth dependency. Cached topology or heartbeat observations remain local-only and not dataplane proof.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:98",
+        "src/api/maas/endpoints/combined.py:144",
+        "src/api/maas/endpoints/telemetry.py:909",
+        "src/api/maas/endpoints/telemetry.py:1043"
+      ]
+    },
+    {
+      "id": "maas-compat",
+      "module": "src.api.maas.endpoints.compat",
+      "label": "compat",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "absolute compat aliases",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/maas/compat/readiness",
+      "runtime_readiness_field": "compat_runtime_ready",
+      "hidden_dependency": "Compat readiness covers alias wiring and delegated local dependencies for auth, mesh deploy, and billing aliases without executing delegated operations.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:145",
+        "src/api/maas/endpoints/combined.py:156",
+        "src/api/maas/endpoints/compat.py:1755",
+        "src/api/maas/endpoints/compat.py:1852"
+      ]
+    },
+    {
+      "id": "vpn",
+      "module": "src.api.maas.endpoints.vpn",
+      "label": "vpn",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/vpn",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/vpn/readiness",
+      "runtime_readiness_field": "vpn_runtime_ready",
+      "hidden_dependency": "VPN readiness checks DB/session/model/config-generator/XUI/cache/auth/ZKP/production-env surfaces. It does not prove customer VPN traffic availability.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:162",
+        "src/api/maas/endpoints/vpn.py:334",
+        "src/api/maas/endpoints/vpn.py:463"
+      ]
+    },
+    {
+      "id": "users",
+      "module": "src.api.maas.endpoints.users",
+      "label": "users",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/users",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/users/readiness",
+      "runtime_readiness_field": "users_runtime_ready",
+      "hidden_dependency": "Users readiness checks DB/session/user model, password hashing, token generation, rate limiter, and admin-token configuration.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:163",
+        "src/api/maas/endpoints/users.py:286",
+        "src/api/maas/endpoints/users.py:388"
+      ]
+    },
+    {
+      "id": "swarm-api",
+      "module": "src.api.maas.endpoints.swarm",
+      "label": "swarm",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v3/swarm",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v3/swarm/health",
+      "runtime_readiness_field": "swarm_runtime_ready",
+      "hidden_dependency": "Swarm API readiness checks local registry, admin token, rate limiter, orchestrator import, task model, and vision engine import. It does not prove a live distributed swarm is healthy.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:164",
+        "src/api/maas/endpoints/swarm.py:112",
+        "src/api/maas/endpoints/swarm.py:723"
+      ]
+    },
+    {
+      "id": "ledger-api",
+      "module": "src.api.maas.endpoints.ledger",
+      "label": "ledger",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/ledger",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/ledger/status",
+      "runtime_readiness_field": "ledger_runtime_ready",
+      "hidden_dependency": "Ledger readiness checks local RAG surfaces, continuity file handle, verification evidence indexing methods, and EventBus trace indexing dependencies. It does not prove indexed data freshness or production readiness.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:165",
+        "src/api/maas/endpoints/ledger.py:548",
+        "src/api/maas/endpoints/ledger.py:822"
+      ]
+    },
+    {
+      "id": "swarm-orchestration",
+      "module": "src.api.maas.endpoints.swarm_orchestration",
+      "label": "swarm-orchestration",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/swarm",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/swarm/readiness",
+      "runtime_readiness_field": "swarm_orchestration_ready",
+      "hidden_dependency": "Swarm orchestration readiness checks component imports, runtime state, task scheduler, and agent availability without proving production orchestration outcomes.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:166",
+        "src/api/maas/endpoints/swarm_orchestration.py:79",
+        "src/api/maas/endpoints/swarm_orchestration.py:171"
+      ]
+    },
+    {
+      "id": "vision-analytics",
+      "module": "src.api.maas.endpoints.vision",
+      "label": "vision-analytics",
+      "registration_source": "combined_router",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/vision",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/vision/readiness",
+      "runtime_readiness_field": "vision_runtime_ready",
+      "hidden_dependency": "Vision readiness checks local image/processor/topology/correction/upload surfaces only and does not prove production vision accuracy.",
+      "source_refs": [
+        "src/api/maas/endpoints/combined.py:167",
+        "src/api/maas/endpoints/vision.py:74",
+        "src/api/maas/endpoints/vision.py:146"
       ]
     },
     {
       "id": "service-identity-status",
-      "module": "src.api.service_identity_status",
+      "module": "src.api.maas.endpoints.service_identity_status",
       "label": "service-identity-status",
+      "registration_source": "combined_router",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/service-identity",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v1/service-identity/status",
       "runtime_readiness_field": "service_identity_runtime_ready",
-      "hidden_dependency": "Always-registered route-import-only status API with no production_lifespan hook. Status, event-trace-filter, and event-traces routes depend on service_identity_registry_status, service_event_trace_filter, service_event_trace_history, EventBus, EventType, the static service identity registry payload shape, and recursive identity redaction. Readiness reports those local surfaces but does not prove live SPIFFE, DID, wallet, or EventBus producer identities exist.",
+      "hidden_dependency": "Service identity readiness checks registry and redacted EventBus trace surfaces. It does not prove live SPIFFE, DID, wallet, or chain trust finality.",
       "source_refs": [
-        "src/core/app.py:250",
-        "src/api/service_identity_status.py:19",
-        "src/api/service_identity_status.py:31",
-        "src/api/service_identity_status.py:88"
+        "src/api/maas/endpoints/combined.py:168",
+        "src/api/maas/endpoints/service_identity_status.py:103",
+        "src/api/maas/endpoints/service_identity_status.py:167"
       ]
     },
     {
-      "id": "maas-nodes",
-      "module": "src.api.maas_nodes",
-      "label": "nodes",
-      "registration_mode": "full_mode_only",
-      "route_present_in_light_mode": false,
-      "router_prefix": "/api/v1/maas",
+      "id": "billing-api",
+      "module": "src.api.billing",
+      "label": "billing-v1",
+      "registration_source": "direct_app_include",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/billing",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/maas/nodes/readiness",
-      "runtime_readiness_field": "node_runtime_ready",
-      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. Legacy maas routes are registered earlier and shadow POST /{mesh_id}/nodes/register, GET /{mesh_id}/nodes/pending, POST /{mesh_id}/nodes/{node_id}/approve, and POST /{mesh_id}/nodes/{node_id}/revoke. The DB-backed maas_nodes runtime still owns heartbeat, telemetry readback, ACL check, node-config, nodes/all, delete, and heal routes, which depend on SQLAlchemy MeshNode/MeshInstance/ACLPolicy/marketplace state, RBAC, signed join tokens, audit logging, optional maas_telemetry bridges, and optional healing service availability. The heal route now forwards request-scoped EventBus context to MeshNetworkManager and returns bounded control_plane_evidence IDs for verification/healing events rather than raw verification payloads.",
+      "readiness_signal": "/api/v1/billing/readiness",
+      "runtime_readiness_field": "billing_api_runtime_ready",
+      "hidden_dependency": "Commercial billing readiness checks Stripe checkout/webhook config, billing models, DB write methods, transport wrappers, VLESS link generation, and provisioning imports without proving live Stripe settlement.",
       "source_refs": [
-        "src/core/app.py:253",
-        "src/api/maas_nodes.py:50",
-        "src/api/maas_nodes.py:467",
-        "src/api/maas_nodes.py:576",
-        "src/api/maas_nodes.py:1331",
-        "src/api/maas_nodes.py:1375",
-        "src/api/maas_nodes.py:1399"
-      ]
-    },
-    {
-      "id": "maas-policies",
-      "module": "src.api.maas_policies",
-      "label": "policies",
-      "registration_mode": "full_mode_only",
-      "route_present_in_light_mode": false,
-      "router_prefix": "/api/v1/maas",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/maas/policies/readiness",
-      "runtime_readiness_field": "policy_runtime_ready",
-      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. Legacy maas routes are registered earlier and shadow GET/POST /{mesh_id}/policies with in-memory policy handlers, while maas_policies keeps the DB-backed ACLPolicy DELETE path. The DB-backed list/create/delete functions now emit redacted EventBus evidence with hashed actor/mesh/policy/tag context, bounded action/count metadata, route-shadowing status, HTTP status, and duration without copying raw emails, user IDs, mesh IDs, policy IDs, source/target tags, API keys, or session tokens. Readiness exposes the DB-backed ACL policy model, RBAC dependency, and this route-precedence boundary separately from data-plane policy enforcement.",
-      "source_refs": [
-        "src/core/app.py:254",
-        "src/api/maas_policies.py:20",
-        "src/api/maas_policies.py:28",
-        "src/api/maas_policies.py:52",
-        "src/api/maas_policies.py:82",
-        "src/api/maas_policies.py:188",
-        "src/api/maas_policies.py:213",
-        "src/api/maas_policies.py:244",
-        "src/api/maas_policies.py:255",
-        "src/api/maas_policies.py:267",
-        "src/api/maas_policies.py:283",
-        "src/api/maas_policies.py:324",
-        "src/api/maas_policies.py:344",
-        "src/api/maas_policies.py:356",
-        "src/api/maas_policies.py:399"
-      ]
-    },
-    {
-      "id": "maas-telemetry",
-      "module": "src.api.maas_telemetry",
-      "label": "telemetry",
-      "registration_mode": "full_mode_only",
-      "route_present_in_light_mode": false,
-      "router_prefix": "/api/v1/maas",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/maas/telemetry/readiness",
-      "runtime_readiness_field": "telemetry_runtime_ready",
-      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. Legacy maas routes are registered earlier and shadow POST /heartbeat and GET /{mesh_id}/topology route precedence must remain explicit: legacy heartbeat now emits redacted accept/deny EventBus evidence for known-node and owner/admin checks, while maas_telemetry verifies mesh ownership before topology snapshot reads. MaaS telemetry helpers still back maas_nodes telemetry export/readback and marketplace settlement uptime checks. Readiness exposes DB MeshNode update readiness, Redis persistent telemetry and uptime state, bounded in-memory fallback, ReputationScoringSystem, heartbeat metrics export, auth dependency, and the route-precedence boundary. Topology responses now expose source-quality control_policy_evidence for cached Redis/local telemetry and explicitly mark dataplane_confirmed=false.",
-      "source_refs": [
-        "src/core/app.py:255",
-        "src/api/maas_telemetry.py:30",
-        "src/api/maas_telemetry.py:35",
-        "src/api/maas_telemetry.py:273",
-        "src/api/maas_telemetry.py:321",
-        "src/api/maas_telemetry.py:354",
-        "src/api/maas_telemetry.py:462",
-        "src/api/maas_telemetry.py:527",
-        "src/api/maas_telemetry.py:880",
-        "src/api/maas_telemetry.py:962",
-        "src/api/maas_telemetry.py:1010",
-        "src/api/maas_telemetry.py:1074"
-      ]
-    },
-    {
-      "id": "vpn",
-      "module": "src.api.vpn",
-      "label": "vpn",
-      "registration_mode": "full_mode_only",
-      "route_present_in_light_mode": false,
-      "router_prefix": "/vpn",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/vpn/readiness",
-      "runtime_readiness_field": "vpn_runtime_ready",
-      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /vpn fixed prefix is not shadowed by legacy MaaS catch-all routes, but config/status/admin/ZKP flows depend on local User database state, VLESS/Xray config generators, lazy XUIAPIClient access, shared cache, MaaS permission checks, legacy X-Admin-Token compatibility, legacy ZKP subscription database helpers, NIZKPAttestor, and production-only VPN_SERVER/VPN_PORT/VPN_SESSION_TOKEN/VPN_REALITY_PUBLIC_KEY configuration.",
-      "source_refs": [
-        "src/core/app.py:256",
-        "src/api/vpn.py:46",
-        "src/api/vpn.py:119",
-        "src/api/vpn.py:239"
-      ]
-    },
-    {
-      "id": "users",
-      "module": "src.api.users",
-      "label": "users",
-      "registration_mode": "full_mode_only",
-      "route_present_in_light_mode": false,
-      "router_prefix": "/api/v1/users",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/users/readiness",
-      "runtime_readiness_field": "users_runtime_ready",
-      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /api/v1/users fixed prefix is outside legacy MaaS catch-all matching, but registration/login/profile/logout/stats/listing flows depend on SQLAlchemy User and Session models, a DB session, bcrypt hashing/checking, secrets and hmac token helpers, slowapi rate-limit decorators, request.state user identity propagation, and ADMIN_TOKEN for admin stats/list endpoints. The users_db dictionary is test-only and is intentionally excluded from runtime readiness.",
-      "source_refs": [
-        "src/core/app.py:257",
-        "src/api/users.py:23",
-        "src/api/users.py:282",
-        "src/api/users.py:381"
-      ]
-    },
-    {
-      "id": "swarm-api",
-      "module": "src.api.swarm",
-      "label": "swarm",
-      "registration_mode": "full_mode_only",
-      "route_present_in_light_mode": false,
-      "router_prefix": "/api/v3/swarm",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v3/swarm/health",
-      "runtime_readiness_field": "swarm_runtime_ready",
-      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /api/v3/swarm fixed prefix is outside legacy MaaS catch-all matching, but create/submit/control/scale/terminate/vision flows depend on the in-memory _swarms registry, _swarm_lock, ADMIN_TOKEN, slowapi rate limits, lazy SwarmConfig/SwarmOrchestrator imports, lazy src.swarm.Task import, and lazy get_vision_engine import with its local image-processing stack. Health readiness reports registry counts but does not create or validate live swarms.",
-      "source_refs": [
-        "src/core/app.py:258",
-        "src/api/swarm.py:37",
-        "src/api/swarm.py:111",
-        "src/api/swarm.py:719"
-      ]
-    },
-    {
-      "id": "ledger-api",
-      "module": "src.api.ledger_endpoints",
-      "label": "ledger",
-      "registration_mode": "full_mode_only",
-      "route_present_in_light_mode": false,
-      "router_prefix": "/api/v1/ledger",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/ledger/status",
-      "runtime_readiness_field": "ledger_runtime_ready",
-      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /api/v1/ledger fixed prefix is outside legacy MaaS catch-all matching, but search/index/status/evidence/event-trace flows depend on get_ledger_rag, the CONTINUITY ledger file handle and exists() check, RAG search/index/query methods, verification evidence indexing/status methods, EventBus trace indexing/status methods, EventBus/EventType, and service_event_trace_history. Status readiness reports those local surfaces but does not run indexing or prove vector data is fresh.",
-      "source_refs": [
-        "src/core/app.py:259",
-        "src/api/ledger_endpoints.py:22",
-        "src/api/ledger_endpoints.py:178",
-        "src/api/ledger_endpoints.py:384"
-      ]
-    },
-    {
-      "id": "swarm-orchestration",
-      "module": "src.api.swarm_endpoints",
-      "label": "swarm-orchestration",
-      "registration_mode": "full_mode_only",
-      "route_present_in_light_mode": false,
-      "router_prefix": "/api/v1/swarm",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/swarm/readiness",
-      "runtime_readiness_field": "swarm_orchestration_ready",
-      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /api/v1/swarm fixed prefix is outside legacy MaaS catch-all matching, but status/task flows depend on import-time SwarmOrchestrator construction, the global _orchestrator, get_status and execute_task methods, in-memory status/agents/tasks/metrics state, asyncio.create_task scheduling inside the request loop, and at least one live agent. The readiness surface exposes that accepting /task is not the same as having an initialized agent able to finish it.",
-      "source_refs": [
-        "src/core/app.py:260",
-        "src/api/swarm_endpoints.py:17",
-        "src/api/swarm_endpoints.py:78",
-        "src/api/swarm_endpoints.py:167"
-      ]
-    },
-    {
-      "id": "vision-analytics",
-      "module": "src.api.vision_endpoints",
-      "label": "vision-analytics",
-      "registration_mode": "full_mode_only",
-      "route_present_in_light_mode": false,
-      "router_prefix": "/api/v1/vision",
-      "lifecycle_binding": "route_import_only",
-      "readiness_signal": "/api/v1/vision/readiness",
-      "runtime_readiness_field": "vision_runtime_ready",
-      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /api/v1/vision fixed prefix is outside legacy MaaS catch-all matching, but topology/debug upload flows depend on import-time VisionProcessor, MeshTopologyAnalyzer, and SelfCorrectionEngine construction, local Pillow-backed image parsing, processor process_image/extract_text methods, topology analyze_bytes/analyze/clear_cache methods, correction debug_bytes/debug_visually methods, FastAPI file upload parsing, and app-level rate-limit overrides for CPU-heavy vision endpoints. Readiness reports those local surfaces but does not process an image, prove OCR is installed, or prove an external vision provider is configured.",
-      "source_refs": [
-        "src/core/app.py:261",
-        "src/api/vision_endpoints.py:16",
-        "src/api/vision_endpoints.py:73",
-        "src/api/vision_endpoints.py:142"
+        "src/core/app.py:92",
+        "src/api/billing.py:779",
+        "src/api/billing.py:879"
       ]
     },
     {
       "id": "maas-dashboard",
       "module": "src.api.maas_dashboard",
       "label": "dashboard",
+      "registration_source": "direct_app_include",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/dashboard",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v1/maas/dashboard/readiness",
       "runtime_readiness_field": "dashboard_runtime_ready",
-      "hidden_dependency": "MaaS dashboard routes are registered in light mode and do not have a production_lifespan startup hook, but summary, analytics, and node views require SQLAlchemy dashboard models, a DB query session, require_permission RBAC dependencies, MaaSAnalyticsService.get_mesh_timeseries, and lazy resilience imports for db_circuit_breaker, get_cache, and CircuitState. Summary, analytics, and node views now emit redacted read-only EventBus evidence for local DB/analytics/resilience reads, hashed actor/mesh context, bounded mesh/node/audit/invoice/security/health/device counts, HTTP status, and duration without copying raw emails, mesh IDs, mesh names, node IDs, hardware IDs, invoice IDs, audit details, API keys, or session tokens. The dashboard analytics route uses MaaSAnalyticsService instead of local random data. The readiness endpoint exposes those local dependency surfaces without querying dashboard data or calling Redis.",
+      "hidden_dependency": "Dashboard readiness checks local dashboard/API helper surfaces and static payload dependencies without proving live node health.",
       "source_refs": [
-        "src/core/app.py:263",
-        "src/api/maas_dashboard.py:24",
-        "src/api/maas_dashboard.py:30",
-        "src/api/maas_dashboard.py:32",
-        "src/api/maas_dashboard.py:34",
-        "src/api/maas_dashboard.py:91",
-        "src/api/maas_dashboard.py:159",
-        "src/api/maas_dashboard.py:215",
-        "src/api/maas_dashboard.py:362",
-        "src/api/maas_dashboard.py:381",
-        "src/api/maas_dashboard.py:385",
-        "src/api/maas_dashboard.py:418",
-        "src/api/maas_dashboard.py:446",
-        "src/api/maas_dashboard.py:462",
-        "src/api/maas_dashboard.py:491",
-        "src/api/maas_dashboard.py:510",
-        "src/api/maas_dashboard.py:646",
-        "src/api/maas_dashboard.py:668",
-        "src/api/maas_dashboard.py:676",
-        "src/api/maas_dashboard.py:705",
-        "src/api/maas_dashboard.py:720",
-        "src/api/maas_dashboard.py:733",
-        "src/api/maas_dashboard.py:765"
+        "src/core/app.py:93",
+        "src/api/maas_dashboard.py:388",
+        "src/api/maas_dashboard.py:466"
       ]
     },
     {
       "id": "edge-computing",
       "module": "src.edge.api",
       "label": "edge-computing",
+      "registration_source": "direct_app_include",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
       "router_prefix": "/edge",
-      "lifecycle_binding": "production_lifespan_hook",
+      "lifecycle_binding": "production_lifespan_hook_defined_not_app_bound",
+      "readiness_signal": "/edge/health",
+      "runtime_readiness_field": "startup_hook_completed",
       "startup_hook": "edge_startup",
       "shutdown_hook": "edge_shutdown",
       "hook_available_only_when_lifespan_runs": true,
-      "readiness_signal": "/edge/health",
-      "runtime_readiness_field": "startup_hook_completed",
-      "lazy_runtime_getters": [
-        "get_node_manager",
-        "get_task_distributor",
-        "get_edge_cache"
-      ],
-      "runtime_globals": [
-        "_node_manager",
-        "_task_distributor",
-        "_edge_cache",
-        "_startup_hook_completed"
-      ],
-      "hidden_dependency": "Route is present in light mode, but edge_startup is called only by production_lifespan in non-light mode. Endpoints can lazily create globals, so route reachability is not the same as startup completion. The /edge/health payload now exposes startup_hook_completed for this distinction.",
+      "hidden_dependency": "Edge routes are directly registered, and edge_startup/edge_shutdown exist in production_lifespan.py. Current src/core/app.py does not bind production_lifespan as FastAPI lifespan, so app import alone does not prove startup hooks ran.",
       "source_refs": [
-        "src/core/app.py:264",
-        "src/edge/api.py:186",
-        "src/edge/api.py:188",
-        "src/edge/api.py:192",
-        "src/edge/api.py:220",
-        "src/edge/api.py:228",
-        "src/edge/api.py:240",
-        "src/edge/api.py:813",
-        "src/edge/api.py:856",
+        "src/core/app.py:94",
+        "src/edge/api.py:814",
         "src/edge/api.py:886",
         "src/edge/api.py:908",
-        "src/core/production_lifespan.py:21",
-        "src/core/production_lifespan.py:170",
+        "src/core/production_lifespan.py:209",
         "src/core/production_lifespan.py:218"
       ]
     },
@@ -649,46 +562,52 @@
       "id": "event-sourcing",
       "module": "src.event_sourcing.api",
       "label": "event-sourcing",
+      "registration_source": "direct_app_include",
       "registration_mode": "always",
       "route_present_in_light_mode": true,
       "router_prefix": "/events",
-      "lifecycle_binding": "production_lifespan_hook",
+      "lifecycle_binding": "production_lifespan_hook_defined_not_app_bound",
+      "readiness_signal": "/events/health",
+      "runtime_readiness_field": "startup_hook_completed",
       "startup_hook": "event_sourcing_startup",
       "shutdown_hook": "event_sourcing_shutdown",
       "hook_available_only_when_lifespan_runs": true,
-      "readiness_signal": "/events/health",
-      "runtime_readiness_field": "startup_hook_completed",
-      "lazy_runtime_getters": [
-        "get_event_store",
-        "get_command_bus",
-        "get_query_bus",
-        "get_projection_manager"
-      ],
-      "runtime_globals": [
-        "_event_store",
-        "_command_bus",
-        "_query_bus",
-        "_projection_manager",
-        "_startup_hook_completed"
-      ],
-      "hidden_dependency": "Route is present in light mode, but event_sourcing_startup is called only by production_lifespan in non-light mode. Getters can lazily create globals, so a healthy route can mask that the startup hook never ran. The /events/health payload now exposes startup_hook_completed for this distinction.",
+      "hidden_dependency": "Event-sourcing routes are directly registered, and event_sourcing_startup/event_sourcing_shutdown exist in production_lifespan.py. Current src/core/app.py does not bind production_lifespan as FastAPI lifespan, so app import alone does not prove startup hooks ran.",
       "source_refs": [
-        "src/core/app.py:265",
-        "src/event_sourcing/api.py:181",
-        "src/event_sourcing/api.py:183",
-        "src/event_sourcing/api.py:188",
+        "src/core/app.py:95",
         "src/event_sourcing/api.py:214",
-        "src/event_sourcing/api.py:226",
-        "src/event_sourcing/api.py:319",
-        "src/event_sourcing/api.py:327",
-        "src/event_sourcing/api.py:335",
-        "src/event_sourcing/api.py:343",
-        "src/event_sourcing/api.py:1083",
-        "src/event_sourcing/api.py:1098",
-        "src/core/production_lifespan.py:29",
-        "src/core/production_lifespan.py:179",
-        "src/core/production_lifespan.py:209"
+        "src/event_sourcing/api.py:1091",
+        "src/event_sourcing/api.py:1106",
+        "src/core/production_lifespan.py:161",
+        "src/core/production_lifespan.py:202"
       ]
     }
+  ],
+  "non_obvious_links": [
+    {
+      "id": "combined-router-is-the-current-maas-entrypoint",
+      "description": "Most MaaS routers are now registered through src.api.maas.endpoints.combined.get_combined_router(), not individual _include_maas_router calls in src/core/app.py."
+    },
+    {
+      "id": "maas-light-mode-no-longer-removes-combined-routers",
+      "description": "MAAS_LIGHT_MODE now affects the application version label but current src/core/app.py still includes the combined router and direct legacy/v1 routers."
+    },
+    {
+      "id": "production-lifespan-is-defined-but-not-app-bound",
+      "description": "production_lifespan.py still defines startup/shutdown orchestration, but src/core/app.py does not pass it into FastAPI, so startup_hook_completed fields are not proven by app import."
+    },
+    {
+      "id": "explicit-readiness-is-not-universal",
+      "description": "Several combined-router modules have bounded endpoint evidence but no dedicated readiness route. Their route registration must not be promoted to runtime readiness."
+    },
+    {
+      "id": "real-go-agent-smoke-covers-node-runtime-access-not-production-lifecycle",
+      "description": "The real Go-agent smoke proves local temporary MaaS node-config/heartbeat/heal access paths, but it does not prove production lifecycle readiness or customer traffic delivery."
+    }
+  ],
+  "drift_checks": [
+    "tests/unit/test_lifecycle_readiness_map_unit.py",
+    "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py",
+    "scripts/ops/check_real_readiness.py"
   ]
 }

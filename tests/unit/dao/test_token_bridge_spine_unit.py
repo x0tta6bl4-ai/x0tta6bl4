@@ -97,6 +97,10 @@ def _chain_event(args, *, block=123, tx_hash="0xchain123"):
     return event
 
 
+def _metadata_dict(result):
+    return result.evidence_metadata.to_dict()
+
+
 @pytest.mark.asyncio
 async def test_token_bridge_reward_write_publishes_identity_policy_actuator_and_reward_events(tmp_path):
     bridge = _bridge(
@@ -286,6 +290,78 @@ async def test_token_bridge_simulated_actuator_blocks_reward_submission(tmp_path
     )
     assert reward_blocked[-1].data["simulated"] is True
     assert reward_blocked[-1].data["settlement_recorded"] is False
+
+
+@pytest.mark.asyncio
+async def test_token_bridge_unsupported_chain_write_result_carries_evidence_metadata(tmp_path):
+    bridge = _bridge(tmp_path)
+
+    result = await bridge._execute_chain_write_through_actuator(
+        "unknown_token_bridge_operation",
+        {"node_id": "secret-node"},
+    )
+
+    assert result.success is False
+    metadata = _metadata_dict(result)
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert metadata["redacted"] is True
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.token_bridge.safe_actuator_claim_gate.v1"
+    assert claim_gate["operation"] == "unknown_token_bridge_operation"
+    assert claim_gate["local_chain_write_attempt_succeeded"] is False
+    assert claim_gate["pending_chain_submission_claim_allowed"] is False
+    assert claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert claim_gate["dataplane_delivery_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
+    assert metadata["cross_plane_claim_gate"]["allowed"] is False
+    assert metadata["evidence"]["operation"] == "unknown_token_bridge_operation"
+    assert metadata["evidence"]["context_keys"] == ["node_id"]
+    assert metadata["evidence"]["raw_context_values_redacted"] is True
+    assert metadata["evidence"]["raw_result_values_redacted"] is True
+
+
+def test_token_bridge_rewards_web3_failure_result_carries_evidence_metadata(tmp_path):
+    bridge = _bridge(tmp_path)
+    bridge._init_web3 = MagicMock(return_value=False)
+
+    result = bridge._submit_rewards_transaction(
+        "push_rewards_to_chain",
+        {"rewards": {"secret-node": 10.0}, "uptimes": {"secret-node": 95}},
+    )
+
+    assert result.success is False
+    metadata = _metadata_dict(result)
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["operation"] == "push_rewards_to_chain"
+    assert claim_gate["local_chain_write_attempt_succeeded"] is False
+    assert claim_gate["pending_chain_submission_claim_allowed"] is False
+    assert claim_gate["customer_traffic_claim_allowed"] is False
+    assert metadata["evidence"]["submitted_transaction"] is False
+    assert metadata["evidence"]["transaction_hash_present"] is False
+    assert metadata["evidence"]["context_keys"] == ["rewards", "uptimes"]
+    assert "secret-node" not in str(metadata["evidence"])
+
+
+def test_token_bridge_rewards_success_result_carries_submission_evidence_metadata(tmp_path):
+    bridge = _bridge(tmp_path)
+    _configure_reward_success(bridge)
+
+    result = bridge._submit_rewards_transaction(
+        "push_rewards_to_chain",
+        {"rewards": {"node1": 10.0}, "uptimes": {"node1": 95}},
+    )
+
+    assert result.success is True
+    metadata = _metadata_dict(result)
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["operation"] == "push_rewards_to_chain"
+    assert claim_gate["local_chain_write_attempt_succeeded"] is True
+    assert claim_gate["pending_chain_submission_claim_allowed"] is True
+    assert claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert claim_gate["dataplane_delivery_claim_allowed"] is False
+    assert metadata["evidence"]["submitted_transaction"] is True
+    assert metadata["evidence"]["transaction_hash_present"] is True
+    assert metadata["evidence"]["transaction_hash_hash"]
 
 
 @pytest.mark.asyncio
