@@ -1142,6 +1142,12 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert graph["dataplane_delivery"]["artifact_dependencies"][0]["path"] == (
         ".agent_coordination/events.log"
     )
+    assert graph["traffic_delivery"]["artifact_dependencies"][0]["artifact_id"] == (
+        "traffic_delivery"
+    )
+    assert graph["traffic_delivery"]["artifact_dependencies"][0]["path"] == (
+        ".agent_coordination/events.log"
+    )
     assert graph["local_observed_state"]["artifact_dependencies"][0]["path"] == (
         ".agent_coordination/events.log"
     )
@@ -1169,6 +1175,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     ] == [
         "collect_local_yggdrasil_observed_state_eventbus_evidence",
         "collect_verified_dataplane_delivery_eventbus_evidence",
+        "collect_verified_traffic_delivery_eventbus_evidence",
         "collect_mesh_recovery_lifecycle_eventbus_evidence",
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
@@ -1202,6 +1209,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert [action["action_id"] for action in report["next_actions"]] == [
         "collect_local_yggdrasil_observed_state_eventbus_evidence",
         "collect_verified_dataplane_delivery_eventbus_evidence",
+        "collect_verified_traffic_delivery_eventbus_evidence",
         "collect_mesh_recovery_lifecycle_eventbus_evidence",
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
@@ -1232,7 +1240,6 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "production_readiness",
         "local_restored_dataplane",
         "dataplane_delivery",
-        "traffic_delivery",
     ]
     assert "dataplane_delivery_eventbus_artifact_not_verified" in dataplane_action[
         "reason_blockers"
@@ -1249,7 +1256,25 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "--write-event",
         "--json",
     ]
-    recovery_action = report["next_actions"][2]
+    traffic_action = report["next_actions"][2]
+    assert traffic_action["claim_ids"] == ["traffic_delivery"]
+    assert traffic_action["automation_status"] == "manual_or_scenario_probe_required"
+    assert traffic_action["suggested_commands"][0] == [
+        "python3",
+        "scripts/ops/collect_traffic_delivery_eventbus_evidence.py",
+        "--proof-json",
+        "docs/verification/incoming/traffic_delivery.json",
+        "--allow-redacted-local-proof-intake",
+        "--write-event",
+        "--json",
+    ]
+    assert "docs/verification/incoming/traffic_delivery.json" in traffic_action[
+        "artifact_paths"
+    ]
+    assert "Do not reuse the local restored-dataplane collector" in traffic_action[
+        "implementation_gap"
+    ]
+    recovery_action = report["next_actions"][3]
     assert recovery_action["automation_status"] == (
         "local_command_available_for_safe_simulation"
     )
@@ -1263,7 +1288,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "does not mutate live mesh state" in recovery_action[
         "implementation_gap"
     ]
-    customer_action = report["next_actions"][3]
+    customer_action = report["next_actions"][4]
     assert customer_action["automation_status"] == (
         "local_command_available_for_redacted_proof_intake"
     )
@@ -1282,7 +1307,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "does not run probes" in customer_action[
         "implementation_gap"
     ]
-    trust_action = report["next_actions"][4]
+    trust_action = report["next_actions"][5]
     assert trust_action["automation_status"] == (
         "local_command_available_for_redacted_proof_intake"
     )
@@ -1298,7 +1323,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "docs/verification/incoming/trust_finality.json" in trust_action[
         "artifact_paths"
     ]
-    identity_action = report["next_actions"][5]
+    identity_action = report["next_actions"][6]
     assert identity_action["automation_status"] == "local_command_available"
     assert identity_action["suggested_commands"][0] == [
         "python3",
@@ -1306,7 +1331,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "--write-event",
         "--json",
     ]
-    measured_attestation_action = report["next_actions"][6]
+    measured_attestation_action = report["next_actions"][7]
     assert measured_attestation_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
@@ -1318,7 +1343,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         measured_attestation_action["artifact_paths"]
     )
     assert "out of chat" in measured_attestation_action["implementation_gap"]
-    dpi_action = report["next_actions"][7]
+    dpi_action = report["next_actions"][8]
     assert dpi_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
@@ -1341,7 +1366,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         dpi_action["artifact_paths"]
     )
     assert "authorized external lab/field run" in dpi_action["implementation_gap"]
-    settlement_action = report["next_actions"][8]
+    settlement_action = report["next_actions"][9]
     assert settlement_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
@@ -2061,19 +2086,20 @@ def test_gate_routes_to_map_reconciliation_after_verified_dataplane_artifact(
     assert report["allowed"] is False
     [dataplane, traffic] = report["claim_results"]
     assert dataplane["required_artifact_evidence"]["valid"] is True
-    assert traffic["required_artifact_evidence"]["valid"] is True
+    assert traffic["required_artifact_evidence"]["valid"] is False
     assert "dataplane_delivery_eventbus_artifact_not_verified" not in dataplane[
         "blockers"
     ]
-    assert "traffic_delivery_dataplane_artifact_not_verified" not in traffic[
+    assert "traffic_delivery_eventbus_artifact_not_verified" in traffic[
         "blockers"
     ]
     assert "evidence_map_dataplane_flags_not_reconciled" in dataplane[
         "blockers"
     ]
-    assert "traffic_delivery_not_proven_by_local_restored_dataplane_artifact" in traffic[
-        "blockers"
-    ]
+    traffic_artifact = traffic["required_artifact_evidence"]
+    assert "traffic_delivery_not_proven_by_local_restored_dataplane_artifact" in (
+        traffic_artifact["candidate_blockers"]
+    )
 
     assert [action["action_id"] for action in report["next_actions"]] == [
         "collect_verified_traffic_delivery_eventbus_evidence",
@@ -2116,9 +2142,12 @@ def test_gate_allows_local_restored_dataplane_without_promoting_delivery_claims(
         "dataplane-event-1"
     )
     assert "evidence_map_dataplane_flags_not_reconciled" in dataplane["blockers"]
-    assert "traffic_delivery_not_proven_by_local_restored_dataplane_artifact" in traffic[
+    assert "traffic_delivery_eventbus_artifact_not_verified" in traffic[
         "blockers"
     ]
+    assert "traffic_delivery_not_proven_by_local_restored_dataplane_artifact" in traffic[
+        "required_artifact_evidence"
+    ]["candidate_blockers"]
 
 
 def test_production_dependency_graph_uses_dataplane_artifact_for_local_restored_dataplane(
@@ -2157,7 +2186,7 @@ def test_gate_blocks_traffic_delivery_when_map_flags_are_true_but_artifact_is_mi
     [traffic] = report["claim_results"]
     assert traffic["allowed"] is False
     assert traffic["missing_any_flag_groups"] == []
-    assert "traffic_delivery_dataplane_artifact_not_verified" in traffic["blockers"]
+    assert "traffic_delivery_eventbus_artifact_not_verified" in traffic["blockers"]
     artifact = traffic["required_artifact_evidence"]
     assert artifact["valid"] is False
     assert "dataplane_event_log_missing" in artifact["blockers"]
@@ -2174,14 +2203,15 @@ def test_gate_blocks_traffic_delivery_when_artifact_is_local_restored_only(
     assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
     [traffic] = report["claim_results"]
     assert traffic["allowed"] is False
+    assert "traffic_delivery_eventbus_artifact_not_verified" in traffic["blockers"]
+    artifact = traffic["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert artifact["selected_event"] is None
+    assert "verified_traffic_delivery_event_not_found" in artifact["blockers"]
     assert (
         "traffic_delivery_not_proven_by_local_restored_dataplane_artifact"
-        in traffic["blockers"]
+        in artifact["candidate_blockers"]
     )
-    artifact = traffic["required_artifact_evidence"]
-    assert artifact["valid"] is True
-    assert artifact["selected_event"]["claim_scope"] == "local_restored_dataplane"
-    assert artifact["selected_event"]["traffic_delivery_claim_allowed"] is False
     assert report["next_actions"][0]["action_id"] == (
         "collect_verified_traffic_delivery_eventbus_evidence"
     )

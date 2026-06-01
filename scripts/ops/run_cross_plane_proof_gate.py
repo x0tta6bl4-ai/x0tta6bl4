@@ -80,6 +80,7 @@ DPI_IMPORT_REPORT_NAME = "import-report.json"
 DPI_IMPORT_REPORT_SCAN_LIMIT = 50
 DPI_INTAKE_FAILURES_LIMIT = 10
 DATAPLANE_DELIVERY_CLAIM_ID = "dataplane_delivery"
+TRAFFIC_DELIVERY_CLAIM_ID = "traffic_delivery"
 LOCAL_RESTORED_DATAPLANE_CLAIM_ID = "local_restored_dataplane"
 LOCAL_OBSERVED_STATE_CLAIM_ID = "local_observed_state"
 DPI_LAB_CLAIM_ID = "dpi_lab"
@@ -321,7 +322,7 @@ CLAIM_ARTIFACT_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "local_restored_dataplane": (DATAPLANE_DELIVERY_CLAIM_ID,),
     "local_observed_state": (LOCAL_OBSERVED_STATE_CLAIM_ID,),
     "dataplane_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
-    "traffic_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
+    "traffic_delivery": (TRAFFIC_DELIVERY_CLAIM_ID,),
     "customer_traffic": (CUSTOMER_TRAFFIC_CLAIM_ID,),
     "local_service_identity_status": (LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID,),
     "measured_attestation_verifier_smoke": (
@@ -479,6 +480,8 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
         "action_id": "collect_verified_traffic_delivery_eventbus_evidence",
         "title": "Collect bounded traffic-delivery EventBus evidence.",
         "match_tokens": (
+            "traffic_delivery_eventbus_artifact_not_verified",
+            "verified_traffic_delivery_event_not_found",
             "traffic_delivery_not_proven_by_local_restored_dataplane_artifact",
         ),
         "claim_boundary": (
@@ -1863,16 +1866,28 @@ def customer_traffic_artifact_evidence(root: Path) -> dict[str, Any]:
     return result
 
 
-def dataplane_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
+def dataplane_delivery_artifact_evidence(
+    root: Path,
+    *,
+    claim_id: str = DATAPLANE_DELIVERY_CLAIM_ID,
+    required_for_claim: str = "dataplane_delivery",
+    required_for_claims: Sequence[str] | None = None,
+    require_traffic_delivery: bool = False,
+) -> dict[str, Any]:
     path = resolve_path(root, EVENTBUS_LOG)
-    result: dict[str, Any] = {
-        "claim_id": DATAPLANE_DELIVERY_CLAIM_ID,
-        "required_for_claim": "dataplane_delivery",
-        "required_for_claims": [
+    required_claims = list(
+        required_for_claims
+        if required_for_claims is not None
+        else [
             "dataplane_delivery",
             "traffic_delivery",
             "production_readiness",
-        ],
+        ]
+    )
+    result: dict[str, Any] = {
+        "claim_id": claim_id,
+        "required_for_claim": required_for_claim,
+        "required_for_claims": required_claims,
         "valid": False,
         "event_log_path": EVENTBUS_LOG.as_posix(),
         "event_log_exists": path.is_file(),
@@ -1918,6 +1933,13 @@ def dataplane_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
                 data,
                 revalidation,
             )
+            if require_traffic_delivery and not traffic_delivery_allowed:
+                blocker = (
+                    "traffic_delivery_not_proven_by_local_restored_dataplane_artifact"
+                )
+                if blocker not in result["candidate_blockers"]:
+                    result["candidate_blockers"].append(blocker)
+                continue
             result["matching_events"] += 1
             result["selected_event"] = {
                 "event_id": str(event.get("event_id") or ""),
@@ -1957,7 +1979,29 @@ def dataplane_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
         if select_if_valid(event, "source_agent_prefiltered_reverse_scan"):
             return result
 
-    result["blockers"].append("verified_dataplane_delivery_event_not_found")
+    result["blockers"].append(
+        "verified_traffic_delivery_event_not_found"
+        if require_traffic_delivery
+        else "verified_dataplane_delivery_event_not_found"
+    )
+    return result
+
+
+def traffic_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
+    result = dataplane_delivery_artifact_evidence(
+        root,
+        claim_id=TRAFFIC_DELIVERY_CLAIM_ID,
+        required_for_claim="traffic_delivery",
+        required_for_claims=["traffic_delivery"],
+        require_traffic_delivery=True,
+    )
+    result["claim_boundary"] = (
+        "A retained EventBus traffic-delivery event can support a bounded "
+        "traffic-delivery claim only when a traffic-specific claim gate allows "
+        "traffic_delivery. Local restored-dataplane probes, customer traffic "
+        "events, peer visibility, trust finality, settlement events, and "
+        "production-readiness artifacts do not prove this claim by themselves."
+    )
     return result
 
 
@@ -3033,15 +3077,9 @@ def evaluate_claim(
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("local_restored_dataplane_eventbus_artifact_not_verified")
     elif claim_id == "traffic_delivery":
-        claim_artifact_evidence = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
+        claim_artifact_evidence = (artifact_evidence or {}).get(TRAFFIC_DELIVERY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
-            blockers.append("traffic_delivery_dataplane_artifact_not_verified")
-        elif not _dataplane_artifact_supports_traffic_delivery(
-            claim_artifact_evidence
-        ):
-            blockers.append(
-                "traffic_delivery_not_proven_by_local_restored_dataplane_artifact"
-            )
+            blockers.append("traffic_delivery_eventbus_artifact_not_verified")
         elif missing_true_flags or missing_any_groups or blocking_false_flags:
             blockers.append("evidence_map_traffic_delivery_flags_not_reconciled")
     elif claim_id == "trust_finality":
@@ -3425,11 +3463,12 @@ def build_report(
         for claim in (
             "dataplane_delivery",
             "local_restored_dataplane",
-            "traffic_delivery",
             "production_readiness",
         )
     ):
         artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_delivery_artifact_evidence(root)
+    if "traffic_delivery" in claims:
+        artifact_evidence[TRAFFIC_DELIVERY_CLAIM_ID] = traffic_delivery_artifact_evidence(root)
     if any(claim in claims for claim in ("mesh_recovery_lifecycle", "production_readiness")):
         artifact_evidence[MESH_RECOVERY_LIFECYCLE_CLAIM_ID] = mesh_recovery_lifecycle_artifact_evidence(root)
     if any(claim in claims for claim in ("trust_finality", "production_readiness")):
