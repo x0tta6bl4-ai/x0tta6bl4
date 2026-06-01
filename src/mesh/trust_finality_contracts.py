@@ -30,7 +30,13 @@ TRUST_FINALITY_REQUIRED_SOURCE_ARTIFACT_ROLES = (
 )
 
 
-class TrustFinalityObservedEvidence(BaseModel):
+class StrictTrustFinalityModel(BaseModel):
+    """Base trust-finality contract that rejects hidden overclaim fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TrustFinalityObservedEvidence(StrictTrustFinalityModel):
     """Redacted observed trust facts supplied by a local proof input."""
 
     live_spiffe_svid_confirmed: bool = False
@@ -50,7 +56,7 @@ class TrustFinalityObservedEvidence(BaseModel):
         )
 
 
-class TrustFinalitySourceArtifact(BaseModel):
+class TrustFinalitySourceArtifact(StrictTrustFinalityModel):
     """A redacted source artifact reference used to justify the trust claim."""
 
     role: str = Field(min_length=1)
@@ -58,10 +64,10 @@ class TrustFinalitySourceArtifact(BaseModel):
     redacted: bool = True
 
 
-class TrustFinalityLocalEvidenceInput(BaseModel):
+class TrustFinalityLocalEvidenceInput(StrictTrustFinalityModel):
     """Input JSON accepted by the local trust-finality collector."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     schema_: str = Field(default=TRUST_FINALITY_INPUT_SCHEMA, alias="schema")
     status: str
@@ -72,10 +78,10 @@ class TrustFinalityLocalEvidenceInput(BaseModel):
     claim_boundary: str = TRUST_FINALITY_CLAIM_BOUNDARY
 
 
-class TrustFinalityClaimGate(BaseModel):
+class TrustFinalityClaimGate(StrictTrustFinalityModel):
     """Gate that prevents identity evidence from becoming wider platform claims."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     schema_: Literal["x0tta6bl4.trust_finality.claim_gate.v1"] = Field(
         default=TRUST_FINALITY_CLAIM_GATE_SCHEMA,
