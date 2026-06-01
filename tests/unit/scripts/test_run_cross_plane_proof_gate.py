@@ -697,6 +697,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     expected_claims = (
         "production_readiness",
         "mesh_recovery_lifecycle",
+        "local_restored_dataplane",
         "dataplane_delivery",
         "traffic_delivery",
         "customer_traffic",
@@ -720,11 +721,12 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert report["blocked_claim_ids"] == list(expected_claims)
     assert set(report["claim_blockers"]) == set(expected_claims)
     assert report["summary"]["high_risk_claims_requested"] == (
-        len(expected_claims) - 1
+        len(expected_claims) - 2
     )
     assert report["plane_claims"] == {
         "data_plane": [
             "production_readiness",
+            "local_restored_dataplane",
             "dataplane_delivery",
             "traffic_delivery",
             "customer_traffic",
@@ -768,6 +770,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     ] == [
         "production_readiness",
         "mesh_recovery_lifecycle",
+        "local_restored_dataplane",
         "dataplane_delivery",
         "customer_traffic",
         "trust_finality",
@@ -778,6 +781,9 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         ".agent_coordination/events.log"
     )
     assert graph["mesh_recovery_lifecycle"]["artifact_dependencies"][0]["path"] == (
+        ".agent_coordination/events.log"
+    )
+    assert graph["local_restored_dataplane"]["artifact_dependencies"][0]["path"] == (
         ".agent_coordination/events.log"
     )
     assert graph["dpi_bypass"]["next_action_ids"] == [
@@ -836,6 +842,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     ]
     assert dataplane_action["claim_ids"] == [
         "production_readiness",
+        "local_restored_dataplane",
         "dataplane_delivery",
         "traffic_delivery",
     ]
@@ -1513,6 +1520,38 @@ def test_gate_routes_to_map_reconciliation_after_verified_dataplane_artifact(
     assert "CURRENT_CROSS_PLANE_EVIDENCE_MAP.json" in " ".join(
         action["artifact_paths"]
     )
+
+
+def test_gate_allows_local_restored_dataplane_without_promoting_delivery_claims(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path)
+    _write_valid_dataplane_delivery_event(tmp_path)
+
+    report = build_report(
+        tmp_path,
+        claims=(
+            "local_restored_dataplane",
+            "dataplane_delivery",
+            "traffic_delivery",
+        ),
+    )
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    assert report["allowed_claim_ids"] == ["local_restored_dataplane"]
+    assert report["blocked_claim_ids"] == ["dataplane_delivery", "traffic_delivery"]
+
+    [local, dataplane, traffic] = report["claim_results"]
+    assert local["allowed"] is True
+    assert local["blockers"] == []
+    assert local["required_artifact_evidence"]["valid"] is True
+    assert local["required_artifact_evidence"]["selected_event"]["event_id"] == (
+        "dataplane-event-1"
+    )
+    assert "evidence_map_dataplane_flags_not_reconciled" in dataplane["blockers"]
+    assert "evidence_map_traffic_delivery_flags_not_reconciled" in traffic[
+        "blockers"
+    ]
 
 
 def test_gate_blocks_traffic_delivery_when_map_flags_are_true_but_artifact_is_missing(

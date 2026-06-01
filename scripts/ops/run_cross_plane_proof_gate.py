@@ -71,6 +71,7 @@ DPI_IMPORT_REPORT_NAME = "import-report.json"
 DPI_IMPORT_REPORT_SCAN_LIMIT = 50
 DPI_INTAKE_FAILURES_LIMIT = 10
 DATAPLANE_DELIVERY_CLAIM_ID = "dataplane_delivery"
+LOCAL_RESTORED_DATAPLANE_CLAIM_ID = "local_restored_dataplane"
 DPI_LAB_CLAIM_ID = "dpi_lab"
 PRODUCTION_READINESS_CLAIM_ID = "production_readiness"
 EXTERNAL_SETTLEMENT_CLAIM_ID = "external_settlement"
@@ -143,6 +144,12 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
             "customer_dataplane_delivery_claim_allowed",
             "traffic_delivery_claim_allowed",
         ),
+    ),
+    "local_restored_dataplane": ClaimRequirement(
+        claim_id="local_restored_dataplane",
+        description="Bounded local restored-dataplane proof after a local probe.",
+        high_risk=False,
+        required_planes=("data_plane", "evidence_plane"),
     ),
     "traffic_delivery": ClaimRequirement(
         claim_id="traffic_delivery",
@@ -262,6 +269,7 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
 DEFAULT_CLAIMS = (
     "production_readiness",
     "mesh_recovery_lifecycle",
+    "local_restored_dataplane",
     "dataplane_delivery",
     "traffic_delivery",
     "customer_traffic",
@@ -274,12 +282,14 @@ CLAIM_ARTIFACT_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "production_readiness": (
         PRODUCTION_READINESS_CLAIM_ID,
         MESH_RECOVERY_LIFECYCLE_CLAIM_ID,
+        LOCAL_RESTORED_DATAPLANE_CLAIM_ID,
         DATAPLANE_DELIVERY_CLAIM_ID,
         CUSTOMER_TRAFFIC_CLAIM_ID,
         TRUST_FINALITY_CLAIM_ID,
         EXTERNAL_SETTLEMENT_CLAIM_ID,
         ECONOMY_BOUNDARY_CLAIM_ID,
     ),
+    "local_restored_dataplane": (DATAPLANE_DELIVERY_CLAIM_ID,),
     "dataplane_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
     "traffic_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
     "customer_traffic": (CUSTOMER_TRAFFIC_CLAIM_ID,),
@@ -323,6 +333,7 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
         "title": "Collect bounded redacted EventBus dataplane delivery evidence.",
         "match_tokens": (
             "dataplane_delivery_eventbus_artifact_not_verified",
+            "local_restored_dataplane_eventbus_artifact_not_verified",
             "production_readiness_dataplane_artifact_not_verified",
             "traffic_delivery_dataplane_artifact_not_verified",
         ),
@@ -2351,6 +2362,10 @@ def evaluate_claim(
             blockers.append("dataplane_delivery_eventbus_artifact_not_verified")
         elif missing_true_flags or missing_any_groups or blocking_false_flags:
             blockers.append("evidence_map_dataplane_flags_not_reconciled")
+    elif claim_id == "local_restored_dataplane":
+        claim_artifact_evidence = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
+        if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
+            blockers.append("local_restored_dataplane_eventbus_artifact_not_verified")
     elif claim_id == "traffic_delivery":
         claim_artifact_evidence = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
@@ -2665,7 +2680,15 @@ def build_report(
     context = map_context(root, resolved_map, resolved_audit, evidence_map)
     flag_index = collect_flag_index(evidence_map or {})
     artifact_evidence: dict[str, Mapping[str, Any]] = {}
-    if any(claim in claims for claim in ("dataplane_delivery", "traffic_delivery", "production_readiness")):
+    if any(
+        claim in claims
+        for claim in (
+            "dataplane_delivery",
+            "local_restored_dataplane",
+            "traffic_delivery",
+            "production_readiness",
+        )
+    ):
         artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_delivery_artifact_evidence(root)
     if any(claim in claims for claim in ("mesh_recovery_lifecycle", "production_readiness")):
         artifact_evidence[MESH_RECOVERY_LIFECYCLE_CLAIM_ID] = mesh_recovery_lifecycle_artifact_evidence(root)
