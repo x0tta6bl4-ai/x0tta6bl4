@@ -152,6 +152,14 @@ def test_cross_plane_claim_gate_metadata_surfaces_claim_blockers(
         ],
         "economy_plane": ["production_readiness"],
     }
+    assert metadata["allowed_plane_ids"] == []
+    assert metadata["blocked_plane_ids"] == [
+        "data_plane",
+        "control_plane",
+        "trust_plane",
+        "evidence_plane",
+        "economy_plane",
+    ]
     assert metadata["plane_blockers"] == {
         "data_plane": [
             "dpi_lab_imported_artifact_not_verified",
@@ -205,4 +213,6 @@ def test_cross_plane_claim_gate_unavailable_blocks_every_requested_claim(
         "settlement_finality": ["cross_plane_proof_gate_unavailable"],
     }
     assert metadata["plane_claims"] == {}
+    assert metadata["allowed_plane_ids"] == []
+    assert metadata["blocked_plane_ids"] == []
     assert metadata["plane_blockers"] == {}

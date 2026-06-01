@@ -53,16 +53,20 @@ def _claim_plane_summary(
     claim_results: Any,
     *,
     report_plane_claims: Any = None,
+    report_plane_blockers: Any = None,
+    report_allowed_plane_ids: Any = None,
+    report_blocked_plane_ids: Any = None,
 ) -> dict[str, Any]:
     plane_claims = _safe_plane_claims(report_plane_claims)
     has_report_plane_claims = bool(plane_claims)
+    plane_blockers = _safe_plane_claims(report_plane_blockers)
+    has_report_plane_blockers = bool(plane_blockers)
     claim_planes: dict[str, list[str]] = {}
 
     for plane, claim_ids in plane_claims.items():
         for claim_id in claim_ids:
             claim_planes.setdefault(claim_id, []).append(plane)
 
-    plane_blockers: dict[str, list[str]] = {}
     if isinstance(claim_results, list):
         for item in claim_results:
             if not isinstance(item, Mapping):
@@ -81,14 +85,29 @@ def _claim_plane_summary(
             if item.get("allowed") is True:
                 continue
             blockers = _safe_string_list(item.get("blockers"))
-            for plane in planes:
-                plane_blockers.setdefault(plane, []).extend(blockers)
+            if not has_report_plane_blockers:
+                for plane in planes:
+                    plane_blockers.setdefault(plane, []).extend(blockers)
+
+    blocked_plane_ids = _safe_string_list(report_blocked_plane_ids)
+    if not blocked_plane_ids:
+        blocked_plane_ids = [
+            plane for plane in plane_claims if plane in plane_blockers
+        ]
+    allowed_plane_ids = _safe_string_list(report_allowed_plane_ids)
+    if not allowed_plane_ids:
+        blocked_planes = set(blocked_plane_ids)
+        allowed_plane_ids = [
+            plane for plane in plane_claims if plane not in blocked_planes
+        ]
 
     return {
         "plane_claims": {
             plane: list(dict.fromkeys(claim_ids))
             for plane, claim_ids in plane_claims.items()
         },
+        "allowed_plane_ids": allowed_plane_ids,
+        "blocked_plane_ids": blocked_plane_ids,
         "plane_blockers": {
             plane: sorted(set(blockers))
             for plane, blockers in plane_blockers.items()
@@ -206,6 +225,9 @@ def cross_plane_claim_gate_metadata(
     plane_summary = _claim_plane_summary(
         claim_results,
         report_plane_claims=report.get("plane_claims"),
+        report_plane_blockers=report.get("plane_blockers"),
+        report_allowed_plane_ids=report.get("allowed_plane_ids"),
+        report_blocked_plane_ids=report.get("blocked_plane_ids"),
     )
 
     return {

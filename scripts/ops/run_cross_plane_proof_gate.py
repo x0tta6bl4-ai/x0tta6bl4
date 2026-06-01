@@ -1877,16 +1877,24 @@ def build_report(
     blockers: list[str] = []
     claim_blockers: dict[str, list[str]] = {}
     plane_claims: dict[str, list[str]] = {}
+    blocked_plane_ids: list[str] = []
+    plane_blockers: dict[str, list[str]] = {}
     for result in claim_results:
         claim_id = str(result.get("claim_id") or "")
         if not claim_id:
             continue
-        for plane in result.get("claim_planes", []):
-            plane_claims.setdefault(str(plane), []).append(claim_id)
+        claim_planes = [
+            str(plane)
+            for plane in result.get("claim_planes", [])
+            if str(plane)
+        ]
+        for plane in claim_planes:
+            plane_claims.setdefault(plane, []).append(claim_id)
         if result.get("allowed") is True:
             allowed_claim_ids.append(claim_id)
             continue
         blocked_claim_ids.append(claim_id)
+        blocked_plane_ids.extend(claim_planes)
         result_blockers = [
             str(blocker)
             for blocker in result.get("blockers", [])
@@ -1895,6 +1903,23 @@ def build_report(
         if result_blockers:
             claim_blockers[claim_id] = sorted(set(result_blockers))
             blockers.extend(result_blockers)
+            for plane in claim_planes:
+                plane_blockers.setdefault(plane, []).extend(result_blockers)
+    plane_claims = {
+        plane: list(dict.fromkeys(claim_ids))
+        for plane, claim_ids in plane_claims.items()
+    }
+    plane_blockers = {
+        plane: sorted(set(plane_blockers.get(plane, [])))
+        for plane in plane_claims
+        if plane in set(blocked_plane_ids) and plane_blockers.get(plane)
+    }
+    blocked_plane_ids = [
+        plane for plane in plane_claims if plane in set(blocked_plane_ids)
+    ]
+    allowed_plane_ids = [
+        plane for plane in plane_claims if plane not in set(blocked_plane_ids)
+    ]
     return {
         "schema": SCHEMA,
         "timestamp_utc": utc_now(),
@@ -1907,6 +1932,9 @@ def build_report(
         "blockers": sorted(set(blockers)),
         "claim_blockers": claim_blockers,
         "plane_claims": plane_claims,
+        "allowed_plane_ids": allowed_plane_ids,
+        "blocked_plane_ids": blocked_plane_ids,
+        "plane_blockers": plane_blockers,
         "summary": {
             "claims_total": len(claim_results),
             "claims_allowed": sum(1 for item in claim_results if item.get("allowed") is True),

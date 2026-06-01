@@ -667,6 +667,24 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "evidence_plane": list(expected_claims),
         "economy_plane": ["production_readiness", "settlement_finality"],
     }
+    assert report["allowed_plane_ids"] == []
+    assert report["blocked_plane_ids"] == [
+        "data_plane",
+        "control_plane",
+        "trust_plane",
+        "evidence_plane",
+        "economy_plane",
+    ]
+    assert set(report["plane_blockers"]) == set(report["blocked_plane_ids"])
+    assert "dataplane_delivery_eventbus_artifact_not_verified" in report[
+        "plane_blockers"
+    ]["data_plane"]
+    assert "trust_finality_eventbus_artifact_not_verified" in report[
+        "plane_blockers"
+    ]["trust_plane"]
+    assert "external_settlement_artifact_not_verified" in report[
+        "plane_blockers"
+    ]["economy_plane"]
     assert "production_readiness_imported_artifact_not_verified" in report["blockers"]
     assert "trust_finality_eventbus_artifact_not_verified" in report["blockers"]
     assert "customer_traffic_eventbus_artifact_not_verified" in report["blockers"]
