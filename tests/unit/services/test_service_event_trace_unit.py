@@ -1604,6 +1604,148 @@ def test_service_event_trace_filter_includes_self_healing_mapek():
     )
 
 
+def test_service_event_trace_summarizes_self_healing_safe_actuator_metadata(
+    tmp_path,
+):
+    bus = EventBus(project_root=str(tmp_path))
+    bus.publish(
+        EventType.PIPELINE_STAGE_END,
+        "self-healing-mapek",
+        {
+            "component": "self_healing.mape_k",
+            "operation": "execute",
+            "service_name": "self-healing-mapek",
+            "layer": "self_healing_mapek_control_spine",
+            "safe_actuator": True,
+            "success": True,
+            "safe_actuator_evidence_metadata": {
+                "schema": "x0tta6bl4.safe_actuator.evidence_metadata.v1",
+                "claim_gate": {
+                    "schema": (
+                        "x0tta6bl4.self_healing_mapek."
+                        "safe_actuator_claim_gate.v1"
+                    ),
+                    "surface": "self_healing.mapek.execute",
+                    "local_control_action_claim_allowed": True,
+                    "safe_actuator_result_successful": True,
+                    "safe_actuator_result_simulated": False,
+                    "dataplane_confirmed": True,
+                    "post_action_dataplane_revalidated": True,
+                    "restored_dataplane_claim_allowed": True,
+                    "traffic_delivery_claim_allowed": False,
+                    "customer_traffic_claim_allowed": False,
+                    "production_readiness_claim_allowed": False,
+                    "blockers": [],
+                    "claim_boundary": "bounded self-healing evidence only",
+                    "redacted": True,
+                },
+                "evidence": {
+                    "event_ids": ["evt-secret-self-heal"],
+                    "events_total": 1,
+                    "source_agents": ["recovery-action-executor"],
+                    "redacted": True,
+                },
+                "event_ids": ["evt-secret-self-heal"],
+                "source_agents": ["recovery-action-executor"],
+                "claim_boundary": "bounded self-healing evidence only",
+                "redacted": True,
+            },
+            "claim_boundary": "Self-healing local control evidence only.",
+        },
+    )
+
+    payload = service_event_trace_history(
+        bus,
+        service_name="self-healing-mapek",
+        limit=10,
+    )
+    summary = payload["events"][0]["evidence_summary"]
+    metadata = summary["safe_actuator_evidence_metadata"]
+    profile = summary["cross_plane_evidence_profile"]
+    summary_text = str(summary)
+
+    assert metadata["present"] is True
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert metadata["evidence"]["event_ids_count"] == 1
+    assert metadata["evidence"]["source_agents_count"] == 1
+    assert metadata["claim_gate"]["local_control_action_claim_allowed"] is True
+    assert metadata["claim_gate"]["restored_dataplane_claim_allowed"] is True
+    assert metadata["claim_gate"]["traffic_delivery_claim_allowed"] is False
+    assert metadata["claim_gate"]["customer_traffic_claim_allowed"] is False
+    assert metadata["claim_gate"]["production_readiness_claim_allowed"] is False
+    assert profile["dataplane_confirmed"] is True
+    assert profile["safe_actuator_evidence_gate_required"] is True
+    assert profile["safe_actuator_evidence_gate_allowed"] is True
+    assert profile["production_ready_candidate"] is False
+    assert "evt-secret-self-heal" not in summary_text
+
+
+def test_service_event_trace_blocks_self_healing_dataplane_without_safe_gate(
+    tmp_path,
+):
+    bus = EventBus(project_root=str(tmp_path))
+    bus.publish(
+        EventType.PIPELINE_STAGE_END,
+        "self-healing-mapek",
+        {
+            "component": "self_healing.mape_k",
+            "operation": "execute",
+            "service_name": "self-healing-mapek",
+            "layer": "self_healing_mapek_control_spine",
+            "safe_actuator": True,
+            "success": True,
+            "safe_actuator_evidence_metadata": {
+                "schema": "x0tta6bl4.safe_actuator.evidence_metadata.v1",
+                "claim_gate": {
+                    "schema": (
+                        "x0tta6bl4.self_healing_mapek."
+                        "safe_actuator_claim_gate.v1"
+                    ),
+                    "surface": "self_healing.mapek.execute",
+                    "local_control_action_claim_allowed": True,
+                    "dataplane_confirmed": True,
+                    "post_action_dataplane_revalidated": False,
+                    "restored_dataplane_claim_allowed": False,
+                    "traffic_delivery_claim_allowed": False,
+                    "customer_traffic_claim_allowed": False,
+                    "production_readiness_claim_allowed": False,
+                    "blockers": ["bounded_dataplane_probe_not_confirmed"],
+                    "claim_boundary": "bounded self-healing evidence only",
+                    "redacted": True,
+                },
+                "evidence": {
+                    "event_ids": ["evt-secret-self-heal"],
+                    "events_total": 1,
+                    "source_agents": ["recovery-action-executor"],
+                    "redacted": True,
+                },
+                "redacted": True,
+            },
+            "claim_boundary": "Self-healing local control evidence only.",
+        },
+    )
+
+    payload = service_event_trace_history(
+        bus,
+        service_name="self-healing-mapek",
+        limit=10,
+    )
+    profile = payload["events"][0]["evidence_summary"][
+        "cross_plane_evidence_profile"
+    ]
+
+    assert profile["raw_dataplane_confirmed"] is True
+    assert profile["dataplane_confirmed"] is False
+    assert profile["safe_actuator_evidence_gate_required"] is True
+    assert profile["safe_actuator_evidence_gate_allowed"] is False
+    assert "safe_actuator_evidence_claim_gate_not_allowed" in profile[
+        "dataplane_claim_blockers"
+    ]
+    assert "bounded_dataplane_probe_not_confirmed" in profile[
+        "dataplane_claim_blockers"
+    ]
+
+
 def test_service_event_history_and_replay_use_registry_filters(tmp_path):
     bus = EventBus(project_root=str(tmp_path))
     consensus = bus.publish(

@@ -5,7 +5,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Sequence
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.integration.spine import AsyncSafeActuator, SafeActuatorResult
+from src.integration.spine import (
+    AsyncSafeActuator,
+    SafeActuatorEvidenceMetadata,
+    SafeActuatorResult,
+)
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -22,7 +26,14 @@ _SERVICE_AGENT = "pqc-rotator"
 PQC_ROTATOR_CLAIM_BOUNDARY = (
     "PQC identity rotation event only. It records local identity, policy, "
     "safe actuator, key-generation, and report-signing state; it is not "
-    "external settlement evidence or proof of production rollout."
+    "live PQC trust finality, external settlement evidence, or proof of "
+    "production rollout."
+)
+PQC_ROTATOR_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "PQC rotator SafeActuator metadata proves only a local, policy-gated "
+    "identity-rotation attempt. It does not prove live PQC trust finality, "
+    "fleet-wide key rollout, dataplane delivery, customer traffic, settlement "
+    "finality, or production readiness."
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -168,6 +179,74 @@ class PQCRotatorService:
             "report_generator": bool(self.report_generator),
         }
 
+    def _safe_actuator_evidence_metadata_from_flags(
+        self,
+        *,
+        success: bool,
+        simulated: bool,
+        policy_allowed: bool,
+        reason: str = "",
+    ) -> SafeActuatorEvidenceMetadata:
+        local_rotation_allowed = bool(success and not simulated and policy_allowed)
+        blockers: list[str] = []
+        if not policy_allowed:
+            blockers.append("policy_not_allowed")
+        if not success:
+            blockers.append("safe_actuator_result_not_successful")
+        if simulated:
+            blockers.append("safe_actuator_result_simulated")
+
+        claim_gate = {
+            "schema": "x0tta6bl4.pqc_rotator.safe_actuator_claim_gate.v1",
+            "surface": "services.pqc_rotator.rotate_identity",
+            "local_pqc_identity_rotation_claim_allowed": local_rotation_allowed,
+            "policy_allowed": bool(policy_allowed),
+            "safe_actuator_result_successful": bool(success),
+            "safe_actuator_result_simulated": bool(simulated),
+            "live_pqc_trust_finality_claim_allowed": False,
+            "fleet_wide_key_rollout_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "traffic_delivery_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "external_settlement_finality_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "blockers": blockers,
+            "reason_redacted": bool(reason),
+            "claim_boundary": PQC_ROTATOR_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+        evidence = {
+            "source_agents": [self.source_agent],
+            "event_ids": [],
+            "events_total": 0,
+            "event_ids_count": 0,
+            "redacted": True,
+        }
+        return SafeActuatorEvidenceMetadata(
+            claim_gate=claim_gate,
+            evidence=evidence,
+            source_agents=[self.source_agent],
+            event_ids=[],
+            claim_boundary=PQC_ROTATOR_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            redacted=True,
+        )
+
+    def _safe_actuator_evidence_metadata(
+        self,
+        actuator_result: SafeActuatorResult,
+        *,
+        policy_allowed: bool,
+    ) -> SafeActuatorEvidenceMetadata:
+        metadata = actuator_result.evidence_metadata
+        if metadata.claim_gate:
+            return metadata
+        return self._safe_actuator_evidence_metadata_from_flags(
+            success=actuator_result.success,
+            simulated=actuator_result.simulated,
+            policy_allowed=policy_allowed,
+            reason=actuator_result.reason,
+        )
+
     def _publish_rotation_event(
         self,
         event_type: EventType,
@@ -177,6 +256,9 @@ class PQCRotatorService:
         result: Optional[Dict[str, Any]] = None,
         reason: str = "",
         policy_decision: Any = None,
+        safe_actuator_evidence_metadata: Optional[
+            SafeActuatorEvidenceMetadata
+        ] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -207,6 +289,13 @@ class PQCRotatorService:
             "safe_actuator": True,
             "claim_boundary": PQC_ROTATOR_CLAIM_BOUNDARY,
         }
+        if safe_actuator_evidence_metadata is not None:
+            payload["safe_actuator_evidence_metadata"] = (
+                safe_actuator_evidence_metadata.to_dict()
+            )
+            payload["claim_gate"] = dict(
+                safe_actuator_evidence_metadata.claim_gate
+            )
         try:
             event = self.event_bus.publish(event_type, self.source_agent, payload, priority=7)
             return event.event_id
@@ -275,6 +364,10 @@ class PQCRotatorService:
         )
 
         actuator_result = await self.safe_actuator.execute("rotate_identity", context)
+        actuator_metadata = self._safe_actuator_evidence_metadata(
+            actuator_result,
+            policy_allowed=True,
+        )
         if actuator_result.simulated:
             reason = actuator_result.reason or "safe actuator returned simulated result"
             result.update({"error": reason, "simulated": True})
@@ -285,6 +378,7 @@ class PQCRotatorService:
                 result=result,
                 reason=reason,
                 policy_decision=policy_decision,
+                safe_actuator_evidence_metadata=actuator_metadata,
             )
             return result
 
@@ -301,6 +395,7 @@ class PQCRotatorService:
                 result=result,
                 reason=actuator_result.reason or policy_reason,
                 policy_decision=policy_decision,
+                safe_actuator_evidence_metadata=actuator_metadata,
             )
             return result
 
@@ -313,6 +408,7 @@ class PQCRotatorService:
             result=result,
             reason=reason,
             policy_decision=policy_decision,
+            safe_actuator_evidence_metadata=actuator_metadata,
         )
         return result
 
@@ -355,7 +451,15 @@ class PQCRotatorService:
         except Exception as exc:
             return SafeActuatorResult(False, f"PQC report generation failed: {exc}")
 
-        return SafeActuatorResult(True, "PQC identity rotated and report regenerated")
+        return SafeActuatorResult(
+            True,
+            "PQC identity rotated and report regenerated",
+            evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
+                success=True,
+                simulated=False,
+                policy_allowed=True,
+            ),
+        )
 
     async def run_forever(self) -> None:
         logger.info("Starting PQC identity rotation service")

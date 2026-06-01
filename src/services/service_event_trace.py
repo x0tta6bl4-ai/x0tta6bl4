@@ -583,6 +583,79 @@ def _post_action_dataplane_revalidation_summary(value: Any) -> Dict[str, Any]:
     }
 
 
+def _safe_actuator_evidence_metadata_summary(value: Any) -> Dict[str, Any]:
+    metadata = _safe_evidence_dict(value)
+    evidence = _safe_evidence_dict(metadata.get("evidence"))
+    claim_gate = _safe_evidence_dict(metadata.get("claim_gate"))
+    blockers = claim_gate.get("blockers")
+    if not isinstance(blockers, list):
+        blockers = []
+
+    event_ids = metadata.get("event_ids")
+    if not isinstance(event_ids, list):
+        event_ids = evidence.get("event_ids")
+    source_agents = metadata.get("source_agents")
+    if not isinstance(source_agents, list):
+        source_agents = evidence.get("source_agents")
+
+    return {
+        "present": bool(metadata),
+        "schema": _safe_trace_text(metadata.get("schema")),
+        "claim_gate": {
+            "present": bool(claim_gate),
+            "schema": _safe_trace_text(claim_gate.get("schema")),
+            "surface": _safe_trace_text(claim_gate.get("surface")),
+            "local_control_action_claim_allowed": _safe_trace_bool(
+                claim_gate.get("local_control_action_claim_allowed")
+            ),
+            "safe_actuator_result_successful": _safe_trace_bool(
+                claim_gate.get("safe_actuator_result_successful")
+            ),
+            "safe_actuator_result_simulated": _safe_trace_bool(
+                claim_gate.get("safe_actuator_result_simulated")
+            ),
+            "dataplane_confirmed": _safe_trace_bool(
+                claim_gate.get("dataplane_confirmed")
+            ),
+            "post_action_dataplane_revalidated": _safe_trace_bool(
+                claim_gate.get("post_action_dataplane_revalidated")
+            ),
+            "restored_dataplane_claim_allowed": _safe_trace_bool(
+                claim_gate.get("restored_dataplane_claim_allowed")
+            ),
+            "traffic_delivery_claim_allowed": _safe_trace_bool(
+                claim_gate.get("traffic_delivery_claim_allowed")
+            ),
+            "customer_traffic_claim_allowed": _safe_trace_bool(
+                claim_gate.get("customer_traffic_claim_allowed")
+            ),
+            "production_readiness_claim_allowed": _safe_trace_bool(
+                claim_gate.get("production_readiness_claim_allowed")
+            ),
+            "blockers": [
+                _safe_trace_text(blocker)
+                for blocker in blockers
+                if _safe_trace_text(blocker)
+            ],
+            "claim_boundary_present": bool(claim_gate.get("claim_boundary")),
+            "redacted": _safe_trace_bool(claim_gate.get("redacted")),
+        },
+        "evidence": {
+            "present": bool(evidence),
+            "event_ids_count": len(event_ids) if isinstance(event_ids, list) else 0,
+            "events_total": _safe_trace_int(evidence.get("events_total")),
+            "source_agents_count": (
+                len(source_agents) if isinstance(source_agents, list) else 0
+            ),
+            "redacted": _safe_trace_bool(evidence.get("redacted")),
+        },
+        "claim_boundary_present": bool(
+            metadata.get("claim_boundary") or claim_gate.get("claim_boundary")
+        ),
+        "redacted": _safe_trace_bool(metadata.get("redacted")),
+    }
+
+
 def _identity_evidence_summary(data: Any) -> Dict[str, Any]:
     payload = _safe_evidence_dict(data)
     identity = _safe_evidence_dict(payload.get("identity"))
@@ -687,14 +760,26 @@ def cross_plane_evidence_profile(summary: Any) -> Dict[str, Any]:
     post_action_dataplane = _safe_evidence_dict(
         evidence.get("post_action_dataplane_revalidation")
     )
+    safe_actuator_metadata = _safe_evidence_dict(
+        evidence.get("safe_actuator_evidence_metadata")
+    )
     reward_claim_gate = _safe_evidence_dict(evidence.get("reward_claim_gate"))
     identity = _safe_evidence_dict(evidence.get("identity_evidence"))
     bool_fields = _safe_evidence_dict(runtime.get("bool_fields"))
     plane_markers = _runtime_plane_markers(runtime)
+    safe_actuator_claim_gate = _safe_evidence_dict(
+        safe_actuator_metadata.get("claim_gate")
+    )
+    safe_actuator_gate_allows_dataplane = bool(
+        safe_actuator_metadata.get("present") is True
+        and safe_actuator_claim_gate.get("dataplane_confirmed") is True
+        and safe_actuator_claim_gate.get("restored_dataplane_claim_allowed") is True
+    )
 
     raw_dataplane_confirmed = (
         _any_true(bool_fields, DATAPLANE_CONFIRMATION_FIELDS)
         or settlement.get("dataplane_confirmed") is True
+        or safe_actuator_claim_gate.get("dataplane_confirmed") is True
     )
     post_action_gate = _safe_evidence_dict(post_action_dataplane.get("claim_gate"))
     post_action_gate_allows_dataplane = bool(
@@ -704,10 +789,14 @@ def cross_plane_evidence_profile(summary: Any) -> Dict[str, Any]:
         and post_action_gate.get("restored_dataplane_claim_allowed") is True
     )
     dataplane_confirmed = bool(
-        raw_dataplane_confirmed
+        (raw_dataplane_confirmed or safe_actuator_gate_allows_dataplane)
         and (
             post_action_dataplane.get("present") is not True
             or post_action_gate_allows_dataplane
+        )
+        and (
+            safe_actuator_metadata.get("present") is not True
+            or safe_actuator_gate_allows_dataplane
         )
     )
     dataplane_claim_blockers: List[str] = []
@@ -718,6 +807,16 @@ def cross_plane_evidence_profile(summary: Any) -> Dict[str, Any]:
         if isinstance(gate_blockers, list):
             dataplane_claim_blockers.extend(
                 str(blocker) for blocker in gate_blockers if blocker
+            )
+    if raw_dataplane_confirmed and safe_actuator_metadata.get("present") is True:
+        if not safe_actuator_gate_allows_dataplane:
+            dataplane_claim_blockers.append(
+                "safe_actuator_evidence_claim_gate_not_allowed"
+            )
+        safe_actuator_blockers = safe_actuator_claim_gate.get("blockers")
+        if isinstance(safe_actuator_blockers, list):
+            dataplane_claim_blockers.extend(
+                str(blocker) for blocker in safe_actuator_blockers if blocker
             )
     trust_metadata_present = bool(
         identity.get("present")
@@ -801,6 +900,14 @@ def cross_plane_evidence_profile(summary: Any) -> Dict[str, Any]:
         "dataplane_claim_gate_allowed": (
             post_action_gate_allows_dataplane
             if post_action_dataplane.get("present") is True
+            else None
+        ),
+        "safe_actuator_evidence_gate_required": (
+            safe_actuator_metadata.get("present") is True
+        ),
+        "safe_actuator_evidence_gate_allowed": (
+            safe_actuator_gate_allows_dataplane
+            if safe_actuator_metadata.get("present") is True
             else None
         ),
         "dataplane_claim_blockers": dataplane_claim_blockers,
@@ -1073,6 +1180,9 @@ def event_trace_evidence_summary(data: Any) -> Dict[str, Any]:
     post_action_dataplane = _post_action_dataplane_revalidation_summary(
         payload.get("post_action_dataplane_revalidation")
     )
+    safe_actuator_metadata = _safe_actuator_evidence_metadata_summary(
+        payload.get("safe_actuator_evidence_metadata")
+    )
     reward_claim_gate = _reward_claim_gate_summary(payload.get("reward_claim_gate"))
     identity = _identity_evidence_summary(payload)
     runtime = _runtime_evidence_summary(payload)
@@ -1085,6 +1195,7 @@ def event_trace_evidence_summary(data: Any) -> Dict[str, Any]:
                 upstream,
                 settlement,
                 post_action_dataplane,
+                safe_actuator_metadata,
                 reward_claim_gate,
                 identity,
                 runtime,
@@ -1097,6 +1208,7 @@ def event_trace_evidence_summary(data: Any) -> Dict[str, Any]:
         "upstream_evidence": upstream,
         "settlement_evidence": settlement,
         "post_action_dataplane_revalidation": post_action_dataplane,
+        "safe_actuator_evidence_metadata": safe_actuator_metadata,
         "reward_claim_gate": reward_claim_gate,
         "identity_evidence": identity,
     }
