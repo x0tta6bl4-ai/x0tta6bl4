@@ -15,16 +15,17 @@ Features:
 - Health checks после deployment
 """
 
-import logging
 import hashlib
+import logging
 import os
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Optional
 
 from src.core.safe_subprocess import SafeSubprocess
+from src.integration.spine import SafeActuatorEvidenceMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,13 @@ MULTI_CLOUD_DEPLOYMENT_CLAIM_BOUNDARY = (
     "or kubectl health-check success does not prove live customer traffic, "
     "traffic shifting, external DPI bypass, settlement finality, production "
     "SLOs, or production readiness without separate current evidence."
+)
+
+MULTI_CLOUD_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "Multi-cloud deployment evidence metadata proves only a local gated "
+    "deployment command/API attempt or bounded health observation. It is not "
+    "proof of traffic shifting, live customer traffic, external DPI bypass, "
+    "settlement finality, production SLOs, or production readiness."
 )
 
 
@@ -73,6 +81,61 @@ def _claim_boundary_fields() -> Dict[str, Any]:
         "settlement_finality_confirmed": False,
         "claim_boundary": MULTI_CLOUD_DEPLOYMENT_CLAIM_BOUNDARY,
     }
+
+
+def _safe_actuator_evidence_metadata(
+    *,
+    action: str,
+    live_action_authorized: bool,
+    live_action_executed: bool,
+    provider: Optional[str] = None,
+    command_metadata: Optional[Dict[str, Any]] = None,
+    health_observation: bool = False,
+) -> Dict[str, Any]:
+    claim_gate = {
+        "schema": "x0tta6bl4.deployment.multi_cloud.safe_actuator_claim_gate.v1",
+        "action": action,
+        "local_deployment_command_attempt_claim_allowed": bool(
+            live_action_authorized
+        ),
+        "local_deployment_command_succeeded": bool(live_action_executed),
+        "local_health_observation_claim_allowed": bool(health_observation),
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "external_dpi_bypass_confirmed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "claim_boundary": MULTI_CLOUD_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+        "redacted": True,
+    }
+    return SafeActuatorEvidenceMetadata.from_value(
+        {
+            "claim_gate": claim_gate,
+            "cross_plane_claim_gate": {
+                "schema": (
+                    "x0tta6bl4.deployment.multi_cloud.cross_plane_claim_gate.v1"
+                ),
+                "allowed": False,
+                "requires_rollout_evidence_for_traffic_shift_claim": True,
+                "requires_customer_traffic_evidence_for_customer_claim": True,
+                "requires_slo_evidence_for_production_slo_claim": True,
+                "requires_readiness_review_for_production_claim": True,
+                "redacted": True,
+            },
+            "evidence": {
+                "component": "deployment.multi_cloud",
+                "action": action,
+                "provider": provider,
+                "command_metadata_present": command_metadata is not None,
+                "health_observation": bool(health_observation),
+                "raw_command_output_redacted": True,
+            },
+            "source_agents": ["multi-cloud-deployment"],
+            "claim_boundary": MULTI_CLOUD_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+    ).to_dict()
 
 
 class CloudProvider(Enum):
@@ -124,6 +187,13 @@ class DeploymentResult:
     external_dpi_bypass_confirmed: bool = False
     settlement_finality_confirmed: bool = False
     claim_boundary: str = MULTI_CLOUD_DEPLOYMENT_CLAIM_BOUNDARY
+    safe_actuator_evidence_metadata: Dict[str, Any] = field(
+        default_factory=lambda: _safe_actuator_evidence_metadata(
+            action="deployment_result",
+            live_action_authorized=False,
+            live_action_executed=False,
+        )
+    )
 
 
 class MultiCloudDeployment:
@@ -169,6 +239,13 @@ class MultiCloudDeployment:
             "command_result": _command_result_metadata(result),
             **_claim_boundary_fields(),
         }
+        metadata["safe_actuator_evidence_metadata"] = _safe_actuator_evidence_metadata(
+            action=action,
+            live_action_authorized=self.allow_live_actions,
+            live_action_executed=bool(getattr(result, "success", False)),
+            provider=self.config.provider.value,
+            command_metadata=metadata["command_result"],
+        )
         self.last_command_metadata = metadata
         self.last_live_action_result = metadata
         return metadata
@@ -189,6 +266,12 @@ class MultiCloudDeployment:
             "blocked_by": "X0TTA6BL4_ALLOW_MULTI_CLOUD_LIVE_ACTIONS",
             **_claim_boundary_fields(),
         }
+        metadata["safe_actuator_evidence_metadata"] = _safe_actuator_evidence_metadata(
+            action=action,
+            live_action_authorized=False,
+            live_action_executed=False,
+            provider=self.config.provider.value,
+        )
         self.last_live_action_result = metadata
         logger.warning(
             "Multi-cloud live action blocked: %s. Set "
@@ -223,6 +306,15 @@ class MultiCloudDeployment:
             live_action_executed=success and self.allow_live_actions,
             command_metadata=(
                 self.last_command_metadata or self.last_live_action_result
+            ),
+            safe_actuator_evidence_metadata=_safe_actuator_evidence_metadata(
+                action="deployment_result",
+                live_action_authorized=self.allow_live_actions,
+                live_action_executed=success and self.allow_live_actions,
+                provider=self.config.provider.value,
+                command_metadata=(
+                    self.last_command_metadata or self.last_live_action_result
+                ),
             ),
             **_claim_boundary_fields(),
         )
@@ -272,6 +364,16 @@ class MultiCloudDeployment:
                 live_action_executed=deploy_success and self.allow_live_actions,
                 command_metadata=(
                     self.last_command_metadata or self.last_live_action_result
+                ),
+                safe_actuator_evidence_metadata=_safe_actuator_evidence_metadata(
+                    action="deploy",
+                    live_action_authorized=self.allow_live_actions,
+                    live_action_executed=deploy_success and self.allow_live_actions,
+                    provider=self.config.provider.value,
+                    command_metadata=(
+                        self.last_command_metadata or self.last_live_action_result
+                    ),
+                    health_observation=bool(deploy_success),
                 ),
                 **_claim_boundary_fields(),
             )

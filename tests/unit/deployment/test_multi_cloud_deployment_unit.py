@@ -118,6 +118,18 @@ class TestDeploymentResult:
         assert r.production_slo_claim_allowed is False
         assert r.live_customer_traffic_proven is False
         assert "does not prove live customer traffic" in r.claim_boundary
+        metadata = r.safe_actuator_evidence_metadata
+        claim_gate = metadata["claim_gate"]
+        assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+        assert (
+            claim_gate["schema"]
+            == "x0tta6bl4.deployment.multi_cloud.safe_actuator_claim_gate.v1"
+        )
+        assert claim_gate["local_deployment_command_attempt_claim_allowed"] is False
+        assert claim_gate["traffic_shift_claim_allowed"] is False
+        assert claim_gate["live_customer_traffic_claim_allowed"] is False
+        assert claim_gate["production_slo_claim_allowed"] is False
+        assert claim_gate["production_readiness_claim_allowed"] is False
 
     def test_full(self):
         r = DeploymentResult(
@@ -910,6 +922,12 @@ class TestDeploy:
         assert result.live_action_authorized is False
         assert result.live_action_executed is False
         assert result.production_readiness_claim_allowed is False
+        claim_gate = result.safe_actuator_evidence_metadata["claim_gate"]
+        assert claim_gate["action"] == "deployment_result"
+        assert claim_gate["local_deployment_command_attempt_claim_allowed"] is False
+        assert claim_gate["traffic_shift_claim_allowed"] is False
+        assert claim_gate["production_slo_claim_allowed"] is False
+        assert claim_gate["production_readiness_claim_allowed"] is False
         assert mock_sp.run.call_count == 0
 
     def test_deploy_image_build_fails(self):

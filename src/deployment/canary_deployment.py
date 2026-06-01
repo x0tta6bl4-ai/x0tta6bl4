@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
 logger = logging.getLogger(__name__)
 
 CANARY_DEPLOYMENT_CLAIM_BOUNDARY = (
@@ -31,6 +33,14 @@ CANARY_DEPLOYMENT_CLAIM_BOUNDARY = (
     "authorized command/API attempts only. It does not prove traffic shifting, "
     "live customer traffic, external DPI bypass, settlement finality, production "
     "SLOs, or production readiness without separate current evidence."
+)
+
+CANARY_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "Canary deployment evidence metadata proves only a local gated rollout, "
+    "traffic-weight update, rollback command/API attempt, or bounded metrics "
+    "observation. It is not proof of traffic shifting, live customer traffic, "
+    "external DPI bypass, settlement finality, production SLOs, or production "
+    "readiness."
 )
 
 
@@ -47,7 +57,67 @@ def _bounded_output_metadata(text: str) -> Dict[str, Any]:
     }
 
 
-def _claim_boundary_fields() -> Dict[str, Any]:
+def _safe_actuator_evidence_metadata(
+    *,
+    action: str,
+    live_action_authorized: bool,
+    live_action_executed: bool,
+    command_metadata: Optional[Dict[str, Any]] = None,
+    metrics_observed: bool = False,
+    rollback_recommended: bool = False,
+) -> Dict[str, Any]:
+    claim_gate = {
+        "schema": "x0tta6bl4.deployment.canary.safe_actuator_claim_gate.v1",
+        "action": action,
+        "local_canary_rollout_attempt_claim_allowed": bool(live_action_authorized),
+        "local_canary_rollout_action_succeeded": bool(live_action_executed),
+        "local_canary_metrics_observation_claim_allowed": bool(metrics_observed),
+        "local_rollback_recommendation_claim_allowed": bool(rollback_recommended),
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "external_dpi_bypass_confirmed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "claim_boundary": CANARY_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+        "redacted": True,
+    }
+    return SafeActuatorEvidenceMetadata.from_value(
+        {
+            "claim_gate": claim_gate,
+            "cross_plane_claim_gate": {
+                "schema": "x0tta6bl4.deployment.canary.cross_plane_claim_gate.v1",
+                "allowed": False,
+                "requires_runtime_rollout_evidence_for_traffic_shift_claim": True,
+                "requires_customer_traffic_evidence_for_customer_claim": True,
+                "requires_slo_evidence_for_production_slo_claim": True,
+                "requires_readiness_review_for_production_claim": True,
+                "redacted": True,
+            },
+            "evidence": {
+                "component": "deployment.canary",
+                "action": action,
+                "command_metadata_present": command_metadata is not None,
+                "metrics_observed": bool(metrics_observed),
+                "rollback_recommended": bool(rollback_recommended),
+                "raw_command_output_redacted": True,
+            },
+            "source_agents": ["canary-deployment"],
+            "claim_boundary": CANARY_DEPLOYMENT_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+    ).to_dict()
+
+
+def _claim_boundary_fields(
+    *,
+    action: str = "canary_claim_boundary",
+    live_action_authorized: bool = False,
+    live_action_executed: bool = False,
+    command_metadata: Optional[Dict[str, Any]] = None,
+    metrics_observed: bool = False,
+    rollback_recommended: bool = False,
+) -> Dict[str, Any]:
     return {
         "traffic_shift_claim_allowed": False,
         "live_customer_traffic_proven": False,
@@ -56,6 +126,14 @@ def _claim_boundary_fields() -> Dict[str, Any]:
         "external_dpi_bypass_confirmed": False,
         "settlement_finality_confirmed": False,
         "claim_boundary": CANARY_DEPLOYMENT_CLAIM_BOUNDARY,
+        "safe_actuator_evidence_metadata": _safe_actuator_evidence_metadata(
+            action=action,
+            live_action_authorized=live_action_authorized,
+            live_action_executed=live_action_executed,
+            command_metadata=command_metadata,
+            metrics_observed=metrics_observed,
+            rollback_recommended=rollback_recommended,
+        ),
     }
 
 
@@ -167,13 +245,21 @@ class CanaryDeployment:
             f"live_actions_authorized={self.allow_live_actions}"
         )
 
-    def _live_action_blocked_result(self, action: str) -> Dict[str, Any]:
+    def _live_action_blocked_result(
+        self,
+        action: str,
+        *,
+        rollback_recommended: bool = False,
+    ) -> Dict[str, Any]:
         return {
             "action": action,
             "live_action_authorized": False,
             "live_action_executed": False,
             "blocked_by": "X0TTA6BL4_ALLOW_CANARY_LIVE_ACTIONS",
-            **_claim_boundary_fields(),
+            **_claim_boundary_fields(
+                action=action,
+                rollback_recommended=rollback_recommended,
+            ),
         }
 
     def _record_live_action_blocked(self, action: str) -> Dict[str, Any]:
@@ -222,12 +308,18 @@ class CanaryDeployment:
             text=True,
             timeout=300,
         )
+        command_metadata = self._command_result_metadata(result)
         self.last_live_action_result = {
             "action": "deploy_canary_version",
             "live_action_authorized": True,
             "live_action_executed": result.returncode == 0,
-            "command_metadata": self._command_result_metadata(result),
-            **_claim_boundary_fields(),
+            "command_metadata": command_metadata,
+            **_claim_boundary_fields(
+                action="deploy_canary_version",
+                live_action_authorized=True,
+                live_action_executed=result.returncode == 0,
+                command_metadata=command_metadata,
+            ),
         }
         if result.returncode == 0:
             logger.info("✅ Canary version deployment command completed")
@@ -261,12 +353,18 @@ class CanaryDeployment:
             text=True,
             timeout=300,
         )
+        command_metadata = self._command_result_metadata(result)
         self.last_live_action_result = {
             "action": "update_helm_traffic_percentage",
             "live_action_authorized": True,
             "live_action_executed": result.returncode == 0,
-            "command_metadata": self._command_result_metadata(result),
-            **_claim_boundary_fields(),
+            "command_metadata": command_metadata,
+            **_claim_boundary_fields(
+                action="update_helm_traffic_percentage",
+                live_action_authorized=True,
+                live_action_executed=result.returncode == 0,
+                command_metadata=command_metadata,
+            ),
         }
         if result.returncode == 0:
             logger.info("✅ Helm canary traffic-weight command completed")
@@ -296,12 +394,19 @@ class CanaryDeployment:
             text=True,
             timeout=300,
         )
+        command_metadata = self._command_result_metadata(result)
         self.last_live_action_result = {
             "action": "helm_rollback",
             "live_action_authorized": True,
             "live_action_executed": result.returncode == 0,
-            "command_metadata": self._command_result_metadata(result),
-            **_claim_boundary_fields(),
+            "command_metadata": command_metadata,
+            **_claim_boundary_fields(
+                action="helm_rollback",
+                live_action_authorized=True,
+                live_action_executed=result.returncode == 0,
+                command_metadata=command_metadata,
+                rollback_recommended=True,
+            ),
         }
         if result.returncode == 0:
             logger.info("✅ Helm rollback command completed")
@@ -462,7 +567,10 @@ class CanaryDeployment:
                 "rollback_recommended": True,
                 "rollback_executed": False,
                 "rollback_reason": reason,
-                **self._live_action_blocked_result("rollback"),
+                **self._live_action_blocked_result(
+                    "rollback",
+                    rollback_recommended=True,
+                ),
             }
             self.last_live_action_result = self.last_rollback_result
             logger.warning(
@@ -565,7 +673,12 @@ class CanaryDeployment:
             "rollback_reason": reason,
             "live_action_authorized": True,
             "live_action_executed": bool(rollback_success),
-            **_claim_boundary_fields(),
+            **_claim_boundary_fields(
+                action="rollback",
+                live_action_authorized=True,
+                live_action_executed=bool(rollback_success),
+                rollback_recommended=True,
+            ),
         }
 
     def _docker_compose_rollback(self) -> bool:
@@ -595,7 +708,13 @@ class CanaryDeployment:
                 "live_action_authorized": True,
                 "live_action_executed": result.returncode == 0,
                 "command_metadata": command_metadata,
-                **_claim_boundary_fields(),
+                **_claim_boundary_fields(
+                    action="docker_compose_rollback",
+                    live_action_authorized=True,
+                    live_action_executed=result.returncode == 0,
+                    command_metadata=command_metadata,
+                    rollback_recommended=True,
+                ),
             }
             if result.returncode == 0:
                 logger.info("✅ Docker Compose rollback command completed")
@@ -631,7 +750,13 @@ class CanaryDeployment:
                 "live_action_authorized": True,
                 "live_action_executed": result.returncode == 0,
                 "command_metadata": command_metadata,
-                **_claim_boundary_fields(),
+                **_claim_boundary_fields(
+                    action="scale_down_canary",
+                    live_action_authorized=True,
+                    live_action_executed=result.returncode == 0,
+                    command_metadata=command_metadata,
+                    rollback_recommended=True,
+                ),
             }
             if result.returncode == 0:
                 logger.info("✅ Canary scale-down command completed")
@@ -739,7 +864,11 @@ class CanaryDeployment:
             },
             "last_live_action_result": self.last_live_action_result,
             "last_rollback_result": self.last_rollback_result,
-            **_claim_boundary_fields(),
+            **_claim_boundary_fields(
+                action="get_deployment_status",
+                metrics_observed=self.metrics.requests_total > 0,
+                rollback_recommended=self._rollback_triggered,
+            ),
         }
         return status
 
@@ -806,7 +935,12 @@ class CanaryDeployment:
                                 "live_action_executed": True,
                                 "cancel_status_code": response.status_code,
                                 "rollback_status_code": rollback_response.status_code,
-                                **_claim_boundary_fields(),
+                                **_claim_boundary_fields(
+                                    action="cicd_rollback",
+                                    live_action_authorized=True,
+                                    live_action_executed=True,
+                                    rollback_recommended=True,
+                                ),
                             }
                             return True
             except Exception as e:
@@ -844,7 +978,12 @@ class CanaryDeployment:
                             "live_action_authorized": True,
                             "live_action_executed": True,
                             "rollback_status_code": response.status_code,
-                            **_claim_boundary_fields(),
+                            **_claim_boundary_fields(
+                                action="cicd_rollback",
+                                live_action_authorized=True,
+                                live_action_executed=True,
+                                rollback_recommended=True,
+                            ),
                         }
                         return True
             except Exception as e:
@@ -884,7 +1023,12 @@ class CanaryDeployment:
                             "live_action_authorized": True,
                             "live_action_executed": True,
                             "rollback_status_code": response.status_code,
-                            **_claim_boundary_fields(),
+                            **_claim_boundary_fields(
+                                action="cicd_rollback",
+                                live_action_authorized=True,
+                                live_action_executed=True,
+                                rollback_recommended=True,
+                            ),
                         }
                         return True
             except Exception as e:
@@ -917,7 +1061,12 @@ class CanaryDeployment:
                             "live_action_authorized": True,
                             "live_action_executed": True,
                             "rollback_status_code": response.status_code,
-                            **_claim_boundary_fields(),
+                            **_claim_boundary_fields(
+                                action="cicd_rollback",
+                                live_action_authorized=True,
+                                live_action_executed=True,
+                                rollback_recommended=True,
+                            ),
                         }
                         return True
             except Exception as e:
@@ -956,7 +1105,12 @@ class CanaryDeployment:
                             "live_action_authorized": True,
                             "live_action_executed": True,
                             "rollback_status_code": response.status_code,
-                            **_claim_boundary_fields(),
+                            **_claim_boundary_fields(
+                                action="cicd_rollback",
+                                live_action_authorized=True,
+                                live_action_executed=True,
+                                rollback_recommended=True,
+                            ),
                         }
                         return True
             except Exception as e:

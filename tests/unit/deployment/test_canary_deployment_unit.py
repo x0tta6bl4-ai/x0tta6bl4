@@ -30,6 +30,18 @@ def test_status_exposes_claim_boundary_and_false_proof_flags():
     assert status["settlement_finality_confirmed"] is False
     assert "does not prove traffic shifting" in status["claim_boundary"]
     assert status["integration"]["live_actions_authorized"] is False
+    metadata = status["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert (
+        claim_gate["schema"]
+        == "x0tta6bl4.deployment.canary.safe_actuator_claim_gate.v1"
+    )
+    assert claim_gate["local_canary_metrics_observation_claim_allowed"] is False
+    assert claim_gate["traffic_shift_claim_allowed"] is False
+    assert claim_gate["live_customer_traffic_claim_allowed"] is False
+    assert claim_gate["production_slo_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
 
 
 def test_rollback_is_recommendation_only_without_live_authorization(monkeypatch):
@@ -50,6 +62,12 @@ def test_rollback_is_recommendation_only_without_live_authorization(monkeypatch)
     assert canary.last_rollback_result["live_action_authorized"] is False
     assert canary.last_rollback_result["live_action_executed"] is False
     assert canary.last_rollback_result["traffic_shift_claim_allowed"] is False
+    claim_gate = canary.last_rollback_result["safe_actuator_evidence_metadata"][
+        "claim_gate"
+    ]
+    assert claim_gate["local_rollback_recommendation_claim_allowed"] is True
+    assert claim_gate["traffic_shift_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
 
 
 def test_cicd_rollback_is_blocked_without_live_authorization(monkeypatch):
@@ -70,4 +88,12 @@ def test_cicd_rollback_is_blocked_without_live_authorization(monkeypatch):
     assert canary._trigger_cicd_rollback() is False
     assert canary.last_live_action_result["action"] == "cicd_rollback"
     assert canary.last_live_action_result["live_action_authorized"] is False
+    claim_gate = canary.last_live_action_result["safe_actuator_evidence_metadata"][
+        "claim_gate"
+    ]
+    assert claim_gate["action"] == "cicd_rollback"
+    assert claim_gate["local_canary_rollout_attempt_claim_allowed"] is False
+    assert claim_gate["traffic_shift_claim_allowed"] is False
+    assert claim_gate["production_slo_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
     assert "secret-token" not in str(canary.last_live_action_result)
