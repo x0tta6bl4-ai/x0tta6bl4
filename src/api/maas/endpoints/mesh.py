@@ -64,7 +64,7 @@ _MESH_DEPLOY_CROSS_PLANE_CLAIMS = (
 _MESH_DEPLOY_RESPONSE_CLAIM_BOUNDARY = (
     "MaaS modular mesh deploy responses expose local API handling, local "
     "provisioner invocation, local DB persistence, returned join material, and "
-    "bounded lifecycle evidence only. A 201 response, active status, dashboard "
+    "bounded lifecycle evidence only. A 200 response, active status, dashboard "
     "URL, join token, DB row, or provisioner gate propagation does not prove "
     "external node deployment, node dataplane join, node reachability, routing "
     "convergence, customer traffic, external DPI bypass, settlement finality, "
@@ -649,6 +649,35 @@ def _mesh_result_summary(result: Any) -> Dict[str, Any]:
     }
 
 
+def _mesh_current_node_count(instance: Any) -> int:
+    value = getattr(instance, "target_nodes", None)
+    if value is None:
+        value = getattr(instance, "nodes", None)
+    if value is None:
+        value = len(getattr(instance, "mesh_nodes", []) or [])
+    return max(1, _safe_count(value) or 1)
+
+
+def _resolve_scale_target_count(request: MeshScaleRequest, instance: Any) -> int:
+    if request.target_count is not None:
+        return request.target_count
+
+    current = _mesh_current_node_count(instance)
+    delta = request.count or 1
+    if request.action == "scale_down":
+        return max(1, current - delta)
+
+    plan = str(getattr(instance, "plan", None) or "starter").lower()
+    max_nodes = {
+        "free": 3,
+        "starter": 3,
+        "pilot": 3,
+        "pro": 20,
+        "enterprise": 100,
+    }.get(plan, 3)
+    return min(1000, max_nodes, current + delta)
+
+
 def _mesh_list_summary(responses: List[MeshStatusResponse]) -> Dict[str, Any]:
     total_nodes = 0
     healthy_nodes = 0
@@ -1019,7 +1048,7 @@ async def _resolve_mesh_for_user(mesh_id: str, user: UserContext) -> Any:
                 detail=f"Mesh {mesh_id} not found",
             )
 
-    if instance.owner_id != user.user_id:
+    if instance.owner_id != user.id:
         await require_mesh_access(mesh_id, user)
 
     return instance
@@ -1108,7 +1137,7 @@ async def deploy_mesh(
 
     try:
         instance = await provisioner.provision_mesh(
-            owner_id=user.user_id,
+            owner_id=user.id,
             name=request.name,
             nodes=request.nodes,
             billing_plan=request.billing_plan,
@@ -1138,7 +1167,7 @@ async def deploy_mesh(
             db.add(db_mesh)
             # P1 Q2: Update user's plan in real DB
             try:
-                db_user = db.query(DBUser).filter(DBUser.id == user.user_id).first()
+                db_user = db.query(DBUser).filter(DBUser.id == user.id).first()
                 if db_user:
                     db_user.plan = instance.plan
             except Exception as user_err:
@@ -1245,7 +1274,7 @@ async def deploy_mesh(
             stage="mesh_deploy",
             status_value="success",
             duration_ms=(time.monotonic() - started) * 1000,
-            http_status_code=status.HTTP_201_CREATED,
+            http_status_code=status.HTTP_200_OK,
             user=user,
             mesh_id=getattr(instance, "mesh_id", None),
             owner_id=getattr(instance, "owner_id", None),
@@ -1330,7 +1359,7 @@ async def deploy_mesh(
 
 @router.get(
     "/list",
-    response_model=List[MeshStatusResponse],
+    response_model=Dict[str, Any],
     summary="List user's meshes",
     description="Get all mesh networks owned by the authenticated user.",
 )
@@ -1338,14 +1367,14 @@ async def list_meshes(
     user: UserContext = Depends(get_current_user),
     include_terminated: bool = Query(False, description="Include terminated meshes"),
     http_request: Request = None,
-) -> List[MeshStatusResponse]:
+) -> Dict[str, Any]:
     """List all meshes owned by the user."""
     started = time.monotonic()
     all_meshes = get_all_meshes()
 
     user_meshes = [
         mesh for mesh in all_meshes.values()
-        if mesh.owner_id == user.user_id
+        if mesh.owner_id == user.id
     ]
 
     if not include_terminated:
@@ -1377,7 +1406,10 @@ async def list_meshes(
         read_only=True,
         control_action=False,
     )
-    return responses
+    return {
+        "meshes": responses,
+        "count": len(responses),
+    }
 
 
 @router.get(
@@ -1578,6 +1610,7 @@ async def scale_mesh(
     try:
         instance = await _resolve_mesh_for_user(mesh_id, user)
     except HTTPException as exc:
+        requested_target = request.target_count or request.count
         _publish_modular_mesh_event(
             http_request,
             source_agent=_MODULAR_MESH_SCALE_SOURCE_AGENT,
@@ -1593,10 +1626,10 @@ async def scale_mesh(
             http_status_code=exc.status_code,
             user=user,
             mesh_id=mesh_id,
-            target_nodes=request.target_count,
+            target_nodes=requested_target,
             result_summary={
                 "payload_type": "MeshScaleRequest",
-                "target_count": _safe_count(request.target_count),
+                "target_count": _safe_count(requested_target),
                 "mesh_id_present": bool(mesh_id),
                 "raw_identifiers_redacted": True,
                 "payloads_redacted": True,
@@ -1611,12 +1644,13 @@ async def scale_mesh(
         raise
 
     provisioner = get_provisioner()
+    target_count = _resolve_scale_target_count(request, instance)
 
     try:
         result = await provisioner.scale_mesh(
             mesh_id=mesh_id,
-            target_count=request.target_count,
-            actor=user.user_id,
+            target_count=target_count,
+            actor=user.id,
         )
         response = _attach_mesh_lifecycle_gates(
             result,
@@ -1626,6 +1660,10 @@ async def scale_mesh(
             registry_mutation_committed=True,
             provisioner_call_committed=True,
         )
+        if isinstance(response, dict):
+            response.setdefault("previous_nodes", response.get("previous_count"))
+            response.setdefault("current_nodes", response.get("current_count"))
+            response.setdefault("target_count", target_count)
         _publish_modular_mesh_event(
             http_request,
             source_agent=_MODULAR_MESH_SCALE_SOURCE_AGENT,
@@ -1638,11 +1676,11 @@ async def scale_mesh(
             user=user,
             mesh_id=mesh_id,
             owner_id=getattr(instance, "owner_id", None),
-            target_nodes=request.target_count,
+            target_nodes=target_count,
             plan=getattr(instance, "plan", None),
             result_summary={
                 "payload_type": "MeshScaleRequest",
-                "target_count": _safe_count(request.target_count),
+                "target_count": _safe_count(target_count),
                 **_mesh_result_summary(response),
             },
             reason="mesh_scale_recorded",
@@ -1666,11 +1704,11 @@ async def scale_mesh(
             user=user,
             mesh_id=mesh_id,
             owner_id=getattr(instance, "owner_id", None),
-            target_nodes=request.target_count,
+            target_nodes=target_count,
             plan=getattr(instance, "plan", None),
             result_summary={
                 "payload_type": "MeshScaleRequest",
-                "target_count": _safe_count(request.target_count),
+                "target_count": _safe_count(target_count),
                 "error_type": e.__class__.__name__[:80],
                 "raw_identifiers_redacted": True,
                 "payloads_redacted": True,
@@ -1742,7 +1780,7 @@ async def terminate_mesh(
     try:
         result = await provisioner.terminate_mesh(
             mesh_id=mesh_id,
-            actor=user.user_id,
+            actor=user.id,
             reason=reason,
         )
         response = _attach_mesh_lifecycle_gates(
@@ -1814,6 +1852,24 @@ async def terminate_mesh(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
+
+
+@router.get(
+    "/{mesh_id}/audit-logs",
+    summary="Get mesh audit log alias",
+    description="Compatibility alias for audit-log reads.",
+)
+async def get_mesh_audit_logs_alias(
+    mesh_id: str,
+    user: UserContext = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Compatibility audit-log alias guarded by audit:view permission."""
+    if user.role != "admin" and "audit:view" not in (user.scopes or []):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="audit:view permission required",
+        )
+    return {"mesh_id": mesh_id, "audit_logs": get_audit_log(mesh_id)}
 
 
 @router.get(
@@ -1890,6 +1946,29 @@ async def get_mesh_audit(
         control_action=False,
     )
     return response
+
+
+@router.get(
+    "/{mesh_id}/mapek/events",
+    summary="Get MAPE-K events alias",
+    description="Compatibility alias for MAPE-K event stream reads.",
+)
+async def get_mesh_mapek_events_alias(
+    mesh_id: str,
+    user: UserContext = Depends(get_current_user),
+    limit: int = Query(100, ge=1, le=1000),
+    http_request: Request = None,
+    http_response: Response = None,
+) -> Dict[str, Any]:
+    """Compatibility MAPE-K alias returning the legacy envelope."""
+    events = await get_mesh_mapek(
+        mesh_id,
+        user=user,
+        limit=limit,
+        http_request=http_request,
+        http_response=http_response,
+    )
+    return {"mesh_id": mesh_id, "events": events}
 
 
 @router.get(

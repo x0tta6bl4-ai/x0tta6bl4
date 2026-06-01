@@ -1,21 +1,14 @@
-"""
-MaaS Combined Router - Assembles all endpoint routers.
+"""MaaS Combined Router - assembles all endpoint routers."""
 
-Provides a single router that combines all domain-specific routers.
-Modular implementation for v4.0 architecture.
-"""
-
-from collections.abc import Collection
+from collections.abc import Iterable
 
 from fastapi import APIRouter
 
-from .auth import root_router as auth_root_router
-from .auth import router as auth_router
+from .auth import router as auth_router, root_router as auth_root_router
 from .batman import router as batman_router
 from .billing import router as billing_router
 from .mesh import router as mesh_router
 from .nodes import router as nodes_router
-from .nodes_legacy import router as legacy_nodes_router
 from .pilot import router as pilot_router
 from .playbooks import router as playbooks_router
 from .provisioning import router as provisioning_router
@@ -36,171 +29,156 @@ from .vision import router as vision_router
 from .service_identity_status import router as service_identity_status_router
 
 
+_DEFAULT_MAAS_PREFIX = "/api/v1/maas"
+
+
+def _join_prefix(base: str, suffix: str = "") -> str:
+    clean_base = "/" + str(base or "").strip("/")
+    clean_suffix = str(suffix or "").strip("/")
+    return clean_base if not clean_suffix else f"{clean_base}/{clean_suffix}"
+
+
 def _filtered_router(
     source: APIRouter,
     *,
-    include_paths: Collection[str] | None = None,
-    exclude_paths: Collection[str] | None = None,
+    included_paths: Iterable[str] | None = None,
+    excluded_paths: Iterable[str] | None = None,
 ) -> APIRouter:
-    """Return a lightweight router copy with selected route paths."""
-    include_set = set(include_paths) if include_paths is not None else None
-    exclude_set = set(exclude_paths or ())
-    if include_set is None and not exclude_set:
+    included = None if included_paths is None else {str(path) for path in included_paths}
+    excluded = {str(path) for path in (excluded_paths or set())}
+    if included is None and not excluded:
         return source
-
     filtered = APIRouter()
     for route in source.routes:
         path = getattr(route, "path", "")
-        if include_set is not None and path not in include_set:
+        if included is not None and path not in included:
             continue
-        if path in exclude_set:
-            continue
-        filtered.routes.append(route)
+        if path not in excluded:
+            filtered.routes.append(route)
     return filtered
 
 
 def get_combined_router(
-    prefix: str = "",
+    *,
+    prefix: str = _DEFAULT_MAAS_PREFIX,
     include_auth: bool = True,
     include_auth_namespace: bool = True,
     include_mesh: bool = True,
     include_mesh_namespace: bool = True,
-    mesh_root_excluded_paths: Collection[str] | None = None,
-    mesh_namespace_excluded_paths: Collection[str] | None = None,
     include_nodes: bool = True,
-    include_legacy_nodes: bool = True,
-    legacy_nodes_excluded_paths: Collection[str] | None = ("/register",),
+    include_nodes_namespace: bool = True,
     include_billing: bool = True,
-    billing_excluded_paths: Collection[str] | None = None,
     include_batman: bool = True,
     include_pilot: bool = True,
-    include_playbooks: bool = True,
-    include_provisioning: bool = True,
-    include_marketplace: bool = True,
-    include_governance: bool = True,
-    include_analytics: bool = True,
-    include_agent_mesh: bool = True,
-    include_supply_chain: bool = True,
-    include_compat: bool = False,
-    compat_include_paths: Collection[str] | None = None,
-    include_policies: bool = True,
-    include_telemetry: bool = True,
-    include_vpn: bool = True,
-    include_users: bool = True,
-    include_swarm: bool = True,
-    include_ledger: bool = True,
-    include_swarm_orchestration: bool = True,
-    include_vision: bool = True,
-    include_service_identity: bool = True,
+    include_compat: bool = True,
+    mesh_root_excluded_paths: Iterable[str] | None = None,
+    billing_excluded_paths: Iterable[str] | None = None,
 ) -> APIRouter:
-    """
-    Create a combined router with all domain endpoints.
-    """
-    router = APIRouter(prefix=prefix)
+    """Create a combined router with configurable MaaS domain slices."""
+    router = APIRouter()
+    maas_prefix = _join_prefix(prefix)
+    use_default_prefix = maas_prefix == _DEFAULT_MAAS_PREFIX
 
     # --- MaaS v1 Group ---
-    if include_auth:
-        router.include_router(auth_root_router, prefix="/api/v1/maas")
-        if include_auth_namespace:
-            router.include_router(auth_router, prefix="/api/v1/maas")
+    
+    # Nodes (moved up to avoid shadowing by mesh parameters)
+    if include_nodes:
+        router.include_router(nodes_router, prefix=maas_prefix)
+        if include_nodes_namespace:
+            router.include_router(nodes_router, prefix=_join_prefix(maas_prefix, "nodes"))
 
+    # Auth
+    if include_auth:
+        router.include_router(auth_root_router, prefix=maas_prefix)
+        if include_auth_namespace:
+            router.include_router(auth_router, prefix=maas_prefix)
+
+    # Mesh
     if include_mesh:
         router.include_router(
-            _filtered_router(mesh_router, exclude_paths=mesh_root_excluded_paths),
-            prefix="/api/v1/maas",
+            _filtered_router(
+                mesh_router,
+                excluded_paths=mesh_root_excluded_paths,
+            ),
+            prefix=maas_prefix,
         )
         if include_mesh_namespace:
-            router.include_router(
-                _filtered_router(
-                    mesh_router,
-                    exclude_paths=mesh_namespace_excluded_paths,
-                ),
-                prefix="/api/v1/maas/mesh",
-            )
+            router.include_router(mesh_router, prefix=_join_prefix(maas_prefix, "mesh"))
 
-    if include_nodes:
-        router.include_router(nodes_router, prefix="/api/v1/maas")
-        if include_legacy_nodes:
-            router.include_router(
-                _filtered_router(
-                    legacy_nodes_router,
-                    exclude_paths=legacy_nodes_excluded_paths,
-                ),
-                prefix="/api/v1/maas",
-            )
-
+    # Billing
     if include_billing:
         router.include_router(
-            _filtered_router(billing_router, exclude_paths=billing_excluded_paths),
-            prefix="/api/v1/maas/billing",
+            _filtered_router(
+                billing_router,
+                excluded_paths=billing_excluded_paths,
+            ),
+            prefix=_join_prefix(maas_prefix, "billing"),
         )
-        # Legacy billing v1
-        try:
-            from src.api.billing import router as billing_v1_router
-            router.include_router(billing_v1_router) # already has /api/v1/billing
-        except ImportError:
-            pass
 
+    # Rest
     if include_batman:
-        router.include_router(batman_router, prefix="/api/v1/maas/batman")
-
+        router.include_router(batman_router, prefix=_join_prefix(maas_prefix, "batman"))
     if include_pilot:
-        router.include_router(pilot_router, prefix="/api/v1/maas/pilot")
-
-    if include_playbooks:
-        router.include_router(playbooks_router, prefix="/api/v1/maas/playbooks")
-
-    if include_provisioning:
-        router.include_router(provisioning_router, prefix="/api/v1/maas/provisioning")
-
-    if include_marketplace:
-        router.include_router(marketplace_router, prefix="/api/v1/maas/marketplace")
-
-    if include_governance:
-        router.include_router(governance_router, prefix="/api/v1/maas/governance")
-
-    if include_analytics:
-        router.include_router(analytics_router, prefix="/api/v1/maas/analytics")
-
-    if include_agent_mesh:
-        router.include_router(agent_mesh_router, prefix="/api/v1/maas/agents")
-
-    if include_supply_chain:
-        router.include_router(supply_chain_router, prefix="/api/v1/maas/supply-chain")
-
+        router.include_router(pilot_router, prefix=_join_prefix(maas_prefix, "pilot"))
+    router.include_router(playbooks_router, prefix=_join_prefix(maas_prefix, "playbooks"))
+    router.include_router(
+        provisioning_router,
+        prefix=_join_prefix(maas_prefix, "provisioning"),
+    )
+    router.include_router(
+        marketplace_router,
+        prefix=_join_prefix(maas_prefix, "marketplace"),
+    )
+    router.include_router(governance_router, prefix=_join_prefix(maas_prefix, "governance"))
+    router.include_router(analytics_router, prefix=_join_prefix(maas_prefix, "analytics"))
+    router.include_router(agent_mesh_router, prefix=_join_prefix(maas_prefix, "agents"))
+    router.include_router(
+        supply_chain_router,
+        prefix=_join_prefix(maas_prefix, "supply-chain"),
+    )
+    router.include_router(policies_router, prefix=_join_prefix(maas_prefix, "policies"))
+    router.include_router(telemetry_router, prefix=_join_prefix(maas_prefix, "telemetry"))
     if include_compat:
-        router.include_router(
-            _filtered_router(compat_router, include_paths=compat_include_paths)
+        compat_aliases = {"/api/v1/maas/compat/readiness"}
+        if include_auth:
+            compat_aliases.add("/api/v3/maas/auth/register")
+        if include_billing:
+            compat_aliases.add("/api/v1/maas/billing/pay")
+        compat_alias_router = _filtered_router(
+            compat_router,
+            included_paths=compat_aliases,
         )
-
-    if include_policies:
-        router.include_router(policies_router, prefix="/api/v1/maas/policies")
-
-    if include_telemetry:
-        router.include_router(telemetry_router, prefix="/api/v1/maas/telemetry")
+        if use_default_prefix:
+            router.include_router(compat_alias_router)
+        else:
+            router.include_router(compat_alias_router, prefix=maas_prefix)
 
     # --- Specialized Groups ---
-    if include_vpn:
-        router.include_router(vpn_router, prefix="/vpn")
+    if use_default_prefix:
         router.include_router(vpn_router, prefix="/api/v1/vpn")
-
-    if include_users:
         router.include_router(users_router, prefix="/api/v1/users")
-
-    if include_swarm:
         router.include_router(swarm_router, prefix="/api/v3/swarm")
-
-    if include_ledger:
         router.include_router(ledger_router, prefix="/api/v1/ledger")
-
-    if include_swarm_orchestration:
         router.include_router(swarm_orchestration_router, prefix="/api/v1/swarm")
-
-    if include_vision:
         router.include_router(vision_router, prefix="/api/v1/vision")
-
-    if include_service_identity:
-        router.include_router(service_identity_status_router, prefix="/api/v1/service-identity")
+        router.include_router(
+            service_identity_status_router,
+            prefix="/api/v1/service-identity",
+        )
+    else:
+        router.include_router(vpn_router, prefix=_join_prefix(maas_prefix, "vpn"))
+        router.include_router(users_router, prefix=_join_prefix(maas_prefix, "users"))
+        router.include_router(swarm_router, prefix=_join_prefix(maas_prefix, "swarm-v3"))
+        router.include_router(ledger_router, prefix=_join_prefix(maas_prefix, "ledger"))
+        router.include_router(
+            swarm_orchestration_router,
+            prefix=_join_prefix(maas_prefix, "swarm"),
+        )
+        router.include_router(vision_router, prefix=_join_prefix(maas_prefix, "vision"))
+        router.include_router(
+            service_identity_status_router,
+            prefix=_join_prefix(maas_prefix, "service-identity"),
+        )
 
     return router
 
