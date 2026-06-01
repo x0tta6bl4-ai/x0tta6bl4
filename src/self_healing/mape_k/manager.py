@@ -6,7 +6,7 @@ Implements Monitor, Analyze, Plan, Execute, Knowledge loop
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.integration.spine import SafeActuator
@@ -113,10 +113,15 @@ class SelfHealingManager:
         *,
         event_bus: Optional[EventBus] = None,
         event_project_root: str = ".",
+        action_cooldown_seconds: float = 30.0,
+        clock: Optional[Callable[[], float]] = None,
     ):
         self.node_id = node_id
         self.event_project_root = event_project_root
         self.event_bus = _event_bus_or_none(event_bus, event_project_root)
+        self.action_cooldown_seconds = max(0.0, float(action_cooldown_seconds))
+        self._clock = clock or time.time
+        self._last_recovery_attempts: Dict[str, float] = {}
 
         if knowledge_storage:
             from src.storage.mapek_integration import MAPEKKnowledgeStorageAdapter
@@ -144,6 +149,45 @@ class SelfHealingManager:
         self.feedback_updates = 0
         self.threshold_adjustments = 0
         self.strategy_improvements = 0
+        self.oscillation_blocks = 0
+
+    def _recovery_guard_key(self, issue: str, action: str) -> str:
+        key_material = "\0".join(
+            (
+                str(self.node_id or ""),
+                " ".join(str(issue or "").split()).lower(),
+                " ".join(str(action or "").split()).lower(),
+            )
+        )
+        return _sha256_text(key_material) or "empty"
+
+    def _recovery_guard_state(
+        self,
+        issue: str,
+        action: str,
+        *,
+        now: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        guard_key = self._recovery_guard_key(issue, action)
+        now = self._clock() if now is None else float(now)
+        previous = self._last_recovery_attempts.get(guard_key)
+        elapsed = None if previous is None else max(0.0, now - previous)
+        blocked = (
+            self.action_cooldown_seconds > 0.0
+            and elapsed is not None
+            and elapsed < self.action_cooldown_seconds
+        )
+        return {
+            "enabled": self.action_cooldown_seconds > 0.0,
+            "blocked": blocked,
+            "key_sha256": guard_key,
+            "cooldown_seconds": round(self.action_cooldown_seconds, 3),
+            "elapsed_seconds": round(elapsed, 3) if elapsed is not None else None,
+            "raw_values_redacted": True,
+        }
+
+    def _record_recovery_attempt(self, issue: str, action: str, *, now: float) -> None:
+        self._last_recovery_attempts[self._recovery_guard_key(issue, action)] = now
 
     def _publish_cycle_event(
         self,
@@ -162,6 +206,7 @@ class SelfHealingManager:
         mttr: Optional[float] = None,
         error_type: Optional[str] = None,
         downstream_event_ids: Optional[List[str]] = None,
+        oscillation_guard: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -194,6 +239,12 @@ class SelfHealingManager:
             "success": success,
             "simulated": simulated,
             "downstream_evidence": _safe_downstream_evidence(downstream_event_ids, limit=_DOWNSTREAM_EVENT_ID_LIMIT),
+            "oscillation_guard": oscillation_guard or {
+                "enabled": self.action_cooldown_seconds > 0.0,
+                "blocked": False,
+                "cooldown_seconds": round(self.action_cooldown_seconds, 3),
+                "raw_values_redacted": True,
+            },
             "mttr_seconds": round(float(mttr), 6) if mttr is not None else None,
             "input_redacted": True,
             "claim_boundary": SELF_HEALING_MAPEK_CLAIM_BOUNDARY,
@@ -245,23 +296,47 @@ class SelfHealingManager:
             except NameError: pass
 
             execute_start = time.time()
+            guard_now = self._clock()
+            oscillation_guard = self._recovery_guard_state(
+                issue,
+                action,
+                now=guard_now,
+            )
             downstream_before = _event_ids_for_agent(self.event_bus, _RECOVERY_EXECUTOR_AGENT)
-            actuator = SafeActuator(lambda _action, _context: self.executor.execute(action))
-            actuator_result = actuator.execute(action, {})
-            success = bool(actuator_result.success)
-            simulated = bool(getattr(self.executor, "was_simulated", False))
-            downstream_event_ids = _new_event_ids_for_agent(self.event_bus, _RECOVERY_EXECUTOR_AGENT, downstream_before)
+            if oscillation_guard["blocked"]:
+                self.oscillation_blocks += 1
+                success = False
+                simulated = False
+                downstream_event_ids = []
+                error_type = "OscillationGuardBlocked"
+            else:
+                self._record_recovery_attempt(issue, action, now=guard_now)
+                actuator = SafeActuator(lambda _action, _context: self.executor.execute(action))
+                actuator_result = actuator.execute(action, {})
+                success = bool(actuator_result.success)
+                simulated = bool(getattr(self.executor, "was_simulated", False))
+                downstream_event_ids = _new_event_ids_for_agent(self.event_bus, _RECOVERY_EXECUTOR_AGENT, downstream_before)
+                error_type = None if success else "SafeActuatorFailure"
             execute_duration = time.time() - execute_start
 
             if event_id in self.recovery_start_times:
                 mttr = time.time() - self.recovery_start_times[event_id]
                 self._publish_cycle_event(
                     (EventType.PIPELINE_STAGE_END if success and not simulated else EventType.TASK_FAILED),
-                    stage=("execute_completed" if success and not simulated else "execute_simulated" if simulated else "execute_failed"),
+                    stage=(
+                        "execute_completed"
+                        if success and not simulated
+                        else "execute_simulated"
+                        if simulated
+                        else "execute_blocked_by_oscillation_guard"
+                        if oscillation_guard["blocked"]
+                        else "execute_failed"
+                    ),
                     operation="execute", status="success" if success and not simulated else "failed",
                     metrics=metrics, issue=issue, action=action, success=success and not simulated,
                     simulated=simulated, duration_ms=execute_duration * 1000, mttr=mttr,
-                    error_type=None if success else "SafeActuatorFailure", downstream_event_ids=downstream_event_ids,
+                    error_type=error_type, downstream_event_ids=downstream_event_ids,
+                    oscillation_guard=oscillation_guard,
                 )
 
                 try:
@@ -303,6 +378,8 @@ class SelfHealingManager:
             "knowledge_base_size": len(self.knowledge.incidents),
             "successful_patterns": len(self.knowledge.successful_patterns),
             "failed_patterns": len(self.knowledge.failed_patterns),
+            "oscillation_blocks": self.oscillation_blocks,
+            "action_cooldown_seconds": self.action_cooldown_seconds,
         }
 
     def integrate_ebpf_self_healing(self, interface: str = "eth0"):
