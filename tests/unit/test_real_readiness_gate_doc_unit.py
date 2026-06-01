@@ -15,7 +15,8 @@ def test_real_readiness_gate_safe_actuator_counts_match_verifiers():
     assert "parse-error-free" in text
     assert "`20/20`" in text
     assert "`63/63`" in text
-    assert "`18/18` local" in text
+    assert "`18 EventBus + 4 ops" in text
+    assert "result-metadata` local cases" in text
 
     stale_markers = (
         "`14/14`",

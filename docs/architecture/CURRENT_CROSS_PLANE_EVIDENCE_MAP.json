@@ -99,7 +99,7 @@
       "role": "Service identity and trust configuration evidence.",
       "verified_contours": [
         "redacted local identity configuration and lifecycle events",
-        "bounded measured-attestation verifier-smoke handoff and artifact validation",
+      "bounded SGX/SEV/Nitro measured-attestation verifier-smoke handoff and artifact validation",
         "PQC rotation intent metadata remains bounded from live trust-finality claims",
         "SPIRE server/agent SafeActuator metadata remains bounded from live SVID, mTLS, node-attestation, and production trust claims"
       ],
@@ -110,7 +110,12 @@
       ],
       "source_refs": [
         "src/api/service_identity_status.py:1",
-        "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py:1",
+      "src/security/tee_attestation.py:1",
+      "scripts/ops/verify_measured_attestation_verifier_smoke.py:1",
+      "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py:1",
+      "tests/unit/security/test_tee_attestation_unit.py:1",
+      "tests/unit/scripts/test_verify_measured_attestation_verifier_smoke.py:1",
+      "tests/unit/scripts/test_run_measured_attestation_verifier_handoff.py:1",
         "src/services/pqc_rotator_service.py:1",
         "src/security/spiffe/server/client.py:1",
         "src/security/spiffe/agent/manager.py:1"
@@ -149,7 +154,12 @@
         "scripts/ops/verify_economy_dataplane_separation.py:1",
         "scripts/ops/smoke_ledger_event_trace_citation.py:1",
         "scripts/ops/check_real_readiness.py:1",
-        "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py:1",
+      "src/security/tee_attestation.py:1",
+      "scripts/ops/verify_measured_attestation_verifier_smoke.py:1",
+      "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py:1",
+      "tests/unit/security/test_tee_attestation_unit.py:1",
+      "tests/unit/scripts/test_verify_measured_attestation_verifier_smoke.py:1",
+      "tests/unit/scripts/test_run_measured_attestation_verifier_handoff.py:1",
         "tests/unit/scripts/test_verify_cross_plane_proof_gate_retention.py:1",
         "tests/unit/scripts/test_verify_safe_actuator_metadata_adoption.py:1",
       "tests/unit/scripts/test_verify_safe_actuator_runtime_metadata_retention.py:1",
@@ -571,20 +581,30 @@
       "to_planes": [
         "evidence_plane"
       ],
-      "current_path": "A local operator can run a read-only handoff for report/quote/signature/verifier inputs, retain docs/verification/incoming/measured_attestation_verifier_smoke.json, validate it with scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py, and have scripts/ops/run_cross_plane_proof_gate.py evaluate the bounded measured_attestation_verifier_smoke claim. When the smoke artifact is absent, the proof gate now embeds a redacted handoff diagnostic that names the missing local inputs without exposing raw paths, verifier commands, operator IDs, authorization scope, or policy context.",
+      "current_path": "A local operator can run a read-only handoff for report/quote/signature/verifier inputs, choose an SGX/SEV/Nitro provider with a provider-specific local verifier command, retain docs/verification/incoming/measured_attestation_verifier_smoke.json, validate it with scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py, and have scripts/ops/run_cross_plane_proof_gate.py evaluate the bounded measured_attestation_verifier_smoke claim. When the smoke artifact is absent, the proof gate now embeds a redacted handoff diagnostic that names the missing local inputs without exposing raw paths, verifier commands, operator IDs, authorization scope, or policy context.",
       "verified_evidence": [
-        "The handoff validates local input presence and command surface while redacting raw file paths, verifier command, operator ID, authorization scope, and policy context.",
+        "TEEValidator supports fail-closed provider-aware local verifier commands for SGX, SEV, and Nitro; without a configured command it rejects instead of simulating hardware trust.",
+        "The handoff validates local input presence, provider, and command surface while redacting raw file paths, verifier command, operator ID, authorization scope, and policy context.",
+        "The smoke runner can execute the selected SGX/SEV/Nitro command backend and records only hashes, sizes, provider, verifier provenance, and claim gates.",
         "The validator rejects broken hashes, unredacted attestation material, missing verifier provenance, mock provider status, and production-claim overpromotion.",
         "The cross-plane proof gate treats validator-ready measured-attestation smoke as a trust/evidence artifact and production-readiness dependency without making production trust finality true.",
         "The cross-plane proof gate reports the measured-attestation handoff readiness state as diagnostic evidence when the smoke artifact is missing, while keeping the measured_attestation_verifier_smoke claim blocked."
       ],
-      "boundary": "Measured-attestation verifier smoke proves only that one supplied attestation sample was accepted by a configured non-mock verifier and saved with redacted provenance. It does not prove production trust finality, fleet-wide hardware coverage, PQC identity finality, customer traffic, settlement, or production readiness.",
+      "boundary": "Measured-attestation verifier smoke proves only that one supplied attestation sample was accepted by one configured non-mock SGX/SEV/Nitro verifier and saved with redacted provenance. It does not prove production trust finality, fleet-wide hardware coverage, PQC identity finality, customer traffic, settlement, or production readiness.",
       "source_refs": [
+        "src/security/tee_attestation.py:1",
         "scripts/ops/run_measured_attestation_verifier_handoff.py:1",
+        "scripts/ops/verify_measured_attestation_verifier_smoke.py:1",
         "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py:1",
-        "scripts/ops/run_cross_plane_proof_gate.py:1"
+        "scripts/ops/run_cross_plane_proof_gate.py:1",
+        "tests/unit/security/test_tee_attestation_unit.py:1",
+        "tests/unit/scripts/test_verify_measured_attestation_verifier_smoke.py:1",
+        "tests/unit/scripts/test_run_measured_attestation_verifier_handoff.py:1"
       ],
       "proof_flags": {
+        "sgx_command_backend_available": true,
+        "sev_command_backend_available": true,
+        "nitro_command_backend_available": true,
         "measured_attestation_verifier_handoff_present": true,
         "measured_attestation_handoff_diagnostic_in_proof_gate": true,
         "measured_attestation_verifier_smoke_claim_available": true,

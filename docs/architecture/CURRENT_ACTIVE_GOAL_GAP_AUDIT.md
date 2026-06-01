@@ -29,8 +29,11 @@ Separate trust-plane operator risk: measured-attestation production verifier
 evidence still requires a real non-mock SGX/SEV/Nitro run, but
 `scripts/ops/run_measured_attestation_verifier_handoff.py --require-ready --json`
 now gives a read-only local preflight for report/quote/signature/verifier inputs
-and emits only redacted hashes, sizes, and safe local commands. It does not run
-the verifier or claim production trust finality. The cross-plane proof gate now
+and emits only redacted hashes, sizes, provider/command readiness, and safe
+local commands. `TEEValidator` and the smoke runner now support provider-aware
+SGX/SEV/Nitro local command backends, but missing verifier commands still fail
+closed instead of simulating trust. It does not run the verifier or claim
+production trust finality. The cross-plane proof gate now
 also embeds this redacted handoff status under the
 `measured_attestation_verifier_smoke` artifact evidence, so a missing smoke
 artifact shows the exact local input classes that are still absent instead of a
