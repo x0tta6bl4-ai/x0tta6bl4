@@ -6612,6 +6612,43 @@ def _passing_runner(
                 }
             ),
         )
+    if len(args) > 1 and args[1] == "src/integration/code_wiring.py":
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "decision": "LOCAL_CODE_WIRING_VERIFIED",
+                    "ok": True,
+                    "completion_decision": "NOT_COMPLETE",
+                    "goal_can_be_marked_complete": False,
+                    "mutates_runtime": False,
+                    "contacts_live_systems": False,
+                    "submits_transaction": False,
+                    "claim_boundary": (
+                        "Local integration spine contract only. It does not "
+                        "prove production rollout, customer traffic, or live "
+                        "on-chain settlement."
+                    ),
+                    "summary": {
+                        "required_wiring_keys_total": 5,
+                        "wiring_keys_covered": 5,
+                        "trace_cases_total": 7,
+                        "trace_cases_passed": 7,
+                        "trace_cases_failed": 0,
+                        "canonical_identity_consistent": True,
+                        "policy_before_actuator_verified": True,
+                        "simulated_actuator_blocks_settlement": True,
+                        "settlement_failure_fails_closed": True,
+                        "simulated_settlement_fails_closed": True,
+                        "token_rewards_local_only_fails_closed": True,
+                        "token_rewards_event_bus_recorded": True,
+                        "spine_claim_gates_preserved": True,
+                        "actuator_context_claim_gates_preserved": True,
+                        "reward_context_claim_gates_preserved": True,
+                    },
+                }
+            ),
+        )
     return CommandResult(0, "ok\n")
 
 
@@ -6663,6 +6700,7 @@ def test_ready_contract_passes_with_clean_static_and_command_evidence(tmp_path: 
     check_ids = {item["check_id"] for item in report["checks"]}
     assert "maas_autonomous_mesh_runtime_smoke" in check_ids
     assert "dataplane_delivery_private_target_operator_run_preflight" in check_ids
+    assert "integration_spine_code_wiring_runtime" in check_ids
 
 
 def test_maas_autonomous_mesh_runtime_smoke_blocks_readiness_on_overclaim(
@@ -6735,6 +6773,58 @@ def test_maas_autonomous_mesh_runtime_smoke_blocks_readiness_on_overclaim(
 
     blocker_ids = {item["check_id"] for item in report["blockers"]}
     assert "maas_autonomous_mesh_runtime_smoke" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_integration_spine_code_wiring_runtime_blocks_readiness_on_overclaim(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if len(args) > 1 and args[1] == "src/integration/code_wiring.py":
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "LOCAL_CODE_WIRING_VERIFIED",
+                        "ok": True,
+                        "completion_decision": "COMPLETE",
+                        "goal_can_be_marked_complete": True,
+                        "mutates_runtime": False,
+                        "contacts_live_systems": False,
+                        "submits_transaction": False,
+                        "claim_boundary": "does not prove production rollout",
+                        "summary": {
+                            "required_wiring_keys_total": 5,
+                            "wiring_keys_covered": 5,
+                            "trace_cases_total": 7,
+                            "trace_cases_passed": 7,
+                            "trace_cases_failed": 0,
+                            "canonical_identity_consistent": True,
+                            "policy_before_actuator_verified": True,
+                            "simulated_actuator_blocks_settlement": True,
+                            "settlement_failure_fails_closed": True,
+                            "simulated_settlement_fails_closed": True,
+                            "token_rewards_local_only_fails_closed": True,
+                            "token_rewards_event_bus_recorded": True,
+                            "spine_claim_gates_preserved": True,
+                            "actuator_context_claim_gates_preserved": True,
+                            "reward_context_claim_gates_preserved": True,
+                        },
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "integration_spine_code_wiring_runtime" in blocker_ids
     assert report["ready"] is False
 
 

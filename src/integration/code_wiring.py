@@ -9,11 +9,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.coordination.events import EventBus, EventType
 from src.dao.token_rewards import TokenRewards

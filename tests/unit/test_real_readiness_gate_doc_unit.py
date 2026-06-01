@@ -72,3 +72,12 @@ def test_real_readiness_gate_lists_private_target_blocked_preflight():
     assert "verify_dataplane_delivery_private_target_operator_run.py" in text
     assert "--target-host 10.0.0.5 --require-retained --json" in text
     assert "without `--allow-private-target-probe`" in text
+
+
+def test_real_readiness_gate_lists_integration_spine_code_wiring_gate():
+    text = _doc_text()
+
+    assert "IntegrationSpine code wiring is command-gated" in text
+    assert "src/integration/code_wiring.py" in text
+    assert "identity -> policy -> SafeActuator -> EventBus ->" in text
+    assert "still report `NOT_COMPLETE`" in text

@@ -107,6 +107,11 @@ bash scripts/production-readiness-check.sh --write-json --write-md
   may record local/pending economy state, but must not promote dataplane
   delivery, customer traffic, revenue recognition, SLO, or production
   readiness.
+- IntegrationSpine code wiring is command-gated: `src/integration/code_wiring.py`
+  must execute the local identity -> policy -> SafeActuator -> EventBus ->
+  reward/settlement traces, preserve claim gates through actuator and reward
+  context, and still report `NOT_COMPLETE` without live-system, transaction,
+  production, customer-traffic, or settlement-finality claims.
 - Swarm coordination is gated: executable `.githooks` hooks, ownership-map
   coverage, pre-commit staged-file lease enforcement, and post-commit lease
   release must satisfy `scripts/agents/check_coordination_contract.sh`.

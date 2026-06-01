@@ -417,6 +417,12 @@ def test_cross_plane_evidence_map_readiness_gates_maas_runtime_smoke():
         "Private-target operator-run blocked preflight is readiness-gated" in contour
         for contour in evidence_contours
     )
+    assert any(
+        "IntegrationSpine code-wiring proof is readiness command-gated" in contour
+        for contour in evidence_contours
+    )
+    assert "src/integration/code_wiring.py:1" in evidence_refs
+    assert "tests/unit/test_integration_spine.py:1" in evidence_refs
 
 
 def test_cross_plane_maas_heal_probe_is_bounded_local_dataplane_evidence():

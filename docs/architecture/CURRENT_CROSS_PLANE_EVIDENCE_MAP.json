@@ -129,6 +129,7 @@
         "retained proof-gate reports can be revalidated against current source artifact hashes before being used as evidence context",
         "SafeActuator runtime metadata contract is checked for high-risk PQC/Ghost/eBPF/MaaS-governance/SPIRE/TokenBridge/DAO-executor/core-MAPE-K/deployment callers",
         "SafeActuator metadata adoption inventory records current parse-error-free result-call source coverage without promoting runtime or production claims",
+        "IntegrationSpine code-wiring proof is readiness command-gated and executes local identity, policy, SafeActuator, EventBus, reward-context, settlement-failure, simulated-actuator, and TokenRewards fail-closed traces while still returning NOT_COMPLETE and no live-system/transaction claims",
       "SafeActuator runtime metadata retention verifier confirms representative SPIRE trust/control, TokenBridge economy/control, DAO executor release/control, DAO proposal Helm upgrade/control, DAO governance dispatch/control, GovernanceContract chain-write control/economy, Ghost L3 data/control, eBPF data/control, MaaS governance control/economy, PQC rotator trust/control, MPTCP network/control, core MAPE-K aggressive-healing control, PBFT consensus/control, Swarm MAPE-K local decision/control, canary deployment/control, and multi-cloud deployment/control EventBus events plus ops canary rollout, production monitor, auto-rollback, and production_deploy.py result metadata retain typed redacted metadata while keeping production, dataplane, route-convergence, consensus-finality, PQC-trust-finality, governance-finality, settlement-finality, traffic-shift, throughput, kernel-forwarding, rollback-execution, and customer-traffic claims false",
         "production_deploy.py blocked-preflight evidence runner retains a local JSON artifact showing deploy refusal before subprocess/kubectl while preserving redacted SafeActuator metadata and keeping live deployment, traffic shifting, customer traffic, production SLO, and production readiness claims false",
         "Dataplane operator evidence runner gives an authorized operator one bounded local command to retain redacted EventBus and proof-gate artifacts for a private/local probe without promoting customer/traffic/production claims",
@@ -146,6 +147,8 @@
       "source_refs": [
         "scripts/ops/run_cross_plane_proof_gate.py:1",
         "scripts/ops/verify_cross_plane_proof_gate_retention.py:1",
+        "src/integration/code_wiring.py:1",
+        "tests/unit/test_integration_spine.py:1",
         "scripts/ops/verify_safe_actuator_metadata_adoption.py:1",
       "scripts/ops/verify_safe_actuator_runtime_metadata_retention.py:1",
       "scripts/ops/run_production_deploy_blocked_preflight_evidence.py:1",

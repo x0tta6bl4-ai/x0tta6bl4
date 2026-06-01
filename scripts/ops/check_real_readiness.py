@@ -71,6 +71,7 @@ MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_VERIFIER = (
 CROSS_PLANE_PROOF_GATE_RETENTION_VERIFIER = (
     "scripts/ops/verify_cross_plane_proof_gate_retention.py"
 )
+INTEGRATION_SPINE_CODE_WIRING = "src/integration/code_wiring.py"
 SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER = (
     "scripts/ops/verify_safe_actuator_metadata_adoption.py"
 )
@@ -7583,6 +7584,115 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
                 ),
             )
         )
+
+    integration_spine_output = (
+        ".tmp/validation-shards/"
+        f"integration-spine-code-wiring-real-readiness-{os.getpid()}.json"
+    )
+    integration_spine_code_wiring = runner(
+        (
+            sys.executable,
+            INTEGRATION_SPINE_CODE_WIRING,
+            "--root",
+            str(root),
+            "--output-json",
+            integration_spine_output,
+            "--require-verified",
+        ),
+        None,
+        120,
+    )
+    if integration_spine_code_wiring.returncode != 0:
+        checks.append(
+            fail_check(
+                "integration_spine_code_wiring_runtime",
+                _format_command_failure(integration_spine_code_wiring),
+                (
+                    f"python {INTEGRATION_SPINE_CODE_WIRING} --root {root} "
+                    f"--output-json {integration_spine_output} --require-verified"
+                ),
+            )
+        )
+    else:
+        try:
+            code_wiring_payload = json.loads(integration_spine_code_wiring.stdout)
+        except json.JSONDecodeError:
+            code_wiring_payload = {}
+        code_wiring_summary = (
+            code_wiring_payload.get("summary", {})
+            if isinstance(code_wiring_payload, Mapping)
+            else {}
+        )
+        trace_cases_total = _non_negative_int(
+            code_wiring_summary.get("trace_cases_total"),
+            0,
+        )
+        trace_cases_passed = _non_negative_int(
+            code_wiring_summary.get("trace_cases_passed"),
+            0,
+        )
+        trace_cases_failed = _non_negative_int(
+            code_wiring_summary.get("trace_cases_failed"),
+            0,
+        )
+        integration_spine_ready = (
+            isinstance(code_wiring_payload, Mapping)
+            and code_wiring_payload.get("decision") == "LOCAL_CODE_WIRING_VERIFIED"
+            and code_wiring_payload.get("ok") is True
+            and code_wiring_payload.get("completion_decision") == "NOT_COMPLETE"
+            and code_wiring_payload.get("goal_can_be_marked_complete") is False
+            and code_wiring_payload.get("mutates_runtime") is False
+            and code_wiring_payload.get("contacts_live_systems") is False
+            and code_wiring_payload.get("submits_transaction") is False
+            and trace_cases_total >= 7
+            and trace_cases_passed == trace_cases_total
+            and trace_cases_failed == 0
+            and code_wiring_summary.get("wiring_keys_covered")
+            == code_wiring_summary.get("required_wiring_keys_total")
+            and code_wiring_summary.get("canonical_identity_consistent") is True
+            and code_wiring_summary.get("policy_before_actuator_verified") is True
+            and code_wiring_summary.get("simulated_actuator_blocks_settlement") is True
+            and code_wiring_summary.get("settlement_failure_fails_closed") is True
+            and code_wiring_summary.get("simulated_settlement_fails_closed") is True
+            and code_wiring_summary.get("token_rewards_local_only_fails_closed") is True
+            and code_wiring_summary.get("token_rewards_event_bus_recorded") is True
+            and code_wiring_summary.get("spine_claim_gates_preserved") is True
+            and code_wiring_summary.get("actuator_context_claim_gates_preserved") is True
+            and code_wiring_summary.get("reward_context_claim_gates_preserved") is True
+            and "does not prove production rollout"
+            in str(code_wiring_payload.get("claim_boundary", ""))
+        )
+        if integration_spine_ready:
+            checks.append(
+                pass_check(
+                    "integration_spine_code_wiring_runtime",
+                    (
+                        "IntegrationSpine executable code-wiring proof preserves "
+                        f"{trace_cases_passed}/{trace_cases_total} identity, "
+                        "policy, SafeActuator, EventBus, reward-context, and "
+                        "fail-closed settlement traces without live-system claims"
+                    ),
+                    (
+                        f"python {INTEGRATION_SPINE_CODE_WIRING} --root {root} "
+                        f"--output-json {integration_spine_output} --require-verified"
+                    ),
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "integration_spine_code_wiring_runtime",
+                    (
+                        "IntegrationSpine code-wiring runtime proof did not "
+                        "preserve fail-closed identity/policy/actuator/reward "
+                        "claim gates"
+                    ),
+                    (
+                        f"python {INTEGRATION_SPINE_CODE_WIRING} --root {root} "
+                        f"--output-json {integration_spine_output} --require-verified"
+                    ),
+                )
+            )
 
     safe_actuator_adoption = runner(
         (
