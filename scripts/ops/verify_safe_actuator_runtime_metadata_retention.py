@@ -34,6 +34,7 @@ if str(ROOT) not in sys.path:
 
 from src.coordination.events import Event, EventBus, EventType
 from src.api.maas.endpoints.governance import _execute_action as execute_governance_action
+from src.core.mape_k_loop import MAPEKLoop
 from src.dao.executor_webhook import DAOExecutor
 from src.dao.governance import ActionDispatcher
 from src.dao.governance_contract import GovernanceContract
@@ -51,7 +52,10 @@ from src.integration.spine import (
     SafeActuatorResult,
 )
 from src.mesh.action_enforcer import MeshActionEnforcer
-from src.mesh.metric_evidence_policy import build_mesh_metric_evidence_policy
+from src.mesh.metric_evidence_policy import (
+    MESH_METRIC_POLICY_KEY,
+    build_mesh_metric_evidence_policy,
+)
 from src.network.mptcp_manager import MPTCPManager
 from src.security.spiffe.agent.manager import SPIREAgentManager
 from src.security.spiffe.server.client import SPIREServerClient
@@ -71,6 +75,7 @@ from src.swarm.pbft import PBFTMessage, PBFTNode, PBFTPhase
 from scripts import auto_rollback as ops_auto_rollback
 from scripts import canary_deployment as ops_canary_deployment
 from scripts.deploy import production_deploy as ops_production_deploy
+from scripts.ops import smoke_ledger_event_trace_citation as ledger_event_trace_smoke
 from scripts import production_monitor as ops_production_monitor
 
 
@@ -343,6 +348,25 @@ def _last_completed_event(
     for event in reversed(events):
         if event.data.get("stage") == "actuator_completed" and (
             event.data.get("resource") == resource
+        ):
+            return event
+    return None
+
+
+def _last_core_mapek_action_completed_event(
+    event_bus: EventBus,
+    *,
+    operation: str,
+) -> Event | None:
+    events = event_bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="core-mapek-loop",
+        limit=50,
+    )
+    for event in reversed(events):
+        payload = event.data if isinstance(event.data, Mapping) else {}
+        if payload.get("stage") == "action_completed" and (
+            payload.get("operation") == operation
         ):
             return event
     return None
@@ -1396,6 +1420,142 @@ def _run_mesh_action_enforcer_case(root: Path) -> dict[str, Any]:
     }
 
 
+def _run_core_mapek_aggressive_healing_case(root: Path) -> dict[str, Any]:
+    event_bus = EventBus(str(root / "core-mapek-eventbus"))
+    resource = "core:mapek:execute:aggressive_healing"
+    mesh = SimpleNamespace()
+    mesh.set_route_preference = MagicMock(return_value=True)
+    mesh.trigger_aggressive_healing = MagicMock(return_value=2)
+    loop = MAPEKLoop(
+        consciousness_engine=MagicMock(),
+        mesh_manager=mesh,
+        prometheus=MagicMock(),
+        zero_trust=MagicMock(),
+        event_bus=event_bus,
+        event_project_root=str(root),
+    )
+    directives = {
+        "route_preference": "balanced",
+        "enable_aggressive_healing": True,
+        "preemptive_healing": False,
+        "scaling_action": "none",
+        "dao_actions": [],
+        MESH_METRIC_POLICY_KEY: build_mesh_metric_evidence_policy(
+            {
+                "mesh_metric_source_available": 1.0,
+                "mesh_metric_dataplane_samples": 1.0,
+                "mesh_metric_estimated_samples": 0.0,
+                "mesh_metric_fallback_samples": 0.0,
+            }
+        ),
+    }
+
+    with patch(
+        "src.mesh.yggdrasil_optimizer.get_optimizer",
+        return_value=SimpleNamespace(
+            optimize_routes=lambda **_kwargs: {"recommendations": []}
+        ),
+    ):
+        actions = asyncio.run(loop._execute(directives))
+
+    event = _last_core_mapek_action_completed_event(
+        event_bus,
+        operation="trigger_aggressive_healing",
+    )
+    failures: list[str] = []
+    if "aggressive_healing=2_nodes" not in actions:
+        failures.append("core_mapek_aggressive_healing_action_missing")
+    if mesh.trigger_aggressive_healing.call_count != 1:
+        failures.append("core_mapek_aggressive_healing_not_invoked_once")
+    if event is None:
+        failures.append("core_mapek_aggressive_healing_event_missing")
+    else:
+        failures.extend(
+            validate_event_payload(
+                event,
+                expected_source_agent="core-mapek-loop",
+                expected_resource=resource,
+            )
+        )
+        payload = event.data if isinstance(event.data, Mapping) else {}
+        if payload.get("component") != "core.mape_k_loop":
+            failures.append(f"core_mapek_component_mismatch:{payload.get('component')}")
+        if payload.get("operation") != "trigger_aggressive_healing":
+            failures.append(
+                f"core_mapek_operation_mismatch:{payload.get('operation')}"
+            )
+        if payload.get("safe_actuator") is not True:
+            failures.append("core_mapek_safe_actuator_flag_missing")
+        if payload.get("control_action") is not True:
+            failures.append("core_mapek_control_action_flag_missing")
+        if payload.get("success") is not True:
+            failures.append("core_mapek_success_not_recorded")
+        if payload.get("simulated") is not False:
+            failures.append("core_mapek_simulated_overclaimed")
+
+        metadata = _metadata_for(payload)
+        claim_gate = _claim_gate_for(metadata)
+        evidence = _evidence_for(metadata)
+        revalidation = payload.get("post_action_dataplane_revalidation")
+        revalidation = revalidation if isinstance(revalidation, Mapping) else {}
+        revalidation_gate = revalidation.get("claim_gate")
+        revalidation_gate = (
+            revalidation_gate if isinstance(revalidation_gate, Mapping) else {}
+        )
+
+        if claim_gate.get("schema") != (
+            "x0tta6bl4.core_mapek.post_action_dataplane_claim_gate.v1"
+        ):
+            failures.append("core_mapek_claim_gate_schema_invalid")
+        if claim_gate.get("operation") != "trigger_aggressive_healing":
+            failures.append("core_mapek_claim_gate_operation_mismatch")
+        if claim_gate.get("local_control_action_claim_allowed") is not True:
+            failures.append("core_mapek_local_control_action_not_recorded")
+        if claim_gate.get("safe_actuator_result_recorded") is not True:
+            failures.append("core_mapek_safe_actuator_result_not_recorded")
+        if claim_gate.get("restored_dataplane_claim_allowed") is not False:
+            failures.append("core_mapek_restored_dataplane_overpromoted")
+        if claim_gate.get("traffic_delivery_claim_allowed") is not False:
+            failures.append("core_mapek_traffic_delivery_overpromoted")
+        if claim_gate.get("customer_traffic_claim_allowed") is not False:
+            failures.append("core_mapek_customer_traffic_overpromoted")
+        if claim_gate.get("external_reachability_claim_allowed") is not False:
+            failures.append("core_mapek_external_reachability_overpromoted")
+        if claim_gate.get("production_slo_claim_allowed") is not False:
+            failures.append("core_mapek_production_slo_overpromoted")
+        if claim_gate.get("production_readiness_claim_allowed") is not False:
+            failures.append("core_mapek_production_readiness_overpromoted")
+        if evidence.get("component") != "core.mape_k_loop":
+            failures.append("core_mapek_evidence_component_mismatch")
+        if evidence.get("operation") != "trigger_aggressive_healing":
+            failures.append("core_mapek_evidence_operation_mismatch")
+        if revalidation.get("required_for_restored_dataplane_claim") is not True:
+            failures.append("core_mapek_revalidation_not_required")
+        if revalidation.get("dataplane_confirmed") is not False:
+            failures.append("core_mapek_revalidation_dataplane_overpromoted")
+        if revalidation.get("post_action_dataplane_revalidated") is not False:
+            failures.append("core_mapek_revalidation_overpromoted")
+        if revalidation.get("restored_dataplane_claim_allowed") is not False:
+            failures.append("core_mapek_revalidation_restored_dataplane_overpromoted")
+        if revalidation_gate.get("local_control_action_claim_allowed") is not True:
+            failures.append("core_mapek_revalidation_local_action_missing")
+        if "no_bounded_post_action_dataplane_probe_attached" not in (
+            revalidation_gate.get("blockers") or []
+        ):
+            failures.append("core_mapek_revalidation_blocker_missing")
+        payload_text = str(payload)
+        if "secret-token" in payload_text:
+            failures.append("core_mapek_secret_leaked")
+    return {
+        "case": "core_mapek_aggressive_healing_execute",
+        "source_agent": "core-mapek-loop",
+        "resource": resource,
+        "event_id": event.event_id if event is not None else "",
+        "metadata_retained": event is not None and not failures,
+        "failures": failures,
+    }
+
+
 def _run_self_healing_mapek_case(root: Path) -> dict[str, Any]:
     event_bus = EventBus(str(root / "self-healing-mapek-eventbus"))
     resource = "self_healing:mapek:execute"
@@ -2140,6 +2300,75 @@ def _run_ops_production_deploy_blocked_preflight_result_case(
     }
 
 
+def _run_ledger_event_trace_citation_result_case(root: Path) -> dict[str, Any]:
+    result = ledger_event_trace_smoke._ledger_smoke_safe_actuator_result(
+        "ledger-event-trace-smoke",
+        "event_trace_citation_callback",
+        {
+            "api_token": "secret-token",
+            "private_target": "10.0.0.5",
+        },
+    )
+    metadata = result.evidence_metadata.to_dict()
+    claim_gate = _claim_gate_for(metadata)
+    cross_plane = metadata.get("cross_plane_claim_gate")
+    if not isinstance(cross_plane, Mapping):
+        cross_plane = {}
+    evidence = _evidence_for(metadata)
+
+    failures: list[str] = []
+    if result.success is not True:
+        failures.append("ledger_event_trace_result_not_successful")
+    if result.simulated is not False:
+        failures.append("ledger_event_trace_result_simulated")
+    if metadata.get("schema") != SAFE_ACTUATOR_METADATA_SCHEMA:
+        failures.append("metadata_schema_invalid")
+    if metadata.get("redacted") is not True:
+        failures.append("metadata_not_redacted")
+    if not metadata.get("claim_boundary"):
+        failures.append("metadata_claim_boundary_missing")
+    if claim_gate.get("schema") != "x0tta6bl4.ledger_smoke.safe_actuator_claim_gate.v1":
+        failures.append("ledger_claim_gate_schema_invalid")
+    if claim_gate.get("source_agent") != "ledger-event-trace-smoke":
+        failures.append("ledger_source_agent_mismatch")
+    if claim_gate.get("local_smoke_callback_result_recorded") is not True:
+        failures.append("ledger_local_smoke_result_not_recorded")
+    if claim_gate.get("event_trace_citation_smoke_only") is not True:
+        failures.append("ledger_smoke_boundary_not_recorded")
+    if cross_plane.get("allowed") is not False:
+        failures.append("ledger_cross_plane_gate_not_fail_closed")
+    if evidence.get("source_agent") != "ledger-event-trace-smoke":
+        failures.append("ledger_evidence_source_agent_mismatch")
+    if evidence.get("operation") != "event_trace_citation_callback":
+        failures.append("ledger_evidence_operation_mismatch")
+    if evidence.get("raw_context_values_redacted") is not True:
+        failures.append("ledger_raw_context_redaction_missing")
+    if evidence.get("raw_result_values_redacted") is not True:
+        failures.append("ledger_raw_result_redaction_missing")
+    context_keys = evidence.get("context_keys")
+    if context_keys != ["api_token", "private_target"]:
+        failures.append(f"ledger_context_keys_mismatch:{context_keys}")
+    for claim_key in STRONG_CLAIM_KEYS:
+        if claim_key in claim_gate and claim_gate.get(claim_key) is not False:
+            failures.append(f"overpromoted_claim:{claim_key}")
+    metadata_text = str(metadata)
+    if "secret-token" in metadata_text:
+        failures.append("ledger_secret_leaked")
+    if "10.0.0.5" in metadata_text:
+        failures.append("ledger_private_target_leaked")
+
+    retained = bool(metadata) and not failures
+    return {
+        "case": "ledger_event_trace_citation_safe_actuator_result_metadata",
+        "source_agent": "ledger-event-trace-smoke",
+        "resource": "ops:ledger_event_trace_citation:callback_result",
+        "event_id": "",
+        "metadata_retained": retained,
+        "result_metadata_retained": retained,
+        "failures": failures,
+    }
+
+
 def build_report(root: Path) -> dict[str, Any]:
     root = root.resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -2157,6 +2386,7 @@ def build_report(root: Path) -> dict[str, Any]:
         _run_pqc_rotator_case(root),
         _run_mptcp_manager_case(root),
         _run_mesh_action_enforcer_case(root),
+        _run_core_mapek_aggressive_healing_case(root),
         _run_self_healing_mapek_case(root),
         _run_pbft_execute_case(root),
         _run_swarm_mapek_case(root),
@@ -2166,6 +2396,7 @@ def build_report(root: Path) -> dict[str, Any]:
         _run_ops_production_monitor_health_result_case(root),
         _run_ops_auto_rollback_recommendation_result_case(root),
         _run_ops_production_deploy_blocked_preflight_result_case(root),
+        _run_ledger_event_trace_citation_result_case(root),
     ]
     failures = [
         f"{case['case']}:{failure}"

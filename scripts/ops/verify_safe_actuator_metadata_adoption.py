@@ -60,6 +60,7 @@ DEFAULT_HIGH_RISK_FILES = (
     "scripts/production_monitor.py",
     "scripts/auto_rollback.py",
     "scripts/deploy/production_deploy.py",
+    "scripts/ops/smoke_ledger_event_trace_citation.py",
 )
 
 

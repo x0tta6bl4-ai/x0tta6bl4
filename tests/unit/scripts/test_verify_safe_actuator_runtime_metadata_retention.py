@@ -32,10 +32,10 @@ def test_runtime_metadata_retention_passes_in_local_harness(tmp_path: Path) -> N
     assert report["schema"] == module.SCHEMA
     assert report["ok"] is True
     assert report["decision"] == module.DECISION_RETAINED
-    assert report["summary"]["cases_run"] == 22
-    assert report["summary"]["events_checked"] == 18
-    assert report["summary"]["result_metadata_cases_checked"] == 4
-    assert report["summary"]["metadata_events"] == 22
+    assert report["summary"]["cases_run"] == 24
+    assert report["summary"]["events_checked"] == 19
+    assert report["summary"]["result_metadata_cases_checked"] == 5
+    assert report["summary"]["metadata_events"] == 24
     assert report["summary"]["claim_gates_fail_closed"] is True
     assert report["summary"]["live_spire_or_dataplane_claimed"] is False
     assert report["summary"]["production_readiness_claimed"] is False
@@ -52,6 +52,7 @@ def test_runtime_metadata_retention_passes_in_local_harness(tmp_path: Path) -> N
     assert "pqc_rotator_rotate_identity" in case_ids
     assert "mptcp_manager_enable_mptcp" in case_ids
     assert "mesh_action_enforcer_yggdrasil_restart" in case_ids
+    assert "core_mapek_aggressive_healing_execute" in case_ids
     assert "self_healing_mapek_execute" in case_ids
     assert "pbft_execute_callback" in case_ids
     assert "swarm_mapek_healing_execute" in case_ids
@@ -61,6 +62,31 @@ def test_runtime_metadata_retention_passes_in_local_harness(tmp_path: Path) -> N
     assert "ops_production_monitor_health_result_metadata" in case_ids
     assert "ops_auto_rollback_recommendation_result_metadata" in case_ids
     assert "ops_production_deploy_blocked_preflight_result_metadata" in case_ids
+    assert "ledger_event_trace_citation_safe_actuator_result_metadata" in case_ids
+
+
+def test_ledger_event_trace_case_keeps_callback_claims_bounded(
+    tmp_path: Path,
+) -> None:
+    module = load_module()
+
+    case = module._run_ledger_event_trace_citation_result_case(tmp_path)
+
+    assert case["case"] == "ledger_event_trace_citation_safe_actuator_result_metadata"
+    assert case["result_metadata_retained"] is True
+    assert case["failures"] == []
+
+
+def test_core_mapek_case_keeps_post_action_dataplane_claim_blocked(
+    tmp_path: Path,
+) -> None:
+    module = load_module()
+
+    case = module._run_core_mapek_aggressive_healing_case(tmp_path)
+
+    assert case["case"] == "core_mapek_aggressive_healing_execute"
+    assert case["metadata_retained"] is True
+    assert case["failures"] == []
 
 
 def test_production_monitor_case_ignores_host_proxy_env(

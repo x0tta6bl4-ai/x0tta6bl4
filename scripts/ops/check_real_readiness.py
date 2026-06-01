@@ -80,16 +80,17 @@ SAFE_ACTUATOR_RUNTIME_METADATA_RETENTION_VERIFIER = (
 SAFE_ACTUATOR_ACTIVE_AUDIT_REQUIRED_MARKERS = (
     "control_spine_fragmentation",
     "parse-error-free",
-    "20/20",
+    "21/21",
     "63/63",
-    "18 EventBus",
-    "4 ops result-metadata",
+    "19 EventBus",
+    "5 result-metadata",
     SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER,
     SAFE_ACTUATOR_RUNTIME_METADATA_RETENTION_VERIFIER,
 )
 SAFE_ACTUATOR_ACTIVE_AUDIT_FORBIDDEN_MARKERS = (
     "`14/14` local cases",
     "`18/18` local cases",
+    "`19 EventBus + 5 ops result-metadata local cases`",
 )
 ECONOMY_DATAPLANE_SEPARATION_VERIFIER = (
     "scripts/ops/verify_economy_dataplane_separation.py"
@@ -7703,8 +7704,8 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
             and retention_metadata_events == retention_cases_run
             and retention_events_checked + retention_result_metadata_cases
             == retention_cases_run
-            and retention_events_checked >= 18
-            and retention_result_metadata_cases >= 4
+            and retention_events_checked >= 19
+            and retention_result_metadata_cases >= 5
             and retention_summary.get("claim_gates_fail_closed") is True
             and retention_summary.get("local_simulated_harness") is True
             and retention_summary.get("live_spire_or_dataplane_claimed") is False

@@ -428,6 +428,23 @@ def _safe_result_summary(raw: Any) -> Dict[str, Any]:
     return {"type": type(raw).__name__, "values_redacted": True}
 
 
+def _safe_actuator_evidence_metadata_payload(
+    metadata: SafeActuatorEvidenceMetadata | None,
+) -> Dict[str, Any] | None:
+    if metadata is None:
+        return None
+    if not (
+        metadata.claim_gate
+        or metadata.cross_plane_claim_gate
+        or metadata.evidence
+        or metadata.source_agents
+        or metadata.event_ids
+        or metadata.claim_boundary
+    ):
+        return None
+    return metadata.to_dict()
+
+
 def _local_healing_post_action_claim_gate(operation: str) -> Dict[str, Any]:
     gate = build_post_action_dataplane_claim_gate(
         probe_required=True,
@@ -442,6 +459,7 @@ def _local_healing_post_action_claim_gate(operation: str) -> Dict[str, Any]:
     gate["schema"] = "x0tta6bl4.core_mapek.post_action_dataplane_claim_gate.v1"
     gate["operation"] = operation
     gate["local_control_action_claim_allowed"] = True
+    gate["safe_actuator_result_recorded"] = True
     return gate
 
 
@@ -991,6 +1009,7 @@ class MAPEKLoop:
         reason: str = "",
         error_type: str | None = None,
         claim_gate: Dict[str, Any] | None = None,
+        safe_actuator_evidence_metadata: SafeActuatorEvidenceMetadata | None = None,
     ) -> str | None:
         if self.event_bus is None:
             return None
@@ -1035,6 +1054,11 @@ class MAPEKLoop:
                 "claim_boundary": safe_claim_gate["claim_boundary"],
                 "redacted": True,
             }
+        safe_actuator_metadata = _safe_actuator_evidence_metadata_payload(
+            safe_actuator_evidence_metadata
+        )
+        if safe_actuator_metadata is not None:
+            payload["safe_actuator_evidence_metadata"] = safe_actuator_metadata
         if error_type:
             payload["error"] = {
                 "type": error_type,
@@ -1093,6 +1117,15 @@ class MAPEKLoop:
                 evidence_metadata = SafeActuatorEvidenceMetadata.from_value(
                     {
                         "claim_gate": claim_gate,
+                        "evidence": {
+                            "component": "core.mape_k_loop",
+                            "operation": operation,
+                            "resource": _MAPEK_RESOURCES[operation],
+                            "raw_context_values_redacted": True,
+                            "raw_result_values_redacted": True,
+                            "redacted": True,
+                        },
+                        "source_agents": [_SERVICE_AGENT],
                         "claim_boundary": (
                             str(claim_gate.get("claim_boundary", ""))
                             if isinstance(claim_gate, dict)
@@ -1146,6 +1179,7 @@ class MAPEKLoop:
             reason=actuator_result.reason,
             error_type=None if success else "SafeActuatorFailure",
             claim_gate=_safe_actuator_claim_gate(actuator_result, claim_gate),
+            safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
         )
         return raw_result, actuator_result
 

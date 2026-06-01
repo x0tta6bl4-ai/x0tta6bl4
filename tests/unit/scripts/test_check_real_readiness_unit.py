@@ -4480,10 +4480,10 @@ def build_report(root):
         "decision": "SAFE_ACTUATOR_RUNTIME_METADATA_RETAINED",
         "claim_boundary": CLAIM_BOUNDARY,
         "summary": {
-            "cases_run": 22,
-            "events_checked": 18,
-            "result_metadata_cases_checked": 4,
-            "metadata_events": 22,
+            "cases_run": 24,
+            "events_checked": 19,
+            "result_metadata_cases_checked": 5,
+            "metadata_events": 24,
             "claim_gates_fail_closed": True,
             "local_simulated_harness": True,
             "live_spire_or_dataplane_claimed": False,
@@ -6209,10 +6209,10 @@ Status: test fixture.
 Separate reality-map tracked risk: `control_spine_fragmentation` is monitored
 by `scripts/ops/verify_safe_actuator_metadata_adoption.py`. The latest local
 parse-error-free inventory shows known high-risk control files are
-metadata-aware (`20/20`) and generic `SafeActuatorResult` result-call coverage
+metadata-aware (`21/21`) and generic `SafeActuatorResult` result-call coverage
 is complete in source (`63/63`). The local runtime verifier
 `scripts/ops/verify_safe_actuator_runtime_metadata_retention.py` also proves
-18 EventBus cases plus 4 ops result-metadata cases retain typed metadata.
+19 EventBus cases plus 5 result-metadata cases retain typed metadata.
 """,
     )
     _write(
@@ -6420,12 +6420,12 @@ def _passing_runner(
                     "summary": {
                         "high_risk_coverage_ready": True,
                         "full_metadata_coverage_ready": True,
-                        "high_risk_files_checked": 20,
-                        "high_risk_files_metadata_aware": 20,
+                        "high_risk_files_checked": 21,
+                        "high_risk_files_metadata_aware": 21,
                         "parse_errors": 0,
                         "parse_error_free": True,
-                        "safe_actuator_result_calls": 62,
-                        "result_calls_with_evidence_metadata": 62,
+                        "safe_actuator_result_calls": 63,
+                        "result_calls_with_evidence_metadata": 63,
                         "result_calls_without_evidence_metadata": 0,
                     },
                     "blockers": [],
@@ -6446,10 +6446,10 @@ def _passing_runner(
                         "dataplane delivery, settlement finality, production SLOs, or production readiness"
                     ),
                     "summary": {
-                        "cases_run": 22,
-                        "events_checked": 18,
-                        "result_metadata_cases_checked": 4,
-                        "metadata_events": 22,
+                        "cases_run": 24,
+                        "events_checked": 19,
+                        "result_metadata_cases_checked": 5,
+                        "metadata_events": 24,
                         "claim_gates_fail_closed": True,
                         "local_simulated_harness": True,
                         "live_spire_or_dataplane_claimed": False,
@@ -6920,11 +6920,11 @@ def test_safe_actuator_metadata_adoption_inventory_blocks_readiness_on_gaps(
                         "summary": {
                             "high_risk_coverage_ready": False,
                             "full_metadata_coverage_ready": False,
-                            "high_risk_files_checked": 20,
+                            "high_risk_files_checked": 21,
                             "high_risk_files_metadata_aware": 19,
                             "parse_errors": 0,
                             "parse_error_free": True,
-                            "safe_actuator_result_calls": 62,
+                            "safe_actuator_result_calls": 63,
                             "result_calls_with_evidence_metadata": 61,
                             "result_calls_without_evidence_metadata": 1,
                         },
@@ -6966,11 +6966,11 @@ def test_safe_actuator_metadata_adoption_inventory_blocks_readiness_on_partial_r
                         "summary": {
                             "high_risk_coverage_ready": True,
                             "full_metadata_coverage_ready": False,
-                            "high_risk_files_checked": 20,
-                            "high_risk_files_metadata_aware": 20,
+                            "high_risk_files_checked": 21,
+                            "high_risk_files_metadata_aware": 21,
                             "parse_errors": 0,
                             "parse_error_free": True,
-                            "safe_actuator_result_calls": 62,
+                            "safe_actuator_result_calls": 63,
                             "result_calls_with_evidence_metadata": 61,
                             "result_calls_without_evidence_metadata": 1,
                         },
@@ -7010,12 +7010,12 @@ def test_safe_actuator_metadata_adoption_inventory_blocks_readiness_on_parse_err
                         "summary": {
                             "high_risk_coverage_ready": True,
                             "full_metadata_coverage_ready": True,
-                            "high_risk_files_checked": 20,
-                            "high_risk_files_metadata_aware": 20,
+                            "high_risk_files_checked": 21,
+                            "high_risk_files_metadata_aware": 21,
                             "parse_errors": 1,
                             "parse_error_free": False,
-                            "safe_actuator_result_calls": 62,
-                            "result_calls_with_evidence_metadata": 62,
+                            "safe_actuator_result_calls": 63,
+                            "result_calls_with_evidence_metadata": 63,
                             "result_calls_without_evidence_metadata": 0,
                         },
                         "blockers": [],
@@ -7054,9 +7054,9 @@ def test_safe_actuator_runtime_metadata_retention_blocks_readiness_on_gaps(
                             "local smoke only; does not prove live SPIFFE/SPIRE trust"
                         ),
                         "summary": {
-                            "cases_run": 22,
-                            "events_checked": 18,
-                            "result_metadata_cases_checked": 4,
+                            "cases_run": 24,
+                            "events_checked": 19,
+                            "result_metadata_cases_checked": 5,
                             "metadata_events": 1,
                             "claim_gates_fail_closed": False,
                             "local_simulated_harness": True,
@@ -7425,9 +7425,9 @@ events retain typed metadata (`14/14` local cases).
     context = report["current_evidence_context"]
     assert context["active_audit_safe_actuator_current"] is False
     assert "parse-error-free" in context["active_audit_safe_actuator_missing_markers"]
-    assert "18 EventBus" in context["active_audit_safe_actuator_missing_markers"]
+    assert "19 EventBus" in context["active_audit_safe_actuator_missing_markers"]
     assert (
-        "4 ops result-metadata"
+        "5 result-metadata"
         in context["active_audit_safe_actuator_missing_markers"]
     )
     assert "`14/14` local cases" in context["active_audit_safe_actuator_stale_markers"]

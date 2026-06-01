@@ -82,16 +82,18 @@ bash scripts/production-readiness-check.sh --write-json --write-md
   high-risk production/DPI/traffic/settlement wording according to
   `scripts/claim_hygiene_scan.py`.
 - SafeActuator source adoption is parse-error-free and complete for current
-  inventory: known high-risk control files are metadata-aware (`20/20`) and
+  inventory: known high-risk control files are metadata-aware (`21/21`) and
   generic `SafeActuatorResult` result-call coverage is complete in source
   (`63/63`). The local runtime retention smoke confirms representative SPIRE,
   TokenBridge, DAO executor release-script, DAO proposal Helm upgrade, DAO
   governance dispatch, GovernanceContract chain-write, Ghost L3, eBPF, MaaS
-  governance, PQC rotator, MPTCP, MeshActionEnforcer, self-healing MAPE-K,
-  PBFT, Swarm MAPE-K, canary deployment, and multi-cloud deployment EventBus
-  control events plus ops canary rollout, production monitor, auto-rollback, and production_deploy.py result metadata
-  retain typed, redacted, fail-closed metadata (`18 EventBus + 4 ops
-  result-metadata` local cases) without promoting live trust, dataplane, customer, settlement,
+  governance, PQC rotator, MPTCP, MeshActionEnforcer, core MAPE-K aggressive
+  healing, self-healing MAPE-K, PBFT, Swarm MAPE-K, canary deployment,
+  multi-cloud deployment EventBus control events, plus ops canary rollout,
+  production monitor, auto-rollback, production_deploy.py, and ledger
+  event-trace citation callback result metadata retain typed, redacted,
+  fail-closed metadata (`19 EventBus + 5 result-metadata` local cases)
+  without promoting live trust, dataplane, customer, settlement,
   consensus-finality, governance-finality, traffic shifting, throughput, SLO,
   or production claims.
 - `production_deploy.py` also has a retained blocked-preflight evidence runner:

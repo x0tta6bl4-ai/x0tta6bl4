@@ -13,9 +13,9 @@ def test_real_readiness_gate_safe_actuator_counts_match_verifiers():
     text = _doc_text()
 
     assert "parse-error-free" in text
-    assert "`20/20`" in text
+    assert "`21/21`" in text
     assert "`63/63`" in text
-    assert "`18 EventBus + 4 ops" in text
+    assert "`19 EventBus + 5 result" in text
     assert "result-metadata` local cases" in text
 
     stale_markers = (
@@ -44,6 +44,7 @@ def test_real_readiness_gate_names_current_runtime_retention_surfaces():
         "PQC rotator",
         "MPTCP",
         "MeshActionEnforcer",
+        "core MAPE-K aggressive healing",
         "self-healing MAPE-K",
         "PBFT",
         "Swarm MAPE-K",

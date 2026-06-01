@@ -173,9 +173,9 @@ def test_event_control_plane_map_records_current_safe_actuator_adoption_state():
     summary = link["summary"]
 
     assert "parse-error-free adoption inventory" in summary
-    assert "20/20" in summary
+    assert "21/21" in summary
     assert "63/63" in summary
-    assert "18/18" in summary
+    assert "19 EventBus + 5 result-metadata" in summary
     assert "production, dataplane, trust-finality, settlement" in summary
     assert "customer-traffic claims" in summary
     assert "still incremental" not in summary

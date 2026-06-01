@@ -42,7 +42,7 @@ bare missing-artifact blocker.
 Separate reality-map tracked risk: `control_spine_fragmentation` is monitored
 by `scripts/ops/verify_safe_actuator_metadata_adoption.py`. The latest local
 parse-error-free inventory shows known high-risk control files are
-metadata-aware (`20/20`), TokenBridge chain-write result paths are
+metadata-aware (`21/21`), TokenBridge chain-write result paths are
 metadata-covered (`4/4`), and generic `SafeActuatorResult` result-call coverage
 is complete in source (`63/63`). Base sync/async SafeActuator adapter default
 paths, ledger event trace smoke callbacks, SPIRE server/client direct utility
@@ -54,11 +54,12 @@ representative SPIRE server/client, SPIRE agent manager, TokenBridge
 chain-write, DAO executor release-script, DAO proposal Helm upgrade, DAO
 governance dispatch, GovernanceContract chain-write, Ghost L3 setup, eBPF
 recovery, MaaS governance, PQC rotator, MPTCP control, MeshActionEnforcer,
-self-healing MAPE-K, PBFT execution, Swarm MAPE-K execution, canary deployment
-rollout, and multi-cloud deployment rollout events retain that typed metadata
+core MAPE-K aggressive healing, self-healing MAPE-K, PBFT execution, Swarm
+MAPE-K execution, canary deployment rollout, and multi-cloud deployment rollout
+events retain that typed metadata
 in EventBus, and the ops canary rollout, production monitor, auto-rollback,
-and production_deploy.py scripts retain the same typed metadata in bounded
-result metadata (`18 EventBus + 4 ops result-metadata local cases`).
+production_deploy.py, and ledger event-trace citation callback scripts retain
+the same typed metadata in bounded result metadata (`19 EventBus + 5 result-metadata local cases`).
 `scripts/ops/run_production_deploy_blocked_preflight_evidence.py --require-retained --json`
 also retains a local `production_deploy.py` blocked-preflight artifact: the
 deploy path refuses live subprocess/kubectl execution before any runtime

@@ -246,9 +246,9 @@ def test_active_goal_gap_audit_tracks_current_safe_actuator_verifiers():
 
     assert "control_spine_fragmentation" in audit_text
     assert "parse-error-free" in audit_text
-    assert "`20/20`" in audit_text
+    assert "`21/21`" in audit_text
     assert "`63/63`" in audit_text
-    assert "`18 EventBus + 4 ops result-metadata local cases`" in audit_text
+    assert "`19 EventBus + 5 result-metadata local cases`" in audit_text
     assert "`18/18` local cases" not in audit_text
     assert "`14/14` local cases" not in audit_text
     assert "scripts/ops/verify_safe_actuator_metadata_adoption.py" in audit_text
