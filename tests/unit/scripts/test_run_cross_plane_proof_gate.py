@@ -2769,6 +2769,31 @@ def test_gate_blocks_settlement_finality_when_blocker_report_lacks_source_artifa
     assert "external_settlement_blocker_source_artifacts_missing" in artifact["blockers"]
 
 
+def test_gate_blocks_settlement_finality_when_blocker_claim_gate_overpromotes_production(
+    tmp_path: Path,
+) -> None:
+    from src.integration import external_settlement as settlement_module
+
+    _write_map(tmp_path, settlement_flags=True)
+    _write_valid_external_settlement_artifacts(tmp_path)
+    _write_valid_economy_boundary_event(tmp_path)
+    blocker_path = tmp_path / settlement_module.DEFAULT_BLOCKER_REPORT
+    blocker_report = json.loads(blocker_path.read_text(encoding="utf-8"))
+    blocker_report["claim_gate"]["production_readiness_claim_allowed"] = True
+    blocker_path.write_text(json.dumps(blocker_report), encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("settlement_finality",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [settlement] = report["claim_results"]
+    assert "external_settlement_artifact_not_verified" in settlement["blockers"]
+    artifact = settlement["required_artifact_evidence"]
+    assert (
+        "external_settlement_blocker_claim_gate_overpromotes_production"
+        in artifact["blockers"]
+    )
+
+
 def test_gate_blocks_unknown_claims_by_default(tmp_path: Path) -> None:
     _write_map(tmp_path)
 

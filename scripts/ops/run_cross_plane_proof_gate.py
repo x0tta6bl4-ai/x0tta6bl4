@@ -2986,10 +2986,41 @@ def external_settlement_artifact_evidence(root: Path) -> dict[str, Any]:
             blocker_report = load_json(blocker_path)
             result["blocker_report"] = blocker_report
             blocker_summary = blocker_report.get("summary") if isinstance(blocker_report, Mapping) else {}
+            blocker_claim_gate = (
+                _mapping(blocker_report.get("claim_gate"))
+                if isinstance(blocker_report, Mapping)
+                else {}
+            )
             if blocker_report.get("decision") != "READY_TO_PROMOTE":
                 result["blockers"].append("external_settlement_blocker_not_ready_to_promote")
             if not isinstance(blocker_summary, Mapping) or blocker_summary.get("x0t_external_settlement_ready") is not True:
                 result["blockers"].append("external_settlement_blocker_summary_not_ready")
+            if not blocker_claim_gate:
+                result["blockers"].append("external_settlement_blocker_claim_gate_missing")
+            else:
+                if (
+                    blocker_summary.get("x0t_external_settlement_ready") is True
+                    and blocker_claim_gate.get("external_settlement_finality_claim_allowed") is not True
+                ):
+                    result["blockers"].append(
+                        "external_settlement_blocker_claim_gate_finality_not_allowed"
+                    )
+                if blocker_claim_gate.get("production_readiness_claim_allowed") is not False:
+                    result["blockers"].append(
+                        "external_settlement_blocker_claim_gate_overpromotes_production"
+                    )
+                if blocker_claim_gate.get("customer_traffic_claim_allowed") is not False:
+                    result["blockers"].append(
+                        "external_settlement_blocker_claim_gate_overpromotes_customer_traffic"
+                    )
+                if blocker_claim_gate.get("dataplane_delivery_claim_allowed") is not False:
+                    result["blockers"].append(
+                        "external_settlement_blocker_claim_gate_overpromotes_dataplane"
+                    )
+                if blocker_claim_gate.get("redacted") is not True:
+                    result["blockers"].append("external_settlement_blocker_claim_gate_not_redacted")
+                if not blocker_claim_gate.get("claim_boundary"):
+                    result["blockers"].append("external_settlement_blocker_claim_gate_boundary_missing")
             source_artifacts = blocker_report.get("source_artifacts") if isinstance(blocker_report, Mapping) else []
             expected_sources = {
                 settlement.DEFAULT_EVIDENCE_REPORT,
