@@ -125,6 +125,7 @@ class MeshRecoveryOrchestrator:
         claim_gate = self._build_claims(before_state, after_state)
         local_revalidation_passed = (
             return_code == 0
+            and after_state.local_health == "OK"
             and claim_gate.local_peer_visible == "PROVEN"
             and claim_gate.packet_loss_metric_decreased == "PROVEN"
         )
@@ -135,10 +136,14 @@ class MeshRecoveryOrchestrator:
             post_action_dataplane_revalidation.probe_attempted
             and not post_action_dataplane_revalidation.restored_dataplane_claim_allowed
         )
-        escalation_required = (
+        post_action_safe_mode_required = (
             return_code != 0
+            or after_state.local_health != "OK"
             or claim_gate.local_peer_visible != "PROVEN"
             or claim_gate.packet_loss_metric_decreased != "PROVEN"
+        )
+        escalation_required = (
+            post_action_safe_mode_required
             or dataplane_probe_failed
         )
 
@@ -156,6 +161,7 @@ class MeshRecoveryOrchestrator:
             duration_ms=self._duration_ms(started),
             return_code=return_code,
             escalation_required=escalation_required,
+            post_action_safe_mode_required=post_action_safe_mode_required,
         )
         self._publish_recovery_event(evidence)
         return evidence
@@ -215,7 +221,14 @@ class MeshRecoveryOrchestrator:
             "action": evidence.action,
             "policy_allowed": policy.allowed,
             "cooldown_active": policy.cooldown_active,
-            "safe_mode_required": policy.safe_mode_required,
+            "safe_mode_required": (
+                policy.safe_mode_required
+                or evidence.post_action_safe_mode_required
+            ),
+            "policy_safe_mode_required": policy.safe_mode_required,
+            "post_action_safe_mode_required": (
+                evidence.post_action_safe_mode_required
+            ),
             "execution_limit_checked": policy.execution_limit_checked,
             "escalation_required": evidence.escalation_required,
             "node_id_hash": evidence.node_id_hash,
@@ -373,9 +386,11 @@ class MeshRecoveryOrchestrator:
 
     @staticmethod
     def _build_claims(before_state: NodeState, after_state: NodeState) -> BoundedClaims:
+        health_ok = after_state.local_health == "OK"
         local_peer_ok = after_state.yggdrasil_status == "Peers visible"
         yggdrasil_improved = (
-            before_state.yggdrasil_status != after_state.yggdrasil_status
+            health_ok
+            and before_state.yggdrasil_status != after_state.yggdrasil_status
             and local_peer_ok
         )
         packet_loss_decreased = (

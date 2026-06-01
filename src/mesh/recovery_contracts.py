@@ -153,6 +153,7 @@ class RecoveryEvidenceV1(BaseModel):
     duration_ms: int = Field(ge=0)
     return_code: int
     escalation_required: bool = False
+    post_action_safe_mode_required: bool = False
 
 
 def generate_node_id_hash(node_id: str, local_audit_secret: str) -> str:

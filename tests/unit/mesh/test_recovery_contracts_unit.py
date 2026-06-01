@@ -44,6 +44,14 @@ def healthy_state() -> NodeState:
     )
 
 
+def degraded_peer_visible_low_loss_state() -> NodeState:
+    return NodeState(
+        local_health="Degraded",
+        packet_loss_pct=0.1,
+        yggdrasil_status="Peers visible",
+    )
+
+
 def build_orchestrator(
     state_mock: Mock,
     restart_mock: Mock,
@@ -526,3 +534,59 @@ def test_revalidation_failure_escalates_and_keeps_claims_unproven() -> None:
     )
     assert evidence.after.local_health == "Degraded"
     assert evidence.escalation_required is True
+
+
+def test_revalidation_requires_local_health_ok_before_success_or_dataplane_probe(
+    tmp_path,
+) -> None:
+    clock = FakeClock()
+    event_bus = EventBus(project_root=str(tmp_path))
+    restart_mock = Mock(return_value=0)
+    dataplane_probe = Mock(
+        return_value={
+            "status": "ok",
+            "dataplane_confirmed": True,
+            "evidence": {
+                "source_agents": ["bounded-dataplane-probe"],
+                "event_ids": ["evt-proof-01"],
+                "events_total": 1,
+                "redacted": True,
+            },
+        }
+    )
+    state_mock = Mock(
+        side_effect=[degraded_state(), degraded_peer_visible_low_loss_state()]
+    )
+    orchestrator, _policy_manager = build_orchestrator(
+        state_mock,
+        restart_mock,
+        clock,
+        dataplane_probe=dataplane_probe,
+        event_bus=event_bus,
+    )
+
+    evidence = orchestrator.run_recovery_flow(
+        incident_id="inc-01",
+        incident_key="incident-vpn-loss",
+    )
+
+    assert evidence.claim_gate.local_peer_visible == "PROVEN"
+    assert evidence.claim_gate.packet_loss_metric_decreased == "PROVEN"
+    assert evidence.claim_gate.yggdrasil_status_improved == "UNPROVEN"
+    assert evidence.after.local_health == "Degraded"
+    assert evidence.post_action_safe_mode_required is True
+    assert evidence.escalation_required is True
+    assert dataplane_probe.call_count == 0
+
+    revalidation = evidence.post_action_dataplane_revalidation
+    assert revalidation is not None
+    assert revalidation.status == "not_attempted"
+    assert revalidation.reason == "local_revalidation_failed"
+    assert revalidation.restored_dataplane_claim_allowed is False
+
+    event = event_bus.get_event_history(source_agent=MESH_RECOVERY_SOURCE_AGENT)[0]
+    assert event.event_type == EventType.TASK_BLOCKED
+    assert event.data["stage"] == "recovery_escalated"
+    assert event.data["safe_mode_required"] is True
+    assert event.data["policy_safe_mode_required"] is False
+    assert event.data["post_action_safe_mode_required"] is True
