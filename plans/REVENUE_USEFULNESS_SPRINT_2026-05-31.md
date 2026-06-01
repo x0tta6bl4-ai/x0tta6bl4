@@ -27,7 +27,7 @@ Why this wedge:
 Non-goal:
 
 - Do not mutate existing working subscriptions as part of this sprint.
-- Do not promise "unblockable", "production proven", "anonymous", or "guaranteed bypass".
+- Do not claim or promise "unblockable", "production proven", "anonymous", or "guaranteed bypass".
 - Do not turn this into another broad readiness audit.
 
 ## 7-Day Goal

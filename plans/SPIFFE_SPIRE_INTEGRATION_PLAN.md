@@ -1,3 +1,10 @@
+> Truth-surface note: subsystem integration plan.
+> Superseded for current platform readiness claims by `STATUS_REALITY.md`,
+> `docs/05-operations/REAL_READINESS_GATE.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`.
+> Production-ready wording below describes subsystem target/capability language,
+> not current platform production deployment evidence.
+
 # SPIFFE/SPIRE Integration Plan
 
 **Created:** 2026-02-16

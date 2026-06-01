@@ -25,8 +25,20 @@ forbid_line() {
 }
 
 [[ -f "${TEMPLATE}" ]] || fail "missing template: ${TEMPLATE}"
+[[ -x ".githooks/pre-commit" ]] || fail "missing executable hook: .githooks/pre-commit"
+[[ -x ".githooks/post-commit" ]] || fail "missing executable hook: .githooks/post-commit"
 cmp -s "${TEMPLATE}" "COORDINATION.md" || fail \
   "COORDINATION.md drifted from landing template; run: bash scripts/agents/render_coordination_landing.sh"
+
+require_line ".githooks/pre-commit" 'git rev-parse --git-path swarm_agent'
+require_line ".githooks/pre-commit" 'scripts/agents/start_swarm_session.sh <agent-key>'
+require_line ".githooks/pre-commit" 'check_swarm_ownership.py" --agent "${agent}"'
+require_line ".githooks/pre-commit" 'swarm_coord.py" ensure-staged --agent "${agent}"'
+require_line ".githooks/post-commit" 'git rev-parse --git-path swarm_agent'
+require_line ".githooks/post-commit" 'git diff-tree --no-commit-id --name-only -r --diff-filter=ACMR HEAD'
+require_line ".githooks/post-commit" 'swarm_coord.py" release --agent "${agent}" --paths'
+require_line "docs/team/swarm_ownership.json" '"scripts/agents/check_coordination_contract.sh"'
+require_line "docs/TEAM_RESPONSIBILITIES.md" '`scripts/agents/check_coordination_contract.sh`'
 
 forbid_line "AGENTS.md" "verified attach on eth0"
 forbid_line "AGENTS.md" "Expected: 17 VERIFIED HERE"

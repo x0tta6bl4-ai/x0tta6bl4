@@ -1,5 +1,5 @@
 # Production Raft Consensus Configuration
-# Configuration for production-ready Raft consensus
+# Tuned example for Raft consensus; not production readiness evidence.
 
 raft:
   # Node configuration
@@ -71,4 +71,3 @@ raft:
     
     # Health check interval (seconds)
     health_check_interval: 30
-

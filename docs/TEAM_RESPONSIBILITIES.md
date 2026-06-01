@@ -42,6 +42,7 @@ If a file is not listed in your agent scope, do not stage or commit it.
 - `docs/TEAM_RESPONSIBILITIES.md`
 - `docs/team/SWARM_OPERATING_MODEL.md`
 - `docs/team/swarm_ownership.json`
+- `scripts/agents/check_coordination_contract.sh`
 - `scripts/agents/check_swarm_ownership.py`
 - `scripts/agents/swarm_coord.py`
 - `scripts/agents/install_swarm_hook.sh`
