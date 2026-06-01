@@ -100,6 +100,7 @@ class ClaimRequirement:
     claim_id: str
     description: str
     high_risk: bool
+    required_planes: tuple[str, ...] = ()
     required_all_flags: tuple[str, ...] = ()
     required_any_flag_groups: tuple[tuple[str, ...], ...] = ()
     blocking_false_flags: tuple[str, ...] = ()
@@ -110,24 +111,28 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
         claim_id="local_observed_state",
         description="Local command/event evidence exists and remains local-only.",
         high_risk=False,
+        required_planes=("data_plane", "evidence_plane"),
         required_all_flags=("local_observed_state", "eventbus_evidence"),
     ),
     "local_billing_lifecycle": ClaimRequirement(
         claim_id="local_billing_lifecycle",
         description="Local billing lifecycle claim through the billing claim gate.",
         high_risk=False,
+        required_planes=("economy_plane", "evidence_plane"),
         required_all_flags=("billing_claim_gate_present", "local_billing_lifecycle_claim_allowed"),
     ),
     "local_reward_accounting": ClaimRequirement(
         claim_id="local_reward_accounting",
         description="Local reward/accounting claim through the reward claim gate.",
         high_risk=False,
+        required_planes=("economy_plane", "evidence_plane"),
         required_all_flags=("local_reward_accounting_event", "local_reward_accounting_claim_allowed"),
     ),
     "dataplane_delivery": ClaimRequirement(
         claim_id="dataplane_delivery",
         description="Customer or mesh dataplane delivery claim.",
         high_risk=True,
+        required_planes=("data_plane", "evidence_plane"),
         required_all_flags=("dataplane_confirmed",),
         required_any_flag_groups=(("customer_dataplane_delivery_claim_allowed", "traffic_delivery_claim_allowed"),),
         blocking_false_flags=(
@@ -140,6 +145,7 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
         claim_id="traffic_delivery",
         description="Traffic delivery claim.",
         high_risk=True,
+        required_planes=("data_plane", "evidence_plane"),
         required_any_flag_groups=(("traffic_delivery_confirmed", "traffic_delivery_claim_allowed"),),
         blocking_false_flags=("traffic_delivery_confirmed", "traffic_delivery_claim_allowed"),
     ),
@@ -147,6 +153,7 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
         claim_id="trust_finality",
         description="Live trust or identity finality claim.",
         high_risk=True,
+        required_planes=("trust_plane", "evidence_plane"),
         required_any_flag_groups=(
             (
                 "live_spire_svid_confirmed",
@@ -166,6 +173,7 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
         claim_id="dpi_bypass",
         description="External DPI/proxy bypass claim.",
         high_risk=True,
+        required_planes=("data_plane", "evidence_plane"),
         required_all_flags=("external_dpi_tested", "dpi_bypass_confirmed", "bypass_confirmed"),
         blocking_false_flags=("external_dpi_tested", "dpi_bypass_confirmed", "bypass_confirmed"),
     ),
@@ -173,6 +181,7 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
         claim_id="settlement_finality",
         description="Provider, bank, chain, or token settlement finality claim.",
         high_risk=True,
+        required_planes=("economy_plane", "evidence_plane"),
         required_any_flag_groups=(
             (
                 "payment_settlement_confirmed",
@@ -196,6 +205,7 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
         claim_id="customer_traffic",
         description="Production customer traffic claim.",
         high_risk=True,
+        required_planes=("data_plane", "evidence_plane"),
         required_all_flags=("production_customer_traffic_confirmed",),
         blocking_false_flags=("production_customer_traffic_confirmed",),
     ),
@@ -203,6 +213,13 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
         claim_id="production_readiness",
         description="Repository/runtime production-readiness claim.",
         high_risk=True,
+        required_planes=(
+            "data_plane",
+            "control_plane",
+            "trust_plane",
+            "evidence_plane",
+            "economy_plane",
+        ),
         required_all_flags=(
             "dataplane_confirmed",
             "production_customer_traffic_confirmed",
@@ -1794,6 +1811,7 @@ def evaluate_claim(
         "allowed": allowed,
         "high_risk": requirement.high_risk,
         "description": requirement.description,
+        "claim_planes": list(requirement.required_planes),
         "blockers": sorted(set(blockers)),
         "missing_true_flags": sorted(set(missing_true_flags)),
         "missing_any_flag_groups": missing_any_groups,
@@ -1858,10 +1876,13 @@ def build_report(
     blocked_claim_ids: list[str] = []
     blockers: list[str] = []
     claim_blockers: dict[str, list[str]] = {}
+    plane_claims: dict[str, list[str]] = {}
     for result in claim_results:
         claim_id = str(result.get("claim_id") or "")
         if not claim_id:
             continue
+        for plane in result.get("claim_planes", []):
+            plane_claims.setdefault(str(plane), []).append(claim_id)
         if result.get("allowed") is True:
             allowed_claim_ids.append(claim_id)
             continue
@@ -1885,6 +1906,7 @@ def build_report(
         "blocked_claim_ids": blocked_claim_ids,
         "blockers": sorted(set(blockers)),
         "claim_blockers": claim_blockers,
+        "plane_claims": plane_claims,
         "summary": {
             "claims_total": len(claim_results),
             "claims_allowed": sum(1 for item in claim_results if item.get("allowed") is True),
