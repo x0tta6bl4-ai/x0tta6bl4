@@ -384,6 +384,66 @@ def _write_valid_dataplane_delivery_event(root: Path) -> None:
     event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
 
 
+def _write_valid_mesh_recovery_lifecycle_event(root: Path) -> None:
+    event_log = root / ".agent_coordination/events.log"
+    event_log.parent.mkdir(parents=True, exist_ok=True)
+    node_id_hash = "a" * 64
+    event = {
+        "event_id": "mesh-recovery-lifecycle-event-1",
+        "event_type": "pipeline.stage_end",
+        "source_agent": "mesh-recovery-orchestrator",
+        "timestamp": "2026-05-31T00:00:00",
+        "target_agents": None,
+        "priority": 6,
+        "requires_ack": False,
+        "acked_by": [],
+        "data": {
+            "schema": "mesh_node_degradation_recovery.eventbus.v1",
+            "recovery_evidence_schema": "mesh_node_degradation_recovery.v1",
+            "component": "src.mesh.recovery_orchestrator",
+            "operation": "mesh_node_degradation_recovery",
+            "stage": "recovery_revalidated",
+            "status": "success",
+            "success": True,
+            "observed_state": True,
+            "policy_allowed": True,
+            "cooldown_active": False,
+            "safe_mode_required": False,
+            "execution_limit_checked": "1_attempt_per_10_minutes",
+            "duration_ms": 0,
+            "return_code": 0,
+            "returncode": 0,
+            "action_error": False,
+            "action_error_type": None,
+            "action_error_redacted": True,
+            "escalation_required": False,
+            "node_id_hash": node_id_hash,
+            "identity": {"node_id_hash": node_id_hash},
+            "identity_fields_present": {
+                "node_id_hash": True,
+                "spiffe_id": False,
+                "did": False,
+                "wallet_address": False,
+            },
+            "claim_gate": {
+                "local_peer_visible": "PROVEN",
+                "yggdrasil_status_improved": "PROVEN",
+                "packet_loss_metric_decreased": "PROVEN",
+                "customer_traffic_restored": "UNPROVEN_AWAITING_DATAPLANE_PROOF",
+            },
+            "raw_values_redacted": True,
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+            "production_readiness_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "settlement_finality_claim_allowed": False,
+            "claim_boundary": "Mesh recovery lifecycle evidence only.",
+        },
+    }
+    with event_log.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event) + "\n")
+
+
 def _write_valid_trust_finality_event(root: Path) -> None:
     event_log = root / ".agent_coordination/events.log"
     event_log.parent.mkdir(parents=True, exist_ok=True)
@@ -636,6 +696,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
 
     expected_claims = (
         "production_readiness",
+        "mesh_recovery_lifecycle",
         "dataplane_delivery",
         "traffic_delivery",
         "customer_traffic",
@@ -655,10 +716,12 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert report["allowed"] is False
     assert report["summary"]["claims_total"] == len(expected_claims)
     assert report["summary"]["claims_blocked"] == len(expected_claims)
-    assert report["summary"]["high_risk_claims_requested"] == len(expected_claims)
     assert report["allowed_claim_ids"] == []
     assert report["blocked_claim_ids"] == list(expected_claims)
     assert set(report["claim_blockers"]) == set(expected_claims)
+    assert report["summary"]["high_risk_claims_requested"] == (
+        len(expected_claims) - 1
+    )
     assert report["plane_claims"] == {
         "data_plane": [
             "production_readiness",
@@ -667,7 +730,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
             "customer_traffic",
             "dpi_bypass",
         ],
-        "control_plane": ["production_readiness"],
+        "control_plane": ["production_readiness", "mesh_recovery_lifecycle"],
         "trust_plane": ["production_readiness", "trust_finality"],
         "evidence_plane": list(expected_claims),
         "economy_plane": ["production_readiness", "settlement_finality"],
@@ -704,6 +767,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         for item in graph["production_readiness"]["artifact_dependencies"]
     ] == [
         "production_readiness",
+        "mesh_recovery_lifecycle",
         "dataplane_delivery",
         "customer_traffic",
         "trust_finality",
@@ -711,6 +775,9 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "economy_boundary",
     ]
     assert graph["dataplane_delivery"]["artifact_dependencies"][0]["path"] == (
+        ".agent_coordination/events.log"
+    )
+    assert graph["mesh_recovery_lifecycle"]["artifact_dependencies"][0]["path"] == (
         ".agent_coordination/events.log"
     )
     assert graph["dpi_bypass"]["next_action_ids"] == [
@@ -724,6 +791,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         for action in report["next_actions_by_plane"]["data_plane"]
     ] == [
         "collect_verified_dataplane_delivery_eventbus_evidence",
+        "collect_mesh_recovery_lifecycle_eventbus_evidence",
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
         "import_verified_dpi_lab_evidence",
@@ -735,12 +803,13 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         for action in report["next_actions_by_plane"]["trust_plane"]
     ] == [
         "collect_verified_dataplane_delivery_eventbus_evidence",
+        "collect_mesh_recovery_lifecycle_eventbus_evidence",
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
         "verify_external_settlement_artifacts",
         "import_verified_production_readiness_evidence",
     ]
-    assert report["next_actions_by_plane"]["trust_plane"][2][
+    assert report["next_actions_by_plane"]["trust_plane"][3][
         "reason_blockers"
     ] == [
         "explicit_false_flag:live_spire_svid_confirmed",
@@ -750,6 +819,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     ]
     assert [action["action_id"] for action in report["next_actions"]] == [
         "collect_verified_dataplane_delivery_eventbus_evidence",
+        "collect_mesh_recovery_lifecycle_eventbus_evidence",
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
         "import_verified_dpi_lab_evidence",
@@ -784,7 +854,21 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "--write-event",
         "--json",
     ]
-    customer_action = report["next_actions"][1]
+    recovery_action = report["next_actions"][1]
+    assert recovery_action["automation_status"] == (
+        "local_command_available_for_safe_simulation"
+    )
+    assert recovery_action["suggested_commands"][0] == [
+        "python3",
+        "scripts/ops/collect_mesh_recovery_lifecycle_eventbus_evidence.py",
+        "--allow-local-simulation",
+        "--write-event",
+        "--json",
+    ]
+    assert "does not mutate live mesh state" in recovery_action[
+        "implementation_gap"
+    ]
+    customer_action = report["next_actions"][2]
     assert customer_action["automation_status"] == (
         "local_command_available_for_redacted_proof_intake"
     )
@@ -803,7 +887,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "does not run probes" in customer_action[
         "implementation_gap"
     ]
-    trust_action = report["next_actions"][2]
+    trust_action = report["next_actions"][3]
     assert trust_action["automation_status"] == (
         "local_command_available_for_redacted_proof_intake"
     )
@@ -819,7 +903,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "docs/verification/incoming/trust_finality.json" in trust_action[
         "artifact_paths"
     ]
-    dpi_action = report["next_actions"][3]
+    dpi_action = report["next_actions"][4]
     assert dpi_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
@@ -842,7 +926,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         dpi_action["artifact_paths"]
     )
     assert "authorized external lab/field run" in dpi_action["implementation_gap"]
-    settlement_action = report["next_actions"][4]
+    settlement_action = report["next_actions"][5]
     assert settlement_action["automation_status"] == (
         "local_command_available_with_operator_inputs"
     )
@@ -1207,6 +1291,7 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     _write_map(tmp_path, production_flags=True, customer_flags=True)
     _write_stub_production_readiness_proof(tmp_path, verified=True)
     _write_valid_dataplane_delivery_event(tmp_path)
+    _write_valid_mesh_recovery_lifecycle_event(tmp_path)
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
@@ -1227,6 +1312,12 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     assert dataplane["valid"] is True
     assert dataplane["selected_event"]["event_id"] == "dataplane-event-1"
     assert dataplane["selected_event"]["restored_dataplane_claim_allowed"] is True
+    recovery = production["supporting_artifact_evidence"]["mesh_recovery_lifecycle"]
+    assert recovery["valid"] is True
+    assert recovery["selected_event"]["event_id"] == (
+        "mesh-recovery-lifecycle-event-1"
+    )
+    assert recovery["selected_event"]["redacted"] is True
     customer = production["supporting_artifact_evidence"]["customer_traffic"]
     assert customer["valid"] is True
     assert customer["selected_event"]["event_id"] == "customer-traffic-event-1"

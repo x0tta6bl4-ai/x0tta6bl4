@@ -60,6 +60,7 @@ DATAPLANE_PROOF_SOURCE_AGENTS = (
     "mesh-recovery-orchestrator",
     "real-network-adapter",
 )
+MESH_RECOVERY_LIFECYCLE_SOURCE_AGENTS = ("mesh-recovery-orchestrator",)
 LOCAL_OBSERVED_STATE_ONLY_SOURCE_AGENTS = (
     "mesh-telemetry-collector",
     "mesh-yggdrasil-optimizer",
@@ -87,6 +88,7 @@ CUSTOMER_TRAFFIC_SOURCE_AGENTS = (
     "maas-customer-traffic",
     "production-customer-traffic",
 )
+MESH_RECOVERY_LIFECYCLE_CLAIM_ID = "mesh_recovery_lifecycle"
 REQUIRED_PLANES = {
     "data_plane",
     "control_plane",
@@ -210,6 +212,12 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
         required_all_flags=("production_customer_traffic_confirmed",),
         blocking_false_flags=("production_customer_traffic_confirmed",),
     ),
+    "mesh_recovery_lifecycle": ClaimRequirement(
+        claim_id="mesh_recovery_lifecycle",
+        description="Bounded safe-automation lifecycle evidence for mesh recovery.",
+        high_risk=False,
+        required_planes=("control_plane", "evidence_plane"),
+    ),
     "production_readiness": ClaimRequirement(
         claim_id="production_readiness",
         description="Repository/runtime production-readiness claim.",
@@ -253,6 +261,7 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
 
 DEFAULT_CLAIMS = (
     "production_readiness",
+    "mesh_recovery_lifecycle",
     "dataplane_delivery",
     "traffic_delivery",
     "customer_traffic",
@@ -264,6 +273,7 @@ DEFAULT_CLAIMS = (
 CLAIM_ARTIFACT_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "production_readiness": (
         PRODUCTION_READINESS_CLAIM_ID,
+        MESH_RECOVERY_LIFECYCLE_CLAIM_ID,
         DATAPLANE_DELIVERY_CLAIM_ID,
         CUSTOMER_TRAFFIC_CLAIM_ID,
         TRUST_FINALITY_CLAIM_ID,
@@ -273,6 +283,7 @@ CLAIM_ARTIFACT_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "dataplane_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
     "traffic_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
     "customer_traffic": (CUSTOMER_TRAFFIC_CLAIM_ID,),
+    "mesh_recovery_lifecycle": (MESH_RECOVERY_LIFECYCLE_CLAIM_ID,),
     "trust_finality": (TRUST_FINALITY_CLAIM_ID,),
     "dpi_bypass": (DPI_LAB_CLAIM_ID,),
     "settlement_finality": (
@@ -344,6 +355,44 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
                 "dataplane_delivery",
                 "--claim",
                 "traffic_delivery",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [".agent_coordination/events.log"],
+    },
+    {
+        "action_id": "collect_mesh_recovery_lifecycle_eventbus_evidence",
+        "title": "Collect bounded mesh recovery safe-automation lifecycle evidence.",
+        "match_tokens": (
+            "mesh_recovery_lifecycle_eventbus_artifact_not_verified",
+            "production_readiness_mesh_recovery_lifecycle_artifact_not_verified",
+        ),
+        "claim_boundary": (
+            "Mesh recovery lifecycle evidence proves a local safe-automation "
+            "contract only: observed state, policy decision, return code, duration, "
+            "redaction, and safe-mode/escalation boundaries. It does not prove "
+            "dataplane delivery, customer traffic, trust finality, settlement, "
+            "or production readiness by itself."
+        ),
+        "automation_status": "local_command_available_for_safe_simulation",
+        "implementation_gap": (
+            "The collector writes a bounded local recovery lifecycle smoke event. "
+            "It does not mutate live mesh state or prove that a real customer path "
+            "was restored."
+        ),
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/collect_mesh_recovery_lifecycle_eventbus_evidence.py",
+                "--allow-local-simulation",
+                "--write-event",
+                "--json",
+            ],
+            [
+                "python3",
+                "scripts/ops/run_cross_plane_proof_gate.py",
+                "--claim",
+                "mesh_recovery_lifecycle",
                 "--json",
             ],
         ],
@@ -786,6 +835,11 @@ def _safe_string_list(value: Any) -> list[str]:
     return [str(item) for item in value if str(item)]
 
 
+def _is_sha256_hex(value: Any) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(char in "0123456789abcdef" for char in text)
+
+
 def _dataplane_revalidation_candidates(data: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     candidates: list[Mapping[str, Any]] = []
     for value in (
@@ -1200,6 +1254,157 @@ def dataplane_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
             return result
 
     result["blockers"].append("verified_dataplane_delivery_event_not_found")
+    return result
+
+
+def _mesh_recovery_lifecycle_candidate_blockers(
+    event: Mapping[str, Any],
+) -> list[str]:
+    data = _mapping(event.get("data"))
+    claim_gate = _mapping(data.get("claim_gate"))
+    identity = _mapping(data.get("identity"))
+    identity_fields = _mapping(data.get("identity_fields_present"))
+    node_id_hash = data.get("node_id_hash") or identity.get("node_id_hash")
+    policy_allowed_present = isinstance(data.get("policy_allowed"), bool)
+    safe_mode_present = isinstance(data.get("safe_mode_required"), bool)
+    return_code_present = isinstance(data.get("return_code"), int) or isinstance(
+        data.get("returncode"),
+        int,
+    )
+    duration_present = isinstance(data.get("duration_ms"), int)
+    escalation_required = data.get("escalation_required") is True
+    safe_mode_required = data.get("safe_mode_required") is True
+    status = str(data.get("status") or "")
+    action_error = data.get("action_error") is True
+    blockers: list[str] = []
+
+    if data.get("schema") != "mesh_node_degradation_recovery.eventbus.v1":
+        blockers.append("mesh_recovery_event_schema_missing")
+    if data.get("recovery_evidence_schema") != "mesh_node_degradation_recovery.v1":
+        blockers.append("mesh_recovery_evidence_schema_missing")
+    if data.get("operation") != "mesh_node_degradation_recovery":
+        blockers.append("mesh_recovery_operation_missing")
+    if data.get("observed_state") is not True:
+        blockers.append("mesh_recovery_observed_state_missing")
+    if not policy_allowed_present:
+        blockers.append("mesh_recovery_policy_decision_missing")
+    if not safe_mode_present:
+        blockers.append("mesh_recovery_safe_mode_field_missing")
+    if not return_code_present:
+        blockers.append("mesh_recovery_return_code_missing")
+    if not duration_present or int(data.get("duration_ms") or 0) < 0:
+        blockers.append("mesh_recovery_duration_missing")
+    if not _is_sha256_hex(node_id_hash):
+        blockers.append("mesh_recovery_node_id_hash_missing")
+    if identity_fields.get("node_id_hash") is not True:
+        blockers.append("mesh_recovery_identity_hash_presence_missing")
+    if claim_gate.get("customer_traffic_restored") not in (
+        "UNPROVEN",
+        "UNPROVEN_AWAITING_DATAPLANE_PROOF",
+    ):
+        blockers.append("mesh_recovery_customer_traffic_overclaim")
+    if data.get("raw_values_redacted") is not True:
+        blockers.append("mesh_recovery_raw_values_not_redacted")
+    if data.get("raw_identifiers_redacted") is not True:
+        blockers.append("mesh_recovery_raw_identifiers_not_redacted")
+    if data.get("payloads_redacted") is not True:
+        blockers.append("mesh_recovery_payloads_not_redacted")
+    if not data.get("claim_boundary"):
+        blockers.append("mesh_recovery_claim_boundary_missing")
+    if data.get("production_readiness_claim_allowed") is True:
+        blockers.append("mesh_recovery_overpromotes_production_readiness")
+    if data.get("customer_traffic_claim_allowed") is True:
+        blockers.append("mesh_recovery_overpromotes_customer_traffic")
+    if data.get("settlement_finality_claim_allowed") is True:
+        blockers.append("mesh_recovery_overpromotes_settlement_finality")
+    if status in {"blocked", "failed"} and not escalation_required:
+        blockers.append("mesh_recovery_failed_event_without_escalation")
+    if (safe_mode_required or action_error) and not escalation_required:
+        blockers.append("mesh_recovery_safe_mode_without_escalation")
+    return blockers
+
+
+def mesh_recovery_lifecycle_artifact_evidence(root: Path) -> dict[str, Any]:
+    path = resolve_path(root, EVENTBUS_LOG)
+    result: dict[str, Any] = {
+        "claim_id": MESH_RECOVERY_LIFECYCLE_CLAIM_ID,
+        "required_for_claims": ["mesh_recovery_lifecycle", "production_readiness"],
+        "valid": False,
+        "event_log_path": EVENTBUS_LOG.as_posix(),
+        "event_log_exists": path.is_file(),
+        "events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "tail_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_source_agents": sorted(MESH_RECOVERY_LIFECYCLE_SOURCE_AGENTS),
+        "candidate_scan": None,
+        "matching_events": 0,
+        "selected_event": None,
+        "candidate_blockers": [],
+        "blockers": [],
+        "claim_boundary": (
+            "A retained mesh recovery EventBus event can support a bounded "
+            "safe-automation lifecycle claim only when it records observed state, "
+            "policy decision, return code, duration, redaction, safe-mode/escalation "
+            "boundaries, and a local claim boundary. It does not prove dataplane "
+            "delivery, customer traffic, trust finality, settlement finality, or "
+            "production readiness by itself."
+        ),
+    }
+    if not path.is_file():
+        result["blockers"].append("mesh_recovery_lifecycle_event_log_missing")
+        return result
+
+    scanned_event_ids: set[str] = set()
+
+    def select_if_valid(event: Mapping[str, Any], scan_source: str) -> bool:
+        event_id = str(event.get("event_id") or "")
+        if event_id and event_id in scanned_event_ids:
+            return False
+        if event_id:
+            scanned_event_ids.add(event_id)
+        if str(event.get("source_agent") or "") not in MESH_RECOVERY_LIFECYCLE_SOURCE_AGENTS:
+            return False
+        candidate_blockers = _mesh_recovery_lifecycle_candidate_blockers(event)
+        if candidate_blockers:
+            for blocker in candidate_blockers:
+                if blocker not in result["candidate_blockers"] and len(result["candidate_blockers"]) < 20:
+                    result["candidate_blockers"].append(blocker)
+            return False
+        data = _mapping(event.get("data"))
+        result["matching_events"] += 1
+        result["selected_event"] = {
+            "event_id": event_id,
+            "event_type": str(event.get("event_type") or ""),
+            "source_agent": str(event.get("source_agent") or ""),
+            "timestamp": str(event.get("timestamp") or ""),
+            "scan_source": scan_source,
+            "operation": str(data.get("operation") or ""),
+            "status": str(data.get("status") or ""),
+            "policy_allowed": data.get("policy_allowed") is True,
+            "safe_mode_required": data.get("safe_mode_required") is True,
+            "escalation_required": data.get("escalation_required") is True,
+            "action_error": data.get("action_error") is True,
+            "node_id_hash_present": True,
+            "redacted": True,
+        }
+        result["valid"] = True
+        return True
+
+    for event in reversed(_bounded_event_log_entries(path, limit=EVENTBUS_TAIL_SCAN_LIMIT)):
+        if select_if_valid(event, "tail_scan"):
+            return result
+
+    source_filtered_events, candidate_scan = _source_filtered_event_log_entries(
+        path,
+        source_agents=MESH_RECOVERY_LIFECYCLE_SOURCE_AGENTS,
+        candidate_limit=EVENTBUS_TAIL_SCAN_LIMIT,
+    )
+    result["candidate_scan"] = candidate_scan
+    for event in source_filtered_events:
+        if select_if_valid(event, "source_agent_prefiltered_reverse_scan"):
+            return result
+
+    result["blockers"].append("verified_mesh_recovery_lifecycle_event_not_found")
     return result
 
 
@@ -2123,6 +2328,10 @@ def evaluate_claim(
         claim_artifact_evidence = (artifact_evidence or {}).get(CUSTOMER_TRAFFIC_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("customer_traffic_eventbus_artifact_not_verified")
+    elif claim_id == "mesh_recovery_lifecycle":
+        claim_artifact_evidence = (artifact_evidence or {}).get(MESH_RECOVERY_LIFECYCLE_CLAIM_ID)
+        if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
+            blockers.append("mesh_recovery_lifecycle_eventbus_artifact_not_verified")
     elif claim_id == "dpi_bypass":
         claim_artifact_evidence = (artifact_evidence or {}).get(DPI_LAB_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
@@ -2131,6 +2340,11 @@ def evaluate_claim(
         claim_artifact_evidence = (artifact_evidence or {}).get(PRODUCTION_READINESS_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("production_readiness_imported_artifact_not_verified")
+        recovery_lifecycle = (artifact_evidence or {}).get(MESH_RECOVERY_LIFECYCLE_CLAIM_ID)
+        if recovery_lifecycle is not None:
+            supporting_artifact_evidence[MESH_RECOVERY_LIFECYCLE_CLAIM_ID] = recovery_lifecycle
+        if not recovery_lifecycle or recovery_lifecycle.get("valid") is not True:
+            blockers.append("production_readiness_mesh_recovery_lifecycle_artifact_not_verified")
         dataplane_boundary = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
         if dataplane_boundary is not None:
             supporting_artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_boundary
@@ -2416,6 +2630,8 @@ def build_report(
     artifact_evidence: dict[str, Mapping[str, Any]] = {}
     if any(claim in claims for claim in ("dataplane_delivery", "traffic_delivery", "production_readiness")):
         artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_delivery_artifact_evidence(root)
+    if any(claim in claims for claim in ("mesh_recovery_lifecycle", "production_readiness")):
+        artifact_evidence[MESH_RECOVERY_LIFECYCLE_CLAIM_ID] = mesh_recovery_lifecycle_artifact_evidence(root)
     if any(claim in claims for claim in ("trust_finality", "production_readiness")):
         artifact_evidence[TRUST_FINALITY_CLAIM_ID] = trust_finality_artifact_evidence(root)
     if any(claim in claims for claim in ("customer_traffic", "production_readiness")):
