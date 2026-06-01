@@ -299,6 +299,7 @@ def _write_valid_external_settlement_artifacts(root: Path) -> None:
         "generated_at": "2026-05-31T00:00:00Z",
         "status": "VERIFIED HERE",
         "ok": True,
+        "goal_can_be_marked_complete": False,
         "live_rpc_result": {
             "ready": True,
             "destination_chain": "base-sepolia",
@@ -2790,6 +2791,31 @@ def test_gate_blocks_settlement_finality_when_blocker_claim_gate_overpromotes_pr
     artifact = settlement["required_artifact_evidence"]
     assert (
         "external_settlement_blocker_claim_gate_overpromotes_production"
+        in artifact["blockers"]
+    )
+
+
+def test_gate_blocks_settlement_finality_when_blocker_report_overpromotes_goal_completion(
+    tmp_path: Path,
+) -> None:
+    from src.integration import external_settlement as settlement_module
+
+    _write_map(tmp_path, settlement_flags=True)
+    _write_valid_external_settlement_artifacts(tmp_path)
+    _write_valid_economy_boundary_event(tmp_path)
+    blocker_path = tmp_path / settlement_module.DEFAULT_BLOCKER_REPORT
+    blocker_report = json.loads(blocker_path.read_text(encoding="utf-8"))
+    blocker_report["goal_can_be_marked_complete"] = True
+    blocker_path.write_text(json.dumps(blocker_report), encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("settlement_finality",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [settlement] = report["claim_results"]
+    assert "external_settlement_artifact_not_verified" in settlement["blockers"]
+    artifact = settlement["required_artifact_evidence"]
+    assert (
+        "external_settlement_blocker_report_overpromotes_goal_completion"
         in artifact["blockers"]
     )
 

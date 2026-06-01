@@ -2962,12 +2962,16 @@ def external_settlement_artifact_evidence(root: Path) -> dict[str, Any]:
         result["retained_evidence_validation"] = retained_report
         if retained.valid is not True:
             result["blockers"].append("external_settlement_retained_evidence_not_verified")
+        if retained_report.get("goal_can_be_marked_complete") is not False:
+            result["blockers"].append("external_settlement_retained_report_overpromotes_goal_completion")
 
         if not rpc_path.is_file():
             result["blockers"].append("external_settlement_live_rpc_report_missing")
         else:
             rpc_report = _redact_external_settlement_live_rpc_report(load_json(rpc_path))
             result["live_rpc_report"] = rpc_report
+            if rpc_report.get("goal_can_be_marked_complete") is not False:
+                result["blockers"].append("external_settlement_live_rpc_report_overpromotes_goal_completion")
             rpc_summary = rpc_report.get("summary") if isinstance(rpc_report, Mapping) else {}
             rpc_result = rpc_report.get("live_rpc_result") if isinstance(rpc_report, Mapping) else {}
             if not isinstance(rpc_summary, Mapping) or rpc_summary.get("x0t_external_settlement_live_rpc_ready") is not True:
@@ -2991,6 +2995,8 @@ def external_settlement_artifact_evidence(root: Path) -> dict[str, Any]:
                 if isinstance(blocker_report, Mapping)
                 else {}
             )
+            if blocker_report.get("goal_can_be_marked_complete") is not False:
+                result["blockers"].append("external_settlement_blocker_report_overpromotes_goal_completion")
             if blocker_report.get("decision") != "READY_TO_PROMOTE":
                 result["blockers"].append("external_settlement_blocker_not_ready_to_promote")
             if not isinstance(blocker_summary, Mapping) or blocker_summary.get("x0t_external_settlement_ready") is not True:
