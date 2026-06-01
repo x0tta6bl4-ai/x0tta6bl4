@@ -4,7 +4,12 @@ import json
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from scripts.ops.check_real_readiness import CommandResult, build_report, check_git_state
+from scripts.ops.check_real_readiness import (
+    CommandResult,
+    GIT_STATUS_TIMEOUT_SECONDS,
+    build_report,
+    check_git_state,
+)
 
 
 def _write(root: Path, relative: str, text: str) -> None:
@@ -5320,6 +5325,7 @@ def test_dirty_git_worktree_reports_actionable_counts(tmp_path: Path) -> None:
         timeout: int = 60,
     ) -> CommandResult:
         if tuple(args) == ("git", "status", "--porcelain"):
+            assert timeout == GIT_STATUS_TIMEOUT_SECONDS
             return CommandResult(
                 0,
                 "\n".join(

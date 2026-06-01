@@ -24,6 +24,7 @@ from typing import Callable, Iterable, Mapping, Sequence
 
 DEFAULT_OUTPUT_JSON = ".tmp/validation-shards/real-readiness-current.json"
 DEFAULT_OUTPUT_MD = ".tmp/validation-shards/real-readiness-current.md"
+GIT_STATUS_TIMEOUT_SECONDS = 90
 CURRENT_ACTIVE_AUDIT = "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md"
 CURRENT_CROSS_PLANE_MAP = "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json"
 EXTERNAL_DPI_PROOF_MISSING_GAP_ID = "external-dpi-proof-missing"
@@ -6699,7 +6700,7 @@ def _summarize_git_dirty_lines(dirty_lines: Sequence[str]) -> str:
 
 
 def check_git_state(root: Path, runner: Runner) -> list[CheckResult]:
-    result = runner(("git", "status", "--porcelain"), None, 30)
+    result = runner(("git", "status", "--porcelain"), None, GIT_STATUS_TIMEOUT_SECONDS)
     if result.returncode != 0:
         return [fail_check("git_worktree_clean", _format_command_failure(result), "git status --porcelain")]
     dirty_lines = [line for line in result.stdout.splitlines() if line.strip()]
