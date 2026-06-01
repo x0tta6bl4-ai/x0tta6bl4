@@ -102,6 +102,9 @@ CUSTOMER_TRAFFIC_SOURCE_AGENTS = (
     "maas-customer-traffic",
     "production-customer-traffic",
 )
+CUSTOMER_TRAFFIC_REQUIRED_SOURCE_ARTIFACT_ROLES = (
+    "redacted_end_to_end_customer_path_probe_report",
+)
 MESH_RECOVERY_LIFECYCLE_CLAIM_ID = "mesh_recovery_lifecycle"
 REQUIRED_PLANES = {
     "data_plane",
@@ -1751,6 +1754,12 @@ def _customer_traffic_candidate_blockers(event: Mapping[str, Any]) -> list[str]:
         data.get("customer_traffic_claim_gate")
     )
     evidence = _mapping(data.get("evidence")) or _mapping(data.get("downstream_evidence"))
+    source_artifacts = data.get("source_artifacts")
+    source_artifacts_list = (
+        source_artifacts
+        if isinstance(source_artifacts, list)
+        else []
+    )
     blockers: list[str] = []
     customer_confirmed = any(
         value is True
@@ -1784,6 +1793,16 @@ def _customer_traffic_candidate_blockers(event: Mapping[str, Any]) -> list[str]:
         blockers.append("customer_traffic_evidence_not_redacted")
     if not (data.get("claim_boundary") or gate.get("claim_boundary")):
         blockers.append("customer_traffic_claim_boundary_missing")
+    if data.get("environment") != "production":
+        blockers.append("customer_traffic_environment_not_production")
+    if not source_artifacts_list:
+        blockers.append("customer_traffic_source_artifacts_missing")
+    elif not any(
+        _mapping(artifact).get("role") in CUSTOMER_TRAFFIC_REQUIRED_SOURCE_ARTIFACT_ROLES
+        and _mapping(artifact).get("redacted") is True
+        for artifact in source_artifacts_list
+    ):
+        blockers.append("customer_traffic_required_source_artifact_missing")
     if data.get("production_readiness_claim_allowed") is True or gate.get("production_readiness_claim_allowed") is True:
         blockers.append("customer_traffic_event_overpromotes_production_readiness")
     if data.get("settlement_finality_confirmed") is True or gate.get("external_settlement_finality_claim_allowed") is True:
@@ -1845,6 +1864,7 @@ def customer_traffic_artifact_evidence(root: Path) -> dict[str, Any]:
             "timestamp": str(event.get("timestamp") or ""),
             "scan_source": scan_source,
             "production_customer_traffic_confirmed": True,
+            "environment": str(_mapping(event.get("data")).get("environment") or ""),
             "redacted": True,
         }
         result["valid"] = True

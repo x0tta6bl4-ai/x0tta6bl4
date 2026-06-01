@@ -30,6 +30,7 @@ def _write_proof(
     customer_response_validated: bool = True,
     environment: str = "production",
     status: str = "VERIFIED",
+    source_artifact_role: str = "redacted_end_to_end_customer_path_probe_report",
 ) -> Path:
     path = tmp_path / "customer_traffic.json"
     path.write_text(
@@ -48,7 +49,7 @@ def _write_proof(
                 },
                 "source_artifacts": [
                     {
-                        "role": "redacted_end_to_end_customer_path_probe_report",
+                        "role": source_artifact_role,
                         "sha256": "b" * 64,
                         "redacted": True,
                     }
@@ -110,6 +111,7 @@ def test_collect_writes_event_recognized_by_cross_plane_proof_gate(
     assert artifact["matching_events"] == 1
     assert artifact["selected_event"]["event_id"] == report["event_id"]
     assert artifact["selected_event"]["production_customer_traffic_confirmed"] is True
+    assert artifact["selected_event"]["environment"] == "production"
     assert artifact["selected_event"]["redacted"] is True
 
 
@@ -140,6 +142,37 @@ def test_collect_non_production_or_partial_proof_writes_non_promoting_event(
     assert report["ready_for_proof_gate"] is False
     assert "customer_traffic_input_environment_not_production" in report["blockers"]
     assert "customer_traffic_input_response_not_validated" in report["blockers"]
+
+    artifact = customer_traffic_artifact_evidence(tmp_path)
+    assert artifact["valid"] is False
+    assert "verified_customer_traffic_event_not_found" in artifact["blockers"]
+    assert "customer_traffic_not_confirmed" in artifact["candidate_blockers"]
+
+
+def test_collect_blocks_verified_proof_without_required_customer_probe_artifact_role(
+    tmp_path: Path,
+) -> None:
+    collector = _load_script()
+    proof = _write_proof(tmp_path, source_artifact_role="generic_redacted_log")
+    args = collector.parse_args(
+        [
+            "--root",
+            str(tmp_path),
+            "--proof-json",
+            str(proof),
+            "--allow-redacted-local-proof-intake",
+            "--write-event",
+        ]
+    )
+
+    report = collector.collect(args)
+
+    assert report["decision"] == "CUSTOMER_TRAFFIC_PROOF_NOT_READY"
+    assert report["event_written"] is True
+    assert report["ready_for_proof_gate"] is False
+    assert "customer_traffic_input_required_source_artifact_missing" in report[
+        "blockers"
+    ]
 
     artifact = customer_traffic_artifact_evidence(tmp_path)
     assert artifact["valid"] is False

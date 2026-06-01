@@ -20,6 +20,9 @@ CUSTOMER_TRAFFIC_SOURCE_AGENTS = (
     "maas-customer-traffic",
     "production-customer-traffic",
 )
+CUSTOMER_TRAFFIC_REQUIRED_SOURCE_ARTIFACT_ROLES = (
+    "redacted_end_to_end_customer_path_probe_report",
+)
 
 
 class CustomerTrafficObservedEvidence(BaseModel):
@@ -124,6 +127,11 @@ def customer_traffic_input_blockers(
         blockers.append("customer_traffic_input_claim_boundary_missing")
     if not proof.source_artifacts:
         blockers.append("customer_traffic_input_source_artifacts_missing")
+    elif not any(
+        artifact.role in CUSTOMER_TRAFFIC_REQUIRED_SOURCE_ARTIFACT_ROLES
+        for artifact in proof.source_artifacts
+    ):
+        blockers.append("customer_traffic_input_required_source_artifact_missing")
     for artifact in proof.source_artifacts:
         if artifact.redacted is not True:
             blockers.append("customer_traffic_input_source_artifact_not_redacted")
@@ -193,6 +201,7 @@ def build_customer_traffic_event_data(
         "settlement_finality_confirmed": False,
         "external_settlement_finality_claim_allowed": False,
         "production_readiness_claim_allowed": False,
+        "environment": observed.environment,
         "raw_identifiers_redacted": proof.raw_identifiers_redacted,
         "raw_values_redacted": proof.raw_values_redacted,
         "payloads_redacted": proof.payloads_redacted,

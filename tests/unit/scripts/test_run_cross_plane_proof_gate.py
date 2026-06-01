@@ -698,9 +698,19 @@ def _write_valid_customer_traffic_event(root: Path) -> None:
         "data": {
             "component": "scripts.ops.customer_traffic_probe",
             "operation": "end_to_end_customer_path_probe",
+            "environment": "production",
             "production_customer_traffic_confirmed": True,
             "raw_identifiers_redacted": True,
             "payloads_redacted": True,
+            "source_artifacts_count": 1,
+            "source_artifacts": [
+                {
+                    "role": "redacted_end_to_end_customer_path_probe_report",
+                    "sha256": "b" * 64,
+                    "path_redacted": True,
+                    "redacted": True,
+                }
+            ],
             "claim_boundary": (
                 "End-to-end customer traffic evidence only; not production "
                 "readiness, settlement finality, or trust finality proof."
@@ -1807,7 +1817,41 @@ def test_gate_allows_customer_traffic_only_with_verified_customer_artifact(
     assert artifact["valid"] is True
     assert artifact["selected_event"]["event_id"] == "customer-traffic-event-1"
     assert artifact["selected_event"]["production_customer_traffic_confirmed"] is True
+    assert artifact["selected_event"]["environment"] == "production"
     assert "Dataplane probes" in artifact["claim_boundary"]
+
+
+def test_gate_blocks_customer_traffic_without_production_probe_artifact_context(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, customer_flags=True)
+    _write_valid_customer_traffic_event(tmp_path)
+    event_log = tmp_path / ".agent_coordination/events.log"
+    event = json.loads(event_log.read_text(encoding="utf-8"))
+    event["data"]["environment"] = "lab"
+    event["data"]["source_artifacts"] = [
+        {
+            "role": "generic_redacted_log",
+            "sha256": "b" * 64,
+            "path_redacted": True,
+            "redacted": True,
+        }
+    ]
+    event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("customer_traffic",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [customer] = report["claim_results"]
+    assert "customer_traffic_eventbus_artifact_not_verified" in customer["blockers"]
+    artifact = customer["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "customer_traffic_environment_not_production" in artifact[
+        "candidate_blockers"
+    ]
+    assert "customer_traffic_required_source_artifact_missing" in artifact[
+        "candidate_blockers"
+    ]
 
 
 def test_gate_finds_customer_traffic_event_outside_tail_scan_via_source_filter(
