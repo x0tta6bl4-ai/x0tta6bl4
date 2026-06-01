@@ -112,6 +112,8 @@
       ],
       "proof_flags": {
         "local_observed_state_recorded": true,
+        "local_observed_state": true,
+        "eventbus_evidence": true,
         "dataplane_confirmed": false,
         "remote_peer_authenticity_confirmed": false,
         "production_customer_traffic_confirmed": false
