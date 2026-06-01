@@ -34,6 +34,7 @@ The `Native App Builds` workflow builds and uploads:
 - iOS simulator app and unsigned iOS device app on a macOS runner, plus signed device `.ipa` when Apple signing secrets are configured.
 - One manifest artifact per platform: `SHA256SUMS` and `native-build-manifest.json`.
 - One signing readiness artifact: `x0tta6bl4-native-signing-readiness/native-signing-readiness.json`.
+- One release audit artifact: `x0tta6bl4-native-release-artifact-audit/native-release-artifact-audit.json`.
 
 The manifest files make each CI run auditable:
 
@@ -41,6 +42,19 @@ The manifest files make each CI run auditable:
 - `native-build-manifest.json` records the platform, app id, GitHub run id, commit SHA, signing status, file sizes, and checksums.
 - Android and iOS manifests explicitly show whether production signing material was present. If signing secrets are absent, unsigned Android release APK plus iOS simulator/device app bundles are still built, but signed Android AAB/IPA are not claimed.
 - `native-signing-readiness.json` records which required signing secret names are present or missing without printing secret values.
+- `native-release-artifact-audit.json` verifies the downloaded platform artifacts against their manifests. It marks the release incomplete until Android APK/AAB, Windows MSI, Ubuntu deb/AppImage, and a signed iOS `.ipa` are all present.
+
+To audit a downloaded native run locally:
+
+```bash
+gh run download <run-id> --repo x0tta6bl4-ai/x0tta6bl4 --dir .tmp/native-release-artifacts
+python3 scripts/ops/verify_native_release_artifacts.py \
+  --artifact-root .tmp/native-release-artifacts \
+  --json \
+  --output .tmp/native-release-audit/native-release-artifact-audit.json
+```
+
+For a hard release gate, add `--require-complete`. The command exits with code `2` when any required platform artifact is missing, including the signed iOS `.ipa`.
 
 ## Platform Notes
 
