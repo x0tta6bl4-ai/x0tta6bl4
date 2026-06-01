@@ -6,7 +6,7 @@ import hashlib
 import hmac
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 ClaimState = Literal["PROVEN", "UNPROVEN", "UNPROVEN_AWAITING_DATAPLANE_PROOF"]
@@ -31,7 +31,13 @@ POST_ACTION_DATAPLANE_REQUIRED_EVIDENCE = {
 }
 
 
-class BoundedClaims(BaseModel):
+class StrictRecoveryModel(BaseModel):
+    """Base contract that rejects hidden or future overclaim fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class BoundedClaims(StrictRecoveryModel):
     """Bounded claims produced by a local recovery revalidation pass."""
 
     local_peer_visible: ClaimState
@@ -40,7 +46,7 @@ class BoundedClaims(BaseModel):
     customer_traffic_restored: ClaimState = "UNPROVEN_AWAITING_DATAPLANE_PROOF"
 
 
-class PolicyDecision(BaseModel):
+class PolicyDecision(StrictRecoveryModel):
     """Policy decision that allows or blocks an autonomous action."""
 
     allowed: bool
@@ -49,7 +55,7 @@ class PolicyDecision(BaseModel):
     safe_mode_required: bool
 
 
-class NodeState(BaseModel):
+class NodeState(StrictRecoveryModel):
     """Redacted local node health snapshot."""
 
     local_health: str
@@ -57,7 +63,7 @@ class NodeState(BaseModel):
     yggdrasil_status: str
 
 
-class ServiceIdentityEvidence(BaseModel):
+class ServiceIdentityEvidence(StrictRecoveryModel):
     """Redacted workload identity presence attached to recovery evidence."""
 
     schema: Literal["x0tta6bl4.service_identity_evidence.v1"] = (
@@ -71,7 +77,7 @@ class ServiceIdentityEvidence(BaseModel):
     redacted: bool = True
 
 
-class DataplaneEvidenceRef(BaseModel):
+class DataplaneEvidenceRef(StrictRecoveryModel):
     """Redacted EventBus evidence reference for a dataplane proof."""
 
     source_agents: list[str] = Field(default_factory=list)
@@ -83,7 +89,7 @@ class DataplaneEvidenceRef(BaseModel):
     redacted: bool = True
 
 
-class PostActionDataplaneClaimGate(BaseModel):
+class PostActionDataplaneClaimGate(StrictRecoveryModel):
     """Gate that prevents local recovery from becoming a dataplane claim."""
 
     schema: Literal["x0tta6bl4.post_action_dataplane_claim_gate.v1"] = (
@@ -113,7 +119,7 @@ class PostActionDataplaneClaimGate(BaseModel):
     redacted: bool = True
 
 
-class PostActionDataplaneRevalidation(BaseModel):
+class PostActionDataplaneRevalidation(StrictRecoveryModel):
     """Optional dataplane proof attached after local recovery revalidation."""
 
     schema: Literal[
@@ -133,7 +139,7 @@ class PostActionDataplaneRevalidation(BaseModel):
     redacted: bool = True
 
 
-class RecoveryEvidenceV1(BaseModel):
+class RecoveryEvidenceV1(StrictRecoveryModel):
     """Machine-readable mesh_node_degradation_recovery.v1 evidence packet."""
 
     schema: Literal["mesh_node_degradation_recovery.v1"] = (

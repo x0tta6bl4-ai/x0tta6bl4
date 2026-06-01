@@ -99,6 +99,7 @@ def test_sgx_verifier_smoke_writes_redacted_ready_artifact(
     assert report["ready"] is True
     assert report["decision"] == module.READY_DECISION
     assert report["schema"] == module.SCHEMA
+    assert report["goal_can_be_marked_complete"] is False
     assert report["verifier"]["backend"] == "sgx_command"
     assert report["verifier"]["production_verifier_claim_allowed"] is True
     assert report["verifier"]["provenance"]["raw_command_redacted"] is True
@@ -108,6 +109,24 @@ def test_sgx_verifier_smoke_writes_redacted_ready_artifact(
     assert report["claim_boundary"]["proof_claims"][
         "production_attestation_verifier_claim_allowed"
     ] is True
+    assert report["claim_gate"] == {
+        "schema": module.CLAIM_GATE_SCHEMA,
+        "measured_attestation_verifier_smoke_claim_allowed": True,
+        "non_mock_attestation_verified": True,
+        "verifier_provenance_recorded": True,
+        "production_attestation_verifier_claim_allowed": True,
+        "production_trust_finality_claim_allowed": False,
+        "fleet_hardware_coverage_claim_allowed": False,
+        "pqc_identity_finality_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "settlement_finality_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "blockers": [],
+        "claim_boundary": module.CLAIM_GATE_BOUNDARY,
+        "redacted": True,
+    }
     assert report["artifact_identity"]["artifact_sha256"] == module.artifact_content_sha256(
         report
     )
@@ -146,6 +165,9 @@ def test_sgx_verifier_smoke_blocks_without_production_verifier_claim(
     assert report["decision"] == module.BLOCKED_DECISION
     assert report["measurements"]["attestation_verified"] is True
     assert report["measurements"]["production_verifier_claim_allowed"] is False
+    assert report["goal_can_be_marked_complete"] is False
+    assert report["claim_gate"]["measured_attestation_verifier_smoke_claim_allowed"] is False
+    assert "production_verifier_claim_not_allowed" in report["claim_gate"]["blockers"]
     assert report["claim_boundary"]["proof_claims"]["production_trust_finality"] is False
 
 

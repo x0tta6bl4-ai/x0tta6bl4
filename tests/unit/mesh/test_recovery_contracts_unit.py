@@ -3,8 +3,12 @@ from __future__ import annotations
 import json
 from unittest.mock import Mock
 
+import pytest
+from pydantic import ValidationError
+
 from src.coordination.events import EventBus, EventType
 from src.mesh.recovery_contracts import (
+    BoundedClaims,
     NodeState,
     build_post_action_dataplane_claim_gate,
     generate_node_id_hash,
@@ -153,6 +157,25 @@ def test_shared_post_action_dataplane_claim_gate_blocks_non_dataplane_actions() 
     assert gate.blockers == [
         "action_type_does_not_require_dataplane_restoration_claim"
     ]
+
+
+def test_recovery_contracts_reject_hidden_overclaim_fields() -> None:
+    with pytest.raises(ValidationError):
+        BoundedClaims(
+            local_peer_visible="PROVEN",
+            yggdrasil_status_improved="PROVEN",
+            packet_loss_metric_decreased="PROVEN",
+            customer_traffic_restored="UNPROVEN_AWAITING_DATAPLANE_PROOF",
+            live_customer_traffic_confirmed=True,
+        )
+
+    with pytest.raises(ValidationError):
+        NodeState(
+            local_health="OK",
+            packet_loss_pct=0.1,
+            yggdrasil_status="Peers visible",
+            production_ready=True,
+        )
 
 
 def test_first_restart_allowed_and_records_bounded_evidence() -> None:

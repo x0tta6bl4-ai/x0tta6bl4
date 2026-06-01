@@ -23,6 +23,7 @@ DEFAULT_CANDIDATE = Path("docs/verification/incoming/measured_attestation_verifi
 INCOMING_ROOT = Path("docs/verification/incoming")
 SCHEMA = "x0tta6bl4.measured_attestation_verifier_smoke_validator.v1"
 ARTIFACT_SCHEMA = "x0tta6bl4.measured_attestation_verifier_smoke.v1"
+CLAIM_GATE_SCHEMA = "x0tta6bl4.measured_attestation_verifier_smoke.claim_gate.v1"
 DECISION_READY = "READY_TO_IMPORT"
 DECISION_REJECTED = "REJECTED"
 READY_DECISION = "MEASURED_ATTESTATION_VERIFIER_SMOKE_READY"
@@ -206,6 +207,8 @@ def verifier_errors(payload: dict[str, Any]) -> list[str]:
 
 def claim_boundary_errors(payload: dict[str, Any]) -> list[str]:
     errors: list[str] = []
+    if payload.get("goal_can_be_marked_complete") is not False:
+        errors.append("goal_can_be_marked_complete must be false")
     false_paths = [
         "measurements.production_trust_finality",
         "measurements.production_ready",
@@ -235,6 +238,40 @@ def claim_boundary_errors(payload: dict[str, Any]) -> list[str]:
     not_proven = dotted_get(payload, "claim_boundary.not_proven")
     if not isinstance(not_proven, list) or "production readiness" not in not_proven:
         errors.append("claim_boundary.not_proven must include production readiness")
+    claim_gate = payload.get("claim_gate")
+    if not isinstance(claim_gate, dict) or not claim_gate:
+        errors.append("claim_gate must be a non-empty object")
+        return errors
+    if dotted_get(payload, "claim_gate.schema") != CLAIM_GATE_SCHEMA:
+        errors.append(f"claim_gate.schema must be {CLAIM_GATE_SCHEMA}")
+    gate_true_paths = [
+        "claim_gate.measured_attestation_verifier_smoke_claim_allowed",
+        "claim_gate.non_mock_attestation_verified",
+        "claim_gate.verifier_provenance_recorded",
+        "claim_gate.production_attestation_verifier_claim_allowed",
+    ]
+    for path in gate_true_paths:
+        if dotted_get(payload, path) is not True:
+            errors.append(f"{path} must be true")
+    gate_false_paths = [
+        "claim_gate.production_trust_finality_claim_allowed",
+        "claim_gate.fleet_hardware_coverage_claim_allowed",
+        "claim_gate.pqc_identity_finality_claim_allowed",
+        "claim_gate.traffic_delivery_claim_allowed",
+        "claim_gate.customer_traffic_claim_allowed",
+        "claim_gate.settlement_finality_claim_allowed",
+        "claim_gate.production_slo_claim_allowed",
+        "claim_gate.production_readiness_claim_allowed",
+    ]
+    for path in gate_false_paths:
+        if dotted_get(payload, path) is not False:
+            errors.append(f"{path} must be false")
+    if dotted_get(payload, "claim_gate.redacted") is not True:
+        errors.append("claim_gate.redacted must be true")
+    if not dotted_get(payload, "claim_gate.claim_boundary"):
+        errors.append("claim_gate.claim_boundary must be present")
+    if dotted_get(payload, "claim_gate.blockers") != []:
+        errors.append("claim_gate.blockers must be an empty list for READY artifacts")
     return errors
 
 

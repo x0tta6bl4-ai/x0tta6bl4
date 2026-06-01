@@ -26,6 +26,7 @@ from src.security.tee_attestation import TEEAttestation, TEEValidator
 
 
 SCHEMA = "x0tta6bl4.measured_attestation_verifier_smoke.v1"
+CLAIM_GATE_SCHEMA = "x0tta6bl4.measured_attestation_verifier_smoke.claim_gate.v1"
 READY_DECISION = "MEASURED_ATTESTATION_VERIFIER_SMOKE_READY"
 BLOCKED_DECISION = "MEASURED_ATTESTATION_VERIFIER_SMOKE_BLOCKED"
 DEFAULT_OUTPUT = Path("docs/verification/incoming/measured_attestation_verifier_smoke.json")
@@ -35,6 +36,13 @@ CLAIM_BOUNDARY = (
     "returned redacted provenance. It does not prove production trust finality, "
     "fleet-wide hardware coverage, live customer traffic, payment settlement, "
     "PQC identity finality, or production readiness."
+)
+CLAIM_GATE_BOUNDARY = (
+    "Measured-attestation verifier-smoke claim gate. A ready artifact can prove "
+    "only that one local non-mock verifier accepted one supplied attestation "
+    "sample with redacted provenance. It does not prove production trust "
+    "finality, fleet-wide hardware coverage, dataplane delivery, customer "
+    "traffic, settlement finality, production SLOs, or production readiness."
 )
 
 
@@ -140,11 +148,23 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         and bool(result.production_verifier_claim_allowed)
         and bool(provenance)
     )
+    claim_gate_blockers: list[str] = []
+    if not result.verified:
+        claim_gate_blockers.append("attestation_not_verified")
+    if not non_mock_provider:
+        claim_gate_blockers.append("provider_is_mock")
+    if result.verifier_backend in {"mock_local_allowlist", "mock_disabled"}:
+        claim_gate_blockers.append("verifier_backend_is_mock")
+    if not result.production_verifier_claim_allowed:
+        claim_gate_blockers.append("production_verifier_claim_not_allowed")
+    if not provenance:
+        claim_gate_blockers.append("verifier_provenance_missing")
 
     payload: dict[str, Any] = {
         "schema": SCHEMA,
         "decision": READY_DECISION if ready else BLOCKED_DECISION,
         "ready": ready,
+        "goal_can_be_marked_complete": False,
         "captured_at_utc": utc_now_text(),
         "provider": args.provider,
         "artifact_identity": {
@@ -219,6 +239,26 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 "Only this bounded verifier-smoke claim can become true here; "
                 "production trust finality requires a separate reviewed evidence gate."
             ),
+        },
+        "claim_gate": {
+            "schema": CLAIM_GATE_SCHEMA,
+            "measured_attestation_verifier_smoke_claim_allowed": ready,
+            "non_mock_attestation_verified": bool(result.verified) and non_mock_provider,
+            "verifier_provenance_recorded": bool(provenance),
+            "production_attestation_verifier_claim_allowed": bool(
+                result.production_verifier_claim_allowed
+            ),
+            "production_trust_finality_claim_allowed": False,
+            "fleet_hardware_coverage_claim_allowed": False,
+            "pqc_identity_finality_claim_allowed": False,
+            "traffic_delivery_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "settlement_finality_claim_allowed": False,
+            "production_slo_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "blockers": claim_gate_blockers,
+            "claim_boundary": CLAIM_GATE_BOUNDARY,
+            "redacted": True,
         },
         "safe_local_input_rule": (
             "Do not paste report data, quote, signature, verifier command, operator "

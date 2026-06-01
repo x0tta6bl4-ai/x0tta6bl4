@@ -609,6 +609,7 @@ def _write_valid_measured_attestation_smoke_artifact(root: Path) -> None:
         "schema": "x0tta6bl4.measured_attestation_verifier_smoke.v1",
         "decision": "MEASURED_ATTESTATION_VERIFIER_SMOKE_READY",
         "ready": True,
+        "goal_can_be_marked_complete": False,
         "captured_at_utc": "2026-05-31T00:00:00Z",
         "provider": "sgx",
         "artifact_identity": {
@@ -687,6 +688,24 @@ def _write_valid_measured_attestation_smoke_artifact(root: Path) -> None:
                 "production_trust_finality": False,
                 "production_ready": False,
             },
+        },
+        "claim_gate": {
+            "schema": "x0tta6bl4.measured_attestation_verifier_smoke.claim_gate.v1",
+            "measured_attestation_verifier_smoke_claim_allowed": True,
+            "non_mock_attestation_verified": True,
+            "verifier_provenance_recorded": True,
+            "production_attestation_verifier_claim_allowed": True,
+            "production_trust_finality_claim_allowed": False,
+            "fleet_hardware_coverage_claim_allowed": False,
+            "pqc_identity_finality_claim_allowed": False,
+            "traffic_delivery_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "settlement_finality_claim_allowed": False,
+            "production_slo_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "blockers": [],
+            "claim_boundary": "Measured-attestation verifier-smoke claim gate.",
+            "redacted": True,
         },
     }
     payload["artifact_identity"]["artifact_sha256"] = _artifact_content_sha256(payload)

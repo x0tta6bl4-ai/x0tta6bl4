@@ -111,6 +111,51 @@ def test_validator_rejects_production_ready_claim(tmp_path: Path, monkeypatch) -
     assert "result_summary.production_ready must be false" in report["failures"]
 
 
+def test_validator_rejects_goal_completion_claim(tmp_path: Path, monkeypatch) -> None:
+    candidate = _write_ready_candidate(tmp_path, monkeypatch)
+    payload = json.loads(candidate.read_text(encoding="utf-8"))
+    payload["goal_can_be_marked_complete"] = True
+    payload["artifact_identity"]["artifact_sha256"] = validator_hash_zero_placeholder()
+    candidate.write_text(json.dumps(payload), encoding="utf-8")
+    validator = _load(
+        VALIDATOR_SCRIPT,
+        "measured_attestation_smoke_artifact_validator_goal_completion",
+    )
+
+    report = validator.build_report(tmp_path, candidate, require_ready=True)
+
+    assert report["ready"] is False
+    assert "goal_can_be_marked_complete must be false" in report["failures"]
+
+
+def test_validator_rejects_claim_gate_overpromotion(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    candidate = _write_ready_candidate(tmp_path, monkeypatch)
+    payload = json.loads(candidate.read_text(encoding="utf-8"))
+    payload["claim_gate"]["production_readiness_claim_allowed"] = True
+    payload["claim_gate"]["customer_traffic_claim_allowed"] = True
+    payload["artifact_identity"]["artifact_sha256"] = validator_hash_zero_placeholder()
+    candidate.write_text(json.dumps(payload), encoding="utf-8")
+    validator = _load(
+        VALIDATOR_SCRIPT,
+        "measured_attestation_smoke_artifact_validator_claim_gate",
+    )
+
+    report = validator.build_report(tmp_path, candidate, require_ready=True)
+
+    assert report["ready"] is False
+    assert (
+        "claim_gate.production_readiness_claim_allowed must be false"
+        in report["failures"]
+    )
+    assert (
+        "claim_gate.customer_traffic_claim_allowed must be false"
+        in report["failures"]
+    )
+
+
 def test_validator_rejects_unredacted_attestation_material(
     tmp_path: Path,
     monkeypatch,
