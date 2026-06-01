@@ -46,6 +46,7 @@
         "scripts/ops/verify_dataplane_delivery_private_target_operator_run.py:1",
         "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py:1",
         "scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py:1",
+        "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py:1",
         "scripts/ops/verify_maas_real_agent_control_loop.py:1",
         "tests/unit/scripts/test_run_dataplane_delivery_operator_handoff.py:1",
         "tests/unit/scripts/test_run_dataplane_delivery_operator_evidence.py:1",
@@ -134,7 +135,8 @@
         "Dataplane operator-flow verifier confirms the read-only handoff, opt-in collector, and proof-gate EventBus recognition path work together in a bounded loopback harness while keeping customer/traffic/production claims false",
         "Private-target operator-run verifier confirms a host-owned private non-loopback TCP probe can retain redacted EventBus and proof-gate artifacts while keeping customer/traffic/production claims false",
         "Real Go-agent control-loop verifier builds the agent, runs it against a temporary MaaS API, observes approved node-config fetch, scoped credential rotation, heartbeat persistence to a temporary local TCP dataplane endpoint, forced local offline-to-healthy operator heal, bounded post-heal dataplane revalidation, and redacted dataplane target delivery while keeping production/customer claims false",
-        "Economy/dataplane separation verifier confirms representative external-settlement handoff, reward EventBus, marketplace EventBus, modular billing payment-intent EventBus, modular billing payment HTTP response claim gates, and service-trace economy summaries keep serviceability, node provisioning, dataplane, customer, revenue, SLO, and production claims fail-closed"
+        "MaaS autonomous mesh runtime smoke verifier is readiness-gated and exercises in-process auth, mesh deploy, node enrollment, approval, heartbeat, heal, and service-trace claim classification while keeping external/customer/production claims false",
+        "Economy/dataplane separation verifier confirms representative external-settlement handoff, reward EventBus, marketplace EventBus, modular billing payment-intent EventBus, modular billing webhook lifecycle EventBus, modular billing payment HTTP response claim gates, and service-trace economy summaries keep serviceability, node provisioning, dataplane, customer, revenue, SLO, and production claims fail-closed"
       ],
       "claim_boundaries": [
         "not independent external-world proof",
@@ -150,6 +152,7 @@
         "scripts/ops/verify_dataplane_delivery_operator_flow.py:1",
         "scripts/ops/verify_dataplane_delivery_private_target_operator_run.py:1",
         "scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py:1",
+        "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py:1",
         "scripts/ops/verify_maas_real_agent_control_loop.py:1",
         "scripts/ops/verify_economy_dataplane_separation.py:1",
         "scripts/ops/smoke_ledger_event_trace_citation.py:1",
@@ -171,6 +174,7 @@
         "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:1",
         "tests/unit/scripts/test_verify_maas_heal_post_action_dataplane_probe.py:1",
         "tests/unit/scripts/test_verify_maas_heal_api_post_action_dataplane_probe.py:1",
+        "tests/unit/scripts/test_verify_maas_autonomous_mesh_runtime_smoke.py:1",
         "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:1",
         "tests/unit/scripts/test_check_real_readiness_unit.py:1",
         "tests/unit/self_healing/test_ebpf_anomaly_detector_unit.py:1",
@@ -189,7 +193,7 @@
       "verified_contours": [
         "local or pending economy lifecycle records",
         "TokenBridge chain-write SafeActuator metadata remains bounded from settlement-finality, delivery, revenue, and production claims",
-        "local economy/dataplane separation smoke covers external-settlement handoff, reward EventBus, marketplace EventBus, modular billing payment-intent EventBus, modular billing payment HTTP response claim gates, and service-trace economy summaries"
+        "local economy/dataplane separation smoke covers external-settlement handoff, reward EventBus, marketplace EventBus, modular billing payment-intent EventBus, modular billing webhook lifecycle EventBus, modular billing payment HTTP response claim gates, and service-trace economy summaries"
       ],
       "claim_boundaries": [
         "not payment settlement proof",
@@ -676,10 +680,10 @@
         "data_plane",
         "evidence_plane"
       ],
-      "current_path": "Billing and provisioning lifecycle evidence remains separated from access, traffic, and production claims; the local economy/dataplane separation verifier now covers the representative economy handoff/EventBus surfaces, including modular billing payment-intent EventBus evidence and the modular billing payment HTTP response claim gate.",
+      "current_path": "Billing and provisioning lifecycle evidence remains separated from access, traffic, and production claims; the local economy/dataplane separation verifier now covers the representative economy handoff/EventBus surfaces, including modular billing payment-intent EventBus evidence, modular billing webhook lifecycle EventBus evidence, and the modular billing payment HTTP response claim gate.",
       "verified_evidence": [
         "Billing/provisioning responses carry fail-closed claim gates for payment, customer access, dataplane, traffic, settlement, and production promotion.",
-        "The economy/dataplane separation runtime verifier keeps external-settlement handoff, reward EventBus, marketplace EventBus, modular billing payment-intent EventBus, modular billing payment HTTP response claim gates, and service-trace economy summaries fail-closed for serviceability, node provisioning, dataplane, customer, revenue, SLO, and production claims."
+        "The economy/dataplane separation runtime verifier keeps external-settlement handoff, reward EventBus, marketplace EventBus, modular billing payment-intent EventBus, modular billing webhook lifecycle EventBus, modular billing payment HTTP response claim gates, and service-trace economy summaries fail-closed for serviceability, node provisioning, dataplane, customer, revenue, SLO, and production claims."
       ],
       "boundary": "Local billing lifecycle is not provider settlement, customer VPN reachability, traffic delivery, external settlement finality, or production readiness proof.",
       "source_refs": [
@@ -691,6 +695,7 @@
       ],
       "proof_flags": {
         "local_billing_lifecycle_recorded": true,
+        "modular_billing_webhook_lifecycle_recorded": true,
         "economy_dataplane_separation_runtime_verified": true,
         "payment_settlement_confirmed": false,
         "payment_provider_settlement_claim_allowed": false,
@@ -810,9 +815,9 @@
       "id": "post-action-dataplane-probe-operationalization",
       "blocks_real_readiness": false,
       "blocking_status": "NON_BLOCKING_TRACKED_RISK",
-      "gap": "MaaS heal now has a local bounded post-action dataplane verifier, a MaaS API heartbeat->heal verifier exercises the production-like HTTP caller path with a redacted probe target, a real Go-agent control-loop verifier builds the agent, runs it against temporary uvicorn, proves node-config plus heartbeat delivery of the redacted dataplane probe target to a temporary local TCP endpoint, forces the local node offline, and proves operator heal restores it to healthy with bounded post-heal dataplane revalidation, the cross-plane proof gate rejects stale EventBus dataplane evidence older than 168 hours, a read-only operator handoff exists for private/local target probe commands, an authorized operator evidence runner can retain redacted EventBus and proof-gate artifacts for a private/local target, a local operator-flow verifier proves the handoff/collector/proof-gate recognition path against an isolated loopback EventBus event, and a private-target operator-run verifier has retained redacted EventBus/proof-gate artifacts from a host-owned private non-loopback TCP target. PQC rotator/Ghost L3/eBPF/MaaS governance/SPIRE/TokenBridge/DAO governance/GovernanceContract/DAO-executor/MPTCP/MeshActionEnforcer/self-healing MAPE-K/PBFT/Swarm MAPE-K/deployment now carry typed SafeActuator metadata, base sync/async SafeActuator adapter default paths attach bounded redacted adapter metadata, the latest parse-error-free SafeActuator source inventory shows 63/63 result-call metadata coverage, a local runtime retention verifier confirms representative SPIRE trust/control, TokenBridge economy/control, DAO executor release/control, DAO proposal Helm upgrade/control, DAO governance dispatch/control, GovernanceContract chain-write control/economy, Ghost L3 data/control, eBPF data/control, MaaS governance control/economy, PQC rotator trust/control, MPTCP network/control, MeshActionEnforcer data/control, self-healing MAPE-K control, PBFT consensus/control, Swarm MAPE-K local decision/control, canary deployment/control, and multi-cloud deployment/control EventBus metadata retention plus ops canary rollout, production monitor, auto-rollback, and production_deploy.py script result metadata retention, and a dedicated blocked-preflight runner retains a local production_deploy.py refusal artifact before subprocess/kubectl. The remaining risk is live runtime delivery from real production agents/callers outside the temporary uvicorn plus local Go-agent local-listener self-heal smoke, not local/private retained operator evidence, MaaS API plumbing, local deploy-refusal evidence, or local agent heartbeat/heal delivery.",
+      "gap": "MaaS heal now has a local bounded post-action dataplane verifier, a MaaS API heartbeat->heal verifier exercises the production-like HTTP caller path with a redacted probe target, a readiness-gated MaaS autonomous mesh runtime smoke exercises in-process auth, mesh deploy, node enrollment, approval, heartbeat, heal, and service-trace claim classification, a real Go-agent control-loop verifier builds the agent, runs it against temporary uvicorn, proves node-config plus heartbeat delivery of the redacted dataplane probe target to a temporary local TCP endpoint, forces the local node offline, and proves operator heal restores it to healthy with bounded post-heal dataplane revalidation, the cross-plane proof gate rejects stale EventBus dataplane evidence older than 168 hours, a read-only operator handoff exists for private/local target probe commands, an authorized operator evidence runner can retain redacted EventBus and proof-gate artifacts for a private/local target, a local operator-flow verifier proves the handoff/collector/proof-gate recognition path against an isolated loopback EventBus event, and a private-target operator-run verifier has retained redacted EventBus/proof-gate artifacts from a host-owned private non-loopback TCP target. PQC rotator/Ghost L3/eBPF/MaaS governance/SPIRE/TokenBridge/DAO governance/GovernanceContract/DAO-executor/MPTCP/MeshActionEnforcer/self-healing MAPE-K/PBFT/Swarm MAPE-K/deployment now carry typed SafeActuator metadata, base sync/async SafeActuator adapter default paths attach bounded redacted adapter metadata, the latest parse-error-free SafeActuator source inventory shows 63/63 result-call metadata coverage, a local runtime retention verifier confirms representative SPIRE trust/control, TokenBridge economy/control, DAO executor release/control, DAO proposal Helm upgrade/control, DAO governance dispatch/control, GovernanceContract chain-write control/economy, Ghost L3 data/control, eBPF data/control, MaaS governance control/economy, PQC rotator trust/control, MPTCP network/control, MeshActionEnforcer data/control, self-healing MAPE-K control, PBFT consensus/control, Swarm MAPE-K local decision/control, canary deployment/control, and multi-cloud deployment/control EventBus metadata retention plus ops canary rollout, production monitor, auto-rollback, and production_deploy.py script result metadata retention, and a dedicated blocked-preflight runner retains a local production_deploy.py refusal artifact before subprocess/kubectl. The remaining risk is live runtime delivery from real production agents/callers outside the in-process MaaS runtime smoke, temporary uvicorn, and local Go-agent local-listener self-heal smoke, not local/private retained operator evidence, MaaS API plumbing, local deploy-refusal evidence, or local agent heartbeat/heal delivery.",
       "risk": "A local recovery, setup, governance, identity, economy, or deployment action outside these verified paths could still be mistaken for restored dataplane delivery, route convergence, governance finality, trust finality, settlement finality, revenue recognition, traffic shifting, production SLO, or production readiness.",
-      "practical_next_action": "Keep the local verifier, MaaS API heartbeat->heal verifier, real Go-agent control-loop verifier, dataplane operator handoff, dataplane operator evidence runner, dataplane operator-flow verifier, private-target operator-run verifier, SafeActuator source inventory, runtime retention verifier, and production_deploy.py blocked-preflight evidence runner in readiness, then extend runtime-retention checks to additional high-risk callers where fresh redacted probe evidence can be attached.",
+      "practical_next_action": "Keep the local verifier, MaaS API heartbeat->heal verifier, MaaS autonomous mesh runtime smoke, real Go-agent control-loop verifier, dataplane operator handoff, dataplane operator evidence runner, dataplane operator-flow verifier, private-target operator-run verifier, SafeActuator source inventory, runtime retention verifier, and production_deploy.py blocked-preflight evidence runner in readiness, then extend runtime-retention checks to additional high-risk callers where fresh redacted probe evidence can be attached.",
       "source_refs": [
         "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py:1",
         "scripts/ops/run_dataplane_delivery_operator_handoff.py:1",
@@ -822,11 +827,13 @@
         "scripts/ops/run_cross_plane_proof_gate.py:1",
         "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py:1",
         "scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py:1",
+        "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py:1",
         "scripts/ops/verify_maas_real_agent_control_loop.py:1",
         "tests/unit/scripts/test_run_dataplane_delivery_operator_handoff.py:1",
         "tests/unit/scripts/test_run_dataplane_delivery_operator_evidence.py:1",
         "tests/unit/scripts/test_verify_dataplane_delivery_operator_flow.py:1",
         "tests/unit/scripts/test_verify_dataplane_delivery_private_target_operator_run.py:1",
+        "tests/unit/scripts/test_verify_maas_autonomous_mesh_runtime_smoke.py:1",
         "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:1",
         "tests/unit/scripts/test_run_cross_plane_proof_gate.py:1",
         "src/services/pqc_rotator_service.py:1",

@@ -4019,6 +4019,23 @@ async def create_payment():
         "cross_plane_claim_gate": _modular_cross_plane_claim_gate("create_payment"),
     }
     return response
+_MODULAR_BILLING_WEBHOOK_SOURCE_AGENT = "maas-modular-billing-webhook"
+def verify_webhook_with_timestamp():
+    return True
+async def billing_webhook():
+    result = {"status": "processed"}
+    settlement = _modular_settlement_evidence(
+        settlement_action="webhook_local_lifecycle_only",
+        webhook_lifecycle_allowed=True,
+        db_write_attempted=True,
+        db_write_committed=result.get("status") == "processed",
+    )
+    event = {
+        "source_agent": _MODULAR_BILLING_WEBHOOK_SOURCE_AGENT,
+        "settlement": settlement,
+        "raw_event_payload_redacted": True,
+    }
+    return result
 """,
     )
     _write(
@@ -4538,14 +4555,15 @@ def build_report(root):
         "decision": "ECONOMY_DATAPLANE_SEPARATION_VERIFIED",
         "claim_boundary": CLAIM_BOUNDARY,
         "summary": {
-            "cases_run": 5,
-            "cases_checked": 5,
+            "cases_run": 6,
+            "cases_checked": 6,
             "external_settlement_handoff_cases": 2,
             "reward_events_checked": 1,
             "marketplace_events_checked": 1,
             "modular_billing_events_checked": 1,
+            "modular_billing_webhook_events_checked": 1,
             "modular_billing_response_claim_gates_checked": 1,
-            "service_trace_economy_summaries_checked": 3,
+            "service_trace_economy_summaries_checked": 4,
             "high_risk_claim_gates_fail_closed": True,
             "local_simulated_harness": True,
             "mutates_chain": False,
@@ -4988,6 +5006,76 @@ def test_maas_heal_api_verifier_redacts_target_and_surfaces_gate():
     rendered = json.dumps(report, sort_keys=True)
     assert report["summary"]["production_readiness_claim_allowed"] is False
     assert target not in rendered
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py",
+        """
+SCHEMA = "x0tta6bl4.maas_autonomous_mesh_runtime_smoke.v1"
+READY_DECISION = "MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_READY"
+CLAIM_BOUNDARY = "local in-process smoke only"
+
+def run_verification(event_project_root, db_path=None, dataplane_probe_target="10.123.45.67"):
+    return {
+        "schema": SCHEMA,
+        "decision": READY_DECISION,
+        "ready": True,
+        "stages": [
+            {"name": "auth_register", "ok": True},
+            {"name": "mesh_deploy", "ok": True},
+            {"name": "agent_node_register", "ok": True},
+            {"name": "agent_node_approve", "ok": True},
+            {"name": "agent_heartbeat", "ok": True},
+            {"name": "node_heal", "ok": True},
+            {"name": "service_trace_dataplane_gate_classified", "ok": True},
+            {"name": "node_state_persisted_in_temp_db", "ok": True},
+        ],
+        "dataplane_probe_target": {
+            "raw_value_redacted": True,
+            "sha256": "redacted-target-hash",
+        },
+        "evidence_gates": {
+            "mesh_deploy": {
+                "local_db_persistence_claim_allowed": True,
+                "external_node_deployment_claim_allowed": False,
+                "production_readiness_claim_allowed": False,
+            },
+            "node_heal": {
+                "dataplane_confirmed": True,
+                "post_action_dataplane_revalidated": True,
+                "restored_dataplane_claim_allowed": True,
+                "traffic_delivery_claim_allowed": False,
+                "customer_traffic_claim_allowed": False,
+                "production_readiness_claim_allowed": False,
+            },
+            "service_trace": {
+                "primary_status": "dataplane_confirmed",
+                "dataplane_claim_gate_allowed": True,
+                "production_ready_candidate": False,
+            },
+        },
+        "claim_boundary": CLAIM_BOUNDARY,
+    }
+""",
+    )
+    _write(
+        root,
+        "tests/unit/scripts/test_verify_maas_autonomous_mesh_runtime_smoke.py",
+        """
+def test_maas_autonomous_mesh_runtime_smoke_redacts_and_gates_claims():
+    report = {
+        "decision": "MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_READY",
+        "ready": True,
+        "dataplane_probe_target": {"raw_value_redacted": True},
+        "evidence_gates": {
+            "node_heal": {"production_readiness_claim_allowed": False}
+        },
+    }
+    rendered = json.dumps(report, sort_keys=True)
+    assert report["dataplane_probe_target"]["raw_value_redacted"] is True
+    assert report["evidence_gates"]["node_heal"]["production_readiness_claim_allowed"] is False
+    assert "10.123.45.67" not in rendered
 """,
     )
     _write(
@@ -6209,6 +6297,63 @@ def _passing_runner(
                 }
             ),
         )
+    if (
+        len(args) > 1
+        and args[1]
+        == "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py"
+    ):
+        return CommandResult(
+            0,
+            (
+                '{"timestamp":"redacted-log-before-report"}\n'
+                + json.dumps(
+                    {
+                        "decision": "MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_READY",
+                        "ready": True,
+                        "stages": [
+                            {"name": "auth_register", "ok": True},
+                            {"name": "mesh_deploy", "ok": True},
+                            {"name": "agent_node_register", "ok": True},
+                            {"name": "agent_node_approve", "ok": True},
+                            {"name": "agent_heartbeat", "ok": True},
+                            {"name": "node_heal", "ok": True},
+                            {
+                                "name": "service_trace_dataplane_gate_classified",
+                                "ok": True,
+                            },
+                            {
+                                "name": "node_state_persisted_in_temp_db",
+                                "ok": True,
+                            },
+                        ],
+                        "dataplane_probe_target": {
+                            "raw_value_redacted": True,
+                            "sha256": "redacted-target-hash",
+                        },
+                        "evidence_gates": {
+                            "mesh_deploy": {
+                                "local_db_persistence_claim_allowed": True,
+                                "external_node_deployment_claim_allowed": False,
+                                "production_readiness_claim_allowed": False,
+                            },
+                            "node_heal": {
+                                "dataplane_confirmed": True,
+                                "post_action_dataplane_revalidated": True,
+                                "restored_dataplane_claim_allowed": True,
+                                "traffic_delivery_claim_allowed": False,
+                                "customer_traffic_claim_allowed": False,
+                                "production_readiness_claim_allowed": False,
+                            },
+                            "service_trace": {
+                                "primary_status": "dataplane_confirmed",
+                                "dataplane_claim_gate_allowed": True,
+                                "production_ready_candidate": False,
+                            },
+                        },
+                    }
+                )
+            ),
+        )
     if len(args) > 1 and args[1] == "scripts/ops/verify_maas_real_agent_control_loop.py":
         return CommandResult(
             0,
@@ -6328,14 +6473,15 @@ def _passing_runner(
                         "customer traffic, revenue recognition, or production readiness"
                     ),
                     "summary": {
-                        "cases_run": 5,
-                        "cases_checked": 5,
+                        "cases_run": 6,
+                        "cases_checked": 6,
                         "external_settlement_handoff_cases": 2,
                         "reward_events_checked": 1,
                         "marketplace_events_checked": 1,
                         "modular_billing_events_checked": 1,
+                        "modular_billing_webhook_events_checked": 1,
                         "modular_billing_response_claim_gates_checked": 1,
-                        "service_trace_economy_summaries_checked": 3,
+                        "service_trace_economy_summaries_checked": 4,
                         "high_risk_claim_gates_fail_closed": True,
                         "local_simulated_harness": True,
                         "mutates_chain": False,
@@ -6482,6 +6628,81 @@ def test_ready_contract_passes_with_clean_static_and_command_evidence(tmp_path: 
     assert report["decision"] == "REAL_READINESS_READY"
     assert report["current_evidence_context"]["included"] is True
     assert report["current_evidence_context"]["current_gap_count"] == 0
+    check_ids = {item["check_id"] for item in report["checks"]}
+    assert "maas_autonomous_mesh_runtime_smoke" in check_ids
+
+
+def test_maas_autonomous_mesh_runtime_smoke_blocks_readiness_on_overclaim(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1]
+            == "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_READY",
+                        "ready": True,
+                        "stages": [
+                            {"name": "auth_register", "ok": True},
+                            {"name": "mesh_deploy", "ok": True},
+                            {"name": "agent_node_register", "ok": True},
+                            {"name": "agent_node_approve", "ok": True},
+                            {"name": "agent_heartbeat", "ok": True},
+                            {"name": "node_heal", "ok": True},
+                            {
+                                "name": "service_trace_dataplane_gate_classified",
+                                "ok": True,
+                            },
+                            {
+                                "name": "node_state_persisted_in_temp_db",
+                                "ok": True,
+                            },
+                        ],
+                        "dataplane_probe_target": {
+                            "raw_value_redacted": True,
+                            "sha256": "redacted-target-hash",
+                        },
+                        "evidence_gates": {
+                            "mesh_deploy": {
+                                "local_db_persistence_claim_allowed": True,
+                                "external_node_deployment_claim_allowed": False,
+                                "production_readiness_claim_allowed": False,
+                            },
+                            "node_heal": {
+                                "dataplane_confirmed": True,
+                                "post_action_dataplane_revalidated": True,
+                                "restored_dataplane_claim_allowed": True,
+                                "traffic_delivery_claim_allowed": False,
+                                "customer_traffic_claim_allowed": False,
+                                "production_readiness_claim_allowed": True,
+                            },
+                            "service_trace": {
+                                "primary_status": "dataplane_confirmed",
+                                "dataplane_claim_gate_allowed": True,
+                                "production_ready_candidate": True,
+                            },
+                        },
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "maas_autonomous_mesh_runtime_smoke" in blocker_ids
+    assert report["ready"] is False
 
 
 def test_maas_real_agent_control_loop_smoke_blocks_readiness_on_bad_output(
@@ -6845,14 +7066,15 @@ def test_economy_dataplane_separation_blocks_readiness_on_overpromotion(
                             "local smoke only; does not prove dataplane delivery"
                         ),
                         "summary": {
-                            "cases_run": 5,
+                            "cases_run": 6,
                             "cases_checked": 4,
                             "external_settlement_handoff_cases": 2,
                             "reward_events_checked": 1,
                             "marketplace_events_checked": 1,
                             "modular_billing_events_checked": 1,
+                            "modular_billing_webhook_events_checked": 1,
                             "modular_billing_response_claim_gates_checked": 1,
-                            "service_trace_economy_summaries_checked": 3,
+                            "service_trace_economy_summaries_checked": 4,
                             "high_risk_claim_gates_fail_closed": False,
                             "local_simulated_harness": True,
                             "mutates_chain": False,
@@ -8672,6 +8894,29 @@ def test_missing_compat_billing_pay_claim_gate_blocks_readiness(
         "",
     )
     _write(tmp_path, "src/api/maas_compat.py", compat_text)
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "economy_dataplane_claim_gate_contract" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_missing_modular_billing_webhook_claim_gate_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    modular_path = tmp_path / "src/api/maas/endpoints/billing.py"
+    modular_text = modular_path.read_text(encoding="utf-8").replace(
+        "webhook_lifecycle_allowed=True,",
+        "",
+    )
+    _write(tmp_path, "src/api/maas/endpoints/billing.py", modular_text)
 
     report = build_report(
         tmp_path,

@@ -58,5 +58,7 @@ def test_real_readiness_gate_followup_lists_maas_heal_api_probe_verifier():
     text = _doc_text()
 
     assert "verify_maas_heal_api_post_action_dataplane_probe.py" in text
+    assert "verify_maas_autonomous_mesh_runtime_smoke.py" in text
+    assert "MaaS autonomous mesh runtime smoke is readiness-gated" in text
     assert "--require-ready" in text
     assert "traffic/customer/external/SLO/production claims false" in text

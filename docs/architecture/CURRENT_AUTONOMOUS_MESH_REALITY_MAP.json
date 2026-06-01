@@ -102,10 +102,12 @@
         },
         {
           "id": "maas_autonomous_mesh_runtime_smoke",
-          "what_is_proven": "A local isolated MaaS runtime smoke now exercises DB-backed auth, hashed API-key use, mesh deployment, agent-style node enrollment, owner approval, heartbeat with redacted dataplane probe target, bounded synthetic self-healing revalidation, and service-trace dataplane claim-gate classification as one operator-visible flow. This proves local API/control-plane wiring, not external infrastructure or production traffic.",
+          "what_is_proven": "A local isolated MaaS runtime smoke now exercises DB-backed auth, hashed API-key use, mesh deployment, agent-style node enrollment, owner approval, heartbeat with redacted dataplane probe target, bounded synthetic self-healing revalidation, and service-trace dataplane claim-gate classification as one operator-visible flow. This verifier is now part of the real-readiness command gate, so the local API/control-plane runtime path cannot silently drift out of the evidence spine. This proves local API/control-plane wiring, not external infrastructure or production traffic.",
           "source_refs": [
             "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py",
             "tests/unit/scripts/test_verify_maas_autonomous_mesh_runtime_smoke.py",
+            "scripts/ops/check_real_readiness.py",
+            "tests/unit/scripts/test_check_real_readiness_unit.py",
             "src/api/maas/endpoints/auth.py",
             "src/api/maas/endpoints/mesh.py",
             "src/api/maas/endpoints/nodes.py",
@@ -693,7 +695,7 @@
     {
       "id": "economy_dataplane_separation_still_manual",
       "severity": "tracked_risk",
-      "gap": "Economy and dataplane evidence remain intentionally separate; modular billing payment-intent events now publish redacted local-only settlement evidence with a lightweight fail-closed cross-plane claim gate, modular billing payment HTTP responses now return an explicit fail-closed serviceability/dataplane claim gate, TokenBridge now has typed SafeActuator metadata for bounded chain-write attempts, the external settlement operator handoff now has a dedicated claim gate, the cross-plane proof gate rejects stale economy-boundary EventBus evidence older than 168 hours, and economy source gates that overpromote dataplane or traffic delivery are rejected. The economy/dataplane runtime verifier now covers external-settlement handoff, reward EventBus, marketplace EventBus, modular billing payment-intent EventBus, modular billing payment HTTP response claim gates, and service-trace economy summaries. External settlement finality still requires dedicated finality evidence.",
+      "gap": "Economy and dataplane evidence remain intentionally separate; modular billing payment-intent events now publish redacted local-only settlement evidence with a lightweight fail-closed cross-plane claim gate, modular billing webhook lifecycle events now publish redacted local-only lifecycle evidence with verified signature and fail-closed cross-plane claim gate, modular billing payment HTTP responses now return an explicit fail-closed serviceability/dataplane claim gate, TokenBridge now has typed SafeActuator metadata for bounded chain-write attempts, the external settlement operator handoff now has a dedicated claim gate, the cross-plane proof gate rejects stale economy-boundary EventBus evidence older than 168 hours, and economy source gates that overpromote dataplane or traffic delivery are rejected. The economy/dataplane runtime verifier now covers external-settlement handoff, reward EventBus, marketplace EventBus, modular billing payment-intent EventBus, modular billing webhook lifecycle EventBus, modular billing payment HTTP response claim gates, and service-trace economy summaries. External settlement finality still requires dedicated finality evidence.",
       "next_improvement": "Keep modular billing, reward, marketplace, TokenBridge, and external-settlement surfaces behind explicit claim gates, fresh source-prefiltered EventBus scans, dataplane-overpromotion blockers, and dedicated external-settlement finality artifacts.",
       "source_refs": [
         "src/api/maas/endpoints/billing.py",

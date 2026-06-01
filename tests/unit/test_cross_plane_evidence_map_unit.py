@@ -332,6 +332,22 @@ def test_cross_plane_local_only_links_keep_high_risk_claim_flags_false():
             assert proof_flags[flag] is False, (link_id, flag)
 
 
+def test_cross_plane_billing_webhook_lifecycle_is_bounded_local_evidence():
+    evidence_map = _load_map()
+    links = {link["id"]: link for link in evidence_map["cross_plane_links"]}
+    link = links["billing-webhook-to-vpn-provisioning-boundary"]
+    proof_flags = link["proof_flags"]
+
+    assert proof_flags["modular_billing_webhook_lifecycle_recorded"] is True
+    assert "modular billing webhook lifecycle EventBus evidence" in link["current_path"]
+    assert "modular billing webhook lifecycle EventBus" in " ".join(
+        link["verified_evidence"]
+    )
+    assert proof_flags["customer_access_claim_allowed"] is False
+    assert proof_flags["customer_dataplane_delivery_claim_allowed"] is False
+    assert proof_flags["production_readiness_claim_allowed"] is False
+
+
 def test_cross_plane_current_dpi_subclaim_stays_false_without_latest_json():
     evidence_map = _load_map()
     links = {link["id"]: link for link in evidence_map["cross_plane_links"]}
@@ -370,6 +386,29 @@ def test_cross_plane_measured_attestation_smoke_is_bounded_trust_evidence():
     assert "src/security/tee_attestation.py:1" in link["source_refs"]
     assert "scripts/ops/verify_measured_attestation_verifier_smoke.py:1" in (
         link["source_refs"]
+    )
+
+
+def test_cross_plane_evidence_map_readiness_gates_maas_runtime_smoke():
+    evidence_map = _load_map()
+    evidence_contours = evidence_map["planes"]["evidence_plane"]["verified_contours"]
+    evidence_refs = evidence_map["planes"]["evidence_plane"]["source_refs"]
+    gaps = {gap["id"]: gap for gap in evidence_map["current_gaps"]}
+    gap = gaps["post-action-dataplane-probe-operationalization"]
+
+    assert any(
+        "MaaS autonomous mesh runtime smoke verifier is readiness-gated" in contour
+        for contour in evidence_contours
+    )
+    assert "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py:1" in evidence_refs
+    assert "tests/unit/scripts/test_verify_maas_autonomous_mesh_runtime_smoke.py:1" in (
+        evidence_refs
+    )
+    assert "readiness-gated MaaS autonomous mesh runtime smoke" in gap["gap"]
+    assert "MaaS autonomous mesh runtime smoke" in gap["practical_next_action"]
+    assert (
+        "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py:1"
+        in gap["source_refs"]
     )
 
 

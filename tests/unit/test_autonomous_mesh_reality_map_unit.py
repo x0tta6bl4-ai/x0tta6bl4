@@ -99,9 +99,14 @@ def test_autonomous_mesh_reality_map_records_runtime_smoke_verifier() -> None:
     smoke = control_contours["maas_autonomous_mesh_runtime_smoke"]
     assert "DB-backed auth" in smoke["what_is_proven"]
     assert "synthetic self-healing revalidation" in smoke["what_is_proven"]
+    assert "real-readiness command gate" in smoke["what_is_proven"]
     assert "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py" in (
         smoke["source_refs"]
     )
+    assert "scripts/ops/check_real_readiness.py" in smoke["source_refs"]
+    assert "tests/unit/scripts/test_check_real_readiness_unit.py" in smoke[
+        "source_refs"
+    ]
 
 
 def test_autonomous_mesh_reality_map_records_maas_heal_post_action_probe_smoke() -> None:

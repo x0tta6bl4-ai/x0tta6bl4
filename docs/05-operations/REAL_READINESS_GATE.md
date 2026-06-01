@@ -31,6 +31,11 @@ bash scripts/production-readiness-check.sh --write-json --write-md
 - MaaS API `heartbeat -> heal` has a runtime verifier that registers a redacted
   dataplane probe target, passes it into the heal manager, and keeps
   traffic/customer/external/SLO/production claims false.
+- MaaS autonomous mesh runtime smoke is readiness-gated: it exercises local
+  auth, mesh deploy, agent-style node enrollment, owner approval, heartbeat,
+  heal, and service-trace claim classification in one in-process flow while
+  keeping external infrastructure, customer traffic, SLO, and production claims
+  false.
 - Real Go-agent control-loop smoke builds the agent, runs it against a
   temporary MaaS API, observes node-config fetch and heartbeat, then forces the
   local node `offline` and requires operator heal to restore it to `healthy`
@@ -60,10 +65,11 @@ bash scripts/production-readiness-check.sh --write-json --write-md
 - Cross-plane proof-gate output includes the redacted measured-attestation
   handoff diagnostic when the verifier-smoke artifact is missing, so the local
   blocker names missing input classes without making the trust claim true.
-- Billing, MaaS billing, modular `/billing/pay` responses, reward,
-  marketplace, EventBus trace, and Mesh VPN relay surfaces keep settlement,
-  paid-customer serviceability, node provisioning, dataplane, traffic, and
-  production claims behind explicit claim gates.
+- Billing, MaaS billing, modular `/billing/pay` responses, modular billing
+  webhook lifecycle events, reward, marketplace, EventBus trace, and Mesh VPN
+  relay surfaces keep settlement, paid-customer serviceability, node
+  provisioning, dataplane, traffic, and production claims behind explicit claim
+  gates.
 - Cross-plane proof gate exists for explicit production/dataplane/DPI/settlement
   claim checks and fails closed while current evidence is incomplete.
 - API `_readiness_status` helpers under `src/api/*.py` carry
@@ -91,9 +97,10 @@ bash scripts/production-readiness-check.sh --write-json --write-md
   metadata. It does not prove live deployment, traffic shifting, customer
   traffic, SLO, or production readiness.
 - Economy/dataplane separation has a local smoke verifier: external settlement
-  handoff, reward EventBus, marketplace EventBus, and service-trace economy
-  summaries may record local/pending economy state, but must not promote
-  dataplane delivery, customer traffic, revenue recognition, SLO, or production
+  handoff, reward EventBus, marketplace EventBus, modular billing payment
+  intent, modular billing webhook lifecycle, and service-trace economy summaries
+  may record local/pending economy state, but must not promote dataplane
+  delivery, customer traffic, revenue recognition, SLO, or production
   readiness.
 - Swarm coordination is gated: executable `.githooks` hooks, ownership-map
   coverage, pre-commit staged-file lease enforcement, and post-commit lease
@@ -127,6 +134,7 @@ python3 scripts/ops/run_cross_plane_proof_gate.py --json
 python3 scripts/ops/run_cross_plane_proof_gate.py --output-json .tmp/validation-shards/cross-plane-proof-gate-current.json
 python3 scripts/ops/verify_cross_plane_proof_gate_retention.py --require-valid
 python3 scripts/ops/run_measured_attestation_verifier_handoff.py --require-ready --json
+python3 scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py --dataplane-probe-target 10.123.45.67
 python3 scripts/ops/verify_safe_actuator_metadata_adoption.py --require-high-risk-covered --require-full-coverage --json
 python3 scripts/ops/verify_safe_actuator_runtime_metadata_retention.py --require-retained --json
 python3 scripts/ops/run_production_deploy_blocked_preflight_evidence.py --require-retained --json
@@ -137,7 +145,7 @@ python3 scripts/ops/verify_dataplane_delivery_operator_flow.py --require-verifie
 X0T_DATAPLANE_PROBE_HOST=<private_or_loopback_host> X0T_DATAPLANE_PROBE_PORT=<port> python3 scripts/ops/run_dataplane_delivery_operator_evidence.py --allow-operator-probe --require-retained --json
 # Authorized local harness; binds one host-owned private non-loopback target and retains redacted artifacts:
 python3 scripts/ops/verify_dataplane_delivery_private_target_operator_run.py --allow-private-target-probe --require-retained --json
-# Includes modular billing payment-intent evidence; still not settlement/finality/revenue proof.
+# Includes modular billing payment-intent and webhook lifecycle evidence; still not settlement/finality/revenue proof.
 python3 scripts/ops/verify_economy_dataplane_separation.py --require-separated --json
 bash scripts/agents/check_coordination_contract.sh
 python3 -m pytest --no-cov tests/unit/scripts/test_check_real_readiness_unit.py -q

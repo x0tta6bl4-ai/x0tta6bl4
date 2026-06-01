@@ -65,6 +65,9 @@ MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_VERIFIER = (
 MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER = (
     "scripts/ops/verify_maas_real_agent_control_loop.py"
 )
+MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_VERIFIER = (
+    "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py"
+)
 CROSS_PLANE_PROOF_GATE_RETENTION_VERIFIER = (
     "scripts/ops/verify_cross_plane_proof_gate_retention.py"
 )
@@ -315,6 +318,29 @@ def _format_command_failure(result: CommandResult) -> str:
     return f"exit={result.returncode}; {output or 'no output'}"
 
 
+def _json_mapping_from_stdout(stdout: str) -> Mapping[str, object]:
+    text = str(stdout or "").strip()
+    if not text:
+        return {}
+    try:
+        payload = json.loads(text)
+        return payload if isinstance(payload, Mapping) else {}
+    except json.JSONDecodeError:
+        pass
+
+    # Some smoke scripts import the app before printing their report, and the
+    # import path may emit structured log JSON first. Parse the final JSON object
+    # without treating earlier log lines as evidence.
+    for match in reversed(list(re.finditer(r"\{", text))):
+        candidate = text[match.start() :].strip()
+        try:
+            payload = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        return payload if isinstance(payload, Mapping) else {}
+    return {}
+
+
 def check_required_files(root: Path) -> list[CheckResult]:
     files = (
         "Caddyfile.app",
@@ -342,6 +368,7 @@ def check_required_files(root: Path) -> list[CheckResult]:
         PRODUCTION_DEPLOY_BLOCKED_PREFLIGHT_EVIDENCE_RUNNER,
         MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER,
         MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_VERIFIER,
+        MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_VERIFIER,
         MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER,
         "src/mesh/metric_evidence_policy.py",
         "src/ml/graphsage_anomaly_detector.py",
@@ -4502,6 +4529,17 @@ def check_economy_dataplane_claim_gate_contract(root: Path) -> list[CheckResult]
             and '"requires_service_runtime_evidence_for_access_claim": True'
             in modular_billing
         ),
+        "modular_billing_webhook_lifecycle_claim_gate": (
+            "async def billing_webhook(" in modular_billing
+            and "_MODULAR_BILLING_WEBHOOK_SOURCE_AGENT" in modular_billing
+            and 'settlement_action="webhook_local_lifecycle_only"' in modular_billing
+            and 'webhook_lifecycle_allowed=True' in modular_billing
+            and "db_write_attempted=True" in modular_billing
+            and 'db_write_committed=result.get("status") == "processed"'
+            in modular_billing
+            and '"raw_event_payload_redacted": True' in modular_billing
+            and "verify_webhook_with_timestamp(" in modular_billing
+        ),
         "compat_billing_pay_claim_headers": "_COMPAT_BILLING_PAY_CLAIM_HEADERS"
         in maas_compat
         and "def _set_compat_billing_pay_claim_headers" in maas_compat,
@@ -7183,6 +7221,102 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
                 )
             )
 
+    autonomous_runtime = runner(
+        (
+            sys.executable,
+            MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_VERIFIER,
+            "--dataplane-probe-target",
+            "10.123.45.67",
+        ),
+        None,
+        150,
+    )
+    if autonomous_runtime.returncode != 0:
+        checks.append(
+            fail_check(
+                "maas_autonomous_mesh_runtime_smoke",
+                _format_command_failure(autonomous_runtime),
+                f"python {MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_VERIFIER} --dataplane-probe-target 10.123.45.67",
+            )
+        )
+    else:
+        autonomous_payload = _json_mapping_from_stdout(autonomous_runtime.stdout)
+        autonomous_stages = {
+            str(stage.get("name"))
+            for stage in autonomous_payload.get("stages", [])
+            if isinstance(stage, Mapping)
+        } if isinstance(autonomous_payload, Mapping) else set()
+        autonomous_mesh_gate = (
+            autonomous_payload.get("evidence_gates", {}).get("mesh_deploy", {})
+            if isinstance(autonomous_payload, Mapping)
+            and isinstance(autonomous_payload.get("evidence_gates"), Mapping)
+            else {}
+        )
+        autonomous_heal_gate = (
+            autonomous_payload.get("evidence_gates", {}).get("node_heal", {})
+            if isinstance(autonomous_payload, Mapping)
+            and isinstance(autonomous_payload.get("evidence_gates"), Mapping)
+            else {}
+        )
+        autonomous_trace_gate = (
+            autonomous_payload.get("evidence_gates", {}).get("service_trace", {})
+            if isinstance(autonomous_payload, Mapping)
+            and isinstance(autonomous_payload.get("evidence_gates"), Mapping)
+            else {}
+        )
+        autonomous_target = (
+            autonomous_payload.get("dataplane_probe_target", {})
+            if isinstance(autonomous_payload, Mapping)
+            else {}
+        )
+        autonomous_required_stages = {
+            "auth_register",
+            "mesh_deploy",
+            "agent_node_register",
+            "agent_node_approve",
+            "agent_heartbeat",
+            "node_heal",
+            "service_trace_dataplane_gate_classified",
+            "node_state_persisted_in_temp_db",
+        }
+        autonomous_ready = (
+            isinstance(autonomous_payload, Mapping)
+            and autonomous_payload.get("ready") is True
+            and autonomous_payload.get("decision")
+            == "MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_READY"
+            and autonomous_required_stages.issubset(autonomous_stages)
+            and autonomous_mesh_gate.get("local_db_persistence_claim_allowed") is True
+            and autonomous_mesh_gate.get("external_node_deployment_claim_allowed") is False
+            and autonomous_mesh_gate.get("production_readiness_claim_allowed") is False
+            and autonomous_heal_gate.get("dataplane_confirmed") is True
+            and autonomous_heal_gate.get("post_action_dataplane_revalidated") is True
+            and autonomous_heal_gate.get("restored_dataplane_claim_allowed") is True
+            and autonomous_heal_gate.get("traffic_delivery_claim_allowed") is False
+            and autonomous_heal_gate.get("customer_traffic_claim_allowed") is False
+            and autonomous_heal_gate.get("production_readiness_claim_allowed") is False
+            and autonomous_trace_gate.get("primary_status") == "dataplane_confirmed"
+            and autonomous_trace_gate.get("dataplane_claim_gate_allowed") is True
+            and autonomous_trace_gate.get("production_ready_candidate") is False
+            and autonomous_target.get("raw_value_redacted") is True
+            and "10.123.45.67" not in autonomous_runtime.stdout
+        )
+        if autonomous_ready:
+            checks.append(
+                pass_check(
+                    "maas_autonomous_mesh_runtime_smoke",
+                    "MaaS autonomous mesh runtime smoke passes in-process auth/deploy/node/heartbeat/heal/service-trace flow with redacted dataplane target and production/customer claims blocked",
+                    f"python {MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_VERIFIER} --dataplane-probe-target 10.123.45.67",
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "maas_autonomous_mesh_runtime_smoke",
+                    "Verifier output did not prove bounded in-process MaaS auth/deploy/node/heartbeat/heal/service-trace flow with strong claims blocked",
+                    f"python {MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_VERIFIER} --dataplane-probe-target 10.123.45.67",
+                )
+            )
+
     real_agent = runner(
         (
             sys.executable,
@@ -7649,9 +7783,10 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
             and separation_summary.get("reward_events_checked") == 1
             and separation_summary.get("marketplace_events_checked") == 1
             and separation_summary.get("modular_billing_events_checked") == 1
+            and separation_summary.get("modular_billing_webhook_events_checked") == 1
             and separation_summary.get("modular_billing_response_claim_gates_checked")
             == 1
-            and separation_summary.get("service_trace_economy_summaries_checked") == 3
+            and separation_summary.get("service_trace_economy_summaries_checked") == 4
             and separation_summary.get("high_risk_claim_gates_fail_closed") is True
             and separation_summary.get("local_simulated_harness") is True
             and separation_summary.get("mutates_chain") is False

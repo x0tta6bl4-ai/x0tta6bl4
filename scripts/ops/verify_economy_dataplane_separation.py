@@ -15,6 +15,7 @@ import asyncio
 import json
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -27,6 +28,7 @@ if str(ROOT) not in sys.path:
 
 from src.coordination.events import EventBus, EventType
 from src.api.maas.auth import UserContext
+from src.api.maas.billing_helpers import compute_hmac_signature
 from src.api.maas.endpoints import billing as modular_billing
 from src.integration.external_settlement_operator_handoff import (
     build_report as build_external_settlement_handoff_report,
@@ -440,8 +442,18 @@ def _last_event_payload(
 
 
 class _ModularBillingRequest:
-    def __init__(self, event_bus: EventBus):
+    def __init__(
+        self,
+        event_bus: EventBus,
+        payload: dict[str, Any] | bytes | None = None,
+    ):
         self.state = SimpleNamespace(event_bus=event_bus)
+        self._payload = payload if payload is not None else {}
+
+    async def body(self) -> bytes:
+        if isinstance(self._payload, bytes):
+            return self._payload
+        return json.dumps(self._payload).encode("utf-8")
 
 
 class _FakeModularBillingService:
@@ -457,11 +469,33 @@ class _FakeModularBillingService:
     def get_plan_limits(self, plan: str) -> dict[str, Any]:
         return {"plan": plan, "max_nodes": 20, "max_meshes": 3}
 
+    async def process_webhook(
+        self,
+        *,
+        event_type: str,
+        event_data: dict[str, Any],
+        event_id: str,
+        include_idempotency_metadata: bool,
+    ) -> dict[str, Any]:
+        assert event_type == "invoice.paid"
+        assert event_id == "evt_modular_webhook_secret"
+        assert include_idempotency_metadata is True
+        assert event_data["customer"] == "cus_payload_secret"
+        return {
+            "status": "processed",
+            "action": "subscription_extended",
+            "customer_id": "cus_result_secret",
+            "user_id": "modular-webhook-user-secret",
+            "_idempotent": False,
+        }
+
 
 def validate_modular_billing_payload(
     payload: Mapping[str, Any],
     *,
     case_id: str = "modular_billing_event",
+    expected_local_claim_key: str = "checkout_intent_claim_allowed",
+    expected_settlement_action: str | None = None,
 ) -> list[str]:
     failures: list[str] = []
     settlement = _mapping(payload.get("settlement_evidence"))
@@ -473,8 +507,16 @@ def validate_modular_billing_payload(
     if not claim_gate:
         failures.append(f"{case_id}:claim_gate_missing")
         return failures
-    if claim_gate.get("checkout_intent_claim_allowed") is not True:
-        failures.append(f"{case_id}:checkout_intent_not_recorded")
+    if claim_gate.get(expected_local_claim_key) is not True:
+        failures.append(f"{case_id}:{expected_local_claim_key}_not_recorded")
+    if (
+        expected_settlement_action is not None
+        and settlement.get("settlement_action") != expected_settlement_action
+    ):
+        failures.append(
+            f"{case_id}:settlement_action_unexpected:"
+            f"{settlement.get('settlement_action')!r}"
+        )
     if settlement.get("live_provider_settlement_confirmed") is not False:
         failures.append(f"{case_id}:provider_settlement_overpromoted")
     if settlement.get("bank_settlement_confirmed") is not False:
@@ -611,6 +653,111 @@ def _build_modular_billing_payment_case(root: Path) -> dict[str, Any]:
         "response_node_provisioning_claim_allowed": _mapping(
             response.get("claim_gate")
         ).get("node_provisioning_claim_allowed"),
+        "external_settlement_finality_claim_allowed": high_risk.get(
+            "external_settlement_finality_claim_allowed"
+        ),
+        "dataplane_delivery_claim_allowed": high_risk.get(
+            "dataplane_delivery_claim_allowed"
+        ),
+        "production_readiness_claim_allowed": high_risk.get(
+            "production_readiness_claim_allowed"
+        ),
+        "failures": failures,
+    }
+
+
+def _build_modular_billing_webhook_case(root: Path) -> dict[str, Any]:
+    event_bus = EventBus(str(root / "modular-billing-webhook-eventbus"))
+    payload_body = {
+        "type": "invoice.paid",
+        "data": {
+            "customer": "cus_payload_secret",
+            "subscription": "sub_payload_secret",
+        },
+    }
+    body = json.dumps(payload_body).encode("utf-8")
+    timestamp = str(int(time.time()))
+    signature = compute_hmac_signature(
+        f"{timestamp}.{body.decode('utf-8')}",
+        _FakeModularBillingService.webhook_secret,
+    )
+    request = _ModularBillingRequest(event_bus, body)
+    previous_service = getattr(modular_billing, "_billing_service", None)
+    modular_billing._billing_service = _FakeModularBillingService()
+    try:
+        response = asyncio.run(
+            modular_billing.billing_webhook(
+                request,  # type: ignore[arg-type]
+                x_signature=signature,
+                x_timestamp=timestamp,
+                x_event_id="evt_modular_webhook_secret",
+            )
+        )
+    finally:
+        modular_billing._billing_service = previous_service
+
+    payload = _last_event_payload(
+        event_bus,
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent=modular_billing._MODULAR_BILLING_WEBHOOK_SOURCE_AGENT,
+    )
+    failures: list[str] = []
+    if not payload:
+        failures.append("modular_billing_webhook_event:payload_missing")
+    else:
+        failures.extend(
+            validate_modular_billing_payload(
+                payload,
+                case_id="modular_billing_webhook_event",
+                expected_local_claim_key="webhook_lifecycle_claim_allowed",
+                expected_settlement_action="webhook_local_lifecycle_only",
+            )
+        )
+        failures.extend(
+            validate_economy_summary(
+                event_trace_evidence_summary(payload),
+                case_id="modular_billing_webhook_event_trace",
+            )
+        )
+        serialized = json.dumps(payload, sort_keys=True)
+        raw_log = (
+            root
+            / "modular-billing-webhook-eventbus"
+            / ".agent_coordination"
+            / "events.log"
+        ).read_text(encoding="utf-8")
+        for raw_value in (
+            "evt_modular_webhook_secret",
+            "cus_payload_secret",
+            "sub_payload_secret",
+            "cus_result_secret",
+            "modular-webhook-user-secret",
+            signature,
+        ):
+            if raw_value in serialized or raw_value in raw_log:
+                failures.append("modular_billing_webhook_event:raw_value_leaked")
+                break
+    settlement = _mapping(payload.get("settlement_evidence")) if payload else {}
+    claim_gate = _mapping(settlement.get("claim_gate"))
+    economy = (
+        _mapping(event_trace_evidence_summary(payload).get("economy_finality_summary"))
+        if payload
+        else {}
+    )
+    high_risk = _mapping(economy.get("high_risk_claim_gate"))
+    return {
+        "case": "modular_billing_webhook_lifecycle",
+        "ok": not failures,
+        "response_status": response.get("status"),
+        "webhook_lifecycle_claim_allowed": claim_gate.get(
+            "webhook_lifecycle_claim_allowed"
+        ),
+        "db_write_attempted": _mapping(settlement.get("db_write_evidence")).get(
+            "attempted"
+        ),
+        "db_write_committed": _mapping(settlement.get("db_write_evidence")).get(
+            "committed"
+        ),
         "external_settlement_finality_claim_allowed": high_risk.get(
             "external_settlement_finality_claim_allowed"
         ),
@@ -840,6 +987,7 @@ def build_report(root: Path) -> dict[str, Any]:
         _build_reward_event_case(root),
         _build_marketplace_event_case(root),
         _build_modular_billing_payment_case(root),
+        _build_modular_billing_webhook_case(root),
     ]
     failures = [
         f"{case['case']}:{failure}"
@@ -861,8 +1009,9 @@ def build_report(root: Path) -> dict[str, Any]:
             "reward_events_checked": 1,
             "marketplace_events_checked": 1,
             "modular_billing_events_checked": 1,
+            "modular_billing_webhook_events_checked": 1,
             "modular_billing_response_claim_gates_checked": 1,
-            "service_trace_economy_summaries_checked": 3,
+            "service_trace_economy_summaries_checked": 4,
             "high_risk_claim_gates_fail_closed": ok,
             "local_simulated_harness": True,
             "mutates_chain": False,
