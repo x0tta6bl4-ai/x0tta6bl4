@@ -40,7 +40,7 @@ def evaluate_bridge_policy(
     try:
         decision = policy_engine.evaluate(
             spiffe_id,
-            resource=f"token_bridge:operation:{operation}",
+            resource=f"dao:token_bridge:{operation}",
             workload_type=workload_type,
         )
     except Exception as exc:

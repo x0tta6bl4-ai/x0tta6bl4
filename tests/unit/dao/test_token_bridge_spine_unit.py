@@ -165,6 +165,20 @@ async def test_token_bridge_reward_write_publishes_identity_policy_actuator_and_
     assert payload["matched_rules"] == ["allow-token-bridge-push_rewards_to_chain"]
     assert payload["safe_actuator"] is True
     assert payload["safe_actuator_used"] is True
+    metadata = payload["safe_actuator_evidence_metadata"]
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.token_bridge.safe_actuator_claim_gate.v1"
+    assert claim_gate["local_chain_write_attempt_succeeded"] is True
+    assert claim_gate["pending_chain_submission_claim_allowed"] is True
+    assert claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert claim_gate["live_token_settlement_finality_claim_allowed"] is False
+    assert claim_gate["dataplane_delivery_claim_allowed"] is False
+    assert claim_gate["customer_traffic_claim_allowed"] is False
+    assert claim_gate["revenue_recognition_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
+    assert metadata["evidence"]["raw_context_values_redacted"] is True
+    assert metadata["evidence"]["raw_result_values_redacted"] is True
     assert payload["submitted_transaction"] is True
     assert payload["transaction_hash"] == "0xreward123"
     assert payload["transaction_hash_hash"]
@@ -214,6 +228,13 @@ async def test_token_bridge_policy_denial_blocks_before_web3_and_reward_settleme
     assert blocked[-1].data["source_quality"] == "policy_denied_before_actuator"
     assert blocked[-1].data["safe_actuator"] is True
     assert blocked[-1].data["safe_actuator_used"] is False
+    metadata = blocked[-1].data["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.token_bridge.safe_actuator_claim_gate.v1"
+    assert claim_gate["local_chain_write_attempt_succeeded"] is False
+    assert claim_gate["pending_chain_submission_claim_allowed"] is False
+    assert claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
     assert blocked[-1].data["duration_ms"] >= 0
     assert blocked[-1].data["result_summary"]["success"] is False
     assert blocked[-1].data["result_summary"]["submitted_transaction"] is False
@@ -250,6 +271,14 @@ async def test_token_bridge_simulated_actuator_blocks_reward_submission(tmp_path
     )
     assert failed[-1].data["stage"] == "actuator_simulated"
     assert failed[-1].data["submitted_transaction"] is False
+    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.token_bridge.safe_actuator_claim_gate.v1"
+    assert claim_gate["safe_actuator_simulated"] is True
+    assert claim_gate["pending_chain_submission_claim_allowed"] is False
+    assert claim_gate["live_token_settlement_finality_claim_allowed"] is False
+    assert claim_gate["customer_traffic_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
 
     reward_blocked = bridge.event_bus.get_event_history(
         event_type=EventType.REWARD_RELAY_BLOCKED,

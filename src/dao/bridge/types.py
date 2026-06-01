@@ -1,7 +1,7 @@
 """
 Core types for X0T Token Bridge.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -37,3 +37,20 @@ class BridgeTransaction:
     event_type: str
     timestamp: float
     block_number: Optional[int] = None
+    tx_hash: Optional[str] = None
+    status: str = "pending"  # pending, confirmed, failed
+
+
+@dataclass
+class BridgeConfig:
+    """Configuration for token bridge."""
+    rpc_urls: List[str] = field(default_factory=list)
+    rpc_url: str = "" # Keep for backward compatibility
+    contract_address: str = ""
+    private_key: str = ""
+    chain_id: int = 84532  # Base Sepolia (testnet default)
+    poll_interval: int = 12  # seconds (1 block on Base)
+    confirmations: int = 2
+    gas_limit: int = 200000
+    max_gas_price_gwei: float = 50.0
+    allow_simulated_chain_writes: bool = False

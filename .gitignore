@@ -195,6 +195,7 @@ project_files_list.txt
 **/*.pcapng
 **/*.cap
 **/core.*
+!src/dao/bridge/core.py
 **/*.dump
 **/*.mem
 
