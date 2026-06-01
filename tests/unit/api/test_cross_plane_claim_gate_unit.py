@@ -72,15 +72,27 @@ def test_cross_plane_claim_gate_metadata_surfaces_claim_blockers(
                 {
                     "claim_id": "production_readiness",
                     "allowed": False,
+                    "claim_planes": [
+                        "data_plane",
+                        "control_plane",
+                        "trust_plane",
+                        "evidence_plane",
+                        "economy_plane",
+                    ],
                     "blockers": [
                         "production_readiness_dataplane_artifact_not_verified",
                         "trust_finality_artifact_not_verified",
                     ],
                 },
-                {"claim_id": "dataplane_delivery", "allowed": True},
+                {
+                    "claim_id": "dataplane_delivery",
+                    "allowed": True,
+                    "claim_planes": ["data_plane", "evidence_plane"],
+                },
                 {
                     "claim_id": "dpi_bypass",
                     "allowed": False,
+                    "claim_planes": ["data_plane", "evidence_plane"],
                     "blockers": ["dpi_lab_imported_artifact_not_verified"],
                 },
             ],
@@ -125,6 +137,45 @@ def test_cross_plane_claim_gate_metadata_surfaces_claim_blockers(
             "trust_finality_artifact_not_verified",
         ],
     }
+    assert metadata["plane_claims"] == {
+        "data_plane": [
+            "production_readiness",
+            "dataplane_delivery",
+            "dpi_bypass",
+        ],
+        "control_plane": ["production_readiness"],
+        "trust_plane": ["production_readiness"],
+        "evidence_plane": [
+            "production_readiness",
+            "dataplane_delivery",
+            "dpi_bypass",
+        ],
+        "economy_plane": ["production_readiness"],
+    }
+    assert metadata["plane_blockers"] == {
+        "data_plane": [
+            "dpi_lab_imported_artifact_not_verified",
+            "production_readiness_dataplane_artifact_not_verified",
+            "trust_finality_artifact_not_verified",
+        ],
+        "control_plane": [
+            "production_readiness_dataplane_artifact_not_verified",
+            "trust_finality_artifact_not_verified",
+        ],
+        "trust_plane": [
+            "production_readiness_dataplane_artifact_not_verified",
+            "trust_finality_artifact_not_verified",
+        ],
+        "evidence_plane": [
+            "dpi_lab_imported_artifact_not_verified",
+            "production_readiness_dataplane_artifact_not_verified",
+            "trust_finality_artifact_not_verified",
+        ],
+        "economy_plane": [
+            "production_readiness_dataplane_artifact_not_verified",
+            "trust_finality_artifact_not_verified",
+        ],
+    }
 
 
 def test_cross_plane_claim_gate_unavailable_blocks_every_requested_claim(
@@ -153,3 +204,5 @@ def test_cross_plane_claim_gate_unavailable_blocks_every_requested_claim(
         "production_readiness": ["cross_plane_proof_gate_unavailable"],
         "settlement_finality": ["cross_plane_proof_gate_unavailable"],
     }
+    assert metadata["plane_claims"] == {}
+    assert metadata["plane_blockers"] == {}

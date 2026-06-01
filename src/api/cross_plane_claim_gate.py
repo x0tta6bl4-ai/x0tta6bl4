@@ -36,6 +36,67 @@ def _safe_string_list(value: Any) -> list[str]:
     return [str(item) for item in value if str(item)]
 
 
+def _safe_plane_claims(value: Any) -> dict[str, list[str]]:
+    if not isinstance(value, Mapping):
+        return {}
+
+    plane_claims: dict[str, list[str]] = {}
+    for plane, claims in value.items():
+        plane_id = str(plane)
+        claim_ids = _safe_string_list(claims)
+        if plane_id and claim_ids:
+            plane_claims[plane_id] = claim_ids
+    return plane_claims
+
+
+def _claim_plane_summary(
+    claim_results: Any,
+    *,
+    report_plane_claims: Any = None,
+) -> dict[str, Any]:
+    plane_claims = _safe_plane_claims(report_plane_claims)
+    has_report_plane_claims = bool(plane_claims)
+    claim_planes: dict[str, list[str]] = {}
+
+    for plane, claim_ids in plane_claims.items():
+        for claim_id in claim_ids:
+            claim_planes.setdefault(claim_id, []).append(plane)
+
+    plane_blockers: dict[str, list[str]] = {}
+    if isinstance(claim_results, list):
+        for item in claim_results:
+            if not isinstance(item, Mapping):
+                continue
+            claim_id = str(item.get("claim_id") or "")
+            if not claim_id:
+                continue
+            planes = _safe_string_list(item.get("claim_planes"))
+            if not planes:
+                planes = claim_planes.get(claim_id, [])
+            if not planes:
+                continue
+            if not has_report_plane_claims:
+                for plane in planes:
+                    plane_claims.setdefault(plane, []).append(claim_id)
+            if item.get("allowed") is True:
+                continue
+            blockers = _safe_string_list(item.get("blockers"))
+            for plane in planes:
+                plane_blockers.setdefault(plane, []).extend(blockers)
+
+    return {
+        "plane_claims": {
+            plane: list(dict.fromkeys(claim_ids))
+            for plane, claim_ids in plane_claims.items()
+        },
+        "plane_blockers": {
+            plane: sorted(set(blockers))
+            for plane, blockers in plane_blockers.items()
+            if blockers
+        },
+    }
+
+
 def _claim_result_summary(
     claim_results: Any,
     *,
@@ -96,6 +157,7 @@ def _fail_closed_metadata(
         "surface": surface,
         "requested_claim_ids": list(requested_claims),
         **summary,
+        **_claim_plane_summary(None),
         "claim_boundary": claim_boundary,
     }
 
@@ -141,6 +203,10 @@ def cross_plane_claim_gate_metadata(
         fallback_claim_ids=requested_claims,
         fallback_blockers=_safe_string_list(report.get("blockers")),
     )
+    plane_summary = _claim_plane_summary(
+        claim_results,
+        report_plane_claims=report.get("plane_claims"),
+    )
 
     return {
         "schema": report.get("schema", SCHEMA),
@@ -150,6 +216,7 @@ def cross_plane_claim_gate_metadata(
         "surface": surface,
         "requested_claim_ids": requested_claims,
         **summary,
+        **plane_summary,
         "summary": report.get("summary"),
         "context": report.get("context"),
         "claim_results": claim_results,
