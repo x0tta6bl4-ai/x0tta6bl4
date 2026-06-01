@@ -68,6 +68,16 @@ def _safe_next_actions_by_plane(value: Any) -> dict[str, list[dict[str, Any]]]:
     return next_actions
 
 
+def _safe_next_actions(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [
+        dict(action)
+        for action in value
+        if isinstance(action, Mapping)
+    ]
+
+
 def _claim_plane_summary(
     claim_results: Any,
     *,
@@ -196,6 +206,7 @@ def _fail_closed_metadata(
         "requested_claim_ids": list(requested_claims),
         **summary,
         **_claim_plane_summary(None),
+        "next_actions": [],
         "next_actions_by_plane": {},
         "claim_boundary": claim_boundary,
     }
@@ -259,6 +270,7 @@ def cross_plane_claim_gate_metadata(
         "requested_claim_ids": requested_claims,
         **summary,
         **plane_summary,
+        "next_actions": _safe_next_actions(report.get("next_actions")),
         "next_actions_by_plane": _safe_next_actions_by_plane(
             report.get("next_actions_by_plane")
         ),

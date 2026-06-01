@@ -714,6 +714,30 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "trust_finality_artifact_not_verified",
         "trust_finality_eventbus_artifact_not_verified",
     ]
+    assert [action["action_id"] for action in report["next_actions"]] == [
+        "collect_verified_dataplane_delivery_eventbus_evidence",
+        "collect_verified_customer_traffic_eventbus_evidence",
+        "collect_verified_trust_finality_eventbus_evidence",
+        "import_verified_dpi_lab_evidence",
+        "verify_external_settlement_artifacts",
+        "import_verified_production_readiness_evidence",
+    ]
+    dataplane_action = report["next_actions"][0]
+    assert dataplane_action["plane_ids"] == [
+        "data_plane",
+        "control_plane",
+        "trust_plane",
+        "evidence_plane",
+        "economy_plane",
+    ]
+    assert dataplane_action["claim_ids"] == [
+        "production_readiness",
+        "dataplane_delivery",
+        "traffic_delivery",
+    ]
+    assert "dataplane_delivery_eventbus_artifact_not_verified" in dataplane_action[
+        "reason_blockers"
+    ]
     assert "production_readiness_imported_artifact_not_verified" in report["blockers"]
     assert "trust_finality_eventbus_artifact_not_verified" in report["blockers"]
     assert "customer_traffic_eventbus_artifact_not_verified" in report["blockers"]

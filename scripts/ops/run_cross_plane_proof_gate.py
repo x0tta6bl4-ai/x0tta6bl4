@@ -1985,6 +1985,54 @@ def _next_actions_by_plane(
     }
 
 
+def _next_actions_summary(
+    next_actions_by_plane: Mapping[str, Sequence[Mapping[str, Any]]],
+    claim_blockers: Mapping[str, Sequence[str]],
+) -> list[dict[str, Any]]:
+    action_index: dict[str, dict[str, Any]] = {}
+
+    for plane, actions in next_actions_by_plane.items():
+        for action in actions:
+            action_id = str(action.get("action_id") or "")
+            if not action_id:
+                continue
+            entry = action_index.setdefault(
+                action_id,
+                {
+                    "action_id": action_id,
+                    "title": str(action.get("title") or ""),
+                    "plane_ids": [],
+                    "claim_ids": [],
+                    "reason_blockers": [],
+                    "claim_boundary": str(action.get("claim_boundary") or ""),
+                },
+            )
+            entry["plane_ids"].append(str(plane))
+            entry["reason_blockers"].extend(
+                str(blocker)
+                for blocker in action.get("reason_blockers", [])
+                if str(blocker)
+            )
+
+    for entry in action_index.values():
+        reason_blockers = sorted(set(entry["reason_blockers"]))
+        entry["reason_blockers"] = reason_blockers
+        entry["plane_ids"] = list(dict.fromkeys(entry["plane_ids"]))
+        reason_set = set(reason_blockers)
+        entry["claim_ids"] = [
+            claim_id
+            for claim_id, blockers in claim_blockers.items()
+            if reason_set.intersection(str(blocker) for blocker in blockers)
+        ]
+
+    action_order = [str(rule["action_id"]) for rule in NEXT_ACTION_RULES]
+    return [
+        action_index[action_id]
+        for action_id in action_order
+        if action_id in action_index
+    ]
+
+
 def build_report(
     root: Path,
     *,
@@ -2074,6 +2122,7 @@ def build_report(
         plane for plane in plane_claims if plane not in set(blocked_plane_ids)
     ]
     next_actions_by_plane = _next_actions_by_plane(plane_blockers)
+    next_actions = _next_actions_summary(next_actions_by_plane, claim_blockers)
     return {
         "schema": SCHEMA,
         "timestamp_utc": utc_now(),
@@ -2089,6 +2138,7 @@ def build_report(
         "allowed_plane_ids": allowed_plane_ids,
         "blocked_plane_ids": blocked_plane_ids,
         "plane_blockers": plane_blockers,
+        "next_actions": next_actions,
         "next_actions_by_plane": next_actions_by_plane,
         "summary": {
             "claims_total": len(claim_results),
