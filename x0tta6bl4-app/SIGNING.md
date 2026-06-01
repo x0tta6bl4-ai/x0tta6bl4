@@ -112,6 +112,23 @@ python3 scripts/ops/prepare_ios_distribution_p12.py \
 
 The helper accepts PEM or DER Apple certificate files, writes the `.p12` with owner-only permissions, and passes the `.p12` password to `openssl` through stdin so it is not exposed in process arguments.
 
+Before uploading iOS signing secrets, verify that the `.p12`, provisioning profile, Apple Team ID, and bundle ID match each other:
+
+```bash
+python3 scripts/ops/verify_ios_signing_material.py \
+  --verify \
+  --certificate-p12 ~/.local/share/x0tta6bl4/ios-signing/apple-distribution.p12 \
+  --certificate-password "$X0T_IOS_CERTIFICATE_PASSWORD" \
+  --provisioning-profile /secure/path/x0tta6bl4.mobileprovision \
+  --team-id "$X0T_IOS_TEAM_ID" \
+  --bundle-id net.x0tta6bl4.mesh \
+  --require-valid \
+  --json \
+  --output .tmp/native-signing/ios/ios-signing-material-verification.json
+```
+
+This preflight checks that the provisioning profile is not expired, has `get-task-allow` disabled for release/ad-hoc signing, contains the same certificate as the `.p12`, and matches the expected `net.x0tta6bl4.mesh` app identifier. It does not print the `.p12` password or export private keys.
+
 If the Apple signing certificate and provisioning profile already exist locally, upload them without printing private values:
 
 ```bash
