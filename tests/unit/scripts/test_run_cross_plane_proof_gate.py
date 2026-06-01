@@ -1132,6 +1132,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "mesh_recovery_lifecycle",
         "local_restored_dataplane",
         "dataplane_delivery",
+        "traffic_delivery",
         "customer_traffic",
         "local_service_identity_status",
         "measured_attestation_verifier_smoke",
@@ -1190,6 +1191,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         for action in report["next_actions_by_plane"]["trust_plane"]
     ] == [
         "collect_verified_dataplane_delivery_eventbus_evidence",
+        "collect_verified_traffic_delivery_eventbus_evidence",
         "collect_mesh_recovery_lifecycle_eventbus_evidence",
         "collect_verified_customer_traffic_eventbus_evidence",
         "collect_verified_trust_finality_eventbus_evidence",
@@ -1198,7 +1200,7 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "verify_external_settlement_artifacts",
         "import_verified_production_readiness_evidence",
     ]
-    assert report["next_actions_by_plane"]["trust_plane"][3][
+    assert report["next_actions_by_plane"]["trust_plane"][4][
         "reason_blockers"
     ] == [
         "explicit_false_flag:live_spire_svid_confirmed",
@@ -1257,7 +1259,13 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "--json",
     ]
     traffic_action = report["next_actions"][2]
-    assert traffic_action["claim_ids"] == ["traffic_delivery"]
+    assert traffic_action["claim_ids"] == [
+        "production_readiness",
+        "traffic_delivery",
+    ]
+    assert "production_readiness_traffic_delivery_artifact_not_verified" in (
+        traffic_action["reason_blockers"]
+    )
     assert traffic_action["automation_status"] == "manual_or_scenario_probe_required"
     assert traffic_action["suggested_commands"][0] == [
         "python3",
@@ -1808,7 +1816,7 @@ def test_gate_blocks_production_readiness_when_map_flags_are_true_but_imported_a
     tmp_path: Path,
 ) -> None:
     _write_map(tmp_path, production_flags=True, customer_flags=True)
-    _write_valid_dataplane_delivery_event(tmp_path)
+    _write_valid_dataplane_delivery_event(tmp_path, traffic_delivery_allowed=True)
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_local_service_identity_status_event(tmp_path)
@@ -1835,7 +1843,7 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
 ) -> None:
     _write_map(tmp_path, production_flags=True, customer_flags=True)
     _write_stub_production_readiness_proof(tmp_path, verified=True)
-    _write_valid_dataplane_delivery_event(tmp_path)
+    _write_valid_dataplane_delivery_event(tmp_path, traffic_delivery_allowed=True)
     _write_valid_mesh_recovery_lifecycle_event(tmp_path)
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
@@ -1859,6 +1867,11 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     assert dataplane["valid"] is True
     assert dataplane["selected_event"]["event_id"] == "dataplane-event-1"
     assert dataplane["selected_event"]["restored_dataplane_claim_allowed"] is True
+    traffic = production["supporting_artifact_evidence"]["traffic_delivery"]
+    assert traffic["valid"] is True
+    assert traffic["selected_event"]["event_id"] == "dataplane-event-1"
+    assert traffic["selected_event"]["traffic_delivery_claim_allowed"] is True
+    assert traffic["selected_event"]["claim_scope"] == "traffic_delivery"
     recovery = production["supporting_artifact_evidence"]["mesh_recovery_lifecycle"]
     assert recovery["valid"] is True
     assert recovery["selected_event"]["event_id"] == (
@@ -1898,12 +1911,47 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     assert measured_attestation["validation"]["decision"] == "READY_TO_IMPORT"
 
 
-def test_gate_blocks_production_readiness_when_measured_attestation_smoke_is_missing(
+def test_gate_blocks_production_readiness_when_traffic_delivery_artifact_is_missing(
     tmp_path: Path,
 ) -> None:
     _write_map(tmp_path, production_flags=True, customer_flags=True)
     _write_stub_production_readiness_proof(tmp_path, verified=True)
     _write_valid_dataplane_delivery_event(tmp_path)
+    _write_valid_mesh_recovery_lifecycle_event(tmp_path)
+    _write_valid_customer_traffic_event(tmp_path)
+    _write_valid_trust_finality_event(tmp_path)
+    _write_valid_local_service_identity_status_event(tmp_path)
+    _write_valid_measured_attestation_smoke_artifact(tmp_path)
+    _write_valid_economy_boundary_event(tmp_path)
+    _write_valid_external_settlement_artifacts(tmp_path)
+
+    report = build_report(tmp_path, claims=("production_readiness",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    assert report["allowed"] is False
+    [production] = report["claim_results"]
+    assert production["allowed"] is False
+    assert (
+        "production_readiness_traffic_delivery_artifact_not_verified"
+        in production["blockers"]
+    )
+    assert production["required_artifact_evidence"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["dataplane_delivery"]["valid"] is True
+    traffic = production["supporting_artifact_evidence"]["traffic_delivery"]
+    assert traffic["valid"] is False
+    assert "verified_traffic_delivery_event_not_found" in traffic["blockers"]
+    assert (
+        "traffic_delivery_not_proven_by_local_restored_dataplane_artifact"
+        in traffic["candidate_blockers"]
+    )
+
+
+def test_gate_blocks_production_readiness_when_measured_attestation_smoke_is_missing(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, production_flags=True, customer_flags=True)
+    _write_stub_production_readiness_proof(tmp_path, verified=True)
+    _write_valid_dataplane_delivery_event(tmp_path, traffic_delivery_allowed=True)
     _write_valid_mesh_recovery_lifecycle_event(tmp_path)
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
@@ -1961,7 +2009,7 @@ def test_gate_blocks_production_readiness_when_customer_traffic_artifact_is_miss
 ) -> None:
     _write_map(tmp_path, production_flags=True, customer_flags=True)
     _write_stub_production_readiness_proof(tmp_path, verified=True)
-    _write_valid_dataplane_delivery_event(tmp_path)
+    _write_valid_dataplane_delivery_event(tmp_path, traffic_delivery_allowed=True)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_local_service_identity_status_event(tmp_path)
     _write_valid_measured_attestation_smoke_artifact(tmp_path)
@@ -1983,6 +2031,7 @@ def test_gate_blocks_production_readiness_when_customer_traffic_artifact_is_miss
     assert "verified_customer_traffic_event_not_found" in customer["blockers"]
     assert production["required_artifact_evidence"]["valid"] is True
     assert production["supporting_artifact_evidence"]["dataplane_delivery"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["traffic_delivery"]["valid"] is True
     assert production["supporting_artifact_evidence"]["trust_finality"]["valid"] is True
     assert production["supporting_artifact_evidence"]["economy_boundary"]["valid"] is True
     assert production["supporting_artifact_evidence"]["external_settlement"]["valid"] is True
@@ -1993,7 +2042,7 @@ def test_gate_blocks_production_readiness_when_external_settlement_artifact_is_m
 ) -> None:
     _write_map(tmp_path, production_flags=True, customer_flags=True)
     _write_stub_production_readiness_proof(tmp_path, verified=True)
-    _write_valid_dataplane_delivery_event(tmp_path)
+    _write_valid_dataplane_delivery_event(tmp_path, traffic_delivery_allowed=True)
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_local_service_identity_status_event(tmp_path)
@@ -2017,6 +2066,7 @@ def test_gate_blocks_production_readiness_when_external_settlement_artifact_is_m
     assert "external_settlement_blocker_report_missing" in settlement["blockers"]
     assert production["required_artifact_evidence"]["valid"] is True
     assert production["supporting_artifact_evidence"]["dataplane_delivery"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["traffic_delivery"]["valid"] is True
     assert production["supporting_artifact_evidence"]["customer_traffic"]["valid"] is True
     assert production["supporting_artifact_evidence"]["trust_finality"]["valid"] is True
     assert production["supporting_artifact_evidence"]["economy_boundary"]["valid"] is True
@@ -2027,7 +2077,7 @@ def test_gate_blocks_production_readiness_when_customer_traffic_map_flag_is_miss
 ) -> None:
     _write_map(tmp_path, production_flags=True)
     _write_stub_production_readiness_proof(tmp_path, verified=True)
-    _write_valid_dataplane_delivery_event(tmp_path)
+    _write_valid_dataplane_delivery_event(tmp_path, traffic_delivery_allowed=True)
     _write_valid_customer_traffic_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_local_service_identity_status_event(tmp_path)
@@ -2048,6 +2098,7 @@ def test_gate_blocks_production_readiness_when_customer_traffic_map_flag_is_miss
         for item in production["blocking_false_flags"]
     )
     assert production["required_artifact_evidence"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["traffic_delivery"]["valid"] is True
     assert production["supporting_artifact_evidence"]["customer_traffic"]["valid"] is True
 
 

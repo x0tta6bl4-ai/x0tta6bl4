@@ -312,6 +312,7 @@ CLAIM_ARTIFACT_DEPENDENCIES: dict[str, tuple[str, ...]] = {
         MESH_RECOVERY_LIFECYCLE_CLAIM_ID,
         LOCAL_RESTORED_DATAPLANE_CLAIM_ID,
         DATAPLANE_DELIVERY_CLAIM_ID,
+        TRAFFIC_DELIVERY_CLAIM_ID,
         CUSTOMER_TRAFFIC_CLAIM_ID,
         LOCAL_SERVICE_IDENTITY_STATUS_CLAIM_ID,
         MEASURED_ATTESTATION_VERIFIER_SMOKE_CLAIM_ID,
@@ -481,6 +482,7 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
         "title": "Collect bounded traffic-delivery EventBus evidence.",
         "match_tokens": (
             "traffic_delivery_eventbus_artifact_not_verified",
+            "production_readiness_traffic_delivery_artifact_not_verified",
             "verified_traffic_delivery_event_not_found",
             "traffic_delivery_not_proven_by_local_restored_dataplane_artifact",
         ),
@@ -3122,6 +3124,11 @@ def evaluate_claim(
             supporting_artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_boundary
         if not dataplane_boundary or dataplane_boundary.get("valid") is not True:
             blockers.append("production_readiness_dataplane_artifact_not_verified")
+        traffic_delivery = (artifact_evidence or {}).get(TRAFFIC_DELIVERY_CLAIM_ID)
+        if traffic_delivery is not None:
+            supporting_artifact_evidence[TRAFFIC_DELIVERY_CLAIM_ID] = traffic_delivery
+        if not traffic_delivery or traffic_delivery.get("valid") is not True:
+            blockers.append("production_readiness_traffic_delivery_artifact_not_verified")
         customer_traffic = (artifact_evidence or {}).get(CUSTOMER_TRAFFIC_CLAIM_ID)
         if customer_traffic is not None:
             supporting_artifact_evidence[CUSTOMER_TRAFFIC_CLAIM_ID] = customer_traffic
@@ -3463,11 +3470,12 @@ def build_report(
         for claim in (
             "dataplane_delivery",
             "local_restored_dataplane",
+            "traffic_delivery",
             "production_readiness",
         )
     ):
         artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_delivery_artifact_evidence(root)
-    if "traffic_delivery" in claims:
+    if any(claim in claims for claim in ("traffic_delivery", "production_readiness")):
         artifact_evidence[TRAFFIC_DELIVERY_CLAIM_ID] = traffic_delivery_artifact_evidence(root)
     if any(claim in claims for claim in ("mesh_recovery_lifecycle", "production_readiness")):
         artifact_evidence[MESH_RECOVERY_LIFECYCLE_CLAIM_ID] = mesh_recovery_lifecycle_artifact_evidence(root)
