@@ -751,9 +751,22 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
         "--json",
     ]
     customer_action = report["next_actions"][1]
-    assert customer_action["automation_status"] == "manual_evidence_required"
-    assert customer_action["suggested_commands"] == []
-    assert "No dedicated customer-traffic proof collector" in customer_action[
+    assert customer_action["automation_status"] == (
+        "local_command_available_for_redacted_proof_intake"
+    )
+    assert customer_action["suggested_commands"][0] == [
+        "python3",
+        "scripts/ops/collect_customer_traffic_eventbus_evidence.py",
+        "--proof-json",
+        "docs/verification/incoming/customer_traffic.json",
+        "--allow-redacted-local-proof-intake",
+        "--write-event",
+        "--json",
+    ]
+    assert "docs/verification/incoming/customer_traffic.json" in customer_action[
+        "artifact_paths"
+    ]
+    assert "does not run probes" in customer_action[
         "implementation_gap"
     ]
     trust_action = report["next_actions"][2]

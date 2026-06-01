@@ -340,13 +340,34 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
             "Customer traffic requires separate end-to-end proof and must not be "
             "inferred from local dataplane or mesh recovery evidence."
         ),
-        "automation_status": "manual_evidence_required",
+        "automation_status": "local_command_available_for_redacted_proof_intake",
         "implementation_gap": (
-            "No dedicated customer-traffic proof collector was found in scripts/ops. "
-            "Do not promote customer traffic from dataplane/local recovery evidence."
+            "The collector validates and records redacted end-to-end customer-path "
+            "proof input only. It does not run probes or infer customer traffic "
+            "from local dataplane evidence by itself."
         ),
-        "suggested_commands": [],
-        "artifact_paths": [".agent_coordination/events.log"],
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/collect_customer_traffic_eventbus_evidence.py",
+                "--proof-json",
+                "docs/verification/incoming/customer_traffic.json",
+                "--allow-redacted-local-proof-intake",
+                "--write-event",
+                "--json",
+            ],
+            [
+                "python3",
+                "scripts/ops/run_cross_plane_proof_gate.py",
+                "--claim",
+                "customer_traffic",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [
+            "docs/verification/incoming/customer_traffic.json",
+            ".agent_coordination/events.log",
+        ],
     },
     {
         "action_id": "collect_verified_trust_finality_eventbus_evidence",
