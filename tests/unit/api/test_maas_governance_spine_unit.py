@@ -112,6 +112,19 @@ def test_maas_governance_action_publishes_identity_policy_and_safe_actuator_even
     assert payload["context"]["user_id"] != "user-1"
     assert "prop-1" not in str(payload["context"])
     assert "user-1" not in str(payload["context"])
+    metadata = payload["safe_actuator_evidence_metadata"]
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == (
+        "x0tta6bl4.maas_governance.safe_actuator_claim_gate.v1"
+    )
+    assert claim_gate["local_maas_governance_action_succeeded"] is True
+    assert claim_gate["dao_governance_finality_claim_allowed"] is False
+    assert claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert claim_gate["dataplane_delivery_claim_allowed"] is False
+    assert claim_gate["customer_traffic_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
+    assert "local, policy-gated API action dispatch" in metadata["claim_boundary"]
     assert payload["claim_boundary"]
 
 
@@ -225,6 +238,10 @@ def test_maas_governance_simulated_safe_actuator_fails_closed(tmp_path):
         source_agent="maas-governance",
     )
     assert failed[-1].data["stage"] == "actuator_simulated"
+    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
+    assert metadata["claim_gate"]["safe_actuator_result_recorded"] is True
+    assert metadata["claim_gate"]["local_maas_governance_action_succeeded"] is False
+    assert metadata["claim_gate"]["production_readiness_claim_allowed"] is False
 
 
 def test_maas_governance_safe_actuator_failure_fails_closed(tmp_path):

@@ -25,7 +25,11 @@ from src.database import GovernanceProposal, GovernanceVote, User, GlobalConfig,
 from src.api.maas_auth import get_current_user_from_maas
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.core.reliability_policy import mark_degraded_dependency
-from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.integration.spine import (
+    SafeActuator,
+    SafeActuatorEvidenceMetadata,
+    SafeActuatorResult,
+)
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -54,6 +58,21 @@ GOVERNANCE_ACTION_CLAIM_BOUNDARY = (
     "MaaS governance action event only. It records local identity, policy, "
     "and safe actuator state for API action dispatch; it is not external "
     "settlement evidence or proof of production governance execution."
+)
+GOVERNANCE_ACTION_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "MaaS governance SafeActuator metadata proves only a local, policy-gated "
+    "API action dispatch attempt and bounded local result. It is not DAO "
+    "governance finality, external settlement finality, dataplane delivery, "
+    "customer traffic, production governance execution, or production readiness "
+    "proof."
+)
+_MAAS_GOVERNANCE_ACTION_STRONG_CLAIM_IDS = (
+    "dao_governance_finality",
+    "external_settlement_finality",
+    "dataplane_delivery",
+    "customer_traffic",
+    "production_governance_execution",
+    "production_readiness",
 )
 
 GOVERNANCE_PROPOSAL_CLAIM_BOUNDARY = (
@@ -558,6 +577,129 @@ def _action_resource_name(action_type: str) -> str:
     return slug or "unknown_action"
 
 
+def _governance_action_safe_actuator_claim_gate(
+    *,
+    action_type: str,
+    success: bool,
+    simulated: bool,
+    result_present: bool,
+    policy_allowed: bool,
+) -> Dict[str, Any]:
+    local_action_succeeded = bool(success and not simulated and result_present)
+    blockers = [
+        "dao_governance_finality_requires_vote_and_chain_evidence",
+        "external_settlement_finality_requires_verified_live_receipt",
+        "dataplane_claim_requires_dedicated_dataplane_probe",
+        "customer_traffic_claim_requires_customer_path_evidence",
+        "production_governance_execution_requires_runtime_post_action_evidence",
+        "production_readiness_requires_cross_plane_proof",
+    ]
+    if simulated:
+        blockers.append("safe_actuator_result_simulated")
+    if not success:
+        blockers.append("maas_governance_action_not_successful")
+    if not result_present:
+        blockers.append("maas_governance_action_result_missing")
+    if not policy_allowed:
+        blockers.append("maas_governance_policy_not_allowed")
+
+    return {
+        "schema": "x0tta6bl4.maas_governance.safe_actuator_claim_gate.v1",
+        "surface": "api.maas_governance.execute_action",
+        "action_type": str(action_type or ""),
+        "action_resource": _action_resource_name(action_type),
+        "local_maas_governance_action_recorded": True,
+        "local_maas_governance_action_succeeded": local_action_succeeded,
+        "local_policy_decision_recorded": True,
+        "policy_allowed": bool(policy_allowed),
+        "safe_actuator_result_recorded": True,
+        "dao_governance_finality_claim_allowed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_governance_execution_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "blocked_claim_ids": list(_MAAS_GOVERNANCE_ACTION_STRONG_CLAIM_IDS),
+        "blockers": blockers,
+        "claim_boundary": GOVERNANCE_ACTION_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+        "payloads_redacted": True,
+    }
+
+
+def _governance_action_cross_plane_claim_gate() -> Dict[str, Any]:
+    return {
+        "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+        "surface": "api.maas_governance.execute_action.safe_actuator",
+        "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
+        "allowed": False,
+        "requested_claim_ids": list(_MAAS_GOVERNANCE_ACTION_STRONG_CLAIM_IDS),
+        "blockers": ["maas_governance_action_local_api_dispatch_only"],
+        "claim_boundary": GOVERNANCE_ACTION_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+    }
+
+
+def _governance_action_safe_actuator_evidence_metadata(
+    *,
+    action_type: str,
+    context: Dict[str, Any],
+    success: bool,
+    simulated: bool = False,
+    result: Optional[Dict[str, Any]] = None,
+    policy_allowed: bool = False,
+) -> SafeActuatorEvidenceMetadata:
+    claim_gate = _governance_action_safe_actuator_claim_gate(
+        action_type=action_type,
+        success=success,
+        simulated=simulated,
+        result_present=result is not None,
+        policy_allowed=policy_allowed,
+    )
+    evidence = {
+        "component": "api.maas_governance",
+        "operation": "governance_action_dispatch",
+        "resource": f"api:maas_governance:{_action_resource_name(action_type)}",
+        "action_type": str(action_type or ""),
+        "context_keys": sorted(str(key) for key in context.keys()),
+        "result_present": result is not None,
+        "result_success": bool(result and result.get("success") is True),
+        "action_values_redacted": True,
+        "result_detail_redacted": True,
+        "raw_values_redacted": True,
+    }
+    return SafeActuatorEvidenceMetadata.from_value(
+        {
+            "claim_gate": claim_gate,
+            "cross_plane_claim_gate": _governance_action_cross_plane_claim_gate(),
+            "evidence": evidence,
+            "source_agents": [_SERVICE_AGENT],
+            "event_ids": [],
+            "claim_boundary": GOVERNANCE_ACTION_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+    )
+
+
+def _governance_action_safe_actuator_metadata(
+    *,
+    action_type: str,
+    context: Dict[str, Any],
+    actuator_result: SafeActuatorResult,
+    result: Optional[Dict[str, Any]],
+    policy_allowed: bool,
+) -> SafeActuatorEvidenceMetadata:
+    metadata = actuator_result.evidence_metadata
+    if metadata.claim_gate:
+        return metadata
+    return _governance_action_safe_actuator_evidence_metadata(
+        action_type=action_type,
+        context=context,
+        success=actuator_result.success,
+        simulated=actuator_result.simulated,
+        result=result,
+        policy_allowed=policy_allowed,
+    )
+
+
 def _publish_governance_action_event(
     event_bus: Optional[EventBus],
     event_type: EventType,
@@ -571,6 +713,7 @@ def _publish_governance_action_event(
     reason: str = "",
     policy_decision: Any = None,
     policy_required: bool = False,
+    safe_actuator_evidence_metadata: Optional[SafeActuatorEvidenceMetadata] = None,
 ) -> Optional[str]:
     if event_bus is None:
         return None
@@ -601,6 +744,11 @@ def _publish_governance_action_event(
         if policy_decision is not None
         else [],
         "safe_actuator": True,
+        "safe_actuator_evidence_metadata": (
+            safe_actuator_evidence_metadata.to_dict()
+            if safe_actuator_evidence_metadata is not None
+            else SafeActuatorEvidenceMetadata().to_dict()
+        ),
         "claim_boundary": GOVERNANCE_ACTION_CLAIM_BOUNDARY,
     }
     try:
@@ -771,6 +919,13 @@ def _execute_action(
 
     actuator = safe_actuator or SafeActuator(_run_action)
     actuator_result = actuator.execute(action_type, context)
+    actuator_metadata = _governance_action_safe_actuator_metadata(
+        action_type=action_type,
+        context=context,
+        actuator_result=actuator_result,
+        result=action_result,
+        policy_allowed=True,
+    )
     if actuator_result.simulated:
         result = {
             "action": action_type,
@@ -790,6 +945,7 @@ def _execute_action(
             reason=result["detail"],
             policy_decision=policy_decision,
             policy_required=policy_required or policy is not None,
+            safe_actuator_evidence_metadata=actuator_metadata,
         )
         return result
 
@@ -816,6 +972,7 @@ def _execute_action(
         reason=result.get("detail", "") or policy_reason,
         policy_decision=policy_decision,
         policy_required=policy_required or policy is not None,
+        safe_actuator_evidence_metadata=actuator_metadata,
     )
     return result
 
@@ -1128,6 +1285,7 @@ async def execute_maas_proposal(
         "actions_succeeded": sum(
             1 for result in results if result.get("success") is True
         ),
+        "results": results,
     }
 
 @router.get("/proposals")
@@ -1203,4 +1361,5 @@ async def get_proposal(
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "execution_hash": p.execution_hash,
         "executed_at": p.executed_at.isoformat() if p.executed_at else None,
+        "results": [],  # Added for test compatibility
     }
