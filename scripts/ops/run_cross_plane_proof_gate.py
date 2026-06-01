@@ -1854,6 +1854,26 @@ def build_report(
             result["allowed"] = False
             result["blockers"] = sorted(set([*result.get("blockers", []), *load_errors]))
     allowed = all(item.get("allowed") is True for item in claim_results)
+    allowed_claim_ids: list[str] = []
+    blocked_claim_ids: list[str] = []
+    blockers: list[str] = []
+    claim_blockers: dict[str, list[str]] = {}
+    for result in claim_results:
+        claim_id = str(result.get("claim_id") or "")
+        if not claim_id:
+            continue
+        if result.get("allowed") is True:
+            allowed_claim_ids.append(claim_id)
+            continue
+        blocked_claim_ids.append(claim_id)
+        result_blockers = [
+            str(blocker)
+            for blocker in result.get("blockers", [])
+            if str(blocker)
+        ]
+        if result_blockers:
+            claim_blockers[claim_id] = sorted(set(result_blockers))
+            blockers.extend(result_blockers)
     return {
         "schema": SCHEMA,
         "timestamp_utc": utc_now(),
@@ -1861,6 +1881,10 @@ def build_report(
         "allowed": allowed,
         "context": context,
         "claim_results": claim_results,
+        "allowed_claim_ids": allowed_claim_ids,
+        "blocked_claim_ids": blocked_claim_ids,
+        "blockers": sorted(set(blockers)),
+        "claim_blockers": claim_blockers,
         "summary": {
             "claims_total": len(claim_results),
             "claims_allowed": sum(1 for item in claim_results if item.get("allowed") is True),

@@ -651,6 +651,12 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert report["summary"]["claims_total"] == len(expected_claims)
     assert report["summary"]["claims_blocked"] == len(expected_claims)
     assert report["summary"]["high_risk_claims_requested"] == len(expected_claims)
+    assert report["allowed_claim_ids"] == []
+    assert report["blocked_claim_ids"] == list(expected_claims)
+    assert set(report["claim_blockers"]) == set(expected_claims)
+    assert "production_readiness_imported_artifact_not_verified" in report["blockers"]
+    assert "trust_finality_eventbus_artifact_not_verified" in report["blockers"]
+    assert "customer_traffic_eventbus_artifact_not_verified" in report["blockers"]
 
 
 def test_gate_blocks_high_risk_claims_when_current_gaps_are_open(tmp_path: Path) -> None:
