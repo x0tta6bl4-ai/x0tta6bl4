@@ -15,7 +15,11 @@ from typing import Any, Dict, List, Optional, Union
 
 # Manual import of GhostTransport to avoid any src issues
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.integration.spine import (
+    SafeActuator,
+    SafeActuatorEvidenceMetadata,
+    SafeActuatorResult,
+)
 from src.network.transport.ghost_proto import GhostTransport
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
@@ -35,7 +39,14 @@ _MASTER_KEY_B64_ENV = "GHOST_L3_MASTER_KEY_B64"
 _MASTER_KEY_RAW_ENV = "GHOST_L3_MASTER_KEY"
 GHOST_L3_CLAIM_BOUNDARY = (
     "Ghost L3 server runtime setup event only. It records local policy and safe "
-    "actuator state for TUN/NAT setup; it is not production rollout evidence."
+    "actuator state for TUN/NAT setup; it is not dataplane delivery, kernel "
+    "forwarding correctness, customer traffic, or production rollout evidence."
+)
+GHOST_L3_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "Ghost L3 SafeActuator metadata proves only a local, policy-gated TUN/NAT "
+    "setup attempt. It does not prove restored dataplane delivery, kernel "
+    "forwarding correctness, external reachability, customer traffic, production "
+    "SLOs, or production readiness."
 )
 
 
@@ -191,6 +202,75 @@ class GhostL3Server:
             "egress_interface": self.egress_interface,
         }
 
+    def _safe_actuator_evidence_metadata_from_flags(
+        self,
+        *,
+        success: bool,
+        simulated: bool,
+        policy_allowed: bool,
+        reason: str = "",
+    ) -> SafeActuatorEvidenceMetadata:
+        local_setup_allowed = bool(success and not simulated and policy_allowed)
+        blockers: List[str] = []
+        if not policy_allowed:
+            blockers.append("policy_not_allowed")
+        if not success:
+            blockers.append("safe_actuator_result_not_successful")
+        if simulated:
+            blockers.append("safe_actuator_result_simulated")
+
+        claim_gate = {
+            "schema": "x0tta6bl4.ghost_l3.safe_actuator_claim_gate.v1",
+            "surface": "server.ghost_l3.setup_tun",
+            "local_tun_nat_setup_claim_allowed": local_setup_allowed,
+            "policy_allowed": bool(policy_allowed),
+            "safe_actuator_result_successful": bool(success),
+            "safe_actuator_result_simulated": bool(simulated),
+            "restored_dataplane_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "traffic_delivery_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "external_reachability_claim_allowed": False,
+            "kernel_forwarding_correctness_claim_allowed": False,
+            "production_slo_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "blockers": blockers,
+            "reason_redacted": bool(reason),
+            "claim_boundary": GHOST_L3_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+        evidence = {
+            "source_agents": [self.source_agent],
+            "event_ids": [],
+            "events_total": 0,
+            "event_ids_count": 0,
+            "redacted": True,
+        }
+        return SafeActuatorEvidenceMetadata(
+            claim_gate=claim_gate,
+            evidence=evidence,
+            source_agents=[self.source_agent],
+            event_ids=[],
+            claim_boundary=GHOST_L3_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            redacted=True,
+        )
+
+    def _safe_actuator_evidence_metadata(
+        self,
+        actuator_result: SafeActuatorResult,
+        *,
+        policy_allowed: bool,
+    ) -> SafeActuatorEvidenceMetadata:
+        metadata = actuator_result.evidence_metadata
+        if metadata.claim_gate:
+            return metadata
+        return self._safe_actuator_evidence_metadata_from_flags(
+            success=actuator_result.success,
+            simulated=actuator_result.simulated,
+            policy_allowed=policy_allowed,
+            reason=actuator_result.reason,
+        )
+
     def _publish_runtime_event(
         self,
         event_type: EventType,
@@ -200,6 +280,9 @@ class GhostL3Server:
         result: Optional[Dict[str, Any]] = None,
         reason: str = "",
         policy_decision: Any = None,
+        safe_actuator_evidence_metadata: Optional[
+            SafeActuatorEvidenceMetadata
+        ] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -229,6 +312,13 @@ class GhostL3Server:
             else [],
             "claim_boundary": GHOST_L3_CLAIM_BOUNDARY,
         }
+        if safe_actuator_evidence_metadata is not None:
+            payload["safe_actuator_evidence_metadata"] = (
+                safe_actuator_evidence_metadata.to_dict()
+            )
+            payload["claim_gate"] = dict(
+                safe_actuator_evidence_metadata.claim_gate
+            )
         try:
             event = self.event_bus.publish(event_type, self.source_agent, payload, priority=7)
             return event.event_id
@@ -291,6 +381,10 @@ class GhostL3Server:
             policy_decision=policy_decision,
         )
         actuator_result = self.safe_actuator.execute("setup_l3_tun", context)
+        actuator_metadata = self._safe_actuator_evidence_metadata(
+            actuator_result,
+            policy_allowed=True,
+        )
         if actuator_result.simulated:
             result = {
                 "success": False,
@@ -304,6 +398,7 @@ class GhostL3Server:
                 result=result,
                 reason=result["reason"],
                 policy_decision=policy_decision,
+                safe_actuator_evidence_metadata=actuator_metadata,
             )
             return False
 
@@ -321,6 +416,7 @@ class GhostL3Server:
             result=result,
             reason=actuator_result.reason or policy_reason,
             policy_decision=policy_decision,
+            safe_actuator_evidence_metadata=actuator_metadata,
         )
         return actuator_result.success
 
@@ -357,7 +453,14 @@ class GhostL3Server:
                 check=True,
             )
             logger.info("✅ Server L3 TUN configured.")
-            return SafeActuatorResult(True)
+            return SafeActuatorResult(
+                True,
+                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
+                    success=True,
+                    simulated=False,
+                    policy_allowed=True,
+                ),
+            )
         except Exception as e:
             logger.error(f"Failed to setup server TUN: {e}")
             return SafeActuatorResult(False, str(e))
