@@ -2012,6 +2012,8 @@ def _mesh_recovery_lifecycle_candidate_blockers(
 ) -> list[str]:
     data = _mapping(event.get("data"))
     claim_gate = _mapping(data.get("claim_gate"))
+    post_action_dataplane = _mapping(data.get("post_action_dataplane_revalidation"))
+    post_action_dataplane_gate = _mapping(post_action_dataplane.get("claim_gate"))
     identity = _mapping(data.get("identity"))
     identity_fields = _mapping(data.get("identity_fields_present"))
     node_id_hash = data.get("node_id_hash") or identity.get("node_id_hash")
@@ -2067,6 +2069,18 @@ def _mesh_recovery_lifecycle_candidate_blockers(
         blockers.append("mesh_recovery_overpromotes_customer_traffic")
     if data.get("settlement_finality_claim_allowed") is True:
         blockers.append("mesh_recovery_overpromotes_settlement_finality")
+    if any(
+        value is True
+        for value in (
+            data.get("traffic_delivery_claim_allowed"),
+            data.get("traffic_delivery_confirmed"),
+            post_action_dataplane.get("traffic_delivery_claim_allowed"),
+            post_action_dataplane.get("traffic_delivery_confirmed"),
+            post_action_dataplane_gate.get("traffic_delivery_claim_allowed"),
+            post_action_dataplane_gate.get("traffic_delivery_confirmed"),
+        )
+    ):
+        blockers.append("mesh_recovery_overpromotes_traffic_delivery")
     if status in {"blocked", "failed"} and not escalation_required:
         blockers.append("mesh_recovery_failed_event_without_escalation")
     if (safe_mode_required or action_error) and not escalation_required:

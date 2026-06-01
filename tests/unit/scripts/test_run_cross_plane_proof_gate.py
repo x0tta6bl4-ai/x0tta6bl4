@@ -455,6 +455,34 @@ def _write_valid_mesh_recovery_lifecycle_event(root: Path) -> None:
         handle.write(json.dumps(event) + "\n")
 
 
+def test_gate_blocks_mesh_recovery_lifecycle_when_event_overpromotes_traffic_delivery(
+    tmp_path: Path,
+) -> None:
+    _write_valid_mesh_recovery_lifecycle_event(tmp_path)
+    event_log = tmp_path / ".agent_coordination/events.log"
+    event = json.loads(event_log.read_text(encoding="utf-8"))
+    event["data"]["post_action_dataplane_revalidation"] = {
+        "traffic_delivery_claim_allowed": True,
+        "claim_gate": {
+            "traffic_delivery_confirmed": True,
+        },
+    }
+    event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("mesh_recovery_lifecycle",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [recovery] = report["claim_results"]
+    assert "mesh_recovery_lifecycle_eventbus_artifact_not_verified" in recovery[
+        "blockers"
+    ]
+    artifact = recovery["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "mesh_recovery_overpromotes_traffic_delivery" in artifact[
+        "candidate_blockers"
+    ]
+
+
 def _write_valid_trust_finality_event(root: Path) -> None:
     event_log = root / ".agent_coordination/events.log"
     event_log.parent.mkdir(parents=True, exist_ok=True)
