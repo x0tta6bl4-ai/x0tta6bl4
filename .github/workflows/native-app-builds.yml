@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/native-app-builds.yml"
       - "scripts/ops/check_native_signing_readiness.py"
+      - "scripts/ops/verify_ios_signing_material.py"
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
   pull_request:
@@ -14,6 +15,7 @@ on:
     paths:
       - ".github/workflows/native-app-builds.yml"
       - "scripts/ops/check_native_signing_readiness.py"
+      - "scripts/ops/verify_ios_signing_material.py"
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
 
@@ -430,6 +432,42 @@ jobs:
             echo "iOS device signing secrets are not configured; signed IPA build skipped."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Verify iOS signing material
+        if: steps.ios_signing.outputs.enabled == 'true'
+        env:
+          X0T_IOS_CERTIFICATE_P12_BASE64: ${{ secrets.X0T_IOS_CERTIFICATE_P12_BASE64 }}
+          X0T_IOS_CERTIFICATE_PASSWORD: ${{ secrets.X0T_IOS_CERTIFICATE_PASSWORD }}
+          X0T_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.X0T_IOS_PROVISIONING_PROFILE_BASE64 }}
+          X0T_IOS_TEAM_ID: ${{ secrets.X0T_IOS_TEAM_ID }}
+          X0T_IOS_BUNDLE_ID: ${{ secrets.X0T_IOS_BUNDLE_ID || 'net.x0tta6bl4.mesh' }}
+        run: |
+          CERTIFICATE_PATH="$RUNNER_TEMP/x0tta6bl4-ios-signing.p12"
+          PROFILE_PATH="$RUNNER_TEMP/x0tta6bl4.mobileprovision"
+          REPORT_DIR=".tmp/native-signing/ios"
+
+          mkdir -p "$REPORT_DIR"
+          echo "$X0T_IOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          echo "$X0T_IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+
+          python3 scripts/ops/verify_ios_signing_material.py \
+            --verify \
+            --certificate-p12 "$CERTIFICATE_PATH" \
+            --certificate-password "$X0T_IOS_CERTIFICATE_PASSWORD" \
+            --provisioning-profile "$PROFILE_PATH" \
+            --team-id "$X0T_IOS_TEAM_ID" \
+            --bundle-id "$X0T_IOS_BUNDLE_ID" \
+            --require-valid \
+            --json \
+            --output "$REPORT_DIR/ios-signing-material-verification.json"
+
+      - name: Upload iOS signing material verification report
+        if: always() && steps.ios_signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-ios-signing-material-verification
+          path: .tmp/native-signing/ios/ios-signing-material-verification.json
+          if-no-files-found: ignore
 
       - name: Import iOS signing material
         if: steps.ios_signing.outputs.enabled == 'true'

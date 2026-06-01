@@ -129,6 +129,8 @@ python3 scripts/ops/verify_ios_signing_material.py \
 
 This preflight checks that the provisioning profile is not expired, has `get-task-allow` disabled for release/ad-hoc signing, contains the same certificate as the `.p12`, and matches the expected `net.x0tta6bl4.mesh` app identifier. It does not print the `.p12` password or export private keys.
 
+CI runs the same verification before importing iOS signing material into the macOS keychain. When iOS signing secrets are present, the workflow uploads `x0tta6bl4-ios-signing-material-verification/ios-signing-material-verification.json`.
+
 If the Apple signing certificate and provisioning profile already exist locally, upload them without printing private values:
 
 ```bash
