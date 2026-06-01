@@ -410,6 +410,13 @@ def test_cross_plane_evidence_map_readiness_gates_maas_runtime_smoke():
         "scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py:1"
         in gap["source_refs"]
     )
+    assert "private-target operator-run blocked preflight is now readiness-gated" in (
+        gap["gap"]
+    )
+    assert any(
+        "Private-target operator-run blocked preflight is readiness-gated" in contour
+        for contour in evidence_contours
+    )
 
 
 def test_cross_plane_maas_heal_probe_is_bounded_local_dataplane_evidence():

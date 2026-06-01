@@ -120,6 +120,7 @@ def test_autonomous_mesh_reality_map_records_maas_heal_post_action_probe_smoke()
     assert "synthetic stale route" in smoke["what_is_proven"]
     assert "loopback post-action dataplane probe" in smoke["what_is_proven"]
     assert "traffic/customer/production claims to remain false" in smoke["what_is_proven"]
+    assert "readiness-gated blocked preflight" in smoke["what_is_proven"]
     assert "not customer traffic" in smoke["what_is_proven"]
     assert "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py" in (
         smoke["source_refs"]
@@ -127,6 +128,7 @@ def test_autonomous_mesh_reality_map_records_maas_heal_post_action_probe_smoke()
     assert "tests/unit/scripts/test_verify_maas_heal_post_action_dataplane_probe.py" in (
         smoke["source_refs"]
     )
+    assert "scripts/ops/check_real_readiness.py" in smoke["source_refs"]
 
 
 def test_autonomous_mesh_reality_map_records_real_agent_smoke() -> None:

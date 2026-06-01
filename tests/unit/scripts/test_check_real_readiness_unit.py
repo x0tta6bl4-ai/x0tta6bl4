@@ -6580,6 +6580,38 @@ def _passing_runner(
                 }
             ),
         )
+    if (
+        len(args) > 1
+        and args[1]
+        == "scripts/ops/verify_dataplane_delivery_private_target_operator_run.py"
+    ):
+        return CommandResult(
+            1,
+            json.dumps(
+                {
+                    "decision": "DATAPLANE_PRIVATE_TARGET_OPERATOR_RUN_BLOCKED",
+                    "ok": False,
+                    "claim_boundary": (
+                        "local/private non-loopback TCP probe only; "
+                        "does not prove customer traffic"
+                    ),
+                    "summary": {
+                        "private_non_loopback_target": True,
+                        "server_started": False,
+                        "operator_run_attempted": False,
+                        "operator_run_evidence_retained": False,
+                        "eventbus_evidence_recognized_by_proof_gate": False,
+                        "raw_targets_redacted": True,
+                        "customer_traffic_claimed": False,
+                        "external_reachability_claimed": False,
+                        "traffic_delivery_claimed": False,
+                        "production_readiness_claimed": False,
+                    },
+                    "target": {"raw_target_redacted": True},
+                    "blockers": ["allow_private_target_probe_required"],
+                }
+            ),
+        )
     return CommandResult(0, "ok\n")
 
 
@@ -6630,6 +6662,7 @@ def test_ready_contract_passes_with_clean_static_and_command_evidence(tmp_path: 
     assert report["current_evidence_context"]["current_gap_count"] == 0
     check_ids = {item["check_id"] for item in report["checks"]}
     assert "maas_autonomous_mesh_runtime_smoke" in check_ids
+    assert "dataplane_delivery_private_target_operator_run_preflight" in check_ids
 
 
 def test_maas_autonomous_mesh_runtime_smoke_blocks_readiness_on_overclaim(
@@ -7156,6 +7189,57 @@ def test_dataplane_delivery_operator_flow_blocks_readiness_on_overpromotion(
 
     blocker_ids = {item["check_id"] for item in report["blockers"]}
     assert "dataplane_delivery_operator_flow_runtime" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_private_target_operator_run_preflight_blocks_readiness_if_not_blocked(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1]
+            == "scripts/ops/verify_dataplane_delivery_private_target_operator_run.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "DATAPLANE_PRIVATE_TARGET_OPERATOR_RUN_RETAINED",
+                        "ok": True,
+                        "claim_boundary": (
+                            "local/private non-loopback TCP probe only; "
+                            "does not prove customer traffic"
+                        ),
+                        "summary": {
+                            "private_non_loopback_target": True,
+                            "server_started": True,
+                            "operator_run_attempted": True,
+                            "operator_run_evidence_retained": True,
+                            "eventbus_evidence_recognized_by_proof_gate": True,
+                            "raw_targets_redacted": True,
+                            "customer_traffic_claimed": False,
+                            "external_reachability_claimed": False,
+                            "traffic_delivery_claimed": False,
+                            "production_readiness_claimed": False,
+                        },
+                        "target": {"raw_target_redacted": True},
+                        "blockers": [],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "dataplane_delivery_private_target_operator_run_preflight" in blocker_ids
     assert report["ready"] is False
 
 

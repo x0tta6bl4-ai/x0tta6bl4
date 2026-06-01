@@ -7500,6 +7500,89 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
                 )
             )
 
+    private_target_preflight = runner(
+        (
+            sys.executable,
+            DATAPLANE_DELIVERY_PRIVATE_TARGET_OPERATOR_RUN_VERIFIER,
+            "--target-host",
+            "10.0.0.5",
+            "--require-retained",
+            "--json",
+        ),
+        None,
+        30,
+    )
+    private_target_payload = _json_mapping_from_stdout(private_target_preflight.stdout)
+    private_target_summary = (
+        private_target_payload.get("summary", {})
+        if isinstance(private_target_payload, Mapping)
+        else {}
+    )
+    private_target_info = (
+        private_target_payload.get("target", {})
+        if isinstance(private_target_payload, Mapping)
+        else {}
+    )
+    private_target_blockers = (
+        private_target_payload.get("blockers", [])
+        if isinstance(private_target_payload, Mapping)
+        else []
+    )
+    private_target_preflight_ready = (
+        private_target_preflight.returncode == 1
+        and isinstance(private_target_payload, Mapping)
+        and private_target_payload.get("decision")
+        == "DATAPLANE_PRIVATE_TARGET_OPERATOR_RUN_BLOCKED"
+        and private_target_payload.get("ok") is False
+        and "allow_private_target_probe_required" in list(private_target_blockers)
+        and private_target_summary.get("private_non_loopback_target") is True
+        and private_target_summary.get("server_started") is False
+        and private_target_summary.get("operator_run_attempted") is False
+        and private_target_summary.get("operator_run_evidence_retained") is False
+        and private_target_summary.get("eventbus_evidence_recognized_by_proof_gate")
+        is False
+        and private_target_summary.get("raw_targets_redacted") is True
+        and private_target_summary.get("customer_traffic_claimed") is False
+        and private_target_summary.get("external_reachability_claimed") is False
+        and private_target_summary.get("traffic_delivery_claimed") is False
+        and private_target_summary.get("production_readiness_claimed") is False
+        and private_target_info.get("raw_target_redacted") is True
+        and "10.0.0.5" not in private_target_preflight.stdout
+        and "does not prove customer traffic"
+        in str(private_target_payload.get("claim_boundary", ""))
+    )
+    if private_target_preflight_ready:
+        checks.append(
+            pass_check(
+                "dataplane_delivery_private_target_operator_run_preflight",
+                (
+                    "Private-target operator-run verifier fails closed without "
+                    "--allow-private-target-probe before opening a socket or "
+                    "retaining operator evidence"
+                ),
+                (
+                    "python "
+                    f"{DATAPLANE_DELIVERY_PRIVATE_TARGET_OPERATOR_RUN_VERIFIER} "
+                    "--target-host 10.0.0.5 --require-retained --json"
+                ),
+            )
+        )
+    else:
+        checks.append(
+            fail_check(
+                "dataplane_delivery_private_target_operator_run_preflight",
+                (
+                    "Private-target operator-run verifier did not prove "
+                    "fail-closed behavior before authorized probing"
+                ),
+                (
+                    "python "
+                    f"{DATAPLANE_DELIVERY_PRIVATE_TARGET_OPERATOR_RUN_VERIFIER} "
+                    "--target-host 10.0.0.5 --require-retained --json"
+                ),
+            )
+        )
+
     safe_actuator_adoption = runner(
         (
             sys.executable,

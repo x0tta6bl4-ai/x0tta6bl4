@@ -54,6 +54,9 @@ bash scripts/production-readiness-check.sh --write-json --write-md
   local command for private/link-local targets: without `--allow-operator-probe`
   it is read-only, and with the flag it writes redacted EventBus and proof-gate
   artifacts while keeping customer/traffic/production claims blocked.
+- The private-target operator-run verifier has a readiness-gated blocked
+  preflight: without `--allow-private-target-probe` it must stop before opening
+  a socket or retaining operator-run evidence while redacting the target.
 - The measured-attestation verifier handoff gives an authorized operator a
   read-only preflight for local report/quote/signature/provider/verifier inputs
   and prints smoke, validator, and proof-gate commands without exposing raw
@@ -141,6 +144,8 @@ python3 scripts/ops/run_production_deploy_blocked_preflight_evidence.py --requir
 python3 scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py --target 10.123.45.67 --require-ready --json
 python3 scripts/ops/verify_maas_real_agent_control_loop.py --dataplane-probe-target 10.123.45.67 --timeout-seconds 90
 python3 scripts/ops/verify_dataplane_delivery_operator_flow.py --require-verified --json
+# Readiness safe preflight; must block without opening a private-target probe:
+python3 scripts/ops/verify_dataplane_delivery_private_target_operator_run.py --target-host 10.0.0.5 --require-retained --json
 # Authorized dataplane operator run only; set the target locally, not in chat:
 X0T_DATAPLANE_PROBE_HOST=<private_or_loopback_host> X0T_DATAPLANE_PROBE_PORT=<port> python3 scripts/ops/run_dataplane_delivery_operator_evidence.py --allow-operator-probe --require-retained --json
 # Authorized local harness; binds one host-owned private non-loopback target and retains redacted artifacts:

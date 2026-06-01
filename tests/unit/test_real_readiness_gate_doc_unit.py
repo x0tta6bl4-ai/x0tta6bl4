@@ -62,3 +62,12 @@ def test_real_readiness_gate_followup_lists_maas_heal_api_probe_verifier():
     assert "MaaS autonomous mesh runtime smoke is readiness-gated" in text
     assert "--require-ready" in text
     assert "traffic/customer/external/SLO/production claims false" in text
+
+
+def test_real_readiness_gate_lists_private_target_blocked_preflight():
+    text = _doc_text()
+
+    assert "private-target operator-run verifier has a readiness-gated blocked" in text
+    assert "verify_dataplane_delivery_private_target_operator_run.py" in text
+    assert "--target-host 10.0.0.5 --require-retained --json" in text
+    assert "without `--allow-private-target-probe`" in text
