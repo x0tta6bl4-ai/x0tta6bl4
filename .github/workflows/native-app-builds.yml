@@ -17,6 +17,7 @@ on:
       - "scripts/ops/verify_ios_signing_material.py"
       - "scripts/ops/run_ios_signed_release_setup.py"
       - "scripts/ops/check_native_release_goal_status.py"
+      - "scripts/ops/run_native_release_closeout.py"
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
   pull_request:
@@ -28,6 +29,7 @@ on:
       - "scripts/ops/verify_ios_signing_material.py"
       - "scripts/ops/run_ios_signed_release_setup.py"
       - "scripts/ops/check_native_release_goal_status.py"
+      - "scripts/ops/run_native_release_closeout.py"
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
 
