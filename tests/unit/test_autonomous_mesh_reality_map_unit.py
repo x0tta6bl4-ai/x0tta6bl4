@@ -367,6 +367,10 @@ def test_autonomous_mesh_reality_map_records_node_runtime_identity_binding_contr
     assert "runtime-identity/refresh-measured-attestation" in contour["what_is_proven"]
     assert "runtime measured-attestation freshness enforcement" in contour["what_is_proven"]
     assert "structured verifier provenance" in contour["what_is_proven"]
+    assert "SGX/SEV/Nitro command verification" in contour["what_is_proven"]
+    assert "provider-aware SGX/SEV/Nitro command backend support" in contour[
+        "what_is_proven"
+    ]
     assert "production_attestation_verifier_claim_allowed" in contour["what_is_proven"]
     assert "redacted verifier provenance propagation" in contour["what_is_proven"]
     assert "local redacted verifier-smoke artifact generation" in contour["what_is_proven"]
@@ -376,6 +380,8 @@ def test_autonomous_mesh_reality_map_records_node_runtime_identity_binding_contr
     assert "automatically refresh measured-attestation" in contour["what_is_proven"]
     assert "Go-agent measured-attestation refresh wiring" in contour["what_is_proven"]
     assert "mock attestation without explicit local opt-in fails closed" in contour["what_is_proven"]
+    assert "unsupported-provider" in contour["what_is_proven"]
+    assert "unconfigured-verifier" in contour["what_is_proven"]
     assert "API verifies JWT-SVID signature" in contour["what_is_proven"]
     assert "trusted mTLS proxy CIDR" in contour["what_is_proven"]
     assert "heartbeat and node-config" in contour["what_is_proven"]
@@ -388,6 +394,7 @@ def test_autonomous_mesh_reality_map_records_node_runtime_identity_binding_contr
     assert "agent/internal/api/client.go" in contour["source_refs"]
     assert "agent/internal/identity/jwtsvid.go" in contour["source_refs"]
     assert "agent/go.mod" in contour["source_refs"]
+    assert "scripts/ops/run_measured_attestation_verifier_handoff.py" in contour["source_refs"]
     assert "scripts/ops/verify_measured_attestation_verifier_smoke.py" in contour["source_refs"]
     assert (
         "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py"
@@ -398,6 +405,10 @@ def test_autonomous_mesh_reality_map_records_node_runtime_identity_binding_contr
     assert "scripts/ops/check_real_readiness.py" in contour["source_refs"]
     assert (
         "tests/unit/scripts/test_verify_measured_attestation_verifier_smoke.py"
+        in contour["source_refs"]
+    )
+    assert (
+        "tests/unit/scripts/test_run_measured_attestation_verifier_handoff.py"
         in contour["source_refs"]
     )
     assert "tests/unit/security/test_tee_attestation_unit.py" in contour["source_refs"]

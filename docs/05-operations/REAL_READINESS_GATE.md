@@ -50,9 +50,13 @@ bash scripts/production-readiness-check.sh --write-json --write-md
   it is read-only, and with the flag it writes redacted EventBus and proof-gate
   artifacts while keeping customer/traffic/production claims blocked.
 - The measured-attestation verifier handoff gives an authorized operator a
-  read-only preflight for local report/quote/signature/verifier inputs and
-  prints smoke, validator, and proof-gate commands without exposing raw paths,
-  verifier command, operator ID, authorization scope, or policy context.
+  read-only preflight for local report/quote/signature/provider/verifier inputs
+  and prints smoke, validator, and proof-gate commands without exposing raw
+  paths, verifier command, operator ID, authorization scope, or policy context.
+- `TEEValidator` and the measured-attestation smoke support provider-aware
+  SGX/SEV/Nitro local verifier commands. Missing commands, unsupported
+  providers, mock providers, and overpromoted production-trust claims fail
+  closed.
 - Cross-plane proof-gate output includes the redacted measured-attestation
   handoff diagnostic when the verifier-smoke artifact is missing, so the local
   blocker names missing input classes without making the trust claim true.
@@ -122,6 +126,7 @@ python3 -m alembic heads
 python3 scripts/ops/run_cross_plane_proof_gate.py --json
 python3 scripts/ops/run_cross_plane_proof_gate.py --output-json .tmp/validation-shards/cross-plane-proof-gate-current.json
 python3 scripts/ops/verify_cross_plane_proof_gate_retention.py --require-valid
+python3 scripts/ops/run_measured_attestation_verifier_handoff.py --require-ready --json
 python3 scripts/ops/verify_safe_actuator_metadata_adoption.py --require-high-risk-covered --require-full-coverage --json
 python3 scripts/ops/verify_safe_actuator_runtime_metadata_retention.py --require-retained --json
 python3 scripts/ops/run_production_deploy_blocked_preflight_evidence.py --require-retained --json

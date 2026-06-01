@@ -353,14 +353,23 @@ def test_cross_plane_measured_attestation_smoke_is_bounded_trust_evidence():
     link = links["measured-attestation-smoke-to-proof-gate-boundary"]
     proof_flags = link["proof_flags"]
 
+    assert proof_flags["sgx_command_backend_available"] is True
+    assert proof_flags["sev_command_backend_available"] is True
+    assert proof_flags["nitro_command_backend_available"] is True
     assert proof_flags["measured_attestation_verifier_smoke_claim_available"] is True
     assert proof_flags["measured_attestation_verifier_smoke_validator_present"] is True
     assert proof_flags["production_trust_finality"] is False
     assert proof_flags["production_ready"] is False
     assert proof_flags["production_readiness_claim_allowed"] is False
     assert "one supplied attestation sample" in link["boundary"]
+    assert "SGX/SEV/Nitro verifier" in link["boundary"]
+    assert "provider-specific local verifier command" in link["current_path"]
     assert "docs/verification/incoming/measured_attestation_verifier_smoke.json" in (
         link["current_path"]
+    )
+    assert "src/security/tee_attestation.py:1" in link["source_refs"]
+    assert "scripts/ops/verify_measured_attestation_verifier_smoke.py:1" in (
+        link["source_refs"]
     )
 
 
