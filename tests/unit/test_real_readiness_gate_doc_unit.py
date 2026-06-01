@@ -15,7 +15,7 @@ def test_real_readiness_gate_safe_actuator_counts_match_verifiers():
     assert "parse-error-free" in text
     assert "`21/21`" in text
     assert "`63/63`" in text
-    assert "`19 EventBus + 5 result" in text
+    assert "`20 EventBus + 5 result" in text
     assert "result-metadata` local cases" in text
 
     stale_markers = (
@@ -43,6 +43,7 @@ def test_real_readiness_gate_names_current_runtime_retention_surfaces():
         "MaaS governance",
         "PQC rotator",
         "MPTCP",
+        "IntegrationSpine",
         "MeshActionEnforcer",
         "core MAPE-K aggressive healing",
         "self-healing MAPE-K",
@@ -80,4 +81,36 @@ def test_real_readiness_gate_lists_integration_spine_code_wiring_gate():
     assert "IntegrationSpine code wiring is command-gated" in text
     assert "src/integration/code_wiring.py" in text
     assert "identity -> policy -> SafeActuator -> EventBus ->" in text
+    assert "retain SafeActuator evidence metadata" in text
     assert "still report `NOT_COMPLETE`" in text
+
+
+def test_real_readiness_gate_lists_ghost_pulse_current_runtime_command_gate():
+    text = _doc_text()
+
+    assert "Ghost Pulse proof gate is command-gated in no-interface mode" in text
+    assert "verify_ghost_pulse_proof_gate.py --json" in text
+    assert "`current_runtime_attached` false" in text
+    assert "`GHOST_PULSE_RUNTIME_INTERFACE` is" in text
+
+
+def test_real_readiness_gate_lists_settlement_finality_cross_plane_gate():
+    text = _doc_text()
+    compact_text = " ".join(text.split())
+
+    assert "Settlement finality has its own command-gated cross-plane check" in text
+    assert "run_cross_plane_proof_gate.py --claim settlement_finality" in text
+    assert "retained external settlement evidence" in text
+    assert "matching live RPC proof" in compact_text
+
+
+def test_real_readiness_gate_lists_traffic_cross_plane_gates():
+    text = _doc_text()
+    compact_text = " ".join(text.split())
+
+    assert "Traffic delivery and customer traffic have their own" in text
+    assert "run_cross_plane_proof_gate.py --claim traffic_delivery" in text
+    assert "run_cross_plane_proof_gate.py --claim customer_traffic" in text
+    assert "fresh redacted EventBus proof" in compact_text
+    assert "selected EventBus event" in compact_text
+    assert "matching artifact evidence" in compact_text

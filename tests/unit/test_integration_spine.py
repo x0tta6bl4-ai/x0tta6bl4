@@ -103,6 +103,18 @@ def test_spine_wires_identity_event_policy_actuator_and_settlement(tmp_path):
     assert outcome.claim_gate["external_settlement_finality_claim_allowed"] is False
     assert outcome.claim_gate["dataplane_delivery_claim_allowed"] is False
     assert outcome.cross_plane_claim_gate["allowed"] is False
+    assert (
+        outcome.safe_actuator_evidence_metadata["schema"]
+        == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    )
+    assert outcome.safe_actuator_evidence_metadata["redacted"] is True
+    assert (
+        outcome.safe_actuator_evidence_metadata["claim_gate"][
+            "safe_actuator_result_recorded"
+        ]
+        is True
+    )
+    assert outcome.safe_actuator_evidence_metadata["cross_plane_claim_gate"]["allowed"] is False
     assert "settlement_finality" in outcome.cross_plane_claim_gate["requested_claim_ids"]
     assert rewards.calls == [("0x" + "b" * 40, 250)]
     assert rewards.kwargs[0]["upstream_event_ids"] == outcome.event_ids[:2]
@@ -131,6 +143,19 @@ def test_spine_wires_identity_event_policy_actuator_and_settlement(tmp_path):
         assert event.data["claim_gate"]["external_settlement_finality_claim_allowed"] is False
         assert event.data["claim_gate"]["dataplane_delivery_claim_allowed"] is False
         assert event.data["cross_plane_claim_gate"]["allowed"] is False
+    completed_event = history[-1]
+    assert completed_event.data["safe_actuator"] is True
+    assert (
+        completed_event.data["safe_actuator_evidence_metadata"]["schema"]
+        == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    )
+    assert (
+        completed_event.data["safe_actuator_evidence_metadata"]["claim_gate"][
+            "safe_actuator_result_recorded"
+        ]
+        is True
+    )
+    assert completed_event.data["safe_actuator_evidence_metadata"]["redacted"] is True
     assert len(outcome.event_ids) == 3
 
 
@@ -402,6 +427,9 @@ def test_code_wiring_report_executes_all_required_spine_traces(tmp_path):
     assert summary["spine_claim_gates_preserved"] is True
     assert summary["actuator_context_claim_gates_preserved"] is True
     assert summary["reward_context_claim_gates_preserved"] is True
+    assert summary["safe_actuator_evidence_metadata_retained"] is True
+    assert success["event_safe_actuator_metadata_retained"] is True
+    assert success["outcome_safe_actuator_metadata_retained"] is True
 
     policy_denied = cases["policy_denied_before_actuator_settlement"]
     assert policy_denied["event_sequence"] == [
@@ -414,6 +442,8 @@ def test_code_wiring_report_executes_all_required_spine_traces(tmp_path):
     simulated = cases["simulated_actuator_blocks_settlement"]
     assert simulated["actual_status"] == "ACTUATOR_SIMULATED"
     assert simulated["reward_calls"] == 0
+    assert simulated["event_safe_actuator_metadata_retained"] is True
+    assert simulated["outcome_safe_actuator_metadata_retained"] is True
 
     simulated_settlement = cases["simulated_settlement_backend_fails_closed"]
     assert simulated_settlement["actual_status"] == "SETTLEMENT_FAILED"

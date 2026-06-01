@@ -123,6 +123,7 @@ def _simulated_actuator_metadata() -> SafeActuatorEvidenceMetadata:
                 "schema": "x0tta6bl4.integration_spine.demo_safe_actuator_claim_gate.v1",
                 "surface": "integration.code_wiring.simulated_actuator",
                 "local_actuator_execution_claim_allowed": False,
+                "safe_actuator_result_recorded": True,
                 "safe_actuator_result_successful": True,
                 "safe_actuator_result_simulated": True,
                 "production_readiness_claim_allowed": False,
@@ -229,6 +230,44 @@ def _trace_case(
         bool(event.data.get("claim_gate")) and bool(event.data.get("cross_plane_claim_gate"))
         for event in spine_events
     )
+    safe_actuator_events = [
+        event
+        for event in spine_events
+        if event.data.get("safe_actuator") is True
+    ]
+    event_safe_actuator_metadata_retained = (
+        not safe_actuator_events
+        if expect_executor_calls == 0
+        else all(
+            event.data.get("safe_actuator_evidence_metadata", {}).get("schema")
+            == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+            and event.data["safe_actuator_evidence_metadata"].get("redacted") is True
+            and event.data["safe_actuator_evidence_metadata"]
+            .get("claim_gate", {})
+            .get("safe_actuator_result_recorded")
+            is True
+            and event.data["safe_actuator_evidence_metadata"]
+            .get("cross_plane_claim_gate", {})
+            .get("allowed")
+            is False
+            for event in safe_actuator_events
+        )
+    )
+    outcome_safe_actuator_metadata_retained = (
+        not outcome.safe_actuator_evidence_metadata
+        if expect_executor_calls == 0
+        else outcome.safe_actuator_evidence_metadata.get("schema")
+        == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+        and outcome.safe_actuator_evidence_metadata.get("redacted") is True
+        and outcome.safe_actuator_evidence_metadata.get("claim_gate", {}).get(
+            "safe_actuator_result_recorded"
+        )
+        is True
+        and outcome.safe_actuator_evidence_metadata.get(
+            "cross_plane_claim_gate", {}
+        ).get("allowed")
+        is False
+    )
     actuator_contexts = [
         call.get("context", {})
         for call in executor.calls
@@ -303,6 +342,8 @@ def _trace_case(
         and actuator_context_upstream_events_present
         and reward_context_claim_gate_present
         and reward_context_upstream_events_present
+        and event_safe_actuator_metadata_retained
+        and outcome_safe_actuator_metadata_retained
         and strong_claims_blocked
     )
     return {
@@ -333,6 +374,8 @@ def _trace_case(
         "actuator_context_upstream_events_present": actuator_context_upstream_events_present,
         "reward_context_claim_gate_present": reward_context_claim_gate_present,
         "reward_context_upstream_events_present": reward_context_upstream_events_present,
+        "event_safe_actuator_metadata_retained": event_safe_actuator_metadata_retained,
+        "outcome_safe_actuator_metadata_retained": outcome_safe_actuator_metadata_retained,
         "strong_claims_blocked": strong_claims_blocked,
     }
 
@@ -522,6 +565,11 @@ def build_report(root: Path) -> Dict[str, Any]:
             "reward_context_claim_gates_preserved": all(
                 trace["reward_context_claim_gate_present"]
                 and trace["reward_context_upstream_events_present"]
+                for trace in traces
+            ),
+            "safe_actuator_evidence_metadata_retained": all(
+                trace["event_safe_actuator_metadata_retained"]
+                and trace["outcome_safe_actuator_metadata_retained"]
                 for trace in traces
             ),
         },

@@ -23,7 +23,7 @@ tracked without blocking the local gate.
 
 | gap id | status |
 |---|---|
-| `post-action-dataplane-probe-operationalization` | `NON_BLOCKING_TRACKED_RISK`; local handoff/collector/proof-gate flow is verified by `scripts/ops/verify_dataplane_delivery_operator_flow.py --require-verified --json`, the MaaS API `heartbeat -> heal` caller path is verified by `scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py --target 10.123.45.67 --require-ready --json`, the real Go-agent control loop is now readiness-gated by `scripts/ops/verify_maas_real_agent_control_loop.py --dataplane-probe-target 10.123.45.67 --timeout-seconds 90` including real-agent heartbeat delivery to a temporary local TCP dataplane endpoint, forced local `offline -> healthy` operator heal, bounded post-heal dataplane revalidation, restored-dataplane allowance only for that local proof, and post-heal production/customer claims fail-closed, authorized operators have `scripts/ops/run_dataplane_delivery_operator_evidence.py --allow-operator-probe --require-retained --json`, `scripts/ops/verify_dataplane_delivery_private_target_operator_run.py --allow-private-target-probe --require-retained --json` has retained redacted EventBus/proof-gate artifacts from a host-owned private non-loopback target, and the same private-target verifier has a readiness-gated blocked preflight that must stop without `--allow-private-target-probe` before opening a socket or retaining operator evidence. Remaining risk is live runtime delivery from real production agents/callers outside the temporary uvicorn plus local Go-agent local-listener self-heal smoke, not local/private retained operator evidence, MaaS API plumbing, or local agent heartbeat/heal delivery. |
+| `post-action-dataplane-probe-operationalization` | `NON_BLOCKING_TRACKED_RISK`; local handoff/collector/proof-gate flow is verified by `scripts/ops/verify_dataplane_delivery_operator_flow.py --require-verified --json`, the MaaS API `heartbeat -> heal` caller path is verified by `scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py --target 10.123.45.67 --require-ready --json`, the real Go-agent control loop is now readiness-gated by `scripts/ops/verify_maas_real_agent_control_loop.py --dataplane-probe-target 10.123.45.67 --timeout-seconds 180` including real-agent heartbeat delivery to a temporary local TCP dataplane endpoint, forced local `offline -> healthy` operator heal, bounded post-heal dataplane revalidation, restored-dataplane allowance only for that local proof, and post-heal production/customer claims fail-closed, authorized operators have `scripts/ops/run_dataplane_delivery_operator_evidence.py --allow-operator-probe --require-retained --json`, `scripts/ops/verify_dataplane_delivery_private_target_operator_run.py --allow-private-target-probe --require-retained --json` has retained redacted EventBus/proof-gate artifacts from a host-owned private non-loopback target, and the same private-target verifier has a readiness-gated blocked preflight that must stop without `--allow-private-target-probe` before opening a socket or retaining operator evidence. Remaining risk is live runtime delivery from real production agents/callers outside the temporary uvicorn plus local Go-agent local-listener self-heal smoke, not local/private retained operator evidence, MaaS API plumbing, or local agent heartbeat/heal delivery. |
 
 Separate trust-plane operator risk: measured-attestation production verifier
 evidence still requires a real non-mock SGX/SEV/Nitro run, but
@@ -47,19 +47,20 @@ metadata-covered (`4/4`), and generic `SafeActuatorResult` result-call coverage
 is complete in source (`63/63`). Base sync/async SafeActuator adapter default
 paths, ledger event trace smoke callbacks, SPIRE server/client direct utility
 returns, SPIRE agent manager direct utility returns, Ghost L3 exception paths,
-PQC rotator failure paths, and the integration code-wiring simulated trace now
-carry bounded metadata. The local runtime verifier
+PQC rotator failure paths, the integration code-wiring simulated trace, and
+IntegrationSpine's own EventBus outcome path now carry bounded metadata. The
+local runtime verifier
 `scripts/ops/verify_safe_actuator_runtime_metadata_retention.py` also proves
 representative SPIRE server/client, SPIRE agent manager, TokenBridge
 chain-write, DAO executor release-script, DAO proposal Helm upgrade, DAO
 governance dispatch, GovernanceContract chain-write, Ghost L3 setup, eBPF
-recovery, MaaS governance, PQC rotator, MPTCP control, MeshActionEnforcer,
-core MAPE-K aggressive healing, self-healing MAPE-K, PBFT execution, Swarm
-MAPE-K execution, canary deployment rollout, and multi-cloud deployment rollout
-events retain that typed metadata
+recovery, MaaS governance, PQC rotator, MPTCP control, IntegrationSpine,
+MeshActionEnforcer, core MAPE-K aggressive healing, self-healing MAPE-K, PBFT
+execution, Swarm MAPE-K execution, canary deployment rollout, and multi-cloud
+deployment rollout events retain that typed metadata
 in EventBus, and the ops canary rollout, production monitor, auto-rollback,
 production_deploy.py, and ledger event-trace citation callback scripts retain
-the same typed metadata in bounded result metadata (`19 EventBus + 5 result-metadata local cases`).
+the same typed metadata in bounded result metadata (`20 EventBus + 5 result-metadata local cases`).
 `scripts/ops/run_production_deploy_blocked_preflight_evidence.py --require-retained --json`
 also retains a local `production_deploy.py` blocked-preflight artifact: the
 deploy path refuses live subprocess/kubectl execution before any runtime

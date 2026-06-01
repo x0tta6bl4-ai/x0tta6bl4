@@ -26,6 +26,11 @@ bash scripts/production-readiness-check.sh --write-json --write-md
 - ORM/DB schema guard has parity and Alembic-head checks wired.
 - Ghost VPN deployment uses `GHOST_VPN_AUTH_KEY`, not `GHOST_AUTH_KEY`.
 - Ghost Pulse proof gate requires current runtime attach, not only historical evidence.
+- Ghost Pulse proof gate is command-gated in no-interface mode:
+  `verify_ghost_pulse_proof_gate.py --json` must keep
+  `current_runtime_attached` false when `GHOST_PULSE_RUNTIME_INTERFACE` is
+  deliberately unset, so saved `kernel_attach` evidence cannot become a current
+  runtime claim by itself.
 - MeshActionEnforcer and MaaS `heal_node` keep restored-dataplane claims behind
   bounded post-action dataplane probe evidence.
 - MaaS API `heartbeat -> heal` has a runtime verifier that registers a redacted
@@ -87,12 +92,12 @@ bash scripts/production-readiness-check.sh --write-json --write-md
   (`63/63`). The local runtime retention smoke confirms representative SPIRE,
   TokenBridge, DAO executor release-script, DAO proposal Helm upgrade, DAO
   governance dispatch, GovernanceContract chain-write, Ghost L3, eBPF, MaaS
-  governance, PQC rotator, MPTCP, MeshActionEnforcer, core MAPE-K aggressive
-  healing, self-healing MAPE-K, PBFT, Swarm MAPE-K, canary deployment,
-  multi-cloud deployment EventBus control events, plus ops canary rollout,
-  production monitor, auto-rollback, production_deploy.py, and ledger
+  governance, PQC rotator, MPTCP, IntegrationSpine, MeshActionEnforcer, core
+  MAPE-K aggressive healing, self-healing MAPE-K, PBFT, Swarm MAPE-K, canary
+  deployment, multi-cloud deployment EventBus control events, plus ops canary
+  rollout, production monitor, auto-rollback, production_deploy.py, and ledger
   event-trace citation callback result metadata retain typed, redacted,
-  fail-closed metadata (`19 EventBus + 5 result-metadata` local cases)
+  fail-closed metadata (`20 EventBus + 5 result-metadata` local cases)
   without promoting live trust, dataplane, customer, settlement,
   consensus-finality, governance-finality, traffic shifting, throughput, SLO,
   or production claims.
@@ -107,11 +112,22 @@ bash scripts/production-readiness-check.sh --write-json --write-md
   may record local/pending economy state, but must not promote dataplane
   delivery, customer traffic, revenue recognition, SLO, or production
   readiness.
+- Settlement finality has its own command-gated cross-plane check:
+  `run_cross_plane_proof_gate.py --claim settlement_finality` must keep the
+  claim blocked until retained external settlement evidence and matching live
+  RPC proof are verified.
+- Traffic delivery and customer traffic have their own command-gated
+  cross-plane checks: `run_cross_plane_proof_gate.py --claim traffic_delivery`
+  and `run_cross_plane_proof_gate.py --claim customer_traffic` must keep those
+  claims blocked until fresh redacted EventBus proof allows them. If the proof
+  gate allows either claim, readiness still requires the selected EventBus event
+  to be redacted, claim-specific, and backed by matching artifact evidence.
 - IntegrationSpine code wiring is command-gated: `src/integration/code_wiring.py`
   must execute the local identity -> policy -> SafeActuator -> EventBus ->
   reward/settlement traces, preserve claim gates through actuator and reward
-  context, and still report `NOT_COMPLETE` without live-system, transaction,
-  production, customer-traffic, or settlement-finality claims.
+  context, retain SafeActuator evidence metadata in EventBus/outcome surfaces,
+  and still report `NOT_COMPLETE` without live-system, transaction, production,
+  customer-traffic, or settlement-finality claims.
 - Swarm coordination is gated: executable `.githooks` hooks, ownership-map
   coverage, pre-commit staged-file lease enforcement, and post-commit lease
   release must satisfy `scripts/agents/check_coordination_contract.sh`.
@@ -149,7 +165,7 @@ python3 scripts/ops/verify_safe_actuator_metadata_adoption.py --require-high-ris
 python3 scripts/ops/verify_safe_actuator_runtime_metadata_retention.py --require-retained --json
 python3 scripts/ops/run_production_deploy_blocked_preflight_evidence.py --require-retained --json
 python3 scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py --target 10.123.45.67 --require-ready --json
-python3 scripts/ops/verify_maas_real_agent_control_loop.py --dataplane-probe-target 10.123.45.67 --timeout-seconds 90
+python3 scripts/ops/verify_maas_real_agent_control_loop.py --dataplane-probe-target 10.123.45.67 --timeout-seconds 180
 python3 scripts/ops/verify_dataplane_delivery_operator_flow.py --require-verified --json
 # Readiness safe preflight; must block without opening a private-target probe:
 python3 scripts/ops/verify_dataplane_delivery_private_target_operator_run.py --target-host 10.0.0.5 --require-retained --json

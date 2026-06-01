@@ -269,12 +269,15 @@ def _safe_actuator_adapter_evidence_metadata(
     claim_gate = {
         "schema": "x0tta6bl4.safe_actuator.adapter_claim_gate.v1",
         "surface": surface,
+        "safe_actuator_result_recorded": True,
         "local_safe_actuator_adapter_claim_allowed": True,
         "local_executor_configured": executor_configured,
         "local_executor_callable": executor_callable,
         "local_executor_invoked": executor_invoked,
         "local_executor_result_claim_allowed": executor_invoked and success,
+        "safe_actuator_result_successful": success,
         "simulated_result": simulated,
+        "safe_actuator_result_simulated": simulated,
         "dataplane_delivery_claim_allowed": False,
         "traffic_delivery_claim_allowed": False,
         "customer_traffic_claim_allowed": False,
@@ -300,7 +303,9 @@ def _safe_actuator_adapter_evidence_metadata(
             "claim_boundary": SAFE_ACTUATOR_ADAPTER_CLAIM_BOUNDARY,
         },
         evidence={
+            "component": "src.integration.spine.SafeActuator",
             "surface": surface,
+            "resource": str(context.get("resource", "")) if isinstance(context, dict) else "",
             "action_present": bool(str(action).strip()),
             "action_redacted": True,
             "context_keys": _safe_actuator_context_keys(context),
@@ -308,6 +313,7 @@ def _safe_actuator_adapter_evidence_metadata(
             "raw_context_values_redacted": True,
             "reason_present": bool(reason),
             "raw_reason_redacted": True,
+            "raw_result_values_redacted": True,
             "local_result_success": success,
             "simulated": simulated,
             "executor_configured": executor_configured,
@@ -336,6 +342,7 @@ class SpineOutcome:
     claim_boundary: str = CLAIM_BOUNDARY
     claim_gate: Dict[str, Any] = field(default_factory=dict)
     cross_plane_claim_gate: Dict[str, Any] = field(default_factory=dict)
+    safe_actuator_evidence_metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -353,6 +360,9 @@ class SpineOutcome:
             "claim_boundary": self.claim_boundary,
             "claim_gate": dict(self.claim_gate),
             "cross_plane_claim_gate": dict(self.cross_plane_claim_gate),
+            "safe_actuator_evidence_metadata": dict(
+                self.safe_actuator_evidence_metadata
+            ),
         }
 
 
@@ -767,6 +777,7 @@ class IntegrationSpine:
             },
         }
         action_result = self.actuator.execute(request.action, context)
+        safe_actuator_evidence_metadata = action_result.evidence_metadata.to_dict()
         if not action_result.success or action_result.simulated:
             status = "ACTUATOR_SIMULATED" if action_result.simulated else "ACTUATOR_FAILED"
             event_ids.append(
@@ -778,6 +789,8 @@ class IntegrationSpine:
                         "status": status,
                         "reason": action_result.reason,
                         "simulated": action_result.simulated,
+                        "safe_actuator": True,
+                        "safe_actuator_evidence_metadata": safe_actuator_evidence_metadata,
                     },
                 )
             )
@@ -791,13 +804,24 @@ class IntegrationSpine:
                 reason=action_result.reason or status.lower(),
                 event_ids=event_ids,
                 matched_rules=matched_rules,
+                safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
             )
 
         settlement_recorded = False
         reward_address = request.reward_address or request.identity.wallet_address
         if request.reward_packets > 0:
             if not reward_address:
-                event_ids.append(self._publish(EventType.TASK_BLOCKED, request, "settlement_missing_address"))
+                event_ids.append(
+                    self._publish(
+                        EventType.TASK_BLOCKED,
+                        request,
+                        "settlement_missing_address",
+                        {
+                            "safe_actuator": True,
+                            "safe_actuator_evidence_metadata": safe_actuator_evidence_metadata,
+                        },
+                    )
+                )
                 return self._outcome(
                     request,
                     status="SETTLEMENT_BLOCKED_MISSING_ADDRESS",
@@ -808,9 +832,20 @@ class IntegrationSpine:
                     reason="reward address is required when reward_packets > 0",
                     event_ids=event_ids,
                     matched_rules=matched_rules,
+                    safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
                 )
             if self.reward_manager is None:
-                event_ids.append(self._publish(EventType.TASK_BLOCKED, request, "settlement_missing_manager"))
+                event_ids.append(
+                    self._publish(
+                        EventType.TASK_BLOCKED,
+                        request,
+                        "settlement_missing_manager",
+                        {
+                            "safe_actuator": True,
+                            "safe_actuator_evidence_metadata": safe_actuator_evidence_metadata,
+                        },
+                    )
+                )
                 return self._outcome(
                     request,
                     status="SETTLEMENT_BLOCKED_NOT_CONFIGURED",
@@ -822,6 +857,7 @@ class IntegrationSpine:
                     event_ids=event_ids,
                     matched_rules=matched_rules,
                     reward_address=reward_address,
+                    safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
                 )
             try:
                 reward_claim_gate = _spine_claim_gate(
@@ -867,7 +903,11 @@ class IntegrationSpine:
                             EventType.TASK_FAILED,
                             request,
                             "settlement_failed",
-                            {"error": settlement_error},
+                            {
+                                "error": settlement_error,
+                                "safe_actuator": True,
+                                "safe_actuator_evidence_metadata": safe_actuator_evidence_metadata,
+                            },
                         )
                     )
                     return self._outcome(
@@ -881,17 +921,22 @@ class IntegrationSpine:
                         event_ids=event_ids,
                         matched_rules=matched_rules,
                         reward_address=reward_address,
+                        safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
                     )
                 settlement_recorded = True
             except Exception as exc:  # pragma: no cover - exact backend is caller-owned
                 event_ids.append(
-                    self._publish(
-                        EventType.TASK_FAILED,
-                        request,
-                        "settlement_failed",
-                        {"error": str(exc)},
+                        self._publish(
+                            EventType.TASK_FAILED,
+                            request,
+                            "settlement_failed",
+                            {
+                                "error": str(exc),
+                                "safe_actuator": True,
+                                "safe_actuator_evidence_metadata": safe_actuator_evidence_metadata,
+                            },
+                        )
                     )
-                )
                 return self._outcome(
                     request,
                     status="SETTLEMENT_FAILED",
@@ -903,6 +948,7 @@ class IntegrationSpine:
                     event_ids=event_ids,
                     matched_rules=matched_rules,
                     reward_address=reward_address,
+                    safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
                 )
 
         event_ids.append(
@@ -910,7 +956,11 @@ class IntegrationSpine:
                 EventType.PIPELINE_STAGE_END,
                 request,
                 "completed",
-                {"settlement_recorded": settlement_recorded},
+                {
+                    "settlement_recorded": settlement_recorded,
+                    "safe_actuator": True,
+                    "safe_actuator_evidence_metadata": safe_actuator_evidence_metadata,
+                },
             )
         )
         return self._outcome(
@@ -924,6 +974,7 @@ class IntegrationSpine:
             event_ids=event_ids,
             matched_rules=matched_rules,
             reward_address=reward_address,
+            safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
         )
 
     def _publish(
@@ -971,6 +1022,7 @@ class IntegrationSpine:
         event_ids: List[str],
         matched_rules: Optional[List[str]] = None,
         reward_address: Optional[str] = None,
+        safe_actuator_evidence_metadata: Optional[Dict[str, Any]] = None,
     ) -> SpineOutcome:
         return SpineOutcome(
             request_id=request.request_id,
@@ -994,4 +1046,5 @@ class IntegrationSpine:
             cross_plane_claim_gate=_spine_cross_plane_claim_gate(
                 surface="integration_spine.outcome"
             ),
+            safe_actuator_evidence_metadata=safe_actuator_evidence_metadata or {},
         )

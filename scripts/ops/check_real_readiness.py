@@ -50,6 +50,9 @@ DATAPLANE_DELIVERY_OPERATOR_EVIDENCE_RUNNER = (
 DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER = (
     "scripts/ops/verify_dataplane_delivery_operator_flow.py"
 )
+TRAFFIC_DELIVERY_OPERATOR_FLOW_VERIFIER = (
+    "scripts/ops/verify_traffic_delivery_operator_flow.py"
+)
 DATAPLANE_DELIVERY_PRIVATE_TARGET_OPERATOR_RUN_VERIFIER = (
     "scripts/ops/verify_dataplane_delivery_private_target_operator_run.py"
 )
@@ -71,6 +74,8 @@ MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_VERIFIER = (
 CROSS_PLANE_PROOF_GATE_RETENTION_VERIFIER = (
     "scripts/ops/verify_cross_plane_proof_gate_retention.py"
 )
+CROSS_PLANE_PROOF_GATE = "scripts/ops/run_cross_plane_proof_gate.py"
+GHOST_PULSE_PROOF_GATE_VERIFIER = "scripts/ops/verify_ghost_pulse_proof_gate.py"
 INTEGRATION_SPINE_CODE_WIRING = "src/integration/code_wiring.py"
 SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER = (
     "scripts/ops/verify_safe_actuator_metadata_adoption.py"
@@ -83,7 +88,7 @@ SAFE_ACTUATOR_ACTIVE_AUDIT_REQUIRED_MARKERS = (
     "parse-error-free",
     "21/21",
     "63/63",
-    "19 EventBus",
+    "20 EventBus",
     "5 result-metadata",
     SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER,
     SAFE_ACTUATOR_RUNTIME_METADATA_RETENTION_VERIFIER,
@@ -92,6 +97,7 @@ SAFE_ACTUATOR_ACTIVE_AUDIT_FORBIDDEN_MARKERS = (
     "`14/14` local cases",
     "`18/18` local cases",
     "`19 EventBus + 5 ops result-metadata local cases`",
+    "`19 EventBus + 5 result-metadata local cases`",
 )
 ECONOMY_DATAPLANE_SEPARATION_VERIFIER = (
     "scripts/ops/verify_economy_dataplane_separation.py"
@@ -341,6 +347,14 @@ def _json_mapping_from_stdout(stdout: str) -> Mapping[str, object]:
             continue
         return payload if isinstance(payload, Mapping) else {}
     return {}
+
+
+def _json_mapping_from_file(path: Path) -> Mapping[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, Mapping) else {}
 
 
 def check_required_files(root: Path) -> list[CheckResult]:
@@ -5506,10 +5520,13 @@ def check_integration_spine_claim_gate_contract(root: Path) -> list[CheckResult]
             and '"actuator_context_upstream_events_present"' in code_wiring
             and '"reward_context_claim_gate_present"' in code_wiring
             and '"reward_context_upstream_events_present"' in code_wiring
+            and '"event_safe_actuator_metadata_retained"' in code_wiring
+            and '"outcome_safe_actuator_metadata_retained"' in code_wiring
             and '"strong_claims_blocked"' in code_wiring
             and '"spine_claim_gates_preserved"' in code_wiring
             and '"actuator_context_claim_gates_preserved"' in code_wiring
             and '"reward_context_claim_gates_preserved"' in code_wiring
+            and '"safe_actuator_evidence_metadata_retained"' in code_wiring
         ),
     }
     missing = [name for name, ok in required.items() if not ok]
@@ -7098,6 +7115,75 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
             )
         )
 
+    ghost_pulse_runtime = runner(
+        (
+            sys.executable,
+            GHOST_PULSE_PROOF_GATE_VERIFIER,
+            "--json",
+        ),
+        {"GHOST_PULSE_RUNTIME_INTERFACE": ""},
+        60,
+    )
+    if ghost_pulse_runtime.returncode != 0:
+        checks.append(
+            fail_check(
+                "ghost_pulse_current_runtime_boundary",
+                _format_command_failure(ghost_pulse_runtime),
+                f"python {GHOST_PULSE_PROOF_GATE_VERIFIER} --json",
+            )
+        )
+    else:
+        ghost_pulse_payload = _json_mapping_from_stdout(ghost_pulse_runtime.stdout)
+        ghost_pulse_boundary = (
+            ghost_pulse_payload.get("claim_boundary", {})
+            if isinstance(ghost_pulse_payload, Mapping)
+            else {}
+        )
+        ghost_pulse_not_verified = (
+            ghost_pulse_payload.get("not_verified_yet", [])
+            if isinstance(ghost_pulse_payload, Mapping)
+            else []
+        )
+        ghost_pulse_failures = (
+            ghost_pulse_payload.get("failures", [])
+            if isinstance(ghost_pulse_payload, Mapping)
+            else []
+        )
+        ghost_pulse_runtime_ready = (
+            isinstance(ghost_pulse_payload, Mapping)
+            and ghost_pulse_payload.get("status") == "PASS"
+            and ghost_pulse_payload.get("decision") == "GHOST_PULSE_PROOF_INCOMPLETE"
+            and isinstance(ghost_pulse_boundary, Mapping)
+            and ghost_pulse_boundary.get("current_runtime_attached") is False
+            and isinstance(ghost_pulse_not_verified, list)
+            and "current_runtime_attached" in ghost_pulse_not_verified
+            and ghost_pulse_failures in ([], None)
+        )
+        if ghost_pulse_runtime_ready:
+            checks.append(
+                pass_check(
+                    "ghost_pulse_current_runtime_boundary",
+                    (
+                        "Ghost Pulse proof verifier keeps current_runtime_attached "
+                        "false without a configured runtime interface, so historical "
+                        "kernel evidence cannot promote the current-runtime claim"
+                    ),
+                    f"python {GHOST_PULSE_PROOF_GATE_VERIFIER} --json",
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "ghost_pulse_current_runtime_boundary",
+                    (
+                        "Ghost Pulse proof verifier did not keep "
+                        "current_runtime_attached fail-closed when runtime interface "
+                        "was deliberately unset"
+                    ),
+                    f"python {GHOST_PULSE_PROOF_GATE_VERIFIER} --json",
+                )
+            )
+
     heal_probe = runner(
         (
             sys.executable,
@@ -7169,7 +7255,7 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
             "--json",
         ),
         None,
-        90,
+        180,
     )
     if api_heal_probe.returncode != 0:
         checks.append(
@@ -7326,17 +7412,17 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
             "--dataplane-probe-target",
             "10.123.45.67",
             "--timeout-seconds",
-            "90",
+            "180",
         ),
         None,
-        150,
+        240,
     )
     if real_agent.returncode != 0:
         checks.append(
             fail_check(
                 "maas_real_agent_control_loop_smoke",
                 _format_command_failure(real_agent),
-                f"python {MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER} --dataplane-probe-target 10.123.45.67 --timeout-seconds 90",
+                f"python {MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER} --dataplane-probe-target 10.123.45.67 --timeout-seconds 180",
             )
         )
     else:
@@ -7411,7 +7497,7 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
                 pass_check(
                     "maas_real_agent_control_loop_smoke",
                     "Real Go agent control loop smoke passes through temp uvicorn with node-config, credential rotation, heartbeat, local offline-node heal, and bounded post-heal dataplane revalidation",
-                    f"python {MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER} --dataplane-probe-target 10.123.45.67 --timeout-seconds 90",
+                    f"python {MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER} --dataplane-probe-target 10.123.45.67 --timeout-seconds 180",
                 )
             )
         else:
@@ -7419,7 +7505,7 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
                 fail_check(
                     "maas_real_agent_control_loop_smoke",
                     "Verifier output did not prove real Go-agent node-config, credential rotation, heartbeat, local offline-node heal, and bounded post-heal dataplane revalidation",
-                    f"python {MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER} --dataplane-probe-target 10.123.45.67 --timeout-seconds 90",
+                    f"python {MAAS_REAL_AGENT_CONTROL_LOOP_VERIFIER} --dataplane-probe-target 10.123.45.67 --timeout-seconds 180",
                 )
             )
 
@@ -7493,12 +7579,95 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
                     f"python {DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
                 )
             )
+    else:
+        checks.append(
+            fail_check(
+                "dataplane_delivery_operator_flow_runtime",
+                "Dataplane operator-flow verifier did not prove the local handoff/collector/proof-gate path remains bounded and redacted",
+                f"python {DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
+            )
+        )
+
+    traffic_delivery_operator_flow = runner(
+        (
+            sys.executable,
+            TRAFFIC_DELIVERY_OPERATOR_FLOW_VERIFIER,
+            "--require-verified",
+            "--json",
+        ),
+        None,
+        90,
+    )
+    if traffic_delivery_operator_flow.returncode != 0:
+        checks.append(
+            fail_check(
+                "traffic_delivery_operator_flow_runtime",
+                _format_command_failure(traffic_delivery_operator_flow),
+                f"python {TRAFFIC_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
+            )
+        )
+    else:
+        traffic_delivery_payload = _json_mapping_from_stdout(
+            traffic_delivery_operator_flow.stdout
+        )
+        traffic_delivery_summary = (
+            traffic_delivery_payload.get("summary", {})
+            if isinstance(traffic_delivery_payload, Mapping)
+            else {}
+        )
+        traffic_delivery_ready = (
+            isinstance(traffic_delivery_payload, Mapping)
+            and traffic_delivery_payload.get("decision")
+            == "TRAFFIC_DELIVERY_OPERATOR_FLOW_VERIFIED"
+            and traffic_delivery_payload.get("ok") is True
+            and traffic_delivery_summary.get("cases_run")
+            == traffic_delivery_summary.get("cases_checked")
+            and traffic_delivery_summary.get("cases_run") == 6
+            and traffic_delivery_summary.get("local_loopback_probe") is True
+            and traffic_delivery_summary.get("controlled_synthetic_traffic") is True
+            and traffic_delivery_summary.get("collector_ready") is True
+            and traffic_delivery_summary.get("event_written") is True
+            and traffic_delivery_summary.get("proof_gate_allowed") is True
+            and traffic_delivery_summary.get("proof_gate_artifact_valid") is True
+            and traffic_delivery_summary.get("eventbus_evidence_recognized_by_proof_gate")
+            is True
+            and traffic_delivery_summary.get("raw_targets_redacted") is True
+            and traffic_delivery_summary.get("payloads_redacted") is True
+            and traffic_delivery_summary.get("mutates_project_runtime") is False
+            and traffic_delivery_summary.get("writes_temp_eventbus") is True
+            and traffic_delivery_summary.get("traffic_delivery_claimed") is True
+            and traffic_delivery_summary.get("customer_traffic_claimed") is False
+            and traffic_delivery_summary.get("external_reachability_claimed") is False
+            and traffic_delivery_summary.get("dpi_bypass_claimed") is False
+            and traffic_delivery_summary.get("settlement_finality_claimed") is False
+            and traffic_delivery_summary.get("production_readiness_claimed") is False
+            and not traffic_delivery_payload.get("failures")
+            and "does not prove customer traffic"
+            in str(traffic_delivery_payload.get("claim_boundary", ""))
+        )
+        if traffic_delivery_ready:
+            checks.append(
+                pass_check(
+                    "traffic_delivery_operator_flow_runtime",
+                    (
+                        "Traffic-delivery operator-flow smoke proves controlled "
+                        "loopback request/response, redacted collector intake, "
+                        "EventBus retention, and proof-gate allowance without "
+                        "customer or production claims"
+                    ),
+                    f"python {TRAFFIC_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
+                )
+            )
         else:
             checks.append(
                 fail_check(
-                    "dataplane_delivery_operator_flow_runtime",
-                    "Dataplane operator-flow verifier did not prove the local handoff/collector/proof-gate path remains bounded and redacted",
-                    f"python {DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
+                    "traffic_delivery_operator_flow_runtime",
+                    (
+                        "Traffic-delivery operator-flow verifier did not prove "
+                        "the controlled probe, collector, EventBus, and proof-gate "
+                        "path remains bounded and redacted"
+                    ),
+                    f"python {TRAFFIC_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
                 )
             )
 
@@ -7659,6 +7828,8 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
             and code_wiring_summary.get("spine_claim_gates_preserved") is True
             and code_wiring_summary.get("actuator_context_claim_gates_preserved") is True
             and code_wiring_summary.get("reward_context_claim_gates_preserved") is True
+            and code_wiring_summary.get("safe_actuator_evidence_metadata_retained")
+            is True
             and "does not prove production rollout"
             in str(code_wiring_payload.get("claim_boundary", ""))
         )
@@ -7814,7 +7985,7 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
             and retention_metadata_events == retention_cases_run
             and retention_events_checked + retention_result_metadata_cases
             == retention_cases_run
-            and retention_events_checked >= 19
+            and retention_events_checked >= 20
             and retention_result_metadata_cases >= 5
             and retention_summary.get("claim_gates_fail_closed") is True
             and retention_summary.get("local_simulated_harness") is True
@@ -8014,6 +8185,300 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
                     "economy_dataplane_separation_runtime",
                     "Economy/dataplane verifier did not prove fail-closed separation for local handoff/EventBus economy surfaces",
                     f"python {ECONOMY_DATAPLANE_SEPARATION_VERIFIER} --require-separated --json",
+                )
+            )
+
+    settlement_gate_output = (
+        ".tmp/validation-shards/"
+        f"cross-plane-proof-gate-settlement-finality-real-readiness-{os.getpid()}.json"
+    )
+    settlement_gate = runner(
+        (
+            sys.executable,
+            CROSS_PLANE_PROOF_GATE,
+            "--claim",
+            "settlement_finality",
+            "--output-json",
+            settlement_gate_output,
+            "--json",
+        ),
+        None,
+        90,
+    )
+    if settlement_gate.returncode != 0:
+        checks.append(
+            fail_check(
+                "settlement_finality_cross_plane_gate",
+                _format_command_failure(settlement_gate),
+                (
+                    f"python {CROSS_PLANE_PROOF_GATE} --claim settlement_finality "
+                    f"--output-json {settlement_gate_output} --json"
+                ),
+            )
+        )
+    else:
+        settlement_payload = _json_mapping_from_stdout(settlement_gate.stdout)
+        settlement_file_payload = _json_mapping_from_file(root / settlement_gate_output)
+        if settlement_file_payload.get("claim_results"):
+            settlement_payload = settlement_file_payload
+        settlement_summary = (
+            settlement_payload.get("summary", {})
+            if isinstance(settlement_payload, Mapping)
+            else {}
+        )
+        settlement_results = (
+            settlement_payload.get("claim_results", [])
+            if isinstance(settlement_payload, Mapping)
+            else []
+        )
+        settlement_result = (
+            settlement_results[0]
+            if isinstance(settlement_results, list)
+            and len(settlement_results) == 1
+            and isinstance(settlement_results[0], Mapping)
+            else {}
+        )
+        settlement_blockers = (
+            settlement_result.get("blockers", [])
+            if isinstance(settlement_result, Mapping)
+            else []
+        )
+        settlement_artifact_evidence = (
+            settlement_result.get("required_artifact_evidence", {})
+            if isinstance(settlement_result, Mapping)
+            else {}
+        )
+        settlement_ready = (
+            isinstance(settlement_payload, Mapping)
+            and settlement_payload.get("decision") == "CROSS_PLANE_CLAIMS_BLOCKED"
+            and settlement_payload.get("allowed") is False
+            and isinstance(settlement_summary, Mapping)
+            and settlement_summary.get("claims_total") == 1
+            and settlement_summary.get("claims_blocked") == 1
+            and settlement_summary.get("high_risk_claims_requested") == 1
+            and isinstance(settlement_result, Mapping)
+            and settlement_result.get("claim_id") == "settlement_finality"
+            and settlement_result.get("high_risk") is True
+            and settlement_result.get("allowed") is False
+            and isinstance(settlement_blockers, list)
+            and "external_settlement_artifact_not_verified" in settlement_blockers
+            and isinstance(settlement_artifact_evidence, Mapping)
+            and settlement_artifact_evidence.get("valid") is False
+            and "external_settlement_retained_evidence_not_verified"
+            in list(settlement_artifact_evidence.get("blockers", []))
+        )
+        if settlement_ready:
+            checks.append(
+                pass_check(
+                    "settlement_finality_cross_plane_gate",
+                    (
+                        "Cross-plane proof gate blocks settlement_finality "
+                        "until retained external settlement evidence and live "
+                        "RPC proof are verified"
+                    ),
+                    (
+                        f"python {CROSS_PLANE_PROOF_GATE} --claim settlement_finality "
+                        f"--output-json {settlement_gate_output} --json"
+                    ),
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "settlement_finality_cross_plane_gate",
+                    (
+                        "Cross-plane proof gate did not keep settlement_finality "
+                        "blocked on the current retained evidence state"
+                    ),
+                    (
+                        f"python {CROSS_PLANE_PROOF_GATE} --claim settlement_finality "
+                        f"--output-json {settlement_gate_output} --json"
+                    ),
+                )
+            )
+
+    traffic_claim_expectations = (
+        (
+            "traffic_delivery",
+            "traffic_delivery_cross_plane_gate",
+            "traffic_delivery_eventbus_artifact_not_verified",
+            "verified_traffic_delivery_event_not_found",
+            "traffic delivery",
+        ),
+        (
+            "customer_traffic",
+            "customer_traffic_cross_plane_gate",
+            "customer_traffic_eventbus_artifact_not_verified",
+            "verified_customer_traffic_event_not_found",
+            "customer traffic",
+        ),
+    )
+    for (
+        claim_id,
+        check_id,
+        expected_claim_blocker,
+        expected_artifact_blocker,
+        label,
+    ) in traffic_claim_expectations:
+        output_path = (
+            ".tmp/validation-shards/"
+            f"cross-plane-proof-gate-{claim_id.replace('_', '-')}-real-readiness-"
+            f"{os.getpid()}.json"
+        )
+        gate_result = runner(
+            (
+                sys.executable,
+                CROSS_PLANE_PROOF_GATE,
+                "--claim",
+                claim_id,
+                "--output-json",
+                output_path,
+                "--json",
+            ),
+            None,
+            90,
+        )
+        evidence = (
+            f"python {CROSS_PLANE_PROOF_GATE} --claim {claim_id} "
+            f"--output-json {output_path} --json"
+        )
+        if gate_result.returncode != 0:
+            checks.append(
+                fail_check(
+                    check_id,
+                    _format_command_failure(gate_result),
+                    evidence,
+                )
+            )
+            continue
+
+        gate_payload = _json_mapping_from_stdout(gate_result.stdout)
+        gate_file_payload = _json_mapping_from_file(root / output_path)
+        if gate_file_payload.get("claim_results"):
+            gate_payload = gate_file_payload
+        gate_summary = (
+            gate_payload.get("summary", {})
+            if isinstance(gate_payload, Mapping)
+            else {}
+        )
+        gate_results = (
+            gate_payload.get("claim_results", [])
+            if isinstance(gate_payload, Mapping)
+            else []
+        )
+        claim_result = (
+            gate_results[0]
+            if isinstance(gate_results, list)
+            and len(gate_results) == 1
+            and isinstance(gate_results[0], Mapping)
+            else {}
+        )
+        claim_blockers = (
+            claim_result.get("blockers", [])
+            if isinstance(claim_result, Mapping)
+            else []
+        )
+        artifact_evidence = (
+            claim_result.get("required_artifact_evidence", {})
+            if isinstance(claim_result, Mapping)
+            else {}
+        )
+        artifact_blockers = (
+            artifact_evidence.get("blockers", [])
+            if isinstance(artifact_evidence, Mapping)
+            else []
+        )
+        blocked_without_proof = (
+            isinstance(gate_payload, Mapping)
+            and gate_payload.get("decision") == "CROSS_PLANE_CLAIMS_BLOCKED"
+            and gate_payload.get("allowed") is False
+            and isinstance(gate_summary, Mapping)
+            and gate_summary.get("claims_total") == 1
+            and gate_summary.get("claims_blocked") == 1
+            and gate_summary.get("high_risk_claims_requested") == 1
+            and isinstance(claim_result, Mapping)
+            and claim_result.get("claim_id") == claim_id
+            and claim_result.get("high_risk") is True
+            and claim_result.get("allowed") is False
+            and isinstance(claim_blockers, list)
+            and expected_claim_blocker in claim_blockers
+            and isinstance(artifact_evidence, Mapping)
+            and artifact_evidence.get("valid") is False
+            and isinstance(artifact_blockers, list)
+            and expected_artifact_blocker in artifact_blockers
+        )
+        selected_event = (
+            artifact_evidence.get("selected_event", {})
+            if isinstance(artifact_evidence, Mapping)
+            else {}
+        )
+        matching_events = (
+            artifact_evidence.get("matching_events", 0)
+            if isinstance(artifact_evidence, Mapping)
+            else 0
+        )
+        proof_backed_allowed = (
+            isinstance(gate_payload, Mapping)
+            and gate_payload.get("decision") == "CROSS_PLANE_CLAIMS_ALLOWED"
+            and gate_payload.get("allowed") is True
+            and isinstance(gate_summary, Mapping)
+            and gate_summary.get("claims_total") == 1
+            and gate_summary.get("claims_blocked") == 0
+            and gate_summary.get("claims_allowed") == 1
+            and gate_summary.get("high_risk_claims_requested") == 1
+            and isinstance(claim_result, Mapping)
+            and claim_result.get("claim_id") == claim_id
+            and claim_result.get("high_risk") is True
+            and claim_result.get("allowed") is True
+            and isinstance(claim_blockers, list)
+            and not claim_blockers
+            and isinstance(artifact_evidence, Mapping)
+            and artifact_evidence.get("valid") is True
+            and isinstance(matching_events, int)
+            and matching_events >= 1
+            and isinstance(artifact_blockers, list)
+            and not artifact_blockers
+            and isinstance(selected_event, Mapping)
+            and selected_event.get("redacted") is True
+            and (
+                (
+                    claim_id == "traffic_delivery"
+                    and selected_event.get("traffic_delivery_claim_allowed") is True
+                    and selected_event.get("traffic_delivery_confirmed") is True
+                    and selected_event.get("claim_scope") == "traffic_delivery"
+                    and selected_event.get("customer_traffic_claim_allowed") is False
+                    and selected_event.get("production_readiness_claim_allowed") is False
+                )
+                or (
+                    claim_id == "customer_traffic"
+                    and selected_event.get("production_customer_traffic_confirmed")
+                    is True
+                    and selected_event.get("environment") == "production"
+                )
+            )
+        )
+        if blocked_without_proof or proof_backed_allowed:
+            state = "proof-backed allowed" if proof_backed_allowed else "blocked"
+            checks.append(
+                pass_check(
+                    check_id,
+                    (
+                        f"Cross-plane proof gate keeps {label} {state}; "
+                        "claims only pass when fresh redacted EventBus proof "
+                        "backs the allowance"
+                    ),
+                    evidence,
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    check_id,
+                    (
+                        f"Cross-plane proof gate did not keep {label} "
+                        "blocked on the current retained evidence state"
+                    ),
+                    evidence,
                 )
             )
 

@@ -4480,10 +4480,10 @@ def build_report(root):
         "decision": "SAFE_ACTUATOR_RUNTIME_METADATA_RETAINED",
         "claim_boundary": CLAIM_BOUNDARY,
         "summary": {
-            "cases_run": 24,
-            "events_checked": 19,
+            "cases_run": 25,
+            "events_checked": 20,
             "result_metadata_cases_checked": 5,
-            "metadata_events": 24,
+            "metadata_events": 25,
             "claim_gates_fail_closed": True,
             "local_simulated_harness": True,
             "live_spire_or_dataplane_claimed": False,
@@ -5484,12 +5484,15 @@ trace = {
     "actuator_context_upstream_events_present": True,
     "reward_context_claim_gate_present": True,
     "reward_context_upstream_events_present": True,
+    "event_safe_actuator_metadata_retained": True,
+    "outcome_safe_actuator_metadata_retained": True,
     "strong_claims_blocked": True,
 }
 summary = {
     "spine_claim_gates_preserved": True,
     "actuator_context_claim_gates_preserved": True,
     "reward_context_claim_gates_preserved": True,
+    "safe_actuator_evidence_metadata_retained": True,
 }
 """,
     )
@@ -6212,7 +6215,7 @@ parse-error-free inventory shows known high-risk control files are
 metadata-aware (`21/21`) and generic `SafeActuatorResult` result-call coverage
 is complete in source (`63/63`). The local runtime verifier
 `scripts/ops/verify_safe_actuator_runtime_metadata_retention.py` also proves
-19 EventBus cases plus 5 result-metadata cases retain typed metadata.
+20 EventBus cases plus 5 result-metadata cases retain typed metadata.
 """,
     )
     _write(
@@ -6239,6 +6242,102 @@ is complete in source (`63/63`). The local runtime verifier
             json.dumps(next_actions or []),
         ),
     )
+
+
+def _blocked_cross_plane_payload(claim_id: str) -> dict[str, object]:
+    expectations = {
+        "settlement_finality": (
+            "external_settlement_artifact_not_verified",
+            "external_settlement_retained_evidence_not_verified",
+        ),
+        "traffic_delivery": (
+            "traffic_delivery_eventbus_artifact_not_verified",
+            "verified_traffic_delivery_event_not_found",
+        ),
+        "customer_traffic": (
+            "customer_traffic_eventbus_artifact_not_verified",
+            "verified_customer_traffic_event_not_found",
+        ),
+    }
+    claim_blocker, artifact_blocker = expectations[claim_id]
+    return {
+        "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
+        "allowed": False,
+        "summary": {
+            "claims_total": 1,
+            "claims_blocked": 1,
+            "claims_allowed": 0,
+            "high_risk_claims_requested": 1,
+        },
+        "claim_results": [
+            {
+                "claim_id": claim_id,
+                "high_risk": True,
+                "allowed": False,
+                "blockers": [claim_blocker],
+                "required_artifact_evidence": {
+                    "valid": False,
+                    "blockers": [artifact_blocker],
+                },
+            }
+        ],
+    }
+
+
+def _allowed_cross_plane_payload(claim_id: str) -> dict[str, object]:
+    selected_events = {
+        "traffic_delivery": {
+            "event_id": "traffic-delivery-event-1",
+            "source_agent": "traffic-delivery-probe",
+            "traffic_delivery_claim_allowed": True,
+            "traffic_delivery_confirmed": True,
+            "claim_scope": "traffic_delivery",
+            "customer_traffic_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "redacted": True,
+        },
+        "customer_traffic": {
+            "event_id": "customer-traffic-event-1",
+            "source_agent": "customer-traffic-probe",
+            "production_customer_traffic_confirmed": True,
+            "environment": "production",
+            "redacted": True,
+        },
+    }
+    return {
+        "decision": "CROSS_PLANE_CLAIMS_ALLOWED",
+        "allowed": True,
+        "summary": {
+            "claims_total": 1,
+            "claims_blocked": 0,
+            "claims_allowed": 1,
+            "high_risk_claims_requested": 1,
+        },
+        "claim_results": [
+            {
+                "claim_id": claim_id,
+                "high_risk": True,
+                "allowed": True,
+                "blockers": [],
+                "required_artifact_evidence": {
+                    "valid": True,
+                    "matching_events": 1,
+                    "blockers": [],
+                    "selected_event": selected_events[claim_id],
+                },
+            }
+        ],
+    }
+
+
+def _arg_value(args: Sequence[str], name: str, default: str) -> str:
+    args_list = list(args)
+    if name not in args_list:
+        return default
+    index = args_list.index(name)
+    if index + 1 >= len(args_list):
+        return default
+    return str(args_list[index + 1])
 
 
 def _passing_runner(
@@ -6410,6 +6509,27 @@ def _passing_runner(
                 }
             ),
         )
+    if len(args) > 1 and args[1] == "scripts/ops/verify_ghost_pulse_proof_gate.py":
+        assert env is not None
+        assert env.get("GHOST_PULSE_RUNTIME_INTERFACE") == ""
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "status": "PASS",
+                    "decision": "GHOST_PULSE_PROOF_INCOMPLETE",
+                    "not_verified_yet": ["current_runtime_attached"],
+                    "claim_boundary": {
+                        "current_runtime_attached": False,
+                        "kernel_attach_verified": True,
+                        "production_ready": False,
+                        "stealth_verified": True,
+                        "whitelist_verified": True,
+                    },
+                    "failures": [],
+                }
+            ),
+        )
     if len(args) > 1 and args[1] == "scripts/ops/verify_safe_actuator_metadata_adoption.py":
         return CommandResult(
             0,
@@ -6446,10 +6566,10 @@ def _passing_runner(
                         "dataplane delivery, settlement finality, production SLOs, or production readiness"
                     ),
                     "summary": {
-                        "cases_run": 24,
-                        "events_checked": 19,
+                        "cases_run": 25,
+                        "events_checked": 20,
                         "result_metadata_cases_checked": 5,
-                        "metadata_events": 24,
+                        "metadata_events": 25,
                         "claim_gates_fail_closed": True,
                         "local_simulated_harness": True,
                         "live_spire_or_dataplane_claimed": False,
@@ -6645,8 +6765,18 @@ def _passing_runner(
                         "spine_claim_gates_preserved": True,
                         "actuator_context_claim_gates_preserved": True,
                         "reward_context_claim_gates_preserved": True,
+                        "safe_actuator_evidence_metadata_retained": True,
                     },
                 }
+            ),
+        )
+    if len(args) > 1 and args[1] == "scripts/ops/run_cross_plane_proof_gate.py":
+        return CommandResult(
+            0,
+            json.dumps(
+                _blocked_cross_plane_payload(
+                    _arg_value(args, "--claim", "settlement_finality")
+                )
             ),
         )
     return CommandResult(0, "ok\n")
@@ -6691,7 +6821,25 @@ def test_dirty_git_worktree_reports_actionable_counts(tmp_path: Path) -> None:
 def test_ready_contract_passes_with_clean_static_and_command_evidence(tmp_path: Path) -> None:
     _ready_root(tmp_path)
 
-    report = build_report(tmp_path, runner=_passing_runner)
+    captured_runtime_timeouts: dict[str, object] = {}
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1]
+            == "scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py"
+        ):
+            captured_runtime_timeouts["api_heal_probe_timeout"] = timeout
+        if len(args) > 1 and args[1] == "scripts/ops/verify_maas_real_agent_control_loop.py":
+            captured_runtime_timeouts["real_agent_args"] = tuple(args)
+            captured_runtime_timeouts["real_agent_timeout"] = timeout
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner)
 
     assert report["ready"] is True
     assert report["decision"] == "REAL_READINESS_READY"
@@ -6700,7 +6848,55 @@ def test_ready_contract_passes_with_clean_static_and_command_evidence(tmp_path: 
     check_ids = {item["check_id"] for item in report["checks"]}
     assert "maas_autonomous_mesh_runtime_smoke" in check_ids
     assert "dataplane_delivery_private_target_operator_run_preflight" in check_ids
+    assert "ghost_pulse_current_runtime_boundary" in check_ids
     assert "integration_spine_code_wiring_runtime" in check_ids
+    assert "settlement_finality_cross_plane_gate" in check_ids
+    assert "traffic_delivery_cross_plane_gate" in check_ids
+    assert "customer_traffic_cross_plane_gate" in check_ids
+    assert captured_runtime_timeouts["api_heal_probe_timeout"] == 180
+    assert captured_runtime_timeouts["real_agent_timeout"] == 240
+    assert "--timeout-seconds" in captured_runtime_timeouts["real_agent_args"]
+    assert "180" in captured_runtime_timeouts["real_agent_args"]
+
+
+def test_ghost_pulse_current_runtime_boundary_blocks_readiness_on_overclaim(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if len(args) > 1 and args[1] == "scripts/ops/verify_ghost_pulse_proof_gate.py":
+            assert env is not None
+            assert env.get("GHOST_PULSE_RUNTIME_INTERFACE") == ""
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "decision": "GHOST_PULSE_ALL_CLAIMS_PROVEN",
+                        "not_verified_yet": [],
+                        "claim_boundary": {
+                            "current_runtime_attached": True,
+                            "kernel_attach_verified": True,
+                            "production_ready": True,
+                            "stealth_verified": True,
+                            "whitelist_verified": True,
+                        },
+                        "failures": [],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "ghost_pulse_current_runtime_boundary" in blocker_ids
+    assert report["ready"] is False
 
 
 def test_maas_autonomous_mesh_runtime_smoke_blocks_readiness_on_overclaim(
@@ -6815,6 +7011,7 @@ def test_integration_spine_code_wiring_runtime_blocks_readiness_on_overclaim(
                             "spine_claim_gates_preserved": True,
                             "actuator_context_claim_gates_preserved": True,
                             "reward_context_claim_gates_preserved": True,
+                            "safe_actuator_evidence_metadata_retained": True,
                         },
                     }
                 ),
@@ -6826,6 +7023,199 @@ def test_integration_spine_code_wiring_runtime_blocks_readiness_on_overclaim(
     blocker_ids = {item["check_id"] for item in report["blockers"]}
     assert "integration_spine_code_wiring_runtime" in blocker_ids
     assert report["ready"] is False
+
+
+def test_settlement_finality_cross_plane_gate_blocks_readiness_on_overclaim(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/run_cross_plane_proof_gate.py"
+            and _arg_value(args, "--claim", "settlement_finality")
+            == "settlement_finality"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "CROSS_PLANE_CLAIMS_ALLOWED",
+                        "allowed": True,
+                        "summary": {
+                            "claims_total": 1,
+                            "claims_blocked": 0,
+                            "claims_allowed": 1,
+                            "high_risk_claims_requested": 1,
+                        },
+                        "claim_results": [
+                            {
+                                "claim_id": "settlement_finality",
+                                "high_risk": True,
+                                "allowed": True,
+                                "blockers": [],
+                                "required_artifact_evidence": {
+                                    "valid": True,
+                                    "blockers": [],
+                                },
+                            }
+                        ],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "settlement_finality_cross_plane_gate" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_settlement_finality_cross_plane_gate_accepts_output_json_fallback(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if len(args) > 1 and args[1] == "scripts/ops/run_cross_plane_proof_gate.py":
+            claim_id = _arg_value(args, "--claim", "settlement_finality")
+            output_path = tmp_path / _arg_value(args, "--output-json", "gate.json")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(
+                json.dumps(_blocked_cross_plane_payload(claim_id)),
+                encoding="utf-8",
+            )
+            return CommandResult(0, "structured log before final report\n")
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    check_ids = {item["check_id"] for item in report["checks"]}
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "settlement_finality_cross_plane_gate" in check_ids
+    assert "settlement_finality_cross_plane_gate" not in blocker_ids
+
+
+def test_traffic_delivery_cross_plane_gate_blocks_readiness_on_overclaim(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/run_cross_plane_proof_gate.py"
+            and _arg_value(args, "--claim", "settlement_finality")
+            == "traffic_delivery"
+        ):
+            payload = _blocked_cross_plane_payload("traffic_delivery")
+            payload["decision"] = "CROSS_PLANE_CLAIMS_ALLOWED"
+            payload["allowed"] = True
+            payload["summary"] = {
+                "claims_total": 1,
+                "claims_blocked": 0,
+                "claims_allowed": 1,
+                "high_risk_claims_requested": 1,
+            }
+            payload["claim_results"][0]["allowed"] = True
+            payload["claim_results"][0]["blockers"] = []
+            payload["claim_results"][0]["required_artifact_evidence"] = {
+                "valid": True,
+                "blockers": [],
+            }
+            return CommandResult(0, json.dumps(payload))
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "traffic_delivery_cross_plane_gate" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_customer_traffic_cross_plane_gate_blocks_readiness_on_overclaim(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/run_cross_plane_proof_gate.py"
+            and _arg_value(args, "--claim", "settlement_finality")
+            == "customer_traffic"
+        ):
+            payload = _blocked_cross_plane_payload("customer_traffic")
+            payload["decision"] = "CROSS_PLANE_CLAIMS_ALLOWED"
+            payload["allowed"] = True
+            payload["summary"] = {
+                "claims_total": 1,
+                "claims_blocked": 0,
+                "claims_allowed": 1,
+                "high_risk_claims_requested": 1,
+            }
+            payload["claim_results"][0]["allowed"] = True
+            payload["claim_results"][0]["blockers"] = []
+            payload["claim_results"][0]["required_artifact_evidence"] = {
+                "valid": True,
+                "blockers": [],
+            }
+            return CommandResult(0, json.dumps(payload))
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "customer_traffic_cross_plane_gate" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_traffic_cross_plane_gates_accept_proof_backed_allowed_state(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if len(args) > 1 and args[1] == "scripts/ops/run_cross_plane_proof_gate.py":
+            claim_id = _arg_value(args, "--claim", "settlement_finality")
+            if claim_id in {"traffic_delivery", "customer_traffic"}:
+                return CommandResult(
+                    0,
+                    json.dumps(_allowed_cross_plane_payload(claim_id)),
+                )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    check_ids = {item["check_id"] for item in report["checks"]}
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "traffic_delivery_cross_plane_gate" in check_ids
+    assert "customer_traffic_cross_plane_gate" in check_ids
+    assert "traffic_delivery_cross_plane_gate" not in blocker_ids
+    assert "customer_traffic_cross_plane_gate" not in blocker_ids
+    assert report["ready"] is True
 
 
 def test_maas_real_agent_control_loop_smoke_blocks_readiness_on_bad_output(
@@ -7144,8 +7534,8 @@ def test_safe_actuator_runtime_metadata_retention_blocks_readiness_on_gaps(
                             "local smoke only; does not prove live SPIFFE/SPIRE trust"
                         ),
                         "summary": {
-                            "cases_run": 24,
-                            "events_checked": 19,
+                            "cases_run": 25,
+                            "events_checked": 20,
                             "result_metadata_cases_checked": 5,
                             "metadata_events": 1,
                             "claim_gates_fail_closed": False,
@@ -7515,7 +7905,7 @@ events retain typed metadata (`14/14` local cases).
     context = report["current_evidence_context"]
     assert context["active_audit_safe_actuator_current"] is False
     assert "parse-error-free" in context["active_audit_safe_actuator_missing_markers"]
-    assert "19 EventBus" in context["active_audit_safe_actuator_missing_markers"]
+    assert "20 EventBus" in context["active_audit_safe_actuator_missing_markers"]
     assert (
         "5 result-metadata"
         in context["active_audit_safe_actuator_missing_markers"]

@@ -2484,7 +2484,7 @@
     },
     {
       "id": "safe-actuator-is-cross-layer-not-local",
-      "summary": "SafeActuator is defined in IntegrationSpine but reused by API, DAO, network, security, self-healing, server, and swarm components. SafeActuatorResult now carries typed redacted evidence metadata across the current parse-error-free adoption inventory: 21/21 known high-risk control files are metadata-aware, 63/63 SafeActuatorResult result-call sites are metadata-covered, and the runtime retention verifier keeps 19 EventBus + 5 result-metadata representative local cases typed, redacted, and fail-closed for production, dataplane, trust-finality, settlement, and customer-traffic claims.",
+      "summary": "SafeActuator is defined in IntegrationSpine but reused by API, DAO, network, security, self-healing, server, and swarm components. SafeActuatorResult now carries typed redacted evidence metadata across the current parse-error-free adoption inventory: 21/21 known high-risk control files are metadata-aware, 63/63 SafeActuatorResult result-call sites are metadata-covered, and the runtime retention verifier keeps 20 EventBus + 5 result-metadata representative local cases typed, redacted, and fail-closed for production, dataplane, trust-finality, settlement, and customer-traffic claims, including IntegrationSpine's own completed outcome path.",
       "source_refs": [
         "src/integration/spine.py:14",
         "src/api/maas/endpoints/governance.py:26",

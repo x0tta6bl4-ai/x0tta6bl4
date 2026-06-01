@@ -47,9 +47,12 @@ from src.deployment.multi_cloud_deployment import (
     MultiCloudDeployment,
 )
 from src.integration.spine import (
+    IntegrationSpine,
     SafeActuator,
     SafeActuatorEvidenceMetadata,
     SafeActuatorResult,
+    SpineIdentity,
+    SpineRequest,
 )
 from src.mesh.action_enforcer import MeshActionEnforcer
 from src.mesh.metric_evidence_policy import (
@@ -1296,6 +1299,80 @@ def _run_mptcp_manager_case(root: Path) -> dict[str, Any]:
     }
 
 
+def _run_integration_spine_case(root: Path) -> dict[str, Any]:
+    event_bus = EventBus(str(root / "integration-spine-eventbus"))
+    resource = "mesh/relay"
+    spiffe_id = "spiffe://x0tta6bl4.mesh/workload/integration-spine-retention"
+    spine = IntegrationSpine(
+        event_bus=event_bus,
+        policy_engine=_allow_policy(spiffe_id, resource),
+        actuator=SafeActuator(lambda _action, _context: True),
+        reward_manager=None,
+        source_agent="integration-spine-retention",
+    )
+    outcome = spine.process(
+        SpineRequest(
+            request_id="integration-spine-retention-1",
+            identity=SpineIdentity(
+                node_id="integration-spine-node",
+                spiffe_id=spiffe_id,
+                did="did:mesh:integration-spine-retention",
+                wallet_address="0xintegrationspineruntime",
+            ),
+            action="Switch route",
+            resource=resource,
+            workload_type="relay",
+            reward_packets=0,
+        )
+    )
+    events = event_bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="integration-spine-retention",
+        limit=20,
+    )
+    event = next(
+        (
+            candidate
+            for candidate in reversed(events)
+            if candidate.data.get("stage") == "completed"
+            and candidate.data.get("resource") == resource
+        ),
+        None,
+    )
+    failures: list[str] = []
+    if outcome.status != "COMPLETED":
+        failures.append(f"integration_spine_status_mismatch:{outcome.status}")
+    if outcome.safe_actuator_evidence_metadata.get(
+        "schema"
+    ) != SAFE_ACTUATOR_METADATA_SCHEMA:
+        failures.append("outcome_metadata_schema_invalid")
+    if outcome.safe_actuator_evidence_metadata.get("redacted") is not True:
+        failures.append("outcome_metadata_not_redacted")
+    if event is None:
+        failures.append("integration_spine_completed_event_missing")
+    else:
+        failures.extend(
+            validate_event_payload(
+                event,
+                expected_source_agent="integration-spine-retention",
+                expected_resource=resource,
+            )
+        )
+        metadata_text = str(_metadata_for(event.data))
+        if "0xintegrationspineruntime" in metadata_text:
+            failures.append("integration_spine_wallet_leaked_in_metadata")
+        if "Switch route" in metadata_text:
+            failures.append("integration_spine_action_leaked_in_metadata")
+    return {
+        "case": "integration_spine_safe_actuator_event_metadata",
+        "source_agent": "integration-spine-retention",
+        "resource": resource,
+        "event_id": event.event_id if event is not None else "",
+        "metadata_retained": event is not None and not failures,
+        "failures": failures,
+    }
+
+
 def _run_mesh_action_enforcer_case(root: Path) -> dict[str, Any]:
     event_bus = EventBus(str(root / "mesh-action-enforcer-eventbus"))
     resource = "mesh:action_enforcer:recommendations"
@@ -2385,6 +2462,7 @@ def build_report(root: Path) -> dict[str, Any]:
         _run_maas_governance_case(root),
         _run_pqc_rotator_case(root),
         _run_mptcp_manager_case(root),
+        _run_integration_spine_case(root),
         _run_mesh_action_enforcer_case(root),
         _run_core_mapek_aggressive_healing_case(root),
         _run_self_healing_mapek_case(root),
