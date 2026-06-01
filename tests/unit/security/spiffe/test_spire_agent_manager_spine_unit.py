@@ -84,6 +84,23 @@ def test_start_agent_publishes_identity_policy_and_safe_actuator_events(tmp_path
     assert payload["policy_allowed"] is True
     assert payload["safe_actuator"] is True
     assert payload["claim_boundary"]
+    metadata = payload["safe_actuator_evidence_metadata"]
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.spire_agent.safe_actuator_claim_gate.v1"
+    assert claim_gate["local_spire_agent_cli_action_succeeded"] is True
+    assert claim_gate["safe_actuator_result_recorded"] is True
+    assert claim_gate["safe_actuator_simulated"] is False
+    assert claim_gate["live_spire_mtls_claim_allowed"] is False
+    assert claim_gate["workload_svid_possession_claim_allowed"] is False
+    assert claim_gate["workload_identity_trust_finality_claim_allowed"] is False
+    assert claim_gate["node_attestation_finality_claim_allowed"] is False
+    assert claim_gate["dataplane_delivery_claim_allowed"] is False
+    assert claim_gate["customer_traffic_claim_allowed"] is False
+    assert claim_gate["production_identity_readiness_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
+    assert metadata["evidence"]["raw_context_values_redacted"] is True
+    assert metadata["evidence"]["raw_command_output_redacted"] is True
 
 
 def test_register_workload_policy_denial_blocks_spire_server_command(tmp_path):
@@ -179,6 +196,14 @@ def test_simulated_actuator_blocks_agent_start(tmp_path):
     assert failed[-1].data["stage"] == "actuator_simulated"
     assert failed[-1].data["success"] is False
     assert failed[-1].data["simulated"] is True
+    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.spire_agent.safe_actuator_claim_gate.v1"
+    assert claim_gate["local_spire_agent_cli_action_succeeded"] is False
+    assert claim_gate["safe_actuator_simulated"] is True
+    assert claim_gate["live_spire_mtls_claim_allowed"] is False
+    assert claim_gate["node_attestation_finality_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
 
 
 def test_stop_agent_runs_through_safe_actuator(tmp_path):
