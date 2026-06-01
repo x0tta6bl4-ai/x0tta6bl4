@@ -13,7 +13,6 @@ from src.database import ACLPolicy, MeshInstance, MeshNode, User
 from src.core.rbac import MeshPermission
 from .security import (
     ensure_mesh_visibility,
-    ensure_mesh_visibility_with_permission,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,14 +39,18 @@ def _ensure_owner_or_admin_access(
     if not mesh:
         if allow_admin_without_mesh and current_user.role == "admin":
             return None
+        if allow_admin_without_mesh:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: mesh metadata unavailable",
+            )
         raise HTTPException(status_code=404, detail="Mesh not found")
     
     if current_user.role == "admin":
         return mesh
         
     if mesh.owner_id != current_user.id:
-        # Fallback to granular check if not owner
-        ensure_mesh_visibility_with_permission(mesh_id, current_user, db, required_permission)
+        raise HTTPException(status_code=404, detail="Mesh not found")
         
     return mesh
 
@@ -161,10 +164,11 @@ def get_node_agent_config(
     mesh_id: str,
     node_id: str,
     db: Session,
-    current_user: User,
+    current_user: User | None = None,
 ) -> Dict[str, Any]:
     """Fetch allowed policies and peer tags for an agent."""
-    ensure_mesh_visibility(mesh_id, current_user, db)
+    if current_user is not None:
+        ensure_mesh_visibility(mesh_id, current_user, db)
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")

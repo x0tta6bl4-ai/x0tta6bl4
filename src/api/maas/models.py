@@ -7,7 +7,7 @@ Contains all request and response models for the MaaS API endpoints.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -149,12 +149,98 @@ class NodeRegisterResponse(BaseModel):
     node_id: str
     status: str  # pending_approval | approved
     message: str
+    api_key: Optional[str] = None
+    node_runtime_credential: Optional[str] = None
+    node_runtime_credential_expires_at: Optional[datetime] = None
+    raw_runtime_credential_returned_once: bool = False
+
+
+class NodeRuntimeIdentityProof(BaseModel):
+    """Bounded local identity proof for a node runtime action.
+
+    This is stored and compared as a hash-only binding. It is not a live SVID
+    verifier by itself.
+    """
+
+    binding_type: str = Field(
+        ...,
+        pattern="^(local_spiffe_hint|spiffe_svid_digest|verified_spiffe_svid|verified_jwt_svid|measured_attestation)$",
+    )
+    spiffe_id: Optional[str] = Field(default=None, max_length=512)
+    attestation_digest: Optional[str] = Field(default=None, max_length=256)
+    nonce: Optional[str] = Field(default=None, max_length=128)
+
+    @model_validator(mode="after")
+    def require_identity_material(self) -> "NodeRuntimeIdentityProof":
+        binding_type = (self.binding_type or "").strip().lower()
+        if binding_type == "local_spiffe_hint" and not self.spiffe_id:
+            raise ValueError("spiffe_id is required for local_spiffe_hint")
+        if binding_type == "measured_attestation" and not self.attestation_digest:
+            raise ValueError("attestation_digest is required for measured_attestation")
+        if binding_type in {
+            "spiffe_svid_digest",
+            "verified_spiffe_svid",
+            "verified_jwt_svid",
+        } and (not self.spiffe_id or not self.attestation_digest):
+            raise ValueError(
+                "spiffe_id and attestation_digest are required for SVID-based bindings"
+            )
+        return self
+
+
+class NodeRuntimeIdentityBindRequest(NodeRuntimeIdentityProof):
+    """Operator request to bind a node to a runtime identity proof hash."""
+
+
+class NodeRuntimeIdentityBindResponse(BaseModel):
+    """Hash-only node runtime identity binding response."""
+
+    mesh_id: str
+    node_id: str
+    status: str = "bound"
+    runtime_identity_binding_type: str
+    runtime_identity_binding_hash_prefix: str
+    runtime_identity_bound_at: datetime
+    runtime_identity_last_verified_at: datetime
+    raw_runtime_identity_proof_redacted: bool = True
+    live_spiffe_svid_claim_allowed: bool = False
+    trusted_runtime_identity_proxy_claim_allowed: bool = False
+    api_side_jwt_svid_verification_claim_allowed: bool = False
+    runtime_identity_verification_source: Optional[str] = None
+    attestation_verifier_backend: Optional[str] = None
+    attestation_verifier_provenance: Dict[str, Any] = Field(default_factory=dict)
+    production_attestation_verifier_claim_allowed: bool = False
+    production_trust_finality_claim_allowed: bool = False
+
+
+class NodeRuntimeCredentialRotateRequest(BaseModel):
+    """Node runtime credential rotation request."""
+    ttl_seconds: int = Field(default=86400, ge=60, le=2592000)
+    identity_proof: Optional[NodeRuntimeIdentityProof] = None
+
+
+class NodeRuntimeCredentialRotateResponse(BaseModel):
+    """Node runtime credential rotation response."""
+    mesh_id: str
+    node_id: str
+    status: str = "rotated"
+    api_key: str
+    node_runtime_credential: str
+    node_runtime_credential_expires_at: datetime
+    node_runtime_credential_rotated_at: datetime
+    raw_runtime_credential_returned_once: bool = True
+
+
+class NodeMeasuredAttestationRefreshRequest(BaseModel):
+    """Refresh a measured-attestation runtime identity binding."""
+    attestation_data: Dict[str, Any]
 
 
 class NodeApproveRequest(BaseModel):
     """Node approval request."""
     acl_profile: str = Field(default="default", pattern="^(default|strict|isolated)$")
     tags: List[str] = Field(default_factory=list)
+    attestation_data: Optional[Dict[str, Any]] = None
 
 
 class NodeApproveResponse(BaseModel):
@@ -199,6 +285,7 @@ class NodeHeartbeatRequest(BaseModel):
     """Node heartbeat telemetry."""
     mesh_id: Optional[str] = None
     node_id: Optional[str] = None
+    status: str = Field(default="healthy", pattern="^(healthy|degraded|unhealthy)$")
     cpu_usage: float = 0.0
     memory_usage: float = 0.0
     neighbors_count: int = 0
@@ -207,7 +294,21 @@ class NodeHeartbeatRequest(BaseModel):
     # Legacy compatibility fields used by some callers/tests.
     cpu_percent: Optional[float] = None
     memory_percent: Optional[float] = None
+    latency_ms: Optional[float] = None
+    traffic_mbps: Optional[float] = None
     active_connections: Optional[int] = None
+    dataplane_probe_target: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        pattern=r"^[A-Za-z0-9_.:%-]+$",
+        description="Optional redacted-in-responses target used for bounded post-heal dataplane probes.",
+    )
+    ip_address: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        pattern=r"^[A-Za-z0-9_.:%-]+$",
+        description="Compatibility alias for dataplane_probe_target.",
+    )
     custom_metrics: Dict[str, Any] = Field(default_factory=dict)
     pheromones: Optional[Dict[str, Dict[str, float]]] = None  # For Stigmergy viz
 
@@ -302,6 +403,7 @@ class UserProfileResponse(BaseModel):
     email: str
     name: Optional[str] = None
     plan: str
+    role: str = "user"
     requests_count: int = 0
     created_at: Optional[str] = None
 
@@ -320,7 +422,15 @@ class ApiKeyRotateResponse(BaseModel):
 
 class MeshScaleRequest(BaseModel):
     """Mesh scaling request."""
-    target_count: int = Field(..., ge=1, le=1000)
+    target_count: Optional[int] = Field(default=None, ge=1, le=1000)
+    action: Optional[str] = Field(default=None, pattern="^(scale_up|scale_down)$")
+    count: Optional[int] = Field(default=None, ge=1, le=1000)
+
+    @model_validator(mode="after")
+    def require_scale_target(self) -> "MeshScaleRequest":
+        if self.target_count is None and self.count is None:
+            raise ValueError("target_count or legacy count is required")
+        return self
 
 
 __all__ = [
@@ -353,6 +463,12 @@ __all__ = [
     "NodeRevokeResponse",
     "NodeReissueTokenRequest",
     "NodeReissueTokenResponse",
+    "NodeRuntimeIdentityProof",
+    "NodeRuntimeIdentityBindRequest",
+    "NodeRuntimeIdentityBindResponse",
+    "NodeRuntimeCredentialRotateRequest",
+    "NodeRuntimeCredentialRotateResponse",
+    "NodeMeasuredAttestationRefreshRequest",
     "NodeHeartbeatRequest",
     # Policy
     "PolicyRequest",

@@ -4,6 +4,7 @@ MaaS Node Heartbeat - status updates and telemetry collection.
 
 import hashlib
 import logging
+import sys
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -36,7 +37,17 @@ class HeartbeatRequest(BaseModel):
     latency_ms: Optional[float] = None
     traffic_mbps: Optional[float] = None
     active_connections: Optional[int] = None
+    dataplane_probe_target: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        pattern=r"^[A-Za-z0-9_.:%-]+$",
+    )
     custom_metrics: Optional[Dict[str, Any]] = None
+
+
+def _normalize_dataplane_probe_target(value: Any) -> Optional[str]:
+    normalized = str(value or "").strip()
+    return normalized or None
 
 
 def _to_optional_float(value: Any) -> Optional[float]:
@@ -100,25 +111,44 @@ def _export_analytics_telemetry(
     payload: Dict[str, Any],
     request: Optional[Request] = None,
 ) -> bool:
-    if _set_external_telemetry is None:
+    exporter = _set_external_telemetry
+    api_package = sys.modules.get("src.api")
+    package_module = getattr(api_package, "maas_nodes", None) if api_package else None
+    compat_module = sys.modules.get("src.api.maas_nodes")
+    legacy_module = sys.modules.get("src.api.maas_nodes_legacy")
+    for module in (package_module, compat_module, legacy_module):
+        if module is None or not hasattr(module, "_set_external_telemetry"):
+            continue
+        candidate = getattr(module, "_set_external_telemetry")
+        if candidate is not _set_external_telemetry:
+            exporter = candidate
+            break
+        exporter = candidate
+
+    if exporter is None:
         return False
     try:
-        from src.coordination.events import get_event_bus
         state = getattr(request, "state", None) if request else None
         event_bus = getattr(state, "event_bus", None) if state else None
         project_root = getattr(state, "event_project_root", ".") if state else "."
-        
+
         telemetry_kwargs = {}
         if event_bus:
             telemetry_kwargs["event_bus"] = event_bus
         if project_root:
             telemetry_kwargs["event_project_root"] = project_root
-            
+
         mesh_id = payload.get("mesh_id")
         if mesh_id is not None:
             telemetry_kwargs["mesh_id"] = mesh_id
-            
-        _set_external_telemetry(node_id, payload, **telemetry_kwargs)
+
+        try:
+            if telemetry_kwargs:
+                exporter(node_id, payload, **telemetry_kwargs)
+            else:
+                exporter(node_id, payload)
+        except TypeError:
+            exporter(node_id, payload)
         return True
     except Exception as exc:
         logger.warning("Failed to export node telemetry for analytics (node=%s): %s", node_id, exc)
@@ -160,6 +190,9 @@ def _latest_heartbeat_telemetry_event_ids(
 
 def _heartbeat_request_summary(req: HeartbeatRequest) -> Dict[str, Any]:
     custom_metrics = req.custom_metrics if isinstance(req.custom_metrics, dict) else {}
+    dataplane_probe_target = _normalize_dataplane_probe_target(
+        req.dataplane_probe_target
+    )
     return {
         "requested_status": req.status,
         "cpu_percent_present": req.cpu_percent is not None,
@@ -167,6 +200,10 @@ def _heartbeat_request_summary(req: HeartbeatRequest) -> Dict[str, Any]:
         "latency_ms_present": req.latency_ms is not None,
         "traffic_mbps_present": req.traffic_mbps is not None,
         "active_connections_present": req.active_connections is not None,
+        "dataplane_probe_target_present": dataplane_probe_target is not None,
+        "dataplane_probe_target_sha256_prefix": _redacted_sha256_prefix(
+            dataplane_probe_target
+        ),
         "custom_metrics_count": len(custom_metrics),
         "custom_metrics_numeric_count": sum(
             1
@@ -293,12 +330,17 @@ def process_heartbeat(
         raise HTTPException(status_code=404, detail="Node not found")
 
     if node.status != "approved":
-        raise HTTPException(status_code=403, detail="Node not approved")
+        raise HTTPException(status_code=403, detail="Node is not approved for heartbeat")
 
     status_before = node.status
     
     # 2. Update DB status
     node.last_seen = datetime.utcnow()
+    dataplane_probe_target = _normalize_dataplane_probe_target(
+        req.dataplane_probe_target
+    )
+    if dataplane_probe_target is not None:
+        node.ip_address = dataplane_probe_target
     # If heartbeat is unhealthy, mark node as degraded (don't auto-revoke here)
     if req.status != "healthy":
         node.status = "degraded"
@@ -314,11 +356,44 @@ def process_heartbeat(
     telemetry_exported = _export_analytics_telemetry(node_id, telemetry_payload, request)
 
     # 4. Handle Marketplace Escrow Auto-Release (if applicable)
-    # [Complex logic from maas_nodes.py would go here]
+    released_escrow = None
+    if req.status == "healthy":
+        listing = (
+            db.query(MarketplaceListing)
+            .filter(
+                MarketplaceListing.node_id == node_id,
+                MarketplaceListing.status == "escrow",
+            )
+            .first()
+        )
+        if listing:
+            escrow = (
+                db.query(MarketplaceEscrow)
+                .filter(
+                    MarketplaceEscrow.listing_id == listing.id,
+                    MarketplaceEscrow.status == "held",
+                )
+                .first()
+            )
+            if escrow:
+                escrow.status = "released"
+                escrow.released_at = datetime.utcnow()
+                listing.status = "rented"
+                released_escrow = escrow.id
+                db.commit()
     
     return {
-        "status": "received",
+        "status": "ok",
         "node_id": node_id,
+        "mesh_id": mesh_id,
+        "node_status": node.status,
+        "last_seen": timestamp_iso,
         "last_heartbeat": timestamp_iso,
+        "escrow_released": released_escrow,
         "telemetry_exported": telemetry_exported,
+        "dataplane_probe_target_registered": dataplane_probe_target is not None,
+        "dataplane_probe_target_sha256_prefix": _redacted_sha256_prefix(
+            dataplane_probe_target
+        ),
+        "raw_dataplane_probe_target_redacted": dataplane_probe_target is not None,
     }
