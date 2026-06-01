@@ -55,6 +55,7 @@ ECONOMY_BOUNDARY_SOURCE_AGENTS = (
     "token-bridge",
 )
 DATAPLANE_PROOF_SOURCE_AGENTS = (
+    "dataplane-delivery-local-collector",
     "mesh-action-enforcer",
     "mesh-recovery-orchestrator",
     "real-network-adapter",

@@ -172,6 +172,7 @@ def build_event_data(probe: dict[str, Any], *, source_agent: str) -> dict[str, A
         "settlement_finality_claim_allowed": False,
         "post_action_dataplane_revalidation": revalidation,
         "claim_boundary": CLAIM_BOUNDARY,
+        "redacted": True,
     }
 
 

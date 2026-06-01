@@ -82,6 +82,9 @@ def test_collect_writes_event_recognized_by_cross_plane_proof_gate(
     assert artifact["valid"] is True
     assert artifact["matching_events"] == 1
     assert artifact["selected_event"]["event_id"] == report["event_id"]
+    assert artifact["selected_event"]["source_agent"] == (
+        "dataplane-delivery-local-collector"
+    )
     assert artifact["selected_event"]["redacted"] is True
 
 

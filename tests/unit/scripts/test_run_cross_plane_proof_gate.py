@@ -7,7 +7,12 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from scripts.ops.run_cross_plane_proof_gate import DEFAULT_CLAIMS, build_report, main
+from scripts.ops.run_cross_plane_proof_gate import (
+    DEFAULT_CLAIMS,
+    build_report,
+    dataplane_delivery_artifact_evidence,
+    main,
+)
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -1079,6 +1084,14 @@ def test_gate_finds_customer_traffic_event_outside_tail_scan_via_source_filter(
     )
     assert artifact["candidate_scan"]["event_log_lines_seen"] > artifact[
         "tail_events_scanned_limit"
+    ]
+
+
+def test_dataplane_source_filter_includes_local_collector() -> None:
+    artifact = dataplane_delivery_artifact_evidence(Path("/tmp/nonexistent-x0t-proof"))
+
+    assert "dataplane-delivery-local-collector" in artifact[
+        "candidate_source_agents"
     ]
 
 
