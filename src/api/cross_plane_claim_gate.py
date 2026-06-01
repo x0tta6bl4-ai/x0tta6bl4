@@ -78,6 +78,16 @@ def _safe_next_actions(value: Any) -> list[dict[str, Any]]:
     ]
 
 
+def _safe_proof_dependency_graph(value: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(value, Mapping):
+        return {}
+    graph: dict[str, dict[str, Any]] = {}
+    for claim_id, dependency in value.items():
+        if isinstance(dependency, Mapping) and str(claim_id):
+            graph[str(claim_id)] = dict(dependency)
+    return graph
+
+
 def _claim_plane_summary(
     claim_results: Any,
     *,
@@ -206,6 +216,7 @@ def _fail_closed_metadata(
         "requested_claim_ids": list(requested_claims),
         **summary,
         **_claim_plane_summary(None),
+        "proof_dependency_graph": {},
         "next_actions": [],
         "next_actions_by_plane": {},
         "claim_boundary": claim_boundary,
@@ -270,6 +281,9 @@ def cross_plane_claim_gate_metadata(
         "requested_claim_ids": requested_claims,
         **summary,
         **plane_summary,
+        "proof_dependency_graph": _safe_proof_dependency_graph(
+            report.get("proof_dependency_graph")
+        ),
         "next_actions": _safe_next_actions(report.get("next_actions")),
         "next_actions_by_plane": _safe_next_actions_by_plane(
             report.get("next_actions_by_plane")

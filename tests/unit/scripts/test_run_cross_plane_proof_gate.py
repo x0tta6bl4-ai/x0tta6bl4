@@ -690,6 +690,35 @@ def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> No
     assert "external_settlement_artifact_not_verified" in report[
         "plane_blockers"
     ]["economy_plane"]
+    graph = report["proof_dependency_graph"]
+    assert set(graph) == set(expected_claims)
+    assert graph["production_readiness"]["planes"] == [
+        "data_plane",
+        "control_plane",
+        "trust_plane",
+        "evidence_plane",
+        "economy_plane",
+    ]
+    assert [
+        item["artifact_id"]
+        for item in graph["production_readiness"]["artifact_dependencies"]
+    ] == [
+        "production_readiness",
+        "dataplane_delivery",
+        "customer_traffic",
+        "trust_finality",
+        "external_settlement",
+        "economy_boundary",
+    ]
+    assert graph["dataplane_delivery"]["artifact_dependencies"][0]["path"] == (
+        ".agent_coordination/events.log"
+    )
+    assert graph["dpi_bypass"]["next_action_ids"] == [
+        "import_verified_dpi_lab_evidence"
+    ]
+    assert graph["settlement_finality"]["next_action_ids"] == [
+        "verify_external_settlement_artifacts"
+    ]
     assert [
         action["action_id"]
         for action in report["next_actions_by_plane"]["data_plane"]

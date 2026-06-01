@@ -94,6 +94,28 @@ def test_cross_plane_claim_gate_metadata_surfaces_claim_blockers(
                     }
                 ]
             },
+            "proof_dependency_graph": {
+                "production_readiness": {
+                    "claim_id": "production_readiness",
+                    "planes": [
+                        "data_plane",
+                        "control_plane",
+                        "trust_plane",
+                        "evidence_plane",
+                        "economy_plane",
+                    ],
+                    "artifact_dependencies": [
+                        {
+                            "artifact_id": "dataplane_delivery",
+                            "valid": False,
+                            "path": ".agent_coordination/events.log",
+                        }
+                    ],
+                    "next_action_ids": [
+                        "collect_verified_dataplane_delivery_eventbus_evidence"
+                    ],
+                }
+            },
             "claim_results": [
                 {
                     "claim_id": "production_readiness",
@@ -236,6 +258,12 @@ def test_cross_plane_claim_gate_metadata_surfaces_claim_blockers(
             ],
         }
     ]
+    assert metadata["proof_dependency_graph"]["production_readiness"][
+        "artifact_dependencies"
+    ][0]["artifact_id"] == "dataplane_delivery"
+    assert metadata["proof_dependency_graph"]["production_readiness"][
+        "next_action_ids"
+    ] == ["collect_verified_dataplane_delivery_eventbus_evidence"]
 
 
 def test_cross_plane_claim_gate_unavailable_blocks_every_requested_claim(
@@ -270,3 +298,4 @@ def test_cross_plane_claim_gate_unavailable_blocks_every_requested_claim(
     assert metadata["plane_blockers"] == {}
     assert metadata["next_actions"] == []
     assert metadata["next_actions_by_plane"] == {}
+    assert metadata["proof_dependency_graph"] == {}

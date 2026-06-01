@@ -261,6 +261,26 @@ DEFAULT_CLAIMS = (
     "settlement_finality",
 )
 
+CLAIM_ARTIFACT_DEPENDENCIES: dict[str, tuple[str, ...]] = {
+    "production_readiness": (
+        PRODUCTION_READINESS_CLAIM_ID,
+        DATAPLANE_DELIVERY_CLAIM_ID,
+        CUSTOMER_TRAFFIC_CLAIM_ID,
+        TRUST_FINALITY_CLAIM_ID,
+        EXTERNAL_SETTLEMENT_CLAIM_ID,
+        ECONOMY_BOUNDARY_CLAIM_ID,
+    ),
+    "dataplane_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
+    "traffic_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
+    "customer_traffic": (CUSTOMER_TRAFFIC_CLAIM_ID,),
+    "trust_finality": (TRUST_FINALITY_CLAIM_ID,),
+    "dpi_bypass": (DPI_LAB_CLAIM_ID,),
+    "settlement_finality": (
+        EXTERNAL_SETTLEMENT_CLAIM_ID,
+        ECONOMY_BOUNDARY_CLAIM_ID,
+    ),
+}
+
 NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
     {
         "action_id": "repair_current_cross_plane_evidence_map",
@@ -2278,6 +2298,102 @@ def _next_actions_summary(
     ]
 
 
+def _artifact_dependency_path(evidence: Mapping[str, Any]) -> str:
+    for field in (
+        "artifact_path",
+        "event_log_path",
+        "evidence_path",
+        "report_path",
+        "path",
+    ):
+        value = evidence.get(field)
+        if value:
+            return str(value)
+    return ""
+
+
+def _artifact_dependency_summary(
+    artifact_id: str,
+    evidence: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if evidence is None:
+        return {
+            "artifact_id": artifact_id,
+            "present": False,
+            "valid": False,
+            "path": "",
+            "blockers": ["artifact_evidence_not_loaded"],
+        }
+    blockers = [
+        str(blocker)
+        for blocker in evidence.get("blockers", [])
+        if str(blocker)
+    ]
+    return {
+        "artifact_id": artifact_id,
+        "present": True,
+        "valid": evidence.get("valid") is True,
+        "path": _artifact_dependency_path(evidence),
+        "blockers": sorted(set(blockers)),
+    }
+
+
+def _proof_dependency_graph(
+    claim_results: Sequence[Mapping[str, Any]],
+    claim_blockers: Mapping[str, Sequence[str]],
+    artifact_evidence: Mapping[str, Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    graph: dict[str, dict[str, Any]] = {}
+    for result in claim_results:
+        claim_id = str(result.get("claim_id") or "")
+        if not claim_id:
+            continue
+        requirement = CLAIM_REQUIREMENTS.get(claim_id)
+        claim_blocker_list = [
+            str(blocker)
+            for blocker in claim_blockers.get(claim_id, [])
+            if str(blocker)
+        ]
+        next_actions = _next_actions_for_blockers(claim_blocker_list)
+        graph[claim_id] = {
+            "claim_id": claim_id,
+            "allowed": result.get("allowed") is True,
+            "high_risk": bool(result.get("high_risk")),
+            "planes": list(result.get("claim_planes") or []),
+            "required_flags": {
+                "all": list(requirement.required_all_flags) if requirement else [],
+                "any_groups": [
+                    list(group)
+                    for group in requirement.required_any_flag_groups
+                ]
+                if requirement
+                else [],
+                "blocking_false": (
+                    list(requirement.blocking_false_flags) if requirement else []
+                ),
+            },
+            "artifact_dependencies": [
+                _artifact_dependency_summary(
+                    artifact_id,
+                    artifact_evidence.get(artifact_id),
+                )
+                for artifact_id in CLAIM_ARTIFACT_DEPENDENCIES.get(claim_id, ())
+            ],
+            "blocked_by": sorted(set(claim_blocker_list)),
+            "next_action_ids": [
+                str(action.get("action_id"))
+                for action in next_actions
+                if action.get("action_id")
+            ],
+            "claim_boundary": (
+                "This dependency graph is diagnostic routing metadata. It maps "
+                "which local evidence artifacts and next actions are required; "
+                "it does not make any blocked claim true."
+            ),
+        }
+    return graph
+
+
 def build_report(
     root: Path,
     *,
@@ -2368,6 +2484,11 @@ def build_report(
     ]
     next_actions_by_plane = _next_actions_by_plane(plane_blockers)
     next_actions = _next_actions_summary(next_actions_by_plane, claim_blockers)
+    proof_dependency_graph = _proof_dependency_graph(
+        claim_results,
+        claim_blockers,
+        artifact_evidence,
+    )
     return {
         "schema": SCHEMA,
         "timestamp_utc": utc_now(),
@@ -2383,6 +2504,7 @@ def build_report(
         "allowed_plane_ids": allowed_plane_ids,
         "blocked_plane_ids": blocked_plane_ids,
         "plane_blockers": plane_blockers,
+        "proof_dependency_graph": proof_dependency_graph,
         "next_actions": next_actions,
         "next_actions_by_plane": next_actions_by_plane,
         "summary": {
