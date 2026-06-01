@@ -40,7 +40,7 @@ Linux can sync the native project:
 npm run ios:sync
 ```
 
-Real iOS builds require macOS/Xcode. The GitHub workflow builds an iOS simulator app by default and a signed device `.ipa` when Apple signing secrets are configured. See `SIGNING.md`.
+Real iOS builds require macOS/Xcode. The GitHub workflow builds an iOS simulator app and unsigned device app by default, then builds a signed device `.ipa` when Apple signing secrets are configured. See `SIGNING.md`.
 
 ## Desktop
 
