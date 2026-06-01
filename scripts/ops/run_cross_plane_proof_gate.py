@@ -72,6 +72,7 @@ DPI_IMPORT_REPORT_SCAN_LIMIT = 50
 DPI_INTAKE_FAILURES_LIMIT = 10
 DATAPLANE_DELIVERY_CLAIM_ID = "dataplane_delivery"
 LOCAL_RESTORED_DATAPLANE_CLAIM_ID = "local_restored_dataplane"
+LOCAL_OBSERVED_STATE_CLAIM_ID = "local_observed_state"
 DPI_LAB_CLAIM_ID = "dpi_lab"
 PRODUCTION_READINESS_CLAIM_ID = "production_readiness"
 EXTERNAL_SETTLEMENT_CLAIM_ID = "external_settlement"
@@ -299,6 +300,7 @@ CLAIM_ARTIFACT_DEPENDENCIES: dict[str, tuple[str, ...]] = {
         ECONOMY_BOUNDARY_CLAIM_ID,
     ),
     "local_restored_dataplane": (DATAPLANE_DELIVERY_CLAIM_ID,),
+    "local_observed_state": (LOCAL_OBSERVED_STATE_CLAIM_ID,),
     "dataplane_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
     "traffic_delivery": (DATAPLANE_DELIVERY_CLAIM_ID,),
     "customer_traffic": (CUSTOMER_TRAFFIC_CLAIM_ID,),
@@ -336,6 +338,80 @@ NEXT_ACTION_RULES: tuple[dict[str, object], ...] = (
         "artifact_paths": [
             "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
             "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md",
+        ],
+    },
+    {
+        "action_id": "collect_local_yggdrasil_observed_state_eventbus_evidence",
+        "title": "Collect real redacted local Yggdrasil observed-state evidence.",
+        "match_tokens": (
+            "local_observed_state_eventbus_artifact_not_verified",
+            "local_observed_state_event_log_missing",
+            "verified_local_observed_state_event_not_found",
+        ),
+        "claim_boundary": (
+            "Local Yggdrasil observed-state evidence proves only a read-only "
+            "local yggdrasilctl observation with return code, duration, redacted "
+            "output metadata, and service identity. It does not prove remote peer "
+            "authenticity, route quality, packet reachability, customer traffic, "
+            "or production readiness."
+        ),
+        "automation_status": "local_command_available_when_yggdrasilctl_exists",
+        "implementation_gap": (
+            "Run a real yggdrasilctl-backed read through src.network.yggdrasil_client. "
+            "Mock source mode is intentionally retained as local metadata only and "
+            "does not satisfy this live observed-state artifact gate."
+        ),
+        "suggested_commands": [
+            [
+                "python3",
+                "-c",
+                (
+                    "from src.network.yggdrasil_client import get_yggdrasil_peers; "
+                    "print(get_yggdrasil_peers(include_evidence=True))"
+                ),
+            ],
+            [
+                "python3",
+                "scripts/ops/run_cross_plane_proof_gate.py",
+                "--claim",
+                "local_observed_state",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [".agent_coordination/events.log"],
+    },
+    {
+        "action_id": "reconcile_local_observed_state_evidence_map_flags",
+        "title": "Reconcile current evidence-map local observed-state flags.",
+        "match_tokens": (
+            "evidence_map_local_observed_state_flags_not_reconciled",
+        ),
+        "claim_boundary": (
+            "A verified local Yggdrasil observed-state artifact does not "
+            "automatically rewrite the current evidence map. Reconciliation "
+            "must update only local observed-state flags and must not promote "
+            "remote peer authenticity, route quality, packet reachability, "
+            "customer traffic, or production readiness."
+        ),
+        "automation_status": "manual_review_required_with_verified_artifact",
+        "implementation_gap": (
+            "The proof artifact is present, but the current cross-plane evidence "
+            "map still lacks local observed-state flags. Review the selected "
+            "EventBus artifact and update CURRENT_CROSS_PLANE_EVIDENCE_MAP.json "
+            "in a separate focused change if the bounded claim should be promoted."
+        ),
+        "suggested_commands": [
+            [
+                "python3",
+                "scripts/ops/run_cross_plane_proof_gate.py",
+                "--claim",
+                "local_observed_state",
+                "--json",
+            ],
+        ],
+        "artifact_paths": [
+            ".agent_coordination/events.log",
+            "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
         ],
     },
     {
@@ -925,6 +1001,170 @@ def _safe_string_list(value: Any) -> list[str]:
 def _is_sha256_hex(value: Any) -> bool:
     text = str(value or "")
     return len(text) == 64 and all(char in "0123456789abcdef" for char in text)
+
+
+def _local_observed_state_candidate_blockers(
+    event: Mapping[str, Any],
+) -> list[str]:
+    data = _mapping(event.get("data"))
+    gate = _mapping(data.get("claim_gate"))
+    identity = _mapping(data.get("service_identity")) or _mapping(data.get("identity"))
+    output = _mapping(data.get("output"))
+    operation = str(data.get("operation") or "")
+    source_agent = str(event.get("source_agent") or data.get("service_name") or "")
+    return_code = data.get("return_code", data.get("returncode"))
+    duration_ms = data.get("duration_ms")
+    blockers: list[str] = []
+
+    if source_agent != "yggdrasil-client":
+        blockers.append("local_observed_state_source_not_yggdrasil_client")
+    if data.get("schema") != "x0tta6bl4.yggdrasil_observed_state.eventbus_evidence.v1":
+        blockers.append("local_observed_state_schema_missing")
+    if data.get("component") != "network.yggdrasil_client":
+        blockers.append("local_observed_state_component_mismatch")
+    if operation not in {"get_self", "get_peers", "get_routes"}:
+        blockers.append("local_observed_state_operation_unexpected")
+    if data.get("observed_state") is not True:
+        blockers.append("local_observed_state_flag_missing")
+    if data.get("read_only") is not True:
+        blockers.append("local_observed_state_read_only_missing")
+    if data.get("source_mode") != "real_command":
+        blockers.append("local_observed_state_not_real_command")
+    if not isinstance(return_code, int):
+        blockers.append("local_observed_state_return_code_missing")
+    elif return_code != 0:
+        blockers.append("local_observed_state_return_code_not_success")
+    if not isinstance(duration_ms, (int, float)) or duration_ms < 0:
+        blockers.append("local_observed_state_duration_missing")
+
+    if not gate:
+        blockers.append("local_observed_state_claim_gate_missing")
+    else:
+        if gate.get("local_observed_state_claim_allowed") is not True:
+            blockers.append("local_observed_state_claim_gate_not_allowed")
+        if gate.get("real_yggdrasil_daemon_observed") is not True:
+            blockers.append("local_observed_state_daemon_not_observed")
+        if gate.get("mock_source_mode") is True:
+            blockers.append("local_observed_state_mock_source_mode")
+        if gate.get("return_code_observed") is not True:
+            blockers.append("local_observed_state_gate_return_code_missing")
+        if gate.get("blockers"):
+            blockers.append("local_observed_state_claim_gate_has_blockers")
+        if gate.get("remote_peer_authenticity_claim_allowed") is not False:
+            blockers.append("local_observed_state_overpromotes_remote_peer_authenticity")
+        if gate.get("route_quality_claim_allowed") is not False:
+            blockers.append("local_observed_state_overpromotes_route_quality")
+        if gate.get("live_packet_reachability_claim_allowed") is not False:
+            blockers.append("local_observed_state_overpromotes_packet_reachability")
+        if gate.get("customer_traffic_claim_allowed") is not False:
+            blockers.append("local_observed_state_overpromotes_customer_traffic")
+        if gate.get("production_readiness_claim_allowed") is not False:
+            blockers.append("local_observed_state_overpromotes_production")
+
+    if identity.get("service_name") != "yggdrasil-client":
+        blockers.append("local_observed_state_service_identity_missing")
+    if identity.get("redacted") is not True:
+        blockers.append("local_observed_state_service_identity_not_redacted")
+    if output.get("output_bounded") is not True:
+        blockers.append("local_observed_state_output_not_bounded")
+    if output.get("output_redacted") is not True:
+        blockers.append("local_observed_state_output_not_redacted")
+    if not isinstance(output.get("stdout_chars"), int):
+        blockers.append("local_observed_state_stdout_metadata_missing")
+    if not isinstance(output.get("stderr_chars"), int):
+        blockers.append("local_observed_state_stderr_metadata_missing")
+    if "stdout" in data or "stderr" in data:
+        blockers.append("local_observed_state_raw_output_present")
+    if data.get("raw_values_redacted") is not True:
+        blockers.append("local_observed_state_raw_values_not_redacted")
+    if data.get("payloads_redacted") is not True:
+        blockers.append("local_observed_state_payloads_not_redacted")
+    if not data.get("claim_boundary"):
+        blockers.append("local_observed_state_claim_boundary_missing")
+    if data.get("customer_traffic_claim_allowed") is True:
+        blockers.append("local_observed_state_overpromotes_customer_traffic")
+    if data.get("production_readiness_claim_allowed") is True:
+        blockers.append("local_observed_state_overpromotes_production")
+    return blockers
+
+
+def local_observed_state_artifact_evidence(root: Path) -> dict[str, Any]:
+    path = resolve_path(root, EVENTBUS_LOG)
+    result: dict[str, Any] = {
+        "claim_id": LOCAL_OBSERVED_STATE_CLAIM_ID,
+        "required_for_claim": "local_observed_state",
+        "valid": False,
+        "event_log_path": EVENTBUS_LOG.as_posix(),
+        "event_log_exists": path.is_file(),
+        "events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "tail_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_source_agents": ["yggdrasil-client"],
+        "candidate_scan": None,
+        "matching_events": 0,
+        "selected_event": None,
+        "candidate_blockers": [],
+        "blockers": [],
+        "claim_boundary": (
+            "A retained Yggdrasil EventBus event can support a bounded local "
+            "observed-state claim only when it records a real read-only "
+            "yggdrasilctl command, return code, duration, service identity, "
+            "redacted bounded output metadata, and a claim gate that keeps "
+            "remote peer authenticity, route quality, packet reachability, "
+            "customer traffic, and production readiness false."
+        ),
+    }
+    if not path.is_file():
+        result["blockers"].append("local_observed_state_event_log_missing")
+        return result
+
+    scanned_event_ids: set[str] = set()
+
+    def select_if_valid(event: Mapping[str, Any], scan_source: str) -> bool:
+        event_id = str(event.get("event_id") or "")
+        if event_id and event_id in scanned_event_ids:
+            return False
+        if event_id:
+            scanned_event_ids.add(event_id)
+        candidate_blockers = _local_observed_state_candidate_blockers(event)
+        if candidate_blockers:
+            for blocker in candidate_blockers:
+                if blocker not in result["candidate_blockers"] and len(result["candidate_blockers"]) < 30:
+                    result["candidate_blockers"].append(blocker)
+            return False
+        data = _mapping(event.get("data"))
+        result["matching_events"] += 1
+        result["selected_event"] = {
+            "event_id": event_id,
+            "event_type": str(event.get("event_type") or ""),
+            "source_agent": str(event.get("source_agent") or ""),
+            "timestamp": str(event.get("timestamp") or ""),
+            "scan_source": scan_source,
+            "operation": str(data.get("operation") or ""),
+            "return_code": data.get("return_code", data.get("returncode")),
+            "duration_ms": data.get("duration_ms"),
+            "source_mode": str(data.get("source_mode") or ""),
+            "redacted": True,
+        }
+        result["valid"] = True
+        return True
+
+    for event in reversed(_bounded_event_log_entries(path, limit=EVENTBUS_TAIL_SCAN_LIMIT)):
+        if select_if_valid(event, "tail_scan"):
+            return result
+
+    source_filtered_events, candidate_scan = _source_filtered_event_log_entries(
+        path,
+        source_agents=("yggdrasil-client",),
+        candidate_limit=EVENTBUS_TAIL_SCAN_LIMIT,
+    )
+    result["candidate_scan"] = candidate_scan
+    for event in source_filtered_events:
+        if select_if_valid(event, "source_agent_prefiltered_reverse_scan"):
+            return result
+
+    result["blockers"].append("verified_local_observed_state_event_not_found")
+    return result
 
 
 def _dataplane_revalidation_candidates(data: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -2541,7 +2781,13 @@ def evaluate_claim(
             blockers.append(f"explicit_false_flag:{flag}")
 
     claim_artifact_evidence: Mapping[str, Any] | None = None
-    if claim_id == "dataplane_delivery":
+    if claim_id == "local_observed_state":
+        claim_artifact_evidence = (artifact_evidence or {}).get(LOCAL_OBSERVED_STATE_CLAIM_ID)
+        if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
+            blockers.append("local_observed_state_eventbus_artifact_not_verified")
+        elif missing_true_flags or missing_any_groups or blocking_false_flags:
+            blockers.append("evidence_map_local_observed_state_flags_not_reconciled")
+    elif claim_id == "dataplane_delivery":
         claim_artifact_evidence = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("dataplane_delivery_eventbus_artifact_not_verified")
@@ -2878,6 +3124,8 @@ def build_report(
     context = map_context(root, resolved_map, resolved_audit, evidence_map)
     flag_index = collect_flag_index(evidence_map or {})
     artifact_evidence: dict[str, Mapping[str, Any]] = {}
+    if "local_observed_state" in claims:
+        artifact_evidence[LOCAL_OBSERVED_STATE_CLAIM_ID] = local_observed_state_artifact_evidence(root)
     if any(
         claim in claims
         for claim in (

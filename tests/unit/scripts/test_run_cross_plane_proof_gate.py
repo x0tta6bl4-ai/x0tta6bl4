@@ -646,6 +646,88 @@ def _append_irrelevant_event_log_entries(root: Path, count: int) -> None:
             handle.write(json.dumps(event) + "\n")
 
 
+def _append_valid_yggdrasil_observed_state_event(root: Path) -> None:
+    event_log = root / ".agent_coordination/events.log"
+    event_log.parent.mkdir(parents=True, exist_ok=True)
+    event = {
+        "event_id": "yggdrasil-observed-state-event-1",
+        "event_type": "pipeline.stage_end",
+        "source_agent": "yggdrasil-client",
+        "timestamp": "2026-05-31T00:00:00+00:00",
+        "data": {
+            "schema": "x0tta6bl4.yggdrasil_observed_state.eventbus_evidence.v1",
+            "component": "network.yggdrasil_client",
+            "stage": "observed_state",
+            "operation": "get_peers",
+            "resource": "network:yggdrasil:get_peers",
+            "service_name": "yggdrasil-client",
+            "layer": "network_yggdrasil_observed_state",
+            "identity": {
+                "service_name": "yggdrasil-client",
+                "spiffe_id_configured": False,
+                "did_configured": False,
+                "wallet_address_configured": False,
+                "redacted": True,
+            },
+            "service_identity": {
+                "service_name": "yggdrasil-client",
+                "spiffe_id_configured": False,
+                "did_configured": False,
+                "wallet_address_configured": False,
+                "redacted": True,
+            },
+            "command": ["yggdrasilctl", "getPeers"],
+            "status": "succeeded",
+            "source_mode": "real_command",
+            "returncode": 0,
+            "return_code": 0,
+            "duration_ms": 3.5,
+            "read_only": True,
+            "observed_state": True,
+            "safe_actuator": False,
+            "parsed_summary": {
+                "status": "ok",
+                "peer_count": 2,
+                "protocols": ["tcp"],
+            },
+            "output": {
+                "stdout_chars": 80,
+                "stderr_chars": 0,
+                "stdout_sha256": "a" * 64,
+                "stderr_sha256": None,
+                "stdout_preview_chars": 0,
+                "stderr_preview_chars": 0,
+                "stdout_truncated": True,
+                "stderr_truncated": False,
+                "output_preview_limit": 0,
+                "output_bounded": True,
+                "output_redacted": True,
+            },
+            "claim_gate": {
+                "schema": "x0tta6bl4.yggdrasil_observed_state.claim_gate.v1",
+                "decision": "LOCAL_YGGDRASIL_OBSERVED_STATE_ONLY",
+                "local_observed_state_claim_allowed": True,
+                "real_yggdrasil_daemon_observed": True,
+                "mock_source_mode": False,
+                "return_code_observed": True,
+                "remote_peer_authenticity_claim_allowed": False,
+                "route_quality_claim_allowed": False,
+                "live_packet_reachability_claim_allowed": False,
+                "customer_traffic_claim_allowed": False,
+                "production_readiness_claim_allowed": False,
+                "blockers": [],
+                "claim_boundary": "Local Yggdrasil observed-state only.",
+                "redacted": True,
+            },
+            "raw_values_redacted": True,
+            "payloads_redacted": True,
+            "claim_boundary": "Local Yggdrasil observed-state only.",
+        },
+    }
+    with event_log.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event) + "\n")
+
+
 def _write_map(
     root: Path,
     *,
@@ -734,6 +816,7 @@ def _write_map(
 
 def test_gate_allows_local_claim_when_required_flags_are_true(tmp_path: Path) -> None:
     _write_map(tmp_path)
+    _append_valid_yggdrasil_observed_state_event(tmp_path)
 
     report = build_report(tmp_path, claims=("local_observed_state", "local_billing_lifecycle"))
 
@@ -743,6 +826,104 @@ def test_gate_allows_local_claim_when_required_flags_are_true(tmp_path: Path) ->
         "local_observed_state",
         "local_billing_lifecycle",
     }
+    local_observed = next(
+        item for item in report["claim_results"]
+        if item["claim_id"] == "local_observed_state"
+    )
+    artifact = local_observed["required_artifact_evidence"]
+    assert artifact["valid"] is True
+    assert artifact["selected_event"]["event_id"] == "yggdrasil-observed-state-event-1"
+    assert artifact["selected_event"]["return_code"] == 0
+    assert artifact["selected_event"]["duration_ms"] == 3.5
+
+
+def test_gate_blocks_local_claim_without_eventbus_artifact(tmp_path: Path) -> None:
+    _write_map(tmp_path)
+
+    report = build_report(tmp_path, claims=("local_observed_state",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [local_observed] = report["claim_results"]
+    assert local_observed["allowed"] is False
+    assert "local_observed_state_eventbus_artifact_not_verified" in local_observed[
+        "blockers"
+    ]
+    artifact = local_observed["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "local_observed_state_event_log_missing" in artifact["blockers"]
+
+
+def test_gate_routes_verified_local_observed_artifact_to_map_reconciliation(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path)
+    _append_valid_yggdrasil_observed_state_event(tmp_path)
+    path = tmp_path / "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["cross_plane_links"][0]["proof_flags"].pop("local_observed_state")
+    payload["cross_plane_links"][0]["proof_flags"].pop("eventbus_evidence")
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("local_observed_state",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [local_observed] = report["claim_results"]
+    assert "evidence_map_local_observed_state_flags_not_reconciled" in (
+        local_observed["blockers"]
+    )
+    assert local_observed["required_artifact_evidence"]["valid"] is True
+    assert report["next_actions"][0]["action_id"] == (
+        "reconcile_local_observed_state_evidence_map_flags"
+    )
+
+
+def test_gate_blocks_local_claim_when_yggdrasil_event_is_mock_only(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path)
+    _append_valid_yggdrasil_observed_state_event(tmp_path)
+    event_log = tmp_path / ".agent_coordination/events.log"
+    event = json.loads(event_log.read_text(encoding="utf-8"))
+    event["data"]["source_mode"] = "mock"
+    event["data"]["claim_gate"]["real_yggdrasil_daemon_observed"] = False
+    event["data"]["claim_gate"]["mock_source_mode"] = True
+    event["data"]["claim_gate"]["blockers"] = [
+        "mock_source_mode_not_live_mesh_evidence"
+    ]
+    event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("local_observed_state",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [local_observed] = report["claim_results"]
+    artifact = local_observed["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "local_observed_state_not_real_command" in artifact["candidate_blockers"]
+    assert "local_observed_state_mock_source_mode" in artifact["candidate_blockers"]
+    assert "local_observed_state_claim_gate_has_blockers" in artifact[
+        "candidate_blockers"
+    ]
+
+
+def test_gate_blocks_local_claim_when_output_metadata_is_not_bounded(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path)
+    _append_valid_yggdrasil_observed_state_event(tmp_path)
+    event_log = tmp_path / ".agent_coordination/events.log"
+    event = json.loads(event_log.read_text(encoding="utf-8"))
+    event["data"]["output"]["output_bounded"] = False
+    event["data"]["stdout"] = "raw peer 10.0.0.1"
+    event_log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("local_observed_state",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [local_observed] = report["claim_results"]
+    artifact = local_observed["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "local_observed_state_output_not_bounded" in artifact["candidate_blockers"]
+    assert "local_observed_state_raw_output_present" in artifact["candidate_blockers"]
 
 
 def test_default_claims_cover_all_high_risk_proof_surfaces(tmp_path: Path) -> None:

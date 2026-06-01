@@ -31,6 +31,9 @@ YGGDRASIL_OBSERVED_STATE_CLAIM_BOUNDARY = (
 YGGDRASIL_OBSERVED_STATE_CLAIM_GATE_SCHEMA = (
     "x0tta6bl4.yggdrasil_observed_state.claim_gate.v1"
 )
+YGGDRASIL_OBSERVED_STATE_EVENT_SCHEMA = (
+    "x0tta6bl4.yggdrasil_observed_state.eventbus_evidence.v1"
+)
 _YGGDRASIL_OUTPUT_FAILURE_MARKERS = (
     "fatal error:",
     "panic:",
@@ -190,6 +193,7 @@ def _publish_yggdrasil_observation(
 
     identity = _identity_metadata()
     payload: Dict[str, Any] = {
+        "schema": YGGDRASIL_OBSERVED_STATE_EVENT_SCHEMA,
         "component": "network.yggdrasil_client",
         "stage": "observed_state",
         "operation": operation,

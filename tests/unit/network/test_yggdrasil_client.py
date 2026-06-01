@@ -85,6 +85,9 @@ def test_yggdrasil_status_publishes_bounded_observed_state(monkeypatch, tmp_path
     event_text = str(data)
 
     assert status["node"]["public_key"] == "TESTKEY"
+    assert data["schema"] == (
+        "x0tta6bl4.yggdrasil_observed_state.eventbus_evidence.v1"
+    )
     assert data["resource"] == "network:yggdrasil:get_self"
     assert data["operation"] == "get_self"
     assert data["service_name"] == "yggdrasil-client"

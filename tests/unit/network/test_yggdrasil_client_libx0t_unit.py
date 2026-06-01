@@ -67,6 +67,9 @@ def test_get_yggdrasil_status_publishes_canonical_redacted_evidence(monkeypatch,
         yggdrasil_client._impl.YGGDRASIL_OBSERVED_STATE_CLAIM_BOUNDARY
     )
     assert status["evidence"]["redacted"] is True
+    assert payload["schema"] == (
+        "x0tta6bl4.yggdrasil_observed_state.eventbus_evidence.v1"
+    )
     assert payload["component"] == "network.yggdrasil_client"
     assert payload["operation"] == "get_self"
     assert payload["service_name"] == "yggdrasil-client"
