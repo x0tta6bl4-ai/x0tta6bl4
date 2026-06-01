@@ -44,6 +44,15 @@ async def test_canary_observation_result_is_not_traffic_or_production_proof():
     assert result["external_dpi_bypass_confirmed"] is False
     assert result["settlement_finality_confirmed"] is False
     assert "does not prove traffic was shifted" in result["claim_boundary"]
+    metadata = result["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert (
+        claim_gate["schema"]
+        == "x0tta6bl4.ops.canary_rollout.safe_actuator_claim_gate.v1"
+    )
+    assert claim_gate["local_requested_rollout_observation_claim_allowed"] is True
+    assert claim_gate["traffic_shift_claim_allowed"] is False
+    assert claim_gate["production_slo_claim_allowed"] is False
 
 
 def test_canary_source_does_not_claim_final_traffic_deployment():
@@ -52,5 +61,7 @@ def test_canary_source_does_not_claim_final_traffic_deployment():
     assert "Final deployment: 100% traffic" not in text
     assert "CANARY DEPLOYMENT COMPLETE" not in text
     assert "CANARY ROLLOUT OBSERVATION" in text
+    assert "x0tta6bl4.ops.canary_rollout.safe_actuator_claim_gate.v1" in text
+    assert "safe_actuator_evidence_metadata" in text
     assert "production_readiness_claim_allowed" in text
     assert "traffic_shift_claim_allowed" in text

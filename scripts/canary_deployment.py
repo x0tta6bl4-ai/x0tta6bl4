@@ -19,6 +19,8 @@ import httpx
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from src.integration.spine import SafeActuatorEvidenceMetadata
+
 try:
     from src.deployment.canary_deployment import (CanaryDeployment,
                                                   DeploymentConfig,
@@ -33,6 +35,13 @@ CANARY_CLAIM_BOUNDARY = (
     "external DPI bypass, settlement finality, production SLOs, or production "
     "readiness without separate rollout/evidence artifacts."
 )
+CANARY_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "Canary rollout script SafeActuator metadata proves only a requested local "
+    "rollout observation and local health/metrics checks. It is not proof that "
+    "traffic shifted, live customer traffic was served, external DPI bypass "
+    "worked, settlement finalized, production SLOs held, or production "
+    "readiness exists."
+)
 DEFAULT_STAGE_DURATIONS = {
     5.0: 15,
     25.0: 30,
@@ -40,6 +49,55 @@ DEFAULT_STAGE_DURATIONS = {
     75.0: 120,
     100.0: 1440,
 }
+
+
+def _safe_actuator_evidence_metadata(
+    *,
+    action: str,
+    percentage: float,
+    health_observed: bool = False,
+    metrics_observed: bool = False,
+) -> Dict[str, Any]:
+    claim_gate = {
+        "schema": "x0tta6bl4.ops.canary_rollout.safe_actuator_claim_gate.v1",
+        "action": action,
+        "local_requested_rollout_observation_claim_allowed": True,
+        "local_health_observation_claim_allowed": bool(health_observed),
+        "local_metrics_observation_claim_allowed": bool(metrics_observed),
+        "traffic_shift_claim_allowed": False,
+        "live_customer_traffic_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "external_dpi_bypass_confirmed": False,
+        "external_settlement_finality_claim_allowed": False,
+        "claim_boundary": CANARY_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+        "redacted": True,
+    }
+    return SafeActuatorEvidenceMetadata.from_value(
+        {
+            "claim_gate": claim_gate,
+            "cross_plane_claim_gate": {
+                "schema": "x0tta6bl4.ops.canary_rollout.cross_plane_claim_gate.v1",
+                "allowed": False,
+                "requires_rollout_controller_evidence_for_traffic_shift_claim": True,
+                "requires_customer_traffic_evidence_for_customer_claim": True,
+                "requires_slo_evidence_for_production_slo_claim": True,
+                "requires_readiness_review_for_production_claim": True,
+                "redacted": True,
+            },
+            "evidence": {
+                "component": "scripts.canary_deployment",
+                "action": action,
+                "requested_rollout_percentage": percentage,
+                "health_observed": bool(health_observed),
+                "metrics_observed": bool(metrics_observed),
+                "raw_output_redacted": True,
+            },
+            "source_agents": ["canary-rollout-script"],
+            "claim_boundary": CANARY_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+    ).to_dict()
 
 
 def parse_stage_percentages(raw: str) -> list[float]:
@@ -172,6 +230,12 @@ async def deploy_canary(
         "external_dpi_bypass_confirmed": False,
         "settlement_finality_confirmed": False,
         "claim_boundary": CANARY_CLAIM_BOUNDARY,
+        "safe_actuator_evidence_metadata": _safe_actuator_evidence_metadata(
+            action="deploy_canary_observation",
+            percentage=percentage,
+            health_observed=total_checks > 0,
+            metrics_observed=total_checks > 0,
+        ),
     }
 
 
