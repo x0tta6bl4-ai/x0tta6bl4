@@ -85,6 +85,18 @@ Set these repository secrets to produce a signed iOS `.ipa` artifact:
 - `X0T_IOS_BUNDLE_ID`: optional, defaults to `net.x0tta6bl4.mesh`
 - `X0T_IOS_EXPORT_METHOD`: optional, defaults to `ad-hoc`
 
+If an Apple Distribution certificate does not exist yet, generate a CSR and private key locally first:
+
+```bash
+python3 scripts/ops/prepare_ios_distribution_certificate_request.py \
+  --generate \
+  --email-address "$APPLE_ID_EMAIL" \
+  --json \
+  --output .tmp/native-signing/ios/ios-distribution-csr.json
+```
+
+Upload the generated `.csr` file to Apple Developer Certificates, create an Apple Distribution certificate, then export a `.p12` that contains the downloaded certificate and the generated private key. Keep the private key under `~/.local/share/x0tta6bl4/ios-signing/` or another secure local vault; do not commit it.
+
 If the Apple signing certificate and provisioning profile already exist locally, upload them without printing private values:
 
 ```bash
