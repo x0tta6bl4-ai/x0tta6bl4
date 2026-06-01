@@ -80,6 +80,21 @@ python3 scripts/ops/check_native_release_goal_status.py \
 
 This command reports `goal_complete: true` only when Android, iOS, Ubuntu, and Windows are all complete in the release artifact audit. It also reports the missing local iOS signing inputs and missing iOS GitHub secret names without printing secret values.
 
+After iOS signing secrets are configured, the final closeout command can trigger the hard release workflow, wait for it, download the release audit, and fail unless all four platforms are complete:
+
+```bash
+python3 scripts/ops/run_native_release_closeout.py \
+  --trigger-workflow \
+  --wait \
+  --download-audit \
+  --check-github-secrets \
+  --require-complete \
+  --json \
+  --output .tmp/native-release-closeout/native-release-closeout.json
+```
+
+This is the final proof command for the native app goal. It does not create Apple certificates or provisioning profiles, and it does not print private signing values.
+
 ## Platform Notes
 
 - Android builds locally after installing JDK 21 and Android SDK platform/build tools.
