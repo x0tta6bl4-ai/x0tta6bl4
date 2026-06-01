@@ -144,6 +144,8 @@ async def test_run_cycle_full_path_with_observe_and_ebpf(monkeypatch, issue, str
     assert out["executor_results"]["success"] is True
 
     assert "observe_mode" in out
+    assert out["observe_mode"]["claim_gate"] is None
+    assert out["observe_mode"]["claim_gate_present"] is False
     assert "observe_mode" in out["explanations"]
 
     assert "ebpf" in out["explanations"]

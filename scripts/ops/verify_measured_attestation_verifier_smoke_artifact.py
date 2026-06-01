@@ -27,6 +27,8 @@ CLAIM_GATE_SCHEMA = "x0tta6bl4.measured_attestation_verifier_smoke.claim_gate.v1
 DECISION_READY = "READY_TO_IMPORT"
 DECISION_REJECTED = "REJECTED"
 READY_DECISION = "MEASURED_ATTESTATION_VERIFIER_SMOKE_READY"
+DEFAULT_MAX_AGE_HOURS = 168
+FUTURE_SKEW_TOLERANCE_SECONDS = 300
 PLACEHOLDER_MARKERS = (
     "REPLACE_WITH",
     "EXAMPLE_ONLY_NOT_EVIDENCE",
@@ -45,6 +47,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--candidate", type=Path, default=DEFAULT_CANDIDATE)
     parser.add_argument("--require-ready", action="store_true")
+    parser.add_argument(
+        "--max-age-hours",
+        type=float,
+        default=DEFAULT_MAX_AGE_HOURS,
+        help=(
+            "Maximum allowed age for captured_at_utc. Use a fresh local smoke "
+            "artifact for proof gates; default is 168 hours."
+        ),
+    )
     parser.add_argument("--json", action="store_true")
     return parser.parse_args(argv)
 
@@ -92,6 +103,65 @@ def dotted_get(payload: dict[str, Any], path: str) -> Any:
             return None
         current = current[part]
     return current
+
+
+def parse_utc_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def artifact_freshness_status(
+    payload: dict[str, Any],
+    *,
+    now_utc: datetime | None = None,
+    max_age_hours: float | None = DEFAULT_MAX_AGE_HOURS,
+) -> dict[str, Any]:
+    now = (now_utc or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    captured_at = payload.get("captured_at_utc")
+    parsed = parse_utc_datetime(captured_at)
+    errors: list[str] = []
+    age_seconds: int | None = None
+    fresh = False
+
+    if parsed is None:
+        errors.append("captured_at_utc must be a timezone-aware UTC timestamp")
+    else:
+        age_seconds = int((now - parsed).total_seconds())
+        if age_seconds < -FUTURE_SKEW_TOLERANCE_SECONDS:
+            errors.append(
+                "captured_at_utc must not be more than "
+                f"{FUTURE_SKEW_TOLERANCE_SECONDS} seconds in the future"
+            )
+        elif max_age_hours is not None:
+            if max_age_hours <= 0:
+                errors.append("max_age_hours must be positive")
+            elif age_seconds > int(max_age_hours * 3600):
+                errors.append(
+                    "captured_at_utc is stale: "
+                    f"age_seconds={age_seconds} max_age_hours={max_age_hours:g}"
+                )
+            else:
+                fresh = True
+        else:
+            fresh = True
+
+    return {
+        "captured_at_utc": captured_at if isinstance(captured_at, str) else None,
+        "artifact_age_seconds": age_seconds,
+        "max_age_hours": max_age_hours,
+        "fresh": fresh,
+        "errors": errors,
+    }
 
 
 def artifact_content_sha256(payload: dict[str, Any]) -> str | None:
@@ -275,11 +345,23 @@ def claim_boundary_errors(payload: dict[str, Any]) -> list[str]:
     return errors
 
 
-def validate(payload: dict[str, Any]) -> list[str]:
+def validate(
+    payload: dict[str, Any],
+    *,
+    now_utc: datetime | None = None,
+    max_age_hours: float | None = DEFAULT_MAX_AGE_HOURS,
+) -> list[str]:
     errors: list[str] = []
     errors.extend(placeholder_errors(payload))
     errors.extend(schema_errors(payload))
     errors.extend(hash_errors(payload))
+    errors.extend(
+        artifact_freshness_status(
+            payload,
+            now_utc=now_utc,
+            max_age_hours=max_age_hours,
+        )["errors"]
+    )
     errors.extend(redaction_errors(payload))
     errors.extend(verifier_errors(payload))
     errors.extend(claim_boundary_errors(payload))
@@ -291,12 +373,15 @@ def build_report(
     candidate: Path = DEFAULT_CANDIDATE,
     *,
     require_ready: bool = False,
+    max_age_hours: float | None = DEFAULT_MAX_AGE_HOURS,
+    now_utc: datetime | None = None,
 ) -> dict[str, Any]:
     root = root.resolve()
     candidate_path = resolve_path(root, candidate)
     failures = path_errors(root, candidate_path)
     payload: dict[str, Any] | None = None
     candidate_sha256: str | None = None
+    freshness: dict[str, Any] | None = None
     if not failures:
         try:
             raw = candidate_path.read_bytes()
@@ -308,7 +393,18 @@ def build_report(
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             failures.append(f"candidate artifact is not valid JSON: {exc}")
     if payload is not None:
-        failures.extend(validate(payload))
+        freshness = artifact_freshness_status(
+            payload,
+            now_utc=now_utc,
+            max_age_hours=max_age_hours,
+        )
+        failures.extend(
+            validate(
+                payload,
+                now_utc=now_utc,
+                max_age_hours=max_age_hours,
+            )
+        )
 
     ready = not failures
     if require_ready and not ready and "require-ready requested" not in failures:
@@ -322,11 +418,13 @@ def build_report(
         "candidate_sha256": candidate_sha256,
         "artifact_schema": payload.get("schema") if isinstance(payload, dict) else None,
         "artifact_ready": payload.get("ready") if isinstance(payload, dict) else None,
+        "artifact_freshness": freshness,
         "failures": failures,
         "claim_boundary": (
             "Validator readiness means the local verifier-smoke artifact is "
-            "structurally bounded and redacted. It does not prove production "
-            "trust finality or production readiness."
+            "structurally bounded, redacted, and fresh enough for this local "
+            "gate. It does not prove production trust finality or production "
+            "readiness."
         ),
     }
 
@@ -337,6 +435,7 @@ def main(argv: list[str] | None = None) -> int:
         args.root,
         args.candidate,
         require_ready=args.require_ready,
+        max_age_hours=args.max_age_hours,
     )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

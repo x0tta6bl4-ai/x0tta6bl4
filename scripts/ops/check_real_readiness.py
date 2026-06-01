@@ -4358,6 +4358,19 @@ def check_cross_plane_proof_gate_contract(root: Path) -> list[CheckResult]:
             and '"audit_sha256": audit_identity["sha256"]' in gate
             and "it does not prove that the underlying external-world claim is true" in gate
         ),
+        "proof_gate_retention_manifest": (
+            'RETENTION_SCHEMA = "x0tta6bl4.cross_plane_proof_gate.retention.v1"'
+            in gate
+            and "def proof_gate_retention_manifest" in gate
+            and '"retention_required": True' in gate
+            and '"canonical_artifact_path": DEFAULT_OUTPUT_JSON.as_posix()' in gate
+            and '"retained_artifact_path": display_path(root, resolved_output)' in gate
+            and '"source_artifacts": [' in gate
+            and '"mutates_runtime": False' in gate
+            and '"collects_live_evidence": False' in gate
+            and "not live traffic, production SLO, DPI bypass, or settlement-finality proof"
+            in gate
+        ),
         "dataplane_delivery_eventbus_artifact_evidence": (
             "def dataplane_delivery_artifact_evidence" in gate
             and "DATAPLANE_DELIVERY_CLAIM_ID" in gate
@@ -4488,7 +4501,7 @@ def check_cross_plane_proof_gate_contract(root: Path) -> list[CheckResult]:
     return [
         pass_check(
             "cross_plane_proof_gate_contract",
-            "Cross-plane proof gate can fail-close strong production/dataplane/DPI/settlement claims, write its canonical validation shard, identify current map/audit source artifacts by hash, keep dynamic repo imports working in CLI mode, require nested dataplane claim-gate evidence, require fresh dpi_lab import provenance, surface bounded DPI replacement/intake context, redact external settlement RPC endpoint metadata, surface bounded external-settlement operator handoff context, and require retained economy-boundary evidence with source-prefiltered EventBus retention scan for settlement/production promotion",
+            "Cross-plane proof gate can fail-close strong production/dataplane/DPI/settlement claims, write its canonical validation shard, identify current map/audit source artifacts by hash, emit a proof-gate artifact retention manifest, keep dynamic repo imports working in CLI mode, require nested dataplane claim-gate evidence, require fresh dpi_lab import provenance, surface bounded DPI replacement/intake context, redact external settlement RPC endpoint metadata, surface bounded external-settlement operator handoff context, and require retained economy-boundary evidence with source-prefiltered EventBus retention scan for settlement/production promotion",
             "scripts/ops/run_cross_plane_proof_gate.py",
         )
     ]

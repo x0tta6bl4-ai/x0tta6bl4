@@ -21,6 +21,17 @@ def _latest_self_healing_event(bus: EventBus, *, operation: str):
     return events[-1]
 
 
+def _latest_failed_self_healing_event(bus: EventBus, *, operation: str):
+    events = bus.get_event_history(
+        EventType.TASK_FAILED,
+        source_agent="self-healing-mapek",
+        limit=20,
+    )
+    events = [event for event in events if event.data.get("operation") == operation]
+    assert events
+    return events[-1]
+
+
 class TestSelfHealingManager:
     """Test SelfHealingManager functionality"""
 
@@ -251,6 +262,45 @@ class TestSelfHealingManager:
         assert claim_gate["customer_traffic_claim_allowed"] is False
         assert claim_gate["production_readiness_claim_allowed"] is False
         assert "raw-node-id" not in str(event.data)
+
+    def test_run_cycle_blocks_repeated_recovery_action_inside_cooldown(self, tmp_path):
+        """Repeated same issue/action is blocked locally to avoid heal ping-pong."""
+        bus = EventBus(project_root=str(tmp_path))
+        now = 1000.0
+        manager = SelfHealingManager(
+            node_id="node-secret",
+            event_bus=bus,
+            action_cooldown_seconds=60.0,
+            clock=lambda: now,
+        )
+
+        with (
+            patch.object(manager.monitor, "check", return_value=True),
+            patch.object(manager.analyzer, "analyze", return_value="High CPU"),
+            patch.object(manager.planner, "plan", return_value="Restart service"),
+            patch.object(manager.executor, "execute", return_value=True) as execute,
+        ):
+            manager.run_cycle({"cpu_percent": 95, "node_id": "raw-node-id"})
+            manager.pending_verifications.clear()
+            manager.run_cycle({"cpu_percent": 96, "node_id": "raw-node-id"})
+
+        execute.assert_called_once()
+        called_action, called_context = execute.call_args.args
+        assert called_action == "Restart service"
+        assert called_context["node_id"] == "node-secret"
+        event = _latest_failed_self_healing_event(bus, operation="execute")
+        data = event.data
+        event_text = str(data)
+
+        assert data["stage"] == "execute_blocked_by_oscillation_guard"
+        assert data["oscillation_guard"]["blocked"] is True
+        assert data["oscillation_guard"]["cooldown_seconds"] == 60.0
+        assert data["oscillation_guard"]["raw_values_redacted"] is True
+        assert data["success"] is False
+        assert data["error"]["type"] == "OscillationGuardBlocked"
+        assert manager.get_feedback_stats()["oscillation_blocks"] == 1
+        assert "node-secret" not in event_text
+        assert "raw-node-id" not in event_text
 
     def test_self_healing_mapek_trace_is_registered(self, tmp_path):
         bus = EventBus(project_root=str(tmp_path))

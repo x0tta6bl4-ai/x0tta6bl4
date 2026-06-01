@@ -5,6 +5,7 @@ import hashlib
 import json
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Sequence
 
@@ -610,7 +611,10 @@ def _write_valid_measured_attestation_smoke_artifact(root: Path) -> None:
         "decision": "MEASURED_ATTESTATION_VERIFIER_SMOKE_READY",
         "ready": True,
         "goal_can_be_marked_complete": False,
-        "captured_at_utc": "2026-05-31T00:00:00Z",
+        "captured_at_utc": datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z"),
         "provider": "sgx",
         "artifact_identity": {
             "claim_id": "measured_attestation_verifier_smoke",
@@ -1796,6 +1800,7 @@ def test_gate_allows_measured_attestation_smoke_only_with_validated_artifact(
     assert artifact["valid"] is True
     assert artifact["validation"]["decision"] == "READY_TO_IMPORT"
     assert artifact["validation"]["candidate_sha256_present"] is True
+    assert artifact["validation"]["artifact_freshness"]["fresh"] is True
     assert "production readiness by itself" in artifact["claim_boundary"]
 
 
@@ -1816,12 +1821,42 @@ def test_gate_blocks_measured_attestation_smoke_when_artifact_overpromotes_produ
     [attestation] = report["claim_results"]
     artifact = attestation["required_artifact_evidence"]
     assert artifact["valid"] is False
+    assert artifact["validation"]["artifact_freshness"]["fresh"] is True
     assert "measured_attestation_verifier_smoke_artifact_not_ready" in artifact[
         "blockers"
     ]
     assert "result_summary.production_ready must be false" in artifact[
         "validation"
     ]["failures"]
+
+
+def test_gate_blocks_measured_attestation_smoke_when_artifact_is_stale(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path)
+    _write_valid_measured_attestation_smoke_artifact(tmp_path)
+    path = tmp_path / "docs/verification/incoming/measured_attestation_verifier_smoke.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["captured_at_utc"] = (
+        datetime.now(timezone.utc).replace(microsecond=0) - timedelta(hours=169)
+    ).isoformat().replace("+00:00", "Z")
+    payload["artifact_identity"]["artifact_sha256"] = _artifact_content_sha256(payload)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    report = build_report(tmp_path, claims=("measured_attestation_verifier_smoke",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [attestation] = report["claim_results"]
+    artifact = attestation["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert artifact["validation"]["artifact_freshness"]["fresh"] is False
+    assert "measured_attestation_verifier_smoke_artifact_not_ready" in artifact[
+        "blockers"
+    ]
+    assert any(
+        "captured_at_utc is stale" in failure
+        for failure in artifact["validation"]["failures"]
+    )
 
 
 def test_gate_blocks_customer_traffic_when_map_flags_are_true_but_event_is_missing(
@@ -2766,6 +2801,25 @@ def test_cli_writes_output_json_shard_even_when_claims_are_blocked(
     assert source_artifacts["current_cross_plane_evidence_map"]["sha256_present"] is True
     assert source_artifacts["current_active_goal_gap_audit"]["sha256_present"] is True
     assert "does not prove" in source_artifacts["current_cross_plane_evidence_map"]["claim_boundary"]
+    retention = report["retention_manifest"]
+    assert retention["schema"] == "x0tta6bl4.cross_plane_proof_gate.retention.v1"
+    assert retention["retention_required"] is True
+    assert retention["canonical_artifact_path"] == (
+        ".tmp/validation-shards/cross-plane-proof-gate-current.json"
+    )
+    assert retention["retained_artifact_path"] == (
+        ".tmp/validation-shards/cross-plane-proof-gate-current.json"
+    )
+    assert retention["source_artifact_hashes_present"] is True
+    assert retention["mutates_runtime"] is False
+    assert retention["collects_live_evidence"] is False
+    assert "--output-json .tmp/validation-shards/cross-plane-proof-gate-current.json" in (
+        retention["writer_command_shape"]
+    )
+    assert "not live traffic" in retention["claim_boundary"]
+    retained_sources = {item["role"]: item for item in retention["source_artifacts"]}
+    assert retained_sources["current_cross_plane_evidence_map"]["sha256_present"] is True
+    assert retained_sources["current_active_goal_gap_audit"]["sha256_present"] is True
 
 
 def test_gate_blocks_settlement_finality_when_blocker_report_lacks_source_artifacts(

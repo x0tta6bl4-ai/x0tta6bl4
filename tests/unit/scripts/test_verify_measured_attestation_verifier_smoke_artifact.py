@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -92,6 +94,7 @@ def test_validator_accepts_redacted_ready_smoke_artifact(tmp_path: Path, monkeyp
     assert report["decision"] == validator.DECISION_READY
     assert report["artifact_schema"] == validator.ARTIFACT_SCHEMA
     assert report["artifact_ready"] is True
+    assert report["artifact_freshness"]["fresh"] is True
     assert report["candidate_sha256"]
     assert report["failures"] == []
 
@@ -189,5 +192,39 @@ def test_validator_rejects_bad_artifact_hash(tmp_path: Path, monkeypatch) -> Non
     assert any("artifact_identity.artifact_sha256 must match" in item for item in report["failures"])
 
 
+def test_validator_rejects_stale_smoke_artifact(tmp_path: Path, monkeypatch) -> None:
+    candidate = _write_ready_candidate(tmp_path, monkeypatch)
+    payload = json.loads(candidate.read_text(encoding="utf-8"))
+    captured_at = datetime(2026, 5, 31, tzinfo=timezone.utc)
+    payload["captured_at_utc"] = captured_at.isoformat().replace("+00:00", "Z")
+    payload["artifact_identity"]["artifact_sha256"] = _artifact_content_sha256(payload)
+    candidate.write_text(json.dumps(payload), encoding="utf-8")
+    validator = _load(VALIDATOR_SCRIPT, "measured_attestation_smoke_artifact_validator_freshness")
+
+    report = validator.build_report(
+        tmp_path,
+        candidate,
+        require_ready=True,
+        max_age_hours=168,
+        now_utc=captured_at + timedelta(hours=169),
+    )
+
+    assert report["ready"] is False
+    assert report["artifact_freshness"]["fresh"] is False
+    assert any("captured_at_utc is stale" in item for item in report["failures"])
+
+
 def validator_hash_zero_placeholder() -> str:
     return "f" * 64
+
+
+def _canonical_json(payload: object) -> str:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _artifact_content_sha256(payload: dict) -> str:
+    normalized = json.loads(_canonical_json(payload))
+    normalized["artifact_identity"]["artifact_sha256"] = "0" * 64
+    return hashlib.sha256(
+        _canonical_json(normalized).encode("utf-8", errors="replace")
+    ).hexdigest()

@@ -31,12 +31,75 @@ The `Native App Builds` workflow builds and uploads:
 - Android debug/release APKs, plus signed release AAB when Android signing secrets are configured.
 - Windows MSI on a Windows runner.
 - Ubuntu deb/AppImage on an Ubuntu runner.
-- iOS simulator app on a macOS runner, plus signed device `.ipa` when Apple signing secrets are configured.
+- iOS simulator app and unsigned iOS device app on a macOS runner, plus signed device `.ipa` when Apple signing secrets are configured.
+- One manifest artifact per platform: `SHA256SUMS` and `native-build-manifest.json`.
+- One signing readiness artifact: `x0tta6bl4-native-signing-readiness/native-signing-readiness.json`.
+- One release audit artifact: `x0tta6bl4-native-release-artifact-audit/native-release-artifact-audit.json`.
+
+The manifest files make each CI run auditable:
+
+- `SHA256SUMS` contains the SHA-256 checksum for every uploaded native binary or package file.
+- `native-build-manifest.json` records the platform, app id, GitHub run id, commit SHA, signing status, file sizes, and checksums.
+- Android and iOS manifests explicitly show whether production signing material was present. If signing secrets are absent, unsigned Android release APK plus iOS simulator/device app bundles are still built, but signed Android AAB/IPA are not claimed.
+- `native-signing-readiness.json` records which required signing secret names are present or missing without printing secret values.
+- `native-release-artifact-audit.json` verifies the downloaded platform artifacts against their manifests. It marks the release incomplete until Android APK/AAB, Windows MSI, Ubuntu deb/AppImage, and a signed iOS `.ipa` are all present.
+
+To audit a downloaded native run locally:
+
+```bash
+gh run download <run-id> --repo x0tta6bl4-ai/x0tta6bl4 --dir .tmp/native-release-artifacts
+python3 scripts/ops/verify_native_release_artifacts.py \
+  --artifact-root .tmp/native-release-artifacts \
+  --json \
+  --output .tmp/native-release-audit/native-release-artifact-audit.json
+```
+
+For a hard release gate, add `--require-complete`. The command exits with code `2` when any required platform artifact is missing, including the signed iOS `.ipa`.
+
+To prepare and trigger the missing signed iOS release path after receiving the Apple `.cer` and `.mobileprovision`, use:
+
+```bash
+python3 scripts/ops/run_ios_signed_release_setup.py \
+  --prepare \
+  --set-github-secrets \
+  --trigger-workflow \
+  --require-complete-release \
+  --json
+```
+
+The default local input paths are under `~/.local/share/x0tta6bl4/ios-signing/`. The command redacts private values and does not claim platform completion until the native release artifact audit reports `complete: true`.
+
+To summarize the actual four-platform goal state from a downloaded audit report plus local iOS signing readiness:
+
+```bash
+python3 scripts/ops/check_native_release_goal_status.py \
+  --audit-json .tmp/native-release-artifacts/x0tta6bl4-native-release-artifact-audit/native-release-artifact-audit.json \
+  --check-github-secrets \
+  --json
+```
+
+This command reports `goal_complete: true` only when Android, iOS, Ubuntu, and Windows are all complete in the release artifact audit. It also reports the missing local iOS signing inputs and missing iOS GitHub secret names without printing secret values.
+
+After iOS signing secrets are configured, the final closeout command can trigger the hard release workflow, wait for it, download the release audit, and fail unless all four platforms are complete:
+
+```bash
+python3 scripts/ops/run_native_release_closeout.py \
+  --trigger-workflow \
+  --wait \
+  --download-audit \
+  --check-github-secrets \
+  --require-complete \
+  --json \
+  --output .tmp/native-release-closeout/native-release-closeout.json
+```
+
+This is the final proof command for the native app goal. It does not create Apple certificates or provisioning profiles, and it does not print private signing values.
 
 ## Platform Notes
 
 - Android builds locally after installing JDK 21 and Android SDK platform/build tools.
+- Android release signing can be bootstrapped with `scripts/ops/prepare_android_signing_secrets.py`; this generates local signing material and can set the required GitHub secrets without printing private values.
 - Ubuntu builds locally with Tauri v2 and WebKitGTK 4.1.
-- iOS sync works locally, but a real device `.ipa` requires macOS, Xcode, CocoaPods, and Apple signing secrets.
+- iOS simulator and unsigned device builds prove the native wrapper compiles for Apple targets. A real installable device `.ipa` still requires macOS, Xcode, CocoaPods, and Apple signing secrets.
 - Windows MSI requires a Windows build host. On Linux, Tauri exposes only Linux bundle targets such as `deb`, `rpm`, and `appimage`.
 - Signing setup is documented in `SIGNING.md`.

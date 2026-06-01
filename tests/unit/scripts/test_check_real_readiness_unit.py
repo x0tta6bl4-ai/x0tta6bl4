@@ -3861,6 +3861,7 @@ relay_reward_claim_gate = _relay_reward_claim_gate()
         "scripts/ops/run_cross_plane_proof_gate.py",
         """
 SCHEMA = "x0tta6bl4.cross_plane_proof_gate.v1"
+RETENTION_SCHEMA = "x0tta6bl4.cross_plane_proof_gate.retention.v1"
 ROOT = "."
 DEFAULT_OUTPUT_JSON = ".tmp/validation-shards/cross-plane-proof-gate-current.json"
 module_roots = [ROOT]
@@ -3884,6 +3885,26 @@ def source_artifact_identity(root, path, role):
         "audit_sha256": audit_identity["sha256"],
         "current_cross_plane_evidence_map": True,
         "current_active_goal_gap_audit": True,
+    }
+def proof_gate_retention_manifest(root, output_json, source_artifacts):
+    resolved_output = output_json
+    return {
+        "schema": RETENTION_SCHEMA,
+        "retention_required": True,
+        "canonical_artifact_path": DEFAULT_OUTPUT_JSON.as_posix(),
+        "retained_artifact_path": display_path(root, resolved_output),
+        "source_artifact_hashes_present": True,
+        "source_artifacts": [
+            {
+                "role": "current_cross_plane_evidence_map",
+                "path": "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
+                "sha256": "0" * 64,
+                "sha256_present": True,
+            }
+        ],
+        "mutates_runtime": False,
+        "collects_live_evidence": False,
+        "claim_boundary": "not live traffic, production SLO, DPI bypass, or settlement-finality proof",
     }
 CLAIM_REQUIREMENTS = {
     "production_readiness": {},
@@ -7933,6 +7954,27 @@ class PulseUDPTransport:
 
     blocker_ids = {item["check_id"] for item in report["blockers"]}
     assert "ghost_pulse_local_timing_evidence_contract" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_missing_cross_plane_proof_gate_retention_manifest_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    gate_path = tmp_path / "scripts/ops/run_cross_plane_proof_gate.py"
+    gate = gate_path.read_text(encoding="utf-8")
+    gate = gate.replace("def proof_gate_retention_manifest", "def proof_gate_retention_removed")
+    gate_path.write_text(gate, encoding="utf-8")
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "cross_plane_proof_gate_contract" in blocker_ids
     assert report["ready"] is False
 
 

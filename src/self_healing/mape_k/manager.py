@@ -6,7 +6,7 @@ Implements Monitor, Analyze, Plan, Execute, Knowledge loop
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.integration.spine import SafeActuator, SafeActuatorEvidenceMetadata
@@ -291,10 +291,15 @@ class SelfHealingManager:
         *,
         event_bus: Optional[EventBus] = None,
         event_project_root: str = ".",
+        action_cooldown_seconds: float = 30.0,
+        clock: Optional[Callable[[], float]] = None,
     ):
         self.node_id = node_id
         self.event_project_root = event_project_root
         self.event_bus = _event_bus_or_none(event_bus, event_project_root)
+        self.action_cooldown_seconds = max(0.0, float(action_cooldown_seconds))
+        self._clock = clock or time.time
+        self._last_recovery_attempts: Dict[str, float] = {}
 
         if knowledge_storage:
             from src.storage.mapek_integration import MAPEKKnowledgeStorageAdapter
@@ -318,6 +323,7 @@ class SelfHealingManager:
         self.feedback_updates = 0
         self.threshold_adjustments = 0
         self.strategy_improvements = 0
+        self.oscillation_blocks = 0
         if self.threshold_manager and hasattr(
             self.threshold_manager,
             "check_and_apply_dao_proposals",
@@ -328,6 +334,44 @@ class SelfHealingManager:
                 )
             except Exception as exc:
                 logger.warning("Failed to apply DAO threshold proposals: %s", exc)
+
+    def _recovery_guard_key(self, issue: str, action: str) -> str:
+        key_material = "\0".join(
+            (
+                str(self.node_id or ""),
+                " ".join(str(issue or "").split()).lower(),
+                " ".join(str(action or "").split()).lower(),
+            )
+        )
+        return _sha256_text(key_material) or "empty"
+
+    def _recovery_guard_state(
+        self,
+        issue: str,
+        action: str,
+        *,
+        now: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        guard_key = self._recovery_guard_key(issue, action)
+        now = self._clock() if now is None else float(now)
+        previous = self._last_recovery_attempts.get(guard_key)
+        elapsed = None if previous is None else max(0.0, now - previous)
+        blocked = (
+            self.action_cooldown_seconds > 0.0
+            and elapsed is not None
+            and elapsed < self.action_cooldown_seconds
+        )
+        return {
+            "enabled": self.action_cooldown_seconds > 0.0,
+            "blocked": blocked,
+            "key_sha256": guard_key,
+            "cooldown_seconds": round(self.action_cooldown_seconds, 3),
+            "elapsed_seconds": round(elapsed, 3) if elapsed is not None else None,
+            "raw_values_redacted": True,
+        }
+
+    def _record_recovery_attempt(self, issue: str, action: str, *, now: float) -> None:
+        self._last_recovery_attempts[self._recovery_guard_key(issue, action)] = now
 
     def _publish_cycle_event(
         self,
@@ -347,6 +391,7 @@ class SelfHealingManager:
         error_type: Optional[str] = None,
         downstream_event_ids: Optional[List[str]] = None,
         safe_actuator_evidence_metadata: Optional[SafeActuatorEvidenceMetadata] = None,
+        oscillation_guard: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -379,6 +424,12 @@ class SelfHealingManager:
             "success": success,
             "simulated": simulated,
             "downstream_evidence": _safe_downstream_evidence(downstream_event_ids, limit=_DOWNSTREAM_EVENT_ID_LIMIT),
+            "oscillation_guard": oscillation_guard or {
+                "enabled": self.action_cooldown_seconds > 0.0,
+                "blocked": False,
+                "cooldown_seconds": round(self.action_cooldown_seconds, 3),
+                "raw_values_redacted": True,
+            },
             "mttr_seconds": round(float(mttr), 6) if mttr is not None else None,
             "input_redacted": True,
             "claim_boundary": SELF_HEALING_MAPEK_CLAIM_BOUNDARY,
@@ -409,10 +460,14 @@ class SelfHealingManager:
             return None
 
     def run_cycle(self, metrics: Dict):
-        """Run MAPE-K cycle with Verification phase."""
+        """Run MAPE-K cycle with Verification phase and bounded MTTR evidence."""
         monitor_start = time.time()
         _check_result = self.monitor.check(metrics)
-        anomaly_detected = _check_result.get("anomaly_detected", False) if isinstance(_check_result, dict) else bool(_check_result)
+        anomaly_detected = (
+            _check_result.get("anomaly_detected", False)
+            if isinstance(_check_result, dict)
+            else bool(_check_result)
+        )
         monitor_duration = time.time() - monitor_start
 
         verification_success: Optional[bool] = None
@@ -420,22 +475,71 @@ class SelfHealingManager:
             verification_success = self._verify_healing(metrics, _check_result)
 
         self._publish_cycle_event(
-            EventType.PIPELINE_STAGE_END, stage="monitor_completed", operation="monitor",
+            EventType.PIPELINE_STAGE_END,
+            stage="monitor_completed",
+            operation="monitor",
             status="anomaly_detected" if anomaly_detected else "healthy",
-            metrics=metrics, check_result=_check_result, duration_ms=monitor_duration * 1000,
+            metrics=metrics,
+            check_result=_check_result,
+            duration_ms=monitor_duration * 1000,
         )
 
-        if anomaly_detected:
-            if verification_success is False:
-                logger.warning(
-                    "Skipping immediate self-healing retry after failed verification "
-                    "for node %s.",
-                    _sha256_text(str(self.node_id)),
-                )
-                return
+        record_mape_k_cycle = None
+        try:
+            from src.monitoring.metrics import record_mape_k_cycle as _record_mape_k_cycle
 
-            issue = self.analyzer.analyze(metrics, node_id=self.node_id)
-            action = self.planner.plan(issue)
+            record_mape_k_cycle = _record_mape_k_cycle
+            record_mape_k_cycle("monitor", monitor_duration)
+        except ImportError:
+            pass
+
+        if not anomaly_detected:
+            logger.info("No anomalies detected. System healthy.")
+            return
+
+        if verification_success is False:
+            logger.warning(
+                "Skipping immediate self-healing retry after failed verification "
+                "for node %s.",
+                _sha256_text(str(self.node_id)),
+            )
+            return
+
+        analyze_start = time.time()
+        analyze_event_id = f"{self.node_id}_{int(time.time() * 1000)}"
+        issue = self.analyzer.analyze(
+            metrics,
+            node_id=self.node_id,
+            event_id=analyze_event_id,
+        )
+        analyze_duration = time.time() - analyze_start
+        if record_mape_k_cycle is not None:
+            try:
+                record_mape_k_cycle("analyze", analyze_duration)
+            except Exception:
+                pass
+
+        plan_start = time.time()
+        action = self.planner.plan(issue)
+        plan_duration = time.time() - plan_start
+        if record_mape_k_cycle is not None:
+            try:
+                record_mape_k_cycle("plan", plan_duration)
+            except Exception:
+                pass
+
+        execute_start = time.time()
+        guard_now = self._clock()
+        oscillation_guard = self._recovery_guard_state(issue, action, now=guard_now)
+        downstream_before = _event_ids_for_agent(self.event_bus, _RECOVERY_EXECUTOR_AGENT)
+
+        if oscillation_guard["blocked"]:
+            self.oscillation_blocks += 1
+            success = False
+            simulated = False
+            downstream_event_ids: List[str] = []
+            error_type = "OscillationGuardBlocked"
+        else:
             cooldown_key = self._remediation_key(issue, action)
             cooldown_until = self.remediation_cooldowns.get(cooldown_key, 0.0)
             if cooldown_until > time.time():
@@ -454,6 +558,7 @@ class SelfHealingManager:
                     safe_actuator_evidence_metadata=self._blocked_safe_actuator_metadata(
                         "remediation_cooldown_active"
                     ),
+                    oscillation_guard=oscillation_guard,
                 )
                 logger.warning(
                     "Self-healing action blocked by remediation cooldown for node %s.",
@@ -461,13 +566,10 @@ class SelfHealingManager:
                 )
                 return
 
+            self._record_recovery_attempt(issue, action, now=guard_now)
             self.remediation_cooldowns[cooldown_key] = (
                 time.time() + self.remediation_cooldown_seconds
             )
-
-            execute_start = time.time()
-            downstream_before = _event_ids_for_agent(self.event_bus, _RECOVERY_EXECUTOR_AGENT)
-
             actuator = SafeActuator(self.executor)
             actuator_result = actuator.execute(
                 action,
@@ -475,37 +577,92 @@ class SelfHealingManager:
             )
             success = bool(actuator_result.success)
             simulated = bool(actuator_result.simulated)
-
-            downstream_event_ids = _new_event_ids_for_agent(self.event_bus, _RECOVERY_EXECUTOR_AGENT, downstream_before)
-            execute_duration = time.time() - execute_start
-            safe_actuator_evidence_metadata = _safe_actuator_evidence_metadata(
-                event_bus=self.event_bus,
-                success=bool(success),
-                simulated=simulated,
-                downstream_event_ids=downstream_event_ids,
+            downstream_event_ids = _new_event_ids_for_agent(
+                self.event_bus,
+                _RECOVERY_EXECUTOR_AGENT,
+                downstream_before,
             )
+            error_type = None if success else "SafeActuatorFailure"
 
-            self._publish_cycle_event(
-                (EventType.PIPELINE_STAGE_END if success and not simulated else EventType.TASK_FAILED),
-                stage=("execute_completed" if success and not simulated else "execute_simulated" if simulated else "execute_failed"),
-                operation="execute", status="success" if success and not simulated else "failed",
-                metrics=metrics, issue=issue, action=action, success=success and not simulated,
-                simulated=simulated, duration_ms=execute_duration * 1000,
-                error_type=None if success else "SafeActuatorFailure", downstream_event_ids=downstream_event_ids,
-                safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
-            )
+        execute_duration = time.time() - execute_start
+        mttr = execute_duration
+        safe_actuator_evidence_metadata = _safe_actuator_evidence_metadata(
+            event_bus=self.event_bus,
+            success=bool(success),
+            simulated=simulated,
+            downstream_event_ids=downstream_event_ids,
+        )
+        stage = (
+            "execute_completed"
+            if success and not simulated
+            else "execute_simulated"
+            if simulated
+            else "execute_blocked_by_oscillation_guard"
+            if oscillation_guard["blocked"]
+            else "execute_failed"
+        )
+        self._publish_cycle_event(
+            EventType.PIPELINE_STAGE_END
+            if success and not simulated
+            else EventType.TASK_FAILED,
+            stage=stage,
+            operation="execute",
+            status="success" if success and not simulated else "failed",
+            metrics=metrics,
+            issue=issue,
+            action=action,
+            success=success and not simulated,
+            simulated=simulated,
+            duration_ms=execute_duration * 1000,
+            mttr=mttr,
+            error_type=error_type,
+            downstream_event_ids=downstream_event_ids,
+            safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
+            oscillation_guard=oscillation_guard,
+        )
 
-            if success:
-                # Mark for verification in the next heartbeat
-                self.pending_verifications[self.node_id] = {
-                    "action": action,
-                    "issue": issue,
-                    "start_time": time.time(),
-                    "initial_metrics": metrics
-                }
-                logger.info(f"Recovery action {action} initiated. Waiting for verification.")
+        try:
+            from src.monitoring.metrics import record_mttr, record_self_healing_event
 
-            self.knowledge.record(metrics, issue, action, success=success)
+            recovery_type_map = {
+                "High CPU": "high_cpu",
+                "High Memory": "high_memory",
+                "Network Loss": "route_failure",
+            }
+            recovery_type = recovery_type_map.get(issue, "unknown")
+            record_mttr(recovery_type, mttr)
+            record_self_healing_event(recovery_type, self.node_id)
+            if record_mape_k_cycle is not None:
+                record_mape_k_cycle("execute", execute_duration)
+        except ImportError:
+            pass
+
+        knowledge_start = time.time()
+        self.knowledge.record(metrics, issue, action, success=success, mttr=mttr)
+        self._apply_feedback_loop(issue, action, success, mttr)
+        knowledge_duration = time.time() - knowledge_start
+        if record_mape_k_cycle is not None:
+            try:
+                record_mape_k_cycle("knowledge", knowledge_duration)
+            except Exception:
+                pass
+
+        if success:
+            self.pending_verifications[self.node_id] = {
+                "action": action,
+                "issue": issue,
+                "start_time": time.time(),
+                "initial_metrics": metrics,
+            }
+            logger.info("Recovery action %s initiated. Waiting for verification.", action)
+
+        logger.info(
+            "Self-healing cycle: %s -> %s, MTTR=%.3fs, success=%s",
+            issue,
+            action,
+            mttr,
+            success,
+        )
 
     def _verify_healing(
         self,
@@ -629,6 +786,8 @@ class SelfHealingManager:
             "failed_patterns": sum(
                 len(patterns) for patterns in self.knowledge.failed_patterns.values()
             ),
+            "oscillation_blocks": self.oscillation_blocks,
+            "action_cooldown_seconds": self.action_cooldown_seconds,
         }
 
     def integrate_ebpf_self_healing(self, interface: str = "eth0"):

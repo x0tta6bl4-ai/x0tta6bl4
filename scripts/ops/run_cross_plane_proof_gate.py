@@ -23,6 +23,7 @@ from typing import Any, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = "x0tta6bl4.cross_plane_proof_gate.v1"
+RETENTION_SCHEMA = "x0tta6bl4.cross_plane_proof_gate.retention.v1"
 DEFAULT_MAP = Path("docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json")
 DEFAULT_AUDIT = Path("docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md")
 DEFAULT_OUTPUT_JSON = Path(".tmp/validation-shards/cross-plane-proof-gate-current.json")
@@ -1039,6 +1040,44 @@ def source_artifact_identity(root: Path, path: Path, role: str) -> dict[str, Any
     }
 
 
+def proof_gate_retention_manifest(
+    root: Path,
+    output_json: Path,
+    source_artifacts: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    resolved_output = resolve_path(root, output_json)
+    return {
+        "schema": RETENTION_SCHEMA,
+        "retention_required": True,
+        "canonical_artifact_path": DEFAULT_OUTPUT_JSON.as_posix(),
+        "retained_artifact_path": display_path(root, resolved_output),
+        "writer_command_shape": (
+            "python3 scripts/ops/run_cross_plane_proof_gate.py --json "
+            "--require-allowed --output-json "
+            f"{DEFAULT_OUTPUT_JSON.as_posix()}"
+        ),
+        "source_artifact_hashes_present": all(
+            artifact.get("sha256_present") is True for artifact in source_artifacts
+        ),
+        "source_artifacts": [
+            {
+                "role": str(artifact.get("role") or ""),
+                "path": str(artifact.get("path") or ""),
+                "sha256": artifact.get("sha256"),
+                "sha256_present": artifact.get("sha256_present") is True,
+            }
+            for artifact in source_artifacts
+        ],
+        "mutates_runtime": False,
+        "collects_live_evidence": False,
+        "claim_boundary": (
+            "This proof-gate artifact retention manifest only proves which local "
+            "report should be retained and which source artifacts were read by "
+            "hash. It is not live traffic, production SLO, DPI bypass, or settlement-finality proof."
+        ),
+    }
+
+
 def load_script_module(root: Path, rel_path: Path, module_name: str):
     path = root / rel_path
     if not path.exists():
@@ -1740,6 +1779,9 @@ def measured_attestation_verifier_smoke_artifact_evidence(root: Path) -> dict[st
             "candidate_sha256_present": _is_sha256_hex(report.get("candidate_sha256")),
             "artifact_schema": report.get("artifact_schema"),
             "artifact_ready": report.get("artifact_ready") is True,
+            "artifact_freshness": report.get("artifact_freshness")
+            if isinstance(report.get("artifact_freshness"), dict)
+            else None,
             "failures": [
                 str(item)
                 for item in (
@@ -3552,6 +3594,7 @@ def build_report(
     *,
     map_path: Path = DEFAULT_MAP,
     audit_path: Path = DEFAULT_AUDIT,
+    output_json: Path = DEFAULT_OUTPUT_JSON,
     claims: Sequence[str] = DEFAULT_CLAIMS,
 ) -> dict[str, Any]:
     root = root.resolve()
@@ -3565,6 +3608,11 @@ def build_report(
         except Exception as exc:
             load_errors.append(f"current_evidence_map_invalid:{exc}")
     context = map_context(root, resolved_map, resolved_audit, evidence_map)
+    retention_manifest = proof_gate_retention_manifest(
+        root,
+        output_json,
+        context.get("source_artifacts", []),
+    )
     flag_index = collect_flag_index(evidence_map or {})
     artifact_evidence: dict[str, Mapping[str, Any]] = {}
     if "local_observed_state" in claims:
@@ -3668,6 +3716,7 @@ def build_report(
         "decision": "CROSS_PLANE_CLAIMS_ALLOWED" if allowed else "CROSS_PLANE_CLAIMS_BLOCKED",
         "allowed": allowed,
         "context": context,
+        "retention_manifest": retention_manifest,
         "claim_results": claim_results,
         "allowed_claim_ids": allowed_claim_ids,
         "blocked_claim_ids": blocked_claim_ids,
@@ -3718,6 +3767,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.root,
         map_path=args.map_path,
         audit_path=args.audit_path,
+        output_json=args.output_json or DEFAULT_OUTPUT_JSON,
         claims=tuple(args.claim or DEFAULT_CLAIMS),
     )
     if args.output_json is not None:
