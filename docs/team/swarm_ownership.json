@@ -68,11 +68,16 @@
         "docker-compose.spire.yml",
         "src/services/maas_auth_service.py",
         ".github/",
-        ".gitlab-ci.yml.ebpf"
+        ".gitlab-ci.yml.ebpf",
+        ".dockerignore",
+        ".dockerignore.ghost-pulse",
+        "Dockerfile.ghost-pulse",
+        "docker-compose.ghost-pulse.yml",
+        "deploy_ghost/"
       ]
     },
     "claude-maas-reviewer": {
-      "description": "Claude Code \u2014 MaaS RBAC, security review, test coverage",
+      "description": "Claude Code — MaaS RBAC, security review, test coverage",
       "allow": [
         "src/api/maas_auth.py",
         "src/api/maas_analytics.py",
@@ -99,7 +104,7 @@
       ]
     },
     "claude": {
-      "description": "Claude Code \u2014 verification, SBOM, compliance, release-gate docs",
+      "description": "Claude Code — verification, SBOM, compliance, release-gate docs",
       "allow": [
         "scripts/verify-v1.1.sh",
         "docs/verification/",
@@ -149,6 +154,7 @@
         "local_ygg.conf",
         "check_actual_schema.py",
         "collect_telemetry.sh",
+        "list_routes.py",
         "temp_attest.py",
         "telegram_bot.py",
         "qr_code_generator.py",
@@ -209,6 +215,7 @@
         "run_backend.py",
         "index.html",
         "script.js",
+        "x0tta6bl4-app/",
         "src-tauri/",
         "__init__.py",
         "PROJECT_COMPLETION_REPORT.json",
@@ -220,7 +227,14 @@
         ".gitlab-ci.yml.ebpf",
         "agent/",
         "go.mod",
-        "go.sum"
+        "go.sum",
+        "fix_all_strings.py",
+        "fix_strings.py",
+        "fix_test_files.sh",
+        "result.json",
+        "scripts/gitmark_memory_bank.py",
+        ".gitmark-memory/",
+        "x0tta6bl4-project-audit-2026-06-06.md"
       ]
     },
     "codex": {
@@ -244,6 +258,37 @@
         "scripts/generate_validation_bundle.py",
         "scripts/ebpf_cleanup_safe.sh",
         "scripts/cleanup_root.sh"
+      ]
+    },
+    "vpn-runtime-ops": {
+      "description": "VPN/NL runtime diagnostics, redacted Ghost Access operations, and operator evidence packets",
+      "allow": [
+        "nl-diagnostics/",
+        "services/nl-server/",
+        "docs/runbooks/NL_VPN_HEALTH.md",
+        "scripts/update_routing_safely.sh",
+        "scripts/vpn_boot_validate.sh",
+        "scripts/refresh_nl_vpn_readonly_evidence.sh",
+        "scripts/review_nl_no_progress_nudge.sh",
+        "scripts/send_nl_no_progress_nudge_guarded.sh",
+        "x0tta6bl4-xray-vps/",
+        "ghost_pulse_vpn.py",
+        "launch_vpn_ui.sh",
+        "start_ghost_client.sh",
+        "x0tta6bl4_vpn_app.py",
+        "requirements-ghost.txt",
+        "nl-vpn-diagnostics-2026-06-06.md",
+        "xui-inbounds-playwright-check.png",
+        "xui-inbounds-playwright-recheck.png"
+      ]
+    },
+    "vpn-observability": {
+      "description": "VPN observability reports, transport history, and operator-facing diagnostics docs",
+      "allow": [
+        "nl-diagnostics/",
+        "docs/runbooks/NL_VPN_HEALTH.md",
+        "docs/ghost-access/",
+        "plans/REVENUE_USEFULNESS_SPRINT_2026-05-31.md"
       ]
     },
     "lead-coordinator": {
@@ -276,7 +321,10 @@
         "AGENTS.md",
         ".agent-coord/",
         "go.mod",
-        "go.sum"
+        "go.sum",
+        "GEMINI.md",
+        ".hermes/",
+        ".workflow/"
       ]
     }
   }
