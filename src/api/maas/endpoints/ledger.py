@@ -4,6 +4,7 @@ API Endpoints для Continuity Ledger
 Semantic search и другие операции с ledger через API
 """
 
+import importlib
 import logging
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
@@ -15,7 +16,6 @@ from pydantic import BaseModel
 
 from src.coordination.events import EventBus, EventType
 from src.core.reliability_policy import mark_degraded_dependency
-import src.ledger.rag_search
 from src.services.service_event_trace import service_event_trace_history
 
 try:
@@ -28,6 +28,13 @@ except Exception:  # pragma: no cover - exercised by fail-closed fallback
 logger = logging.getLogger(__name__)
 
 router = APIRouter( tags=["ledger"])
+
+
+def _get_ledger_rag() -> Any:
+    """Load the heavy RAG ledger implementation only when a ledger endpoint needs it."""
+    rag_search = importlib.import_module("src.ledger.rag_search")
+    return rag_search.get_ledger_rag()
+
 
 CLAIM_SENSITIVE_QUERY_TERMS = (
     "production",
@@ -694,7 +701,7 @@ async def search_ledger(request: SearchRequest):
     - "Какие компоненты готовы к deployment?"
     """
     try:
-        ledger_rag = src.ledger.rag_search.get_ledger_rag()
+        ledger_rag = _get_ledger_rag()
 
         # Убеждаемся, что ledger проиндексирован
         if not ledger_rag.is_indexed():
@@ -792,7 +799,7 @@ async def index_ledger(force: bool = False, include_verification: bool = False):
     - force: Принудительная переиндексация (даже если уже проиндексировано)
     """
     try:
-        ledger_rag = src.ledger.rag_search.get_ledger_rag()
+        ledger_rag = _get_ledger_rag()
         success = await ledger_rag.index_ledger(force=force)
         verification = None
         if success and include_verification:
@@ -825,7 +832,7 @@ async def ledger_status(request: Request):
     Статус индексирования ledger.
     """
     try:
-        ledger_rag = src.ledger.rag_search.get_ledger_rag()
+        ledger_rag = _get_ledger_rag()
         payload = _ledger_readiness_status(ledger_rag)
         for dependency in payload["degraded_dependencies"]:
             mark_degraded_dependency(request, dependency)
@@ -846,7 +853,7 @@ async def index_verification_evidence(
     Индексирование docs/verification artifacts в runtime RAG surface.
     """
     try:
-        ledger_rag = src.ledger.rag_search.get_ledger_rag()
+        ledger_rag = _get_ledger_rag()
         success = await ledger_rag.index_verification_evidence(
             force=force,
             max_files=max_files,
@@ -877,7 +884,7 @@ async def verification_evidence_status():
     Статус docs/verification artifacts как runtime evidence source.
     """
     try:
-        ledger_rag = src.ledger.rag_search.get_ledger_rag()
+        ledger_rag = _get_ledger_rag()
         return ledger_rag.verification_evidence_status()
     except Exception as e:
         logger.error(
@@ -900,7 +907,7 @@ async def index_event_traces(
     Index redacted EventBus traces into the runtime RAG surface.
     """
     try:
-        ledger_rag = src.ledger.rag_search.get_ledger_rag()
+        ledger_rag = _get_ledger_rag()
         trace_payload = service_event_trace_history(
             EventBus("."),
             service_name=service_name,
@@ -940,7 +947,7 @@ async def event_trace_status():
     Status for EventBus traces indexed into runtime RAG surface.
     """
     try:
-        ledger_rag = src.ledger.rag_search.get_ledger_rag()
+        ledger_rag = _get_ledger_rag()
         return ledger_rag.event_trace_status()
     except Exception as e:
         logger.error(
