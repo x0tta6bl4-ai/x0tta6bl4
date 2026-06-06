@@ -64,6 +64,12 @@ class MaaSAuthService:
             raise HTTPException(status_code=400, detail="Email already registered")
 
         api_key = self._api_key_factory()
+        plan_limits = {
+            "enterprise": 10000000,
+            "pro": 1000000,
+            "starter": 10000,
+            "free": 1000,
+        }
         user = User(
             id=str(uuid.uuid4()),
             email=normalized_email,
@@ -74,6 +80,7 @@ class MaaSAuthService:
             api_key_hash=ApiKeyManager.hash_key(api_key),
             role="user",
             plan=self._default_plan,
+            requests_limit=plan_limits.get(self._default_plan, 10000),
         )
         user._issued_api_key = api_key
         db.add(user)

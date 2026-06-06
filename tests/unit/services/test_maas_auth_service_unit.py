@@ -52,6 +52,32 @@ def test_register_creates_user_with_configured_plan(db_session):
     assert user.password_hash.startswith("$2")
 
 
+@pytest.mark.parametrize(
+    ("plan", "expected_limit"),
+    [
+        ("free", 1000),
+        ("starter", 10000),
+        ("pro", 1000000),
+        ("enterprise", 10000000),
+        ("unknown", 10000),
+    ],
+)
+def test_register_sets_request_limit_from_plan(db_session, plan, expected_limit):
+    service = MaaSAuthService(
+        api_key_factory=lambda: f"{plan}-api-key",
+        default_plan=plan,
+    )
+    req = UserRegisterRequest(
+        email=f"limit-{plan}-{uuid.uuid4().hex}@test.local",
+        password="StrongPassword123!",
+    )
+
+    user = service.register(db_session, req)
+
+    assert user.plan == plan
+    assert user.requests_limit == expected_limit
+
+
 def test_register_duplicate_email_raises_400(db_session):
     service = MaaSAuthService(
         api_key_factory=lambda: "dup-key",
