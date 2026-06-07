@@ -8,9 +8,11 @@ It does not submit transactions or mutate production by itself.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.coordination.events import EventBus, EventType
 
 
@@ -47,6 +49,80 @@ def _safe_string_list(value: Any) -> List[str]:
 
 def _safe_dict(value: Any) -> Dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    if value <= 1000:
+        return "100-1000"
+    return "1000+"
+
+
+def _safe_context_summary(context: Any) -> Dict[str, Any]:
+    if not isinstance(context, dict):
+        return {"context_type": type(context).__name__, "context_key_count_bucket": "0"}
+    return {
+        "context_key_count_bucket": _safe_count_bucket(len(context)),
+        "context_key_hashes": [_safe_hash(key) for key in sorted(context.keys())[:20]],
+        "has_claim_gate": bool(context.get("claim_gate")),
+        "has_cross_plane_claim_gate": bool(context.get("cross_plane_claim_gate")),
+        "upstream_event_count_bucket": _safe_count_bucket(
+            len(_safe_string_list(context.get("upstream_event_ids")))
+        ),
+    }
+
+
+def _safe_identity_summary(identity: "SpineIdentity") -> Dict[str, Any]:
+    return {
+        "node_hash": _safe_hash(identity.node_id),
+        "spiffe_hash": _safe_hash(identity.spiffe_id),
+        "did_hash": _safe_hash(identity.did),
+        "wallet_hash": _safe_hash(identity.wallet_address),
+        "has_wallet": bool(identity.wallet_address),
+    }
+
+
+def _safe_request_summary(request: "SpineRequest") -> Dict[str, Any]:
+    return {
+        "request_hash": _safe_hash(request.request_id),
+        "identity": _safe_identity_summary(request.identity),
+        "action_hash": _safe_hash(request.action),
+        "resource_hash": _safe_hash(request.resource),
+        "workload_hash": _safe_hash(request.workload_type),
+        "reward_packets_band": _safe_number_band(request.reward_packets),
+        "reward_address_hash": _safe_hash(request.reward_address),
+        "metadata_key_count_bucket": _safe_count_bucket(len(request.metadata)),
+        "metadata_key_hashes": [
+            _safe_hash(key) for key in sorted(request.metadata.keys())[:20]
+        ],
+    }
 
 
 def _spine_claim_gate(
@@ -373,10 +449,70 @@ class SafeActuator:
 
     def __init__(self, executor: Any = None):
         self.executor = executor
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="safe-actuator",
+            role="security",
+            capabilities=("ops", "zero-trust"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "safe_actuator_init",
+                "goal": "Initialize guarded actuator adapter safely",
+                "signals": {
+                    "executor_configured": executor is not None,
+                    "executor_callable": bool(
+                        hasattr(executor, "execute") or callable(executor)
+                    ),
+                },
+                "safety_boundary": (
+                    "Keep raw actions, context values, executor output, and "
+                    "exception text out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_actions": True,
+                    "redact_context_values": True,
+                    "redact_executor_output": True,
+                    "redact_exception_text": True,
+                    "preserve_fail_closed_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, and local result flags.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def execute(self, action: str, context: Dict[str, Any]) -> SafeActuatorResult:
         if self.executor is None:
             reason = "safe actuator executor is not configured"
+            self._record_thinking(
+                "safe_actuator_blocked",
+                "Block actuator execution without configured executor",
+                {
+                    "action_hash": _safe_hash(action),
+                    "executor_configured": False,
+                    "executor_callable": False,
+                    **_safe_context_summary(context),
+                },
+            )
             return SafeActuatorResult(
                 False,
                 reason,
@@ -400,6 +536,16 @@ class SafeActuator:
                 raw = self.executor(action, context)
             else:
                 reason = "safe actuator executor is not callable"
+                self._record_thinking(
+                    "safe_actuator_blocked",
+                    "Block actuator execution with non-callable executor",
+                    {
+                        "action_hash": _safe_hash(action),
+                        "executor_configured": True,
+                        "executor_callable": False,
+                        **_safe_context_summary(context),
+                    },
+                )
                 return SafeActuatorResult(
                     False,
                     reason,
@@ -417,6 +563,17 @@ class SafeActuator:
                 )
         except Exception as exc:  # pragma: no cover - exact exception is caller-owned
             reason = f"safe actuator exception: {exc}"
+            self._record_thinking(
+                "safe_actuator_exception",
+                "Fail closed on actuator exception safely",
+                {
+                    "action_hash": _safe_hash(action),
+                    "executor_configured": True,
+                    "executor_callable": True,
+                    "error_type": type(exc).__name__,
+                    **_safe_context_summary(context),
+                },
+            )
             return SafeActuatorResult(
                 False,
                 reason,
@@ -435,11 +592,35 @@ class SafeActuator:
 
         simulated = bool(getattr(self.executor, "was_simulated", False))
         if isinstance(raw, SafeActuatorResult):
+            self._record_thinking(
+                "safe_actuator_result_normalized",
+                "Normalize direct SafeActuatorResult safely",
+                {
+                    "action_hash": _safe_hash(action),
+                    "success": raw.success,
+                    "simulated": raw.simulated,
+                    **_safe_context_summary(context),
+                },
+            )
             return raw
         if isinstance(raw, dict):
             success = bool(raw.get("success", raw.get("ok", False)))
             reason = str(raw.get("reason", ""))
             simulated_result = bool(raw.get("simulated", simulated))
+            self._record_thinking(
+                "safe_actuator_result_normalized",
+                "Normalize dict actuator result safely",
+                {
+                    "action_hash": _safe_hash(action),
+                    "success": success,
+                    "simulated": simulated_result,
+                    "result_key_count_bucket": _safe_count_bucket(len(raw)),
+                    "result_key_hashes": [
+                        _safe_hash(key) for key in sorted(raw.keys())[:20]
+                    ],
+                    **_safe_context_summary(context),
+                },
+            )
             return SafeActuatorResult(
                 success=success,
                 reason=reason,
@@ -447,6 +628,16 @@ class SafeActuator:
                 evidence_metadata=SafeActuatorEvidenceMetadata.from_value(raw),
             )
         success = bool(raw)
+        self._record_thinking(
+            "safe_actuator_executed",
+            "Execute guarded actuator safely",
+            {
+                "action_hash": _safe_hash(action),
+                "success": success,
+                "simulated": simulated,
+                **_safe_context_summary(context),
+            },
+        )
         return SafeActuatorResult(
             success,
             simulated=simulated,
@@ -471,10 +662,70 @@ class AsyncSafeActuator:
 
     def __init__(self, executor: Any = None):
         self.executor = executor
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="async-safe-actuator",
+            role="security",
+            capabilities=("ops", "zero-trust"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "async_safe_actuator_init",
+                "goal": "Initialize async guarded actuator adapter safely",
+                "signals": {
+                    "executor_configured": executor is not None,
+                    "executor_callable": bool(
+                        hasattr(executor, "execute") or callable(executor)
+                    ),
+                },
+                "safety_boundary": (
+                    "Keep raw actions, context values, executor output, and "
+                    "exception text out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_actions": True,
+                    "redact_context_values": True,
+                    "redact_executor_output": True,
+                    "redact_exception_text": True,
+                    "preserve_fail_closed_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, and local result flags.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def execute(self, action: str, context: Dict[str, Any]) -> SafeActuatorResult:
         if self.executor is None:
             reason = "async safe actuator executor is not configured"
+            self._record_thinking(
+                "async_safe_actuator_blocked",
+                "Block async actuator execution without configured executor",
+                {
+                    "action_hash": _safe_hash(action),
+                    "executor_configured": False,
+                    "executor_callable": False,
+                    **_safe_context_summary(context),
+                },
+            )
             return SafeActuatorResult(
                 False,
                 reason,
@@ -498,6 +749,16 @@ class AsyncSafeActuator:
                 raw = self.executor(action, context)
             else:
                 reason = "async safe actuator executor is not callable"
+                self._record_thinking(
+                    "async_safe_actuator_blocked",
+                    "Block async actuator execution with non-callable executor",
+                    {
+                        "action_hash": _safe_hash(action),
+                        "executor_configured": True,
+                        "executor_callable": False,
+                        **_safe_context_summary(context),
+                    },
+                )
                 return SafeActuatorResult(
                     False,
                     reason,
@@ -517,6 +778,17 @@ class AsyncSafeActuator:
                 raw = await raw
         except Exception as exc:  # pragma: no cover - exact exception is caller-owned
             reason = f"async safe actuator exception: {exc}"
+            self._record_thinking(
+                "async_safe_actuator_exception",
+                "Fail closed on async actuator exception safely",
+                {
+                    "action_hash": _safe_hash(action),
+                    "executor_configured": True,
+                    "executor_callable": True,
+                    "error_type": type(exc).__name__,
+                    **_safe_context_summary(context),
+                },
+            )
             return SafeActuatorResult(
                 False,
                 reason,
@@ -535,11 +807,35 @@ class AsyncSafeActuator:
 
         simulated = bool(getattr(self.executor, "was_simulated", False))
         if isinstance(raw, SafeActuatorResult):
+            self._record_thinking(
+                "async_safe_actuator_result_normalized",
+                "Normalize direct async SafeActuatorResult safely",
+                {
+                    "action_hash": _safe_hash(action),
+                    "success": raw.success,
+                    "simulated": raw.simulated,
+                    **_safe_context_summary(context),
+                },
+            )
             return raw
         if isinstance(raw, dict):
             success = bool(raw.get("success", raw.get("ok", False)))
             reason = str(raw.get("reason", raw.get("error", "")) or "")
             simulated_result = bool(raw.get("simulated", simulated))
+            self._record_thinking(
+                "async_safe_actuator_result_normalized",
+                "Normalize async dict actuator result safely",
+                {
+                    "action_hash": _safe_hash(action),
+                    "success": success,
+                    "simulated": simulated_result,
+                    "result_key_count_bucket": _safe_count_bucket(len(raw)),
+                    "result_key_hashes": [
+                        _safe_hash(key) for key in sorted(raw.keys())[:20]
+                    ],
+                    **_safe_context_summary(context),
+                },
+            )
             return SafeActuatorResult(
                 success=success,
                 reason=reason,
@@ -547,6 +843,16 @@ class AsyncSafeActuator:
                 evidence_metadata=SafeActuatorEvidenceMetadata.from_value(raw),
             )
         success = bool(raw)
+        self._record_thinking(
+            "async_safe_actuator_executed",
+            "Execute async guarded actuator safely",
+            {
+                "action_hash": _safe_hash(action),
+                "success": success,
+                "simulated": simulated,
+                **_safe_context_summary(context),
+            },
+        )
         return SafeActuatorResult(
             success,
             simulated=simulated,
@@ -650,9 +956,73 @@ class IntegrationSpine:
         self.actuator = actuator or SafeActuator()
         self.reward_manager = reward_manager
         self.source_agent = source_agent
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"integration-spine:{_safe_hash(source_agent)}",
+            role="coordinator",
+            capabilities=("security", "zero-trust", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "integration_spine_init",
+                "goal": "Initialize fail-closed integration spine safely",
+                "signals": {
+                    "source_agent_hash": _safe_hash(source_agent),
+                    "policy_engine_configured": policy_engine is not None,
+                    "actuator_configured": self.actuator is not None,
+                    "reward_manager_configured": reward_manager is not None,
+                },
+                "safety_boundary": (
+                    "Keep raw request ids, identities, actions, resources, "
+                    "metadata, reward addresses, policy reasons, and event ids "
+                    "out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_request_ids": True,
+                    "redact_identities": True,
+                    "redact_actions": True,
+                    "redact_resources": True,
+                    "redact_metadata_values": True,
+                    "redact_reward_addresses": True,
+                    "redact_policy_reasons": True,
+                    "redact_event_ids": True,
+                    "preserve_fail_closed_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, statuses, and claim flags.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def process(self, request: SpineRequest) -> SpineOutcome:
         event_ids: List[str] = []
+        self._record_thinking(
+            "integration_spine_request_received",
+            "Receive integration spine request safely",
+            {
+                **_safe_request_summary(request),
+                "policy_engine_configured": self.policy_engine is not None,
+                "reward_manager_configured": self.reward_manager is not None,
+            },
+        )
 
         identity_errors = request.identity.validation_errors()
         if identity_errors:
@@ -1024,6 +1394,36 @@ class IntegrationSpine:
         reward_address: Optional[str] = None,
         safe_actuator_evidence_metadata: Optional[Dict[str, Any]] = None,
     ) -> SpineOutcome:
+        self._record_thinking(
+            "integration_spine_outcome",
+            "Finalize integration spine decision safely",
+            {
+                **_safe_request_summary(request),
+                "status": status,
+                "allowed": allowed,
+                "policy_allowed": policy_allowed,
+                "action_executed": action_executed,
+                "settlement_recorded": settlement_recorded,
+                "reason_present": bool(reason),
+                "reason_hash": _safe_hash(reason),
+                "event_count_bucket": _safe_count_bucket(len(event_ids)),
+                "event_id_hashes": [_safe_hash(event_id) for event_id in event_ids[:20]],
+                "matched_rule_count_bucket": _safe_count_bucket(
+                    len(matched_rules or [])
+                ),
+                "matched_rule_hashes": [
+                    _safe_hash(rule) for rule in (matched_rules or [])[:20]
+                ],
+                "reward_address_hash": _safe_hash(
+                    reward_address
+                    or request.reward_address
+                    or request.identity.wallet_address
+                ),
+                "has_safe_actuator_evidence": bool(safe_actuator_evidence_metadata),
+                "claim_gate_local_only": True,
+                "cross_plane_claims_blocked": True,
+            },
+        )
         return SpineOutcome(
             request_id=request.request_id,
             status=status,

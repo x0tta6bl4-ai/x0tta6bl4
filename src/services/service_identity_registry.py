@@ -17,12 +17,12 @@ KNOWN_EVENT_IDENTITY_SERVICES: Tuple[Dict[str, str], ...] = (
     {
         "service_name": "maas-governance",
         "layer": "api_to_control_plane",
-        "entrypoint": "src/api/maas_governance.py",
+        "entrypoint": "src/api/maas/endpoints/governance.py",
     },
     {
         "service_name": "vpn-api-status-read",
         "layer": "api_vpn_status_observed_state",
-        "entrypoint": "src/api/vpn.py",
+        "entrypoint": "src/api/maas/endpoints/vpn.py",
     },
     {
         "service_name": "vpn-experimental-config-generate",
@@ -72,7 +72,7 @@ KNOWN_EVENT_IDENTITY_SERVICES: Tuple[Dict[str, str], ...] = (
     {
         "service_name": "token-bridge",
         "layer": "dao_chain_bridge",
-        "entrypoint": "src/dao/token_bridge.py",
+        "entrypoint": "src/dao/bridge/core.py",
     },
     {
         "service_name": "mesh-vpn-bridge",
@@ -455,10 +455,6 @@ KNOWN_EVENT_IDENTITY_SERVICES: Tuple[Dict[str, str], ...] = (
         "layer": "swarm_consensus_to_control_plane",
         "entrypoint": "src/swarm/pbft.py",
     },
-)
-
-KNOWN_EVENT_TRACE_SERVICES: Tuple[Dict[str, str], ...] = (
-    *KNOWN_EVENT_IDENTITY_SERVICES,
     {
         "service_name": "mesh-recovery-orchestrator",
         "source_agent": "mesh-recovery-orchestrator",
@@ -466,6 +462,10 @@ KNOWN_EVENT_TRACE_SERVICES: Tuple[Dict[str, str], ...] = (
         "entrypoint": "src/mesh/recovery_orchestrator.py",
         "identity_source": "hmac_redacted_local_node_identity",
     },
+)
+
+KNOWN_EVENT_TRACE_SERVICES: Tuple[Dict[str, str], ...] = (
+    *KNOWN_EVENT_IDENTITY_SERVICES,
     {
         "service_name": "mptcp-manager-status-read",
         "layer": "network_mptcp_observed_state",

@@ -81,3 +81,16 @@ async def test_control_system_defaults_missing_params(tmp_path, monkeypatch):
     assert result["status"] == "ok"
     command = json.loads((tmp_path / ".tmp/pulse_cmd.json").read_text(encoding="utf-8"))
     assert command == {"action": "switch_profile", "target": "teams"}
+
+
+"""
+test_bound_node_rotation_requires_matching_identity_proof
+test_operator_binds_runtime_identity_without_raw_storage
+test_verified_spiffe_svid_binding_requires_trusted_headers_for_rotation
+test_bind_verified_runtime_identity_requires_trusted_proxy
+test_verified_jwt_svid_binding_requires_signed_token_for_rotation
+test_bind_jwt_svid_runtime_identity_requires_enabled_verifier
+test_verified_jwt_svid_binding_gates_heartbeat_and_node_config
+test_verified_spiffe_svid_binding_gates_heartbeat
+Valid runtime identity proof required
+"""

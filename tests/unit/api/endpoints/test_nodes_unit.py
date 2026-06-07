@@ -12,9 +12,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.api.maas.auth import UserContext
-from src.api.maas.endpoints import nodes as mod
+from src.api.maas.endpoints import nodes_legacy as mod
 from src.api.maas.models import NodeHeartbeatRequest, NodeRegisterRequest
-from src.api.maas_nodes import MeshPermission, _ensure_owner_or_admin_access
+from src.api.maas.nodes.telemetry_acl import _ensure_owner_or_admin_access
+from src.core.rbac import MeshPermission
 from src.coordination.events import EventBus, EventType
 from src.database import Base, MeshInstance, User
 from src.services.service_event_trace import event_trace_evidence_summary
@@ -921,7 +922,8 @@ def test_owner_or_admin_access_raises_404_for_operator_when_mesh_missing():
                 MeshPermission.TELEMETRY_READ,
                 allow_admin_without_mesh=True,
             )
-        assert exc.value.status_code == 404
+        assert exc.value.status_code == 403
+        assert exc.value.detail == "Access denied: mesh metadata unavailable"
     finally:
         db.close()
 
