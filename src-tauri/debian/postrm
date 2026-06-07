@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl reset-failed x0tta6bl4-node.service x0tta6bl4-core-api.service x0tta6bl4-full-core-api.service >/dev/null 2>&1 || true
+fi
+
+exit 0

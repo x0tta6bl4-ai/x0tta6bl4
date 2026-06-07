@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+
+STATE_DIR="/opt/x0tta6bl4-mesh/state"
+SERVICES="x0tta6bl4-node.service x0tta6bl4-core-api.service"
+FULL_CORE_SERVICE="x0tta6bl4-full-core-api.service"
+
+if command -v install >/dev/null 2>&1; then
+  install -d -m 0755 "$STATE_DIR" || true
+fi
+
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+  systemctl daemon-reload || true
+  systemctl reset-failed $SERVICES >/dev/null 2>&1 || true
+  if [ -z "${2:-}" ]; then
+    systemctl disable "$FULL_CORE_SERVICE" >/dev/null 2>&1 || true
+  fi
+  systemctl enable $SERVICES >/dev/null 2>&1 || true
+  systemctl restart $SERVICES || systemctl start $SERVICES || true
+fi
+
+exit 0

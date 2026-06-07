@@ -20,12 +20,27 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' tauri: https://tauri.localhost; connect-src 'self' http://127.0.0.1:8081 http://localhost:8081; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self' tauri: https://tauri.localhost; connect-src 'self' http://127.0.0.1:8000 http://127.0.0.1:8001 http://127.0.0.1:8081 http://localhost:8000 http://localhost:8001 http://localhost:8081; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "linux": {
+      "deb": {
+        "postInstallScript": "debian/postinst",
+        "postRemoveScript": "debian/postrm",
+        "preRemoveScript": "debian/prerm",
+        "files": {
+          "/usr/lib/x0tta6bl4/desktop_core_api.py": "runtime/desktop_core_api.py",
+          "/usr/lib/x0tta6bl4/desktop_mesh_runtime.py": "runtime/desktop_mesh_runtime.py",
+          "/usr/lib/x0tta6bl4/start_full_core_api.sh": "runtime/start_full_core_api.sh",
+          "/usr/lib/systemd/system/x0tta6bl4-core-api.service": "systemd/x0tta6bl4-core-api.service",
+          "/usr/lib/systemd/system/x0tta6bl4-full-core-api.service": "systemd/x0tta6bl4-full-core-api.service",
+          "/usr/lib/systemd/system/x0tta6bl4-node.service": "systemd/x0tta6bl4-node.service"
+        }
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

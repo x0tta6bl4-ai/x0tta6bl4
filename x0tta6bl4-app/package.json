@@ -23,6 +23,7 @@
     "@capacitor/android": "^7.6.5",
     "@capacitor/core": "^7.6.5",
     "@capacitor/ios": "^7.6.5",
+    "@tauri-apps/api": "^2.11.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "express-basic-auth": "^1.2.1",
