@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_local_root_cleanup_approval_packet.py",
-  "generated_at": "2026-05-31T13:46:12.133858+00:00",
+  "generated_at": "2026-06-06T12:58:33.888441+00:00",
   "status": "cleanup_approval_packet_no_cleanup_needed",
   "ok": true,
   "summary": {
     "root_status": "ok",
-    "root_free_gib": 22.15,
+    "root_free_gib": 18.24,
     "diagnostic_tmpdir": "/mnt/projects/.tmp",
     "diagnostic_tmpdir_writable": true,
     "cleanup_plan_status": "no_cleanup_needed",
     "existing_candidate_count": 3,
-    "estimated_reclaim_gib": 0.93,
+    "estimated_reclaim_gib": 1.28,
     "first_review_id": "APT-CACHE-01",
     "command_preview_count": 3,
     "approval_required": false,
@@ -30,7 +30,7 @@
     {
       "id": "APT-CACHE-01",
       "path": "/var/cache/apt/archives",
-      "size_gib": 0.0,
+      "size_gib": 0.25,
       "risk": "low_standard_cache",
       "approval_level": "single_command_approval",
       "command_preview": "sudo apt-get clean",
@@ -39,7 +39,7 @@
     {
       "id": "JOURNAL-01",
       "path": "/var/log/journal",
-      "size_gib": 0.52,
+      "size_gib": 0.62,
       "risk": "medium_keep_recent_logs",
       "approval_level": "confirm_log_retention_approval",
       "command_preview": "sudo journalctl --vacuum-size=500M",

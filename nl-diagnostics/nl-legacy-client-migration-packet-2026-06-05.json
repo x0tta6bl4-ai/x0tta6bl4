@@ -1,0 +1,183 @@
+{
+  "current_safe_profile": {
+    "active_subscription_payload_safe": true,
+    "checked_subscription_count": 14,
+    "failures": [],
+    "ports": [
+      443,
+      2083
+    ],
+    "transport": "reality",
+    "transport_counts": {
+      "reality": 76
+    }
+  },
+  "db_summary": {
+    "active_users": 14,
+    "available": true,
+    "expired_users": 13,
+    "missing_or_invalid_expiry_users": 0,
+    "path": "/opt/ghost-access-bot/shared/x0tta6bl4.db",
+    "raw_tokens_printed": false,
+    "raw_user_ids_printed": false,
+    "total_devices": 67,
+    "total_users": 27,
+    "users_with_devices": 27,
+    "users_with_subscription_token": 27,
+    "users_without_devices": 0
+  },
+  "decision": "LEGACY_CLIENT_MIGRATION_PACKET_READY",
+  "generated_at": "2026-06-05T13:01:20Z",
+  "legacy_problem": {
+    "attention": true,
+    "decision": "TRANSPORT_USAGE_ATTENTION",
+    "findings": [
+      "15m:ghost_https_ws:legacy_proxy_requests_without_dataplane",
+      "15m:ghost_xhttp:legacy_proxy_4xx_seen",
+      "15m:ghost_xhttp:legacy_proxy_requests_without_dataplane",
+      "360m:ghost_xhttp:legacy_proxy_4xx_seen",
+      "60m:ghost_https_ws:legacy_proxy_requests_without_dataplane",
+      "60m:ghost_xhttp:legacy_proxy_4xx_seen",
+      "60m:ghost_xhttp:legacy_proxy_requests_without_dataplane"
+    ],
+    "operator_action": "check_legacy_clients_and_migrate_to_reality",
+    "windows": {
+      "15m": {
+        "findings": [
+          "ghost_https_ws:legacy_proxy_requests_without_dataplane",
+          "ghost_xhttp:legacy_proxy_4xx_seen",
+          "ghost_xhttp:legacy_proxy_requests_without_dataplane"
+        ],
+        "ok": false,
+        "status": "attention",
+        "transports": {
+          "ghost_https_ws": {
+            "dataplane_events": 0,
+            "findings": [
+              "legacy_proxy_requests_without_dataplane"
+            ],
+            "proxy_4xx": 0,
+            "proxy_5xx": 0,
+            "proxy_requests": 17,
+            "status": "legacy_attention",
+            "unique_client_count": 0
+          },
+          "ghost_xhttp": {
+            "dataplane_events": 0,
+            "findings": [
+              "legacy_proxy_requests_without_dataplane",
+              "legacy_proxy_4xx_seen"
+            ],
+            "proxy_4xx": 17,
+            "proxy_5xx": 0,
+            "proxy_requests": 17,
+            "status": "legacy_attention",
+            "unique_client_count": 0
+          }
+        }
+      },
+      "60m": {
+        "findings": [
+          "ghost_https_ws:legacy_proxy_requests_without_dataplane",
+          "ghost_xhttp:legacy_proxy_4xx_seen",
+          "ghost_xhttp:legacy_proxy_requests_without_dataplane"
+        ],
+        "ok": false,
+        "status": "attention",
+        "transports": {
+          "ghost_https_ws": {
+            "dataplane_events": 0,
+            "findings": [
+              "legacy_proxy_requests_without_dataplane"
+            ],
+            "proxy_4xx": 0,
+            "proxy_5xx": 0,
+            "proxy_requests": 69,
+            "status": "legacy_attention",
+            "unique_client_count": 0
+          },
+          "ghost_xhttp": {
+            "dataplane_events": 0,
+            "findings": [
+              "legacy_proxy_requests_without_dataplane",
+              "legacy_proxy_4xx_seen"
+            ],
+            "proxy_4xx": 69,
+            "proxy_5xx": 0,
+            "proxy_requests": 69,
+            "status": "legacy_attention",
+            "unique_client_count": 0
+          }
+        }
+      }
+    }
+  },
+  "migration_request": {
+    "do_not_request": [
+      "profile links",
+      "subscription links",
+      "QR codes",
+      "UUIDs",
+      "IP addresses",
+      "screenshots",
+      "logs",
+      "phone numbers",
+      "usernames"
+    ],
+    "failure_replies": [
+      "fail import",
+      "fail timeout",
+      "fail no-internet"
+    ],
+    "message_ru": "Если VPN сейчас не подключается, обновите профиль. Откройте этого бота, нажмите Подключить и импортируйте свежий профиль Reality. В клиенте удалите старые профили Ghost Access с xhttp, ws или портом 8443, чтобы телефон не выбирал их вместо нового профиля. После проверки ответьте только одним вариантом: done updated, fail import, fail timeout или fail no-internet. Не присылайте ссылки, QR-коды, UUID, IP-адреса, скриншоты, логи, телефон или username.",
+    "operator_reply_record_commands": {
+      "done updated": "printf '%s\\n' \"done updated\" | python3 services/nl-server/ghost-access/record_legacy_client_migration_reply.py --write --expect-packet-sha256 \"$(sha256sum nl-diagnostics/nl-legacy-client-migration-packet-2026-06-05.json | awk '{print $1}')\" --reporter-label legacy-client-1 --reply-stdin --json",
+      "fail import": "printf '%s\\n' \"fail import\" | python3 services/nl-server/ghost-access/record_legacy_client_migration_reply.py --write --expect-packet-sha256 \"$(sha256sum nl-diagnostics/nl-legacy-client-migration-packet-2026-06-05.json | awk '{print $1}')\" --reporter-label legacy-client-1 --reply-stdin --json",
+      "fail no-internet": "printf '%s\\n' \"fail no-internet\" | python3 services/nl-server/ghost-access/record_legacy_client_migration_reply.py --write --expect-packet-sha256 \"$(sha256sum nl-diagnostics/nl-legacy-client-migration-packet-2026-06-05.json | awk '{print $1}')\" --reporter-label legacy-client-1 --reply-stdin --json",
+      "fail timeout": "printf '%s\\n' \"fail timeout\" | python3 services/nl-server/ghost-access/record_legacy_client_migration_reply.py --write --expect-packet-sha256 \"$(sha256sum nl-diagnostics/nl-legacy-client-migration-packet-2026-06-05.json | awk '{print $1}')\" --reporter-label legacy-client-1 --reply-stdin --json"
+    },
+    "operator_reply_validate_commands": {
+      "done updated": "printf '%s\\n' \"done updated\" | python3 services/nl-server/ghost-access/record_legacy_client_migration_reply.py --expect-packet-sha256 \"$(sha256sum nl-diagnostics/nl-legacy-client-migration-packet-2026-06-05.json | awk '{print $1}')\" --reporter-label legacy-client-1 --reply-stdin --json",
+      "fail import": "printf '%s\\n' \"fail import\" | python3 services/nl-server/ghost-access/record_legacy_client_migration_reply.py --expect-packet-sha256 \"$(sha256sum nl-diagnostics/nl-legacy-client-migration-packet-2026-06-05.json | awk '{print $1}')\" --reporter-label legacy-client-1 --reply-stdin --json",
+      "fail no-internet": "printf '%s\\n' \"fail no-internet\" | python3 services/nl-server/ghost-access/record_legacy_client_migration_reply.py --expect-packet-sha256 \"$(sha256sum nl-diagnostics/nl-legacy-client-migration-packet-2026-06-05.json | awk '{print $1}')\" --reporter-label legacy-client-1 --reply-stdin --json",
+      "fail timeout": "printf '%s\\n' \"fail timeout\" | python3 services/nl-server/ghost-access/record_legacy_client_migration_reply.py --expect-packet-sha256 \"$(sha256sum nl-diagnostics/nl-legacy-client-migration-packet-2026-06-05.json | awk '{print $1}')\" --reporter-label legacy-client-1 --reply-stdin --json"
+    },
+    "safe_reply_options": [
+      "done updated",
+      "fail import",
+      "fail timeout",
+      "fail no-internet"
+    ],
+    "success_reply": "done updated"
+  },
+  "operator_action": "ask_legacy_clients_to_refresh_reality_profile",
+  "operator_checks_after_migration": [
+    "run ghost-access-transport-usage-evidence.service and verify legacy 15m/60m findings decrease",
+    "run scripts/vpn_status.sh --json and verify subscription_payload stays safe",
+    "record only short replies; do not store raw links, screenshots, logs, IPs, usernames, or phone numbers"
+  ],
+  "privacy": {
+    "raw_chat_ids_printed": false,
+    "raw_ip_printed": false,
+    "raw_subscription_urls_printed": false,
+    "raw_telegram_handle_printed": false,
+    "raw_tokens_printed": false,
+    "raw_user_ids_printed": false,
+    "raw_uuid_printed": false,
+    "raw_vpn_uris_printed": false
+  },
+  "schema_version": 1,
+  "send_policy": {
+    "automatic_broadcast_allowed": false,
+    "manual_operator_review_required": true,
+    "reason": "message targets are Telegram users; this packet prepares migration safely but does not send anything"
+  },
+  "source": "build_legacy_client_migration_packet.py",
+  "target_audience": {
+    "active_subscription_count": 14,
+    "expired_users_excluded": 13,
+    "raw_chat_ids_printed": false,
+    "raw_user_ids_printed": false,
+    "users_with_devices": 27
+  }
+}

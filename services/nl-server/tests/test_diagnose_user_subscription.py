@@ -337,8 +337,8 @@ class DiagnoseUserSubscriptionTests(unittest.TestCase):
             access_log.write_text("", encoding="utf-8")
             body = "\n".join(
                 [
-                    "vless://378042ee-5c74-43dd-9156-826fed6e6b66@example#device1",
-                    "vless://752de297-019b-4fe9-ad19-932e5391e7ef@example#phone",
+                    "vless://378042ee-5c74-43dd-9156-826fed6e6b66@example:443?security=reality&type=tcp#device1",
+                    "vless://752de297-019b-4fe9-ad19-932e5391e7ef@example:2083?security=reality&type=tcp#phone",
                 ]
             ).encode()
             with patch.object(
@@ -361,7 +361,48 @@ class DiagnoseUserSubscriptionTests(unittest.TestCase):
         self.assertEqual(report["status"], "healthy")
         self.assertEqual(report["subscription"]["http_status"], 200)
         self.assertEqual(report["subscription"]["vless_line_count"], 2)
+        self.assertTrue(report["subscription"]["profile_summary"]["all_profiles_reality"])
+        self.assertEqual(report["subscription"]["profile_summary"]["ports"], [443, 2083])
         self.assertTrue(all(item["uuid_present"] for item in report["subscription"]["uuid_presence"]))
+
+    def test_subscription_http_check_rejects_xhttp_8443_payload(self) -> None:
+        module = load_module()
+        with TemporaryDirectory() as tmp:
+            ghost_db = Path(tmp) / "ghost.db"
+            xui_db = Path(tmp) / "xui.db"
+            access_log = Path(tmp) / "access.log"
+            create_ghost_db(ghost_db, token="token-for-http")
+            create_xui_db(xui_db)
+            access_log.write_text("", encoding="utf-8")
+            body = "\n".join(
+                [
+                    "vless://378042ee-5c74-43dd-9156-826fed6e6b66@example:443?security=reality&type=tcp#device1",
+                    "vless://752de297-019b-4fe9-ad19-932e5391e7ef@example:8443?security=tls&type=xhttp#bad",
+                ]
+            ).encode()
+            with patch.object(
+                module.request,
+                "urlopen",
+                return_value=FakeSubscriptionResponse(base64.b64encode(body)),
+            ):
+                report = module.build_report(
+                    make_args(
+                        module,
+                        ghost_db,
+                        xui_db,
+                        access_log,
+                        "--check-subscription-http",
+                        "--subscription-base-url",
+                        "https://vpn.example",
+                    )
+                )
+
+        self.assertEqual(report["status"], "broken")
+        self.assertIn("subscription_disallowed_transport", report["summary"]["hard_failures"])
+        self.assertIn("subscription_unexpected_port", report["summary"]["hard_failures"])
+        self.assertEqual(report["subscription"]["profile_summary"]["disallowed_profile_count"], 1)
+        self.assertEqual(report["subscription"]["profile_summary"]["unexpected_ports"], [8443])
+        self.assertFalse(report["subscription"]["profile_summary"]["raw_profile_uris_stored"])
 
 
 if __name__ == "__main__":

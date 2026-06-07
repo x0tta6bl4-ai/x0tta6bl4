@@ -53,10 +53,10 @@
     {
       "remote_path": "/opt/x0tta6bl4-mesh/scripts/vps_build_runtime_state.py",
       "local_path": "services/nl-server/mesh-runtime/vps_build_runtime_state.py",
-      "remote_sha256": "7f3df8157545fd5248b202fac761f5dca40ff69357c61e76fcc9e5f3c5d51dd1",
-      "local_sha256": "d168e1e3ff493dd5be7fa59d5186b09a37e8d7645ab62ad1e192ab1bf9274d61",
+      "remote_sha256": "5c1d8f344ddf833eaf3e665ea134d2520e3b435ff5854f8fcbf65506a742268a",
+      "local_sha256": "5c1d8f344ddf833eaf3e665ea134d2520e3b435ff5854f8fcbf65506a742268a",
       "deployable_to_nl": false,
-      "reason": "local policy fix: Telegram media degraded with healthy transport is advisory/observe, ports match current NL, x-ui path prefers /usr/local/x-ui/bin/config.json; trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+      "reason": "NL runtime state now matches deployed source: Telegram media degraded with healthy transport is advisory/observe, ports match current NL, x-ui path prefers /usr/local/x-ui/bin/config.json, XHTTP/WS readiness and privacy-safe 60m usage summary are exposed"
     },
     {
       "remote_path": "/mnt/projects/src/network/ghost_vpn_protocol.py",
@@ -94,12 +94,30 @@
   "source_promotion_status": {
     "local_source_only": true,
     "deployable_to_nl": false,
-    "promoted_count": 22,
+    "promoted_count": 43,
     "tests": [
       "python3 services/nl-server/tests/test_vps_build_runtime_state.py",
       "python3 services/nl-server/tests/test_profile_status_and_ghost_protocol.py",
       "python3 services/nl-server/tests/test_listener_and_profile_hint.py",
       "python3 services/nl-server/tests/test_activity_sync_and_tcp_bridge.py",
+      "python3 services/nl-server/tests/test_transport_usage_evidence.py",
+      "python3 services/nl-server/tests/test_rollback_ghost_fallbacks.py",
+      "python3 services/nl-server/tests/test_record_client_compatibility.py",
+      "python3 services/nl-server/tests/test_record_remote_client_evidence.py",
+      "python3 services/nl-server/tests/test_record_remote_client_evidence_reply.py",
+      "python3 services/nl-server/tests/test_build_client_compatibility_runtime_summary.py",
+      "python3 services/nl-server/tests/test_refresh_client_evidence_artifacts.py",
+      "python3 services/nl-server/tests/test_build_anti_block_production_audit.py",
+      "python3 services/nl-server/tests/test_build_remote_client_evidence_request_packet.py",
+      "python3 services/nl-server/tests/test_probe_nl_client_compatibility_runtime.py",
+      "python3 services/nl-server/tests/test_plan_client_compatibility_runtime_deploy.py",
+      "python3 services/nl-server/tests/test_build_client_evidence_plan.py",
+      "python3 services/nl-server/tests/test_probe_android_adb_vpn.py",
+      "python3 services/nl-server/tests/test_inspect_v2rayn_client_inventory.py",
+      "python3 services/nl-server/tests/test_sync_v2rayn_subscription_fallbacks.py",
+      "python3 services/nl-server/tests/test_probe_v2rayn_imported_fallbacks.py",
+      "python3 services/nl-server/tests/test_telegram_bot_anti_block_source.py",
+      "python3 services/nl-server/tests/test_client_compatibility_systemd_templates.py",
       "python3 services/nl-server/tests/test_ghost_vpn_runtime_source.py",
       "python3 services/nl-server/tests/test_auto_monitor_source.py",
       "python3 services/nl-server/tests/test_apply_config_auto_source.py",
@@ -109,13 +127,21 @@
       "python3 services/nl-server/tests/test_current_nl_runtime_source.py",
       "python3 services/nl-server/tests/test_templates.py",
       "python3 services/nl-server/tests/test_health_action_policy.py",
+      "python3 services/nl-server/tests/test_plan_telegram_media_warp_route.py",
+      "python3 services/nl-server/tests/test_collect_legacy_migration_replies_from_bot_journal.py",
+      "python3 services/nl-server/tests/test_collect_legacy_migration_progress.py",
+      "python3 services/nl-server/tests/test_send_legacy_no_progress_nudge.py",
+      "python3 services/nl-server/tests/test_legacy_no_progress_nudge_dry_run_systemd_templates.py",
       "python3 nl-diagnostics/test_analyze_nl_profile_gaps.py",
       "python3 services/nl-server/tools/validate_preflight_readiness.py"
     ],
     "preflight_validator": {
       "path": "services/nl-server/tools/validate_preflight_readiness.py",
-      "sha256": "108c43038d2d3022c35867ccd783e9468b2f8d81ea82114f4df186466988b786",
-      "expected_deploy_status": "local_ready_but_deploy_blocked"
+      "sha256": "4407148e7ba429cb31e897b0070e332f07acc84c5a45ac285370ac0b895c1dba",
+      "expected_deploy_status": "local_ready_but_deploy_blocked",
+      "local_notes": [
+        "runs a non-writing short-reply dry-run validation with --expect-request-packet-sha256 and verifies the client evidence matrix hash is unchanged before treating remote client evidence intake as ready"
+      ]
     },
     "redaction_tool": {
       "path": "services/nl-server/tools/pull_candidate_redacted.py",
@@ -147,10 +173,11 @@
       {
         "component": "ghost-access",
         "path": "services/nl-server/redacted/ghost-access/telegram_bot_simple.redacted.py",
-        "sha256": "8b04072e8f9ab785ead08b4d08c4e27102ffda463060edfb77761a6931923d61",
-        "raw_sha256": "b593ddd82b3542e02e8a6fc17b558d957d780326ab86b5f7bd203d8d1d5b2f93",
+        "sha256": "6056f55b226fcf0f1fe03a9124c25ec066bc9ef0cb8f6a935e070d11bdd545d4",
+        "raw_sha256": "799e7640c0bb5c49e8fea7d3fa10fc6d5e9184d4a72f0e4528ca1530ef0edb9f",
         "deployable_to_nl": false,
-        "local_formatting_note": "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+        "operational_status": "active_nl_admin_anti_block_and_client_evidence_status",
+        "local_formatting_note": "anti-block operator status now includes rollback dry-run and client evidence summary; raw secrets remain remote-only"
       }
     ],
     "local_policy_files": [
@@ -177,6 +204,32 @@
         "source_batch": null,
         "deployable_to_nl": false,
         "purpose": "future dry-run-first x-ui heal wrapper gated by env flags"
+      },
+      {
+        "component": "systemd",
+        "path": "services/nl-server/systemd/ghost-access-client-compatibility-summary.service",
+        "sha256": "fbd93ba480cb67e656b81632432d7caba31f3ff71fbd971249d41c3e18a63660",
+        "source_batch": "20260602T030000Z",
+        "deployable_to_nl": false,
+        "purpose": "reviewed template for publishing privacy-safe client compatibility summary to /var/lib/ghost-access/client-compatibility/latest.json",
+        "local_notes": [
+          "oneshot publisher only; no systemctl restart/reload commands",
+          "writes only /var/lib/ghost-access/client-compatibility and reads /opt/x0tta6bl4-mesh/scripts",
+          "skips when matrix.json is absent through ConditionPathExists"
+        ]
+      },
+      {
+        "component": "systemd",
+        "path": "services/nl-server/systemd/ghost-access-client-compatibility-summary.timer",
+        "sha256": "b3accd74d2e136a41477ef415e6ebef2b677c7f9442fb0cc250dfc7ef05baacc",
+        "source_batch": "20260602T030000Z",
+        "deployable_to_nl": false,
+        "purpose": "reviewed timer template for refreshing privacy-safe client compatibility summary every 2 minutes",
+        "local_notes": [
+          "prepared only; this repository did not install or enable the timer",
+          "references only ghost-access-client-compatibility-summary.service",
+          "contains no endpoint URLs, credentials, or VPN identifiers"
+        ]
       }
     ],
     "promoted_files": [
@@ -267,22 +320,32 @@
         "component": "mesh-runtime",
         "path": "services/nl-server/mesh-runtime/vps_build_runtime_state.py",
         "source_batch": "20260527T060043Z",
-        "sha256": "d168e1e3ff493dd5be7fa59d5186b09a37e8d7645ab62ad1e192ab1bf9274d61",
+        "sha256": "5c1d8f344ddf833eaf3e665ea134d2520e3b435ff5854f8fcbf65506a742268a",
         "changed_after_intake": true,
         "local_changes": [
           "Telegram media degraded with healthy transport now maps to advisory/observe",
           "default public ports match current NL x-ui shape: 443,2083,39829",
           "x-ui config path prefers /usr/local/x-ui/bin/config.json",
-          "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+          "XHTTP/WS readiness probes added to runtime-state",
+          "privacy-safe transport_usage_60m summary added to runtime-state and hot_path_summary"
         ],
         "deployable_to_nl": false
       },
       {
         "component": "mesh-runtime",
         "path": "services/nl-server/mesh-runtime/profile_status_api.py",
-        "source_batch": "20260527T060043Z",
-        "sha256": "ea47410d580c830de8fc2b56b9e4991f0766f1f7a1f315b85c24f61eaa74080e",
-        "changed_after_intake": false
+        "source_batch": "20260602T024500Z",
+        "sha256": "2efbfcd0e959b6bbecddcb3dac539bcb90ca51cbfe5527c1ea31ef9794ef7e6b",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_operator_transport_and_client_compat_api",
+        "local_changes": [
+          "/health now exposes XHTTP/WS readiness and privacy-safe transport_usage_60m",
+          "/transport-usage exposes operator-safe fallback usage summary without raw identifiers or client hash samples",
+          "/client-compatibility exposes a whitelist-only client evidence summary without raw client rows, symptoms, VPN links, UUIDs, IPs, emails, handles, phones, or screenshots",
+          "/client-compatibility now correctly serves prebuilt runtime latest.json summaries without dropping missing_requirements",
+          "/client-compatibility exposes the current safe evidence_session contract so NL runtime can prove reality:443 session binding"
+        ]
       },
       {
         "component": "mesh-runtime",
@@ -330,22 +393,474 @@
         "component": "ghost-access",
         "path": "services/nl-server/ghost-access/run_vpn_service_access_agent.py",
         "source_batch": "20260527T055602Z",
-        "sha256": "41b6a912e5c02e294777f517206651cd5712a470651b4fc9a948712a7291ee7f",
-        "changed_after_intake": false,
+        "sha256": "e12cfaad1aea267c937a4c9c0536976a0c24ed5b762515cf5a9ff27a85313ae7",
+        "changed_after_intake": true,
         "deployable_to_nl": false,
         "local_review_class": "C",
         "local_notes": [
           "runtime tool probes external services through direct/http/socks paths",
           "runtime tool reads subscription token from Ghost Access database",
-          "runtime tool can invoke the delivery canary"
+          "runtime tool can invoke the delivery canary",
+          "local payload includes privacy-safe thinking context for operator review"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/collect_transport_usage_evidence.py",
+        "source_batch": "20260601T210000Z",
+        "sha256": "1f0c86ed559ea507a8e9e1e7557d5eb8f9a5c3a9385cafff06f0d39bb3da38d4",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_fallback_usage_evidence",
+        "local_review_class": "B",
+        "local_notes": [
+          "deployed on NL as ghost-access-transport-usage-evidence.timer",
+          "stores HMAC client hashes and aggregate counts only",
+          "adds HMAC-counted nginx legacy proxy source counts and safe user-agent family aggregates",
+          "does not store raw email, raw IP, raw nginx source IP, raw user-agent, raw UUID, or raw target host"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/build_legacy_client_migration_packet.py",
+        "source_batch": "20260605T124600Z",
+        "sha256": "756931f3177a59fc5cc44187c3709e430af70ecd4602e0848cbf772430928b99",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_legacy_client_migration_packet_builder",
+        "local_review_class": "B",
+        "local_notes": [
+          "deployed on NL as a manual-review migration packet builder",
+          "does not send Telegram messages or print raw user IDs, chat IDs, tokens, UUIDs, IPs, or VPN links",
+          "emits SHA-bound reply validation and recording commands for short migration replies"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/record_legacy_client_migration_reply.py",
+        "source_batch": "20260605T125000Z",
+        "sha256": "a3287ba5896567f1c3ae24deab8590c3659c214127673e07bf021390662d9f71",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_legacy_client_migration_reply_recorder",
+        "local_review_class": "B",
+        "local_notes": [
+          "deployed on NL as a manual short-reply recorder",
+          "requires --expect-packet-sha256 with --write",
+          "stores aggregate reply counts and non-private reporter labels only"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/send_legacy_client_migration_message.py",
+        "source_batch": "20260605T131000Z",
+        "sha256": "7b2c9c909878a9a2de9c20ee21d35f46856d9a0a3e273d2d5f4b3196c57737de",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_legacy_client_migration_message_sender",
+        "local_review_class": "B",
+        "local_notes": [
+          "deployed on NL as a dry-run-first Telegram migration message sender",
+          "real send requires --apply, --confirm SEND_LEGACY_MIGRATION, --expect-packet-sha256, --limit, and a bot token",
+          "default dry-run sends no messages and prints aggregate counts only",
+          "does not print raw user IDs, chat IDs, tokens, subscription URLs, VPN links, UUIDs, IPs, or Telegram handles"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/collect_legacy_migration_replies_from_bot_journal.py",
+        "source_batch": "20260605T134000Z",
+        "sha256": "fdf4010751e5a6ab36d439ca5ce2565da7fc3a6006fe77116079224d2a29dd9a",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_legacy_client_migration_reply_journal_collector",
+        "local_review_class": "B",
+        "local_notes": [
+          "deployed on NL as a timer-backed reply collector for the legacy migration message",
+          "reads telegram-bot-simple.service journal and accepts only done updated, fail import, fail timeout, or fail no-internet",
+          "deduplicates to the latest reply per pseudonymous reporter label",
+          "writes /var/lib/ghost-access/legacy-migration/replies.json without raw user IDs, chat IDs, tokens, subscription URLs, VPN links, UUIDs, IPs, or Telegram handles",
+          "does not restart x-ui, nginx, telegram-bot-simple, or Ghost fallback services"
+        ]
+      },
+      {
+        "component": "systemd",
+        "path": "services/nl-server/systemd/ghost-access-legacy-migration-reply-collector.service",
+        "source_batch": "20260605T134000Z",
+        "sha256": "6243f6c3ec898c027c74c9b1a7f24293f5b98b03a4272bc88097389a00a2b128",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_legacy_client_migration_reply_collector_service",
+        "local_review_class": "B",
+        "local_notes": [
+          "oneshot collector only; no VPN service restart commands",
+          "uses explicit COLLECT_CURRENT_LEGACY_REPLIES confirmation for current packet writes",
+          "writes only /var/lib/ghost-access/legacy-migration/replies.json and replies.md"
+        ]
+      },
+      {
+        "component": "systemd",
+        "path": "services/nl-server/systemd/ghost-access-legacy-migration-reply-collector.timer",
+        "source_batch": "20260605T134000Z",
+        "sha256": "51a52e56620f25f4ba1f010197ce8a680858057f9a2b20d8c0177fe55523a447",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_legacy_client_migration_reply_collector_timer",
+        "local_review_class": "B",
+        "local_notes": [
+          "refreshes the privacy-safe legacy migration reply summary every 2 minutes",
+          "references only ghost-access-legacy-migration-reply-collector.service",
+          "contains no endpoint URLs, credentials, raw user IDs, chat IDs, tokens, or VPN links"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/collect_legacy_migration_progress.py",
+        "source_batch": "20260605T135500Z",
+        "sha256": "901959bc259b13a642aba413017b5a4d0b0239a9336f2b65f075a102f0f0d560",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_legacy_client_migration_progress_collector",
+        "local_review_class": "B",
+        "local_notes": [
+          "deployed on NL as a timer-backed migration progress collector",
+          "tracks message send count, safe reply counts, human subscription pulls, request_events=config, and Reality device activity after the migration message",
+          "excludes technical subscription probes such as x0tta-live-subscription-payload-check, curl, local loopback, canary, monitoring, and generic HTTP clients",
+          "writes /var/lib/ghost-access/legacy-migration/progress.json without raw user IDs, chat IDs, tokens, subscription URLs, VPN links, UUIDs, IPs, or Telegram handles",
+          "does not restart x-ui, nginx, telegram-bot-simple, or Ghost fallback services"
+        ]
+      },
+      {
+        "component": "systemd",
+        "path": "services/nl-server/systemd/ghost-access-legacy-migration-progress.service",
+        "source_batch": "20260605T135500Z",
+        "sha256": "c02d321ac5d4e8d955c827233d498555c1caeb9ae815ce1a8df5347b72744566",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_legacy_client_migration_progress_service",
+        "local_review_class": "B",
+        "local_notes": [
+          "oneshot progress collector only; no VPN service restart commands",
+          "uses explicit COLLECT_CURRENT_LEGACY_PROGRESS confirmation for current progress writes",
+          "writes only /var/lib/ghost-access/legacy-migration/progress.json and progress.md"
+        ]
+      },
+      {
+        "component": "systemd",
+        "path": "services/nl-server/systemd/ghost-access-legacy-migration-progress.timer",
+        "source_batch": "20260605T135500Z",
+        "sha256": "461a4e41aad2164b5507693f38bb7239f2522f43bd3f6ff157b08217e8cffc55",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_legacy_client_migration_progress_timer",
+        "local_review_class": "B",
+        "local_notes": [
+          "refreshes the privacy-safe legacy migration progress summary every 2 minutes",
+          "references only ghost-access-legacy-migration-progress.service",
+          "contains no endpoint URLs, credentials, raw user IDs, chat IDs, tokens, or VPN links"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/send_legacy_no_progress_nudge.py",
+        "source_batch": "20260605T142800Z",
+        "sha256": "01991b073ad159c876619717a3d0be5a9e23d51b098004fe7517fec781dbce5e",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_legacy_no_progress_nudge_sender",
+        "local_review_class": "B",
+        "local_notes": [
+          "deployed on NL as a dry-run-first targeted nudge sender for active legacy migration users without progress",
+          "excludes users with post-message Reality device activity, human subscription pulls, or short replies",
+          "excludes technical subscription probes such as x0tta-live-subscription-payload-check, curl, local loopback, canary, monitoring, and generic HTTP clients",
+          "real send requires --apply, --confirm SEND_LEGACY_NO_PROGRESS_NUDGE, --expect-packet-sha256, --expect-dry-run-sha256, --expect-subscription-payload-sha256, --expect-transport-usage-sha256, --expect-replies-sha256, --limit, a bot token, min-age, and cooldown checks",
+          "apply rejects stale transport usage evidence or restart-relevant legacy transport findings before sending a user nudge",
+          "apply rejects stale replies evidence, mismatched replies packet sha256, or dirty replies privacy flags before sending a user nudge",
+          "apply checks the canonical last-send report /var/lib/ghost-access/legacy-migration/no-progress-nudge.json even when --json-out points elsewhere, so a custom output path cannot bypass cooldown",
+          "writes /var/lib/ghost-access/legacy-migration/no-progress-nudge.json without raw user IDs, chat IDs, tokens, subscription URLs, VPN links, UUIDs, IPs, or Telegram handles",
+          "does not restart x-ui, nginx, telegram-bot-simple, or Ghost fallback services"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/rollback_ghost_fallbacks.py",
+        "source_batch": "20260601T213000Z",
+        "sha256": "860d9047c5c693867eb1131990501e76bec748bb00c0c51b6bf8024055711ebd",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_fallback_rollback_tool",
+        "local_review_class": "B",
+        "local_notes": [
+          "deployed on NL as a dry-run-first rollback tool",
+          "delivery-only mode disables future Ghost fallback delivery without stopping current XHTTP/WS services",
+          "real apply requires --confirm ROLLBACK_GHOST_FALLBACKS",
+          "service-stop/full modes additionally require --service-stop-confirm STOP_GHOST_FALLBACK_SERVICES"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/record_client_compatibility.py",
+        "source_batch": "20260602T010000Z",
+        "sha256": "adb3441f8c7e4d296a1e94d80cac9dc326222ea5e781e0f98c62cf6d35c6569e",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_client_matrix_recorder",
+        "local_review_class": "A",
+        "local_notes": [
+          "records privacy-safe real client compatibility checks into the NL anti-block matrix",
+          "rejects VPN URIs, subscription paths, UUIDs, raw IPs, emails, and secret-like fields before writing",
+          "recomputes matrix completion status without storing raw client identifiers and requires current evidence_session_id, session-start freshness, and reality:443 for mobile/work-Wi-Fi pass evidence"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/record_remote_client_evidence.py",
+        "source_batch": "20260602T023500Z",
+        "sha256": "164544613b4afd87a5c495315d234c38722d75e346536305d9b8e4d059ba9ae0",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_remote_client_evidence_intake",
+        "local_review_class": "A",
+        "local_notes": [
+          "records privacy-safe remote client pass/fail reports into the NL anti-block matrix only when --record-matrix is requested",
+          "rejects VPN URIs, subscription paths, UUIDs, raw IPs, emails, Telegram handles, phone numbers, raw URLs, and free-form reporter identifiers before writing",
+          "fails fast for mobile/work/restricted-Wi-Fi evidence unless it uses the current evidence_session_id, session-start freshness, reality transport, and port 443",
+          "safe generated commands omit --checked-at so the recorder stores current UTC; operators can still append an explicit ISO timestamp for delayed reports",
+          "stores only aggregate client/network/transport status plus enum reporter labels, current evidence_session_id, and never stores screenshots or raw user identifiers"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/record_remote_client_evidence_reply.py",
+        "source_batch": "20260602T041500Z",
+        "sha256": "5c5fd81756fd8c3dee1a1db1fafe0c77d2d172a1de5ec5c2a2d0cff3c963da7e",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_short_remote_client_reply_intake",
+        "local_review_class": "A",
+        "local_notes": [
+          "turns short tester replies such as pass connected or fail timeout into privacy-safe remote client evidence rows tied to a generated request id, evidence_session_id, and session-start metadata",
+          "accepts --reply-file and --reply-stdin so operators do not need to put tester reply text in shell history",
+          "supports --expect-request-packet-sha256 and reports the request packet hash so replies can be tied to the exact request artifact before any matrix write",
+          "requires --expect-request-packet-sha256 for every --write so persisted reply reports and matrix writes cannot skip request-packet binding",
+          "rejects --write with --reply so persisted replies must come from --reply-stdin or --reply-file",
+          "rejects replies longer than 64 bytes before parsing or writing",
+          "rejects stale request packets older than 24 hours before recording matrix evidence",
+          "rejects free-form text, VPN links, subscription paths, UUIDs, raw IPs, emails, handles, phone numbers, URLs, screenshots, and logs before writing",
+          "fails fast when the selected request is not tied to the current evidence_session_id, session start, reality transport, and port 443",
+          "safe generated reply commands omit --checked-at so the recorder stores current UTC; operators can still append an explicit ISO timestamp for delayed replies",
+          "returns refreshed top-level VPN goal status fields when --refresh-artifacts runs",
+          "writes matrix evidence only when --record-matrix and --write are both explicitly supplied, and --refresh-artifacts can immediately rebuild the derived request/audit artifacts"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/build_client_compatibility_runtime_summary.py",
+        "source_batch": "20260602T024500Z",
+        "sha256": "31763837881492e8f384abb0a6efd956dcec0f5c0bd1759dbe365f779764ad4c",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_client_compat_runtime_summary_publisher",
+        "local_review_class": "A",
+        "local_notes": [
+          "builds the privacy-safe summary consumed by the /client-compatibility status API endpoint",
+          "uses the same whitelist sanitizer as profile_status_api.py and excludes raw real_client_checks rows and symptoms",
+          "publishes the current evidence_session contract including required_transport=reality and required_port=443",
+          "resolves profile_status_api.py from the local repo path or /opt/x0tta6bl4-mesh/scripts for NL runtime layout",
+          "default output is local nl-diagnostics; production /var/lib output requires explicit operator wiring"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/refresh_client_evidence_artifacts.py",
+        "source_batch": "20260602T031000Z",
+        "sha256": "5576f48b10126c0882a09e71d0d113d19dfe93cbaa272d1ead2fec779b331fa2",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_client_evidence_artifact_refresh",
+        "local_review_class": "A",
+        "local_notes": [
+          "refreshes matrix JSON/Markdown, remote-intake report, remote-request packet, runtime /client-compatibility summary, evidence plan, and generated production audit from one matrix source",
+          "uses temp matrix rendering so runtime summary is built from recomputed completion status before writing final artifacts",
+          "also refreshes the top-level VPN production-candidate goal JSON/Markdown with the regenerated remote request packet so customer-readiness claims cannot drift from client evidence or request safety gates",
+          "does not record pass/fail evidence, does not contact NL, and does not restart any VPN service"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/build_anti_block_production_audit.py",
+        "source_batch": "20260602T040000Z",
+        "sha256": "fc38c115b1a2770bba3224502e3954bc2a6796c51ecf33e7af312a281e317e57",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_generated_production_readiness_audit",
+        "local_review_class": "A",
+        "local_notes": [
+          "builds the NL anti-block production audit from current evidence artifacts instead of manual JSON edits",
+          "fails closed when server runtime evidence regresses and keeps goal incomplete while real Android/mobile/work-Wi-Fi evidence, current evidence_session_id binding, session-start freshness, or reality:443 rollout proof is missing",
+          "requires the NL runtime probe checked_at timestamp to be inside the current evidence session before runtime evidence can pass",
+          "records whether NL /client-compatibility exposes the current reality:443 evidence_session contract",
+          "does not contact NL, does not record pass/fail client evidence, does not restart VPN services, and emits privacy-safe JSON/Markdown only"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/build_remote_client_evidence_request_packet.py",
+        "source_batch": "20260602T035000Z",
+        "sha256": "14b93828ed4a54b0ba96b28e2bf49a55c53ff81512aa7ffccf9100f93df91e66",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_remote_client_evidence_request_packet",
+        "local_review_class": "A",
+        "local_notes": [
+          "builds privacy-safe tester request packets from the current client compatibility matrix",
+          "groups Android Happ/Hiddify on mobile network into one minimum remote report and keeps restricted/work Wi-Fi as a separate report",
+          "documents the 24-hour request freshness policy used by short-reply intake",
+          "documents the --expect-request-packet-sha256 binding policy so replies can be tied to the exact request packet hash before matrix writes",
+          "generates short-reply record and validation commands that compute the current request-packet SHA-256 with sha256sum and pass it to --expect-request-packet-sha256",
+          "generates non-writing short-reply validation commands before the write/record commands",
+          "disables direct record_remote_client_evidence.py --write commands inside the remote request packet so operators use only hash-bound short-reply intake",
+          "generates stdin-based short-reply intake commands with current evidence_session_id, session-start metadata, --refresh-artifacts, and without subscription URLs, VPN URIs, UUIDs, raw IPs, emails, handles, phone numbers, screenshots, logs, or mandatory UTC placeholders"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/probe_nl_client_compatibility_runtime.py",
+        "source_batch": "20260602T032000Z",
+        "sha256": "a1a218ce2f7e9f4db283a576af56425836a682045426e56623959fc6a0af06fb",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_nl_client_compat_runtime_probe",
+        "local_review_class": "A",
+        "local_notes": [
+          "read-only SSH probe for NL /transport-usage and /client-compatibility runtime wiring",
+          "records endpoint HTTP code, summary/matrix/unit presence, timer state, and required actions without copying files or restarting services",
+          "requires NL /client-compatibility to expose the current evidence_session contract before reporting NL_CLIENT_COMPAT_RUNTIME_READY",
+          "local payload includes privacy-safe thinking context for operator review",
+          "does not store raw SSH config, raw IPs, subscription URLs, VPN links, UUIDs, emails, handles, phones, or client rows"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/plan_client_compatibility_runtime_deploy.py",
+        "source_batch": "20260602T033000Z",
+        "sha256": "f5751f4a2ee296f6bb0af1f151c4380a809cde22792d9cd239bc46474020d038",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_client_compat_runtime_deploy_packet",
+        "local_review_class": "A",
+        "local_notes": [
+          "dry-run-first deploy packet for bringing /client-compatibility runtime support to NL",
+          "default mode only reads unit state, endpoint HTTP codes, target file presence, and hashes",
+          "apply requires DEPLOY_CLIENT_COMPAT_RUNTIME and status API restart requires RESTART_PROFILE_STATUS_API",
+          "mutation scope forbids x-ui, nginx, telegram-bot-simple, Ghost XHTTP, and Ghost HTTPS WS restarts",
+          "current NL runtime reports CLIENT_COMPAT_RUNTIME_ALREADY_APPLIED with /client-compatibility HTTP 200 and timer enabled"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/build_client_evidence_plan.py",
+        "source_batch": "20260602T023500Z",
+        "sha256": "3825e61392b219657229cf522b36d0953ee48662b33d57225aca8f7ecfb1a77b",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_client_evidence_plan",
+        "local_review_class": "A",
+        "local_notes": [
+          "builds a privacy-safe plan for remaining Android/mobile/work-Wi-Fi client evidence",
+          "records ADB availability and device counts without storing serial numbers",
+          "generates ready-to-run local recorder, remote-intake, and ADB command templates without VPN links, UUIDs, subscription tokens, raw IPs, emails, handles, phone numbers, screenshots, or mandatory UTC placeholders"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/probe_android_adb_vpn.py",
+        "source_batch": "20260602T021500Z",
+        "sha256": "fd333e5154c7295176de8172582983b7c2f24fd54f7f9903197ea4ed6dd692f3",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_android_adb_vpn_probe",
+        "local_review_class": "A",
+        "local_notes": [
+          "probes active Android VPN dataplane through ADB when exactly one device is connected",
+          "records current Android/mobile checks against the production Reality 443 profile by default",
+          "records only aggregate device count, VPN transport presence, HTTP code, and probe tool",
+          "does not store ADB serials, connectivity dumps, VPN links, UUIDs, raw IPs, emails, subscription tokens, QR codes, or screenshots"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/inspect_v2rayn_client_inventory.py",
+        "source_batch": "20260602T013000Z",
+        "sha256": "34da9e753c6460a10b004d17ec1d986d3dd29ef28f87bc88918aec3c517e78db",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_v2rayn_inventory_probe",
+        "local_review_class": "A",
+        "local_notes": [
+          "reads local v2rayN SQLite inventory as aggregate counts only",
+          "fetches enabled subscription payloads only for aggregate transport/port counts",
+          "does not print or store raw subscription URLs, VPN URIs, UUIDs, addresses, SNI, or paths"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/sync_v2rayn_subscription_fallbacks.py",
+        "source_batch": "20260602T014500Z",
+        "sha256": "6c633972b185a328d6278a968accefc54042cca35ed9a063f49f610837a61f7f",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_v2rayn_copy_import_probe",
+        "local_review_class": "B",
+        "local_notes": [
+          "default mode is dry-run and does not mutate v2rayN",
+          "copy-apply mode requires --confirm SYNC_V2RAYN_FALLBACKS and writes only the requested DB copy",
+          "used to prove XHTTP/WS subscription fallback profiles can be imported without touching the live DB"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/probe_v2rayn_imported_fallbacks.py",
+        "source_batch": "20260602T015500Z",
+        "sha256": "6fc01517b3d3213fe31d754a04eeeed6d4791950d464b1d1d0185547711fe450",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_v2rayn_dataplane_probe",
+        "local_review_class": "B",
+        "local_notes": [
+          "uses local v2rayN DB profiles and bundled Xray to prove imported XHTTP/WS fallback dataplane",
+          "prints aggregate transport/port/http-code results only",
+          "does not print or store raw subscription URLs, VPN URIs, UUIDs, addresses, SNI, request paths, or headers"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/sync_ghost_https_ws_clients.py",
+        "source_batch": "20260601T204500Z",
+        "sha256": "a33669296f177926747504b942809ccd50696f76d97ade1bacf30c8e65cd146e",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "active_nl_xhttp_ws_sync",
+        "local_review_class": "B",
+        "local_notes": [
+          "deployed on NL for ghost-access-nl-xhttp-sync.timer and ghost-access-nl-https-ws-sync.timer",
+          "syncs enabled x-ui clients into standalone XHTTP/WS fallback configs",
+          "validates Xray config before replacing active config"
         ]
       },
       {
         "component": "ghost-access",
         "path": "services/nl-server/ghost-access/sync_xray_device_activity.py",
         "source_batch": "20260527T055602Z",
-        "sha256": "2d716478bd8a3c6926c315ae476173934d4cd310433c831c3f0dd20c4e1db745",
-        "changed_after_intake": false
+        "sha256": "17983bc7d75da129add7bf196437f835914b67abba7120811d337f32b7fa3402",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "local_notes": [
+          "runtime tool syncs derived device activity from x-ui and Xray evidence",
+          "local payload includes privacy-safe thinking context for operator review",
+          "does not print raw secrets"
+        ]
       },
       {
         "component": "ghost-access",
@@ -437,6 +952,21 @@
           "runtime client creates TUN interface",
           "runtime client changes ip rules and routes",
           "runtime client may reconnect and switch profiles"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/plan_telegram_media_warp_route.py",
+        "source_batch": "20260602T033426Z",
+        "sha256": "25ca6a5538edd61d03e5a2c33e6b01c51b22f3baa64f2f9fde9aed881aef496b",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "operational_status": "local_telegram_media_warp_route_plan",
+        "local_review_class": "B",
+        "local_notes": [
+          "builds a dry-run plan to route Telegram media CIDRs through the existing Xray warp outbound",
+          "requires fresh snapshot, config backup, xray config test, and explicit confirm before any NL write",
+          "planned mutation scope is routing.rules only and forbids ghost/nginx/bot restarts"
         ]
       }
     ]

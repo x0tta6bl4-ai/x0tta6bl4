@@ -134,6 +134,86 @@ class RuntimeStateDecisionTests(unittest.TestCase):
         self.assertEqual(summary["secondary_path_port"], 2083)
         self.assertEqual(summary["fallback_nl_path_port"], 2443)
 
+    def test_load_transport_usage_evidence_adds_operator_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            evidence_path = Path(tmpdir) / "latest.json"
+            evidence_path.write_text(
+                json.dumps(
+                    {
+                        "generated_at": "2026-06-01T21:04:29Z",
+                        "privacy": {
+                            "client_hashes_hmac_keyed": True,
+                            "raw_email_stored": False,
+                            "raw_identifiers_stored": False,
+                            "raw_ip_stored": False,
+                            "raw_target_host_stored": False,
+                        },
+                        "windows": {
+                            "60m": {
+                                "since": "2026-06-01T20:04:29Z",
+                                "xray": {
+                                    "ghost_xhttp": {
+                                        "dataplane_events": 2,
+                                        "unique_client_count": 1,
+                                        "last_seen_at": "2026-06-01T20:48:52Z",
+                                    },
+                                    "ghost_https_ws": {
+                                        "dataplane_events": 77,
+                                        "unique_client_count": 2,
+                                        "last_seen_at": "2026-06-01T21:01:00Z",
+                                    },
+                                },
+                                "nginx": {
+                                    "/ghost-xhttp": {
+                                        "requests": 3,
+                                        "last_seen_at": "2026-06-01T20:50:00Z",
+                                    },
+                                    "/ghost-ws": {
+                                        "requests": 80,
+                                        "last_seen_at": "2026-06-01T21:02:00Z",
+                                    },
+                                },
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.module.TRANSPORT_USAGE_EVIDENCE_PATH = evidence_path
+
+            evidence = self.module.load_transport_usage_evidence()
+
+        summary = evidence["summary_60m"]
+        self.assertTrue(summary["privacy_ok"])
+        self.assertEqual(summary["ghost_xhttp_dataplane_events"], 2)
+        self.assertEqual(summary["ghost_xhttp_unique_clients"], 1)
+        self.assertEqual(summary["ghost_xhttp_nginx_requests"], 3)
+        self.assertEqual(summary["ghost_https_ws_dataplane_events"], 77)
+        self.assertEqual(summary["ghost_https_ws_unique_clients"], 2)
+        self.assertEqual(summary["ghost_https_ws_nginx_requests"], 80)
+
+    def test_hot_path_summary_surfaces_transport_usage_summary(self) -> None:
+        usage_summary = {
+            "window": "60m",
+            "privacy_ok": True,
+            "ghost_xhttp_dataplane_events": 2,
+            "ghost_https_ws_dataplane_events": 77,
+        }
+
+        summary = self.module.build_hot_path_summary(
+            base_probes(
+                transport_usage_evidence={
+                    "summary_60m": usage_summary,
+                    "window_60m": {},
+                }
+            ),
+            "advisory",
+            "observe",
+            "transport usable",
+        )
+
+        self.assertEqual(summary["transport_usage_60m"], usage_summary)
+
 
 if __name__ == "__main__":
     unittest.main()

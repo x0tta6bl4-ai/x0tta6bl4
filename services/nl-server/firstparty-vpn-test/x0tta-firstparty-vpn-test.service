@@ -1,0 +1,17 @@
+[Unit]
+Description=x0tta first-party VPN live test canary
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/x0tta-firstparty-vpn-test
+Environment=PYTHONPATH=/opt/x0tta-firstparty-vpn-test
+ExecStart=/usr/bin/python3 /opt/x0tta-firstparty-vpn-test/x0vpn_test_node.py server --config /etc/x0tta-firstparty-vpn-test/server.json
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

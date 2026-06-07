@@ -1,0 +1,10 @@
+{
+  "file_mutation_performed": true,
+  "issued_at": 1780782012,
+  "mode": "policy-snapshot-write",
+  "ok": true,
+  "os_mutation_performed": false,
+  "out": "/tmp/x0vpn-firstparty-production-readiness-20260606T214012Z.HpEW5h/policy-snapshot.json",
+  "policy_epoch": "nl-production-2026-06-06",
+  "snapshot_hash": "6adee8c9e208f5784e325da8c181797264805cbb8966821ec70890c53326c029"
+}

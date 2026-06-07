@@ -1,17 +1,17 @@
 # Manual Failover Plan
 
-generated_at: `2026-05-31T13:45:52.589458+00:00`
+generated_at: `2026-06-06T12:58:07.880942+00:00`
 
 ## Status
 
 ```text
-status=planning_not_active
-current_decision=observe
+status=manual_failover_candidate
+current_decision=provider_ticket
 decision_confidence=high
-overall_status=advisory
-transport_status=healthy
-failure_domain=external_network
-provider_status=normal
+overall_status=provider_outage
+transport_status=degraded
+failure_domain=provider_host
+provider_status=suspect_active
 spb_fallback_allowed=false
 automatic_failover_allowed=false
 nl_write_allowed=false

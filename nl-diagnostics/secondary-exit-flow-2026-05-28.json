@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_secondary_exit_flow.py",
-  "generated_at": "2026-05-31T13:45:56.593352+00:00",
+  "generated_at": "2026-06-06T12:58:12.926968+00:00",
   "status": "blocked_missing_candidate",
   "ok": true,
   "summary": {
@@ -65,7 +65,7 @@
       "status": "blocked",
       "ok": true,
       "evidence": [
-        "manual_failover_readiness_status=blocked_no_incident_trigger",
+        "manual_failover_readiness_status=blocked_missing_secondary",
         "manual_probe_allowed=false",
         "secondary_probe_status=planning_template"
       ],

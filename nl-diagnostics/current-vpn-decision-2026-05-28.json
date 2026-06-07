@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_vpn_decision_report.py",
-  "generated_at": "2026-05-31T13:45:51.773849+00:00",
-  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z",
+  "generated_at": "2026-06-06T15:33:58.431256+00:00",
+  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260606T125103Z",
   "decision": {
-    "decision": "observe",
+    "decision": "restore_transport_canary_monitor",
     "confidence": "high",
-    "reason": "core VPN is healthy/advisory and blocking probes show no direct-vs-SOCKS failure",
+    "reason": "core VPN has live TCP/x-ui evidence, but transport canary evidence is not configured",
     "next_actions": [
-      "keep observing current VPN path",
-      "when a user-visible outage happens, collect a fresh read-only snapshot with blocking probes",
-      "test Telegram/media separately from core VPN transport"
+      "run the local dry-run/precheck for restoring ghost-access-vpn-monitor.timer",
+      "apply the monitor restore only after explicit approval",
+      "collect a fresh read-only snapshot after the monitor evidence is refreshed"
     ],
     "blocked_actions": [
       "do not restart x-ui from app/blocking evidence alone",
@@ -20,13 +20,13 @@
     ],
     "inputs": {
       "overall_status": "advisory",
-      "failure_domain": "external_network",
-      "recommended_action": "observe",
-      "transport_status": "healthy",
-      "provider_status": "normal",
-      "blocking_category": "app_specific_degradation",
+      "failure_domain": "monitoring",
+      "recommended_action": "restore_transport_canary_monitor",
+      "transport_status": "degraded",
+      "provider_status": "historical_incident",
+      "blocking_category": "monitoring_gap",
       "profile_policy_decision": "observe",
-      "blocking_history_trend": "stable_no_probe_evidence"
+      "blocking_history_trend": "has_degradation"
     },
     "mutation_allowed": false,
     "nl_mutation_allowed": false,
@@ -34,68 +34,70 @@
     "spb_fallback_allowed": false
   },
   "classification": {
-    "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z",
+    "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260606T125103Z",
     "overall_status": "advisory",
-    "transport_status": "healthy",
-    "telegram_media_status": "degraded",
-    "provider_status": "normal",
-    "runtime_mode": "degraded",
+    "transport_status": "degraded",
+    "telegram_media_status": "healthy",
+    "provider_status": "historical_incident",
+    "runtime_mode": "primary",
     "runtime_recommended_action": "observe",
-    "failure_domain": "external_network",
-    "recommended_action": "observe",
+    "failure_domain": "monitoring",
+    "recommended_action": "restore_transport_canary_monitor",
     "mutation_allowed": false,
     "nl_mutation_allowed": false,
     "warnings": [
-      "NL non-critical failed units: ifup@eth0.service"
+      "NL Reality transport canary monitor is not configured"
     ],
-    "problems": [],
+    "problems": [
+      "NL transport_status=degraded"
+    ],
     "evidence": [
-      "local vpn_status_json overall=ok",
+      "local vpn_status_json overall=advisory",
       "route to VPN server bypasses singbox_tun",
-      "generic traffic routes through singbox_tun",
       "external exit IP is VPN server",
       "watchdog proxy healthy",
       "packet_loss_percent=0",
-      "NL failed units are known non-critical: ifup@eth0.service",
+      "NL systemctl --failed empty",
       "NL key services active",
       "NL core listeners 443/2083/39829 present",
-      "NL transport_status=healthy"
+      "historical provider shutdown signal present"
     ],
     "blocking_probe_summary": {
-      "assessment": "no_probe_evidence",
+      "assessment": "possible_local_isp_block",
       "group_assessments": {
         "ai": {
-          "ok": 1
+          "possible_local_isp_block": 1
         },
         "baseline": {
-          "ok": 1
+          "possible_local_isp_block": 1
         },
         "dev": {
-          "ok": 1
+          "possible_local_isp_block": 1
         },
         "ru": {
-          "ok": 1
+          "target_or_global_unreachable": 1
         },
         "telegram": {
-          "ok": 2
+          "possible_local_isp_block": 2
         },
         "telegram_media": {
-          "ok": 2
+          "possible_local_isp_block": 2
         }
       },
       "target_assessments": {
-        "ok": 8
+        "possible_local_isp_block": 7,
+        "target_or_global_unreachable": 1
       },
       "target_count": 8
     },
     "blocking_assessment": {
-      "category": "app_specific_degradation",
-      "confidence": "medium",
+      "category": "monitoring_gap",
+      "confidence": "high",
       "mutation_allowed": false,
       "nl_mutation_allowed": false,
       "auto_profile_switch_allowed": false,
-      "recommended_probe": "test Telegram media separately from core VPN; do not restart x-ui",
-      "reason": "Telegram/media degraded while core transport is healthy/advisory"
+      "recommended_probe": "restore the Reality canary monitor/timer under approval, then collect a fresh read-only snapshot",
+      "reason": "core transport has TCP/x-ui evidence, but Reality canary evidence is not configured"
     },
     "profile_switch_policy": {
       "decision": "observe",
@@ -108,43 +110,141 @@
     }
   },
   "blocking_probe_history_summary": {
-    "snapshot_count": 12,
-    "trend": "stable_no_probe_evidence",
+    "snapshot_count": 15,
+    "trend": "has_degradation",
     "assessment_counts": {
-      "no_probe_evidence": 12
+      "no_probe_evidence": 13,
+      "possible_local_isp_block": 2
     },
-    "degraded_by_target": {},
-    "degraded_by_group": {},
+    "degraded_by_target": {
+      "connectivity": 2,
+      "github": 2,
+      "openai_api": 2,
+      "russia_search": 2,
+      "telegram_api": 2,
+      "telegram_media_dc2_149_154_166_111_443": 1,
+      "telegram_media_dc4_91_108_56_161_443": 1,
+      "telegram_web": 2
+    },
+    "degraded_by_group": {
+      "ai": 2,
+      "baseline": 2,
+      "dev": 2,
+      "ru": 2,
+      "telegram": 4,
+      "telegram_media": 2
+    },
     "latest": {
-      "snapshot": "20260531T134449Z",
-      "generated_at": "2026-05-31T13:45:25.713140+00:00",
-      "assessment": "no_probe_evidence",
+      "snapshot": "20260606T125103Z",
+      "generated_at": "2026-06-06T12:51:48.749272+00:00",
+      "assessment": "possible_local_isp_block",
       "target_count": 8,
-      "ok_count": 8,
-      "degraded_count": 0,
+      "ok_count": 0,
+      "degraded_count": 8,
       "group_assessments": {
         "ai": {
-          "ok": 1
+          "possible_local_isp_block": 1
         },
         "baseline": {
-          "ok": 1
+          "possible_local_isp_block": 1
         },
         "dev": {
-          "ok": 1
+          "possible_local_isp_block": 1
         },
         "ru": {
-          "ok": 1
+          "target_or_global_unreachable": 1
         },
         "telegram": {
-          "ok": 2
+          "possible_local_isp_block": 2
         },
         "telegram_media": {
-          "ok": 2
+          "possible_local_isp_block": 2
         }
       },
-      "degraded_targets": [],
+      "degraded_targets": [
+        {
+          "label": "connectivity",
+          "kind": "http",
+          "group": "baseline",
+          "assessment": "possible_local_isp_block",
+          "direct_ok": false,
+          "socks_ok": true,
+          "direct_http_code": 0,
+          "socks_http_code": 204
+        },
+        {
+          "label": "telegram_web",
+          "kind": "http",
+          "group": "telegram",
+          "assessment": "possible_local_isp_block",
+          "direct_ok": false,
+          "socks_ok": true,
+          "direct_http_code": 0,
+          "socks_http_code": 200
+        },
+        {
+          "label": "telegram_api",
+          "kind": "http",
+          "group": "telegram",
+          "assessment": "possible_local_isp_block",
+          "direct_ok": false,
+          "socks_ok": true,
+          "direct_http_code": 0,
+          "socks_http_code": 200
+        },
+        {
+          "label": "telegram_media_dc2_149_154_166_111_443",
+          "kind": "tcp",
+          "group": "telegram_media",
+          "assessment": "possible_local_isp_block",
+          "direct_ok": false,
+          "socks_ok": true,
+          "direct_http_code": null,
+          "socks_http_code": null
+        },
+        {
+          "label": "telegram_media_dc4_91_108_56_161_443",
+          "kind": "tcp",
+          "group": "telegram_media",
+          "assessment": "possible_local_isp_block",
+          "direct_ok": false,
+          "socks_ok": true,
+          "direct_http_code": null,
+          "socks_http_code": null
+        },
+        {
+          "label": "openai_api",
+          "kind": "http",
+          "group": "ai",
+          "assessment": "possible_local_isp_block",
+          "direct_ok": false,
+          "socks_ok": true,
+          "direct_http_code": 0,
+          "socks_http_code": 401
+        },
+        {
+          "label": "github",
+          "kind": "http",
+          "group": "dev",
+          "assessment": "possible_local_isp_block",
+          "direct_ok": false,
+          "socks_ok": true,
+          "direct_http_code": 0,
+          "socks_http_code": 200
+        },
+        {
+          "label": "russia_search",
+          "kind": "http",
+          "group": "ru",
+          "assessment": "target_or_global_unreachable",
+          "direct_ok": false,
+          "socks_ok": false,
+          "direct_http_code": 0,
+          "socks_http_code": 0
+        }
+      ],
       "socks_proxy_detected": true,
-      "socks_port": 10918,
+      "socks_port": 7890,
       "http_proxy_configured": false,
       "targets_source": "/mnt/projects/nl-diagnostics/blocking_probe_targets.json"
     }

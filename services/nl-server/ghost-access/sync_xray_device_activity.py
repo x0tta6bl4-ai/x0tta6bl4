@@ -47,6 +47,16 @@ DEFAULT_STATE_PATH = Path(
     )
 )
 DEFAULT_INTERVAL = int(os.getenv("DEVICE_ACTIVITY_SYNC_INTERVAL_SECONDS", "60"))
+THINKING_CONTRACT = {
+    "role": "xray_device_activity_sync_agent",
+    "techniques": [
+        "framing",
+        "mape_k",
+        "causal_analysis",
+        "zero_trust_review",
+    ],
+    "safety_boundary": "sync only derived device activity; do not print raw secrets",
+}
 
 EMAIL_PATTERNS = (
     re.compile(r"\[(?P<email>[^\]\s]+)\s*->"),
@@ -158,6 +168,21 @@ def _extract_latest_ip(raw_ips: str | None) -> str | None:
     return None
 
 
+def _thinking_context(task_type: str, goal: str, constraints: dict | None = None) -> dict:
+    return {
+        "contract": THINKING_CONTRACT,
+        "applied": {
+            "framing": {
+                "problem": task_type,
+                "goal": goal,
+                "constraints": constraints or {},
+                "safety_boundary": THINKING_CONTRACT["safety_boundary"],
+            },
+            "mape_k": ["monitor-log", "analyze-lines", "plan-cursor", "execute-sync", "knowledge-state"],
+        },
+    }
+
+
 def _sync_from_xui_db(xui_db_path: Path) -> tuple[int, int, int]:
     if not xui_db_path.exists():
         return 0, 0, 0
@@ -206,6 +231,11 @@ def run_once(log_path: Path, state_path: Path, full_rescan: bool) -> tuple[int, 
             "skipped": 0,
             "offset": 0,
             "warning": "access log missing",
+            "thinking": _thinking_context(
+                "xray_device_activity_sync",
+                "Handle a missing access log without failing the runtime loop.",
+                {"full_rescan": full_rescan},
+            ),
         }
         return 0, payload
 
@@ -272,6 +302,15 @@ def run_once(log_path: Path, state_path: Path, full_rescan: bool) -> tuple[int, 
         "last_error": last_error,
         "offset": new_offset,
         "full_rescan": full_rescan,
+        "thinking": _thinking_context(
+            "xray_device_activity_sync",
+            "Sync Xray and x-ui activity into Ghost Access device records.",
+            {
+                "full_rescan": full_rescan,
+                "matched": matched,
+                "errors": errors,
+            },
+        ),
     }
     return 0, payload
 

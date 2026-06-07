@@ -1,0 +1,79 @@
+{
+  "db_progress": {
+    "active_user_count": 14,
+    "combined": {
+      "active_users_with_any_progress_since_message": 10,
+      "active_users_with_subscription_and_device_progress_since_message": 4
+    },
+    "db_available": true,
+    "device_activity": {
+      "active_users_with_device_activity_since_message": 9,
+      "device_activity_rows_since_message": 20,
+      "device_status_counts": {
+        "active": 20
+      },
+      "profile_kind_counts": {
+        "reality": 20
+      },
+      "raw_ip_stored": false,
+      "raw_user_ids_stored": false,
+      "raw_uuid_stored": false
+    },
+    "request_events": {
+      "action_counts": {
+        "config": 3,
+        "repair": 1
+      },
+      "config_requests_since_message": 3,
+      "raw_user_ids_stored": false
+    },
+    "subscription_refresh": {
+      "active_users_with_subscription_pull_since_message": 5,
+      "client_app_counts": {
+        "happ": 1,
+        "v2raytun": 4
+      },
+      "raw_subscription_urls_stored": false,
+      "raw_tokens_stored": false,
+      "raw_user_ids_stored": false,
+      "subscription_pull_rows_since_message": 5
+    }
+  },
+  "generated_at": "2026-06-06T17:03:00Z",
+  "message_send": {
+    "available": true,
+    "decision": "LEGACY_CLIENT_MIGRATION_MESSAGE_SENT",
+    "selected_user_count": 14,
+    "sent_count": 14,
+    "sha256": "227058c48b2a9ee82974a74b81123010bc1537c4b4d566f3ccc1aa8da01974d6",
+    "source": "/var/lib/ghost-access/legacy-migration/message-send.json"
+  },
+  "operator_action": "monitor_remaining_client_replies_and_legacy_transport",
+  "packet": {
+    "decision": "LEGACY_CLIENT_MIGRATION_PACKET_READY",
+    "sha256": "974534b6e0ae5f9b1e7809f4978e3483401c97bc0bfeee59692cc395566a2b79",
+    "source": "/var/lib/ghost-access/legacy-migration/latest.json",
+    "target_active_subscription_count": 14
+  },
+  "privacy": {
+    "raw_chat_ids_stored": false,
+    "raw_ip_stored": false,
+    "raw_subscription_urls_stored": false,
+    "raw_telegram_handle_stored": false,
+    "raw_tokens_stored": false,
+    "raw_user_ids_stored": false,
+    "raw_uuid_stored": false,
+    "raw_vpn_uris_stored": false
+  },
+  "replies": {
+    "available": true,
+    "done_updated_count": 0,
+    "failure_count": 0,
+    "status": "no_client_replies",
+    "total_replies": 0
+  },
+  "schema_version": 1,
+  "sent_at": "2026-06-05T13:27:02Z",
+  "source": "collect_legacy_migration_progress.py",
+  "status": "migration_progress_seen"
+}

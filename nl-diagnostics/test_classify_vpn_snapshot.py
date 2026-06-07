@@ -71,6 +71,39 @@ RUNTIME_ANTI_BLOCK_SWITCH_PROFILE = """# command: jq "{header with braces}"
 }
 """
 
+RUNTIME_TRANSPORT_CANARY_NOT_CONFIGURED = """# command: jq "{header with braces}"
+{
+  "mode": "primary",
+  "recommended_action": "observe",
+  "hot_path_summary": {
+    "transport_health_status": "degraded",
+    "telegram_media_status": "healthy"
+  },
+  "probes": {
+    "transport_summary": {
+      "status": "degraded",
+      "telegram_media_status": "healthy",
+      "paths": {
+        "main": {
+          "tcp_ok": true,
+          "xui_required": true,
+          "xui_ok": true,
+          "canary_ok": false,
+          "errors": ["not-configured"]
+        },
+        "secondary": {
+          "tcp_ok": true,
+          "xui_required": true,
+          "xui_ok": true,
+          "canary_ok": false,
+          "errors": ["not-configured"]
+        }
+      }
+    }
+  }
+}
+"""
+
 
 class SnapshotBuilder:
     def __init__(self, root: Path):
@@ -306,6 +339,25 @@ class ClassifyVpnSnapshotTests(unittest.TestCase):
         self.assertEqual(result["overall_status"], "ok")
         self.assertIn("NL non-critical failed units: ifup@eth0.service", result["warnings"])
 
+    def test_key_services_named_active_format_is_healthy(self):
+        result = self.classify(
+            lambda builder: builder.write(
+                "nl/key_services.txt",
+                "\n".join(
+                    [
+                        "x-ui=active",
+                        "warp-svc=active",
+                        "ghost-vpn=active",
+                        "ghost-access-nl-xhttp.service=active",
+                        "nginx=active",
+                    ]
+                )
+                + "\n",
+            )
+        )
+        self.assertEqual(result["overall_status"], "ok")
+        self.assertIn("NL key services active", result["evidence"])
+
     def test_unknown_failed_unit_is_nl_critical(self):
         result = self.classify(
             lambda builder: builder.write(
@@ -329,6 +381,23 @@ class ClassifyVpnSnapshotTests(unittest.TestCase):
         )
         self.assertEqual(result["overall_status"], "ok")
         self.assertEqual(result["provider_status"], "historical_incident")
+
+    def test_canary_not_configured_is_monitoring_gap_not_provider_outage(self):
+        def mutate(builder: SnapshotBuilder) -> None:
+            builder.write("nl/runtime_state_summary.txt", RUNTIME_TRANSPORT_CANARY_NOT_CONFIGURED)
+            builder.write(
+                "nl/provider_signals.txt",
+                "qemu-ga[785]: info: guest-shutdown called, mode: powerdown\n"
+                "systemd-logind[641]: System is powering down (hypervisor initiated shutdown).\n",
+            )
+
+        result = self.classify(mutate)
+        self.assertEqual(result["overall_status"], "advisory")
+        self.assertEqual(result["failure_domain"], "monitoring")
+        self.assertEqual(result["recommended_action"], "restore_transport_canary_monitor")
+        self.assertEqual(result["provider_status"], "historical_incident")
+        self.assertEqual(result["blocking_assessment"]["category"], "monitoring_gap")
+        self.assertIn("canary monitor", " ".join(result["warnings"]))
 
     def test_provider_signal_with_unhealthy_current_state_is_provider_outage(self):
         def mutate(builder: SnapshotBuilder) -> None:

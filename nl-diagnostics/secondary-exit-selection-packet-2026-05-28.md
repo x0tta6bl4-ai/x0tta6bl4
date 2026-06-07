@@ -1,6 +1,6 @@
 # Secondary Exit Selection Packet
 
-generated_at: `2026-05-31T13:45:57.481389+00:00`
+generated_at: `2026-06-06T12:58:13.744119+00:00`
 status: `selection_packet_ready_no_endpoint`
 ok: `true`
 

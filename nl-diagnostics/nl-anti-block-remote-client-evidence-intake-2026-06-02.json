@@ -1,0 +1,44 @@
+{
+  "intake_id": "nl-anti-block-remote-client-evidence-intake-2026-06-02",
+  "generated_at": "2026-06-06T15:47:37Z",
+  "decision": "REMOTE_CLIENT_EVIDENCE_INTAKE_READY",
+  "source_matrix": "nl-diagnostics/nl-anti-block-client-compatibility-matrix-2026-06-02.json",
+  "matrix_updated": false,
+  "candidate": null,
+  "recording": {
+    "attempted": false,
+    "recorded": false,
+    "reason": "record_matrix_not_requested"
+  },
+  "matrix_summary": {
+    "decision": "CLIENT_MATRIX_PARTIAL_REAL_DEVICES_REQUIRED",
+    "completion": {
+      "desktop_v2rayn": true,
+      "android_happ_or_hiddify": false,
+      "mobile_network": false,
+      "restricted_or_work_wifi": false
+    },
+    "missing_requirements": [
+      "android_happ_or_hiddify",
+      "mobile_network",
+      "restricted_or_work_wifi"
+    ],
+    "complete": false,
+    "real_client_checks": 9,
+    "passing_real_client_checks": 2
+  },
+  "safe_remote_record_command_template": "python3 services/nl-server/ghost-access/record_remote_client_evidence.py --write --record-matrix --evidence-source remote_user_report --reporter-label remote-city-user --client \"Happ\" --client-version unknown --network-type mobile --transport reality --port 443 --result <pass|fail> --symptom \"<short result, no secrets>\" --evidence-session-id nl-anti-block-2026-06-02 --json",
+  "privacy": {
+    "output_privacy_ok": true,
+    "raw_subscription_url_stored": false,
+    "raw_vpn_uri_stored": false,
+    "raw_uuid_stored": false,
+    "raw_ip_stored": false,
+    "raw_email_stored": false,
+    "raw_reporter_identifier_stored": false,
+    "raw_telegram_handle_stored": false,
+    "raw_phone_stored": false,
+    "raw_url_stored": false,
+    "raw_screenshot_stored": false
+  }
+}

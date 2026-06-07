@@ -5,6 +5,7 @@ import calendar
 import json
 import os
 import socket
+import ssl
 import subprocess
 import time
 from pathlib import Path
@@ -15,6 +16,12 @@ STATE_DIR = Path("/opt/x0tta6bl4-mesh/state")
 STATE_PATH = STATE_DIR / "runtime-state.json"
 LISTENER_SIGNAL_PATH = STATE_DIR / "listener-loss-signal.json"
 VPN_AGENT_STATE_PATH = Path("/var/lib/ghost-access/vpn-service-access-agent/latest.json")
+TRANSPORT_USAGE_EVIDENCE_PATH = Path(
+    os.environ.get(
+        "TRANSPORT_USAGE_EVIDENCE_PATH",
+        "/var/lib/ghost-access/transport-usage/latest.json",
+    )
+)
 PUBLIC_PROTOCOLS = {"vless", "vmess", "trojan", "shadowsocks"}
 PRIMARY_PORT = 443
 DEFAULT_PUBLIC_PORTS = [443, 2083, 39829]
@@ -24,6 +31,25 @@ XUI_CONFIG_PATHS = [
     Path("/usr/local/etc/xray/config.json"),
 ]
 LISTENER_SIGNAL_TTL_SEC = 300
+GHOST_HTTPS_WS_SERVICE = os.environ.get(
+    "GHOST_HTTPS_WS_SERVICE",
+    "ghost-access-nl-https-ws.service",
+)
+GHOST_HTTPS_WS_HOST = os.environ.get(
+    "GHOST_HTTPS_WS_HOST",
+    "89-125-1-107.sslip.io",
+)
+GHOST_HTTPS_WS_PATH = os.environ.get("GHOST_HTTPS_WS_PATH", "/ghost-ws")
+GHOST_HTTPS_WS_PUBLIC_PORT = int(os.environ.get("GHOST_HTTPS_WS_PUBLIC_PORT", "8443"))
+GHOST_HTTPS_WS_BACKEND_PORT = int(os.environ.get("GHOST_HTTPS_WS_BACKEND_PORT", "10085"))
+GHOST_XHTTP_SERVICE = os.environ.get(
+    "GHOST_XHTTP_SERVICE",
+    "ghost-access-nl-xhttp.service",
+)
+GHOST_XHTTP_HOST = os.environ.get("GHOST_XHTTP_HOST", "89-125-1-107.sslip.io")
+GHOST_XHTTP_PATH = os.environ.get("GHOST_XHTTP_PATH", "/ghost-xhttp")
+GHOST_XHTTP_PUBLIC_PORT = int(os.environ.get("GHOST_XHTTP_PUBLIC_PORT", "8443"))
+GHOST_XHTTP_BACKEND_PORT = int(os.environ.get("GHOST_XHTTP_BACKEND_PORT", "10086"))
 
 
 def parse_ports(raw: str | None, default: list[int]) -> list[int]:
@@ -71,6 +97,51 @@ def http_ok(url: str) -> bool:
             return 200 <= response.status < 500
     except (URLError, OSError):
         return False
+
+
+def https_ws_upgrade_ok(host: str, port: int, path: str) -> bool:
+    request = (
+        f"GET {path} HTTP/1.1\r\n"
+        f"Host: {host}\r\n"
+        "Connection: Upgrade\r\n"
+        "Upgrade: websocket\r\n"
+        "Sec-WebSocket-Version: 13\r\n"
+        "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+        "\r\n"
+    )
+    context = ssl._create_unverified_context()  # noqa: S323
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as raw:
+            with context.wrap_socket(raw, server_hostname=host) as sock:
+                sock.settimeout(3)
+                sock.sendall(request.encode("ascii"))
+                response = sock.recv(256).decode("ascii", "ignore")
+    except OSError:
+        return False
+    return response.startswith("HTTP/1.1 101") or response.startswith("HTTP/1.0 101")
+
+
+def https_path_status(host: str, port: int, path: str) -> int | None:
+    request = (
+        f"GET {path} HTTP/1.1\r\n"
+        f"Host: {host}\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    )
+    context = ssl._create_unverified_context()  # noqa: S323
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as raw:
+            with context.wrap_socket(raw, server_hostname=host) as sock:
+                sock.settimeout(3)
+                sock.sendall(request.encode("ascii"))
+                response = sock.recv(256).decode("ascii", "ignore")
+    except OSError:
+        return None
+    first_line = response.splitlines()[0] if response.splitlines() else ""
+    parts = first_line.split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        return None
+    return int(parts[1])
 
 
 def service_ok(name: str) -> bool:
@@ -148,6 +219,79 @@ def load_vpn_agent_state() -> dict:
         return payload if isinstance(payload, dict) else {}
     except Exception:
         return {}
+
+
+def load_transport_usage_evidence() -> dict:
+    if not TRANSPORT_USAGE_EVIDENCE_PATH.exists():
+        return {}
+    try:
+        payload = json.loads(TRANSPORT_USAGE_EVIDENCE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    windows = payload.get("windows") if isinstance(payload.get("windows"), dict) else {}
+    privacy = payload.get("privacy") if isinstance(payload.get("privacy"), dict) else {}
+    window_60m = windows.get("60m") if isinstance(windows.get("60m"), dict) else {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "privacy": privacy,
+        "summary_60m": build_transport_usage_summary(window_60m, privacy),
+        "window_60m": window_60m,
+    }
+
+
+def _int_value(value) -> int:
+    return value if isinstance(value, int) else 0
+
+
+def build_transport_usage_summary(window: dict, privacy: dict) -> dict:
+    xray = window.get("xray") if isinstance(window.get("xray"), dict) else {}
+    nginx = window.get("nginx") if isinstance(window.get("nginx"), dict) else {}
+
+    def xray_value(transport: str, field: str):
+        item = xray.get(transport) if isinstance(xray.get(transport), dict) else {}
+        return item.get(field)
+
+    def nginx_value(path: str, field: str):
+        item = nginx.get(path) if isinstance(nginx.get(path), dict) else {}
+        return item.get(field)
+
+    privacy_ok = (
+        privacy.get("client_hashes_hmac_keyed") is True
+        and privacy.get("raw_identifiers_stored") is False
+        and privacy.get("raw_ip_stored") is False
+        and privacy.get("raw_email_stored") is False
+        and privacy.get("raw_target_host_stored") is False
+    )
+
+    return {
+        "window": "60m",
+        "since": window.get("since"),
+        "privacy_ok": privacy_ok,
+        "ghost_xhttp_dataplane_events": _int_value(
+            xray_value("ghost_xhttp", "dataplane_events")
+        ),
+        "ghost_xhttp_unique_clients": _int_value(
+            xray_value("ghost_xhttp", "unique_client_count")
+        ),
+        "ghost_xhttp_last_seen_at": xray_value("ghost_xhttp", "last_seen_at"),
+        "ghost_xhttp_nginx_requests": _int_value(
+            nginx_value("/ghost-xhttp", "requests")
+        ),
+        "ghost_xhttp_nginx_last_seen_at": nginx_value("/ghost-xhttp", "last_seen_at"),
+        "ghost_https_ws_dataplane_events": _int_value(
+            xray_value("ghost_https_ws", "dataplane_events")
+        ),
+        "ghost_https_ws_unique_clients": _int_value(
+            xray_value("ghost_https_ws", "unique_client_count")
+        ),
+        "ghost_https_ws_last_seen_at": xray_value("ghost_https_ws", "last_seen_at"),
+        "ghost_https_ws_nginx_requests": _int_value(
+            nginx_value("/ghost-ws", "requests")
+        ),
+        "ghost_https_ws_nginx_last_seen_at": nginx_value("/ghost-ws", "last_seen_at"),
+    }
 
 
 def load_public_ports(config_paths: list[Path] | None = None) -> list[int]:
@@ -246,6 +390,13 @@ def build_hot_path_summary(probes: dict, mode: str, action: str, reason: str) ->
         "subscription_health_status": str(probes.get("subscription_health_status") or "unknown"),
         "warp_status": "healthy" if probes.get("warp_ok") else "degraded",
         "ghost_ready": bool(probes.get("ghost_ready")),
+        "ghost_https_ws_ready": bool(probes.get("ghost_https_ws_ready")),
+        "ghost_xhttp_ready": bool(probes.get("ghost_xhttp_ready")),
+        "transport_usage_60m": (
+            (probes.get("transport_usage_evidence") or {}).get("summary_60m")
+            if isinstance(probes.get("transport_usage_evidence"), dict)
+            else {}
+        ),
         "best_path": best_path or None,
         "best_path_port": best_path_port if isinstance(best_path_port, int) else None,
         "primary_path_latency_s": _path_value("main", "latency_s"),
@@ -351,6 +502,7 @@ def main() -> int:
     public_ports = load_public_ports()
     listener_signal = load_listener_signal()
     vpn_agent_state = load_vpn_agent_state()
+    transport_usage_evidence = load_transport_usage_evidence()
     auxiliary_listener_map = {str(port): tcp_ok(port) for port in AUXILIARY_PORTS}
     listener_map = {str(port): tcp_ok(port) for port in public_ports}
     established_map = {str(port): established_count(port) for port in public_ports}
@@ -371,6 +523,23 @@ def main() -> int:
         "ghost_metrics_ok": http_ok("http://127.0.0.1:9464/metrics"),
         "ghost_tcp_ready": tcp_ok(4434),
         "ghost_udp_ready": service_ok("ghost-vpn"),
+        "ghost_https_ws_service_ok": service_ok(GHOST_HTTPS_WS_SERVICE),
+        "ghost_https_ws_backend_ready": tcp_ok(GHOST_HTTPS_WS_BACKEND_PORT),
+        "ghost_https_ws_public_port_ready": tcp_ok(GHOST_HTTPS_WS_PUBLIC_PORT),
+        "ghost_https_ws_upgrade_ok": https_ws_upgrade_ok(
+            GHOST_HTTPS_WS_HOST,
+            GHOST_HTTPS_WS_PUBLIC_PORT,
+            GHOST_HTTPS_WS_PATH,
+        ),
+        "ghost_xhttp_service_ok": service_ok(GHOST_XHTTP_SERVICE),
+        "ghost_xhttp_backend_ready": tcp_ok(GHOST_XHTTP_BACKEND_PORT),
+        "ghost_xhttp_public_port_ready": tcp_ok(GHOST_XHTTP_PUBLIC_PORT),
+        "ghost_xhttp_path_status": https_path_status(
+            GHOST_XHTTP_HOST,
+            GHOST_XHTTP_PUBLIC_PORT,
+            GHOST_XHTTP_PATH,
+        ),
+        "transport_usage_evidence": transport_usage_evidence,
         "established_443": established_map.get(str(PRIMARY_PORT), 0),
         "established_public_total": sum(established_map.values()),
         "secondary_listener_failures": secondary_failures,
@@ -395,6 +564,18 @@ def main() -> int:
     }
     probes["ghost_ready"] = (
         probes["ghost_metrics_ok"] and probes["ghost_tcp_ready"] and probes["ghost_udp_ready"]
+    )
+    probes["ghost_https_ws_ready"] = (
+        probes["ghost_https_ws_service_ok"]
+        and probes["ghost_https_ws_backend_ready"]
+        and probes["ghost_https_ws_public_port_ready"]
+        and probes["ghost_https_ws_upgrade_ok"]
+    )
+    probes["ghost_xhttp_ready"] = (
+        probes["ghost_xhttp_service_ok"]
+        and probes["ghost_xhttp_backend_ready"]
+        and probes["ghost_xhttp_public_port_ready"]
+        and probes["ghost_xhttp_path_status"] in {400, 404, 405}
     )
 
     mode, action, reason = decide(probes, previous)

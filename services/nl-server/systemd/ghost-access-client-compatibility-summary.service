@@ -1,0 +1,24 @@
+[Unit]
+Description=Ghost Access client compatibility summary publisher
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/var/lib/ghost-access/client-compatibility/matrix.json
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/opt/x0tta6bl4-mesh
+ExecStartPre=/usr/bin/install -d -m 0750 -o root -g root /var/lib/ghost-access/client-compatibility
+ExecStart=/usr/bin/python3 /opt/x0tta6bl4-mesh/scripts/build_client_compatibility_runtime_summary.py --matrix /var/lib/ghost-access/client-compatibility/matrix.json --json-out /var/lib/ghost-access/client-compatibility/latest.json --markdown-out /var/lib/ghost-access/client-compatibility/latest.md --write --json
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ghost-access/client-compatibility
+ReadOnlyPaths=/opt/x0tta6bl4-mesh/scripts
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=true

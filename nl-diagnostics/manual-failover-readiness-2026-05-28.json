@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_manual_failover_readiness.py",
-  "generated_at": "2026-05-31T13:45:53.588562+00:00",
-  "status": "blocked_no_incident_trigger",
+  "generated_at": "2026-06-06T12:58:09.994813+00:00",
+  "status": "blocked_missing_secondary",
   "manual_probe_allowed": false,
   "manual_switch_allowed": false,
   "summary": {
-    "decision": "observe",
+    "decision": "provider_ticket",
     "decision_confidence": "high",
-    "overall_status": "advisory",
-    "transport_status": "healthy",
-    "failure_domain": "external_network",
-    "provider_status": "normal",
-    "manual_failover_status": "planning_not_active",
+    "overall_status": "provider_outage",
+    "transport_status": "degraded",
+    "failure_domain": "provider_host",
+    "provider_status": "suspect_active",
+    "manual_failover_status": "manual_failover_candidate",
     "secondary_probe_status": "planning_template",
     "candidate_configured": false,
     "spb_excluded": true,
@@ -23,13 +23,13 @@
     {
       "id": "TRIGGER-01",
       "title": "Incident evidence justifies considering failover",
-      "status": "blocked",
-      "ok": false,
+      "status": "pass",
+      "ok": true,
       "evidence": [
-        "decision=observe",
-        "failure_domain=external_network",
-        "transport_status=healthy",
-        "provider_status=normal"
+        "decision=provider_ticket",
+        "failure_domain=provider_host",
+        "transport_status=degraded",
+        "provider_status=suspect_active"
       ],
       "next_step": "stay on observe while NL transport is healthy and no incident trigger exists"
     },
@@ -39,8 +39,8 @@
       "status": "pass",
       "ok": true,
       "evidence": [
-        "decision=observe",
-        "failure_domain=external_network"
+        "decision=provider_ticket",
+        "failure_domain=provider_host"
       ],
       "next_step": "fix local route/SOCKS/client before any failover work"
     },

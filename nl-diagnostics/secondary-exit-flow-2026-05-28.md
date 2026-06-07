@@ -1,6 +1,6 @@
 # Secondary Exit Flow
 
-generated_at: `2026-05-31T13:45:56.593352+00:00`
+generated_at: `2026-06-06T12:58:12.926968+00:00`
 status: `blocked_missing_candidate`
 ok: `true`
 

@@ -1,6 +1,6 @@
 # Local Root Cleanup Approval Packet
 
-generated_at: `2026-05-31T13:46:12.133858+00:00`
+generated_at: `2026-06-06T12:58:33.888441+00:00`
 status: `cleanup_approval_packet_no_cleanup_needed`
 ok: `true`
 
@@ -8,12 +8,12 @@ ok: `true`
 
 ```text
 root_status=ok
-root_free_gib=22.15
+root_free_gib=18.24
 diagnostic_tmpdir=/mnt/projects/.tmp
 diagnostic_tmpdir_writable=true
 cleanup_plan_status=no_cleanup_needed
 existing_candidate_count=3
-estimated_reclaim_gib=0.93
+estimated_reclaim_gib=1.28
 first_review_id=APT-CACHE-01
 command_preview_count=3
 approval_required=false
@@ -36,8 +36,8 @@ TMPDIR=/mnt/projects/.tmp python3 nl-diagnostics/plan_local_root_cleanup.py
 
 | ID | Size GiB | Risk | Approval Level | May Execute Now | Command Preview |
 |---|---:|---|---|---:|---|
-| `APT-CACHE-01` | `0.0` | `low_standard_cache` | `single_command_approval` | `false` | `sudo apt-get clean` |
-| `JOURNAL-01` | `0.52` | `medium_keep_recent_logs` | `confirm_log_retention_approval` | `false` | `sudo journalctl --vacuum-size=500M` |
+| `APT-CACHE-01` | `0.25` | `low_standard_cache` | `single_command_approval` | `false` | `sudo apt-get clean` |
+| `JOURNAL-01` | `0.62` | `medium_keep_recent_logs` | `confirm_log_retention_approval` | `false` | `sudo journalctl --vacuum-size=500M` |
 | `VARTMP-01` | `0.41` | `high_manual_review` | `manual_path_review_required` | `false` | `sudo find /var/tmp -mindepth 1 -maxdepth 1 -mtime +7 -print` |
 
 ## Postcheck Commands

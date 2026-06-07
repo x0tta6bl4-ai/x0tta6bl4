@@ -27,7 +27,7 @@ import sqlite3
 import subprocess
 import sys
 from typing import Any
-from urllib import error, request
+from urllib import error, parse, request
 
 
 DEFAULT_GHOST_DB = Path(
@@ -342,7 +342,93 @@ def decode_subscription_body(raw: bytes) -> str:
     return text
 
 
-def check_subscription_http(base_url: str, token: str, devices: list[dict[str, Any]]) -> dict[str, Any]:
+def _port_from_vless_line(line: str) -> int | None:
+    authority = (line.split("@", 1)[1] if "@" in line else "").split("?", 1)[0].split("#", 1)[0]
+    match = re.search(r":(\d+)$", authority)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def classify_subscription_profile(line: str) -> dict[str, Any]:
+    text = line.strip()
+    lower = text.lower()
+    if lower.startswith("vless://"):
+        parsed = parse.urlsplit(text)
+        query = parse.parse_qs(parsed.query)
+        network = (query.get("type") or query.get("net") or [""])[0].lower()
+        security = (query.get("security") or [""])[0].lower()
+        if network == "xhttp":
+            transport = "xhttp"
+        elif network == "ws":
+            transport = "ws"
+        elif security == "reality":
+            transport = "reality"
+        else:
+            transport = "other_vless"
+        return {
+            "scheme": "vless",
+            "transport": transport,
+            "port": _port_from_vless_line(text),
+            "security": security,
+            "raw_uri_stored": False,
+            "uuid_stored": False,
+            "host_stored": False,
+        }
+    if lower.startswith("vmess://"):
+        return {"scheme": "vmess", "transport": "vmess", "port": None, "raw_uri_stored": False}
+    if lower.startswith("trojan://"):
+        return {"scheme": "trojan", "transport": "trojan", "port": None, "raw_uri_stored": False}
+    if lower.startswith("ss://"):
+        return {"scheme": "ss", "transport": "ss", "port": None, "raw_uri_stored": False}
+    return {"scheme": "other", "transport": "other", "port": None, "raw_uri_stored": False}
+
+
+def subscription_profile_summary(lines: list[str], expected_ports: list[int]) -> dict[str, Any]:
+    profiles = [
+        classify_subscription_profile(line)
+        for line in lines
+        if line.strip().lower().startswith(("vless://", "vmess://", "trojan://", "ss://"))
+    ]
+    counts = Counter(str(profile.get("transport") or "other") for profile in profiles)
+    ports = sorted(
+        {
+            int(profile["port"])
+            for profile in profiles
+            if isinstance(profile.get("port"), int)
+        }
+    )
+    expected = set(int(port) for port in expected_ports)
+    unexpected_ports = [port for port in ports if port not in expected]
+    disallowed = [
+        profile
+        for profile in profiles
+        if profile.get("transport") not in {"reality"}
+    ]
+    return {
+        "profile_count": len(profiles),
+        "transport_counts": dict(counts),
+        "ports": ports,
+        "expected_ports": sorted(expected),
+        "unexpected_ports": unexpected_ports,
+        "disallowed_profile_count": len(disallowed),
+        "reality_profile_count": int(counts.get("reality", 0)),
+        "all_profiles_reality": bool(profiles) and not disallowed,
+        "raw_profile_uris_stored": False,
+        "raw_uuid_stored": False,
+        "raw_host_stored": False,
+    }
+
+
+def check_subscription_http(
+    base_url: str,
+    token: str,
+    devices: list[dict[str, Any]],
+    expected_ports: list[int] | None = None,
+) -> dict[str, Any]:
     if not base_url:
         return {"checked": False, "reason": "base_url_missing"}
     if not token:
@@ -355,6 +441,10 @@ def check_subscription_http(base_url: str, token: str, devices: list[dict[str, A
             headers = {key.lower(): value for key, value in response.headers.items()}
             decoded = decode_subscription_body(raw)
             lines = [line for line in decoded.splitlines() if line.strip()]
+            profile_summary = subscription_profile_summary(
+                lines,
+                expected_ports or list(DEFAULT_PORTS),
+            )
             uuid_presence = [
                 {
                     "device_id": device.get("device_id"),
@@ -370,6 +460,7 @@ def check_subscription_http(base_url: str, token: str, devices: list[dict[str, A
                 "profile_update_interval": headers.get("profile-update-interval"),
                 "line_count": len(lines),
                 "vless_line_count": sum(1 for line in lines if line.startswith("vless://")),
+                "profile_summary": profile_summary,
                 "uuid_presence": uuid_presence,
                 "contains_error_text": contains_error_text(decoded),
             }
@@ -607,7 +698,12 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             )
 
     subscription = (
-        check_subscription_http(args.subscription_base_url, str(user.get("subscription_token") or ""), devices)
+        check_subscription_http(
+            args.subscription_base_url,
+            str(user.get("subscription_token") or ""),
+            devices,
+            ports,
+        )
         if args.check_subscription_http
         else {"checked": False, "reason": "not_requested"}
     )
@@ -683,6 +779,14 @@ def summarize_report(
         subscription_uuid_missing = sum(
             1 for item in subscription["uuid_presence"] if item.get("uuid_present") is False
         )
+    profile_summary = (
+        subscription.get("profile_summary")
+        if isinstance(subscription.get("profile_summary"), dict)
+        else {}
+    )
+    disallowed_profiles = int(profile_summary.get("disallowed_profile_count") or 0)
+    unexpected_ports = len(profile_summary.get("unexpected_ports") or [])
+    reality_profiles = int(profile_summary.get("reality_profile_count") or 0)
 
     hard_failures = []
     warnings = []
@@ -692,6 +796,19 @@ def summarize_report(
         hard_failures.append("subscription_token_missing")
     if subscription_http_status is not None and int(subscription_http_status) >= 400:
         hard_failures.append("subscription_http_failed")
+    if subscription.get("contains_error_text") is True:
+        hard_failures.append("subscription_contains_error_text")
+    if disallowed_profiles:
+        hard_failures.append("subscription_disallowed_transport")
+    if unexpected_ports:
+        hard_failures.append("subscription_unexpected_port")
+    if (
+        subscription.get("checked")
+        and subscription_http_status
+        and int(subscription_http_status) < 400
+        and not reality_profiles
+    ):
+        hard_failures.append("subscription_missing_reality_profile")
     if not xui_found:
         hard_failures.append("xui_db_missing")
     if missing_ports:
@@ -725,6 +842,9 @@ def summarize_report(
         "subscription_token_present": user.get("subscription_token", {}).get("present", False),
         "subscription_http_status": subscription_http_status,
         "subscription_uuid_missing": subscription_uuid_missing,
+        "subscription_disallowed_profile_count": disallowed_profiles,
+        "subscription_unexpected_port_count": unexpected_ports,
+        "subscription_reality_profile_count": reality_profiles,
         "device_count": len(devices),
         "active_device_count": len(active_devices),
         "active_device_missing_xui_port_count": missing_ports,
@@ -745,6 +865,10 @@ def build_recommendations(summary: dict[str, Any]) -> list[str]:
         recommendations.append("repair or rotate the user's subscription token through the Ghost Access support path")
     if "subscription_http_failed" in failures:
         recommendations.append("check /sub/{token} routing before changing x-ui clients")
+    if "subscription_disallowed_transport" in failures or "subscription_unexpected_port" in failures:
+        recommendations.append("remove non-Reality or unexpected-port profiles from the subscription payload before rotating users")
+    if "subscription_contains_error_text" in failures or "subscription_missing_reality_profile" in failures:
+        recommendations.append("fix the subscription generator before asking the user to re-import")
     if "active_device_missing_xui_port" in failures or "active_device_disabled_in_xui" in failures:
         recommendations.append("sync the affected active device clients into the expected x-ui inbounds")
     if "runtime_user_missing" in failures:

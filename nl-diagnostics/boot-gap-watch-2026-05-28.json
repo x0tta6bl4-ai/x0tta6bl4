@@ -1,25 +1,28 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_boot_gap_watch_report.py",
-  "generated_at": "2026-05-31T13:45:52.020398+00:00",
-  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260531T134449Z",
-  "status": "normal",
+  "generated_at": "2026-06-06T12:58:06.166716+00:00",
+  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260606T125103Z",
+  "status": "provider_ticket",
   "boot_window": {
-    "previous_boot_first_entry": null,
-    "previous_boot_last_entry": null,
-    "current_boot_first_entry": "Sat 2026-05-30 10:51:48 UTC"
+    "previous_boot_first_entry": "Sat 2026-06-06 01:40:12 UTC",
+    "previous_boot_last_entry": "Sat 2026-06-06 08:34:22 UTC",
+    "current_boot_first_entry": "Sat 2026-06-06 08:34:31 UTC"
   },
-  "boot_gap_seconds": null,
+  "boot_gap_seconds": 9,
   "unclean_boot_lines": [],
-  "provider_signal_lines": [],
+  "provider_signal_lines": [
+    "Jun 06 08:34:07 01164.com qemu-ga[961]: info: guest-shutdown called, mode: powerdown",
+    "Jun 06 08:34:07 01164.com systemd-logind[656]: System is powering down (hypervisor initiated shutdown)."
+  ],
   "classification": {
-    "overall_status": "advisory",
-    "transport_status": "healthy",
-    "provider_status": "normal",
-    "failure_domain": "external_network",
-    "recommended_action": "observe"
+    "overall_status": "provider_outage",
+    "transport_status": "degraded",
+    "provider_status": "suspect_active",
+    "failure_domain": "provider_host",
+    "recommended_action": "provider_ticket"
   },
-  "recommended_action": "observe",
+  "recommended_action": "build provider incident packet from the same fresh snapshot",
   "mutation_allowed": false,
   "nl_mutation_allowed": false,
   "spb_fallback_allowed": false,

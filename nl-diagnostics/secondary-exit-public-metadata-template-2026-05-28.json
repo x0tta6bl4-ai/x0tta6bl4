@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_secondary_exit_public_metadata_template.py",
-  "generated_at": "2026-05-31T13:45:57.742729+00:00",
+  "generated_at": "2026-06-06T12:58:14.213687+00:00",
   "status": "public_metadata_template_ready_no_endpoint",
   "ok": true,
   "summary": {

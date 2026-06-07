@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_HASHES = {
     "ghost-access/run_vpn_delivery_canary.py": "269fb1d88cf6e88f79c020682686019cbb829399aaf98d6ca1a46d36c8f7e050",
-    "ghost-access/run_vpn_service_access_agent.py": "41b6a912e5c02e294777f517206651cd5712a470651b4fc9a948712a7291ee7f",
+    "ghost-access/run_vpn_service_access_agent.py": "e12cfaad1aea267c937a4c9c0536976a0c24ed5b762515cf5a9ff27a85313ae7",
     "ghost-access/xray_runtime_user_manager.py": "3802f64e80e43fd8bdcf36afab6636b7b8a157ec018b2328d1ee258d517c08b4",
     "ghost-access/xui_client_manager.py": "104acccf5ef345e17f7b64c9e85975c2f35b20900b90c291922a3f81b2248769",
     "mesh-runtime/health_check.sh": "3b70430c20c8b828834fc01fc772cb09e149dd3c355fe59f782f9829d71f2590",

@@ -1,0 +1,67 @@
+{
+  "archive_checked": true,
+  "captured_at_utc": "2026-06-06T22:01:51.874851+00:00",
+  "checks": {
+    "all_verified_archives_present": true,
+    "all_verified_kits_ok": true,
+    "all_verified_readiness_ok": true,
+    "all_verified_server_secrets_excluded": true,
+    "all_verified_signatures_present": true,
+    "apply_client_dry_run_ok": true,
+    "apply_server_dry_run_ok": true,
+    "client_kit_count_matches": true,
+    "client_readiness_required": true,
+    "client_service_plan_ok": true,
+    "export_client_kits_ok": true,
+    "export_server_secrets_excluded": true,
+    "generate_ok": true,
+    "no_os_mutation": true,
+    "server_ok": true,
+    "server_service_plan_ok": true,
+    "verify_archives_checked": true,
+    "verify_client_kits_ok": true,
+    "verify_signature_required": true
+  },
+  "client_candidate_hash": "41aae47840dd7c0e834915e3e030d2f2d574a4e0de00ea17d7cfe764d18c9043",
+  "client_config_target": "/etc/x0tta-firstparty-vpn-client/client.json",
+  "client_kit_count": 2,
+  "client_service_name": "x0tta-firstparty-vpn-client.service",
+  "client_unit_path": "/etc/systemd/system/x0tta-firstparty-vpn-client.service",
+  "deployment_epoch": "local-firstparty-staging-packet-20260606T215812Z",
+  "evidence_dir": "/mnt/projects/nl-diagnostics/firstparty-staging-packet-20260606T215812Z",
+  "exported_devices": [
+    "nl-production-client-1",
+    "nl-production-client-2"
+  ],
+  "kit_material_persisted_in_repo": false,
+  "mode": "firstparty-staging-packet-summary",
+  "no_nl_or_spb_writes_performed": true,
+  "ok": true,
+  "os_mutation_performed": false,
+  "raw_secret_material_stored_in_evidence": false,
+  "readiness_required": true,
+  "server_bind_addr": [
+    "127.0.0.1",
+    39979
+  ],
+  "server_candidate_hash": "a831c78f70ff5b56c7a35c28c972497676ed55b7073f811f1c2566eb0c013b68",
+  "server_config_target": "/etc/x0tta-firstparty-vpn-server/server.json",
+  "server_secrets_included": false,
+  "server_service_name": "x0tta-firstparty-vpn.service",
+  "server_unit_path": "/etc/systemd/system/x0tta-firstparty-vpn.service",
+  "signature_required": true,
+  "transport": "tcp",
+  "verified_kit_count": 2,
+  "verified_manifest_file_counts": [
+    48,
+    48
+  ],
+  "verified_observed_file_counts": [
+    48,
+    48
+  ],
+  "verified_release_statuses": [
+    "production_candidate",
+    "production_candidate"
+  ]
+}

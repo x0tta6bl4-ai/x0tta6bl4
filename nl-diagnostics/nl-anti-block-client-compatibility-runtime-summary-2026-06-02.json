@@ -1,0 +1,93 @@
+{
+  "generated_at": "2026-06-06T15:47:38Z",
+  "service": "vps-profile-status-api",
+  "source_generated_at": "2026-06-06T15:47:37Z",
+  "decision": "CLIENT_MATRIX_PARTIAL_REAL_DEVICES_REQUIRED",
+  "current_status": "not_complete",
+  "complete": false,
+  "completion": {
+    "desktop_v2rayn": true,
+    "android_happ_or_hiddify": false,
+    "mobile_network": false,
+    "restricted_or_work_wifi": false
+  },
+  "missing_requirements": [
+    "android_happ_or_hiddify",
+    "mobile_network",
+    "restricted_or_work_wifi"
+  ],
+  "next_required_checks": [
+    {
+      "requirement": "android_happ_or_hiddify",
+      "client": "Happ",
+      "network_type": "mobile",
+      "transport": "reality",
+      "port": 443
+    },
+    {
+      "requirement": "restricted_or_work_wifi",
+      "client": "any",
+      "network_type": "work-wifi",
+      "transport": "reality",
+      "port": 443
+    }
+  ],
+  "evidence_session": {
+    "id": "nl-anti-block-2026-06-02",
+    "started_at": "2026-06-02T00:00:00Z",
+    "required_transport": "reality",
+    "required_port": 443,
+    "required_for_network_types": [
+      "mobile",
+      "restricted-wifi",
+      "work-wifi"
+    ],
+    "session_bound_current_passing_checks": 0,
+    "session_bound_requirements": {
+      "android_happ_or_hiddify": false,
+      "mobile_network": false,
+      "restricted_or_work_wifi": false
+    }
+  },
+  "real_client_checks": 9,
+  "passing_real_client_checks": 2,
+  "local_v2rayn_dataplane_probe": {
+    "checked_at": "2026-06-01T23:03:50Z",
+    "ok": true,
+    "passed_transports": [
+      "ws",
+      "xhttp"
+    ],
+    "profile_count": 2,
+    "target_url_class": "https_generate_204",
+    "results": [
+      {
+        "transport": "ws",
+        "port": 8443,
+        "ok": true,
+        "http_code": 204,
+        "total_s": 0.555399
+      },
+      {
+        "transport": "xhttp",
+        "port": 8443,
+        "ok": true,
+        "http_code": 204,
+        "total_s": 0.490398
+      }
+    ]
+  },
+  "privacy": {
+    "output_privacy_ok": true,
+    "raw_real_client_rows_returned": false,
+    "raw_subscription_url_stored": false,
+    "raw_vpn_uri_stored": false,
+    "raw_uuid_stored": false,
+    "raw_ip_stored": false,
+    "raw_email_stored": false,
+    "raw_reporter_identifier_stored": false,
+    "raw_telegram_handle_stored": false,
+    "raw_phone_stored": false
+  },
+  "ok": true
+}
