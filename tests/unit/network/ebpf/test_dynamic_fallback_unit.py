@@ -51,6 +51,10 @@ def test_latency_fallback_publishes_redacted_trigger_and_recovery_evidence(tmp_p
     assert trigger["safe_observation"] is True
     assert trigger["recent_sample_count"] == 10
     assert trigger["spike_count"] == 10
+    assert trigger["thinking"]["profile"]["role"] == "healing"
+    assert trigger["last_thinking_context"]["applied"]["framing"]["problem"] == (
+        "ebpf_dynamic_fallback_trigger"
+    )
     assert node_id not in str(trigger)
 
     for _ in range(10):
@@ -69,6 +73,9 @@ def test_latency_fallback_publishes_redacted_trigger_and_recovery_evidence(tmp_p
     assert recovery["active_fallback"] is False
     assert recovery["target_node_id_hash"] == trigger["target_node_id_hash"]
     assert recovery["recovery_count"] == 10
+    assert recovery["last_thinking_context"]["applied"]["framing"]["problem"] == (
+        "ebpf_dynamic_fallback_recover"
+    )
     assert node_id not in str(recovery)
 
 

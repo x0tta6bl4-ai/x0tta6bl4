@@ -15,6 +15,7 @@ import time
 from typing import Any, Dict, List, Mapping, Optional
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -133,6 +134,7 @@ PQC_PEER_SESSION_KEY_MISS_TOTAL = _build_counter(
 # Try to import BCC for eBPF support
 try:
     from bcc import BPF
+
     BCC_AVAILABLE = True
 except ImportError:
     BCC_AVAILABLE = False
@@ -143,16 +145,16 @@ except ImportError:
 class SoftwareRateLimiter:
     """
     Software-based token bucket rate limiter.
-    
+
     Provides equivalent functionality to eBPF rate limiter when
     eBPF is not available (no root, BCC not installed, etc).
-    
+
     Uses token bucket algorithm:
     - Tokens are added at a constant rate (bytes_per_sec)
     - Packets consume tokens equal to their size
     - If insufficient tokens, packet is "dropped" (simulated)
     """
-    
+
     def __init__(self):
         self._lock = threading.Lock()
         self._tokens: float = 0.0
@@ -160,7 +162,7 @@ class SoftwareRateLimiter:
         self._bytes_per_sec: int = 0  # 0 = unlimited
         self._dropped_packets: int = 0
         self._total_packets: int = 0
-    
+
     def set_limit(self, bytes_per_sec: int) -> None:
         """Set bandwidth limit. 0 = unlimited."""
         with self._lock:
@@ -169,44 +171,46 @@ class SoftwareRateLimiter:
             if bytes_per_sec > 0:
                 self._tokens = float(bytes_per_sec)
             else:
-                self._tokens = float('inf')
+                self._tokens = float("inf")
             self._last_time = time.time()
-        
-        limit_kbps = bytes_per_sec * 8 / 1024 if bytes_per_sec > 0 else float('inf')
-        logger.info(f"Software rate limit set to {bytes_per_sec} bytes/sec ({limit_kbps:.1f} Kbps)")
-    
+
+        limit_kbps = bytes_per_sec * 8 / 1024 if bytes_per_sec > 0 else float("inf")
+        logger.info(
+            f"Software rate limit set to {bytes_per_sec} bytes/sec ({limit_kbps:.1f} Kbps)"
+        )
+
     def apply_soft_lock(self) -> None:
         """Apply soft-lock: limit to 64 Kbps."""
         # 64 Kbps = 64 * 1024 / 8 = 8192 bytes/sec
         self.set_limit(64 * 1024 // 8)
-    
+
     def check_and_consume(self, packet_size: int) -> bool:
         """
         Check if packet can be sent and consume tokens if allowed.
-        
+
         Returns:
             True if packet allowed (tokens consumed)
             False if packet would be dropped (rate limit exceeded)
         """
         with self._lock:
             self._total_packets += 1
-            
+
             if self._bytes_per_sec == 0:
                 # Unlimited
                 return True
-            
+
             # Add tokens based on elapsed time
             now = time.time()
             elapsed = now - self._last_time
             self._last_time = now
-            
+
             # Add tokens: rate * elapsed_time
             self._tokens += self._bytes_per_sec * elapsed
-            
+
             # Cap tokens at max bucket size
             if self._tokens > self._bytes_per_sec:
                 self._tokens = float(self._bytes_per_sec)
-            
+
             # Check if we have enough tokens
             if self._tokens >= packet_size:
                 self._tokens -= packet_size
@@ -214,7 +218,7 @@ class SoftwareRateLimiter:
             else:
                 self._dropped_packets += 1
                 return False
-    
+
     def get_stats(self) -> dict:
         """Get rate limiter statistics."""
         with self._lock:
@@ -225,18 +229,18 @@ class SoftwareRateLimiter:
                 "total_packets": self._total_packets,
                 "dropped_packets": self._dropped_packets,
                 "drop_rate": drop_rate,
-                "mode": "software"
+                "mode": "software",
             }
 
 
 class RateLimiterManager:
     """
     Rate Limiter Manager with eBPF fallback to software implementation.
-    
+
     Attempts to use eBPF for high-performance rate limiting, falls back
     to software implementation when eBPF is unavailable.
     """
-    
+
     def __init__(
         self,
         interface: str = "singbox_tun",
@@ -252,7 +256,13 @@ class RateLimiterManager:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = EBPF_RATE_LIMITER_MANAGER_SERVICE_NAME
-        
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "ops", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
         self._init_eBPF_or_fallback()
 
     def _event_bus_or_none(self) -> Optional[EventBus]:
@@ -266,6 +276,69 @@ class RateLimiterManager:
         except Exception as exc:
             logger.error("Failed to initialize eBPF rate limiter EventBus: %s", exc)
             return None
+
+    def _ensure_thinking(self) -> None:
+        if not hasattr(self, "thinking_coach"):
+            self.thinking_coach = AgentThinkingCoach(
+                agent_id=getattr(
+                    self, "source_agent", EBPF_RATE_LIMITER_MANAGER_SERVICE_NAME
+                ),
+                role="security",
+                capabilities=("zero-trust", "ops", "network"),
+            )
+        if not hasattr(self, "last_thinking_context"):
+            self.last_thinking_context = {}
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose thinking profile and latest redacted rate-limiter context."""
+        self._ensure_thinking()
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
+
+    def _prepare_observation_thinking_context(
+        self,
+        *,
+        stage: str,
+        operation: str,
+        status: str,
+        source_mode: str,
+        read_only: bool,
+        parsed_summary: Optional[Dict[str, Any]],
+        error: Optional[BaseException],
+        extra: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Prepare redacted thinking context for rate-limiter observations."""
+        self._ensure_thinking()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "ebpf_rate_limiter_observation",
+                "goal": (
+                    "record local eBPF/software rate-limiter state without "
+                    "overclaiming datapath enforcement"
+                ),
+                "stage": stage,
+                "operation": operation,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": bool(read_only),
+                "parsed_summary": parsed_summary or {},
+                "extra_keys": sorted(str(key) for key in (extra or {})),
+                "error_type": type(error).__name__ if error is not None else None,
+                "constraints": {
+                    "redact_peer_ids": True,
+                    "redact_session_keys": True,
+                    "redact_interface_names": True,
+                    "local_observation_only": True,
+                },
+                "safety_boundary": (
+                    "Do not claim production traffic shaping, remote peer identity, "
+                    "or TC/XDP datapath enforcement beyond the local userspace result."
+                ),
+            }
+        )
+        return self.last_thinking_context
 
     def _publish_observation(
         self,
@@ -288,6 +361,16 @@ class RateLimiterManager:
         source_agent = getattr(
             self, "source_agent", EBPF_RATE_LIMITER_MANAGER_SERVICE_NAME
         )
+        thinking_context = self._prepare_observation_thinking_context(
+            stage=stage,
+            operation=operation,
+            status=status,
+            source_mode=source_mode,
+            read_only=read_only,
+            parsed_summary=parsed_summary,
+            error=error,
+            extra=extra,
+        )
         payload: Dict[str, Any] = {
             "component": "network.ebpf.rate_limiter_manager",
             "stage": stage,
@@ -308,6 +391,8 @@ class RateLimiterManager:
             "output": _bounded_output_metadata(),
             "payloads_redacted": True,
             "claim_boundary": EBPF_RATE_LIMITER_MANAGER_CLAIM_BOUNDARY,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": thinking_context,
         }
         if error is not None:
             payload["error"] = {
@@ -357,7 +442,7 @@ class RateLimiterManager:
         if len(key_bytes) < 16:
             return None
         return key_bytes
-    
+
     def _init_eBPF_or_fallback(self) -> None:
         """Initialize eBPF or fall back to software implementation."""
         op_start = time.monotonic()
@@ -378,7 +463,7 @@ class RateLimiterManager:
             )
             self._enable_software_fallback(reason="bcc_unavailable")
             return
-            
+
         try:
             # Check if we have root privileges
             if os.geteuid() != 0:
@@ -398,7 +483,7 @@ class RateLimiterManager:
                 )
                 self._enable_software_fallback(reason="not_root")
                 return
-                
+
             program_path = "src/network/ebpf/kernel/rate_limiter.c"
             with open(program_path, "r") as f:
                 program_text = f.read()
@@ -417,7 +502,7 @@ class RateLimiterManager:
                 },
             )
             self.bpf = BPF(text=program_text)
-            
+
             # Attach to egress using TC (Traffic Control)
             self.fn = self.bpf.load_func("handle_egress", BPF.SCHED_CLS)
             logger.info("eBPF rate limiter loaded for redacted interface")
@@ -442,7 +527,7 @@ class RateLimiterManager:
                     "function_name_redacted": True,
                 },
             )
-            
+
         except PermissionError as e:
             logger.warning("Permission denied for eBPF, using software fallback")
             self._publish_observation(
@@ -498,7 +583,7 @@ class RateLimiterManager:
                 },
             )
             self._enable_software_fallback(reason="bpf_load_failed")
-    
+
     def _enable_software_fallback(self, reason: str = "unspecified") -> None:
         """Enable software rate limiter fallback."""
         op_start = time.monotonic()
@@ -622,16 +707,16 @@ class RateLimiterManager:
             },
         )
         return key
-    
+
     @property
     def is_using_software_fallback(self) -> bool:
         """Check if using software fallback."""
         return self._using_software_fallback
-    
+
     def set_limit(self, bytes_per_sec: int) -> None:
         """
         Set bandwidth limit. 0 = unlimited.
-        
+
         Args:
             bytes_per_sec: Maximum bytes per second (0 = unlimited)
         """
@@ -657,7 +742,7 @@ class RateLimiterManager:
                     },
                 )
             return
-            
+
         if not self.bpf:
             logger.warning("eBPF not initialized, enabling software fallback")
             self._publish_observation(
@@ -698,7 +783,7 @@ class RateLimiterManager:
                     },
                 )
             return
-        
+
         # eBPF implementation
         try:
             config_map = self.bpf["limit_config"]
@@ -708,7 +793,7 @@ class RateLimiterManager:
                 _fields_ = [
                     ("max_bytes_per_sec", ctypes.c_uint64),
                     ("last_time", ctypes.c_uint64),
-                    ("tokens", ctypes.c_uint64)
+                    ("tokens", ctypes.c_uint64),
                 ]
 
             cfg = Config()
@@ -718,7 +803,7 @@ class RateLimiterManager:
 
             config_map[key] = cfg
 
-            limit_kb = bytes_per_sec / 1024 if bytes_per_sec > 0 else float('inf')
+            limit_kb = bytes_per_sec / 1024 if bytes_per_sec > 0 else float("inf")
             logger.info(
                 "Bandwidth limit for redacted interface set to %.1f KB/s",
                 limit_kb,
@@ -768,11 +853,11 @@ class RateLimiterManager:
                 },
             )
             raise
-    
+
     def apply_soft_lock(self) -> None:
         """
         Apply soft-lock: degrade service to 64 Kbps.
-        
+
         This is used when subscription is overdue - limits bandwidth
         to encourage renewal while allowing basic connectivity.
         """
@@ -794,8 +879,10 @@ class RateLimiterManager:
                 "interface_redacted": True,
             },
         )
-        logger.warning("Soft-lock applied: limited to %d bytes/sec (64 Kbps)", soft_limit)
-    
+        logger.warning(
+            "Soft-lock applied: limited to %d bytes/sec (64 Kbps)", soft_limit
+        )
+
     def get_stats(self) -> dict:
         """Get rate limiter statistics."""
         op_start = time.monotonic()
@@ -838,7 +925,7 @@ class RateLimiterManager:
             },
         )
         return stats
-    
+
     def check_rate_limit(
         self,
         packet_size: int = 64,
@@ -847,15 +934,15 @@ class RateLimiterManager:
     ) -> bool:
         """
         Check if packet would be rate limited (software mode only).
-        
+
         In eBPF mode, this check is done by the kernel.
         In software mode, this allows pre-check before sending.
-        
+
         Args:
             packet_size: Size of packet in bytes
             peer_id: Optional peer identifier for PQC session-key lookup
             require_pqc_session: If True, deny packets without peer session key
-            
+
         Returns:
             True if packet allowed, False if would be dropped
         """
@@ -864,7 +951,9 @@ class RateLimiterManager:
             self._ensure_pqc_state()
             if not peer_id or not self.has_peer_session_key(peer_id):
                 PQC_PEER_SESSION_KEY_MISS_TOTAL.inc()
-                logger.warning("Dropping packet due to missing redacted PQC session key")
+                logger.warning(
+                    "Dropping packet due to missing redacted PQC session key"
+                )
                 self._publish_observation(
                     stage="rate_limiter_pqc_session_key_missing",
                     operation="check_rate_limit",
@@ -905,7 +994,7 @@ class RateLimiterManager:
                 },
             )
             return allowed
-        
+
         # eBPF mode: kernel handles this
         self._publish_observation(
             stage="rate_limiter_check_ebpf_delegated",

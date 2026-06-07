@@ -21,7 +21,7 @@ def test_hard_heal_is_disabled_by_default():
 
 
 def test_vpn_watchdog_default_port_matches_current_local_profile():
-    assert vpn_watchdog.VPN_PORT == 39829
+    assert vpn_watchdog.VPN_PORT == 443
 
 
 def test_vpn_watchdog_provider_guard_blocks_heal(monkeypatch):

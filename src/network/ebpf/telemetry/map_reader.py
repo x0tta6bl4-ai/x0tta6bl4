@@ -12,11 +12,13 @@ import json
 import logging
 import subprocess
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 from .models import TelemetryConfig
@@ -97,6 +99,14 @@ class MapReader:
         self.security = security
         self.event_bus = event_bus
         self.source_agent = EBPF_MAP_READER_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="monitoring",
+            capabilities=("security", "zero-trust"),
+            extra_techniques=("mape_k", "causal_analysis", "reverse_planning"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
+        self._thinking_lock = threading.Lock()
         identity = service_event_identity(service_name=EBPF_MAP_READER_SERVICE_NAME)
         self.identity = {
             "node_id": self.source_agent,
@@ -123,6 +133,63 @@ class MapReader:
     def _duration_ms(start: float) -> float:
         return round((time.monotonic() - start) * 1000, 3)
 
+    def _thinking_coach_or_create(self) -> AgentThinkingCoach:
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            self.source_agent = getattr(
+                self,
+                "source_agent",
+                EBPF_MAP_READER_SERVICE_NAME,
+            )
+            coach = AgentThinkingCoach(
+                agent_id=self.source_agent,
+                role="monitoring",
+                capabilities=("security", "zero-trust"),
+                extra_techniques=("mape_k", "causal_analysis", "reverse_planning"),
+            )
+            self.thinking_coach = coach
+        return coach
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_telemetry_map_reader_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local eBPF telemetry map-reader evidence, hashed "
+                "map selectors, bounded output metadata, backend choice, counts, "
+                "and status; do not expose raw map names, map keys, map values, "
+                "stdout, stderr, identity values, or BPF objects."
+            ),
+        }
+        lock = getattr(self, "_thinking_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._thinking_lock = lock
+        with lock:
+            self._last_thinking_context = self._thinking_coach_or_create().prepare_task(
+                safe_task
+            )
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose telemetry map-reader thinking state without task secrets."""
+
+        return {
+            **self._thinking_coach_or_create().status(),
+            "last_context": getattr(self, "_last_thinking_context", None),
+        }
+
     def _publish_read_event(
         self,
         *,
@@ -139,6 +206,26 @@ class MapReader:
         operation: str = "read_map",
         extra: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{result}",
+            constraints={
+                "stage": stage,
+                "result": result,
+                "backend": backend,
+                "reason": reason,
+                "read_only": True,
+                "returncode_present": returncode is not None,
+                "result_count": result_count,
+                "bpf_program_present": bpf_program_present,
+                "bcc_available": BCC_AVAILABLE,
+                "bpftool_available": getattr(self, "bpftool_available", None),
+                "use_cache": use_cache,
+                "map_name_hash": self._hash_value(map_name),
+                "map_name_redacted": True,
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
         if self.event_bus is None:
             return None
 
@@ -168,6 +255,7 @@ class MapReader:
             "observed_state": True,
             "safe_observation": True,
             "safe_actuator": False,
+            "thinking": thinking,
             "claim_boundary": EBPF_MAP_READER_CLAIM_BOUNDARY,
         }
         if extra:

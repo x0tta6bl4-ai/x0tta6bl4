@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.core.subprocess_validator import safe_run
 from src.services.service_event_identity import service_event_identity
 
@@ -133,6 +134,12 @@ class EBPFAttachManager:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = EBPF_LOADER_ATTACH_MANAGER_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "monitoring"),
+            extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+        )
         logger.info("EBPFAttachManager initialized")
 
     def _event_bus_or_none(self) -> Optional[EventBus]:
@@ -144,6 +151,48 @@ class EBPFAttachManager:
         except Exception as exc:
             logger.error("Failed to initialize eBPF attach manager EventBus: %s", exc)
             return None
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose the loaded thinking profile without task data."""
+
+        return self.thinking_coach.status()
+
+    def _prepare_thinking_context(
+        self,
+        *,
+        stage: str,
+        operation: str,
+        status: str,
+        source_mode: str,
+        command: Optional[List[str]],
+        returncode: Optional[int],
+        read_only: bool,
+        parsed_summary: Optional[Dict[str, Any]],
+        extra: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Build a redacted decision context for eBPF attach observations."""
+
+        safe_task = {
+            "task_type": "ebpf_loader_attach_observation",
+            "goal": f"{operation}:{stage}:{status}",
+            "constraints": {
+                "operation": operation,
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": read_only,
+                "returncode_present": returncode is not None,
+                "command_shape": command or [],
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+            "safety_boundary": (
+                "Record only local command evidence, redacted selectors, hashes, "
+                "and bounded metadata; do not expose interface names, program "
+                "paths, stdout, stderr, or raw program IDs."
+            ),
+        }
+        return self.thinking_coach.prepare_task(safe_task)
 
     def _publish_observation(
         self,
@@ -184,6 +233,17 @@ class EBPFAttachManager:
             "safe_observation": True,
             "safe_actuator": False,
             "parsed_summary": parsed_summary or {},
+            "thinking": self._prepare_thinking_context(
+                stage=stage,
+                operation=operation,
+                status=status,
+                source_mode=source_mode,
+                command=command,
+                returncode=returncode,
+                read_only=read_only,
+                parsed_summary=parsed_summary,
+                extra=extra,
+            ),
             "output": _bounded_output_metadata(stdout, stderr),
             "payloads_redacted": True,
             "claim_boundary": EBPF_LOADER_ATTACH_MANAGER_CLAIM_BOUNDARY,

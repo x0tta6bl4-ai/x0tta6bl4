@@ -19,6 +19,25 @@ def _events(bus):
     )
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "coordinator"
+    assert "mape_k" in techniques
+    assert "reverse_planning" in techniques
+    assert "causal_analysis" in techniques
+    assert "zero_trust_review" in techniques
+    assert "weighted_decision_matrix" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_stigmergy_bridge_operation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["stage"] == payload["stage"]
+    assert constraints["output_redacted"] is True
+    assert "extra_keys" in constraints
+
+
 def test_bpftool_dump_map_success_publishes_redacted_evidence(tmp_path):
     bus = EventBus(project_root=str(tmp_path))
     map_name = "secret_stigmergy_map"
@@ -52,6 +71,7 @@ def test_bpftool_dump_map_success_publishes_redacted_evidence(tmp_path):
     assert payload["parsed_summary"]["entries_total"] == 1
     assert payload["parsed_summary"]["counter_entries"] == 1
     assert payload["identity"]["redacted"] is True
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
     assert secret_payload not in str(payload)
 
@@ -76,6 +96,7 @@ def test_bpftool_dump_map_failure_publishes_returncode_and_redacted_output(tmp_p
     assert payload["output"]["stderr_sha256"] == hashlib.sha256(
         stderr.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
     assert stderr not in str(payload)
 
@@ -101,6 +122,8 @@ def test_simulation_reinforcement_publishes_redacted_evidence(tmp_path):
     ).hexdigest()
     assert timeout_payload["stage"] == "stigmergy_sim_timeout_reinforced"
     assert timeout_payload["parsed_summary"]["reinforcement_success"] is False
+    _assert_thinking_context(ack_payload)
+    _assert_thinking_context(timeout_payload)
     assert dest_id not in str(ack_payload)
     assert next_hop not in str(ack_payload)
     assert dest_id not in str(timeout_payload)
@@ -135,6 +158,7 @@ def test_ebpf_snapshot_reinforcement_publishes_redacted_evidence(tmp_path):
     assert payload["ip_address_hash"] == hashlib.sha256(
         ip_addr.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert peer_id not in str(payload)
     assert ip_addr not in str(payload)
 
@@ -173,6 +197,7 @@ def test_xdp_attach_publishes_redacted_command_outcome(tmp_path):
     assert payload["output"]["stdout_sha256"] == hashlib.sha256(
         stdout.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert str(ebpf_object) not in str(payload)
     assert stdout not in str(payload)
@@ -203,5 +228,6 @@ def test_xdp_detach_publishes_redacted_command_outcome(tmp_path):
     assert payload["output"]["stderr_sha256"] == hashlib.sha256(
         stderr.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert stderr not in str(payload)

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -186,6 +187,12 @@ class QuarantineManager:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = PQC_QUARANTINE_MANAGER_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "ops", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         self._init_ebpf_or_fallback()
 
@@ -200,6 +207,69 @@ class QuarantineManager:
         except Exception as exc:
             logger.error("Failed to initialize PQC quarantine EventBus: %s", exc)
             return None
+
+    def _ensure_thinking(self) -> None:
+        if not hasattr(self, "thinking_coach"):
+            self.thinking_coach = AgentThinkingCoach(
+                agent_id=getattr(
+                    self, "source_agent", PQC_QUARANTINE_MANAGER_SERVICE_NAME
+                ),
+                role="security",
+                capabilities=("zero-trust", "ops", "network"),
+            )
+        if not hasattr(self, "last_thinking_context"):
+            self.last_thinking_context = {}
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose thinking profile and latest redacted quarantine context."""
+        self._ensure_thinking()
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
+
+    def _prepare_observation_thinking_context(
+        self,
+        *,
+        stage: str,
+        operation: str,
+        status: str,
+        source_mode: str,
+        read_only: bool,
+        parsed_summary: Optional[Dict[str, Any]],
+        error: Optional[BaseException],
+        extra: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Prepare redacted thinking context for quarantine observations."""
+        self._ensure_thinking()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "ebpf_pqc_quarantine_observation",
+                "goal": (
+                    "record local PQC quarantine state without overclaiming remote "
+                    "identity or datapath enforcement"
+                ),
+                "stage": stage,
+                "operation": operation,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": bool(read_only),
+                "parsed_summary": parsed_summary or {},
+                "extra_keys": sorted(str(key) for key in (extra or {})),
+                "error_type": type(error).__name__ if error is not None else None,
+                "constraints": {
+                    "redact_peer_ids": True,
+                    "redact_ip_addresses": True,
+                    "redact_interface_names": True,
+                    "local_observation_only": True,
+                },
+                "safety_boundary": (
+                    "Do not claim remote peer identity, production traffic, or kernel "
+                    "datapath enforcement beyond the local userspace operation result."
+                ),
+            }
+        )
+        return self.last_thinking_context
 
     def _publish_observation(
         self,
@@ -221,6 +291,16 @@ class QuarantineManager:
         source_agent = getattr(
             self, "source_agent", PQC_QUARANTINE_MANAGER_SERVICE_NAME
         )
+        thinking_context = self._prepare_observation_thinking_context(
+            stage=stage,
+            operation=operation,
+            status=status,
+            source_mode=source_mode,
+            read_only=read_only,
+            parsed_summary=parsed_summary,
+            error=error,
+            extra=extra,
+        )
         payload: Dict[str, Any] = {
             "component": "network.ebpf.quarantine_manager",
             "stage": stage,
@@ -240,6 +320,8 @@ class QuarantineManager:
             "output": _bounded_output_metadata(),
             "payloads_redacted": True,
             "claim_boundary": PQC_QUARANTINE_MANAGER_CLAIM_BOUNDARY,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": thinking_context,
         }
         if error is not None:
             payload["error"] = {
@@ -460,7 +542,9 @@ class QuarantineManager:
                     "blocked_ips_count": len(self._blocked_ips),
                 },
             )
-            logger.warning("Redacted node quarantined in software mode (level=%d)", level)
+            logger.warning(
+                "Redacted node quarantined in software mode (level=%d)", level
+            )
             return
 
         try:

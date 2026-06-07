@@ -14,6 +14,7 @@ Integrates with Prometheus for metrics export and alerting.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import statistics
@@ -24,6 +25,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 try:
     from prometheus_client import AlertManager, Counter, Gauge, Histogram
 
@@ -32,6 +35,12 @@ except ImportError:
     PROMETHEUS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
 
 
 class AlertSeverity(Enum):
@@ -101,6 +110,14 @@ class EBPFPerformanceMonitor:
         self.performance_history: Dict[str, List[float]] = {}
         self.monitoring_active = False
         self.monitor_task: Optional[asyncio.Task] = None
+        self.metric_source = "synthetic_mock_generators"
+        self.real_ebpf_map_evidence = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="libx0t-ebpf-performance-monitor",
+            role="monitoring",
+            capabilities=("mape_k", "zero-trust", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Initialize standard metrics
         self._init_standard_metrics()
@@ -110,6 +127,47 @@ class EBPFPerformanceMonitor:
 
         # Initialize thresholds
         self._init_standard_thresholds()
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "monitoring_active": self.monitoring_active,
+            "prometheus_port_hash": _safe_hash(self.prometheus_port),
+            "metrics_registered": len(self.metrics),
+            "threshold_count": len(self.thresholds),
+            "history_keys": sorted(str(key) for key in self.performance_history),
+            "metric_source": self.metric_source,
+            "real_ebpf_map_evidence": self.real_ebpf_map_evidence,
+            "synthetic_metrics": self.metric_source == "synthetic_mock_generators",
+            "constraints": {
+                "redact_raw_alert_text": True,
+                "redact_operator_paths": True,
+                "synthetic_metrics_are_not_dataplane_proof": True,
+                "do_not_claim_kernel_ebpf_runtime_from_mock_values": True,
+            },
+            "safety_boundary": (
+                "Performance monitor metrics in this libx0t module are local "
+                "synthetic/default observations unless replaced by a real eBPF "
+                "map source; they do not prove kernel dataplane delivery."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose performance-monitor thinking state without alert text."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def _init_standard_metrics(self):
         """Initialize standard eBPF performance metrics"""
@@ -260,6 +318,10 @@ class EBPFPerformanceMonitor:
         if self.monitoring_active:
             return
 
+        self._record_thinking(
+            "libx0t_ebpf_performance_start",
+            "start local eBPF performance monitoring with explicit metric source",
+        )
         self.monitoring_active = True
         self.monitor_task = asyncio.create_task(self._monitoring_loop())
 
@@ -270,6 +332,10 @@ class EBPFPerformanceMonitor:
         if not self.monitoring_active:
             return
 
+        self._record_thinking(
+            "libx0t_ebpf_performance_stop",
+            "stop local eBPF performance monitoring",
+        )
         self.monitoring_active = False
         if self.monitor_task:
             self.monitor_task.cancel()
@@ -295,6 +361,11 @@ class EBPFPerformanceMonitor:
         """Collect current performance metrics"""
         # This would integrate with actual eBPF map reading
         # For now, we'll simulate metric collection
+        self._record_thinking(
+            "libx0t_ebpf_performance_collect",
+            "collect synthetic/default eBPF performance metrics without overclaiming",
+            {"real_ebpf_map_evidence": False},
+        )
 
         # Simulate packet processing metrics
         packets_processed = self._get_mock_packets_processed()
@@ -352,6 +423,16 @@ class EBPFPerformanceMonitor:
             "timestamp": time.time(),
             "source": "ebpf_performance_monitor",
         }
+        self._record_thinking(
+            "libx0t_ebpf_performance_alert",
+            "generate alert while redacting raw title and message from thinking",
+            {
+                "severity": severity.value,
+                "title_hash": _safe_hash(title),
+                "message_hash": _safe_hash(message),
+                "alert_text_redacted": True,
+            },
+        )
 
         logger.warning(f"Alert generated: {alert}")
 
@@ -401,7 +482,18 @@ class EBPFPerformanceMonitor:
                 [r for r in self.alert_rules if self._check_alert_condition(r)]
             ),
             "trends": {},
+            "metric_source": self.metric_source,
+            "real_ebpf_map_evidence": self.real_ebpf_map_evidence,
+            "synthetic_metrics": self.metric_source == "synthetic_mock_generators",
         }
+        self._record_thinking(
+            "libx0t_ebpf_performance_report",
+            "generate performance report with explicit evidence boundary",
+            {
+                "metric_count": len(self.metrics),
+                "trend_count": len(self.performance_history),
+            },
+        )
 
         # Current metrics
         for metric_name in self.metrics.keys():

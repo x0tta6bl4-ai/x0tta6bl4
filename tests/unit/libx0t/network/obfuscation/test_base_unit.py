@@ -111,3 +111,23 @@ class TestTransportManager:
         
         transport = TransportManager.create("mock")
         assert isinstance(transport, AnotherMockTransport)
+
+    def test_thinking_status_redacts_transport_name_and_secret_kwargs(self):
+        TransportManager.register("secret-method-name", MockObfuscationTransport)
+        transport = TransportManager.create(
+            "secret-method-name",
+            key="raw-key-secret",
+        )
+        assert isinstance(transport, MockObfuscationTransport)
+
+        status = TransportManager.get_thinking_status()
+        assert status["thinking"]["profile"]["role"] == "security"
+        assert "zero_trust_review" in status["thinking"]["techniques"]
+        assert (
+            status["last_thinking_context"]["applied"]["framing"]["problem"]
+            == "libx0t_obfuscation_transport_created"
+        )
+
+        rendered = repr(status)
+        assert "secret-method-name" not in rendered
+        assert "raw-key-secret" not in rendered

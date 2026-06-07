@@ -354,6 +354,7 @@ async def test_update_status_publishes_redacted_eventbus_evidence(tmp_path):
     assert payload["proxies"] == {"active": 2, "healthy": 1}
     assert payload["components"] == {"total": 2, "ready": 1, "not_ready": 1}
     assert payload["requests"] == {"total": 12, "errors": 3}
+    assert payload["thinking"]["profile"]["role"] == "ops"
     assert payload["raw_identifiers_redacted"] is True
     assert "external proxy reachability" in payload["claim_boundary"]
     assert "proxy-secret" not in str(payload)
@@ -424,6 +425,10 @@ async def test_metrics_summary_and_health_report():
     assert report["proxies"]["by_status"]["unhealthy"] == 1
     assert report["reputation"]["tracked_domains"] == 9
     assert report["evidence"]["event_id"] is None
+    assert (
+        orchestrator.last_thinking_context["applied"]["framing"]["problem"]
+        == "proxy_orchestrator_health_report"
+    )
 
 
 @pytest.mark.asyncio

@@ -20,6 +20,23 @@ def _events(bus):
     )
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "security"
+    assert "zero_trust_review" in techniques
+    assert "stride_threat_modeling" in techniques
+    assert "mape_k" in techniques
+    assert "reverse_planning" in techniques
+    assert "chaos_driven_design" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_loader_attach_observation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["command_shape"] == payload["command"]
+
+
 def test_xdp_attach_success_publishes_redacted_ip_link_evidence(
     tmp_path,
     monkeypatch,
@@ -67,6 +84,7 @@ def test_xdp_attach_success_publishes_redacted_ip_link_evidence(
         stdout.encode("utf-8")
     ).hexdigest()
     assert payload["identity"]["redacted"] is True
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert program_path not in str(payload)
     assert stdout not in str(payload)
@@ -98,6 +116,7 @@ def test_xdp_verify_success_publishes_redacted_observation(tmp_path, monkeypatch
     assert payload["output"]["stdout_sha256"] == hashlib.sha256(
         stdout.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert stdout not in str(payload)
 

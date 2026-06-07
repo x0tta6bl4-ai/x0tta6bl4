@@ -21,6 +21,23 @@ def _events(exporter):
     )
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "monitoring"
+    assert "mape_k" in techniques
+    assert "causal_analysis" in techniques
+    assert "zero_trust_review" in techniques
+    assert "chaos_driven_design" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_metrics_export_enhanced"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["map_name_redacted"] is True
+    assert constraints["result_payload_redacted"] is True
+
+
 def test_enhanced_bpftool_wrapper_success_publishes_redacted_evidence(tmp_path):
     exporter = _exporter(tmp_path)
     map_name = "secret_enhanced_map"
@@ -47,6 +64,7 @@ def test_enhanced_bpftool_wrapper_success_publishes_redacted_evidence(tmp_path):
     assert payload["result_shape"]["keys_redacted"] is True
     assert payload["result_payload_redacted"] is True
     assert payload["identity"]["redacted"] is True
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
     assert raw_output not in str(payload)
 
@@ -64,6 +82,7 @@ def test_enhanced_bpftool_wrapper_empty_publishes_redacted_evidence(tmp_path):
     assert payload["status"] == "empty"
     assert payload["reason"] == "bpftool_read_returned_none"
     assert payload["result_shape"] == {"type": "none", "count": 0}
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
 
 

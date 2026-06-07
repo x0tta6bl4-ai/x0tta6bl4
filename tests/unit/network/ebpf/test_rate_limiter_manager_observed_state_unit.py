@@ -53,6 +53,12 @@ def test_bcc_unavailable_fallback_publishes_redacted_evidence(tmp_path):
 
     assert bcc_payload["operation"] == "init_ebpf_or_fallback"
     assert bcc_payload["status"] == "failure"
+    assert bcc_payload["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in bcc_payload["thinking"]["techniques"]
+    assert (
+        bcc_payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "ebpf_rate_limiter_observation"
+    )
     assert bcc_payload["interface_hash"] == hashlib.sha256(b"secret0").hexdigest()
     assert fallback_payload["parsed_summary"] == {
         "fallback": True,
@@ -83,9 +89,10 @@ def test_bpf_load_publishes_redacted_program_evidence(mock_bpf, _geteuid, tmp_pa
     assert payload["status"] == "success"
     assert payload["read_only"] is False
     assert payload["parsed_summary"]["tc_attach_performed"] is False
-    assert payload["interface_hash"] == hashlib.sha256(
-        interface.encode("utf-8")
-    ).hexdigest()
+    assert (
+        payload["interface_hash"]
+        == hashlib.sha256(interface.encode("utf-8")).hexdigest()
+    )
     assert payload["program_path_redacted"] is True
     assert payload["function_name_redacted"] is True
     assert interface not in str(payload)
@@ -99,9 +106,10 @@ def test_sync_peer_session_keys_publishes_redacted_counts(tmp_path):
     rejected_peer = "secret-rejected"
     session_key = b"secret-session-key-32-bytes!!!!"
 
-    assert manager.sync_peer_session_keys(
-        {peer_id: session_key, rejected_peer: "not-hex"}
-    ) == 1
+    assert (
+        manager.sync_peer_session_keys({peer_id: session_key, rejected_peer: "not-hex"})
+        == 1
+    )
 
     payload = _stage_payload(bus, "rate_limiter_peer_session_keys_synced")
     assert payload["operation"] == "sync_peer_session_keys"
@@ -126,19 +134,22 @@ def test_check_rate_limit_missing_pqc_session_redacts_peer(tmp_path):
     manager, bus = _software_manager(tmp_path)
     peer_id = "secret-missing-peer"
 
-    assert manager.check_rate_limit(
-        packet_size=128,
-        peer_id=peer_id,
-        require_pqc_session=True,
-    ) is False
+    assert (
+        manager.check_rate_limit(
+            packet_size=128,
+            peer_id=peer_id,
+            require_pqc_session=True,
+        )
+        is False
+    )
 
     payload = _stage_payload(bus, "rate_limiter_pqc_session_key_missing")
     assert payload["operation"] == "check_rate_limit"
     assert payload["status"] == "failure"
     assert payload["parsed_summary"]["allowed"] is False
-    assert payload["peer_id_hash"] == hashlib.sha256(
-        peer_id.encode("utf-8")
-    ).hexdigest()
+    assert (
+        payload["peer_id_hash"] == hashlib.sha256(peer_id.encode("utf-8")).hexdigest()
+    )
     assert peer_id not in str(payload)
 
 

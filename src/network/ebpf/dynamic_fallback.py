@@ -11,6 +11,7 @@ from collections import deque
 from typing import Any, Callable, Dict, Optional
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,12 @@ class DynamicFallbackController:
         # Callbacks
         self.on_fallback_trigger: Optional[Callable] = None
         self.on_fallback_recover: Optional[Callable] = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=EBPF_DYNAMIC_FALLBACK_SERVICE_NAME,
+            role="healing",
+            capabilities=("mape_k", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         logger.info(
             f"DynamicFallbackController initialized: "
@@ -150,6 +157,8 @@ class DynamicFallbackController:
             "payloads_redacted": True,
             "safe_observation": True,
             "claim_boundary": EBPF_DYNAMIC_FALLBACK_CLAIM_BOUNDARY,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
             **self._recent_summary(node_id),
         }
         if extra:
@@ -181,6 +190,19 @@ class DynamicFallbackController:
         self.latency_history[node_id].append(
             {"latency": latency_ms, "timestamp": time.time()}
         )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "ebpf_latency_update",
+                "goal": "ingest bounded latency telemetry for fallback decisions",
+                "constraints": {
+                    "latency_ms": latency_ms,
+                    "latency_threshold_ms": self.latency_threshold_ms,
+                    "history_count": len(self.latency_history[node_id]),
+                    "active_fallback": bool(self.active_fallbacks.get(node_id)),
+                },
+                "safety_boundary": "Do not expose raw target node identifiers.",
+            }
+        )
 
         # Check for spike
         self._check_spike(node_id)
@@ -200,6 +222,20 @@ class DynamicFallbackController:
 
         # If >80% of recent measurements exceed threshold
         if spike_count >= 8:
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "type": "ebpf_latency_spike_decision",
+                    "goal": "decide whether latency evidence warrants fallback",
+                    "constraints": {
+                        "recent_sample_count": len(recent),
+                        "spike_count": spike_count,
+                        "latency_threshold_ms": self.latency_threshold_ms,
+                        "cooldown_seconds": self.cooldown_seconds,
+                        "active_fallback": bool(self.active_fallbacks.get(node_id)),
+                    },
+                    "safety_boundary": "Do not expose raw target node identifiers.",
+                }
+            )
             # Check cooldown
             last_trigger = self.last_fallback_time.get(node_id, 0)
             if time.time() - last_trigger < self.cooldown_seconds:
@@ -223,6 +259,19 @@ class DynamicFallbackController:
         """
         logger.warning(
             f"🚨 Latency spike detected on {node_id}, triggering fallback reroute"
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "ebpf_dynamic_fallback_trigger",
+                "goal": "trigger a bounded reroute fallback from latency evidence",
+                "constraints": {
+                    "latency_threshold_ms": self.latency_threshold_ms,
+                    "spike_duration_ms": self.spike_duration_ms,
+                    "cooldown_seconds": self.cooldown_seconds,
+                    "recent_summary": self._recent_summary(node_id),
+                },
+                "safety_boundary": "Do not expose raw target node identifiers.",
+            }
         )
 
         self.active_fallbacks[node_id] = True
@@ -287,6 +336,18 @@ class DynamicFallbackController:
         recovery_count = sum(
             1 for h in recent if h["latency"] < self.latency_threshold_ms * 0.8
         )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "ebpf_dynamic_fallback_recovery_check",
+                "goal": "decide whether fallback can recover to normal routing",
+                "constraints": {
+                    "recent_sample_count": len(recent),
+                    "recovery_count": recovery_count,
+                    "latency_threshold_ms": self.latency_threshold_ms,
+                },
+                "safety_boundary": "Do not expose raw target node identifiers.",
+            }
+        )
 
         # If >80% of recent measurements are good
         if recovery_count >= 8:
@@ -295,6 +356,17 @@ class DynamicFallbackController:
     def _recover_from_fallback(self, node_id: str):
         """Recover from fallback state."""
         logger.info(f"✅ Node {node_id} recovered, exiting fallback")
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "ebpf_dynamic_fallback_recover",
+                "goal": "exit fallback after local latency recovery evidence",
+                "constraints": {
+                    "latency_threshold_ms": self.latency_threshold_ms,
+                    "recent_summary": self._recent_summary(node_id),
+                },
+                "safety_boundary": "Do not expose raw target node identifiers.",
+            }
+        )
 
         self.active_fallbacks[node_id] = False
         event_id = self._publish_fallback_event(
@@ -328,6 +400,13 @@ class DynamicFallbackController:
     def get_fallback_status(self) -> Dict[str, bool]:
         """Get current fallback status for all nodes."""
         return self.active_fallbacks.copy()
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Return fallback thinking state without exposing raw node IDs."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def register_fallback_trigger(self, callback: Callable):
         """Register callback for fallback triggers."""

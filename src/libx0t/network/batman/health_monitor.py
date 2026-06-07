@@ -14,6 +14,7 @@ Features:
 """
 
 import asyncio
+import hashlib
 import logging
 import subprocess
 import time
@@ -22,7 +23,33 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_score_band(value: float) -> str:
+    if value >= 0.8:
+        return "healthy"
+    if value >= 0.5:
+        return "degraded"
+    return "unhealthy"
 
 
 class HealthStatus(Enum):
@@ -138,6 +165,28 @@ class BatmanHealthMonitor:
         self.check_interval = check_interval
         self.enable_prometheus = enable_prometheus
         self.alert_callback = alert_callback
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"batman-health-monitor:{_safe_hash(node_id)}",
+            role="monitoring",
+            capabilities=("healing", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "batman_health_monitor_init",
+                "goal": "Initialize Batman health monitoring",
+                "signals": {
+                    "node": {"hash": _safe_hash(node_id), "present": True},
+                    "interface_hash": _safe_hash(interface),
+                    "check_interval": check_interval,
+                    "prometheus_enabled": enable_prometheus,
+                    "alert_callback_configured": alert_callback is not None,
+                },
+                "safety_boundary": (
+                    "Do not expose raw node ids, interfaces, originator MACs, or "
+                    "command output in thinking context."
+                ),
+            }
+        )
         
         self._running = False
         self._last_report: Optional[NodeHealthReport] = None
@@ -162,6 +211,37 @@ class BatmanHealthMonitor:
             self._init_prometheus_metrics()
         
         logger.info(f"BatmanHealthMonitor initialized for {node_id} on {interface}")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_node_identifiers": True,
+                    "redact_originator_macs": True,
+                    "redact_command_output": True,
+                    "preserve_monitoring_behavior": True,
+                },
+                "safety_boundary": (
+                    "Use only hashes, counts, statuses, and score bands for "
+                    "Batman health reasoning."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
     
     def _init_prometheus_metrics(self):
         """Initialize Prometheus metrics."""
@@ -220,6 +300,14 @@ class BatmanHealthMonitor:
             check_fn: Async function that returns HealthCheckResult
         """
         self._custom_checks[name] = check_fn
+        self._record_thinking(
+            "batman_health_custom_check_registered",
+            "Register custom Batman health check",
+            {
+                "check_hash": _safe_hash(name),
+                "custom_check_count": len(self._custom_checks),
+            },
+        )
         logger.info(f"Registered custom health check: {name}")
     
     async def run_health_checks(self) -> NodeHealthReport:
@@ -312,6 +400,22 @@ class BatmanHealthMonitor:
                 logger.error(f"Alert callback failed: {e}")
         
         duration = time.time() - start_time
+        self._record_thinking(
+            "batman_health_checks_completed",
+            "Classify Batman node health from check results",
+            {
+                "node": {"hash": _safe_hash(self.node_id), "present": True},
+                "interface_hash": _safe_hash(self.interface),
+                "overall_status": overall_status.value,
+                "overall_score_band": _safe_score_band(overall_score),
+                "check_count_bucket": _safe_count_bucket(len(checks)),
+                "recommendation_count": len(recommendations),
+                "custom_check_count": len(self._custom_checks),
+                "alert_triggered": overall_status == HealthStatus.UNHEALTHY
+                and bool(self.alert_callback),
+                "duration_band": _safe_score_band(1.0 if duration < 1 else 0.5),
+            },
+        )
         logger.info(
             f"Health check completed: {overall_status.value} "
             f"(score: {overall_score:.2f}, duration: {duration:.2f}s)"
@@ -787,6 +891,11 @@ class BatmanHealthMonitor:
     def stop_monitoring(self) -> None:
         """Stop health monitoring loop."""
         self._running = False
+        self._record_thinking(
+            "batman_health_monitor_stopped",
+            "Stop Batman health monitor",
+            {"running": self._running, "history_count": len(self._health_history)},
+        )
     
     def get_last_report(self) -> Optional[NodeHealthReport]:
         """Get the last health report."""
@@ -804,12 +913,22 @@ class BatmanHealthMonitor:
             Dict with trend analysis
         """
         if len(self._health_history) < 2:
+            self._record_thinking(
+                "batman_health_trend_insufficient",
+                "Assess Batman health trend with insufficient data",
+                {"samples": len(self._health_history)},
+            )
             return {"trend": "insufficient_data"}
         
         recent = self._health_history[-window:]
         scores = [r.overall_score for r in recent]
         
         if len(scores) < 2:
+            self._record_thinking(
+                "batman_health_trend_insufficient",
+                "Assess Batman health trend with insufficient window data",
+                {"samples": len(scores), "window": window},
+            )
             return {"trend": "insufficient_data"}
         
         # Calculate trend
@@ -823,13 +942,26 @@ class BatmanHealthMonitor:
         else:
             trend = "stable"
         
-        return {
+        trend_result = {
             "trend": trend,
             "avg_score": sum(scores) / len(scores),
             "min_score": min(scores),
             "max_score": max(scores),
             "samples": len(scores),
         }
+        self._record_thinking(
+            "batman_health_trend_assessed",
+            "Assess Batman health trend over recent reports",
+            {
+                "trend": trend,
+                "avg_score_band": _safe_score_band(trend_result["avg_score"]),
+                "min_score_band": _safe_score_band(trend_result["min_score"]),
+                "max_score_band": _safe_score_band(trend_result["max_score"]),
+                "samples": len(scores),
+                "window": window,
+            },
+        )
+        return trend_result
 
 
 def create_health_monitor_for_mapek(

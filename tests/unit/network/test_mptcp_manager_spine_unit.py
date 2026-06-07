@@ -53,8 +53,7 @@ def test_enable_mptcp_publishes_identity_policy_and_safe_actuator_events(tmp_pat
     assert "actuator_start" in stages
     assert "actuator_completed" in stages
     completed = [
-        event for event in events
-        if event.event_type == EventType.PIPELINE_STAGE_END
+        event for event in events if event.event_type == EventType.PIPELINE_STAGE_END
     ][-1]
     payload = completed.data
     assert payload["node_id"] == "node-mptcp-1"
@@ -65,6 +64,18 @@ def test_enable_mptcp_publishes_identity_policy_and_safe_actuator_events(tmp_pat
     assert payload["context"]["enabled"] is True
     assert payload["policy_allowed"] is True
     assert payload["safe_actuator"] is True
+    assert payload["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in payload["thinking"]["techniques"]
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "mptcp_control_action"
+    )
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["constraints"][
+            "safe_actuator_required_for_control"
+        ]
+        is True
+    )
     metadata = payload["safe_actuator_evidence_metadata"]
     assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
     assert metadata["source_agents"] == ["mptcp-manager"]
@@ -326,6 +337,11 @@ def test_get_status_publishes_redacted_observed_state_evidence(tmp_path, monkeyp
     assert payload["read_only"] is True
     assert payload["observed_state"] is True
     assert payload["safe_actuator"] is False
+    assert payload["thinking"]["profile"]["role"] == "security"
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "mptcp_status_observation"
+    )
     assert payload["identity"]["service_name"] == "mptcp-manager"
     assert payload["identity"]["spiffe_id_configured"] is True
     assert payload["proc"]["read_succeeded"] is True

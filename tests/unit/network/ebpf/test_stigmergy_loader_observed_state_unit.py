@@ -26,6 +26,27 @@ def _stage_payload(bus, stage):
     raise AssertionError(f"missing stage {stage}")
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "monitoring"
+    assert "mape_k" in techniques
+    assert "mind_maps" in techniques
+    assert "graphsage" in techniques
+    assert "causal_analysis" in techniques
+    assert "zero_trust_review" in techniques
+    assert "reverse_planning" in techniques
+    assert "chaos_driven_design" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_stigmergy_loader_operation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["stage"] == payload["stage"]
+    assert constraints["interface_redacted"] is True
+    assert "interface_hash" in constraints
+
+
 class _MutableMap:
     def __init__(self, rows):
         self.rows = dict(rows)
@@ -75,6 +96,7 @@ def test_load_publishes_redacted_xdp_attach_evidence(mock_bpf, tmp_path):
     ).hexdigest()
     assert payload["program_path_redacted"] is True
     assert payload["function_name_redacted"] is True
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert "stigmergy_kern.c" not in str(payload)
     assert "xdp_prog" not in str(payload)
@@ -95,6 +117,7 @@ def test_bcc_unavailable_publishes_redacted_failure(tmp_path):
     assert payload["interface_hash"] == hashlib.sha256(
         interface.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert "stigmergy_kern.c" not in str(payload)
 
@@ -117,6 +140,7 @@ def test_unload_publishes_redacted_detach_evidence(tmp_path):
     assert payload["interface_hash"] == hashlib.sha256(
         interface.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
 
 
@@ -141,6 +165,7 @@ def test_get_stats_returns_raw_stats_but_event_redacts_routes(tmp_path):
         hashlib.sha256(str(route_key.value).encode("utf-8")).hexdigest()
     ]
     assert payload["route_ips_redacted"] is True
+    _assert_thinking_context(payload)
     assert route_ip not in str(payload)
     assert "pheromone_map" not in str(payload)
 
@@ -183,6 +208,7 @@ async def test_evaporation_tick_publishes_redacted_map_mutation_evidence(tmp_pat
         hashlib.sha256(delete_key).hexdigest()
     ]
     assert payload["map_keys_redacted"] is True
+    _assert_thinking_context(payload)
     assert update_key.decode("utf-8") not in str(payload)
     assert delete_key.decode("utf-8") not in str(payload)
     assert "pheromone_map" not in str(payload)

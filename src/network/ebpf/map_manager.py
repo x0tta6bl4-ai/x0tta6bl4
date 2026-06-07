@@ -10,6 +10,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,13 @@ class EBPFMapManager:
     event_bus: Optional[EventBus] = None
     event_project_root: str = "."
     source_agent = EBPF_ATTESTATION_MAP_MANAGER_SERVICE_NAME
+    thinking_coach = AgentThinkingCoach(
+        agent_id=source_agent,
+        role="security",
+        capabilities=("zero-trust", "monitoring"),
+        extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+    )
+    _last_thinking_context: Optional[Dict[str, Any]] = None
 
     @classmethod
     def configure_event_bus(
@@ -118,6 +126,51 @@ class EBPFMapManager:
         except Exception as exc:
             logger.error("Failed to initialize eBPF attestation map EventBus: %s", exc)
             return None
+
+    @classmethod
+    def get_thinking_status(cls) -> Dict[str, Any]:
+        """Expose attestation-map thinking state without task secrets."""
+
+        return {
+            **cls.thinking_coach.status(),
+            "last_context": cls._last_thinking_context,
+        }
+
+    @classmethod
+    def _prepare_thinking_context(
+        cls,
+        *,
+        stage: str,
+        operation: str,
+        status: str,
+        command: Optional[List[str]],
+        returncode: Optional[int],
+        read_only: bool,
+        parsed_summary: Optional[Dict[str, Any]],
+        extra: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_attestation_map_update",
+            "goal": f"{operation}:{stage}:{status}",
+            "constraints": {
+                "operation": operation,
+                "stage": stage,
+                "status": status,
+                "source_mode": "bpftool",
+                "read_only": read_only,
+                "returncode_present": returncode is not None,
+                "command_shape": command or [],
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+            "safety_boundary": (
+                "Record only local eBPF attestation-map evidence, redacted "
+                "selectors, hashes, and bounded metadata; do not expose IP "
+                "addresses, map names, key hex, values, stdout, or stderr."
+            ),
+        }
+        cls._last_thinking_context = cls.thinking_coach.prepare_task(safe_task)
+        return cls._last_thinking_context
 
     @classmethod
     def _publish_observation(
@@ -158,6 +211,16 @@ class EBPFMapManager:
             "safe_observation": True,
             "safe_actuator": False,
             "parsed_summary": parsed_summary or {},
+            "thinking": cls._prepare_thinking_context(
+                stage=stage,
+                operation=operation,
+                status=status,
+                command=command,
+                returncode=returncode,
+                read_only=read_only,
+                parsed_summary=parsed_summary,
+                extra=extra,
+            ),
             "output": _bounded_output_metadata(stdout, stderr),
             "payloads_redacted": True,
             "claim_boundary": EBPF_ATTESTATION_MAP_MANAGER_CLAIM_BOUNDARY,

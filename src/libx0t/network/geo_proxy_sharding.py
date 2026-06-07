@@ -11,6 +11,7 @@ Provides:
 """
 
 import asyncio
+import hashlib
 import logging
 import random
 import statistics
@@ -19,6 +20,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 from .residential_proxy_manager import (
     DomainReputation,
@@ -29,6 +32,25 @@ from .residential_proxy_manager import (
 )
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "libx0t-geo-proxy-shard-manager"
+GEO_PROXY_SHARDING_CLAIM_BOUNDARY = (
+    "Local libx0t geo proxy sharding evidence only. It records redacted "
+    "regional health-check and proxy-selection metadata with proxy and domain "
+    "identifiers hashed. It does not copy proxy hosts, credentials, target "
+    "domains, request history, or response payloads, and it does not prove "
+    "external provider reachability, customer traffic delivery, or end-to-end "
+    "dataplane quality."
+)
+
+
+def _hash_value(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return None
+    return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
 
 
 class Region(Enum):
@@ -251,9 +273,96 @@ class GeoProxyShardManager:
         self.total_requests = 0
         self.successful_requests = 0
         self.failover_count = 0
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=_SERVICE_AGENT,
+            role="security",
+            capabilities=("zero-trust", "ops", "network"),
+            extra_techniques=("mape_k", "weighted_decision_matrix"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _region_pool_summary(self, region: Optional[Region]) -> Dict[str, Any]:
+        if region is None or region not in self.pools:
+            return {"present": False}
+        pool = self.pools[region]
+        return {
+            "present": True,
+            "region": region.value,
+            "total_proxies": int(pool.total_count),
+            "healthy_proxies": int(pool.healthy_count),
+            "available": bool(pool.is_available),
+            "quota_limited": bool(pool.quota.is_rate_limited),
+            "health_score": round(float(pool.health_score), 4),
+            "avg_latency_ms": round(float(pool.avg_latency_ms), 3),
+            "success_rate": round(float(pool.success_rate), 4),
+        }
+
+    def _proxy_identity_metadata(self, proxy: Optional[ProxyEndpoint]) -> Dict[str, Any]:
+        if proxy is None:
+            return {"present": False}
+        return {
+            "present": True,
+            "proxy_id_hash": _hash_value(proxy.id),
+            "status": proxy.status.value,
+            "region": proxy.region,
+            "country_code": proxy.country_code,
+            "has_auth": bool(proxy.username or proxy.password),
+            "raw_proxy_identity_redacted": True,
+        }
+
+    def _prepare_geo_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Prepare redacted thinking context for geo-sharding decisions."""
+        pools_with_capacity = sum(1 for pool in self.pools.values() if pool.is_available)
+        context: Dict[str, Any] = {
+            "task_type": task_type,
+            "goal": goal,
+            "default_region": self.default_region.value,
+            "health_check_interval_seconds": int(self.health_check_interval),
+            "failover_threshold": float(self.failover_threshold),
+            "pool_count": len(self.pools),
+            "available_pool_count": pools_with_capacity,
+            "domain_affinity_count": len(self.domain_region_affinity),
+            "total_requests": int(self.total_requests),
+            "successful_requests": int(self.successful_requests),
+            "failover_count": int(self.failover_count),
+            "constraints": {
+                "redact_proxy_ids": True,
+                "redact_proxy_hosts": True,
+                "redact_proxy_credentials": True,
+                "redact_target_domains": True,
+                "local_observation_only": True,
+            },
+            "safety_boundary": GEO_PROXY_SHARDING_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose the shared thinking profile and latest redacted context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "claim_boundary": GEO_PROXY_SHARDING_CLAIM_BOUNDARY,
+        }
 
     def add_proxy_to_region(self, proxy: ProxyEndpoint, region: Region):
         """Add proxy to a specific region's pool."""
+        self._prepare_geo_thinking_context(
+            task_type="libx0t_geo_proxy_add_to_region",
+            goal="Add a proxy to a regional pool without exposing proxy identity.",
+            extra={
+                "region": region.value,
+                "proxy": self._proxy_identity_metadata(proxy),
+            },
+        )
         self.pools[region].add_proxy(proxy)
         logger.info(f"Added proxy {proxy.id} to region {region.value}")
 
@@ -270,6 +379,15 @@ class GeoProxyShardManager:
             "eu-west-1": [...],
         }
         """
+        self._prepare_geo_thinking_context(
+            task_type="libx0t_geo_proxy_add_from_config",
+            goal="Load regional proxy config without copying provider secrets.",
+            extra={
+                "region_keys": sorted(str(region) for region in config.keys()),
+                "configured_proxy_count": sum(len(items) for items in config.values()),
+                "raw_config_redacted": True,
+            },
+        )
         for region_str, proxies_config in config.items():
             try:
                 region = Region(region_str)
@@ -283,12 +401,20 @@ class GeoProxyShardManager:
 
     async def start(self):
         """Start the geo-sharded proxy manager."""
+        self._prepare_geo_thinking_context(
+            task_type="libx0t_geo_proxy_start",
+            goal="Start regional proxy health monitoring.",
+        )
         self._running = True
         self._health_check_task = asyncio.create_task(self._health_check_loop())
         logger.info("Geo-sharded proxy manager started")
 
     async def stop(self):
         """Stop the proxy manager."""
+        self._prepare_geo_thinking_context(
+            task_type="libx0t_geo_proxy_stop",
+            goal="Stop regional proxy health monitoring cleanly.",
+        )
         self._running = False
         if self._health_check_task:
             self._health_check_task.cancel()
@@ -327,6 +453,15 @@ class GeoProxyShardManager:
         """Check health of a single proxy."""
         import aiohttp
 
+        self._prepare_geo_thinking_context(
+            task_type="libx0t_geo_proxy_health_check",
+            goal="Check one regional proxy using redacted health metadata.",
+            extra={
+                "region": pool.region.value,
+                "pool": self._region_pool_summary(pool.region),
+                "proxy": self._proxy_identity_metadata(proxy),
+            },
+        )
         try:
             start_time = time.time()
 
@@ -375,10 +510,23 @@ class GeoProxyShardManager:
 
     def set_domain_affinity(self, domain: str, region: Region):
         """Set preferred region for a domain."""
+        self._prepare_geo_thinking_context(
+            task_type="libx0t_geo_proxy_domain_affinity_set",
+            goal="Set target-domain regional affinity with hashed target metadata.",
+            extra={
+                "target_domain_hash": _hash_value(domain),
+                "region": region.value,
+            },
+        )
         self.domain_region_affinity[domain] = region
 
     def get_domain_region(self, domain: str) -> Optional[Region]:
         """Get preferred region for a domain."""
+        self._prepare_geo_thinking_context(
+            task_type="libx0t_geo_proxy_domain_affinity_lookup",
+            goal="Look up target-domain regional affinity with hashed target metadata.",
+            extra={"target_domain_hash": _hash_value(domain)},
+        )
         return self.domain_region_affinity.get(domain)
 
     async def select_proxy(
@@ -409,11 +557,38 @@ class GeoProxyShardManager:
                 if target_domain
                 else None or self.default_region
             )
+            self._prepare_geo_thinking_context(
+                task_type="libx0t_geo_proxy_select",
+                goal="Select a regional proxy using locality, health, quota, and failover signals.",
+                extra={
+                    "target_domain_hash": _hash_value(target_domain),
+                    "target_domain_present": bool(target_domain),
+                    "preferred_region": (
+                        preferred_region.value if preferred_region else None
+                    ),
+                    "target_region": target_region.value if target_region else None,
+                    "require_healthy": bool(require_healthy),
+                    "allow_failover": bool(allow_failover),
+                },
+            )
 
             # Try primary region first
             proxy = await self._select_from_region(target_region, require_healthy)
 
             if proxy:
+                self._prepare_geo_thinking_context(
+                    task_type="libx0t_geo_proxy_selected",
+                    goal="Record selected regional proxy metadata after local selection.",
+                    extra={
+                        "target_domain_hash": _hash_value(target_domain),
+                        "target_region": (
+                            target_region.value if target_region else None
+                        ),
+                        "selected_region": proxy.region,
+                        "selected_proxy": self._proxy_identity_metadata(proxy),
+                        "failover_attempted": False,
+                    },
+                )
                 return proxy
 
             # Failover to other regions
@@ -432,9 +607,35 @@ class GeoProxyShardManager:
                     )
                     if proxy:
                         logger.info(f"Failed over to region {fallback_region.value}")
+                        self._prepare_geo_thinking_context(
+                            task_type="libx0t_geo_proxy_selected_after_failover",
+                            goal="Record regional failover proxy selection metadata.",
+                            extra={
+                                "target_domain_hash": _hash_value(target_domain),
+                                "target_region": (
+                                    target_region.value if target_region else None
+                                ),
+                                "selected_region": fallback_region.value,
+                                "selected_proxy": self._proxy_identity_metadata(proxy),
+                                "fallback_regions_considered": len(
+                                    fallback_regions
+                                ),
+                                "failover_attempted": True,
+                            },
+                        )
                         return proxy
 
             logger.error("No proxies available in any region")
+            self._prepare_geo_thinking_context(
+                task_type="libx0t_geo_proxy_no_proxy_available",
+                goal="Record failed regional proxy selection without exposing target details.",
+                extra={
+                    "target_domain_hash": _hash_value(target_domain),
+                    "target_region": target_region.value if target_region else None,
+                    "selected_proxy": self._proxy_identity_metadata(None),
+                    "failover_attempted": bool(allow_failover),
+                },
+            )
             return None
 
     async def _select_from_region(

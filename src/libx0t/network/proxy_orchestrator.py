@@ -16,9 +16,12 @@ Provides unified lifecycle management and graceful operations.
 import asyncio
 import logging
 import signal
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 from .proxy_auth_middleware import ProxyAuthMiddleware, create_auth_middleware
 from .proxy_config_manager import (
@@ -33,6 +36,14 @@ from .reputation_scoring import ReputationScoringSystem
 from .residential_proxy_manager import ProxyStatus, ResidentialProxyManager
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "libx0t-proxy-orchestrator"
+PROXY_ORCHESTRATOR_CLAIM_BOUNDARY = (
+    "Local libx0t proxy orchestrator evidence only. It records component "
+    "readiness and aggregate proxy/request counts without copying proxy IDs, "
+    "provider configuration, credentials, targets, or traffic payloads. It does "
+    "not prove external proxy reachability or customer traffic delivery."
+)
 
 
 @dataclass
@@ -85,13 +96,79 @@ class ProxyOrchestrator:
         self.config_path = config_path
         self.environment = environment
         self.status = OrchestratorStatus(state="initializing")
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=_SERVICE_AGENT,
+            role="ops",
+            capabilities=("monitoring", "zero-trust"),
+            extra_techniques=("mape_k", "weighted_decision_matrix"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         self._shutdown_event = asyncio.Event()
         self._tasks: List[asyncio.Task] = []
 
+    def _component_readiness_summary(self) -> Dict[str, int]:
+        ready_values = [
+            value
+            for value in self.status.components_ready.values()
+            if isinstance(value, bool)
+        ]
+        ready = sum(1 for value in ready_values if value)
+        total = len(ready_values)
+        return {"total": total, "ready": ready, "not_ready": total - ready}
+
+    def _prepare_orchestrator_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Prepare redacted context for local orchestrator decisions."""
+        context: Dict[str, Any] = {
+            "task_type": task_type,
+            "goal": goal,
+            "status": self.status.state,
+            "environment": self.environment or "default",
+            "config_path_configured": self.config_path is not None,
+            "components": self._component_readiness_summary(),
+            "proxies": {
+                "active": int(self.status.active_proxies),
+                "healthy": int(self.status.healthy_proxies),
+            },
+            "requests": {
+                "total": int(self.status.total_requests),
+                "errors": int(self.status.error_count),
+            },
+            "constraints": {
+                "preserve_dependency_order": True,
+                "redact_proxy_ids": True,
+                "redact_provider_credentials": True,
+                "local_observation_only": True,
+            },
+            "safety_boundary": PROXY_ORCHESTRATOR_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose the shared thinking profile and latest redacted context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "claim_boundary": PROXY_ORCHESTRATOR_CLAIM_BOUNDARY,
+        }
+
     async def initialize(self):
         """Initialize all components in dependency order."""
         logger.info("Initializing proxy orchestrator...")
+        self._prepare_orchestrator_thinking_context(
+            task_type="libx0t_proxy_orchestrator_initialize",
+            goal="Initialize proxy infrastructure components in dependency order.",
+        )
+        started = time.monotonic()
 
         try:
             # 1. Configuration Manager (foundation)
@@ -171,16 +248,37 @@ class ProxyOrchestrator:
 
             self.status.state = "running"
             self.status.started_at = datetime.utcnow()
+            self._prepare_orchestrator_thinking_context(
+                task_type="libx0t_proxy_orchestrator_initialized",
+                goal="Record local proxy orchestrator startup outcome.",
+                extra={"duration_ms": round((time.monotonic() - started) * 1000, 3)},
+            )
             logger.info("Proxy orchestrator initialized successfully")
 
         except Exception as e:
             logger.error(f"Failed to initialize orchestrator: {e}")
             self.status.state = "failed"
+            self._prepare_orchestrator_thinking_context(
+                task_type="libx0t_proxy_orchestrator_initialize_failed",
+                goal="Record local proxy orchestrator startup failure boundary.",
+                extra={
+                    "duration_ms": round((time.monotonic() - started) * 1000, 3),
+                    "error_type": type(e).__name__,
+                },
+            )
             raise
 
     async def _on_config_change(self, config: ProxyInfrastructureConfig):
         """Handle configuration changes."""
         logger.info("Configuration changed, applying updates...")
+        self._prepare_orchestrator_thinking_context(
+            task_type="libx0t_proxy_orchestrator_config_change",
+            goal="Apply proxy infrastructure config changes with redacted provider metadata.",
+            extra={
+                "provider_count": len(getattr(config, "providers", [])),
+                "selection_strategy": getattr(getattr(config, "selection", None), "strategy", None),
+            },
+        )
 
         # Update selection algorithm weights
         if self.selection_algorithm:
@@ -216,6 +314,10 @@ class ProxyOrchestrator:
     async def run(self):
         """Run the orchestrator until shutdown signal."""
         logger.info("Proxy orchestrator running")
+        self._prepare_orchestrator_thinking_context(
+            task_type="libx0t_proxy_orchestrator_run_loop",
+            goal="Run proxy orchestrator status loop until shutdown.",
+        )
 
         # Setup signal handlers
         loop = asyncio.get_event_loop()
@@ -253,11 +355,19 @@ class ProxyOrchestrator:
             self.status.healthy_proxies = sum(
                 1 for p in self.proxy_manager.proxies if p.status == ProxyStatus.HEALTHY
             )
+        self._prepare_orchestrator_thinking_context(
+            task_type="libx0t_proxy_orchestrator_status_update",
+            goal="Update aggregate proxy orchestrator status.",
+        )
 
     async def shutdown(self):
         """Graceful shutdown of all components."""
         logger.info("Shutting down proxy orchestrator...")
         self.status.state = "stopping"
+        self._prepare_orchestrator_thinking_context(
+            task_type="libx0t_proxy_orchestrator_shutdown",
+            goal="Stop proxy infrastructure components in reverse dependency order.",
+        )
 
         # Shutdown in reverse dependency order
         shutdown_order = [
@@ -277,6 +387,10 @@ class ProxyOrchestrator:
                     logger.error(f"Error shutting down {name}: {e}")
 
         self.status.state = "stopped"
+        self._prepare_orchestrator_thinking_context(
+            task_type="libx0t_proxy_orchestrator_stopped",
+            goal="Record local proxy orchestrator shutdown outcome.",
+        )
         logger.info("Proxy orchestrator shutdown complete")
 
     def get_status(self) -> OrchestratorStatus:
@@ -292,7 +406,15 @@ class ProxyOrchestrator:
 
     async def get_health_report(self) -> Dict[str, Any]:
         """Get comprehensive health report."""
-        report = {"orchestrator": self.status.to_dict(), "components": {}}
+        self._prepare_orchestrator_thinking_context(
+            task_type="libx0t_proxy_orchestrator_health_report",
+            goal="Build local proxy health report without exposing proxy identifiers.",
+        )
+        report = {
+            "orchestrator": self.status.to_dict(),
+            "components": {},
+            "thinking": self.get_thinking_status(),
+        }
 
         if self.proxy_manager:
             report["proxies"] = {

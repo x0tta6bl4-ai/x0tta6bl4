@@ -22,6 +22,24 @@ def _stage_payload(bus, stage):
     raise AssertionError(f"missing stage {stage}")
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "monitoring"
+    assert "mape_k" in techniques
+    assert "mind_maps" in techniques
+    assert "graphsage" in techniques
+    assert "causal_analysis" in techniques
+    assert "reverse_planning" in techniques
+    assert "weighted_decision_matrix" in techniques
+    assert thinking["applied"]["framing"]["problem"] == "ebpf_profiler_operation"
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["stage"] == payload["stage"]
+    assert constraints["process_name_redacted"] is True
+    assert constraints["output_redacted"] is True
+
+
 def _advancing_time(step: float = 0.01):
     state = {"t": 0.0}
 
@@ -80,6 +98,9 @@ def test_network_impact_publishes_redacted_ping_and_socket_evidence(
     assert throughput_payload["payload_redacted"] is True
     assert final_payload["parsed_summary"]["latency_measurement_mode"] == "ping"
     assert final_payload["parsed_summary"]["throughput_measurement_mode"] == "socket"
+    _assert_thinking_context(ping_payload)
+    _assert_thinking_context(throughput_payload)
+    _assert_thinking_context(final_payload)
     payload_text = str(_events(bus))
     assert "secret-profiler" not in payload_text
     assert "secret-output" not in payload_text
@@ -107,6 +128,7 @@ def test_ping_unavailable_publishes_simulated_fallback_evidence(monkeypatch, tmp
     assert payload["status"] == "failure"
     assert payload["parsed_summary"]["fallback"] is True
     assert payload["error"]["message_redacted"] is True
+    _assert_thinking_context(payload)
     assert "secret ping missing" not in str(payload)
     assert "secret-profiler" not in str(payload)
 
@@ -137,6 +159,9 @@ def test_ping_runtime_failure_profiles_defaults_with_redacted_error(
     assert ping_payload["error"]["message_redacted"] is True
     assert failed_payload["parsed_summary"]["fallback"] is True
     assert final_payload["parsed_summary"]["latency_measurement_mode"] == "simulated"
+    _assert_thinking_context(ping_payload)
+    _assert_thinking_context(failed_payload)
+    _assert_thinking_context(final_payload)
     assert "secret ping exploded" not in str(_events(bus))
     assert "secret-profiler" not in str(_events(bus))
 
@@ -179,4 +204,6 @@ def test_baseline_and_overhead_summaries_publish_redacted_evidence(
     assert baseline_payload["process_name_hash"] == hashlib.sha256(
         b"secret-profiler"
     ).hexdigest()
+    _assert_thinking_context(baseline_payload)
+    _assert_thinking_context(overhead_payload)
     assert "secret-profiler" not in str(_events(bus))

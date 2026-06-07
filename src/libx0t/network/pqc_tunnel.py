@@ -9,11 +9,51 @@ import logging
 import os
 import struct
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 SIMULATED_PQC_ENV = "X0TTA6BL4_ALLOW_SIMULATED_PQC"
 _TRUE_VALUES = {"1", "true", "yes", "on"}
+PQC_TUNNEL_CLAIM_BOUNDARY = (
+    "Local PQC tunnel decision evidence only. It records algorithm names, feature "
+    "availability, hashed node/peer identifiers, session counts, and payload-size "
+    "buckets without copying private keys, public keys, shared secrets, ciphertext, "
+    "plaintext payloads, nonces, or raw node identifiers."
+)
+
+
+def _hash_value(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        payload = value
+    else:
+        text = str(value)
+        if not text:
+            return None
+        payload = text.encode("utf-8")
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _byte_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "zero"
+    if value <= 64:
+        return "tiny"
+    if value <= 512:
+        return "small"
+    if value <= 1500:
+        return "mtu"
+    if value <= 8192:
+        return "chunk"
+    return "large"
+
+
+def _agent_id(prefix: str, raw_id: str) -> str:
+    digest = hashlib.sha256(raw_id.encode("utf-8")).hexdigest()[:16]
+    return f"{prefix}-{digest}"
 
 
 def _simulated_pqc_allowed() -> bool:
@@ -74,10 +114,59 @@ class PQCTunnel:
         self.node_id = node_id
         self.keys: Optional[PQCKeys] = None
         self.session_keys: dict = {}  # peer_id -> shared_secret
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=_agent_id("pqc-tunnel", node_id),
+            role="security",
+            capabilities=("zero-trust", "ops"),
+            extra_techniques=("stride_threat_modeling",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
         self._generate_keys()
+
+    def _prepare_pqc_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "task_type": task_type,
+            "goal": goal,
+            "kem_algorithm": self.KEM_ALGORITHM,
+            "pqc_available": bool(PQC_AVAILABLE),
+            "aes_available": bool(AES_AVAILABLE),
+            "simulated_pqc_allowed": _simulated_pqc_allowed(),
+            "node_id_hash": _hash_value(self.node_id),
+            "session_count": len(self.session_keys),
+            "peer_hashes": [_hash_value(peer_id) for peer_id in self.session_keys],
+            "constraints": {
+                "redact_private_keys": True,
+                "redact_public_keys": True,
+                "redact_shared_secrets": True,
+                "redact_payload_bytes": True,
+                "redact_raw_node_ids": True,
+            },
+            "safety_boundary": PQC_TUNNEL_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "claim_boundary": PQC_TUNNEL_CLAIM_BOUNDARY,
+        }
 
     def _generate_keys(self):
         """Generate ML-KEM-768 keypair (NIST FIPS 203)."""
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_generate_keys",
+            goal="Generate local PQC key material without exposing key bytes.",
+        )
         if PQC_AVAILABLE:
             # Try NIST name first, fallback to legacy if needed
             try:
@@ -96,16 +185,34 @@ class PQCTunnel:
         self.keys = PQCKeys(
             public_key=public_key, private_key=private_key, node_id=self.node_id
         )
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_keys_generated",
+            goal="Record local PQC key generation metadata without key bytes.",
+            extra={
+                "public_key_length": len(public_key),
+                "private_key_length": len(private_key),
+            },
+        )
         logger.info(
             f"🔐 PQC keys generated for {self.node_id} (ML-KEM-768, NIST FIPS 203)"
         )
 
     def get_public_key(self) -> bytes:
         """Get our public key for sharing with peers."""
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_get_public_key",
+            goal="Return public key bytes while keeping thinking metadata redacted.",
+            extra={"public_key_length": len(self.keys.public_key)},
+        )
         return self.keys.public_key
 
     def create_handshake_init(self) -> bytes:
         """Create handshake initiation message."""
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_handshake_init_create",
+            goal="Create handshake init without exposing node id or public key bytes.",
+            extra={"public_key_length": len(self.keys.public_key)},
+        )
         # Format: [node_id_len:2][node_id][public_key]
         node_id_bytes = self.node_id.encode()
         msg = struct.pack(">H", len(node_id_bytes))
@@ -123,6 +230,15 @@ class PQCTunnel:
         node_id_len = struct.unpack(">H", data[:2])[0]
         peer_node_id = data[2 : 2 + node_id_len].decode()
         peer_public_key = data[2 + node_id_len :]
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_handshake_init_process",
+            goal="Process peer handshake init without exposing peer id or key bytes.",
+            extra={
+                "peer_id_hash": _hash_value(peer_node_id),
+                "message_size_bucket": _byte_count_bucket(len(data)),
+                "peer_public_key_length": len(peer_public_key),
+            },
+        )
 
         # Encapsulate shared secret
         if PQC_AVAILABLE:
@@ -153,6 +269,15 @@ class PQCTunnel:
 
         # Store session key
         self.session_keys[peer_node_id] = derived_key
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_handshake_init_processed",
+            goal="Record responder session establishment metadata without shared secret.",
+            extra={
+                "peer_id_hash": _hash_value(peer_node_id),
+                "ciphertext_length": len(ciphertext),
+                "derived_key_length": len(derived_key),
+            },
+        )
 
         response += node_id_bytes
         response += ciphertext
@@ -170,6 +295,15 @@ class PQCTunnel:
         node_id_len = struct.unpack(">H", data[:2])[0]
         peer_node_id = data[2 : 2 + node_id_len].decode()
         ciphertext = data[2 + node_id_len :]
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_handshake_response_process",
+            goal="Process handshake response without exposing peer id or ciphertext bytes.",
+            extra={
+                "peer_id_hash": _hash_value(peer_node_id),
+                "message_size_bucket": _byte_count_bucket(len(data)),
+                "ciphertext_length": len(ciphertext),
+            },
+        )
 
         # Decapsulate shared secret
         if PQC_AVAILABLE:
@@ -198,12 +332,29 @@ class PQCTunnel:
 
         # Store session key
         self.session_keys[peer_node_id] = derived_key
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_handshake_response_processed",
+            goal="Record initiator session establishment metadata without shared secret.",
+            extra={
+                "peer_id_hash": _hash_value(peer_node_id),
+                "derived_key_length": len(derived_key),
+            },
+        )
 
         logger.info(f"🔑 PQC session established with {peer_node_id}")
         return peer_node_id, shared_secret
 
     def encrypt(self, data: bytes, peer_id: str) -> bytes:
         """Encrypt data for a peer using established session key."""
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_encrypt",
+            goal="Encrypt payload for an established peer without exposing payload or key bytes.",
+            extra={
+                "peer_id_hash": _hash_value(peer_id),
+                "payload_size_bucket": _byte_count_bucket(len(data)),
+                "session_present": peer_id in self.session_keys,
+            },
+        )
         if peer_id not in self.session_keys:
             raise ValueError(f"No session key for peer {peer_id}")
 
@@ -222,6 +373,15 @@ class PQCTunnel:
 
     def decrypt(self, data: bytes, peer_id: str) -> bytes:
         """Decrypt data from a peer using established session key."""
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_decrypt",
+            goal="Decrypt payload from an established peer without exposing ciphertext or key bytes.",
+            extra={
+                "peer_id_hash": _hash_value(peer_id),
+                "payload_size_bucket": _byte_count_bucket(len(data)),
+                "session_present": peer_id in self.session_keys,
+            },
+        )
         if peer_id not in self.session_keys:
             raise ValueError(f"No session key for peer {peer_id}")
 
@@ -250,6 +410,14 @@ class PQCTunnel:
 
     def wrap_packet(self, data: bytes, peer_id: str) -> bytes:
         """Wrap a packet with PQC encryption for transmission."""
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_wrap_packet",
+            goal="Wrap encrypted packet without exposing plaintext payload.",
+            extra={
+                "peer_id_hash": _hash_value(peer_id),
+                "payload_size_bucket": _byte_count_bucket(len(data)),
+            },
+        )
         encrypted = self.encrypt(data, peer_id)
         # Add header: [magic:4][length:4][encrypted_data]
         header = b"PQC1" + struct.pack(">I", len(encrypted))
@@ -257,6 +425,15 @@ class PQCTunnel:
 
     def unwrap_packet(self, data: bytes, peer_id: str) -> bytes:
         """Unwrap a PQC-encrypted packet."""
+        self._prepare_pqc_thinking_context(
+            task_type="pqc_unwrap_packet",
+            goal="Unwrap encrypted packet without exposing ciphertext payload.",
+            extra={
+                "peer_id_hash": _hash_value(peer_id),
+                "packet_size_bucket": _byte_count_bucket(len(data)),
+                "magic_valid": data[:4] == b"PQC1",
+            },
+        )
         if data[:4] != b"PQC1":
             raise ValueError("Invalid PQC packet magic")
         length = struct.unpack(">I", data[4:8])[0]
@@ -270,9 +447,57 @@ class PQCTunnelManager:
     def __init__(self, node_id: str):
         self.tunnel = PQCTunnel(node_id)
         self.established_peers: set = set()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=_agent_id("pqc-tunnel-manager", node_id),
+            role="security",
+            capabilities=("zero-trust", "ops"),
+            extra_techniques=("mape_k", "stride_threat_modeling"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _prepare_manager_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "task_type": task_type,
+            "goal": goal,
+            "node_id_hash": _hash_value(self.tunnel.node_id),
+            "established_peer_count": len(self.established_peers),
+            "established_peer_hashes": [
+                _hash_value(peer_id) for peer_id in self.established_peers
+            ],
+            "constraints": {
+                "redact_peer_ids": True,
+                "redact_keys": True,
+                "redact_payload_bytes": True,
+                "fail_closed_on_handshake_error": True,
+            },
+            "safety_boundary": PQC_TUNNEL_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "tunnel": self.tunnel.get_thinking_status(),
+            "claim_boundary": PQC_TUNNEL_CLAIM_BOUNDARY,
+        }
 
     async def establish_tunnel(self, reader, writer, peer_id: str) -> bool:
         """Establish PQC tunnel with a peer (as initiator)."""
+        self._prepare_manager_thinking_context(
+            task_type="pqc_manager_establish_tunnel",
+            goal="Establish an outbound PQC tunnel without exposing peer id.",
+            extra={"peer_id_hash": _hash_value(peer_id)},
+        )
         try:
             # Send handshake init
             init_msg = self.tunnel.create_handshake_init()
@@ -282,6 +507,14 @@ class PQCTunnelManager:
             # Read response
             resp_len_data = await reader.read(4)
             if len(resp_len_data) < 4:
+                self._prepare_manager_thinking_context(
+                    task_type="pqc_manager_establish_failed",
+                    goal="Record outbound PQC tunnel establishment failure.",
+                    extra={
+                        "peer_id_hash": _hash_value(peer_id),
+                        "error_type": "ShortHandshakeResponse",
+                    },
+                )
                 return False
             resp_len = struct.unpack(">I", resp_len_data)[0]
             resp_data = await reader.read(resp_len)
@@ -291,20 +524,42 @@ class PQCTunnelManager:
                 resp_data
             )
             self.established_peers.add(peer_node_id)
+            self._prepare_manager_thinking_context(
+                task_type="pqc_manager_tunnel_established",
+                goal="Record outbound PQC tunnel establishment metadata.",
+                extra={"peer_id_hash": _hash_value(peer_node_id)},
+            )
 
             logger.info(f"🔐 PQC tunnel established with {peer_node_id}")
             return True
 
         except Exception as e:
             logger.error(f"PQC tunnel establishment failed: {e}")
+            self._prepare_manager_thinking_context(
+                task_type="pqc_manager_establish_failed",
+                goal="Record outbound PQC tunnel establishment failure.",
+                extra={
+                    "peer_id_hash": _hash_value(peer_id),
+                    "error_type": type(e).__name__,
+                },
+            )
             return False
 
     async def accept_tunnel(self, reader, writer) -> Optional[str]:
         """Accept incoming PQC tunnel (as responder)."""
+        self._prepare_manager_thinking_context(
+            task_type="pqc_manager_accept_tunnel",
+            goal="Accept an inbound PQC tunnel without exposing peer id.",
+        )
         try:
             # Read init message
             init_len_data = await reader.read(4)
             if len(init_len_data) < 4:
+                self._prepare_manager_thinking_context(
+                    task_type="pqc_manager_accept_failed",
+                    goal="Record inbound PQC tunnel accept failure.",
+                    extra={"error_type": "ShortHandshakeInit"},
+                )
                 return None
             init_len = struct.unpack(">I", init_len_data)[0]
             init_data = await reader.read(init_len)
@@ -319,23 +574,57 @@ class PQCTunnelManager:
             await writer.drain()
 
             self.established_peers.add(peer_node_id)
+            self._prepare_manager_thinking_context(
+                task_type="pqc_manager_tunnel_accepted",
+                goal="Record inbound PQC tunnel establishment metadata.",
+                extra={"peer_id_hash": _hash_value(peer_node_id)},
+            )
             logger.info(f"🔐 PQC tunnel accepted from {peer_node_id}")
             return peer_node_id
 
         except Exception as e:
             logger.error(f"PQC tunnel accept failed: {e}")
+            self._prepare_manager_thinking_context(
+                task_type="pqc_manager_accept_failed",
+                goal="Record inbound PQC tunnel accept failure.",
+                extra={"error_type": type(e).__name__},
+            )
             return None
 
     def encrypt_for_peer(self, data: bytes, peer_id: str) -> bytes:
         """Encrypt data for a specific peer."""
+        self._prepare_manager_thinking_context(
+            task_type="pqc_manager_encrypt_for_peer",
+            goal="Encrypt manager payload for a peer without exposing payload or peer id.",
+            extra={
+                "peer_id_hash": _hash_value(peer_id),
+                "payload_size_bucket": _byte_count_bucket(len(data)),
+            },
+        )
         return self.tunnel.wrap_packet(data, peer_id)
 
     def decrypt_from_peer(self, data: bytes, peer_id: str) -> bytes:
         """Decrypt data from a specific peer."""
+        self._prepare_manager_thinking_context(
+            task_type="pqc_manager_decrypt_from_peer",
+            goal="Decrypt manager payload from a peer without exposing payload or peer id.",
+            extra={
+                "peer_id_hash": _hash_value(peer_id),
+                "packet_size_bucket": _byte_count_bucket(len(data)),
+            },
+        )
         return self.tunnel.unwrap_packet(data, peer_id)
 
     def has_tunnel(self, peer_id: str) -> bool:
         """Check if we have an established tunnel with peer."""
+        self._prepare_manager_thinking_context(
+            task_type="pqc_manager_has_tunnel",
+            goal="Check local PQC tunnel presence without exposing peer id.",
+            extra={
+                "peer_id_hash": _hash_value(peer_id),
+                "present": peer_id in self.established_peers,
+            },
+        )
         return peer_id in self.established_peers
 
 

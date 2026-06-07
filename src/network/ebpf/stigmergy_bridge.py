@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.network.routing.stigmergy import StigmergyRouter
 from src.services.service_event_identity import service_event_identity
 
@@ -62,6 +63,9 @@ DEFAULT_POLL_INTERVAL = 2.0
 
 # Minimum packet delta to trigger a reinforce (avoids noise from single stray pkts)
 MIN_DELTA_TO_REINFORCE = 3
+
+_MODULE_THINKING_COACH: Optional[AgentThinkingCoach] = None
+_MODULE_LAST_THINKING_CONTEXT: Optional[Dict[str, Any]] = None
 
 
 def _normalize_text(value: Any) -> str:
@@ -112,6 +116,63 @@ def _bounded_output_metadata(
     }
 
 
+def _build_thinking_coach(agent_id: str) -> AgentThinkingCoach:
+    return AgentThinkingCoach(
+        agent_id=agent_id,
+        role="coordinator",
+        capabilities=("monitoring", "security", "zero-trust"),
+        extra_techniques=("mape_k", "causal_analysis", "reverse_planning"),
+    )
+
+
+def _module_thinking_coach_or_create() -> AgentThinkingCoach:
+    global _MODULE_THINKING_COACH
+    if _MODULE_THINKING_COACH is None:
+        _MODULE_THINKING_COACH = _build_thinking_coach(STIGMERGY_BRIDGE_SERVICE_NAME)
+    return _MODULE_THINKING_COACH
+
+
+def _record_stigmergy_thinking_context(
+    *,
+    coach: AgentThinkingCoach,
+    operation: str,
+    goal: str,
+    constraints: Dict[str, Any],
+) -> Dict[str, Any]:
+    safe_task = {
+        "task_type": "ebpf_stigmergy_bridge_operation",
+        "goal": goal,
+        "constraints": {
+            "operation": operation,
+            "redacted": True,
+            **constraints,
+        },
+        "safety_boundary": (
+            "Record only local eBPF stigmergy bridge evidence, redacted command "
+            "shapes, hashed map/interface/peer selectors, counts, and status; do "
+            "not expose raw map names, IP addresses, peer IDs, route IDs, stdout, "
+            "stderr, or eBPF object paths."
+        ),
+    }
+    return coach.prepare_task(safe_task)
+
+
+def _record_module_thinking_context(
+    *,
+    operation: str,
+    goal: str,
+    constraints: Dict[str, Any],
+) -> Dict[str, Any]:
+    global _MODULE_LAST_THINKING_CONTEXT
+    _MODULE_LAST_THINKING_CONTEXT = _record_stigmergy_thinking_context(
+        coach=_module_thinking_coach_or_create(),
+        operation=operation,
+        goal=goal,
+        constraints=constraints,
+    )
+    return _MODULE_LAST_THINKING_CONTEXT
+
+
 def _event_bus_or_none(
     event_bus: Optional[EventBus],
     event_project_root: str,
@@ -155,7 +216,26 @@ def _publish_stigmergy_observation(
     parsed_summary: Optional[Dict[str, Any]] = None,
     error: Optional[BaseException] = None,
     extra: Optional[Dict[str, Any]] = None,
+    thinking: Optional[Dict[str, Any]] = None,
 ) -> Optional[str]:
+    if thinking is None:
+        thinking = _record_module_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": read_only,
+                "returncode_present": returncode is not None,
+                "command_present": bool(command),
+                "command_length": len(command or []),
+                "command_redacted": bool(command),
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+                "output_redacted": True,
+            },
+        )
     bus = _event_bus_or_none(event_bus, event_project_root)
     if bus is None:
         return None
@@ -179,6 +259,7 @@ def _publish_stigmergy_observation(
         "safe_observation": True,
         "parsed_summary": parsed_summary or {},
         "output": _bounded_output_metadata(stdout, stderr),
+        "thinking": thinking,
         "payloads_redacted": True,
         "claim_boundary": STIGMERGY_BRIDGE_CLAIM_BOUNDARY,
     }
@@ -436,6 +517,8 @@ class StigmergyBridge:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = STIGMERGY_BRIDGE_SERVICE_NAME
+        self.thinking_coach = _build_thinking_coach(self.source_agent)
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
         # Auto-detect compiled object next to this file's bpf_programs subdir
         if ebpf_object is None:
@@ -468,6 +551,41 @@ class StigmergyBridge:
             logger.error("Failed to initialize StigmergyBridge EventBus: %s", exc)
             return None
 
+    def _thinking_coach_or_create(self) -> AgentThinkingCoach:
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            self.source_agent = getattr(
+                self,
+                "source_agent",
+                STIGMERGY_BRIDGE_SERVICE_NAME,
+            )
+            coach = _build_thinking_coach(self.source_agent)
+            self.thinking_coach = coach
+        return coach
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        self._last_thinking_context = _record_stigmergy_thinking_context(
+            coach=self._thinking_coach_or_create(),
+            operation=operation,
+            goal=goal,
+            constraints=constraints,
+        )
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose stigmergy-bridge thinking state without task secrets."""
+
+        return {
+            **self._thinking_coach_or_create().status(),
+            "last_context": getattr(self, "_last_thinking_context", None),
+        }
+
     def _publish_observation(
         self,
         *,
@@ -485,6 +603,25 @@ class StigmergyBridge:
         error: Optional[BaseException] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": read_only,
+                "returncode_present": returncode is not None,
+                "command_present": bool(command),
+                "command_length": len(command or []),
+                "command_redacted": bool(command),
+                "interface_hash": _hash_value(getattr(self, "interface", None)),
+                "interface_redacted": getattr(self, "interface", None) is not None,
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+                "output_redacted": True,
+            },
+        )
         return _publish_stigmergy_observation(
             event_bus=self._event_bus_or_none(),
             event_project_root=self.event_project_root,
@@ -501,6 +638,7 @@ class StigmergyBridge:
             parsed_summary=parsed_summary,
             error=error,
             extra=extra,
+            thinking=thinking,
         )
 
     def _publish_reinforcement_observation(

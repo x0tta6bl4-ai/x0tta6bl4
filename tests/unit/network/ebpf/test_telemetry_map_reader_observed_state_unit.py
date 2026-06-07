@@ -37,6 +37,27 @@ def _stage_payload(reader, stage):
     return matches[-1]
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "monitoring"
+    assert "mape_k" in techniques
+    assert "mind_maps" in techniques
+    assert "graphsage" in techniques
+    assert "causal_analysis" in techniques
+    assert "zero_trust_review" in techniques
+    assert "reverse_planning" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_telemetry_map_reader_operation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["stage"] == payload["stage"]
+    assert constraints["map_name_redacted"] is True
+    assert "map_name_hash" in constraints
+    assert "extra_keys" in constraints
+
+
 def test_bpftool_probe_publishes_returncode_and_redacted_output(
     monkeypatch,
     tmp_path,
@@ -78,6 +99,7 @@ def test_bpftool_probe_publishes_returncode_and_redacted_output(
     assert payload["stderr_metadata"]["sample_redacted"] is True
     assert payload["identity"]["spiffe_id_configured"] is True
     assert payload["identity"]["redacted"] is True
+    _assert_thinking_context(payload)
     text = str(payload)
     assert secret_stdout not in text
     assert secret_stderr not in text
@@ -111,6 +133,7 @@ def test_read_map_all_backends_failed_publishes_redacted_empty_evidence(
     assert payload["bpftool_available"] is False
     assert payload["payloads_redacted"] is True
     assert payload["safe_observation"] is True
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
 
 
@@ -139,6 +162,7 @@ def test_bpftool_map_read_success_publishes_redacted_output_and_result_keys(
     assert payload["result_key_hashes"]["hashes"] == [
         hashlib.sha256(secret_key.encode("utf-8")).hexdigest()
     ]
+    _assert_thinking_context(payload)
     text = str(payload)
     assert map_name not in text
     assert secret_key not in text
@@ -173,6 +197,7 @@ def test_bpftool_map_read_failure_publishes_returncode_and_redacted_stderr(
     assert payload["stderr_metadata"]["sha256"] == hashlib.sha256(
         secret_stderr.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     text = str(payload)
     assert map_name not in text
     assert secret_stdout not in text
@@ -198,6 +223,7 @@ def test_bpftool_map_read_timeout_publishes_redacted_failure(
     assert payload["returncode"] == 124
     assert payload["error_type"] == "TimeoutExpired"
     assert payload["error_message_redacted"] is True
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
 
 
@@ -230,5 +256,6 @@ def test_read_map_bcc_failure_bpftool_success_publishes_backend_evidence(
     assert payload["bpf_program_present"] is True
     assert payload["bcc_error_type"] == "RuntimeError"
     assert payload["bcc_error_message_redacted"] is True
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
     assert "secret bcc failure" not in str(payload)

@@ -14,6 +14,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -171,9 +172,51 @@ class TrafficShaper:
         self._last_send_time = 0
         self._burst_counter = 0
         self._in_burst = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=_SERVICE_AGENT,
+            role="security",
+            capabilities=("zero-trust", "ops", "network"),
+            extra_techniques=("mape_k", "weighted_decision_matrix"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         if self.params:
             logger.info(f"Traffic Shaper initialized with profile: {self.params.name}")
+
+    def _prepare_traffic_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "task_type": task_type,
+            "goal": goal,
+            "profile": self._profile_metadata(),
+            "burst_state": {
+                "in_burst": bool(self._in_burst),
+                "counter_bucket": _byte_count_bucket(self._burst_counter),
+            },
+            "constraints": {
+                "redact_payload_bytes": True,
+                "redact_timing_trace": True,
+                "local_metric_only": True,
+                "do_not_claim_dpi_bypass": True,
+            },
+            "safety_boundary": TRAFFIC_SHAPING_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "claim_boundary": TRAFFIC_SHAPING_CLAIM_BOUNDARY,
+        }
 
     def _event_bus_or_none(self) -> Optional[EventBus]:
         if self.event_bus is not None:
@@ -223,6 +266,16 @@ class TrafficShaper:
         metadata: Optional[Dict[str, Any]] = None,
         error_type: Optional[str] = None,
     ) -> Optional[str]:
+        self._prepare_traffic_thinking_context(
+            task_type=f"traffic_shaping_{operation}",
+            goal="Record local traffic-shaping operation without payload bytes or DPI claims.",
+            extra={
+                "operation": operation,
+                "status": status_value,
+                "metadata": metadata or {},
+                "error_type": error_type,
+            },
+        )
         bus = self._event_bus_or_none()
         if bus is None:
             return None
@@ -237,6 +290,8 @@ class TrafficShaper:
             "duration_ms": round((time.monotonic() - started_at) * 1000.0, 3),
             "profile": self._profile_metadata(),
             "service_identity": self._identity_presence(),
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
             "control_action": False,
             "observed_state": True,
             "payloads_redacted": True,
@@ -510,6 +565,44 @@ class TrafficAnalyzer:
         self.packet_sizes: List[int] = []
         self.inter_arrival_times: List[float] = []
         self._last_packet_time: Optional[float] = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="traffic-analyzer",
+            role="monitoring",
+            capabilities=("monitoring", "ops"),
+            extra_techniques=("causal_analysis",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _prepare_analyzer_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "task_type": task_type,
+            "goal": goal,
+            "packet_count": len(self.packet_sizes),
+            "inter_arrival_count": len(self.inter_arrival_times),
+            "constraints": {
+                "record_sizes_only": True,
+                "redact_payload_bytes": True,
+                "local_metric_only": True,
+            },
+            "safety_boundary": TRAFFIC_SHAPING_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "claim_boundary": TRAFFIC_SHAPING_CLAIM_BOUNDARY,
+        }
 
     def record_packet(self, size: int):
         """Record a packet for analysis."""
@@ -522,6 +615,10 @@ class TrafficAnalyzer:
 
     def get_statistics(self) -> dict:
         """Get traffic statistics."""
+        self._prepare_analyzer_thinking_context(
+            task_type="traffic_analyzer_get_statistics",
+            goal="Calculate local packet-size and interval summary.",
+        )
         if not self.packet_sizes:
             return {"packets": 0}
 
@@ -543,6 +640,10 @@ class TrafficAnalyzer:
 
     def reset(self):
         """Reset statistics."""
+        self._prepare_analyzer_thinking_context(
+            task_type="traffic_analyzer_reset",
+            goal="Reset local traffic analyzer metrics.",
+        )
         self.packet_sizes = []
         self.inter_arrival_times = []
         self._last_packet_time = None

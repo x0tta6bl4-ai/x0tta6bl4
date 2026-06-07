@@ -28,6 +28,23 @@ def _stage_payload(bus, stage):
     raise AssertionError(f"missing stage {stage}")
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "security"
+    assert "stride_threat_modeling" in techniques
+    assert "zero_trust_review" in techniques
+    assert "mape_k" in techniques
+    assert "causal_analysis" in techniques
+    assert "reverse_planning" in techniques
+    assert thinking["applied"]["framing"]["problem"] == "ebpf_xdp_hook_operation"
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["stage"] == payload["stage"]
+    assert constraints["output_redacted"] is True
+    assert "extra_keys" in constraints
+
+
 def test_xdp_attach_success_publishes_redacted_evidence(tmp_path):
     hook, bus = _hook(tmp_path)
     interface = "eth0"
@@ -77,6 +94,7 @@ def test_xdp_attach_success_publishes_redacted_evidence(tmp_path):
     assert command_payload["output"]["stdout_sha256"] == hashlib.sha256(
         attach_stdout.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(command_payload)
 
     verify_payload = _stage_payload(bus, "xdp_attach_verify_succeeded")
     assert verify_payload["command"] == ["ip", "link", "show", "dev", "[redacted]"]
@@ -93,6 +111,7 @@ def test_xdp_attach_success_publishes_redacted_evidence(tmp_path):
         verify_stdout.encode("utf-8")
     ).hexdigest()
     assert verify_payload["identity"]["redacted"] is True
+    _assert_thinking_context(verify_payload)
     assert interface not in str(verify_payload)
     assert str(program_file) not in str(verify_payload)
     assert verify_stdout not in str(verify_payload)
@@ -130,6 +149,7 @@ def test_xdp_detach_verify_failure_publishes_redacted_evidence(tmp_path):
     assert payload["output"]["stdout_sha256"] == hashlib.sha256(
         verify_stdout.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert verify_stdout not in str(payload)
 
@@ -154,6 +174,7 @@ def test_xdp_attach_program_missing_publishes_redacted_precondition(tmp_path):
     assert payload["program_path_hash"] == hashlib.sha256(
         program_path.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert program_path not in str(payload)
 
@@ -184,6 +205,7 @@ def test_xdp_driver_support_timeout_publishes_redacted_error(tmp_path):
     assert payload["output"]["stderr_sha256"] == hashlib.sha256(
         b"secret help stderr"
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert "secret help stdout" not in str(payload)
     assert "secret help stderr" not in str(payload)

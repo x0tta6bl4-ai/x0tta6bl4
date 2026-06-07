@@ -23,7 +23,25 @@ import jwt
 from aiohttp import web
 from aiohttp.web_middlewares import middleware
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
+
+AUTH_THINKING_CLAIM_BOUNDARY = (
+    "Local proxy authentication decision evidence only. It records auth mode, "
+    "role, permission counts, rate-limit state, and hashed client/token/key "
+    "identifiers without copying API keys, JWTs, signing secrets, request bodies, "
+    "raw client ids, or remote addresses."
+)
+
+
+def _hash_value(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return None
+    return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
 
 
 class Permission(Enum):
@@ -223,11 +241,61 @@ class JWTAuthManager:
 
         self.algorithm = algorithm
         self.expiry_hours = expiry_hours
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="proxy-jwt-auth-manager",
+            role="security",
+            capabilities=("zero-trust", "ops"),
+            extra_techniques=("stride_threat_modeling",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _prepare_jwt_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "task_type": task_type,
+            "goal": goal,
+            "algorithm": self.algorithm,
+            "expiry_hours": int(self.expiry_hours),
+            "secret_configured": bool(self.secret),
+            "constraints": {
+                "redact_jwt": True,
+                "redact_secret": True,
+                "redact_client_id": True,
+                "validate_expiry": True,
+            },
+            "safety_boundary": AUTH_THINKING_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "claim_boundary": AUTH_THINKING_CLAIM_BOUNDARY,
+        }
 
     def create_token(
         self, client_id: str, role: Role, custom_claims: Optional[Dict[str, Any]] = None
     ) -> str:
         """Create a JWT token."""
+        self._prepare_jwt_thinking_context(
+            task_type="proxy_jwt_create_token",
+            goal="Create a JWT for a client without exposing client id or signing secret.",
+            extra={
+                "client_id_hash": _hash_value(client_id),
+                "role": role.name,
+                "permission_count": len(role.value),
+                "custom_claim_keys": sorted((custom_claims or {}).keys()),
+            },
+        )
         if not self.secret:
             raise ValueError("JWT secret not configured")
 
@@ -246,6 +314,14 @@ class JWTAuthManager:
 
     def validate_token(self, token: str) -> Optional[ClientIdentity]:
         """Validate a JWT token."""
+        self._prepare_jwt_thinking_context(
+            task_type="proxy_jwt_validate_token",
+            goal="Validate a JWT without exposing token contents.",
+            extra={
+                "token_present": bool(token),
+                "token_hash": _hash_value(token),
+            },
+        )
         if not self.secret:
             return None
 
@@ -255,18 +331,42 @@ class JWTAuthManager:
             role = Role[payload.get("role", "VIEWER")]
             permissions = [Permission(p) for p in payload.get("permissions", [])]
 
-            return ClientIdentity(
+            identity = ClientIdentity(
                 client_id=payload["sub"],
                 role=role,
                 permissions=permissions,
                 metadata={"jwt_exp": payload.get("exp")},
             )
+            self._prepare_jwt_thinking_context(
+                task_type="proxy_jwt_validated",
+                goal="Record validated JWT identity metadata without raw token or client id.",
+                extra={
+                    "client_id_hash": _hash_value(identity.client_id),
+                    "role": identity.role.name,
+                    "permission_count": len(identity.permissions),
+                    "token_hash": _hash_value(token),
+                },
+            )
+            return identity
 
         except jwt.ExpiredSignatureError:
             logger.warning("JWT token expired")
+            self._prepare_jwt_thinking_context(
+                task_type="proxy_jwt_expired",
+                goal="Record expired JWT validation failure without raw token.",
+                extra={"token_hash": _hash_value(token)},
+            )
             return None
         except jwt.InvalidTokenError as e:
             logger.warning(f"Invalid JWT token: {e}")
+            self._prepare_jwt_thinking_context(
+                task_type="proxy_jwt_invalid",
+                goal="Record invalid JWT validation failure without raw token.",
+                extra={
+                    "token_hash": _hash_value(token),
+                    "error_type": type(e).__name__,
+                },
+            )
             return None
 
 
@@ -289,19 +389,104 @@ class ProxyAuthMiddleware:
 
         # Public paths that don't require authentication
         self.public_paths = {"/health", "/metrics", "/docs", "/openapi.json"}
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="proxy-auth-middleware",
+            role="security",
+            capabilities=("zero-trust", "ops"),
+            extra_techniques=("stride_threat_modeling",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _identity_metadata(self, identity: Optional[ClientIdentity]) -> Dict[str, Any]:
+        if identity is None:
+            return {"present": False}
+        return {
+            "present": True,
+            "client_id_hash": _hash_value(getattr(identity, "client_id", None)),
+            "role": getattr(getattr(identity, "role", None), "name", None),
+            "permission_count": len(getattr(identity, "permissions", []) or []),
+            "api_key_id_hash": _hash_value(getattr(identity, "api_key_id", None)),
+            "raw_identity_redacted": True,
+        }
+
+    def _prepare_auth_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "task_type": task_type,
+            "goal": goal,
+            "require_auth": bool(self.require_auth),
+            "public_path_count": len(self.public_paths),
+            "rate_limit": {
+                "requests_per_minute": getattr(
+                    self.rate_limiter, "requests_per_minute", None
+                ),
+                "burst_size": getattr(self.rate_limiter, "burst_size", None),
+            },
+            "constraints": {
+                "redact_api_keys": True,
+                "redact_jwts": True,
+                "redact_client_ids": True,
+                "redact_remote_addresses": True,
+                "least_privilege": True,
+            },
+            "safety_boundary": AUTH_THINKING_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        status = {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "claim_boundary": AUTH_THINKING_CLAIM_BOUNDARY,
+        }
+        if hasattr(self.jwt_manager, "get_thinking_status"):
+            status["jwt_manager"] = self.jwt_manager.get_thinking_status()
+        return status
 
     @middleware
     async def authenticate(
         self, request: web.Request, handler: Callable
     ) -> web.Response:
         """Main authentication middleware."""
+        path = getattr(request, "path", "")
+        client_ip = request.remote or "unknown"
+        self._prepare_auth_thinking_context(
+            task_type="proxy_authenticate_request",
+            goal="Authenticate a proxy control-plane request with least privilege.",
+            extra={
+                "path_hash": _hash_value(path),
+                "path_is_public": path in self.public_paths,
+                "remote_hash": _hash_value(client_ip),
+                "api_key_present": bool(request.headers.get("X-API-Key")),
+                "bearer_present": request.headers.get(
+                    "Authorization", ""
+                ).startswith("Bearer "),
+            },
+        )
         # Check if path is public
-        if request.path in self.public_paths:
+        if path in self.public_paths:
+            self._prepare_auth_thinking_context(
+                task_type="proxy_auth_public_path",
+                goal="Allow configured public path without authentication.",
+                extra={"path_hash": _hash_value(path)},
+            )
             return await handler(request)
 
         # Check rate limit
-        client_ip = request.remote or "unknown"
         if not await self.rate_limiter.acquire(client_ip):
+            self._prepare_auth_thinking_context(
+                task_type="proxy_auth_rate_limited",
+                goal="Deny request because the client exceeded local rate limits.",
+                extra={"remote_hash": _hash_value(client_ip)},
+            )
             return web.json_response(
                 {"error": "Rate limit exceeded", "retry_after": 60}, status=429
             )
@@ -323,6 +508,11 @@ class ProxyAuthMiddleware:
 
         # Check if auth is required
         if not identity and self.require_auth:
+            self._prepare_auth_thinking_context(
+                task_type="proxy_auth_missing_identity",
+                goal="Deny request because required authentication was not satisfied.",
+                extra={"remote_hash": _hash_value(client_ip)},
+            )
             return web.json_response(
                 {
                     "error": "Authentication required",
@@ -334,6 +524,14 @@ class ProxyAuthMiddleware:
         # Store identity in request
         request["identity"] = identity or ClientIdentity(
             client_id="anonymous", role=Role.VIEWER, permissions=Role.VIEWER.value
+        )
+        self._prepare_auth_thinking_context(
+            task_type="proxy_auth_identity_accepted",
+            goal="Record accepted identity metadata for proxy control-plane request.",
+            extra={
+                "identity": self._identity_metadata(request["identity"]),
+                "anonymous": identity is None,
+            },
         )
 
         # Add rate limit headers
@@ -351,6 +549,14 @@ class ProxyAuthMiddleware:
             @wraps(handler)
             async def wrapper(request: web.Request) -> web.Response:
                 identity = request.get("identity")
+                self._prepare_auth_thinking_context(
+                    task_type="proxy_auth_require_permission",
+                    goal="Check whether identity has required permission.",
+                    extra={
+                        "identity": self._identity_metadata(identity),
+                        "required_permission": permission.value,
+                    },
+                )
 
                 if not identity:
                     return web.json_response(
@@ -358,6 +564,14 @@ class ProxyAuthMiddleware:
                     )
 
                 if not identity.has_permission(permission):
+                    self._prepare_auth_thinking_context(
+                        task_type="proxy_auth_permission_denied",
+                        goal="Deny request because required permission is missing.",
+                        extra={
+                            "identity": self._identity_metadata(identity),
+                            "required_permission": permission.value,
+                        },
+                    )
                     return web.json_response(
                         {
                             "error": "Permission denied",
@@ -367,6 +581,14 @@ class ProxyAuthMiddleware:
                         status=403,
                     )
 
+                self._prepare_auth_thinking_context(
+                    task_type="proxy_auth_permission_allowed",
+                    goal="Allow request after required permission check.",
+                    extra={
+                        "identity": self._identity_metadata(identity),
+                        "required_permission": permission.value,
+                    },
+                )
                 return await handler(request)
 
             return wrapper
@@ -380,6 +602,14 @@ class ProxyAuthMiddleware:
             @wraps(handler)
             async def wrapper(request: web.Request) -> web.Response:
                 identity = request.get("identity")
+                self._prepare_auth_thinking_context(
+                    task_type="proxy_auth_require_any_permission",
+                    goal="Check whether identity has any accepted permission.",
+                    extra={
+                        "identity": self._identity_metadata(identity),
+                        "required_any": [p.value for p in permissions],
+                    },
+                )
 
                 if not identity:
                     return web.json_response(
@@ -387,6 +617,14 @@ class ProxyAuthMiddleware:
                     )
 
                 if not any(identity.has_permission(p) for p in permissions):
+                    self._prepare_auth_thinking_context(
+                        task_type="proxy_auth_any_permission_denied",
+                        goal="Deny request because none of the accepted permissions matched.",
+                        extra={
+                            "identity": self._identity_metadata(identity),
+                            "required_any": [p.value for p in permissions],
+                        },
+                    )
                     return web.json_response(
                         {
                             "error": "Permission denied",
@@ -395,6 +633,14 @@ class ProxyAuthMiddleware:
                         status=403,
                     )
 
+                self._prepare_auth_thinking_context(
+                    task_type="proxy_auth_any_permission_allowed",
+                    goal="Allow request after any-permission check.",
+                    extra={
+                        "identity": self._identity_metadata(identity),
+                        "required_any": [p.value for p in permissions],
+                    },
+                )
                 return await handler(request)
 
             return wrapper

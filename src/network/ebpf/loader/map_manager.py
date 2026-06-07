@@ -15,6 +15,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -116,6 +117,12 @@ class EBPFMapManager:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = EBPF_LOADER_MAP_MANAGER_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "monitoring"),
+            extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+        )
         self._bpftool_available = self._check_bpftool()
         logger.info(f"EBPFMapManager initialized (bpftool={self._bpftool_available})")
 
@@ -128,6 +135,48 @@ class EBPFMapManager:
         except Exception as exc:
             logger.error("Failed to initialize eBPF loader map manager EventBus: %s", exc)
             return None
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose the loaded thinking profile without task data."""
+
+        return self.thinking_coach.status()
+
+    def _prepare_thinking_context(
+        self,
+        *,
+        stage: str,
+        operation: str,
+        status: str,
+        command: Optional[List[str]],
+        returncode: Optional[int],
+        read_only: bool,
+        parsed_summary: Optional[Dict[str, Any]],
+        extra: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Build a redacted decision context for eBPF map observations."""
+
+        safe_task = {
+            "task_type": "ebpf_loader_map_observation",
+            "goal": f"{operation}:{stage}:{status}",
+            "constraints": {
+                "operation": operation,
+                "stage": stage,
+                "status": status,
+                "source_mode": "bpftool",
+                "read_only": read_only,
+                "returncode_present": returncode is not None,
+                "bpftool_available": getattr(self, "_bpftool_available", None),
+                "command_shape": command or [],
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+            "safety_boundary": (
+                "Record only local bpftool evidence, redacted map selectors, "
+                "hashes, and bounded metadata; do not expose map names, keys, "
+                "values, stdout, or stderr."
+            ),
+        }
+        return self.thinking_coach.prepare_task(safe_task)
 
     def _publish_observation(
         self,
@@ -168,6 +217,16 @@ class EBPFMapManager:
             "safe_observation": True,
             "safe_actuator": False,
             "parsed_summary": parsed_summary or {},
+            "thinking": self._prepare_thinking_context(
+                stage=stage,
+                operation=operation,
+                status=status,
+                command=command,
+                returncode=returncode,
+                read_only=read_only,
+                parsed_summary=parsed_summary,
+                extra=extra,
+            ),
             "output": _bounded_output_metadata(stdout, stderr),
             "payloads_redacted": True,
             "claim_boundary": EBPF_LOADER_MAP_MANAGER_CLAIM_BOUNDARY,

@@ -22,6 +22,23 @@ def _events(bus):
     )
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "security"
+    assert "zero_trust_review" in techniques
+    assert "stride_threat_modeling" in techniques
+    assert "mape_k" in techniques
+    assert "reverse_planning" in techniques
+    assert "chaos_driven_design" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_loader_program_observation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["command_shape"] == payload["command"]
+
+
 def test_bpftool_load_success_publishes_redacted_evidence(tmp_path):
     loader, bus = _loader(tmp_path)
     program_path = tmp_path / "secret_prog.o"
@@ -62,6 +79,7 @@ def test_bpftool_load_success_publishes_redacted_evidence(tmp_path):
         load_stdout.encode("utf-8")
     ).hexdigest()
     assert payload["identity"]["redacted"] is True
+    _assert_thinking_context(payload)
     assert str(program_path) not in str(payload)
     assert pinned_path not in str(payload)
     assert load_stdout not in str(payload)
@@ -95,6 +113,7 @@ def test_bpftool_load_failure_publishes_redacted_failure_evidence(tmp_path):
     assert payload["output"]["stderr_sha256"] == hashlib.sha256(
         stderr.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert str(program_path) not in str(payload)
     assert stderr not in str(payload)
 

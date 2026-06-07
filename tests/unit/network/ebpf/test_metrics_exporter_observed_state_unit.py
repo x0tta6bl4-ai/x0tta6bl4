@@ -29,6 +29,20 @@ def _events(exporter):
     )
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "monitoring"
+    assert "mape_k" in techniques
+    assert "causal_analysis" in techniques
+    assert "zero_trust_review" in techniques
+    assert "chaos_driven_design" in techniques
+    assert thinking["applied"]["framing"]["problem"] == "ebpf_metrics_export"
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["map_name_redacted"] is True
+
+
 def test_bpftool_map_read_success_publishes_redacted_evidence(tmp_path):
     exporter = _exporter(tmp_path)
     map_name = "secret_metrics_map"
@@ -65,6 +79,7 @@ def test_bpftool_map_read_success_publishes_redacted_evidence(tmp_path):
     ).hexdigest()
     assert payload["identity"]["redacted"] is True
     assert payload["payloads_redacted"] is True
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
     assert dump_stdout not in str(payload)
 
@@ -88,6 +103,7 @@ def test_bpftool_map_missing_publishes_redacted_empty_evidence(tmp_path):
     assert payload["show_output"]["stderr_sha256"] == hashlib.sha256(
         stderr.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
     assert stderr not in str(payload)
 

@@ -2,6 +2,8 @@
 import os
 from unittest.mock import patch
 
+import pytest
+
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
@@ -99,6 +101,37 @@ class TestEBPFPerformanceMonitorInit:
     def test_performance_history(self):
         m = EBPFPerformanceMonitor()
         assert m.performance_history == {}
+
+
+class TestThinkingStatus:
+    def test_profile_loaded(self):
+        m = EBPFPerformanceMonitor()
+        thinking_status = m.get_thinking_status()
+        techniques = set(thinking_status["techniques"])
+        assert thinking_status["profile"]["role"] == "monitoring"
+        assert "mape_k" in techniques
+        assert "causal_analysis" in techniques
+        assert "zero_trust_review" in techniques
+
+    @pytest.mark.asyncio
+    async def test_alert_context_redacts_message_text(self):
+        m = EBPFPerformanceMonitor()
+        title = "secret alert title"
+        message = "secret alert message"
+
+        await m._generate_alert(title, message, AlertSeverity.WARNING)
+
+        thinking_status = m.get_thinking_status()
+        last_context = thinking_status["last_context"]
+        assert last_context["applied"]["framing"]["problem"] == (
+            "ebpf_performance_monitoring"
+        )
+        constraints = last_context["applied"]["framing"]["constraints"]
+        assert constraints["operation"] == "generate_alert"
+        assert constraints["alert_text_redacted"] is True
+        assert constraints["severity"] == "warning"
+        assert title not in str(thinking_status)
+        assert message not in str(thinking_status)
 
 
 class TestEBPFSystemMetricSource:

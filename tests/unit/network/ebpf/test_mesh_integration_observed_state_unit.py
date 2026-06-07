@@ -26,6 +26,22 @@ def _stage_payload(bus, stage):
     raise AssertionError(f"missing stage {stage}")
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "coordinator"
+    assert "mape_k" in techniques
+    assert "reverse_planning" in techniques
+    assert "zero_trust_review" in techniques
+    assert "causal_analysis" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_mesh_integration_operation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["interface_redacted"] is True
+
+
 @dataclass
 class _Node:
     ip_address: str
@@ -109,6 +125,8 @@ def test_local_ip_probe_success_and_ifindex_redact_socket_selectors(
     assert local_payload["probe_target_redacted"] is True
     assert ifindex_payload["parsed_summary"]["ifindex"] == 42
     assert ifindex_payload["requested_interface_redacted"] is True
+    _assert_thinking_context(local_payload)
+    _assert_thinking_context(ifindex_payload)
     payload_text = str(_events(bus))
     assert "10.23.45.67" not in payload_text
     assert "8.8.8.8" not in payload_text
@@ -169,6 +187,7 @@ async def test_route_sync_publishes_redacted_topology_and_loader_evidence(tmp_pa
     assert sync_payload["parsed_summary"]["ebpf_routes_total"] == 1
     assert sync_payload["parsed_summary"]["added_count"] == 1
     assert sync_payload["route_selectors_redacted"] is True
+    _assert_thinking_context(sync_payload)
     payload_text = str(_events(bus))
     assert "10.0.0.99" not in payload_text
     assert "10.0.0.1" not in payload_text

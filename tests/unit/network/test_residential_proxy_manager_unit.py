@@ -86,7 +86,12 @@ def _clear_residential_proxy_identity(monkeypatch):
 
 def test_proxy_endpoint_url_and_rate_limit(monkeypatch):
     p_with_auth = mod.ProxyEndpoint(
-        id="p1", host="h", port=80, username="u", password="p", max_requests_per_minute=2
+        id="p1",
+        host="h",
+        port=80,
+        username="u",
+        password="p",
+        max_requests_per_minute=2,
     )
     p_without_auth = mod.ProxyEndpoint(id="p2", host="h2", port=81)
     assert p_with_auth.to_url() == "http://u:p@h:80"
@@ -279,6 +284,12 @@ async def test_check_proxy_health_publishes_redacted_eventbus_evidence(
     payload = events[0].data
     assert payload["component"] == "network.residential_proxy_manager"
     assert payload["operation"] == "health_check"
+    assert payload["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in payload["thinking"]["techniques"]
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "residential_proxy_health_check"
+    )
     assert payload["service_name"] == "residential-proxy-manager"
     assert payload["layer"] == "network_residential_proxy_manager_observed_state"
     assert payload["status"] == "health_check_ok"
@@ -390,6 +401,10 @@ async def test_get_proxy_publishes_redacted_selection_evidence(tmp_path, monkeyp
     payload = events[0].data
     assert payload["operation"] == "select_proxy"
     assert payload["status"] == "proxy_selected"
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "residential_proxy_selection"
+    )
     assert payload["success"] is True
     assert payload["target_domain_hash"].startswith("sha256:")
     assert payload["preferred_region_hash"].startswith("sha256:")
@@ -509,6 +524,10 @@ async def test_request_publishes_redacted_attempt_evidence(tmp_path, monkeypatch
     payload = events[0].data
     assert payload["operation"] == "request"
     assert payload["status"] == "response_observed"
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "residential_proxy_request"
+    )
     assert payload["success"] is False
     assert payload["target_domain_hash"].startswith("sha256:")
     assert payload["request"] == {
@@ -558,12 +577,19 @@ async def test_xray_integration_generate_and_update_config(tmp_path: Path, caplo
         json.dumps(
             {
                 "outbounds": [{"tag": "existing"}, {"tag": "residential-old"}],
-                "routing": {"rules": [{"outboundTag": "residential-old"}, {"outboundTag": "existing"}]},
+                "routing": {
+                    "rules": [
+                        {"outboundTag": "residential-old"},
+                        {"outboundTag": "existing"},
+                    ]
+                },
             }
         )
     )
 
-    integration = mod.XrayResidentialIntegration(manager, xray_config_path=str(cfg_path))
+    integration = mod.XrayResidentialIntegration(
+        manager, xray_config_path=str(cfg_path)
+    )
     outbound = integration.generate_xray_outbound(healthy)
     assert outbound["protocol"] == "socks"
     assert outbound["tag"] == "residential-h1"
@@ -571,7 +597,9 @@ async def test_xray_integration_generate_and_update_config(tmp_path: Path, caplo
 
     await integration.update_xray_config(["example.com"])
     payload = json.loads(cfg_path.read_text())
-    res_outbounds = [ob for ob in payload["outbounds"] if ob["tag"].startswith("residential-")]
+    res_outbounds = [
+        ob for ob in payload["outbounds"] if ob["tag"].startswith("residential-")
+    ]
     assert len(res_outbounds) == 3
     assert payload["routing"]["rules"][0]["domain"] == ["example.com"]
 

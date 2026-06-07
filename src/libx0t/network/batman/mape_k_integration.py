@@ -21,6 +21,7 @@ MAPE-K Loop for Batman-adv:
 """
 
 import asyncio
+import hashlib
 import logging
 import re
 import time
@@ -28,6 +29,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Type
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,51 @@ def validate_interface_name(interface: str) -> str:
     if not INTERFACE_NAME_PATTERN.match(interface):
         raise ValueError(f"Invalid interface name (only alphanumeric, underscore, hyphen allowed): {interface}")
     return interface
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_node_ref(value: object) -> Dict[str, Any]:
+    return {"hash": _safe_hash(value), "present": value is not None}
+
+
+def _safe_score_band(value: float) -> str:
+    if value >= 0.8:
+        return "healthy"
+    if value >= 0.5:
+        return "degraded"
+    return "unhealthy"
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_anomaly_summary(anomalies: List["BatmanAnomaly"]) -> Dict[str, Any]:
+    counts: Dict[str, int] = {}
+    affected_hashes: List[str] = []
+    severities: Dict[str, int] = {}
+    for anomaly in anomalies:
+        counts[anomaly.anomaly_type.value] = counts.get(anomaly.anomaly_type.value, 0) + 1
+        severities[anomaly.severity] = severities.get(anomaly.severity, 0) + 1
+        affected_hashes.append(_safe_hash(anomaly.affected_node))
+    return {
+        "count": len(anomalies),
+        "count_bucket": _safe_count_bucket(len(anomalies)),
+        "types": counts,
+        "severities": severities,
+        "affected_hashes": affected_hashes[:10],
+    }
 
 # Import Batman components
 from .health_monitor import (
@@ -175,6 +223,56 @@ class BatmanMAPEKMonitor:
         self.metrics_collector = metrics_collector
         self._last_health_report: Optional[NodeHealthReport] = None
         self._last_metrics: Optional[BatmanMetricsSnapshot] = None
+        node_id = getattr(health_monitor, "node_id", "unknown")
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"batman-mapek-monitor:{_safe_hash(node_id)}",
+            role="monitoring",
+            capabilities=("mape_k", "healing"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "batman_mapek_monitor_init",
+                "goal": "Initialize Batman MAPE-K monitor phase",
+                "signals": {
+                    "node": _safe_node_ref(node_id),
+                    "health_monitor_available": health_monitor is not None,
+                    "metrics_collector_available": metrics_collector is not None,
+                },
+                "safety_boundary": (
+                    "Do not expose raw node ids, interfaces, metrics snapshots, "
+                    "or command output in monitor thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_node_identifiers": True,
+                    "redact_raw_metrics": True,
+                    "preserve_mapek_contract": True,
+                },
+                "safety_boundary": (
+                    "Use only hashes, counts, booleans, statuses, and score bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
     
     async def monitor(self) -> Dict[str, Any]:
         """
@@ -190,6 +288,18 @@ class BatmanMAPEKMonitor:
         # Collect metrics
         metrics = await self.metrics_collector.collect()
         self._last_metrics = metrics
+        self._record_thinking(
+            "batman_mapek_monitor_collected",
+            "Collect health and metrics for MAPE-K analysis",
+            {
+                "node": _safe_node_ref(health_report.node_id),
+                "health_status": health_report.overall_status.value,
+                "health_score_band": _safe_score_band(health_report.overall_score),
+                "check_count": len(health_report.checks),
+                "recommendation_count": len(health_report.recommendations),
+                "metrics_present": metrics is not None,
+            },
+        )
         
         return {
             "health_report": health_report.to_dict(),
@@ -221,6 +331,56 @@ class BatmanMAPEKAnalyzer:
     
     def __init__(self):
         self._anomaly_history: List[BatmanAnomaly] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="batman-mapek-analyzer",
+            role="healing",
+            capabilities=("monitoring", "causal_analysis", "graphsage"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "batman_mapek_analyzer_init",
+                "goal": "Initialize Batman anomaly analysis",
+                "signals": {
+                    "health_threshold": self.HEALTH_SCORE_THRESHOLD,
+                    "latency_threshold_ms": self.LATENCY_THRESHOLD_MS,
+                    "packet_loss_threshold": self.PACKET_LOSS_THRESHOLD,
+                    "link_quality_threshold": self.LINK_QUALITY_THRESHOLD,
+                },
+                "safety_boundary": (
+                    "Do not expose raw affected node identifiers or raw metrics in "
+                    "analysis thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_node_identifiers": True,
+                    "redact_raw_metrics": True,
+                    "preserve_detection_thresholds": True,
+                },
+                "safety_boundary": (
+                    "Use anomaly types, severities, hashes, counts, and bands only."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
     
     def analyze(self, monitoring_data: Dict[str, Any]) -> List[BatmanAnomaly]:
         """
@@ -317,6 +477,23 @@ class BatmanMAPEKAnalyzer:
         self._anomaly_history.extend(anomalies)
         if len(self._anomaly_history) > 100:
             self._anomaly_history = self._anomaly_history[-100:]
+        self._record_thinking(
+            "batman_mapek_analyzed",
+            "Detect Batman anomalies from health and metrics signals",
+            {
+                "health_node": _safe_node_ref(health_report.get("node_id", "unknown")),
+                "health_score_band": _safe_score_band(overall_score),
+                "latency_band": "high"
+                if latency_ms > self.LATENCY_THRESHOLD_MS
+                else "normal",
+                "packet_loss_band": "high"
+                if packet_loss > self.PACKET_LOSS_THRESHOLD
+                else "normal",
+                "link_quality_band": _safe_score_band(avg_link_quality),
+                "anomalies": _safe_anomaly_summary(anomalies),
+                "history_count_bucket": _safe_count_bucket(len(self._anomaly_history)),
+            },
+        )
         
         return anomalies
     
@@ -335,6 +512,51 @@ class BatmanMAPEKPlanner:
     def __init__(self):
         self._plan_history: List[BatmanRecoveryPlan] = []
         self._plan_counter = 0
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="batman-mapek-planner",
+            role="healing",
+            capabilities=("coordinator", "mape_k"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "batman_mapek_planner_init",
+                "goal": "Initialize Batman recovery planning",
+                "signals": {"plan_history_count": 0},
+                "safety_boundary": (
+                    "Do not expose affected node ids or raw anomaly payloads in "
+                    "planning thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_node_identifiers": True,
+                    "preserve_action_order": True,
+                    "deduplicate_recovery_actions": True,
+                },
+                "safety_boundary": (
+                    "Use recovery action names, priorities, counts, and hashes only."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
     
     def plan(self, anomalies: List[BatmanAnomaly]) -> BatmanRecoveryPlan:
         """
@@ -407,6 +629,18 @@ class BatmanMAPEKPlanner:
         self._plan_history.append(plan)
         if len(self._plan_history) > 50:
             self._plan_history = self._plan_history[-50:]
+        self._record_thinking(
+            "batman_mapek_planned",
+            "Select Batman recovery actions for detected anomalies",
+            {
+                "plan": _safe_node_ref(plan_id),
+                "anomalies": _safe_anomaly_summary(anomalies),
+                "actions": [action.value for action in unique_actions],
+                "priority": priority,
+                "estimated_duration_seconds": duration_estimate,
+                "plan_history_count_bucket": _safe_count_bucket(len(self._plan_history)),
+            },
+        )
         
         return plan
     
@@ -426,6 +660,52 @@ class BatmanMAPEKExecutor:
         # Validate interface name to prevent command injection
         self.interface = validate_interface_name(interface)
         self._execution_history: List[Dict[str, Any]] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"batman-mapek-executor:{_safe_hash(self.interface)}",
+            role="healing",
+            capabilities=("zero-trust", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "batman_mapek_executor_init",
+                "goal": "Initialize Batman recovery execution",
+                "signals": {"interface_hash": _safe_hash(self.interface)},
+                "safety_boundary": (
+                    "Do not expose raw interface command output or affected node ids "
+                    "in execution thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_node_identifiers": True,
+                    "redact_command_output": True,
+                    "validate_interface_name": True,
+                    "preserve_execution_contract": True,
+                },
+                "safety_boundary": (
+                    "Use action names, hashes, counts, and success flags only."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
     
     async def execute(self, plan: BatmanRecoveryPlan) -> Dict[str, Any]:
         """
@@ -444,6 +724,16 @@ class BatmanMAPEKExecutor:
             "actions_failed": [],
             "success": True,
         }
+        self._record_thinking(
+            "batman_mapek_execute_started",
+            "Start executing Batman recovery plan",
+            {
+                "plan": _safe_node_ref(plan.plan_id),
+                "action_count": len(plan.actions),
+                "actions": [action.value for action in plan.actions],
+                "priority": plan.priority,
+            },
+        )
         
         for action in plan.actions:
             try:
@@ -466,6 +756,22 @@ class BatmanMAPEKExecutor:
         self._execution_history.append(results)
         if len(self._execution_history) > 50:
             self._execution_history = self._execution_history[-50:]
+        self._record_thinking(
+            "batman_mapek_execute_completed",
+            "Summarize Batman recovery execution",
+            {
+                "plan": _safe_node_ref(plan.plan_id),
+                "success": results["success"],
+                "executed_count": len(results["actions_executed"]),
+                "failed_count": len(results["actions_failed"]),
+                "failed_actions": [
+                    item["action"] for item in results["actions_failed"][:10]
+                ],
+                "execution_history_count_bucket": _safe_count_bucket(
+                    len(self._execution_history)
+                ),
+            },
+        )
         
         return results
     
@@ -491,6 +797,11 @@ class BatmanMAPEKExecutor:
         elif action == BatmanRecoveryAction.ISOLATE_NODE:
             # Check for anomalies before accessing
             if not plan or not plan.anomalies:
+                self._record_thinking(
+                    "batman_mapek_isolate_rejected",
+                    "Reject isolate action without affected anomaly",
+                    {"action": action.value, "plan_present": plan is not None},
+                )
                 return {"status": "error", "message": "No anomalies to isolate node from"}
             return await self._isolate_node(plan.anomalies[0].affected_node)
         
@@ -592,6 +903,11 @@ class BatmanMAPEKExecutor:
     
     async def _isolate_node(self, node_id: str) -> Dict[str, Any]:
         """Isolate a problematic node."""
+        self._record_thinking(
+            "batman_mapek_node_isolated",
+            "Isolate affected Batman node",
+            {"node": _safe_node_ref(node_id)},
+        )
         logger.warning(f"Isolating node: {node_id}")
         return {"status": "success", "message": f"Node {node_id} isolated"}
     
@@ -616,6 +932,15 @@ class BatmanMAPEKExecutor:
     
     async def _escalate(self, plan: BatmanRecoveryPlan) -> Dict[str, Any]:
         """Escalate to human operator."""
+        self._record_thinking(
+            "batman_mapek_escalated",
+            "Escalate Batman recovery plan",
+            {
+                "plan": _safe_node_ref(plan.plan_id),
+                "actions": [action.value for action in plan.actions],
+                "anomalies": _safe_anomaly_summary(plan.anomalies),
+            },
+        )
         logger.critical(
             f"Escalating Batman-adv issues: {[a.value for a in plan.actions]}"
         )
@@ -642,6 +967,51 @@ class BatmanMAPEKKnowledge:
         self._successful_actions: Dict[str, int] = {}
         self._failed_actions: Dict[str, int] = {}
         self._node_health_trends: Dict[str, List[float]] = {}
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="batman-mapek-knowledge",
+            role="healing",
+            capabilities=("monitoring", "causal_analysis"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "batman_mapek_knowledge_init",
+                "goal": "Initialize Batman MAPE-K knowledge store",
+                "signals": {"incident_history_count": 0},
+                "safety_boundary": (
+                    "Do not expose raw node ids or raw incident payloads in "
+                    "knowledge thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_node_identifiers": True,
+                    "preserve_history_contract": True,
+                    "track_action_success_rates": True,
+                },
+                "safety_boundary": (
+                    "Use counts, action names, hashes, success rates, and score bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
     
     def record_incident(
         self,
@@ -669,6 +1039,20 @@ class BatmanMAPEKKnowledge:
         for action_result in execution_result.get("actions_failed", []):
             action = action_result["action"]
             self._failed_actions[action] = self._failed_actions.get(action, 0) + 1
+        self._record_thinking(
+            "batman_mapek_incident_recorded",
+            "Store Batman incident outcome for future planning",
+            {
+                "anomalies": _safe_anomaly_summary(anomalies),
+                "plan": _safe_node_ref(plan.plan_id),
+                "execution_success": execution_result.get("success"),
+                "executed_count": len(execution_result.get("actions_executed", [])),
+                "failed_count": len(execution_result.get("actions_failed", [])),
+                "incident_history_count_bucket": _safe_count_bucket(
+                    len(self._incident_history)
+                ),
+            },
+        )
     
     def record_health_trend(self, node_id: str, health_score: float) -> None:
         """Record health score trend for a node."""
@@ -680,6 +1064,17 @@ class BatmanMAPEKKnowledge:
         # Keep last 100 scores
         if len(self._node_health_trends[node_id]) > 100:
             self._node_health_trends[node_id] = self._node_health_trends[node_id][-100:]
+        self._record_thinking(
+            "batman_mapek_health_trend_recorded",
+            "Store Batman node health trend sample",
+            {
+                "node": _safe_node_ref(node_id),
+                "score_band": _safe_score_band(health_score),
+                "sample_count_bucket": _safe_count_bucket(
+                    len(self._node_health_trends[node_id])
+                ),
+            },
+        )
     
     def get_action_success_rate(self, action: str) -> float:
         """Get success rate for a specific action."""
@@ -735,6 +1130,16 @@ class BatmanMAPEKKnowledge:
             if rate > best_rate:
                 best_rate = rate
                 best_action = action
+        self._record_thinking(
+            "batman_mapek_best_action_selected",
+            "Select historically strongest action for anomaly type",
+            {
+                "anomaly_type": anomaly_type.value,
+                "candidate_actions": [action.value for action in possible_actions],
+                "best_action": best_action.value if best_action else None,
+                "best_rate_band": _safe_score_band(best_rate if best_rate >= 0 else 0),
+            },
+        )
         
         return best_action
     
@@ -775,6 +1180,27 @@ class BatmanMAPEKLoop:
         self.interface = interface
         self.cycle_interval = cycle_interval
         self.auto_heal = auto_heal
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"batman-mapek-loop:{_safe_hash(node_id)}",
+            role="healing",
+            capabilities=("monitoring", "coordinator", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "batman_mapek_loop_init",
+                "goal": "Initialize complete Batman MAPE-K loop",
+                "signals": {
+                    "node": _safe_node_ref(node_id),
+                    "interface_hash": _safe_hash(interface),
+                    "cycle_interval": cycle_interval,
+                    "auto_heal": auto_heal,
+                },
+                "safety_boundary": (
+                    "Do not expose raw node ids, interface command output, or "
+                    "affected node ids in loop thinking context."
+                ),
+            }
+        )
         
         self._running = False
         self._cycle_count = 0
@@ -790,12 +1216,58 @@ class BatmanMAPEKLoop:
         self.knowledge = BatmanMAPEKKnowledge()
         
         logger.info(f"BatmanMAPEKLoop initialized for {node_id}")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_node_identifiers": True,
+                    "redact_raw_metrics": True,
+                    "preserve_mapek_cycle_contract": True,
+                },
+                "safety_boundary": (
+                    "Use only hashes, counts, booleans, statuses, and action names."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "components": {
+                "monitor": self.monitor.get_thinking_status(),
+                "analyzer": self.analyzer.get_thinking_status(),
+                "planner": self.planner.get_thinking_status(),
+                "executor": self.executor.get_thinking_status(),
+                "knowledge": self.knowledge.get_thinking_status(),
+                "health_monitor": self.health_monitor.get_thinking_status(),
+            },
+        }
     
     async def initialize(self) -> None:
         """Initialize the MAPE-K loop."""
         # Perform initial health check
         await self.health_monitor.run_health_checks()
         await self.metrics_collector.collect()
+        self._record_thinking(
+            "batman_mapek_loop_initialized",
+            "Complete initial Batman MAPE-K health and metrics collection",
+            {
+                "node": _safe_node_ref(self.node_id),
+                "interface_hash": _safe_hash(self.interface),
+                "auto_heal": self.auto_heal,
+            },
+        )
         
         logger.info(f"BatmanMAPEKLoop initialized for {self.node_id}")
     
@@ -814,6 +1286,15 @@ class BatmanMAPEKLoop:
             "node_id": self.node_id,
             "started_at": datetime.now().isoformat(),
         }
+        self._record_thinking(
+            "batman_mapek_cycle_started",
+            "Start one Batman MAPE-K control cycle",
+            {
+                "cycle_count_bucket": _safe_count_bucket(self._cycle_count),
+                "node": _safe_node_ref(self.node_id),
+                "auto_heal": self.auto_heal,
+            },
+        )
         
         try:
             # Monitor phase
@@ -843,11 +1324,33 @@ class BatmanMAPEKLoop:
             self.knowledge.record_health_trend(self.node_id, health_score)
             
             cycle_result["success"] = True
+            self._record_thinking(
+                "batman_mapek_cycle_completed",
+                "Complete Batman MAPE-K cycle",
+                {
+                    "cycle_count_bucket": _safe_count_bucket(self._cycle_count),
+                    "success": True,
+                    "anomalies": _safe_anomaly_summary(anomalies),
+                    "auto_heal": self.auto_heal,
+                    "plan_created": bool(anomalies),
+                    "execution_attempted": bool(anomalies and self.auto_heal),
+                    "health_score_band": _safe_score_band(health_score),
+                },
+            )
             
         except Exception as e:
             logger.error(f"MAPE-K cycle error: {e}")
             cycle_result["success"] = False
             cycle_result["error"] = str(e)
+            self._record_thinking(
+                "batman_mapek_cycle_failed",
+                "Capture Batman MAPE-K cycle failure",
+                {
+                    "cycle_count_bucket": _safe_count_bucket(self._cycle_count),
+                    "error_type": type(e).__name__,
+                    "auto_heal": self.auto_heal,
+                },
+            )
         
         cycle_result["completed_at"] = datetime.now().isoformat()
         cycle_result["duration_seconds"] = time.time() - cycle_start
@@ -874,6 +1377,14 @@ class BatmanMAPEKLoop:
     def stop(self) -> None:
         """Stop the MAPE-K loop."""
         self._running = False
+        self._record_thinking(
+            "batman_mapek_loop_stopped",
+            "Stop Batman MAPE-K loop",
+            {
+                "running": self._running,
+                "cycle_count_bucket": _safe_count_bucket(self._cycle_count),
+            },
+        )
     
     def get_status(self) -> Dict[str, Any]:
         """Get current MAPE-K loop status."""

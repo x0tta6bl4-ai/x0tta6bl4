@@ -218,6 +218,35 @@ class TestInit:
         assert o._cilium is None
 
 
+class TestThinkingStatus:
+    def test_profile_loaded(self, orchestrator):
+        thinking_status = orchestrator.get_thinking_status()
+        techniques = set(thinking_status["techniques"])
+        assert thinking_status["profile"]["role"] == "coordinator"
+        assert "reverse_planning" in techniques
+        assert "weighted_decision_matrix" in techniques
+        assert "zero_trust_review" in techniques
+        assert "mape_k" in techniques
+
+    def test_attach_context_redacts_runtime_selectors(self, orchestrator):
+        program_id = "secret-program-id"
+        interface = "secret-iface"
+
+        assert orchestrator.attach_program(program_id, interface=interface) is True
+
+        thinking_status = orchestrator.get_thinking_status()
+        last_context = thinking_status["last_context"]
+        assert last_context["applied"]["framing"]["problem"] == (
+            "ebpf_runtime_orchestration"
+        )
+        constraints = last_context["applied"]["framing"]["constraints"]
+        assert constraints["operation"] == "attach_program"
+        assert constraints["program_id_redacted"] is True
+        assert constraints["interface_redacted"] is True
+        assert program_id not in str(thinking_status)
+        assert interface not in str(thinking_status)
+
+
 # ===========================================================================
 # Lifecycle: start / stop / restart
 # ===========================================================================

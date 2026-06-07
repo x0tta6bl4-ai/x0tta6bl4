@@ -32,6 +32,22 @@ def _daemon(tmp_path, **kwargs):
     return daemon, bus
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "security"
+    assert "zero_trust_review" in techniques
+    assert "stride_threat_modeling" in techniques
+    assert "mape_k" in techniques
+    assert "causal_analysis" in techniques
+    assert "chaos_driven_design" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "pqc_verification_daemon_operation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+
+
 def _valid_event_bytes():
     data = bytearray(PQCVerificationDaemon.EVENT_SIZE)
     session_id = b"secret-session-1"
@@ -63,6 +79,7 @@ def test_bpf_map_init_publishes_redacted_map_evidence(tmp_path):
         hashlib.sha256(b"pqc_verified_sessions").hexdigest(),
     ]
     assert payload["map_names_redacted"] is True
+    _assert_thinking_context(payload)
     assert "pqc_events" not in str(payload)
     assert "pqc_verified_sessions" not in str(payload)
 
@@ -80,6 +97,7 @@ def test_register_public_key_publishes_redacted_evidence(tmp_path):
     assert payload["pubkey_id_hash"] == hashlib.sha256(pubkey_id).hexdigest()
     assert payload["public_key_hash"] == hashlib.sha256(public_key).hexdigest()
     assert payload["identity"]["redacted"] is True
+    _assert_thinking_context(payload)
     assert pubkey_id.decode("utf-8") not in str(payload)
     assert public_key.decode("utf-8") not in str(payload)
 

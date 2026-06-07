@@ -6,11 +6,14 @@ for better block bypass and anonymity.
 """
 
 import logging
+import hashlib
 import os
 import random
 import time
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 from .obfuscation.base import ObfuscationTransport, TransportManager
 from .obfuscation.domain_fronting import DomainFrontingTransport
@@ -31,6 +34,35 @@ logger = logging.getLogger(__name__)
 
 # Environment variable for master key
 OBFUSCATION_MASTER_KEY_ENV = "VPN_OBFUSCATION_MASTER_KEY"
+_SERVICE_AGENT = "libx0t-vpn-obfuscation-manager"
+VPN_OBFUSCATION_MANAGER_CLAIM_BOUNDARY = (
+    "Local libx0t VPN obfuscation manager evidence only. It records method "
+    "selection, rotation, payload-size buckets, local entropy/size metrics, and "
+    "redacted parameter presence; it does not expose payload bytes, SNI/domain "
+    "parameters, master keys, or prove DPI bypass, anonymity, remote reachability, "
+    "packet delivery, provider health, or production traffic use."
+)
+
+
+def _byte_count_bucket(value: Any) -> str:
+    if not isinstance(value, int) or value <= 0:
+        return "zero"
+    if value <= 64:
+        return "tiny"
+    if value <= 512:
+        return "small"
+    if value <= 1500:
+        return "mtu"
+    if value <= 8192:
+        return "chunk"
+    return "large"
+
+
+def _sha256_prefix(value: Any) -> Optional[str]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:16]
 
 
 class ObfuscationMethod(Enum):
@@ -166,24 +198,102 @@ class VPNObfuscationManager:
         else:
             self.stegomesh = None
 
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=_SERVICE_AGENT,
+            role="security",
+            capabilities=("zero-trust", "ops", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+        self._prepare_obfuscation_thinking_context(
+            task_type="libx0t_vpn_obfuscation_initialize",
+            goal="Initialize local obfuscation parameters without exposing secrets.",
+            extra={"master_key_present": bool(self.master_key)},
+        )
+
         logger.info("VPNObfuscationManager initialized")
         logger.debug(f"Initial SNI: {self.current_sni}")
         logger.debug(f"Initial fingerprint: {self.current_fingerprint}")
         logger.debug(f"Initial SpiderX: {self.current_spiderx}")
 
+    def _parameter_presence_metadata(self) -> Dict[str, Any]:
+        return {
+            "sni_present": bool(self.current_sni),
+            "sni_hash": _sha256_prefix(self.current_sni),
+            "fingerprint_present": bool(self.current_fingerprint),
+            "fingerprint_hash": _sha256_prefix(self.current_fingerprint),
+            "spiderx_present": bool(self.current_spiderx),
+            "spiderx_hash": _sha256_prefix(self.current_spiderx),
+            "raw_parameters_redacted": True,
+        }
+
+    def _prepare_obfuscation_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Prepare redacted thinking context for local obfuscation decisions."""
+        context: Dict[str, Any] = {
+            "task_type": task_type,
+            "goal": goal,
+            "method_bucket": self.current_method.value,
+            "rotation_strategy": self.rotation_strategy.value,
+            "rotation_interval_seconds": int(self.rotation_interval),
+            "stegomesh_available": self.stegomesh is not None,
+            "parameter_presence": self._parameter_presence_metadata(),
+            "constraints": {
+                "redact_payload_bytes": True,
+                "redact_master_key": True,
+                "redact_raw_obfuscation_parameters": True,
+                "local_metric_only": True,
+            },
+            "safety_boundary": VPN_OBFUSCATION_MANAGER_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose the shared thinking profile and latest redacted context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "claim_boundary": VPN_OBFUSCATION_MANAGER_CLAIM_BOUNDARY,
+            "payloads_redacted": True,
+            "master_key_redacted": True,
+            "raw_parameters_redacted": True,
+        }
+
     def set_obfuscation_method(self, method: ObfuscationMethod):
         """Set the active obfuscation method."""
         self.current_method = method
+        self._prepare_obfuscation_thinking_context(
+            task_type="libx0t_vpn_obfuscation_method_select",
+            goal="Select local obfuscation method.",
+            extra={"selected_method": method.value},
+        )
         logger.info(f"Obfuscation method changed to: {method.value}")
 
     def set_rotation_strategy(self, strategy: RotationStrategy):
         """Set the parameter rotation strategy."""
         self.rotation_strategy = strategy
+        self._prepare_obfuscation_thinking_context(
+            task_type="libx0t_vpn_obfuscation_rotation_strategy",
+            goal="Select local obfuscation parameter rotation strategy.",
+            extra={"selected_strategy": strategy.value},
+        )
         logger.info(f"Rotation strategy changed to: {strategy.value}")
 
     def set_rotation_interval(self, interval: int):
         """Set rotation interval in seconds."""
         self.rotation_interval = interval
+        self._prepare_obfuscation_thinking_context(
+            task_type="libx0t_vpn_obfuscation_rotation_interval",
+            goal="Set local obfuscation rotation interval.",
+            extra={"selected_interval_seconds": int(interval)},
+        )
         logger.info(f"Rotation interval set to: {interval} seconds")
 
     def _should_rotate(self) -> bool:
@@ -194,6 +304,11 @@ class VPNObfuscationManager:
 
     def rotate_parameters(self):
         """Rotate obfuscation parameters based on strategy."""
+        self._prepare_obfuscation_thinking_context(
+            task_type="libx0t_vpn_obfuscation_parameter_rotation",
+            goal="Rotate local obfuscation parameters without exposing raw values.",
+            extra={"before": self._parameter_presence_metadata()},
+        )
         if self.rotation_strategy == RotationStrategy.RANDOM:
             self.current_sni = random.choice(ROTATING_SNI_OPTIONS)
             self.current_fingerprint = random.choice(ROTATING_FINGERPRINT_OPTIONS)
@@ -218,6 +333,11 @@ class VPNObfuscationManager:
 
         # Update faketls transport with new SNI
         self.faketls = FakeTLSTransport(sni=self.current_sni)
+        self._prepare_obfuscation_thinking_context(
+            task_type="libx0t_vpn_obfuscation_parameter_rotated",
+            goal="Record redacted local obfuscation parameter rotation outcome.",
+            extra={"after": self._parameter_presence_metadata()},
+        )
 
         logger.info("Parameters rotated")
         logger.debug(f"New SNI: {self.current_sni}")
@@ -234,6 +354,14 @@ class VPNObfuscationManager:
         Returns:
             Obfuscated data
         """
+        self._prepare_obfuscation_thinking_context(
+            task_type="libx0t_vpn_obfuscation_encode",
+            goal="Obfuscate a local payload without exposing payload bytes.",
+            extra={
+                "input_size_bucket": _byte_count_bucket(len(data)),
+                "payload_bytes_redacted": True,
+            },
+        )
         # Check if rotation is needed
         if self._should_rotate():
             self.rotate_parameters()
@@ -270,6 +398,14 @@ class VPNObfuscationManager:
         Returns:
             Deobfuscated data
         """
+        self._prepare_obfuscation_thinking_context(
+            task_type="libx0t_vpn_obfuscation_decode",
+            goal="Deobfuscate a local payload without exposing payload bytes.",
+            extra={
+                "input_size_bucket": _byte_count_bucket(len(data)),
+                "payload_bytes_redacted": True,
+            },
+        )
         # Deobfuscate
         if self.current_method == ObfuscationMethod.FAKETLS:
             deobfuscated = self.faketls.deobfuscate(data)
@@ -377,6 +513,15 @@ class VPNObfuscationManager:
         Returns:
             Dictionary of effectiveness metrics
         """
+        self._prepare_obfuscation_thinking_context(
+            task_type="libx0t_vpn_obfuscation_metric_test",
+            goal="Compare local obfuscation metrics without treating them as DPI proof.",
+            extra={
+                "input_size_bucket": _byte_count_bucket(len(data)),
+                "local_metric_only": True,
+                "metrics_scope": "local_entropy_and_size_only",
+            },
+        )
         metrics = {}
 
         # Test each obfuscation method
@@ -434,6 +579,15 @@ class VPNObfuscationManager:
     def optimize_parameters_for_dpi_evasion(self):
         """Optimize parameters for maximum DPI evasion based on test data."""
         # For this implementation, we'll use pre-configured optimal parameters
+        self._prepare_obfuscation_thinking_context(
+            task_type="libx0t_vpn_obfuscation_parameter_optimization",
+            goal="Select local obfuscation parameters from local entropy and size metrics.",
+            extra={
+                "control_action": True,
+                "selection_basis": "local_entropy_minus_size_ratio_only",
+                "dpi_bypass_confirmed": False,
+            },
+        )
         logger.info("Optimizing parameters for DPI evasion...")
 
         # Test various configurations and select best performer

@@ -60,7 +60,7 @@ logging.basicConfig(
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
-DEFAULT_SOCKS_PORT_CANDIDATES = (10918, 10808, 10809, 10924, 40467, 1080, 7890, 7891)
+DEFAULT_SOCKS_PORT_CANDIDATES = (10818, 10918, 10808, 10809, 10924, 40467, 1080)
 VPN_WATCHDOG_SERVICE_NAME = "vpn-watchdog"
 VPN_WATCHDOG_LAYER = "network_vpn_watchdog_observed_state"
 VPN_WATCHDOG_CLAIM_BOUNDARY = (
@@ -280,7 +280,7 @@ def _socks_handshake(host: str, port: int, timeout: float = 1.0) -> bool:
 
 
 VPN_SERVER = os.getenv("VPN_SERVER", "89.125.1.107")
-VPN_PORT = int(os.getenv("VPN_PORT", "39829"))
+VPN_PORT = int(os.getenv("VPN_PORT", "443"))
 SOCKS_HOST = os.getenv("VPN_SOCKS_HOST", "127.0.0.1")
 SOCKS_PORT_CANDIDATES = _parse_ports(
     os.getenv("VPN_SOCKS_PORT"),

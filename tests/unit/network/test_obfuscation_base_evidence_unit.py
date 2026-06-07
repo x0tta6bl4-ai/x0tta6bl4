@@ -62,6 +62,12 @@ def test_transport_create_evidence_redacts_custom_name_and_secret_kwargs(tmp_pat
     assert payload["dataplane_confirmed"] is False
     assert payload["dpi_bypass_confirmed"] is False
     assert payload["bypass_confirmed"] is False
+    assert payload["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in payload["thinking"]["techniques"]
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "obfuscation_transport_created"
+    )
 
     rendered = repr(payload)
     assert "secret-method-name" not in rendered
@@ -95,6 +101,10 @@ def test_transport_create_unknown_evidence_is_blocked_not_bypass_proof(tmp_path)
     assert payload["transport"]["name_bucket"] == "custom"
     assert payload["dataplane_confirmed"] is False
     assert payload["dpi_bypass_confirmed"] is False
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "obfuscation_transport_not_found"
+    )
     assert payload["claim_boundary"]
     assert "secret-missing-method" not in repr(payload)
     assert "raw-password-secret" not in repr(payload)

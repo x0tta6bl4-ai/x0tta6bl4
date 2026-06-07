@@ -21,6 +21,23 @@ def _events(bus):
     )
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "security"
+    assert "zero_trust_review" in techniques
+    assert "stride_threat_modeling" in techniques
+    assert "mape_k" in techniques
+    assert "reverse_planning" in techniques
+    assert "chaos_driven_design" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_loader_implementation_operation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["command_shape"] == payload["command"]
+
+
 def test_detach_verify_ip_link_failure_publishes_redacted_evidence(
     tmp_path, monkeypatch
 ):
@@ -53,6 +70,7 @@ def test_detach_verify_ip_link_failure_publishes_redacted_evidence(
     ).hexdigest()
     assert payload["command"] == ["ip", "link", "show", "dev", "[redacted]"]
     assert payload["identity"]["redacted"] is True
+    _assert_thinking_context(payload)
     assert program_id not in str(payload)
     assert interface not in str(payload)
     assert stderr not in str(payload)
@@ -86,6 +104,7 @@ def test_detach_verify_xdp_attached_publishes_redacted_evidence(
     assert payload["output"]["stdout_sha256"] == hashlib.sha256(
         stdout.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert program_id not in str(payload)
     assert interface not in str(payload)
     assert stdout not in str(payload)

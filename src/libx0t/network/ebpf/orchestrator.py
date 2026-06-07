@@ -18,12 +18,15 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 # Local imports with graceful fallback
 try:
@@ -93,6 +96,12 @@ if TYPE_CHECKING:
     from .performance_monitor import EBPFPerformanceMonitor
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
 
 
 class OrchestratorState(Enum):
@@ -185,10 +194,62 @@ class EBPFOrchestrator:
 
         # Loaded programs tracking
         self._loaded_programs: List[str] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="libx0t-ebpf-runtime-orchestrator",
+            role="coordinator",
+            capabilities=("mape_k", "monitoring", "zero-trust"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         logger.info(
             f"EBPFOrchestrator initialized for interface: {self.config.interface}"
         )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "state": self.state.value,
+            "interface_hash": _safe_hash(self.config.interface),
+            "interface_redacted": True,
+            "loaded_program_count": len(self._loaded_programs),
+            "component_presence": {
+                "loader": self._loader is not None,
+                "probes": self._probes is not None,
+                "metrics_exporter": self._metrics_exporter is not None,
+                "performance_monitor": self._performance_monitor is not None,
+                "cilium": self._cilium is not None,
+                "fallback": self._fallback is not None,
+                "mapek": self._mapek is not None,
+            },
+            "constraints": {
+                "redact_interface_names": True,
+                "redact_program_paths": True,
+                "redact_flow_addresses": True,
+                "status_is_not_dataplane_delivery_proof": True,
+            },
+            "safety_boundary": (
+                "Local eBPF orchestrator state coordinates runtime components; "
+                "it does not by itself prove kernel eBPF attachment, packet "
+                "forwarding, dataplane delivery, or production readiness."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose orchestration thinking state without raw runtime selectors."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     # ==================== Lifecycle Management ====================
 
@@ -200,9 +261,32 @@ class EBPFOrchestrator:
             True if started successfully, False otherwise
         """
         if self.state == OrchestratorState.RUNNING:
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_start",
+                "avoid duplicate eBPF runtime start",
+                {"status": "already_running"},
+            )
             logger.warning("Orchestrator already running")
             return True
 
+        self._record_thinking(
+            "libx0t_ebpf_orchestrator_start",
+            "start local eBPF runtime components with redacted selectors",
+            {
+                "auto_load_programs": self.config.auto_load_programs,
+                "enabled_component_count": sum(
+                    bool(value)
+                    for value in (
+                        self.config.enable_flow_observability,
+                        self.config.enable_metrics_export,
+                        self.config.enable_performance_monitoring,
+                        self.config.enable_dynamic_fallback,
+                        self.config.enable_mapek_integration,
+                        self.config.enable_network_probes,
+                    )
+                ),
+            },
+        )
         self.state = OrchestratorState.STARTING
         self.start_time = time.time()
 
@@ -218,11 +302,21 @@ class EBPFOrchestrator:
             await self._start_background_tasks()
 
             self.state = OrchestratorState.RUNNING
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_start",
+                "record successful local eBPF runtime component startup",
+                {"status": "running"},
+            )
             logger.info("✅ EBPFOrchestrator started successfully")
             return True
 
         except Exception as e:
             self.state = OrchestratorState.ERROR
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_start",
+                "record eBPF runtime startup failure without raw error text",
+                {"status": "error", "error_type": type(e).__name__},
+            )
             logger.error(f"❌ Failed to start orchestrator: {e}")
             return False
 
@@ -234,9 +328,18 @@ class EBPFOrchestrator:
             True if stopped successfully
         """
         if self.state == OrchestratorState.STOPPED:
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_stop",
+                "avoid duplicate eBPF runtime stop",
+                {"status": "already_stopped"},
+            )
             logger.warning("Orchestrator already stopped")
             return True
 
+        self._record_thinking(
+            "libx0t_ebpf_orchestrator_stop",
+            "stop local eBPF runtime components",
+        )
         self.state = OrchestratorState.STOPPING
 
         try:
@@ -247,11 +350,21 @@ class EBPFOrchestrator:
             await self._cleanup_components()
 
             self.state = OrchestratorState.STOPPED
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_stop",
+                "record successful local eBPF runtime component stop",
+                {"status": "stopped"},
+            )
             logger.info("✅ EBPFOrchestrator stopped successfully")
             return True
 
         except Exception as e:
             self.state = OrchestratorState.ERROR
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_stop",
+                "record eBPF runtime stop failure without raw error text",
+                {"status": "error", "error_type": type(e).__name__},
+            )
             logger.error(f"❌ Error stopping orchestrator: {e}")
             return False
 
@@ -527,10 +640,21 @@ class EBPFOrchestrator:
         if start_time is not None:
             uptime = time.time() - start_time
 
+        self._record_thinking(
+            "libx0t_ebpf_orchestrator_status",
+            "summarize local eBPF runtime state without raw interface or paths",
+            {"uptime_present": start_time is not None},
+        )
         return {
             "state": self.state.value,
             "uptime_seconds": uptime,
             "interface": self.config.interface,
+            "interface_hash": _safe_hash(self.config.interface),
+            "interface_redacted_in_thinking": True,
+            "claim_boundary": (
+                "Local eBPF orchestrator status is not proof of kernel attach, "
+                "packet forwarding, dataplane delivery, or production readiness."
+            ),
             "components": self._get_component_statuses(),
             "programs": self._get_program_status(),
             "metrics": self._get_aggregated_metrics(),
@@ -885,6 +1009,14 @@ class EBPFOrchestrator:
                 checks["cilium"] = {"status": "unhealthy", "error": str(e)}
                 health_status = False
 
+        self._record_thinking(
+            "libx0t_ebpf_orchestrator_health_check",
+            "summarize local eBPF component health without dataplane overclaiming",
+            {
+                "healthy": health_status,
+                "check_names": sorted(checks),
+            },
+        )
         return {"healthy": health_status, "state": self.state.value, "checks": checks}
 
 

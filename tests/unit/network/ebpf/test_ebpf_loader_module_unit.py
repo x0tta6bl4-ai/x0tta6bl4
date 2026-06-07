@@ -51,6 +51,23 @@ def _program(name: str, bpf=None, loaded=True):
     return mod.EBPFProgram(name=name, bpf=bpf, program_path=f"{name}.c", loaded=loaded)
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "security"
+    assert "zero_trust_review" in techniques
+    assert "stride_threat_modeling" in techniques
+    assert "mape_k" in techniques
+    assert "reverse_planning" in techniques
+    assert "chaos_driven_design" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_bcc_loader_operation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["program_path_redacted"] is True
+
+
 def test_load_program_stub_when_bcc_missing(monkeypatch):
     monkeypatch.setenv("BCC_STUB_MODE", "true")
     monkeypatch.setattr(mod, "BCC_AVAILABLE", False)
@@ -98,6 +115,7 @@ def test_load_program_stub_publishes_redacted_loader_evidence(monkeypatch, tmp_p
     assert payload["cflags_redacted"] is True
     assert payload["payloads_redacted"] is True
     assert payload["safe_observation"] is True
+    _assert_thinking_context(payload)
     assert program_path not in str(payload)
     assert "example_prog" not in str(payload)
     assert "-DSECRET=1" not in str(payload)
@@ -190,6 +208,30 @@ def test_attach_hook_supported_types_unknown_and_exception(monkeypatch):
     broken_program = _program("broken", bpf=_BrokenBPF(text="x", cflags=[]))
     loader.program_stats[broken_program.name] = {"attached_hooks": []}
     assert loader.attach_hook(broken_program, "sched_switch") is False
+
+
+def test_attach_hook_thinking_status_redacts_selectors(monkeypatch):
+    monkeypatch.setattr(mod, "BCC_AVAILABLE", True)
+    monkeypatch.setattr(mod, "BPF", _FakeBPF)
+
+    loader = mod.EBPFLoader()
+    program = _program("secret-program", bpf=_FakeBPF(text="x", cflags=[]))
+    loader.program_stats[program.name] = {"attached_hooks": [], "events": 0}
+    interface = "secret-iface"
+
+    assert loader.attach_hook(program, "tc", interface=interface, direction="egress")
+
+    thinking_status = loader.get_thinking_status()
+    last_context = thinking_status["last_context"]
+    assert last_context["applied"]["framing"]["problem"] == (
+        "ebpf_bcc_loader_operation"
+    )
+    constraints = last_context["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == "attach_hook"
+    assert constraints["program_name_redacted"] is True
+    assert constraints["interface_redacted"] is True
+    assert program.name not in str(thinking_status)
+    assert interface not in str(thinking_status)
 
 
 def test_detach_hook_paths(monkeypatch):

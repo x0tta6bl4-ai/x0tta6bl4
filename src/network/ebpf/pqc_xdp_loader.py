@@ -13,16 +13,20 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 try:
-    from bcc import BPF
+    from bcc import BPF as _BCCBPF
 
+    BPF: Optional[Any] = _BCCBPF
     BCC_AVAILABLE = True
 except ImportError:
+    BPF = None
     BCC_AVAILABLE = False
 
 from ...security.ebpf_pqc_gateway import get_pqc_gateway
+from .dataplane_logic_contract import DataplaneFormalState, DataplaneLogicContract
 from .loader import EBPFLoader
 
 logger = logging.getLogger(__name__)
@@ -148,6 +152,14 @@ class PQCXDPLoader(EBPFLoader):
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = PQC_XDP_LOADER_SERVICE_NAME
+        self.logic_contract = DataplaneLogicContract(interface=interface)
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "monitoring"),
+            extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
         if not BCC_AVAILABLE:
             self._publish_observation(
@@ -170,6 +182,13 @@ class PQCXDPLoader(EBPFLoader):
             event_project_root=event_project_root,
         )
         self.source_agent = PQC_XDP_LOADER_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "monitoring"),
+            extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+        )
+        self._last_thinking_context = None
 
         self.pqc_gateway = get_pqc_gateway()
         self.pqc_sessions_map = None
@@ -188,6 +207,73 @@ class PQCXDPLoader(EBPFLoader):
         except Exception as exc:
             logger.error("Failed to initialize PQC XDP loader EventBus: %s", exc)
             return None
+
+    def _thinking_coach_or_create(self) -> AgentThinkingCoach:
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            coach = AgentThinkingCoach(
+                agent_id=getattr(self, "source_agent", PQC_XDP_LOADER_SERVICE_NAME),
+                role="security",
+                capabilities=("zero-trust", "monitoring"),
+                extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+            )
+            self.thinking_coach = coach
+        return coach
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "pqc_xdp_loader_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local PQC XDP loader evidence, redacted selectors, "
+                "hashes, counts, formal proof fragments, and bounded metadata; "
+                "do not expose interfaces, program text, session keys, peer IDs, "
+                "stdout, or stderr."
+            ),
+        }
+        self._last_thinking_context = self._thinking_coach_or_create().prepare_task(
+            safe_task
+        )
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose PQC XDP loader thinking state without task secrets."""
+
+        return {
+            **self._thinking_coach_or_create().status(),
+            "last_context": getattr(self, "_last_thinking_context", None),
+        }
+
+    def _logic_contract_or_default(self) -> DataplaneLogicContract:
+        if not hasattr(self, "logic_contract") or self.logic_contract is None:
+            self.logic_contract = DataplaneLogicContract(
+                interface=getattr(self, "interface", "unknown")
+            )
+        return self.logic_contract
+
+    def _redacted_dataplane_proof(self) -> Dict[str, Any]:
+        proof = self._logic_contract_or_default().get_dataplane_proof_fragment()
+        return {
+            "schema": proof.get("schema"),
+            "interface_hash": _hash_value(proof.get("interface")),
+            "interface_redacted": True,
+            "current_state": proof.get("current_state"),
+            "violation_hashes": _key_hashes(proof.get("violations", [])),
+            "violation_count": len(proof.get("violations", [])),
+            "violations_redacted": True,
+            "claim_boundary": proof.get("claim_boundary"),
+        }
 
     def _publish_observation(
         self,
@@ -210,6 +296,21 @@ class PQCXDPLoader(EBPFLoader):
             return None
 
         source_agent = getattr(self, "source_agent", PQC_XDP_LOADER_SERVICE_NAME)
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": read_only,
+                "returncode_present": returncode is not None,
+                "interface_hash": _hash_value(getattr(self, "interface", None)),
+                "interface_redacted": True,
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
         payload: Dict[str, Any] = {
             "component": "network.ebpf.pqc_xdp_loader",
             "stage": stage,
@@ -226,7 +327,9 @@ class PQCXDPLoader(EBPFLoader):
             "observed_state": True,
             "safe_observation": True,
             "safe_actuator": False,
+            "formal_dataplane_proof": self._redacted_dataplane_proof(),
             "parsed_summary": parsed_summary or {},
+            "thinking": thinking,
             "output": _bounded_output_metadata(stdout, stderr),
             "payloads_redacted": True,
             "claim_boundary": PQC_XDP_LOADER_CLAIM_BOUNDARY,
@@ -307,12 +410,20 @@ class PQCXDPLoader(EBPFLoader):
             }
         )
 
+        # Transition to COMPILING
+        self.logic_contract.transition_to(DataplaneFormalState.COMPILING, {})
+        if self.logic_contract.current_state == DataplaneFormalState.LOAD_FAILURE:
+            return
+
         # Compile and load BPF program
         include_path = str(self.programs_dir)
         compile_start = time.monotonic()
         try:
             self.bpf = BPF(text=bpf_text, cflags=[f"-I{include_path}"])
         except Exception as exc:
+            self.logic_contract.transition_to(
+                DataplaneFormalState.LOAD_FAILURE, {"error": str(exc)}
+            )
             self._publish_observation(
                 stage="pqc_xdp_bpf_compile_failed",
                 operation="bcc_compile",
@@ -329,6 +440,10 @@ class PQCXDPLoader(EBPFLoader):
                 },
             )
             raise
+
+        # Transition to STAGED
+        self.logic_contract.transition_to(DataplaneFormalState.STAGED, {})
+
         self._publish_observation(
             stage="pqc_xdp_bpf_compile_succeeded",
             operation="bcc_compile",
@@ -350,6 +465,9 @@ class PQCXDPLoader(EBPFLoader):
             self.pqc_sessions_map = self.bpf.get_table("pqc_sessions")
             self.pqc_stats_map = self.bpf.get_table("pqc_stats")
         except Exception as exc:
+            self.logic_contract.transition_to(
+                DataplaneFormalState.LOAD_FAILURE, {"error": str(exc)}
+            )
             self._publish_observation(
                 stage="pqc_xdp_map_lookup_failed",
                 operation="get_bpf_tables",
@@ -383,12 +501,22 @@ class PQCXDPLoader(EBPFLoader):
             },
         )
 
+        # Transition to ATTACHING (with D1 check)
+        self.logic_contract.transition_to(
+            DataplaneFormalState.ATTACHING, {"bcc_ready": self.bpf is not None}
+        )
+        if self.logic_contract.current_state == DataplaneFormalState.LOAD_FAILURE:
+            return
+
         # Attach XDP program
         attach_start = time.monotonic()
         try:
             fn = self.bpf.load_func("xdp_pqc_verify_prog", BPF.XDP)
             self.bpf.attach_xdp(self.interface, fn, 0)
         except Exception as exc:
+            self.logic_contract.transition_to(
+                DataplaneFormalState.LOAD_FAILURE, {"error": str(exc)}
+            )
             self._publish_observation(
                 stage="pqc_xdp_attach_failed",
                 operation="attach_xdp",
@@ -405,6 +533,12 @@ class PQCXDPLoader(EBPFLoader):
                 },
             )
             raise
+
+        # Final transition to ATTACHED
+        self.logic_contract.transition_to(
+            DataplaneFormalState.ATTACHED, {"map_sync_failed": False}
+        )
+
         self._publish_observation(
             stage="pqc_xdp_attach_succeeded",
             operation="attach_xdp",
@@ -527,7 +661,10 @@ class PQCXDPLoader(EBPFLoader):
                 status="failure",
                 source_mode="bcc-map",
                 start=op_start,
-                parsed_summary={"stats_available": False, "reason": "map_uninitialized"},
+                parsed_summary={
+                    "stats_available": False,
+                    "reason": "map_uninitialized",
+                },
                 extra={
                     "map_name_hash": _hash_value("pqc_stats"),
                     "map_name_redacted": True,
@@ -549,9 +686,7 @@ class PQCXDPLoader(EBPFLoader):
 
         self._publish_observation(
             stage=(
-                "pqc_stats_read_partial"
-                if missing_key
-                else "pqc_stats_read_succeeded"
+                "pqc_stats_read_partial" if missing_key else "pqc_stats_read_succeeded"
             ),
             operation="get_pqc_stats",
             status="success",

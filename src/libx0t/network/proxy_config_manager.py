@@ -25,9 +25,19 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 from .residential_proxy_manager import ProxyEndpoint, ProxyStatus
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "libx0t-proxy-config-manager"
+PROXY_CONFIG_MANAGER_CLAIM_BOUNDARY = (
+    "Local libx0t proxy configuration evidence only. It records schema, path "
+    "name, environment, provider counts, and credential-store state without "
+    "copying provider passwords, JWT secrets, API keys, full paths, or decrypted "
+    "credentials."
+)
 
 
 class Environment(Enum):
@@ -297,6 +307,55 @@ class ProxyConfigManager:
         self._change_handlers: List[Callable] = []
         self._last_hash: str = ""
         self._lock = asyncio.Lock()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=_SERVICE_AGENT,
+            role="security",
+            capabilities=("zero-trust", "ops", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _prepare_config_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        config_path: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Prepare redacted context for local config decisions."""
+        path = Path(config_path or self.config_path)
+        providers = getattr(self.config, "providers", [])
+        context: Dict[str, Any] = {
+            "task_type": task_type,
+            "goal": goal,
+            "environment": self.environment.value,
+            "config_path_name": path.name,
+            "config_exists": path.exists(),
+            "provider_count": len(providers),
+            "enabled_provider_count": sum(
+                1 for provider in providers if getattr(provider, "enabled", False)
+            ),
+            "credential_store_configured": self.credential_store is not None,
+            "constraints": {
+                "validate_schema": True,
+                "encrypt_sensitive_values": True,
+                "do_not_log_credentials": True,
+                "redact_full_paths": True,
+            },
+            "safety_boundary": PROXY_CONFIG_MANAGER_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose the shared thinking profile and latest redacted context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "claim_boundary": PROXY_CONFIG_MANAGER_CLAIM_BOUNDARY,
+        }
 
     def _get_env_config_path(self) -> str:
         """Get environment-specific config path."""
@@ -311,6 +370,11 @@ class ProxyConfigManager:
     async def load(self) -> ProxyInfrastructureConfig:
         """Load configuration from file."""
         config_path = self._get_env_config_path()
+        self._prepare_config_thinking_context(
+            task_type="libx0t_proxy_config_load",
+            goal="Load and validate proxy infrastructure configuration.",
+            config_path=config_path,
+        )
 
         if not os.path.exists(config_path):
             logger.warning(f"Config file not found: {config_path}, using defaults")
@@ -468,6 +532,12 @@ class ProxyConfigManager:
     async def save(self):
         """Save configuration to file."""
         config_path = self._get_env_config_path()
+        self._prepare_config_thinking_context(
+            task_type="libx0t_proxy_config_save",
+            goal="Save proxy configuration while preserving encrypted sensitive values.",
+            config_path=config_path,
+            extra={"write_operation": True},
+        )
 
         # Create backup
         if os.path.exists(config_path):
@@ -499,6 +569,12 @@ class ProxyConfigManager:
     async def _watch_config(self):
         """Watch for configuration file changes."""
         config_path = self._get_env_config_path()
+        self._prepare_config_thinking_context(
+            task_type="libx0t_proxy_config_watch",
+            goal="Watch local proxy configuration for safe hot reload.",
+            config_path=config_path,
+            extra={"change_handler_count": len(self._change_handlers)},
+        )
 
         while self._running:
             try:
@@ -555,6 +631,11 @@ class ProxyConfigManager:
 
     def get_provider_proxies(self) -> List[ProxyEndpoint]:
         """Generate proxy endpoints from provider configurations."""
+        self._prepare_config_thinking_context(
+            task_type="libx0t_proxy_provider_generation",
+            goal="Generate proxy endpoints from provider config without leaking credentials.",
+            extra={"output_contains_credentials": False},
+        )
         proxies = []
 
         for provider in self.config.providers:
@@ -577,6 +658,12 @@ class ProxyConfigManager:
 
     def export_env_file(self, path: str):
         """Export configuration as environment file."""
+        self._prepare_config_thinking_context(
+            task_type="libx0t_proxy_env_export",
+            goal="Export non-secret proxy environment values.",
+            config_path=path,
+            extra={"export_passwords": False},
+        )
         lines = [
             f"PROXY_ENV={self.config.environment.value}",
             f"CONTROL_PLANE_HOST={self.config.control_plane_host}",

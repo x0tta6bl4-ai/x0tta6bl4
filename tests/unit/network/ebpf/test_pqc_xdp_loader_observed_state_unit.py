@@ -32,9 +32,24 @@ def _bare_loader(bus):
     return loader
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "security"
+    assert "zero_trust_review" in techniques
+    assert "stride_threat_modeling" in techniques
+    assert "mape_k" in techniques
+    assert "reverse_planning" in techniques
+    assert "chaos_driven_design" in techniques
+    assert thinking["applied"]["framing"]["problem"] == "pqc_xdp_loader_operation"
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["interface_redacted"] is True
+
+
 @patch("src.network.ebpf.pqc_xdp_loader.BCC_AVAILABLE", True)
 @patch("src.network.ebpf.pqc_xdp_loader.get_pqc_gateway")
-@patch("src.network.ebpf.pqc_xdp_loader.BPF")
+@patch("src.network.ebpf.pqc_xdp_loader.BPF", create=True)
 def test_pqc_xdp_load_attach_publishes_redacted_evidence(
     mock_bpf,
     mock_gateway,
@@ -62,6 +77,7 @@ def test_pqc_xdp_load_attach_publishes_redacted_evidence(
     assert payload["function_name_redacted"] is True
     assert payload["program_path_redacted"] is True
     assert payload["identity"]["redacted"] is True
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert "xdp_pqc_verify_prog" not in str(payload)
     assert "#include" not in str(payload)
@@ -96,6 +112,7 @@ def test_update_pqc_sessions_publishes_redacted_map_evidence(tmp_path):
     assert payload["session_key_hashes"] == [hashlib.sha256(new_key).hexdigest()]
     assert payload["existing_key_hashes"] == [hashlib.sha256(old_key).hexdigest()]
     assert payload["session_values_redacted"] is True
+    _assert_thinking_context(payload)
     assert new_key.hex() not in str(payload)
     assert old_key.hex() not in str(payload)
     assert secret_value not in str(payload)

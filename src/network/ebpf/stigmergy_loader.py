@@ -11,6 +11,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 try:
@@ -112,6 +113,13 @@ class StigmergyBPF:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = EBPF_STIGMERGY_LOADER_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="monitoring",
+            capabilities=("security", "zero-trust", "healing"),
+            extra_techniques=("mape_k", "causal_analysis", "reverse_planning"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
     def _event_bus_or_none(self) -> Optional[EventBus]:
         event_bus = getattr(self, "event_bus", None)
@@ -124,6 +132,58 @@ class StigmergyBPF:
         except Exception as exc:
             logger.error("Failed to initialize eBPF stigmergy loader EventBus: %s", exc)
             return None
+
+    def _thinking_coach_or_create(self) -> AgentThinkingCoach:
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            self.source_agent = getattr(
+                self,
+                "source_agent",
+                EBPF_STIGMERGY_LOADER_SERVICE_NAME,
+            )
+            coach = AgentThinkingCoach(
+                agent_id=self.source_agent,
+                role="monitoring",
+                capabilities=("security", "zero-trust", "healing"),
+                extra_techniques=("mape_k", "causal_analysis", "reverse_planning"),
+            )
+            self.thinking_coach = coach
+        return coach
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_stigmergy_loader_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local eBPF stigmergy loader evidence, hashed "
+                "interface/program/map selectors, counts, and status; do not "
+                "expose raw interface names, program paths, function names, "
+                "route IPs, map names, map keys, or map values."
+            ),
+        }
+        self._last_thinking_context = self._thinking_coach_or_create().prepare_task(
+            safe_task
+        )
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose stigmergy-loader thinking state without task secrets."""
+
+        return {
+            **self._thinking_coach_or_create().status(),
+            "last_context": getattr(self, "_last_thinking_context", None),
+        }
 
     def _publish_observation(
         self,
@@ -145,6 +205,20 @@ class StigmergyBPF:
         source_agent = getattr(
             self, "source_agent", EBPF_STIGMERGY_LOADER_SERVICE_NAME
         )
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": read_only,
+                "interface_hash": _hash_value(getattr(self, "interface", None)),
+                "interface_redacted": True,
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
         payload: Dict[str, Any] = {
             "component": "network.ebpf.stigmergy_loader",
             "stage": stage,
@@ -161,6 +235,7 @@ class StigmergyBPF:
             "safe_observation": True,
             "safe_actuator": False,
             "parsed_summary": parsed_summary or {},
+            "thinking": thinking,
             "output": _bounded_output_metadata(),
             "payloads_redacted": True,
             "claim_boundary": EBPF_STIGMERGY_LOADER_CLAIM_BOUNDARY,

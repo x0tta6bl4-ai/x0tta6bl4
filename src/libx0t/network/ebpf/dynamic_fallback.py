@@ -5,11 +5,20 @@ Automatic reroute triggers based on eBPF latency measurements.
 """
 
 import logging
+import hashlib
 import time
 from collections import deque
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
 
 
 class DynamicFallbackController:
@@ -52,12 +61,76 @@ class DynamicFallbackController:
         # Callbacks
         self.on_fallback_trigger: Optional[Callable] = None
         self.on_fallback_recover: Optional[Callable] = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="libx0t-ebpf-dynamic-fallback",
+            role="healing",
+            capabilities=("mape_k", "network", "zero-trust"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         logger.info(
             f"DynamicFallbackController initialized: "
             f"threshold={latency_threshold_ms}ms, "
             f"duration={spike_duration_ms}ms"
         )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        node_id: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        history = list(self.latency_history.get(node_id, ())) if node_id else []
+        recent = history[-10:]
+        recent_latencies = [
+            float(item.get("latency", 0.0))
+            for item in recent
+            if isinstance(item, dict)
+        ]
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "target_node_hash": _safe_hash(node_id),
+            "target_node_redacted": node_id is not None,
+            "history_count": len(history),
+            "recent_sample_count": len(recent_latencies),
+            "active_fallback": bool(
+                node_id is not None and self.active_fallbacks.get(node_id, False)
+            ),
+            "latency_threshold_ms": self.latency_threshold_ms,
+            "cooldown_seconds": self.cooldown_seconds,
+            "constraints": {
+                "redact_raw_node_ids": True,
+                "fallback_state_is_local_only": True,
+                "does_not_prove_kernel_ebpf_loaded": True,
+                "does_not_prove_mesh_reroute_delivery": True,
+                "mesh_reroute_delivery_proven": False,
+            },
+            "safety_boundary": (
+                "Local eBPF fallback decisions do not prove kernel program load, "
+                "packet forwarding, dataplane delivery, or successful mesh reroute."
+            ),
+        }
+        if recent_latencies:
+            context.update(
+                {
+                    "last_latency_ms": recent_latencies[-1],
+                    "max_recent_latency_ms": max(recent_latencies),
+                    "min_recent_latency_ms": min(recent_latencies),
+                }
+            )
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose fallback thinking state without raw node identifiers."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def update_latency(self, node_id: str, latency_ms: float):
         """
@@ -73,6 +146,12 @@ class DynamicFallbackController:
         self.latency_history[node_id].append(
             {"latency": latency_ms, "timestamp": time.time()}
         )
+        self._record_thinking(
+            "libx0t_ebpf_latency_update",
+            "ingest bounded latency telemetry for fallback decisions",
+            node_id,
+            {"latency_ms": float(latency_ms)},
+        )
 
         # Check for spike
         self._check_spike(node_id)
@@ -84,6 +163,12 @@ class DynamicFallbackController:
 
         history = list(self.latency_history[node_id])
         if len(history) < 10:  # Need minimum samples
+            self._record_thinking(
+                "libx0t_ebpf_fallback_spike_check",
+                "wait for enough samples before fallback decision",
+                node_id,
+                {"status": "insufficient_samples"},
+            )
             return
 
         # Check if recent measurements exceed threshold
@@ -95,11 +180,23 @@ class DynamicFallbackController:
             # Check cooldown
             last_trigger = self.last_fallback_time.get(node_id, 0)
             if time.time() - last_trigger < self.cooldown_seconds:
+                self._record_thinking(
+                    "libx0t_ebpf_fallback_spike_check",
+                    "avoid repeated fallback while cooldown is active",
+                    node_id,
+                    {"status": "cooldown_active", "spike_count": spike_count},
+                )
                 logger.debug(f"Fallback on cooldown for {node_id}")
                 return
 
             # Check if already in fallback
             if self.active_fallbacks.get(node_id, False):
+                self._record_thinking(
+                    "libx0t_ebpf_fallback_spike_check",
+                    "avoid duplicate fallback trigger for active node",
+                    node_id,
+                    {"status": "already_active", "spike_count": spike_count},
+                )
                 logger.debug(f"Fallback already active for {node_id}")
                 return
 
@@ -119,6 +216,16 @@ class DynamicFallbackController:
 
         self.active_fallbacks[node_id] = True
         self.last_fallback_time[node_id] = time.time()
+        self._record_thinking(
+            "libx0t_ebpf_fallback_trigger",
+            "record local fallback trigger without claiming reroute delivery",
+            node_id,
+            {
+                "status": "triggered",
+                "callback_registered": self.on_fallback_trigger is not None,
+                "mesh_reroute_delivery_proven": False,
+            },
+        )
 
         # Call callback if registered
         if self.on_fallback_trigger:
@@ -169,6 +276,15 @@ class DynamicFallbackController:
         logger.info(f"✅ Node {node_id} recovered, exiting fallback")
 
         self.active_fallbacks[node_id] = False
+        self._record_thinking(
+            "libx0t_ebpf_fallback_recover",
+            "record local fallback recovery decision without raw node ID",
+            node_id,
+            {
+                "status": "recovered",
+                "callback_registered": self.on_fallback_recover is not None,
+            },
+        )
 
         # Call callback if registered
         if self.on_fallback_recover:

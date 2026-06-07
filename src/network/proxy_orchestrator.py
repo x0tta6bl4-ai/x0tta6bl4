@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.network.proxy_auth_middleware import (ProxyAuthMiddleware,
                                                create_auth_middleware)
@@ -103,6 +104,13 @@ class ProxyOrchestrator:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.status = OrchestratorStatus(state="initializing")
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=_SERVICE_AGENT,
+            role="ops",
+            capabilities=("monitoring", "zero-trust"),
+            extra_techniques=("mape_k", "weighted_decision_matrix"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         self._shutdown_event = asyncio.Event()
         self._tasks: List[asyncio.Task] = []
@@ -172,6 +180,8 @@ class ProxyOrchestrator:
                 "total": int(self.status.total_requests),
                 "errors": int(self.status.error_count),
             },
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
             "raw_identifiers_redacted": True,
             "claim_boundary": PROXY_ORCHESTRATOR_CLAIM_BOUNDARY,
         }
@@ -204,6 +214,17 @@ class ProxyOrchestrator:
     async def initialize(self):
         """Initialize all components in dependency order."""
         logger.info("Initializing proxy orchestrator...")
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "proxy_orchestrator_initialize",
+                "goal": "Initialize proxy infrastructure components in dependency order.",
+                "constraints": {
+                    "environment": self.environment,
+                    "event_project_root_configured": self.event_project_root is not None,
+                    "preserve_component_order": True,
+                },
+            }
+        )
 
         try:
             # 1. Configuration Manager (foundation)
@@ -301,6 +322,18 @@ class ProxyOrchestrator:
     async def _on_config_change(self, config: ProxyInfrastructureConfig):
         """Handle configuration changes."""
         logger.info("Configuration changed, applying updates...")
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "proxy_orchestrator_config_change",
+                "goal": "Apply proxy configuration changes without leaking provider details.",
+                "constraints": {
+                    "selection_strategy": str(
+                        getattr(config.selection, "strategy", "unchanged")
+                    ),
+                    "raw_provider_ids_redacted": True,
+                },
+            }
+        )
 
         # Update selection algorithm weights
         if self.selection_algorithm:
@@ -413,6 +446,16 @@ class ProxyOrchestrator:
     async def get_health_report(self) -> Dict[str, Any]:
         """Get comprehensive health report."""
         started = time.perf_counter()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "proxy_orchestrator_health_report",
+                "goal": "Build a redacted observed-state proxy health report.",
+                "constraints": {
+                    "payload_redacted": True,
+                    "claim_boundary": PROXY_ORCHESTRATOR_CLAIM_BOUNDARY,
+                },
+            }
+        )
 
         if self.proxy_manager:
             self._refresh_proxy_status_counts()

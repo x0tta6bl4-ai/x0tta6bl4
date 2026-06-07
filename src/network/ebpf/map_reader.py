@@ -13,6 +13,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,13 @@ class EBPFMapReader:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = EBPF_BPFT_TOOL_MAP_READER_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="monitoring",
+            capabilities=("security", "zero-trust"),
+            extra_techniques=("mape_k", "causal_analysis", "reverse_planning"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
         self.bpftool_available = self._check_bpftool()
 
     def _event_bus_or_none(self) -> Optional[EventBus]:
@@ -93,6 +101,58 @@ class EBPFMapReader:
         except Exception as exc:
             logger.error("Failed to initialize eBPF map reader EventBus: %s", exc)
             return None
+
+    def _thinking_coach_or_create(self) -> AgentThinkingCoach:
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            self.source_agent = getattr(
+                self,
+                "source_agent",
+                EBPF_BPFT_TOOL_MAP_READER_SERVICE_NAME,
+            )
+            coach = AgentThinkingCoach(
+                agent_id=self.source_agent,
+                role="monitoring",
+                capabilities=("security", "zero-trust"),
+                extra_techniques=("mape_k", "causal_analysis", "reverse_planning"),
+            )
+            self.thinking_coach = coach
+        return coach
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_bpftool_map_reader_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local bpftool map-reader evidence, hashed map "
+                "selectors, bounded output metadata, counts, and status; do "
+                "not expose raw map names, map data, stdout, stderr, or counter "
+                "values."
+            ),
+        }
+        self._last_thinking_context = self._thinking_coach_or_create().prepare_task(
+            safe_task
+        )
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose bpftool map-reader thinking state without task secrets."""
+
+        return {
+            **self._thinking_coach_or_create().status(),
+            "last_context": getattr(self, "_last_thinking_context", None),
+        }
 
     def _identity_metadata(self) -> Dict[str, Any]:
         identity = service_event_identity(
@@ -124,6 +184,26 @@ class EBPFMapReader:
         selector: str = "",
         extra: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "reason": reason,
+                "backend": "bpftool",
+                "read_only": True,
+                "returncode_present": returncode is not None,
+                "result_count": result_count,
+                "bpftool_available": getattr(self, "bpftool_available", False),
+                "map_selector": selector,
+                "map_name_hash": _hash_value(map_name),
+                "map_id_hash": _hash_value(map_id),
+                "map_selector_redacted": True,
+                "output_redacted": True,
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
         bus = self._event_bus_or_none()
         if bus is None:
             return None
@@ -152,6 +232,7 @@ class EBPFMapReader:
             "read_only": True,
             "observed_state": True,
             "safe_observation": True,
+            "thinking": thinking,
             "claim_boundary": EBPF_BPFT_TOOL_MAP_READER_CLAIM_BOUNDARY,
             "output": _bounded_output_metadata(stdout, stderr),
         }

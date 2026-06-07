@@ -363,6 +363,12 @@ async def test_check_proxy_health_publishes_redacted_eventbus_evidence(
         "did": False,
         "wallet_address": False,
     }
+    assert payload["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in payload["thinking"]["techniques"]
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "geo_proxy_health_check"
+    )
     assert "customer traffic delivery" in payload["claim_boundary"]
     text = str(payload)
     assert "geo-proxy-secret-1" not in text
@@ -454,6 +460,12 @@ async def test_select_proxy_publishes_redacted_failover_evidence(
     assert payload["failover_attempted"] is True
     assert payload["failover_count"] == 1
     assert payload["selected_proxy"]["proxy_id_hash"].startswith("sha256:")
+    assert payload["thinking"]["profile"]["role"] == "security"
+    assert "mape_k" in payload["thinking"]["techniques"]
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "geo_proxy_selected_after_failover"
+    )
     text = str(payload)
     assert "secret.example" not in text
     assert "geo-proxy-secret-west" not in text

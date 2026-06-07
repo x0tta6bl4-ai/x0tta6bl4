@@ -24,9 +24,10 @@ try:
 except ImportError:
     BPF = None  # type: ignore
 
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import REGISTRY, Counter, Gauge, start_http_server
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logging.basicConfig(level=logging.INFO)
@@ -42,14 +43,48 @@ BCC_PROBES_CLAIM_BOUNDARY = (
     "latency correctness, or sustained kernel datapath enforcement."
 )
 
+def _registered_metric(name: str):
+    base_name = name[:-6] if name.endswith("_total") else name
+    candidate_names = {
+        name,
+        base_name,
+        f"{base_name}_total",
+        f"{base_name}_created",
+    }
+    for candidate in candidate_names:
+        collector = REGISTRY._names_to_collectors.get(candidate)
+        if collector is not None:
+            return collector
+    for collector in set(REGISTRY._names_to_collectors.values()):
+        if getattr(collector, "_name", None) in {name, base_name}:
+            return collector
+    return None
+
+
+def _get_or_create_metric(metric_class, name: str, description: str, labels: List[str]):
+    existing = _registered_metric(name)
+    if existing is not None:
+        return existing
+    try:
+        return metric_class(name, description, labels)
+    except ValueError:
+        existing = _registered_metric(name)
+        if existing is not None:
+            return existing
+        raise
+
+
 # Prometheus metrics
-PACKET_LATENCY = Gauge(
+PACKET_LATENCY = _get_or_create_metric(
+    Gauge,
     "mesh_packet_latency_ns", "Packet latency in nanoseconds", ["interface"]
 )
-QUEUE_CONGESTION = Gauge(
+QUEUE_CONGESTION = _get_or_create_metric(
+    Gauge,
     "mesh_queue_congestion", "Queue congestion level", ["interface"]
 )
-PACKET_DROPS = Counter(
+PACKET_DROPS = _get_or_create_metric(
+    Counter,
     "mesh_packet_drops_total", "Total packet drops", ["interface", "reason"]
 )
 
@@ -131,6 +166,13 @@ class MeshNetworkProbes:
         self.running = False
         self.latency_bpf = None
         self.congestion_bpf = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="monitoring",
+            capabilities=("security", "zero-trust"),
+            extra_techniques=("mape_k", "causal_analysis", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
         # Current metrics
         self.current_latency = 0.0
@@ -191,6 +233,52 @@ class MeshNetworkProbes:
             logger.error("Failed to initialize BCC probes EventBus: %s", exc)
             return None
 
+    def _thinking_coach_or_create(self) -> AgentThinkingCoach:
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            coach = AgentThinkingCoach(
+                agent_id=getattr(self, "source_agent", BCC_PROBES_SERVICE_NAME),
+                role="monitoring",
+                capabilities=("security", "zero-trust"),
+                extra_techniques=("mape_k", "causal_analysis", "chaos_driven_design"),
+            )
+            self.thinking_coach = coach
+        return coach
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_bcc_probe_observation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local BCC probe evidence, redacted selectors, "
+                "hashes, counts, and bounded metadata; do not expose interface "
+                "names, BPF source, trace lines, stdout, or stderr."
+            ),
+        }
+        self._last_thinking_context = self._thinking_coach_or_create().prepare_task(
+            safe_task
+        )
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose BCC probe thinking state without task secrets."""
+
+        return {
+            **self._thinking_coach_or_create().status(),
+            "last_context": getattr(self, "_last_thinking_context", None),
+        }
+
     def _publish_observation(
         self,
         *,
@@ -210,6 +298,21 @@ class MeshNetworkProbes:
             return None
 
         source_agent = getattr(self, "source_agent", BCC_PROBES_SERVICE_NAME)
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": read_only,
+                "returncode_present": returncode is not None,
+                "interface_hash": _hash_value(getattr(self, "interface", None)),
+                "interface_redacted": True,
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
         payload: Dict[str, Any] = {
             "component": "network.ebpf.bcc_probes",
             "stage": stage,
@@ -227,6 +330,7 @@ class MeshNetworkProbes:
             "safe_observation": True,
             "safe_actuator": False,
             "parsed_summary": parsed_summary or {},
+            "thinking": thinking,
             "output": _bounded_output_metadata(),
             "payloads_redacted": True,
             "claim_boundary": BCC_PROBES_CLAIM_BOUNDARY,

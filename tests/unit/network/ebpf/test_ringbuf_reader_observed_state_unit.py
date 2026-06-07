@@ -14,6 +14,24 @@ def _events(bus):
     )
 
 
+def _assert_thinking_context(payload, problem):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "monitoring"
+    assert "mape_k" in techniques
+    assert "mind_maps" in techniques
+    assert "graphsage" in techniques
+    assert "causal_analysis" in techniques
+    assert "zero_trust_review" in techniques
+    assert "reverse_planning" in techniques
+    assert thinking["applied"]["framing"]["problem"] == problem
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["stage"] == payload["stage"]
+    assert constraints["read_only"] is True
+    assert "extra_keys" in constraints
+
+
 def test_read_via_bpftool_success_publishes_redacted_map_check_evidence(tmp_path):
     bus = EventBus(project_root=str(tmp_path))
     map_name = "secret_ringbuf_map"
@@ -48,6 +66,7 @@ def test_read_via_bpftool_success_publishes_redacted_map_check_evidence(tmp_path
     assert payload["output"]["stdout_sha256"] == hashlib.sha256(
         stdout.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload, "ebpf_ringbuf_reader_operation")
     assert map_name not in str(payload)
     assert stdout not in str(payload)
 
@@ -72,6 +91,7 @@ def test_read_via_bpftool_not_found_redacts_stderr(tmp_path):
     assert payload["output"]["stderr_sha256"] == hashlib.sha256(
         stderr.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload, "ebpf_ringbuf_reader_operation")
     assert map_name not in str(payload)
     assert stderr not in str(payload)
 
@@ -89,6 +109,7 @@ def test_read_via_bcc_unavailable_publishes_empty_evidence(monkeypatch, tmp_path
     assert payload["status"] == "empty"
     assert payload["backend"] == "bcc"
     assert payload["bcc_available"] is False
+    _assert_thinking_context(payload, "ebpf_ringbuf_reader_operation")
     assert map_name not in str(payload)
 
 
@@ -135,6 +156,7 @@ def test_read_via_bcc_handler_failure_redacts_event_payload(
     ).hexdigest()
     assert failure_payload["event_size_bytes"] == struct.calcsize("IIHBBQ")
     assert failure_payload["cpu_id"] == 7
+    _assert_thinking_context(failure_payload, "ebpf_ringbuf_reader_operation")
     assert "secret_live_ringbuf" not in str(failure_payload)
     assert event_type not in str(failure_payload)
     assert "secret handler failure" not in str(failure_payload)
@@ -156,5 +178,6 @@ def test_perf_event_callback_publishes_redacted_event_evidence(tmp_path):
     ).hexdigest()
     assert payload["event_size_bytes"] == 21
     assert payload["cpu_id"] == 3
+    _assert_thinking_context(payload, "ebpf_perf_event_reader_operation")
     assert event_type not in str(payload)
     assert "secret raw perf bytes" not in str(payload)

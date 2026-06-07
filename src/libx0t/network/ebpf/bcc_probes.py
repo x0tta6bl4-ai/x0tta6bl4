@@ -16,22 +16,56 @@ import logging
 import signal
 import sys
 import time
-from typing import Dict
+from typing import Dict, List
 
 from bcc import BPF
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import REGISTRY, Counter, Gauge, start_http_server
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def _registered_metric(name: str):
+    base_name = name[:-6] if name.endswith("_total") else name
+    candidate_names = {
+        name,
+        base_name,
+        f"{base_name}_total",
+        f"{base_name}_created",
+    }
+    for candidate in candidate_names:
+        collector = REGISTRY._names_to_collectors.get(candidate)
+        if collector is not None:
+            return collector
+    for collector in set(REGISTRY._names_to_collectors.values()):
+        if getattr(collector, "_name", None) in {name, base_name}:
+            return collector
+    return None
+
+
+def _get_or_create_metric(metric_class, name: str, description: str, labels: List[str]):
+    existing = _registered_metric(name)
+    if existing is not None:
+        return existing
+    try:
+        return metric_class(name, description, labels)
+    except ValueError:
+        existing = _registered_metric(name)
+        if existing is not None:
+            return existing
+        raise
+
+
 # Prometheus metrics
-PACKET_LATENCY = Gauge(
+PACKET_LATENCY = _get_or_create_metric(
+    Gauge,
     "mesh_packet_latency_ns", "Packet latency in nanoseconds", ["interface"]
 )
-QUEUE_CONGESTION = Gauge(
+QUEUE_CONGESTION = _get_or_create_metric(
+    Gauge,
     "mesh_queue_congestion", "Queue congestion level", ["interface"]
 )
-PACKET_DROPS = Counter(
+PACKET_DROPS = _get_or_create_metric(
+    Counter,
     "mesh_packet_drops_total", "Total packet drops", ["interface", "reason"]
 )
 

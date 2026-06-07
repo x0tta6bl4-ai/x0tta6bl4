@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,13 @@ OBFUSCATION_TRANSPORT_CLAIM_BOUNDARY = (
     "bypass, remote reachability, packet delivery, provider health, client "
     "installation, or production customer traffic use."
 )
+_TRANSPORT_THINKING_COACH = AgentThinkingCoach(
+    agent_id=_SERVICE_AGENT,
+    role="security",
+    capabilities=("zero-trust", "ops", "network"),
+    extra_techniques=("weighted_decision_matrix",),
+)
+_LAST_TRANSPORT_THINKING_CONTEXT: Dict[str, Any] = {}
 
 
 def _sha256_text(value: Any) -> Optional[str]:
@@ -100,6 +108,54 @@ def _constructor_kwargs_metadata(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _prepare_transport_thinking_context(
+    *,
+    task_type: str,
+    goal: str,
+    name: str = "",
+    transport_class: Any = None,
+    constructor_kwargs: Optional[Dict[str, Any]] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    global _LAST_TRANSPORT_THINKING_CONTEXT
+    safe_kwargs = constructor_kwargs or {}
+    context: Dict[str, Any] = {
+        "task_type": task_type,
+        "goal": goal,
+        "transport": {
+            "name_bucket": _transport_name_bucket(name),
+            "name_hash": _sha256_text(name),
+            "class_hash": _sha256_text(
+                f"{getattr(transport_class, '__module__', '')}."
+                f"{getattr(transport_class, '__qualname__', '')}"
+            ),
+            "registered_transport_count": len(TransportManager._transports),
+            "raw_name_redacted": True,
+            "raw_class_name_redacted": True,
+        },
+        "constructor": _constructor_kwargs_metadata(safe_kwargs),
+        "constraints": {
+            "redact_constructor_values": True,
+            "redact_secret_material": True,
+            "redact_network_selectors": True,
+            "local_factory_only": True,
+        },
+        "safety_boundary": OBFUSCATION_TRANSPORT_CLAIM_BOUNDARY,
+    }
+    if extra:
+        context.update(extra)
+    _LAST_TRANSPORT_THINKING_CONTEXT = _TRANSPORT_THINKING_COACH.prepare_task(context)
+    return _LAST_TRANSPORT_THINKING_CONTEXT
+
+
+def get_transport_thinking_status() -> Dict[str, Any]:
+    return {
+        "thinking": _TRANSPORT_THINKING_COACH.status(),
+        "last_thinking_context": _LAST_TRANSPORT_THINKING_CONTEXT,
+        "claim_boundary": OBFUSCATION_TRANSPORT_CLAIM_BOUNDARY,
+    }
+
+
 def _publish_transport_evidence(
     *,
     event_bus: Optional[EventBus],
@@ -138,6 +194,8 @@ def _publish_transport_evidence(
         },
         "constructor": _constructor_kwargs_metadata(constructor_kwargs),
         "service_identity": _identity_evidence(),
+        "thinking": _TRANSPORT_THINKING_COACH.status(),
+        "last_thinking_context": _LAST_TRANSPORT_THINKING_CONTEXT,
         "raw_identifiers_redacted": True,
         "payloads_redacted": True,
         "dataplane_confirmed": False,
@@ -191,6 +249,12 @@ class TransportManager:
 
     @classmethod
     def register(cls, name: str, transport_class):
+        _prepare_transport_thinking_context(
+            task_type="obfuscation_transport_register",
+            goal="Register local obfuscation transport class without exposing constructor secrets.",
+            name=name,
+            transport_class=transport_class,
+        )
         cls._transports[name] = transport_class
 
     @classmethod
@@ -199,6 +263,13 @@ class TransportManager:
         started_at = time.monotonic()
         transport_class = cls._transports.get(name)
         if transport_class is None:
+            _prepare_transport_thinking_context(
+                task_type="obfuscation_transport_not_found",
+                goal="Record missing obfuscation transport without exposing requested name.",
+                name=name,
+                transport_class=None,
+                constructor_kwargs=kwargs,
+            )
             _publish_transport_evidence(
                 event_bus=event_bus,
                 name=name,
@@ -211,8 +282,23 @@ class TransportManager:
             return None
 
         try:
+            _prepare_transport_thinking_context(
+                task_type="obfuscation_transport_create",
+                goal="Create a registered obfuscation transport with redacted constructor metadata.",
+                name=name,
+                transport_class=transport_class,
+                constructor_kwargs=kwargs,
+            )
             transport = transport_class(**kwargs)
         except Exception as exc:
+            _prepare_transport_thinking_context(
+                task_type="obfuscation_transport_create_failed",
+                goal="Record obfuscation transport constructor failure with redacted metadata.",
+                name=name,
+                transport_class=transport_class,
+                constructor_kwargs=kwargs,
+                extra={"error_type": type(exc).__name__},
+            )
             _publish_transport_evidence(
                 event_bus=event_bus,
                 name=name,
@@ -225,6 +311,13 @@ class TransportManager:
             )
             raise
 
+        _prepare_transport_thinking_context(
+            task_type="obfuscation_transport_created",
+            goal="Record created obfuscation transport with redacted constructor metadata.",
+            name=name,
+            transport_class=transport_class,
+            constructor_kwargs=kwargs,
+        )
         _publish_transport_evidence(
             event_bus=event_bus,
             name=name,
@@ -235,3 +328,7 @@ class TransportManager:
             constructor_kwargs=kwargs,
         )
         return transport
+
+    @classmethod
+    def get_thinking_status(cls) -> Dict[str, Any]:
+        return get_transport_thinking_status()

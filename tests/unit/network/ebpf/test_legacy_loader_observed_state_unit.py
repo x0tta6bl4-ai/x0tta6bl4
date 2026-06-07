@@ -22,6 +22,25 @@ def _events(bus):
     )
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "security"
+    assert "stride_threat_modeling" in techniques
+    assert "zero_trust_review" in techniques
+    assert "mape_k" in techniques
+    assert "causal_analysis" in techniques
+    assert "reverse_planning" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_legacy_loader_operation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["stage"] == payload["stage"]
+    assert constraints["output_redacted"] is True
+    assert "extra_keys" in constraints
+
+
 def test_bpftool_load_success_publishes_redacted_evidence(tmp_path):
     loader, bus = _loader(tmp_path)
     program_path = tmp_path / "secret_xdp_prog.o"
@@ -61,6 +80,7 @@ def test_bpftool_load_success_publishes_redacted_evidence(tmp_path):
     assert payload["output"]["stdout_sha256"] == hashlib.sha256(
         load_stdout.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert str(program_path) not in str(payload)
     assert pinned_path not in str(payload)
     assert load_stdout not in str(payload)
@@ -93,6 +113,7 @@ def test_bpftool_verify_attachment_publishes_redacted_evidence(
     assert payload["output"]["stdout_sha256"] == hashlib.sha256(
         stdout.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert stdout not in str(payload)
 
@@ -128,6 +149,7 @@ def test_get_stats_publishes_redacted_map_read_evidence(tmp_path, monkeypatch):
     assert payload["output"]["stdout_sha256"] == hashlib.sha256(
         stdout.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert "packet_stats" not in str(payload)
     assert "secret stats payload" not in str(payload)
 
@@ -174,6 +196,7 @@ def test_update_routes_publishes_redacted_route_update_evidence(
     assert payload["output"]["stdout_sha256"] == hashlib.sha256(
         stdout.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert dest_ip not in str(payload)
     assert next_hop not in str(payload)
     assert stdout not in str(payload)
@@ -220,6 +243,7 @@ def test_xdp_program_attach_publishes_redacted_ip_link_evidence(
     assert payload["output"]["stdout_sha256"] == hashlib.sha256(
         stdout.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert interface not in str(payload)
     assert program_source not in str(payload)
     assert stdout not in str(payload)

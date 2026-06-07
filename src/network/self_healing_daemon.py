@@ -18,7 +18,7 @@ from typing import Any, Optional
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.services.service_event_identity import service_event_identity
 
-DEFAULT_SOCKS_PORT_CANDIDATES = (10918, 10808, 10809, 10924, 40467, 1080, 7890, 7891)
+DEFAULT_SOCKS_PORT_CANDIDATES = (10818, 10918, 10808, 10809, 10924, 40467, 1080)
 NETWORK_SELF_HEALING_DAEMON_SERVICE_NAME = "network-self-healing-daemon"
 NETWORK_SELF_HEALING_DAEMON_LAYER = "network_self_healing_daemon_observed_state"
 NETWORK_SELF_HEALING_DAEMON_CLAIM_BOUNDARY = (

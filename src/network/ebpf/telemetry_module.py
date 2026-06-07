@@ -69,6 +69,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -502,6 +503,14 @@ class MapReader:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = EBPF_TELEMETRY_MODULE_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="monitoring",
+            capabilities=("security", "zero-trust"),
+            extra_techniques=("mape_k", "causal_analysis", "reverse_planning"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
+        self._thinking_lock = threading.Lock()
         self.bpftool_available = self._check_bpftool()
         self.cache: Dict[str, Tuple[float, Any]] = {}
         self.cache_ttl = 0.5  # seconds
@@ -510,6 +519,62 @@ class MapReader:
 
     def _event_bus_or_none(self) -> Optional[EventBus]:
         return self.event_bus
+
+    def _thinking_coach_or_create(self) -> AgentThinkingCoach:
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            self.source_agent = getattr(
+                self,
+                "source_agent",
+                EBPF_TELEMETRY_MODULE_SERVICE_NAME,
+            )
+            coach = AgentThinkingCoach(
+                agent_id=self.source_agent,
+                role="monitoring",
+                capabilities=("security", "zero-trust"),
+                extra_techniques=("mape_k", "causal_analysis", "reverse_planning"),
+            )
+            self.thinking_coach = coach
+        return coach
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_telemetry_map_reader_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local eBPF telemetry map-reader evidence, command "
+                "shapes, hashes, counts, and status; do not expose raw map names, "
+                "map keys, map values, stdout, stderr, or BCC objects."
+            ),
+        }
+        lock = getattr(self, "_thinking_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._thinking_lock = lock
+        with lock:
+            self._last_thinking_context = self._thinking_coach_or_create().prepare_task(
+                safe_task
+            )
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose telemetry map-reader thinking state without task secrets."""
+
+        return {
+            **self._thinking_coach_or_create().status(),
+            "last_context": getattr(self, "_last_thinking_context", None),
+        }
 
     def _publish_observation(
         self,
@@ -524,6 +589,19 @@ class MapReader:
         error: Optional[BaseException] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": True,
+                "returncode_present": returncode is not None,
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
         bus = self._event_bus_or_none()
         if bus is None:
             return None
@@ -546,6 +624,7 @@ class MapReader:
             "safe_actuator": False,
             "payloads_redacted": True,
             "parsed_summary": parsed_summary or {},
+            "thinking": thinking,
             "claim_boundary": EBPF_TELEMETRY_MODULE_CLAIM_BOUNDARY,
         }
         if error is not None:

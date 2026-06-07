@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 
@@ -710,6 +711,13 @@ class EBPFMetricsExporter:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = EBPF_METRICS_EXPORTER_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="monitoring",
+            capabilities=("security", "zero-trust"),
+            extra_techniques=("mape_k", "causal_analysis", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
         # Metric validation and sanitization
         self.sanitizer = MetricSanitizer()
@@ -737,6 +745,38 @@ class EBPFMetricsExporter:
             self.slog.error("Failed to initialize eBPF metrics EventBus", error=exc)
             return None
 
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_metrics_export",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local eBPF metrics evidence, redacted map "
+                "selectors, hashes, result shapes, and bounded output metadata; "
+                "do not expose map names, map payloads, stdout, or stderr."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose metrics-exporter thinking state without task secrets."""
+
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
+
     def _publish_bpftool_observation(
         self,
         *,
@@ -758,6 +798,23 @@ class EBPFMetricsExporter:
         if bus is None:
             return None
 
+        thinking = self._record_thinking_context(
+            operation="read_map_via_bpftool",
+            goal=f"read_map_via_bpftool:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "reason": reason,
+                "backend": "bpftool",
+                "map_name_hash": _hash_value(map_name),
+                "map_name_redacted": True,
+                "map_id_hash": _hash_value(map_id),
+                "map_id_redacted": map_id is not None,
+                "show_returncode_present": show_returncode is not None,
+                "dump_returncode_present": dump_returncode is not None,
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
         payload: Dict[str, Any] = {
             "component": "network.ebpf.metrics_exporter",
             "stage": stage,
@@ -782,6 +839,7 @@ class EBPFMetricsExporter:
             "read_only": True,
             "observed_state": True,
             "safe_observation": True,
+            "thinking": thinking,
             "claim_boundary": EBPF_METRICS_EXPORTER_CLAIM_BOUNDARY,
             "show_output": _bounded_output_metadata(show_stdout, show_stderr),
             "dump_output": _bounded_output_metadata(dump_stdout, dump_stderr),

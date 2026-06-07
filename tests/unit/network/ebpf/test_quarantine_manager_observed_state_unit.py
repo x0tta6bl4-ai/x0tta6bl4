@@ -59,11 +59,18 @@ def test_software_fallback_block_publishes_redacted_evidence(tmp_path):
     payload = _stage_payload(bus, "quarantine_block_software_succeeded")
     assert payload["operation"] == "block_node"
     assert payload["status"] == "success"
+    assert payload["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in payload["thinking"]["techniques"]
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "ebpf_pqc_quarantine_observation"
+    )
     assert payload["read_only"] is False
     assert payload["parsed_summary"] == {"blocked": True, "mode": "software"}
-    assert payload["ip_address_hash"] == hashlib.sha256(
-        ip_address.encode("utf-8")
-    ).hexdigest()
+    assert (
+        payload["ip_address_hash"]
+        == hashlib.sha256(ip_address.encode("utf-8")).hexdigest()
+    )
     assert payload["identity"]["redacted"] is True
     assert ip_address not in str(payload)
     assert "secret0" not in str(payload)
@@ -75,22 +82,27 @@ def test_pqc_failure_threshold_publishes_redacted_quarantine_trigger(tmp_path):
     ip_address = "10.1.2.4"
     reason = "secret-invalid-signature"
 
-    assert manager.record_pqc_verification_result(peer_id, ip_address, False, reason) is False
-    assert manager.record_pqc_verification_result(peer_id, ip_address, False, reason) is True
+    assert (
+        manager.record_pqc_verification_result(peer_id, ip_address, False, reason)
+        is False
+    )
+    assert (
+        manager.record_pqc_verification_result(peer_id, ip_address, False, reason)
+        is True
+    )
 
     trigger = _stage_payload(bus, "pqc_quarantine_threshold_triggered")
     assert trigger["operation"] == "record_pqc_verification_result"
     assert trigger["parsed_summary"]["failure_count"] == 2
     assert trigger["parsed_summary"]["quarantine_triggered"] is True
-    assert trigger["peer_id_hash"] == hashlib.sha256(
-        peer_id.encode("utf-8")
-    ).hexdigest()
-    assert trigger["reason_hash"] == hashlib.sha256(
-        reason.encode("utf-8")
-    ).hexdigest()
-    assert trigger["ip_address_hash"] == hashlib.sha256(
-        ip_address.encode("utf-8")
-    ).hexdigest()
+    assert (
+        trigger["peer_id_hash"] == hashlib.sha256(peer_id.encode("utf-8")).hexdigest()
+    )
+    assert trigger["reason_hash"] == hashlib.sha256(reason.encode("utf-8")).hexdigest()
+    assert (
+        trigger["ip_address_hash"]
+        == hashlib.sha256(ip_address.encode("utf-8")).hexdigest()
+    )
     assert peer_id not in str(trigger)
     assert reason not in str(trigger)
     assert ip_address not in str(trigger)
@@ -111,9 +123,10 @@ def test_xdp_block_unblock_cleanup_publish_redacted_map_evidence(tmp_path):
     block_payload = _stage_payload(bus, "quarantine_block_xdp_succeeded")
     assert block_payload["source_mode"] == "bcc-map"
     assert block_payload["map_name_redacted"] is True
-    assert block_payload["ip_address_hash"] == hashlib.sha256(
-        ip_address.encode("utf-8")
-    ).hexdigest()
+    assert (
+        block_payload["ip_address_hash"]
+        == hashlib.sha256(ip_address.encode("utf-8")).hexdigest()
+    )
     assert ip_address not in str(block_payload)
 
     unblock_payload = _stage_payload(bus, "quarantine_unblock_xdp_succeeded")
@@ -137,9 +150,10 @@ def test_invalid_ip_publishes_redacted_failure(tmp_path):
     payload = _stage_payload(bus, "quarantine_block_invalid_ip")
     assert payload["status"] == "failure"
     assert payload["error"]["type"] == "OSError"
-    assert payload["ip_address_hash"] == hashlib.sha256(
-        ip_address.encode("utf-8")
-    ).hexdigest()
+    assert (
+        payload["ip_address_hash"]
+        == hashlib.sha256(ip_address.encode("utf-8")).hexdigest()
+    )
     assert ip_address not in str(payload)
 
 

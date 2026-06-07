@@ -12,7 +12,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 # Security Integration
 try:
@@ -82,6 +82,7 @@ except ImportError:
     STEGO_MESH_AVAILABLE = False
 
 # Geo-Fencing Integration
+from src.core.agent_thinking import AgentThinkingCoach
 from src.network.geofencing import GeoFencer
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,42 @@ except ImportError:
     BATMAN_OPTIMIZATIONS_AVAILABLE = False
     BatmanAdvOptimizations = None  # type: ignore
     BatmanAdvConfig = None  # type: ignore
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_node_ref(value: object) -> Dict[str, Any]:
+    return {"hash": _safe_hash(value), "present": value is not None}
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_metric_band(value: float, warn: float, critical: float) -> str:
+    if value < warn:
+        return "normal"
+    if value < critical:
+        return "warning"
+    return "critical"
+
+
+def _address_family(address: str) -> str:
+    if ":" in str(address):
+        return "ipv6"
+    if "." in str(address):
+        return "ipv4"
+    return "unknown"
 
 
 class AttestationStrategy(Enum):
@@ -157,6 +194,28 @@ class NodeManager:
         self.stego_mimic = os.getenv("STEGO_MIMIC_PROTOCOL", "http")
         self.stego_protocol = None
         self.active_protocol = "standard" # "standard" or "stego"
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"batman-node-manager:{_safe_hash(local_node_id)}",
+            role="healing",
+            capabilities=("monitoring", "zero-trust", "coordinator"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "batman_node_manager_init",
+                "goal": "Initialize mesh node lifecycle decisions safely",
+                "signals": {
+                    "mesh_hash": _safe_hash(mesh_id),
+                    "local_node": _safe_node_ref(local_node_id),
+                    "traffic_profile": traffic_profile,
+                    "optimizations_requested": enable_optimizations,
+                    "restricted_country_count": len(restricted_countries or []),
+                },
+                "safety_boundary": (
+                    "Keep node identifiers, addresses, certificates, and tokens out "
+                    "of thinking telemetry."
+                ),
+            }
+        )
         
         # Geo-Fencing
         self.geofencer = GeoFencer(set(restricted_countries) if restricted_countries else None)
@@ -224,26 +283,99 @@ class NodeManager:
         self.token: Optional["MeshToken"] = None
         self._relay_count = 0
 
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "preserve_public_behavior": True,
+                    "redact_node_identifiers": True,
+                    "redact_network_addresses": True,
+                    "redact_attestation_material": True,
+                },
+                "safety_boundary": (
+                    "Use only hashes, counts, booleans, and metric bands in "
+                    "thinking context."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
+
     def propose_network_update(self, title: str, action: Dict) -> Optional[str]:
         """Propose a network configuration update via DAO."""
         if not self.governance:
+            self._record_thinking(
+                "batman_governance_proposal_unavailable",
+                "Decide whether a network update can be proposed",
+                {
+                    "governance_available": False,
+                    "title_hash": _safe_hash(title),
+                    "action_key_count": len(action or {}),
+                },
+            )
             logger.warning("Governance not available")
             return None
 
         proposal = self.governance.create_proposal(
             title=title, description=f"Network update: {action}", actions=[action]
         )
+        self._record_thinking(
+            "batman_governance_proposal_created",
+            "Track network update proposal creation",
+            {
+                "governance_available": True,
+                "title_hash": _safe_hash(title),
+                "action_key_count": len(action or {}),
+                "proposal": _safe_node_ref(proposal.id),
+            },
+        )
         return proposal.id
 
     def vote_on_proposal(self, proposal_id: str, vote_str: str) -> bool:
         """Vote on an existing proposal."""
         if not self.governance:
+            self._record_thinking(
+                "batman_governance_vote_unavailable",
+                "Decide whether a governance vote can be cast",
+                {"governance_available": False, "proposal": _safe_node_ref(proposal_id)},
+            )
             return False
 
         try:
             vote = VoteType[vote_str.upper()]
-            return self.governance.cast_vote(proposal_id, self.local_node_id, vote)
+            result = self.governance.cast_vote(proposal_id, self.local_node_id, vote)
+            self._record_thinking(
+                "batman_governance_vote_cast",
+                "Record governance voting outcome",
+                {
+                    "proposal": _safe_node_ref(proposal_id),
+                    "vote": getattr(vote, "name", str(vote)),
+                    "success": result,
+                },
+            )
+            return result
         except KeyError:
+            self._record_thinking(
+                "batman_governance_vote_invalid",
+                "Reject invalid governance vote",
+                {
+                    "proposal": _safe_node_ref(proposal_id),
+                    "vote_hash": _safe_hash(vote_str),
+                },
+            )
             logger.error(f"Invalid vote type: {vote_str}")
             return False
 
@@ -251,6 +383,11 @@ class NodeManager:
         """Periodic governance check (tally votes, execute)."""
         if self.governance:
             self.governance.check_proposals()
+            self._record_thinking(
+                "batman_governance_checked",
+                "Run periodic governance maintenance",
+                {"governance_available": True},
+            )
             # In a real loop, we would check for PASSED proposals and execute actions here
             # self._execute_passed_proposals()
 
@@ -295,6 +432,19 @@ class NodeManager:
 
     def send_heartbeat(self, target_node: str) -> bool:
         """Send heartbeat to a target node (with obfuscation and traffic shaping)."""
+        self._record_thinking(
+            "batman_heartbeat_prepare",
+            "Prepare a mesh heartbeat without exposing node identifiers",
+            {
+                "target": _safe_node_ref(target_node),
+                "pqc_enabled": HYBRID_TLS_AVAILABLE
+                and self._hybrid_tls_session_key is not None,
+                "obfuscation_enabled": bool(self.obfuscation_transport),
+                "traffic_shaping_enabled": bool(self.traffic_shaper),
+                "stego_enabled": bool(self.stego_protocol),
+                "active_protocol": self.active_protocol,
+            },
+        )
         payload = {
             "type": "heartbeat",
             "node_id": self.local_node_id,
@@ -317,6 +467,11 @@ class NodeManager:
                 except ImportError:
                     pass
             except Exception as e:
+                self._record_thinking(
+                    "batman_heartbeat_pqc_failed",
+                    "Stop heartbeat after PQC encryption failure",
+                    {"target": _safe_node_ref(target_node), "error_type": type(e).__name__},
+                )
                 logger.error(f"Hybrid TLS encryption failed for heartbeat: {e}")
                 return False
 
@@ -332,6 +487,11 @@ class NodeManager:
                 except ImportError:
                     pass
             except Exception as e:
+                self._record_thinking(
+                    "batman_heartbeat_obfuscation_failed",
+                    "Stop heartbeat after obfuscation failure",
+                    {"target": _safe_node_ref(target_node), "error_type": type(e).__name__},
+                )
                 logger.error(f"Obfuscation failed for heartbeat: {e}")
                 return False
 
@@ -356,11 +516,26 @@ class NodeManager:
                 except ImportError:
                     pass
             except Exception as e:
+                self._record_thinking(
+                    "batman_heartbeat_stego_failed",
+                    "Stop heartbeat after stego encoding failure",
+                    {"target": _safe_node_ref(target_node), "error_type": type(e).__name__},
+                )
                 logger.error(f"Stego encoding failed for heartbeat: {e}")
                 return False
 
         # In a real system, we would apply delay and send 'data' over the network.
         # logger.debug(f"Sent heartbeat to {target_node} ({len(data)} bytes, delay={delay:.3f}s)")
+        self._record_thinking(
+            "batman_heartbeat_ready",
+            "Confirm heartbeat packet is ready for transport",
+            {
+                "target": _safe_node_ref(target_node),
+                "final_size_bucket": _safe_count_bucket(len(data)),
+                "delay_band": _safe_metric_band(delay, 0.001, 0.1),
+                "active_protocol": self.active_protocol,
+            },
+        )
         return True
 
     def set_token(self, token: "MeshToken"):
@@ -389,6 +564,19 @@ class NodeManager:
             logger.debug(f"Relaying to external node: {dest_node}")
 
         self._relay_count += 1
+        self._record_thinking(
+            "batman_relay_packet",
+            "Decide whether to account for a relay operation",
+            {
+                "source": _safe_node_ref(source_node),
+                "destination": _safe_node_ref(dest_node),
+                "destination_known": dest_node in self.nodes
+                or dest_node == self.local_node_id,
+                "packet_size_bucket": _safe_count_bucket(packet_size_bytes),
+                "relay_count_bucket": _safe_count_bucket(self._relay_count),
+                "token_enabled": bool(self.token and TOKEN_AVAILABLE),
+            },
+        )
 
         # Record metrics
         try:
@@ -427,6 +615,19 @@ class NodeManager:
 
     def send_topology_update(self, target_node: str, topology_data: Dict) -> bool:
         """Send topology update to a target node (with obfuscation and traffic shaping)."""
+        topology_keys = sorted(str(key) for key in (topology_data or {}).keys())
+        self._record_thinking(
+            "batman_topology_update_prepare",
+            "Prepare topology update with redacted topology metadata",
+            {
+                "target": _safe_node_ref(target_node),
+                "topology_key_count": len(topology_keys),
+                "topology_keys_hash": _safe_hash("|".join(topology_keys)),
+                "obfuscation_enabled": bool(self.obfuscation_transport),
+                "traffic_shaping_enabled": bool(self.traffic_shaper),
+                "stego_enabled": bool(self.stego_protocol),
+            },
+        )
         payload = {
             "type": "topology_update",
             "node_id": self.local_node_id,
@@ -439,6 +640,11 @@ class NodeManager:
             try:
                 data = self.obfuscation_transport.obfuscate(data)
             except Exception as e:
+                self._record_thinking(
+                    "batman_topology_obfuscation_failed",
+                    "Stop topology update after obfuscation failure",
+                    {"target": _safe_node_ref(target_node), "error_type": type(e).__name__},
+                )
                 logger.error(f"Obfuscation failed for topology update: {e}")
                 return False
 
@@ -457,10 +663,24 @@ class NodeManager:
             try:
                 data = self.stego_protocol.encode_packet(data, protocol_mimic=self.stego_mimic)
             except Exception as e:
+                self._record_thinking(
+                    "batman_topology_stego_failed",
+                    "Stop topology update after stego encoding failure",
+                    {"target": _safe_node_ref(target_node), "error_type": type(e).__name__},
+                )
                 logger.error(f"Stego encoding failed for topology update: {e}")
                 return False
 
         # In a real system, we would apply delay and send 'data' over the network.
+        self._record_thinking(
+            "batman_topology_update_ready",
+            "Confirm topology update packet is ready for transport",
+            {
+                "target": _safe_node_ref(target_node),
+                "final_size_bucket": _safe_count_bucket(len(data)),
+                "active_protocol": self.active_protocol,
+            },
+        )
         return True
 
     def register_node(
@@ -475,16 +695,45 @@ class NodeManager:
     ) -> bool:
         """Register a new node with the mesh"""
         if node_id in self.nodes:
+            self._record_thinking(
+                "batman_node_register_duplicate",
+                "Reject duplicate mesh node registration",
+                {"node": _safe_node_ref(node_id), "node_count": len(self.nodes)},
+            )
             logger.warning(f"Node {node_id} already registered")
             return False
 
         # 1. Geo-Fencing Check
         if not self.geofencer.validate_node(ip_address):
+            self._record_thinking(
+                "batman_node_register_geofence_blocked",
+                "Reject node registration by geo-fence policy",
+                {
+                    "node": _safe_node_ref(node_id),
+                    "address_family": _address_family(ip_address),
+                    "strategy": self.attestation_strategy.value,
+                    "spiffe_present": bool(spiffe_id),
+                    "join_token_present": bool(join_token),
+                    "certificate_present": bool(cert_pem),
+                },
+            )
             logger.error(f"🛑 Geo-Fence BLOCK: Node {node_id} from {self.geofencer.get_country(ip_address)} is in a restricted region.")
             return False
 
         # 2. Attestation
         if not self._attest_node(node_id, spiffe_id, join_token, cert_pem):
+            self._record_thinking(
+                "batman_node_register_attestation_failed",
+                "Reject node registration after attestation failure",
+                {
+                    "node": _safe_node_ref(node_id),
+                    "address_family": _address_family(ip_address),
+                    "strategy": self.attestation_strategy.value,
+                    "spiffe_present": bool(spiffe_id),
+                    "join_token_present": bool(join_token),
+                    "certificate_present": bool(cert_pem),
+                },
+            )
             logger.error(f"Node attestation failed: {node_id}")
             return False
 
@@ -499,6 +748,19 @@ class NodeManager:
         }
 
         logger.info(f"Registered node: {node_id} ({ip_address})")
+        self._record_thinking(
+            "batman_node_registered",
+            "Accept node registration after safety checks",
+            {
+                "node": _safe_node_ref(node_id),
+                "address_family": _address_family(ip_address),
+                "strategy": self.attestation_strategy.value,
+                "spiffe_present": bool(spiffe_id),
+                "certificate_present": bool(cert_pem),
+                "node_count_bucket": _safe_count_bucket(len(self.nodes)),
+                "referrer_present": bool(referrer_id),
+            },
+        )
 
         # Reward new node deployment
         if self.token and TOKEN_AVAILABLE:
@@ -520,6 +782,14 @@ class NodeManager:
         """Verify node identity before registration"""
         if self.attestation_strategy == AttestationStrategy.SPIFFE:
             if not spiffe_id or not spiffe_id.startswith("spiffe://"):
+                self._record_thinking(
+                    "batman_attestation_spiffe_rejected",
+                    "Reject SPIFFE attestation with missing or malformed identity",
+                    {
+                        "node": _safe_node_ref(node_id),
+                        "spiffe_present": bool(spiffe_id),
+                    },
+                )
                 return False
 
             # Enhanced Validation if module available and cert provided
@@ -562,10 +832,20 @@ class NodeManager:
                     # We instantiate client with default/dummy path as we only need logic
                     client = WorkloadAPIClient()
                     if not client.validate_peer_svid(svid, expected_id=spiffe_id):
+                        self._record_thinking(
+                            "batman_attestation_svid_rejected",
+                            "Reject SPIFFE SVID after peer validation",
+                            {"node": _safe_node_ref(node_id), "certificate_present": True},
+                        )
                         logger.error(f"SPIFFE SVID validation failed for {node_id}")
                         return False
 
                     logger.info(f"SPIFFE Strong Attestation success: {spiffe_id}")
+                    self._record_thinking(
+                        "batman_attestation_svid_accepted",
+                        "Accept SPIFFE SVID after peer validation",
+                        {"node": _safe_node_ref(node_id), "certificate_present": True},
+                    )
 
                     # Record metric
                     try:
@@ -577,30 +857,65 @@ class NodeManager:
                         pass
 
                 except Exception as e:
+                    self._record_thinking(
+                        "batman_attestation_svid_error",
+                        "Reject SPIFFE attestation after validation error",
+                        {"node": _safe_node_ref(node_id), "error_type": type(e).__name__},
+                    )
                     logger.error(f"SPIFFE validation error: {e}")
                     return False
 
             logger.debug(f"SPIFFE attestation passed: {spiffe_id}")
+            self._record_thinking(
+                "batman_attestation_spiffe_accepted",
+                "Accept SPIFFE attestation with syntactic identity check",
+                {"node": _safe_node_ref(node_id), "certificate_present": bool(cert_pem)},
+            )
 
         elif self.attestation_strategy == AttestationStrategy.TOKEN_BASED:
             if not join_token:
+                self._record_thinking(
+                    "batman_attestation_token_rejected",
+                    "Reject token attestation without token material",
+                    {"node": _safe_node_ref(node_id), "join_token_present": False},
+                )
                 return False
             # Verify token (in production, check against token store)
             logger.debug(f"Token attestation: {join_token[:16]}...")
+            self._record_thinking(
+                "batman_attestation_token_accepted",
+                "Accept token attestation for registration flow",
+                {"node": _safe_node_ref(node_id), "join_token_present": True},
+            )
 
         return True
 
     def update_heartbeat(self, node_id: str) -> bool:
         """Update last heartbeat timestamp for node"""
         if node_id not in self.nodes:
+            self._record_thinking(
+                "batman_heartbeat_update_missing_node",
+                "Reject heartbeat update for unknown node",
+                {"node": _safe_node_ref(node_id), "node_count": len(self.nodes)},
+            )
             return False
 
         self.nodes[node_id]["last_heartbeat"] = datetime.now()
+        self._record_thinking(
+            "batman_heartbeat_updated",
+            "Update node heartbeat timestamp",
+            {"node": _safe_node_ref(node_id), "node_count": len(self.nodes)},
+        )
         return True
 
     def update_metrics(self, node_id: str, metrics: NodeMetrics) -> bool:
         """Update node health metrics"""
         if node_id not in self.nodes:
+            self._record_thinking(
+                "batman_metrics_update_missing_node",
+                "Reject metrics update for unknown node",
+                {"node": _safe_node_ref(node_id), "node_count": len(self.nodes)},
+            )
             return False
 
         self.nodes[node_id]["metrics"] = metrics
@@ -611,14 +926,44 @@ class NodeManager:
         else:
             self.nodes[node_id]["status"] = "degraded"
 
+        self._record_thinking(
+            "batman_metrics_updated",
+            "Classify node health from metrics bands",
+            {
+                "node": _safe_node_ref(node_id),
+                "status": self.nodes[node_id]["status"],
+                "cpu_band": _safe_metric_band(metrics.cpu_percent, 70, 90),
+                "memory_band": _safe_metric_band(metrics.memory_percent, 70, 85),
+                "packet_loss_band": _safe_metric_band(
+                    metrics.packet_loss_percent, 1, 5
+                ),
+                "latency_band": _safe_metric_band(
+                    metrics.latency_to_gateway_ms, 150, 500
+                ),
+            },
+        )
         return True
 
     def deregister_node(self, node_id: str, reason: str = "unknown") -> bool:
         """Deregister a node from the mesh"""
         if node_id not in self.nodes:
+            self._record_thinking(
+                "batman_node_deregister_missing",
+                "Reject deregistration for unknown node",
+                {"node": _safe_node_ref(node_id), "reason_hash": _safe_hash(reason)},
+            )
             return False
 
         del self.nodes[node_id]
+        self._record_thinking(
+            "batman_node_deregistered",
+            "Remove node from mesh registry",
+            {
+                "node": _safe_node_ref(node_id),
+                "reason_hash": _safe_hash(reason),
+                "node_count_bucket": _safe_count_bucket(len(self.nodes)),
+            },
+        )
         logger.info(f"Deregistered node: {node_id} (reason: {reason})")
         return True
 
@@ -647,12 +992,27 @@ class NodeManager:
             self.active_protocol = "stego"
             if mimic:
                 self.stego_mimic = mimic
+            self._record_thinking(
+                "batman_protocol_switched",
+                "Switch mesh transport protocol",
+                {"protocol": "stego", "mimic": self.stego_mimic},
+            )
             logger.info(f"🔄 Protocol switched to STEGO (mimic: {self.stego_mimic})")
             return True
         elif protocol == "standard":
             self.active_protocol = "standard"
+            self._record_thinking(
+                "batman_protocol_switched",
+                "Switch mesh transport protocol",
+                {"protocol": "standard"},
+            )
             logger.info("🔄 Protocol switched to STANDARD obfuscation")
             return True
+        self._record_thinking(
+            "batman_protocol_rejected",
+            "Reject unsupported mesh transport protocol",
+            {"protocol_hash": _safe_hash(protocol)},
+        )
         return False
 
 
@@ -677,15 +1037,76 @@ class HealthMonitor:
         self.alert_handlers: List[Callable] = []
         self.running = False
         self.incident_workflow = incident_workflow
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"batman-health-monitor:{_safe_hash(id(self))}",
+            role="monitoring",
+            capabilities=("healing", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "batman_health_monitor_init",
+                "goal": "Initialize mesh health monitoring decisions",
+                "signals": {
+                    "check_interval": check_interval,
+                    "incident_workflow_available": bool(incident_workflow),
+                },
+                "safety_boundary": (
+                    "Do not put raw node identifiers or topology endpoints in "
+                    "health-monitor thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_node_identifiers": True,
+                    "redact_topology_endpoints": True,
+                    "preserve_monitoring_behavior": True,
+                },
+                "safety_boundary": (
+                    "Use hashes and counts for health-alert thinking context."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def register_health_check(self, name: str, check_fn: Callable):
         """Register a custom health check"""
         self.health_checks[name] = check_fn
+        self._record_thinking(
+            "batman_health_check_registered",
+            "Register custom mesh health check",
+            {
+                "check_hash": _safe_hash(name),
+                "health_check_count": len(self.health_checks),
+            },
+        )
         logger.info(f"Registered health check: {name}")
 
     def register_alert_handler(self, handler: Callable):
         """Register callback for health alerts"""
         self.alert_handlers.append(handler)
+        self._record_thinking(
+            "batman_health_alert_handler_registered",
+            "Register mesh health alert handler",
+            {"alert_handler_count": len(self.alert_handlers)},
+        )
 
     async def start_monitoring(self, node_manager: NodeManager, topology):
         """Start continuous health monitoring"""
@@ -732,6 +1153,18 @@ class HealthMonitor:
             except Exception as e:
                 logger.error(f"Check {check_name} failed: {e}")
 
+        self._record_thinking(
+            "batman_health_checks_performed",
+            "Summarize mesh health checks",
+            {
+                "dead_node_count": len(dead_nodes),
+                "dead_node_hashes": [_safe_hash(node) for node in dead_nodes[:10]],
+                "degraded_link_count": len(degraded_links),
+                "custom_check_count": len(self.health_checks),
+                "alert_handler_count": len(self.alert_handlers),
+            },
+        )
+
     def _check_node_heartbeats(
         self, node_manager: NodeManager, timeout: int = 120
     ) -> List[str]:
@@ -747,6 +1180,16 @@ class HealthMonitor:
                     f"Dead node detected: {node_id} (no heartbeat for {elapsed}s)"
                 )
 
+        self._record_thinking(
+            "batman_heartbeat_scan",
+            "Detect nodes with stale heartbeats",
+            {
+                "node_count": len(node_manager.get_all_nodes()),
+                "dead_node_count": len(dead),
+                "dead_node_hashes": [_safe_hash(node) for node in dead[:10]],
+                "timeout_seconds": timeout,
+            },
+        )
         return dead
 
     def _check_link_quality(self, topology) -> List[Dict]:
@@ -761,11 +1204,32 @@ class HealthMonitor:
                         "quality": link.quality.name,
                     }
                 )
+        self._record_thinking(
+            "batman_link_quality_scan",
+            "Detect degraded topology links",
+            {
+                "link_count": len(getattr(topology, "links", {}) or {}),
+                "degraded_link_count": len(degraded),
+                "quality_labels": sorted({item["quality"] for item in degraded}),
+            },
+        )
         return degraded
 
     async def _handle_alert(self, alert_type: str, data: Dict):
         """Process health alert"""
         logger.warning(f"Health alert: {alert_type} - {data}")
+        safe_data = {
+            "alert_type": alert_type,
+            "node_count": len(data.get("nodes", []) or []),
+            "node_hashes": [_safe_hash(node) for node in (data.get("nodes", []) or [])[:10]],
+            "link_count": len(data.get("links", []) or []),
+            "check_hash": _safe_hash(data.get("check")) if data.get("check") else None,
+        }
+        self._record_thinking(
+            "batman_health_alert_handled",
+            "Process mesh health alert safely",
+            safe_data,
+        )
 
         # Bridge critical health alerts into DAO incident workflow
         if (
@@ -804,6 +1268,11 @@ class HealthMonitor:
     def stop_monitoring(self):
         """Stop health monitoring"""
         self.running = False
+        self._record_thinking(
+            "batman_health_monitor_stopped",
+            "Stop mesh health monitoring loop",
+            {"running": self.running},
+        )
         logger.info("Health monitoring stopped")
 
 

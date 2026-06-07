@@ -19,6 +19,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.network.ebpf.metrics_exporter import EBPFMetricsExporter
 from src.services.service_event_identity import service_event_identity
 
@@ -247,6 +248,13 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
             "read_time": [],
         }
         self.enhanced_source_agent = EBPF_METRICS_EXPORTER_ENHANCED_SERVICE_NAME
+        self.enhanced_thinking_coach = AgentThinkingCoach(
+            agent_id=self.enhanced_source_agent,
+            role="monitoring",
+            capabilities=("security", "zero-trust"),
+            extra_techniques=("mape_k", "causal_analysis", "chaos_driven_design"),
+        )
+        self._last_enhanced_thinking_context: Optional[Dict[str, Any]] = None
 
         logger.info("Enhanced eBPF Metrics Exporter initialized")
 
@@ -260,6 +268,40 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
         except Exception as exc:
             logger.error("Failed to initialize enhanced eBPF metrics EventBus: %s", exc)
             return None
+
+    def _record_enhanced_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_metrics_export_enhanced",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only enhanced eBPF metrics wrapper evidence, redacted "
+                "map selectors, result shapes, hashes, and bounded metadata; do "
+                "not expose map names, result payloads, stdout, or stderr."
+            ),
+        }
+        self._last_enhanced_thinking_context = (
+            self.enhanced_thinking_coach.prepare_task(safe_task)
+        )
+        return self._last_enhanced_thinking_context
+
+    def get_enhanced_thinking_status(self) -> Dict[str, Any]:
+        """Expose enhanced exporter thinking state without task secrets."""
+
+        return {
+            **self.enhanced_thinking_coach.status(),
+            "last_context": self._last_enhanced_thinking_context,
+        }
 
     def _publish_enhanced_read_observation(
         self,
@@ -276,6 +318,21 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
         if bus is None:
             return None
 
+        thinking = self._record_enhanced_thinking_context(
+            operation="read_map_via_bpftool_with_timeout",
+            goal=f"read_map_via_bpftool_with_timeout:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "reason": reason,
+                "backend": "bpftool",
+                "map_name_hash": _hash_value(map_name),
+                "map_name_redacted": True,
+                "result_shape": _result_shape(result),
+                "result_payload_redacted": True,
+                "error_type": type(error).__name__ if error is not None else None,
+            },
+        )
         payload: Dict[str, Any] = {
             "component": "network.ebpf.metrics_exporter_enhanced",
             "stage": stage,
@@ -297,6 +354,7 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
             "read_only": True,
             "observed_state": True,
             "safe_observation": True,
+            "thinking": thinking,
             "claim_boundary": EBPF_METRICS_EXPORTER_ENHANCED_CLAIM_BOUNDARY,
         }
         if error is not None:

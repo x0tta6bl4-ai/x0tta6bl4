@@ -14,6 +14,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 from .obfuscation.domain_fronting import DomainFrontingTransport
 from .obfuscation.faketls import FakeTLSTransport
@@ -207,6 +208,13 @@ class VPNObfuscationManager:
         else:
             self.stegomesh = None
 
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=_SERVICE_AGENT,
+            role="security",
+            capabilities=("zero-trust", "ops", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
         logger.info("VPNObfuscationManager initialized")
         logger.debug(f"Initial SNI: {self.current_sni}")
         logger.debug(f"Initial fingerprint: {self.current_fingerprint}")
@@ -244,6 +252,38 @@ class VPNObfuscationManager:
             "raw_parameters_redacted": True,
         }
 
+    def _prepare_obfuscation_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Prepare redacted thinking context for local obfuscation decisions."""
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "method_bucket": self.current_method.value,
+            "rotation_strategy": self.rotation_strategy.value,
+            "rotation_interval_seconds": int(self.rotation_interval),
+            "stegomesh_available": self.stegomesh is not None,
+            "parameter_presence": self._parameter_presence_metadata(),
+            "constraints": {
+                "redact_payload_bytes": True,
+                "redact_master_key": True,
+                "redact_raw_obfuscation_parameters": True,
+                "local_metric_only": True,
+            },
+            "safety_boundary": (
+                "Do not claim DPI bypass, anonymity, remote reachability, or dataplane "
+                "delivery from local obfuscation metrics."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
     def _publish_local_evidence(
         self,
         *,
@@ -269,7 +309,8 @@ class VPNObfuscationManager:
             "rotation_strategy": self.rotation_strategy.value,
             "parameter_presence": self._parameter_presence_metadata(),
             "service_identity": self._service_identity_presence(),
-            "control_action": operation in {
+            "control_action": operation
+            in {
                 "rotate_parameters",
                 "optimize_parameters_for_dpi_evasion",
             },
@@ -287,6 +328,8 @@ class VPNObfuscationManager:
             "dpi_bypass_confirmed": False,
             "bypass_confirmed": False,
             "claim_boundary": VPN_OBFUSCATION_MANAGER_CLAIM_BOUNDARY,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
         if metadata:
             payload.update(metadata)
@@ -361,6 +404,18 @@ class VPNObfuscationManager:
             # Update faketls transport with new SNI
             self.faketls = FakeTLSTransport(sni=self.current_sni)
         except Exception as exc:
+            self._prepare_obfuscation_thinking_context(
+                task_type="vpn_obfuscation_parameter_rotation",
+                goal="rotate local obfuscation parameters without exposing raw values",
+                extra={
+                    "status": "failed",
+                    "sni_changed": self.current_sni != previous_sni,
+                    "fingerprint_changed": (
+                        self.current_fingerprint != previous_fingerprint
+                    ),
+                    "spiderx_changed": self.current_spiderx != previous_spiderx,
+                },
+            )
             self._publish_local_evidence(
                 operation="rotate_parameters",
                 status_value="failed",
@@ -379,6 +434,18 @@ class VPNObfuscationManager:
             )
             raise
 
+        self._prepare_obfuscation_thinking_context(
+            task_type="vpn_obfuscation_parameter_rotation",
+            goal="rotate local obfuscation parameters without exposing raw values",
+            extra={
+                "status": "rotated",
+                "sni_changed": self.current_sni != previous_sni,
+                "fingerprint_changed": (
+                    self.current_fingerprint != previous_fingerprint
+                ),
+                "spiderx_changed": self.current_spiderx != previous_spiderx,
+            },
+        )
         self._publish_local_evidence(
             operation="rotate_parameters",
             status_value="rotated",
@@ -443,6 +510,16 @@ class VPNObfuscationManager:
             else:
                 result = shaped_data
         except Exception as exc:
+            self._prepare_obfuscation_thinking_context(
+                task_type="vpn_obfuscation_encode",
+                goal="obfuscate payload bytes while keeping diagnostics redacted",
+                extra={
+                    "status": "failed",
+                    "input_bytes_bucket": _byte_count_bucket(len(data)),
+                    "shaped_bytes_bucket": _byte_count_bucket(len(shaped_data)),
+                    "rotation_triggered": rotation_triggered,
+                },
+            )
             self._publish_local_evidence(
                 operation="obfuscate",
                 status_value="failed",
@@ -456,6 +533,17 @@ class VPNObfuscationManager:
             )
             raise
 
+        self._prepare_obfuscation_thinking_context(
+            task_type="vpn_obfuscation_encode",
+            goal="obfuscate payload bytes while keeping diagnostics redacted",
+            extra={
+                "status": "obfuscated",
+                "input_bytes_bucket": _byte_count_bucket(len(data)),
+                "shaped_bytes_bucket": _byte_count_bucket(len(shaped_data)),
+                "output_bytes_bucket": _byte_count_bucket(len(result)),
+                "rotation_triggered": rotation_triggered,
+            },
+        )
         self._publish_local_evidence(
             operation="obfuscate",
             status_value="obfuscated",
@@ -503,20 +591,37 @@ class VPNObfuscationManager:
             # Remove traffic shaping
             result = self.traffic_shaper.unshape_packet(deobfuscated)
         except Exception as exc:
+            self._prepare_obfuscation_thinking_context(
+                task_type="vpn_obfuscation_decode",
+                goal="deobfuscate payload bytes while keeping diagnostics redacted",
+                extra={
+                    "status": "failed",
+                    "input_bytes_bucket": _byte_count_bucket(len(data)),
+                    "deobfuscated_bytes_bucket": _byte_count_bucket(len(deobfuscated)),
+                },
+            )
             self._publish_local_evidence(
                 operation="deobfuscate",
                 status_value="failed",
                 started_at=started_at,
                 metadata={
                     "input_bytes_bucket": _byte_count_bucket(len(data)),
-                    "deobfuscated_bytes_bucket": _byte_count_bucket(
-                        len(deobfuscated)
-                    ),
+                    "deobfuscated_bytes_bucket": _byte_count_bucket(len(deobfuscated)),
                 },
                 error_type=type(exc).__name__,
             )
             raise
 
+        self._prepare_obfuscation_thinking_context(
+            task_type="vpn_obfuscation_decode",
+            goal="deobfuscate payload bytes while keeping diagnostics redacted",
+            extra={
+                "status": "deobfuscated",
+                "input_bytes_bucket": _byte_count_bucket(len(data)),
+                "deobfuscated_bytes_bucket": _byte_count_bucket(len(deobfuscated)),
+                "output_bytes_bucket": _byte_count_bucket(len(result)),
+            },
+        )
         self._publish_local_evidence(
             operation="deobfuscate",
             status_value="deobfuscated",
@@ -673,6 +778,16 @@ class VPNObfuscationManager:
             for result in metrics.values()
             if isinstance(result, dict) and result.get("success")
         )
+        self._prepare_obfuscation_thinking_context(
+            task_type="vpn_obfuscation_metric_test",
+            goal="compare local entropy and size metrics without claiming DPI bypass",
+            extra={
+                "input_bytes_bucket": _byte_count_bucket(len(data)),
+                "methods_tested": len(metrics),
+                "methods_successful": success_count,
+                "metrics_scope": "local_entropy_and_size_only",
+            },
+        )
         self._publish_local_evidence(
             operation="test_obfuscation_effectiveness",
             status_value="measured",
@@ -714,6 +829,20 @@ class VPNObfuscationManager:
                 f"Selected best obfuscation method: {best_method} (score: {best_score:.2f})"
             )
 
+        self._prepare_obfuscation_thinking_context(
+            task_type="vpn_obfuscation_parameter_optimization",
+            goal="select a local obfuscation method from bounded local metrics",
+            extra={
+                "methods_evaluated": len(metrics),
+                "best_method_bucket": best_method or "none",
+                "best_score_bucket": (
+                    "positive"
+                    if best_score > 0
+                    else "zero" if best_score == 0 else "negative_or_missing"
+                ),
+                "selection_basis": "local_entropy_minus_size_ratio_only",
+            },
+        )
         self._publish_local_evidence(
             operation="optimize_parameters_for_dpi_evasion",
             status_value="selected" if best_method else "no_selection",
@@ -724,15 +853,20 @@ class VPNObfuscationManager:
                 "best_score_bucket": (
                     "positive"
                     if best_score > 0
-                    else "zero"
-                    if best_score == 0
-                    else "negative_or_missing"
+                    else "zero" if best_score == 0 else "negative_or_missing"
                 ),
                 "selection_basis": "local_entropy_minus_size_ratio_only",
                 "local_metric_only": True,
             },
         )
         return metrics
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose thinking profile and latest redacted obfuscation context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
 
 # Global obfuscation manager instance
@@ -755,8 +889,7 @@ def get_vpn_obfuscator(
     elif event_bus is not None:
         _global_obfuscator.event_bus = event_bus
     elif (
-        event_project_root is not None
-        and _global_obfuscator.event_project_root is None
+        event_project_root is not None and _global_obfuscator.event_project_root is None
     ):
         _global_obfuscator.event_project_root = event_project_root
     return _global_obfuscator

@@ -193,6 +193,12 @@ def test_traffic_shaper_event_evidence_redacts_payload_and_claims(tmp_path):
         assert payload["dataplane_confirmed"] is False
         assert payload["dpi_bypass_confirmed"] is False
         assert payload["bypass_confirmed"] is False
+        assert payload["thinking"]["profile"]["role"] == "security"
+        assert "zero_trust_review" in payload["thinking"]["techniques"]
+        assert payload["last_thinking_context"]["applied"]["framing"]["problem"] in {
+            "traffic_shaping_shape_packet",
+            "traffic_shaping_unshape_packet",
+        }
         assert payload["claim_boundary"]
         assert "raw-payload-secret" not in repr(payload)
 
@@ -215,4 +221,8 @@ async def test_send_shaped_event_is_local_not_dataplane_proof(tmp_path):
     assert payload["send_callback_invoked"] is True
     assert payload["dataplane_confirmed"] is False
     assert payload["dpi_bypass_confirmed"] is False
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "traffic_shaping_send_shaped"
+    )
     assert "raw-game-secret" not in repr(payload)

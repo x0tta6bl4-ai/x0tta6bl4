@@ -12,13 +12,15 @@ import struct  # Added for eBPF map packing
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 try:
-    from bcc import BPF
+    from bcc import BPF as _BCCBPF
 
+    BPF: Optional[Any] = _BCCBPF
     BCC_AVAILABLE = True
 except ImportError:
+    BPF = None
     BCC_AVAILABLE = False
 
 from ...security.ebpf_pqc_gateway import EBPFPQCGateway, get_pqc_gateway

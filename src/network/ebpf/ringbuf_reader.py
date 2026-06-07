@@ -13,6 +13,7 @@ import time
 from typing import Any, Callable, Dict, Optional
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,15 @@ def _identity_metadata() -> Dict[str, Any]:
     }
 
 
+def _build_thinking_coach(agent_id: str) -> AgentThinkingCoach:
+    return AgentThinkingCoach(
+        agent_id=agent_id,
+        role="monitoring",
+        capabilities=("security", "zero-trust"),
+        extra_techniques=("mape_k", "causal_analysis", "graphsage", "reverse_planning"),
+    )
+
+
 class RingBufferReader:
     """
     Reads events from eBPF ring buffer maps.
@@ -103,6 +113,8 @@ class RingBufferReader:
         self.source_agent = EBPF_RINGBUF_READER_SERVICE_NAME
         self.running = False
         self.event_handlers: Dict[str, Callable] = {}
+        self.thinking_coach = _build_thinking_coach(self.source_agent)
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
         logger.info(f"RingBufferReader initialized for map: {map_name}")
 
@@ -114,6 +126,53 @@ class RingBufferReader:
         except Exception as exc:
             logger.error("Failed to initialize eBPF ringbuf EventBus: %s", exc)
             return None
+
+    def _thinking_coach_or_create(self) -> AgentThinkingCoach:
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            self.source_agent = getattr(
+                self,
+                "source_agent",
+                EBPF_RINGBUF_READER_SERVICE_NAME,
+            )
+            coach = _build_thinking_coach(self.source_agent)
+            self.thinking_coach = coach
+        return coach
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_ringbuf_reader_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local ring/perf reader evidence, hashed map and "
+                "event selectors, handler counts, event sizes, CPU IDs, and "
+                "status; do not expose raw map names, event types, event payloads, "
+                "stdout, stderr, or handler errors."
+            ),
+        }
+        self._last_thinking_context = self._thinking_coach_or_create().prepare_task(
+            safe_task
+        )
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose ring-buffer reader thinking state without task secrets."""
+
+        return {
+            **self._thinking_coach_or_create().status(),
+            "last_context": getattr(self, "_last_thinking_context", None),
+        }
 
     def _publish_observation(
         self,
@@ -132,6 +191,28 @@ class RingBufferReader:
         handler_event_type: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "reason": reason,
+                "backend": backend,
+                "read_only": True,
+                "returncode_present": returncode is not None,
+                "map_name_hash": _hash_value(getattr(self, "map_name", None)),
+                "map_name_redacted": True,
+                "handler_event_type_hash": _hash_value(handler_event_type),
+                "handler_event_type_redacted": handler_event_type is not None,
+                "handler_count": len(getattr(self, "event_handlers", {})),
+                "event_size_bytes": event_size_bytes,
+                "cpu_id": cpu_id,
+                "bcc_available": BCC_AVAILABLE,
+                "output_redacted": True,
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
         bus = self._event_bus_or_none()
         if bus is None:
             return None
@@ -162,6 +243,7 @@ class RingBufferReader:
             "read_only": True,
             "observed_state": True,
             "safe_observation": True,
+            "thinking": thinking,
             "claim_boundary": EBPF_RINGBUF_READER_CLAIM_BOUNDARY,
             "output": _bounded_output_metadata(stdout, stderr),
         }
@@ -430,6 +512,8 @@ class PerfEventReader:
         self.event_project_root = event_project_root
         self.source_agent = EBPF_RINGBUF_READER_SERVICE_NAME
         self.running = False
+        self.thinking_coach = _build_thinking_coach(self.source_agent)
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
         logger.info(f"PerfEventReader initialized for: {event_type}")
 
     def _event_bus_or_none(self) -> Optional[EventBus]:
@@ -440,6 +524,53 @@ class PerfEventReader:
         except Exception as exc:
             logger.error("Failed to initialize eBPF perf EventBus: %s", exc)
             return None
+
+    def _thinking_coach_or_create(self) -> AgentThinkingCoach:
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            self.source_agent = getattr(
+                self,
+                "source_agent",
+                EBPF_RINGBUF_READER_SERVICE_NAME,
+            )
+            coach = _build_thinking_coach(self.source_agent)
+            self.thinking_coach = coach
+        return coach
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_perf_event_reader_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local perf-event reader evidence, hashed event "
+                "selectors, event sizes, CPU IDs, backend status, and error "
+                "metadata; do not expose raw event types, event payloads, or "
+                "handler errors."
+            ),
+        }
+        self._last_thinking_context = self._thinking_coach_or_create().prepare_task(
+            safe_task
+        )
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose perf-event reader thinking state without task secrets."""
+
+        return {
+            **self._thinking_coach_or_create().status(),
+            "last_context": getattr(self, "_last_thinking_context", None),
+        }
 
     def _publish_observation(
         self,
@@ -454,6 +585,23 @@ class PerfEventReader:
         cpu_id: Optional[int] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "reason": reason,
+                "backend": backend,
+                "read_only": True,
+                "event_type_hash": _hash_value(getattr(self, "event_type", None)),
+                "event_type_redacted": True,
+                "event_size_bytes": event_size_bytes,
+                "cpu_id": cpu_id,
+                "bcc_available": BCC_AVAILABLE,
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
         bus = self._event_bus_or_none()
         if bus is None:
             return None
@@ -480,6 +628,7 @@ class PerfEventReader:
             "read_only": True,
             "observed_state": True,
             "safe_observation": True,
+            "thinking": thinking,
             "claim_boundary": EBPF_RINGBUF_READER_CLAIM_BOUNDARY,
         }
         if extra:

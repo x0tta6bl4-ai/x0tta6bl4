@@ -30,6 +30,7 @@ except ImportError:
     from ...monitoring.prometheus_client import PrometheusExporter as PrometheusMetrics
 
 from ...coordination.events import EventBus, EventType
+from ...core.agent_thinking import AgentThinkingCoach
 from ..batman.topology import MeshTopology
 from ...services.service_event_identity import service_event_identity
 from .loader import EBPFLoader
@@ -131,6 +132,13 @@ class EBPFTopologyIntegrator:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = EBPF_MESH_INTEGRATION_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="coordinator",
+            capabilities=("monitoring", "security", "zero-trust"),
+            extra_techniques=("mape_k", "reverse_planning", "causal_analysis"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
         if loader is not None:
             self.loader = loader
         else:
@@ -182,6 +190,38 @@ class EBPFTopologyIntegrator:
             logger.error("Failed to initialize eBPF mesh integration EventBus: %s", exc)
             return None
 
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_mesh_integration_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local eBPF mesh integration evidence, redacted "
+                "interface, IP, route, and topology selectors, plus bounded "
+                "counts and hashes; do not expose raw routes or socket targets."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose mesh-integration thinking state without task secrets."""
+
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
+
     def _publish_observation(
         self,
         *,
@@ -205,6 +245,21 @@ class EBPFTopologyIntegrator:
             "source_agent",
             EBPF_MESH_INTEGRATION_SERVICE_NAME,
         )
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": read_only,
+                "returncode_present": returncode is not None,
+                "interface_hash": _hash_value(getattr(self, "interface", None)),
+                "interface_redacted": True,
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
         payload: Dict[str, Any] = {
             "component": "network.ebpf.mesh_integration",
             "stage": stage,
@@ -222,6 +277,7 @@ class EBPFTopologyIntegrator:
             "safe_observation": True,
             "safe_actuator": False,
             "parsed_summary": parsed_summary or {},
+            "thinking": thinking,
             "payloads_redacted": True,
             "claim_boundary": EBPF_MESH_INTEGRATION_CLAIM_BOUNDARY,
             "interface_hash": _hash_value(getattr(self, "interface", None)),

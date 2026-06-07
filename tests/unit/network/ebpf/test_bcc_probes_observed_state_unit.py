@@ -39,6 +39,22 @@ def _bare_probes(bus, interface="secret-bcc0"):
     return probes
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "monitoring"
+    assert "mape_k" in techniques
+    assert "causal_analysis" in techniques
+    assert "zero_trust_review" in techniques
+    assert "chaos_driven_design" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_bcc_probe_observation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["interface_redacted"] is True
+
+
 def test_bcc_unavailable_publishes_redacted_load_evidence(tmp_path):
     bus = EventBus(project_root=str(tmp_path))
     interface = "secret-bcc0"
@@ -65,6 +81,8 @@ def test_bcc_unavailable_publishes_redacted_load_evidence(tmp_path):
     ).hexdigest()
     assert latency_payload["bpf_source_redacted"] is True
     assert congestion_payload["parsed_summary"]["reason"] == "bcc_unavailable"
+    _assert_thinking_context(latency_payload)
+    _assert_thinking_context(congestion_payload)
     assert interface not in str(latency_payload)
     assert interface not in str(congestion_payload)
     assert "BPF_HASH" not in str(latency_payload)
@@ -142,6 +160,7 @@ def test_poll_once_updates_metrics_and_redacts_trace_lines(tmp_path):
     assert payload["trace_line_hashes"]["count"] == 4
     assert payload["output"]["stdout_chars"] > 0
     assert payload["trace_lines_redacted"] is True
+    _assert_thinking_context(payload)
     assert "secret-bcc0" not in str(payload)
     assert "secret-latency-line" not in str(payload)
     assert "secret-queue-line" not in str(payload)

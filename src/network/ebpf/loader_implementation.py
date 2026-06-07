@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.network.ebpf.loader import (EBPFAttachError, EBPFAttachMode,
                                      EBPFLoader)
 from src.services.service_event_identity import service_event_identity
@@ -120,6 +121,13 @@ class EBPFLoaderImplementation(EBPFLoader):
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = EBPF_LOADER_IMPLEMENTATION_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "monitoring"),
+            extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
     def _event_bus_or_none(self) -> Optional[EventBus]:
         if self.event_bus is not None:
@@ -133,6 +141,39 @@ class EBPFLoaderImplementation(EBPFLoader):
                 exc,
             )
             return None
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_loader_implementation_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local eBPF loader implementation evidence, "
+                "redacted selectors, hashes, and bounded metadata; do not expose "
+                "program IDs, interface names, program paths, pinned paths, "
+                "stdout, or stderr."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose loader-implementation thinking state without task secrets."""
+
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
 
     def _publish_observation(
         self,
@@ -155,6 +196,21 @@ class EBPFLoaderImplementation(EBPFLoader):
         if bus is None:
             return None
 
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "returncode_present": returncode is not None,
+                "read_only": read_only,
+                "command_shape": command or [],
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
+
         payload: Dict[str, Any] = {
             "component": "network.ebpf.loader_implementation",
             "stage": stage,
@@ -173,6 +229,7 @@ class EBPFLoaderImplementation(EBPFLoader):
             "safe_observation": True,
             "safe_actuator": False,
             "parsed_summary": parsed_summary or {},
+            "thinking": thinking,
             "output": _bounded_output_metadata(stdout, stderr),
             "payloads_redacted": True,
             "claim_boundary": EBPF_LOADER_IMPLEMENTATION_CLAIM_BOUNDARY,

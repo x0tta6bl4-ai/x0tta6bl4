@@ -6,10 +6,13 @@ EBPF Orchestrator - единая точка управления eBPF подси
 """
 
 import asyncio
+import hashlib
 import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 from .bcc_probes import MeshNetworkProbes
 from .cilium_integration import CiliumLikeIntegration
@@ -20,6 +23,12 @@ from .metrics_exporter import EBPFMetricsExporter
 from .ringbuf_reader import RingBufferReader
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
 
 
 class OrchestratorStatus(Enum):
@@ -83,18 +92,88 @@ class EBPFOrchestrator:
             ("mapek", self.mapek),
             ("ring_buffer", self.ring_buffer),
         ]
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="libx0t-ebpf-orchestrator",
+            role="coordinator",
+            capabilities=("mape_k", "monitoring", "zero-trust"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "status": self.status.value,
+            "interface_hash": _safe_hash(self.config.interface),
+            "interface_redacted": True,
+            "component_names": [name for name, _component in self._components],
+            "health_check_interval_seconds": self.config.health_check_interval,
+            "constraints": {
+                "redact_interface_names": True,
+                "redact_program_paths": True,
+                "redact_flow_addresses": True,
+                "status_is_not_dataplane_delivery_proof": True,
+            },
+            "safety_boundary": (
+                "Local eBPF orchestrator state is not proof of kernel eBPF "
+                "attachment, packet forwarding, dataplane delivery, or "
+                "production readiness."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose orchestration thinking state without raw runtime selectors."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def start(self) -> None:
         """Запуск всех компонентов eBPF подсистемы."""
         if self.status == OrchestratorStatus.RUNNING:
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_start",
+                "avoid duplicate eBPF subsystem start",
+                {"status_detail": "already_running"},
+            )
             logger.warning("Orchestrator already running")
             return
 
         async with self._lock:
             if self.status == OrchestratorStatus.RUNNING:
+                self._record_thinking(
+                    "libx0t_ebpf_orchestrator_start",
+                    "avoid duplicate eBPF subsystem start after lock acquisition",
+                    {"status_detail": "already_running"},
+                )
                 return
 
             self.status = OrchestratorStatus.STARTING
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_start",
+                "start local eBPF subsystem components with redacted selectors",
+                {
+                    "enabled_component_count": sum(
+                        bool(value)
+                        for value in (
+                            self.config.enable_metrics,
+                            self.config.enable_cilium,
+                            self.config.enable_fallback,
+                            self.config.enable_probes,
+                            self.config.enable_mapek,
+                        )
+                    )
+                },
+            )
             logger.info("Starting eBPF orchestrator")
 
             try:
@@ -123,17 +202,32 @@ class EBPFOrchestrator:
                     )
 
                 self.status = OrchestratorStatus.RUNNING
+                self._record_thinking(
+                    "libx0t_ebpf_orchestrator_start",
+                    "record successful local eBPF subsystem startup",
+                    {"status_detail": "running"},
+                )
                 logger.info("eBPF orchestrator started successfully")
 
             except Exception as e:
                 logger.error(f"Failed to start eBPF orchestrator: {e}")
                 self.status = OrchestratorStatus.ERROR
+                self._record_thinking(
+                    "libx0t_ebpf_orchestrator_start",
+                    "record eBPF subsystem startup failure without raw error text",
+                    {"status_detail": "error", "error_type": type(e).__name__},
+                )
                 await self._stop_components()
                 raise
 
     async def stop(self) -> None:
         """Корректное завершение всех компонентов eBPF подсистемы."""
         if self.status != OrchestratorStatus.RUNNING:
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_stop",
+                "avoid stopping eBPF subsystem when it is not running",
+                {"status_detail": "not_running"},
+            )
             logger.warning("Orchestrator not running")
             return
 
@@ -142,6 +236,10 @@ class EBPFOrchestrator:
                 return
 
             self.status = OrchestratorStatus.STOPPING
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_stop",
+                "stop local eBPF subsystem components",
+            )
             logger.info("Stopping eBPF orchestrator")
 
             try:
@@ -172,11 +270,21 @@ class EBPFOrchestrator:
                     await self._stop_component(component)
 
                 self.status = OrchestratorStatus.STOPPED
+                self._record_thinking(
+                    "libx0t_ebpf_orchestrator_stop",
+                    "record successful local eBPF subsystem stop",
+                    {"status_detail": "stopped"},
+                )
                 logger.info("eBPF orchestrator stopped successfully")
 
             except Exception as e:
                 logger.error(f"Failed to stop eBPF orchestrator: {e}")
                 self.status = OrchestratorStatus.ERROR
+                self._record_thinking(
+                    "libx0t_ebpf_orchestrator_stop",
+                    "record eBPF subsystem stop failure without raw error text",
+                    {"status_detail": "error", "error_type": type(e).__name__},
+                )
                 raise
 
     async def _start_component(self, component: Any) -> None:
@@ -235,7 +343,17 @@ class EBPFOrchestrator:
         Returns:
             Словарь с информацией о состоянии каждой подсистемы.
         """
+        self._record_thinking(
+            "libx0t_ebpf_orchestrator_status",
+            "summarize local eBPF subsystem status without raw interface",
+        )
         status = {"orchestrator_status": self.status.value, "components": {}}
+        status["interface_hash"] = _safe_hash(self.config.interface)
+        status["interface_redacted_in_thinking"] = True
+        status["claim_boundary"] = (
+            "Local eBPF orchestrator status is not proof of kernel attach, "
+            "packet forwarding, dataplane delivery, or production readiness."
+        )
 
         for name, component in self._components:
             comp_status = {"status": "unknown"}
@@ -265,6 +383,10 @@ class EBPFOrchestrator:
         Returns:
             Словарь со статистикой компонентов.
         """
+        self._record_thinking(
+            "libx0t_ebpf_orchestrator_stats",
+            "collect local eBPF component stats without raw selectors",
+        )
         stats = {}
 
         for name, component in self._components:
@@ -300,13 +422,39 @@ class EBPFOrchestrator:
         Returns:
             Словарь с результатами загрузки.
         """
+        self._record_thinking(
+            "libx0t_ebpf_orchestrator_load_program",
+            "load eBPF program while redacting program path in thinking",
+            {
+                "program_name_hash": _safe_hash(program_name),
+                "program_path_hash": _safe_hash(program_path),
+                "option_count": len(kwargs),
+            },
+        )
         try:
             result = await self.loader.load_program(
                 program_name, program_path, **kwargs
             )
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_load_program",
+                "record eBPF program load result",
+                {
+                    "program_name_hash": _safe_hash(program_name),
+                    "status_detail": "loaded",
+                },
+            )
             logger.info(f"Program {program_name} loaded successfully")
             return result
         except Exception as e:
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_load_program",
+                "record eBPF program load failure without raw error text",
+                {
+                    "program_name_hash": _safe_hash(program_name),
+                    "status_detail": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
             logger.error(f"Failed to load program {program_name}: {e}")
             return {"success": False, "error": str(e)}
 
@@ -320,11 +468,33 @@ class EBPFOrchestrator:
         Returns:
             Словарь с результатами отгрузки.
         """
+        self._record_thinking(
+            "libx0t_ebpf_orchestrator_unload_program",
+            "unload eBPF program while redacting program name in thinking",
+            {"program_name_hash": _safe_hash(program_name)},
+        )
         try:
             result = await self.loader.unload_program(program_name)
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_unload_program",
+                "record eBPF program unload result",
+                {
+                    "program_name_hash": _safe_hash(program_name),
+                    "status_detail": "unloaded",
+                },
+            )
             logger.info(f"Program {program_name} unloaded successfully")
             return result
         except Exception as e:
+            self._record_thinking(
+                "libx0t_ebpf_orchestrator_unload_program",
+                "record eBPF program unload failure without raw error text",
+                {
+                    "program_name_hash": _safe_hash(program_name),
+                    "status_detail": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
             logger.error(f"Failed to unload program {program_name}: {e}")
             return {"success": False, "error": str(e)}
 

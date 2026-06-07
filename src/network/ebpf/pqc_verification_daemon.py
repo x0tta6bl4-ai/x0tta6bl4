@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 # Configure logging
@@ -193,6 +194,13 @@ class PQCVerificationDaemon:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = PQC_VERIFICATION_DAEMON_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "monitoring"),
+            extra_techniques=("mape_k", "causal_analysis", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
         # Verified sessions cache
         self.verified_sessions: Dict[bytes, VerifiedSession] = {}
@@ -241,6 +249,39 @@ class PQCVerificationDaemon:
             logger.error("Failed to initialize PQC verification EventBus: %s", exc)
             return None
 
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "pqc_verification_daemon_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local PQC verification daemon evidence, redacted "
+                "selectors, hashes, counts, and bounded metadata; do not expose "
+                "session IDs, signatures, payload hashes, public keys, map "
+                "values, stdout, or stderr."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose PQC verification-daemon thinking state without task secrets."""
+
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
+
     def _publish_observation(
         self,
         *,
@@ -259,6 +300,18 @@ class PQCVerificationDaemon:
             return None
 
         source_agent = getattr(self, "source_agent", PQC_VERIFICATION_DAEMON_SERVICE_NAME)
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": read_only,
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
         payload: Dict[str, Any] = {
             "component": "network.ebpf.pqc_verification_daemon",
             "stage": stage,
@@ -275,6 +328,7 @@ class PQCVerificationDaemon:
             "safe_observation": True,
             "safe_actuator": False,
             "parsed_summary": parsed_summary or {},
+            "thinking": thinking,
             "output": _bounded_output_metadata(),
             "payloads_redacted": True,
             "claim_boundary": PQC_VERIFICATION_DAEMON_CLAIM_BOUNDARY,

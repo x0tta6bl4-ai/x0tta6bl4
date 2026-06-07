@@ -6,11 +6,13 @@ EBPF Orchestrator - единая точка управления eBPF подси
 """
 
 import asyncio
+import hashlib
 import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.network.ebpf.bcc_probes import MeshNetworkProbes
 from src.network.ebpf.cilium_integration import CiliumLikeIntegration
 from src.network.ebpf.dynamic_fallback import DynamicFallbackController
@@ -20,6 +22,12 @@ from src.network.ebpf.metrics_exporter import EBPFMetricsExporter
 from src.network.ebpf.ringbuf_reader import RingBufferReader
 
 logger = logging.getLogger(__name__)
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8", errors="replace")).hexdigest()
 
 
 class OrchestratorStatus(Enum):
@@ -62,6 +70,13 @@ class EBPFOrchestrator:
         self.status = OrchestratorStatus.STOPPED
         self._lock = asyncio.Lock()
         self._health_check_task: Optional[asyncio.Task] = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="ebpf-async-orchestrator",
+            role="coordinator",
+            capabilities=("security", "zero-trust", "monitoring"),
+            extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
         # Инициализация компонентов
         self.loader = EBPFLoader()
@@ -84,6 +99,38 @@ class EBPFOrchestrator:
             ("ring_buffer", self.ring_buffer),
         ]
 
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_async_orchestration",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Coordinate async eBPF components with redacted selectors; do "
+                "not expose interface names, program paths, component errors, "
+                "or raw program names."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose async orchestration thinking state without task secrets."""
+
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
+
     async def start(self) -> None:
         """Запуск всех компонентов eBPF подсистемы."""
         if self.status == OrchestratorStatus.RUNNING:
@@ -94,6 +141,16 @@ class EBPFOrchestrator:
             if self.status == OrchestratorStatus.RUNNING:
                 return
 
+            self._record_thinking_context(
+                operation="start",
+                goal="start async eBPF component graph",
+                constraints={
+                    "interface_hash": _hash_value(self.config.interface),
+                    "interface_redacted": True,
+                    "component_count": len(self._components),
+                    "health_check_interval": self.config.health_check_interval,
+                },
+            )
             self.status = OrchestratorStatus.STARTING
             logger.info("Starting eBPF orchestrator")
 
@@ -115,6 +172,20 @@ class EBPFOrchestrator:
                     )
                     logger.debug(f"Starting {component_name}")
                     await self._start_component(component)
+
+                # Load and attach DPI evasion XDP program
+                try:
+                    logger.info("Initializing XDP Pulse Program for DPI Evasion...")
+                    prog_path = "src/network/ebpf/x0tta6bl4_pulse.o"
+                    import os
+                    if os.path.exists(prog_path):
+                        await self.load_program("x0tta6bl4_pulse", prog_path)
+                        await self.attach_program("x0tta6bl4_pulse", self.config.interface)
+                        logger.info("✅ XDP Pulse Program active.")
+                    else:
+                        logger.warning(f"XDP object file not found at {prog_path}. Run 'clang -O2 -target bpf -c ...' to compile.")
+                except Exception as e:
+                    logger.error(f"Failed to load XDP Pulse: {e}")
 
                 # Запуск health checks
                 if self.config.health_check_interval > 0:
@@ -141,6 +212,14 @@ class EBPFOrchestrator:
             if self.status != OrchestratorStatus.RUNNING:
                 return
 
+            self._record_thinking_context(
+                operation="stop",
+                goal="stop async eBPF component graph",
+                constraints={
+                    "status_before": self.status.value,
+                    "component_count": len(self._components),
+                },
+            )
             self.status = OrchestratorStatus.STOPPING
             logger.info("Stopping eBPF orchestrator")
 
@@ -206,6 +285,15 @@ class EBPFOrchestrator:
 
     async def _check_components_health(self) -> None:
         """Проверка здоровья всех компонентов."""
+        self._record_thinking_context(
+            operation="check_components_health",
+            goal="check async eBPF component health",
+            constraints={
+                "read_only": True,
+                "component_count": len(self._components),
+                "status": self.status.value,
+            },
+        )
         for name, component in self._components:
             if hasattr(component, "is_healthy"):
                 try:
@@ -235,6 +323,15 @@ class EBPFOrchestrator:
         Returns:
             Словарь с информацией о состоянии каждой подсистемы.
         """
+        self._record_thinking_context(
+            operation="get_status",
+            goal="read async eBPF component status",
+            constraints={
+                "read_only": True,
+                "status": self.status.value,
+                "component_count": len(self._components),
+            },
+        )
         status = {"orchestrator_status": self.status.value, "components": {}}
 
         for name, component in self._components:
@@ -265,6 +362,14 @@ class EBPFOrchestrator:
         Returns:
             Словарь со статистикой компонентов.
         """
+        self._record_thinking_context(
+            operation="get_stats",
+            goal="read async eBPF component stats",
+            constraints={
+                "read_only": True,
+                "component_count": len(self._components),
+            },
+        )
         stats = {}
 
         for name, component in self._components:
@@ -300,6 +405,16 @@ class EBPFOrchestrator:
         Returns:
             Словарь с результатами загрузки.
         """
+        self._record_thinking_context(
+            operation="load_program",
+            goal="load eBPF program through async orchestrator",
+            constraints={
+                "program_name_hash": _hash_value(program_name),
+                "program_path_hash": _hash_value(program_path),
+                "program_name_redacted": True,
+                "program_path_redacted": True,
+            },
+        )
         try:
             result = await self.loader.load_program(
                 program_name, program_path, **kwargs
@@ -320,6 +435,14 @@ class EBPFOrchestrator:
         Returns:
             Словарь с результатами отгрузки.
         """
+        self._record_thinking_context(
+            operation="unload_program",
+            goal="unload eBPF program through async orchestrator",
+            constraints={
+                "program_name_hash": _hash_value(program_name),
+                "program_name_redacted": True,
+            },
+        )
         try:
             result = await self.loader.unload_program(program_name)
             logger.info(f"Program {program_name} unloaded successfully")
@@ -341,10 +464,19 @@ class EBPFOrchestrator:
         Returns:
             Словарь с результатами подключения.
         """
+        iface = interface or self.config.interface
+        self._record_thinking_context(
+            operation="attach_program",
+            goal="attach eBPF program through async orchestrator",
+            constraints={
+                "program_name_hash": _hash_value(program_name),
+                "interface_hash": _hash_value(iface),
+                "program_name_redacted": True,
+                "interface_redacted": True,
+            },
+        )
         try:
-            result = await self.loader.attach_program(
-                program_name, interface or self.config.interface
-            )
+            result = await self.loader.attach_program(program_name, iface)
             logger.info(f"Program {program_name} attached successfully")
             return result
         except Exception as e:
@@ -364,10 +496,19 @@ class EBPFOrchestrator:
         Returns:
             Словарь с результатами отключения.
         """
+        iface = interface or self.config.interface
+        self._record_thinking_context(
+            operation="detach_program",
+            goal="detach eBPF program through async orchestrator",
+            constraints={
+                "program_name_hash": _hash_value(program_name),
+                "interface_hash": _hash_value(iface),
+                "program_name_redacted": True,
+                "interface_redacted": True,
+            },
+        )
         try:
-            result = await self.loader.detach_program(
-                program_name, interface or self.config.interface
-            )
+            result = await self.loader.detach_program(program_name, iface)
             logger.info(f"Program {program_name} detached successfully")
             return result
         except Exception as e:

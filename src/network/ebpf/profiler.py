@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import psutil
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,13 @@ class EBPFProfiler:
         self.event_bus = event_bus
         self.event_project_root = event_project_root
         self.source_agent = EBPF_PROFILER_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="monitoring",
+            capabilities=("quality", "ops"),
+            extra_techniques=("mape_k", "causal_analysis", "graphsage", "reverse_planning"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
     def _event_bus_or_none(self) -> Optional[EventBus]:
         event_bus = getattr(self, "event_bus", None)
@@ -148,6 +156,63 @@ class EBPFProfiler:
         except Exception as exc:
             logger.error("Failed to initialize eBPF profiler EventBus: %s", exc)
             return None
+
+    def _thinking_coach_or_create(self) -> AgentThinkingCoach:
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            self.source_agent = getattr(
+                self,
+                "source_agent",
+                EBPF_PROFILER_SERVICE_NAME,
+            )
+            coach = AgentThinkingCoach(
+                agent_id=self.source_agent,
+                role="monitoring",
+                capabilities=("quality", "ops"),
+                extra_techniques=(
+                    "mape_k",
+                    "causal_analysis",
+                    "graphsage",
+                    "reverse_planning",
+                ),
+            )
+            self.thinking_coach = coach
+        return coach
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_profiler_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local eBPF profiler evidence, hashed process, "
+                "command, target and payload selectors, bounded output metadata, "
+                "counts, and summary statistics; do not expose raw process names, "
+                "stdout, stderr, targets, or packet payloads."
+            ),
+        }
+        self._last_thinking_context = self._thinking_coach_or_create().prepare_task(
+            safe_task
+        )
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose profiler thinking state without task secrets."""
+
+        return {
+            **self._thinking_coach_or_create().status(),
+            "last_context": getattr(self, "_last_thinking_context", None),
+        }
 
     def _publish_observation(
         self,
@@ -164,6 +229,22 @@ class EBPFProfiler:
         output: Optional[Dict[str, Any]] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": read_only,
+                "returncode_present": returncode is not None,
+                "process_name_hash": _hash_value(getattr(self, "process_name", None)),
+                "process_name_redacted": True,
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+                "output_redacted": True,
+            },
+        )
         bus = self._event_bus_or_none()
         if bus is None:
             return None
@@ -187,6 +268,7 @@ class EBPFProfiler:
             "safe_actuator": False,
             "parsed_summary": parsed_summary or {},
             "output": output or _bounded_output_metadata(),
+            "thinking": thinking,
             "payloads_redacted": True,
             "claim_boundary": EBPF_PROFILER_CLAIM_BOUNDARY,
             "process_name_hash": _hash_value(getattr(self, "process_name", None)),

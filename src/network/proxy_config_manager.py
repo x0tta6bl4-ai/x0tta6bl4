@@ -24,6 +24,7 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.network.residential_proxy_manager import ProxyEndpoint
 
 logger = logging.getLogger(__name__)
@@ -296,6 +297,52 @@ class ProxyConfigManager:
         self._change_handlers: List[Callable] = []
         self._last_hash: str = ""
         self._lock = asyncio.Lock()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="proxy-config-manager",
+            role="security",
+            capabilities=("zero-trust", "ops", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _prepare_config_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        config_path: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Prepare redacted context for config decisions."""
+        path = Path(config_path or self.config_path)
+        provider_count = len(getattr(self.config, "providers", []))
+        enabled_provider_count = sum(
+            1
+            for provider in getattr(self.config, "providers", [])
+            if getattr(provider, "enabled", False)
+        )
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "environment": self.environment.value,
+            "config_path_name": path.name,
+            "config_exists": path.exists(),
+            "provider_count": provider_count,
+            "enabled_provider_count": enabled_provider_count,
+            "credential_store_configured": self.credential_store is not None,
+            "constraints": {
+                "validate_schema": True,
+                "encrypt_sensitive_values": True,
+                "do_not_log_credentials": True,
+            },
+            "safety_boundary": (
+                "Do not include provider passwords, JWT secrets, API keys, or decrypted "
+                "credentials in diagnostic context."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
 
     def _get_env_config_path(self) -> str:
         """Get environment-specific config path."""
@@ -310,6 +357,11 @@ class ProxyConfigManager:
     async def load(self) -> ProxyInfrastructureConfig:
         """Load configuration from file."""
         config_path = self._get_env_config_path()
+        self._prepare_config_thinking_context(
+            task_type="proxy_config_load",
+            goal="load, decrypt, and validate proxy infrastructure configuration",
+            config_path=config_path,
+        )
 
         if not os.path.exists(config_path):
             logger.warning(f"Config file not found: {config_path}, using defaults")
@@ -324,6 +376,19 @@ class ProxyConfigManager:
 
             # Parse configuration
             self.config = self._parse_config(data)
+            self._prepare_config_thinking_context(
+                task_type="proxy_config_parse",
+                goal="validate parsed proxy configuration before operational use",
+                config_path=config_path,
+                extra={
+                    "parsed_provider_count": len(self.config.providers),
+                    "encrypted_password_count": sum(
+                        1
+                        for provider in self.config.providers
+                        if provider.password.startswith("ENC:")
+                    ),
+                },
+            )
 
             # Initialize credential store if needed
             if any(p.password for p in self.config.providers):
@@ -333,6 +398,15 @@ class ProxyConfigManager:
             # Validate
             errors = self.config.validate()
             if errors:
+                self._prepare_config_thinking_context(
+                    task_type="proxy_config_validation_error",
+                    goal="reject invalid proxy infrastructure configuration",
+                    config_path=config_path,
+                    extra={
+                        "validation_error_count": len(errors),
+                        "validation_errors": list(errors),
+                    },
+                )
                 for error in errors:
                     logger.error(f"Config validation error: {error}")
                 raise ValueError(f"Configuration validation failed: {errors}")
@@ -467,6 +541,18 @@ class ProxyConfigManager:
     async def save(self):
         """Save configuration to file."""
         config_path = self._get_env_config_path()
+        self._prepare_config_thinking_context(
+            task_type="proxy_config_save",
+            goal="persist proxy configuration while protecting credentials",
+            config_path=config_path,
+            extra={
+                "plaintext_password_count": sum(
+                    1
+                    for provider in self.config.providers
+                    if provider.password and not provider.password.startswith("ENC:")
+                ),
+            },
+        )
 
         # Create backup
         if os.path.exists(config_path):
@@ -554,6 +640,18 @@ class ProxyConfigManager:
 
     def get_provider_proxies(self) -> List[ProxyEndpoint]:
         """Generate proxy endpoints from provider configurations."""
+        self._prepare_config_thinking_context(
+            task_type="proxy_endpoint_generation",
+            goal="derive proxy endpoints from enabled providers without leaking credentials",
+            extra={
+                "region_count": sum(
+                    len(provider.regions) for provider in self.config.providers
+                ),
+                "disabled_provider_count": sum(
+                    1 for provider in self.config.providers if not provider.enabled
+                ),
+            },
+        )
         proxies = []
 
         for provider in self.config.providers:
@@ -574,8 +672,20 @@ class ProxyConfigManager:
 
         return proxies
 
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose thinking profile and latest redacted config decision context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
+
     def export_env_file(self, path: str):
         """Export configuration as environment file."""
+        self._prepare_config_thinking_context(
+            task_type="proxy_env_export",
+            goal="export non-secret proxy runtime settings",
+            config_path=path,
+        )
         lines = [
             f"PROXY_ENV={self.config.environment.value}",
             f"CONTROL_PLANE_HOST={self.config.control_plane_host}",

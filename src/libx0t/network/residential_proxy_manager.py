@@ -11,6 +11,7 @@ Provides:
 """
 
 import asyncio
+import hashlib
 import logging
 import random
 import ssl
@@ -22,10 +23,29 @@ from typing import Any, Callable, Dict, List, Optional
 
 import aiohttp
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.libx0t.core.circuit_breaker import CircuitBreaker
 from src.libx0t.core.connection_retry import RetryPolicy, with_retry
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "libx0t-residential-proxy-manager"
+RESIDENTIAL_PROXY_MANAGER_CLAIM_BOUNDARY = (
+    "Local libx0t residential proxy manager evidence only. It records redacted "
+    "health, selection, and request-attempt metadata with proxy and target "
+    "identifiers hashed. It does not copy proxy hosts, credentials, target URLs, "
+    "headers, request bodies, response payloads, or prove provider reputation or "
+    "end-to-end delivery."
+)
+
+
+def _hash_value(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return None
+    return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
 
 
 class ProxyStatus(Enum):
@@ -201,9 +221,76 @@ class ResidentialProxyManager:
         self._circuit_breaker = CircuitBreaker(
             name="proxy_manager", failure_threshold=5, recovery_timeout=60.0
         )
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=_SERVICE_AGENT,
+            role="security",
+            capabilities=("zero-trust", "ops", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _proxy_identity_metadata(
+        self, proxy: Optional[ProxyEndpoint]
+    ) -> Dict[str, Any]:
+        if proxy is None:
+            return {"present": False}
+        return {
+            "present": True,
+            "proxy_id_hash": _hash_value(proxy.id),
+            "status": proxy.status.value,
+            "region": proxy.region,
+            "country_code": proxy.country_code,
+            "has_auth": bool(proxy.username or proxy.password),
+            "raw_proxy_identity_redacted": True,
+        }
+
+    def _prepare_proxy_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Prepare redacted thinking context for local proxy decisions."""
+        context: Dict[str, Any] = {
+            "task_type": task_type,
+            "goal": goal,
+            "proxy_count": len(self.proxies),
+            "status_counts": {
+                status.value: sum(1 for proxy in self.proxies if proxy.status == status)
+                for status in ProxyStatus
+            },
+            "domain_reputation_count": len(self.domain_reputations),
+            "rotation_interval_seconds": int(self.rotation_interval),
+            "health_check_interval_seconds": int(self.health_check_interval),
+            "max_failures": int(self.max_failures),
+            "constraints": {
+                "redact_proxy_hosts": True,
+                "redact_proxy_credentials": True,
+                "redact_target_urls": True,
+                "local_observation_only": True,
+            },
+            "safety_boundary": RESIDENTIAL_PROXY_MANAGER_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose the shared thinking profile and latest redacted context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "claim_boundary": RESIDENTIAL_PROXY_MANAGER_CLAIM_BOUNDARY,
+        }
 
     def add_proxy(self, proxy: ProxyEndpoint):
         """Add a proxy endpoint to the pool."""
+        self._prepare_proxy_thinking_context(
+            task_type="libx0t_residential_proxy_add",
+            goal="Add a proxy endpoint to the local pool without exposing credentials.",
+            extra={"proxy": self._proxy_identity_metadata(proxy)},
+        )
         self.proxies.append(proxy)
         logger.info(f"Added proxy {proxy.id} ({proxy.region})")
 
@@ -215,12 +302,20 @@ class ResidentialProxyManager:
 
     async def start(self):
         """Start the proxy manager and health monitoring."""
+        self._prepare_proxy_thinking_context(
+            task_type="libx0t_residential_proxy_start",
+            goal="Start local proxy health monitoring.",
+        )
         self._running = True
         self._health_check_task = asyncio.create_task(self._health_check_loop())
         logger.info("Residential proxy manager started")
 
     async def stop(self):
         """Stop the proxy manager."""
+        self._prepare_proxy_thinking_context(
+            task_type="libx0t_residential_proxy_stop",
+            goal="Stop local proxy health monitoring cleanly.",
+        )
         self._running = False
         if self._health_check_task:
             self._health_check_task.cancel()
@@ -249,6 +344,11 @@ class ResidentialProxyManager:
 
     async def _check_proxy_health(self, proxy: ProxyEndpoint):
         """Check health of a single proxy."""
+        self._prepare_proxy_thinking_context(
+            task_type="libx0t_residential_proxy_health_check",
+            goal="Check a single proxy endpoint using redacted health metadata.",
+            extra={"proxy": self._proxy_identity_metadata(proxy)},
+        )
         try:
             start_time = time.time()
 
@@ -306,6 +406,16 @@ class ResidentialProxyManager:
         Returns:
             Selected proxy endpoint or None
         """
+        self._prepare_proxy_thinking_context(
+            task_type="libx0t_residential_proxy_select",
+            goal="Select a proxy using health, rate-limit, region, and reputation signals.",
+            extra={
+                "target_domain_hash": _hash_value(target_domain),
+                "target_domain_present": bool(target_domain),
+                "preferred_region": preferred_region,
+                "require_healthy": require_healthy,
+            },
+        )
         async with self._lock:
             candidates = self.proxies
 
@@ -357,6 +467,15 @@ class ResidentialProxyManager:
                 proxy = candidates[0]
 
             proxy.record_request()
+            self._prepare_proxy_thinking_context(
+                task_type="libx0t_residential_proxy_selected",
+                goal="Record selected proxy metadata after local selection.",
+                extra={
+                    "selected_proxy": self._proxy_identity_metadata(proxy),
+                    "target_domain_hash": _hash_value(target_domain),
+                    "raw_target_redacted": True,
+                },
+            )
             return proxy
 
     async def request(
@@ -385,6 +504,20 @@ class ResidentialProxyManager:
             HTTP response
         """
         domain = target_domain or url.split("/")[2]
+        self._prepare_proxy_thinking_context(
+            task_type="libx0t_residential_proxy_request",
+            goal="Attempt an HTTP request through a selected proxy with redacted target metadata.",
+            extra={
+                "method": method.upper(),
+                "target_domain_hash": _hash_value(domain),
+                "target_domain_present": bool(domain),
+                "preferred_region": preferred_region,
+                "max_retries": int(max_retries),
+                "headers_present": bool(headers),
+                "data_present": data is not None,
+                "raw_url_redacted": True,
+            },
+        )
         reputation = self.get_domain_reputation(domain)
 
         for attempt in range(max_retries):

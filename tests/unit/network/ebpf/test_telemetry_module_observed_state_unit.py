@@ -27,6 +27,27 @@ def _stage_payload(reader, stage):
     return matches[-1]
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "monitoring"
+    assert "mape_k" in techniques
+    assert "mind_maps" in techniques
+    assert "graphsage" in techniques
+    assert "causal_analysis" in techniques
+    assert "zero_trust_review" in techniques
+    assert "reverse_planning" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_telemetry_map_reader_operation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["stage"] == payload["stage"]
+    assert constraints["read_only"] is True
+    assert "parsed_summary_keys" in constraints
+    assert "extra_keys" in constraints
+
+
 def _reader(tmp_path, monkeypatch, *, bpftool_available=False):
     monkeypatch.setattr(
         mod.MapReader,
@@ -72,6 +93,7 @@ def test_bpftool_probe_publishes_redacted_command_output(monkeypatch, tmp_path):
     ).hexdigest()
     assert payload["stderr_metadata"]["sample_redacted"] is True
     assert payload["payloads_redacted"] is True
+    _assert_thinking_context(payload)
     assert secret_stdout not in str(payload)
     assert secret_stderr not in str(payload)
 
@@ -105,6 +127,7 @@ def test_bpftool_map_read_failure_publishes_redacted_output(monkeypatch, tmp_pat
         secret_stderr.encode("utf-8")
     ).hexdigest()
     assert payload["map_name_redacted"] is True
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
     assert secret_stdout not in str(payload)
     assert secret_stderr not in str(payload)
@@ -140,6 +163,7 @@ def test_read_map_bcc_failure_bpftool_success_publishes_redacted_evidence(
     assert payload["result_key_hashes"]["hashes"] == [
         hashlib.sha256(secret_key.encode("utf-8")).hexdigest()
     ]
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
     assert secret_key not in str(payload)
     assert "secret bcc failure" not in str(payload)
@@ -158,6 +182,7 @@ def test_read_multiple_maps_publishes_redacted_batch_summary(monkeypatch, tmp_pa
     assert payload["parsed_summary"]["empty_results"] == 2
     assert payload["map_name_hashes"]["count"] == 2
     assert payload["map_names_redacted"] is True
+    _assert_thinking_context(payload)
     assert "secret_map_a" not in str(payload)
     assert "secret_map_b" not in str(payload)
 

@@ -22,6 +22,26 @@ def _events(reader):
     )
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "monitoring"
+    assert "mape_k" in techniques
+    assert "mind_maps" in techniques
+    assert "graphsage" in techniques
+    assert "causal_analysis" in techniques
+    assert "zero_trust_review" in techniques
+    assert "reverse_planning" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_bpftool_map_reader_operation"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["stage"] == payload["stage"]
+    assert constraints["map_selector_redacted"] is True
+    assert constraints["output_redacted"] is True
+
+
 def test_read_map_unavailable_publishes_redacted_empty_evidence(
     monkeypatch,
     tmp_path,
@@ -45,6 +65,7 @@ def test_read_map_unavailable_publishes_redacted_empty_evidence(
     assert payload["payloads_redacted"] is True
     assert payload["observed_state"] is True
     assert payload["identity"]["redacted"] is True
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
 
 
@@ -74,6 +95,7 @@ def test_list_maps_success_publishes_bounded_output_metadata(
         stdout.encode("utf-8")
     ).hexdigest()
     assert payload["output"]["stdout_chars"] == len(stdout)
+    _assert_thinking_context(payload)
     assert "secret_runtime_map" not in str(payload)
 
 
@@ -111,6 +133,7 @@ def test_read_map_name_failure_id_success_redacts_primary_error(
     assert payload["primary_output"]["stderr_sha256"] == hashlib.sha256(
         primary_stderr.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)
     assert primary_stderr not in str(payload)
 
@@ -144,4 +167,5 @@ def test_counter_map_aggregation_publishes_redacted_counter_evidence(
     assert payload["counter_values_redacted"] is True
     assert "counter_values" not in payload
     assert "counters" not in payload
+    _assert_thinking_context(payload)
     assert map_name not in str(payload)

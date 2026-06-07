@@ -21,6 +21,23 @@ def _events(bus):
     )
 
 
+def _assert_thinking_context(payload):
+    thinking = payload["thinking"]
+    techniques = set(thinking["techniques"])
+    assert thinking["role"] == "security"
+    assert "zero_trust_review" in techniques
+    assert "stride_threat_modeling" in techniques
+    assert "mape_k" in techniques
+    assert "reverse_planning" in techniques
+    assert "chaos_driven_design" in techniques
+    assert thinking["applied"]["framing"]["problem"] == (
+        "ebpf_attestation_map_update"
+    )
+    constraints = thinking["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == payload["operation"]
+    assert constraints["command_shape"] == payload["command"]
+
+
 def test_update_attestation_success_publishes_redacted_evidence(tmp_path):
     manager, bus = _manager(tmp_path)
     ip_address = "10.20.30.40"
@@ -62,6 +79,7 @@ def test_update_attestation_success_publishes_redacted_evidence(tmp_path):
         stdout.encode("utf-8")
     ).hexdigest()
     assert payload["identity"]["redacted"] is True
+    _assert_thinking_context(payload)
     assert ip_address not in str(payload)
     assert "0x0a 0x14 0x1e 0x28" not in str(payload)
     assert "attested_nodes_map" not in str(payload)
@@ -101,6 +119,7 @@ def test_remove_node_failure_publishes_redacted_delete_evidence(tmp_path):
     assert payload["output"]["stderr_sha256"] == hashlib.sha256(
         stderr.encode("utf-8")
     ).hexdigest()
+    _assert_thinking_context(payload)
     assert ip_address not in str(payload)
     assert "0x0a 0x01 0x02 0x03" not in str(payload)
     assert stderr not in str(payload)
