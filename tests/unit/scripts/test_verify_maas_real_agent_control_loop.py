@@ -2,13 +2,33 @@ from __future__ import annotations
 
 import json
 import shutil
+from urllib.error import URLError
 
 import pytest
 
+from scripts.ops import verify_maas_real_agent_control_loop as verifier
 from scripts.ops.verify_maas_real_agent_control_loop import (
     READY_DECISION,
     run_verification,
 )
+
+
+def test_local_api_health_ready_treats_startup_refusal_as_not_ready(monkeypatch) -> None:
+    def fake_http_json(*args, **kwargs):
+        raise URLError("connection refused")
+
+    monkeypatch.setattr(verifier, "_http_json", fake_http_json)
+
+    assert verifier._local_api_health_ready("http://127.0.0.1:1") is False
+
+
+def test_local_api_health_ready_accepts_http_200(monkeypatch) -> None:
+    def fake_http_json(*args, **kwargs):
+        return 200, {}, "{}"
+
+    monkeypatch.setattr(verifier, "_http_json", fake_http_json)
+
+    assert verifier._local_api_health_ready("http://127.0.0.1:1") is True
 
 
 @pytest.mark.slow

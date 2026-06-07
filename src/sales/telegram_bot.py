@@ -32,12 +32,36 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     print("⚠️ python-telegram-bot not installed. Run: pip install python-telegram-bot")
-    Update = None
-    InlineKeyboardButton = None
-    InlineKeyboardMarkup = None
-    Application = None
-    CommandHandler = None
-    CallbackQueryHandler = None
+
+    class Update:
+        pass
+
+    class InlineKeyboardButton:
+        def __init__(self, text, callback_data=None, url=None, **kwargs):
+            self.text = text
+            self.callback_data = callback_data
+            self.url = url
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    class InlineKeyboardMarkup:
+        def __init__(self, keyboard):
+            self.inline_keyboard = keyboard
+
+    class Application:
+        @staticmethod
+        def builder():
+            raise RuntimeError("python-telegram-bot is not installed")
+
+    class CommandHandler:
+        def __init__(self, command, callback):
+            self.command = command
+            self.callback = callback
+
+    class CallbackQueryHandler:
+        def __init__(self, callback, pattern=None):
+            self.callback = callback
+            self.pattern = pattern
 
     class ContextTypes:
         DEFAULT_TYPE = None

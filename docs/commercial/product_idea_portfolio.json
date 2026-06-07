@@ -1,0 +1,1129 @@
+{
+  "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+  "commercial_decision": "Sell one narrow self-hosted secure mesh MVP first; keep the other ideas as proof-bounded upsells.",
+  "generated_at_utc": "2026-06-02T20:47:46Z",
+  "pilot_package": {
+    "acceptance_criteria": [
+      "Buyer can open the local controller without a SaaS control plane.",
+      "Operator can generate a node setup package locally.",
+      "Operator can approve and revoke a node from the same screen.",
+      "Operator can see which claims are proved and which are blocked.",
+      "No production, customer-traffic, or settlement claim is made without evidence."
+    ],
+    "buyer": "Privacy-heavy teams and isolated operators.",
+    "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+    "claim_gate": {
+      "blocked_claim_ids": [
+        "production_readiness",
+        "dataplane_delivery",
+        "traffic_delivery",
+        "customer_traffic",
+        "dpi_bypass",
+        "settlement_finality",
+        "field_deployment"
+      ],
+      "blockers": [
+        "production_readiness_requires_pilot_evidence",
+        "dataplane_delivery_requires_pilot_evidence",
+        "traffic_delivery_requires_pilot_evidence",
+        "customer_traffic_requires_pilot_evidence",
+        "dpi_bypass_requires_pilot_evidence",
+        "settlement_finality_requires_pilot_evidence",
+        "field_deployment_requires_pilot_evidence"
+      ],
+      "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+      "customer_traffic_claim_allowed": false,
+      "dataplane_delivery_claim_allowed": false,
+      "external_dpi_bypass_claim_allowed": false,
+      "field_deployment_claim_allowed": false,
+      "pilot_package_claim_allowed": true,
+      "production_readiness_claim_allowed": false,
+      "schema": "x0tta6bl4.product_ideas.pilot_claim_gate.v1",
+      "settlement_finality_claim_allowed": false,
+      "surface": "product_ideas.first_paid_pilot",
+      "traffic_delivery_claim_allowed": false
+    },
+    "demo_steps": [
+      {
+        "desktop_action_id": "product.refresh_ideas",
+        "operator_action": "Open PRODUCT tab or GET /api/v1/product/ideas.",
+        "proof": "The ten product ideas and blocked claims are visible.",
+        "step_id": "show_product_portfolio"
+      },
+      {
+        "desktop_action_id": "provisioning.generate_setup",
+        "operator_action": "Generate setup for one pilot node.",
+        "proof": "A local setup package is returned by the control plane.",
+        "step_id": "generate_node_setup"
+      },
+      {
+        "desktop_action_id": "node.approve",
+        "operator_action": "Approve the pending pilot node.",
+        "proof": "The node approval action is accepted by the control plane.",
+        "step_id": "approve_node"
+      },
+      {
+        "desktop_action_id": "node.readiness",
+        "operator_action": "Read node readiness and local telemetry.",
+        "proof": "The operator sees local readiness evidence and missing-proof boundaries.",
+        "step_id": "read_node_status"
+      },
+      {
+        "desktop_action_id": "node.revoke",
+        "operator_action": "Revoke the pilot node.",
+        "proof": "The control plane records the access removal action.",
+        "step_id": "revoke_node"
+      }
+    ],
+    "existing_repo_assets": [
+      {
+        "exists": true,
+        "path": "src/api/maas/endpoints/provisioning.py"
+      },
+      {
+        "exists": true,
+        "path": "src/api/maas/endpoints/nodes.py"
+      },
+      {
+        "exists": true,
+        "path": "agent/scripts/x0t-agent.service"
+      }
+    ],
+    "offer_name": "Self-hosted secure mesh access pilot",
+    "paid_scope": [
+      "Local controller setup.",
+      "Agent install package for a small pilot node set.",
+      "Node approval, revoke, and readiness walkthrough.",
+      "Operator dashboard walkthrough.",
+      "Readiness and claim-boundary report."
+    ],
+    "plain_offer": "A local controller for secure mesh access: install the controller, onboard nodes, approve or revoke access, and show proof-bounded status.",
+    "schema": "x0tta6bl4.product_ideas.pilot_package.v1",
+    "status": "pilot_package_ready",
+    "target_idea_id": "paranoid_self_hosted_mesh",
+    "upsell_idea_ids": [
+      "agent_black_box",
+      "node_trust_passport",
+      "remote_infra_caretaker",
+      "autonomous_network_repair",
+      "industrial_edge_commander"
+    ]
+  },
+  "portfolio": {
+    "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+    "claim_gate": {
+      "all_ideas_scaffolded": true,
+      "blocked_claim_ids": [
+        "production_readiness",
+        "dataplane_delivery",
+        "traffic_delivery",
+        "customer_traffic",
+        "dpi_bypass",
+        "settlement_finality",
+        "field_deployment"
+      ],
+      "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+      "customer_traffic_claim_allowed": false,
+      "local_product_portfolio_claim_allowed": true,
+      "production_readiness_claim_allowed": false,
+      "schema": "x0tta6bl4.product_ideas.claim_gate.v1",
+      "settlement_finality_claim_allowed": false,
+      "surface": "product_ideas.portfolio"
+    },
+    "first_offer": "Self-hosted secure mesh access with proof-based status.",
+    "ideas": [
+      {
+        "buyer": "Security teams, CTOs, regulated engineering teams.",
+        "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+        "claim_gate": {
+          "blocked_claim_ids": [
+            "production_readiness",
+            "dataplane_delivery",
+            "traffic_delivery",
+            "customer_traffic",
+            "dpi_bypass",
+            "settlement_finality",
+            "field_deployment"
+          ],
+          "blockers": [
+            "production_readiness_requires_dedicated_evidence",
+            "dataplane_delivery_requires_dedicated_evidence",
+            "traffic_delivery_requires_dedicated_evidence",
+            "customer_traffic_requires_dedicated_evidence",
+            "dpi_bypass_requires_dedicated_evidence",
+            "settlement_finality_requires_dedicated_evidence",
+            "field_deployment_requires_dedicated_evidence"
+          ],
+          "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+          "customer_traffic_claim_allowed": false,
+          "dataplane_delivery_claim_allowed": false,
+          "external_dpi_bypass_claim_allowed": false,
+          "field_deployment_claim_allowed": false,
+          "local_product_scaffold_claim_allowed": true,
+          "production_readiness_claim_allowed": false,
+          "schema": "x0tta6bl4.product_ideas.claim_gate.v1",
+          "sellable_mvp_shape_claim_allowed": true,
+          "settlement_finality_claim_allowed": false,
+          "surface": "product_ideas.agent_black_box",
+          "traffic_delivery_claim_allowed": false
+        },
+        "demo_scenario": {
+          "acceptance_signal": "A buyer can understand the paid offer, see the local evidence, and see which claims are not proven yet.",
+          "operator_goal": "Show action history, evidence ids, and what each action cannot prove.",
+          "scenario_id": "agent_black_box.demo.v1",
+          "steps": [
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Open PRODUCT tab and select AI agent black box.",
+              "proof": "The local app shows buyer, paid offer, first MVP, repo assets, and blocked claims.",
+              "step_id": "open_product_card"
+            },
+            {
+              "desktop_action_id": "readiness.open_gate",
+              "operator_action": "Run the readiness gate and show PASS, FAIL, WARN, and blocked claims.",
+              "proof": "Evidence focus: action_evidence, claim_boundary, redaction.",
+              "step_id": "readiness_open_gate"
+            },
+            {
+              "desktop_action_id": "identity.read_event_traces",
+              "operator_action": "Read local service event traces without exposing secrets.",
+              "proof": "Evidence focus: action_evidence, claim_boundary, redaction.",
+              "step_id": "identity_read_event_traces"
+            },
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Read the claim gate before saying the product is production ready.",
+              "proof": "Production, customer-traffic, settlement, DPI, and field-deployment claims stay blocked.",
+              "step_id": "check_claim_gate"
+            }
+          ]
+        },
+        "desktop_action_ids": [
+          "readiness.open_gate",
+          "identity.read_event_traces"
+        ],
+        "existing_repo_assets": [
+          {
+            "exists": true,
+            "path": "src/integration/spine.py"
+          },
+          {
+            "exists": true,
+            "path": "src/services/service_event_trace.py"
+          },
+          {
+            "exists": true,
+            "path": "src/api/cross_plane_claim_gate.py"
+          }
+        ],
+        "first_mvp": "Show action history, evidence ids, and what each action cannot prove.",
+        "idea_id": "agent_black_box",
+        "implementation_status": "repo_scaffold_ready",
+        "paid_offer": "Monthly audit dashboard for AI actions and proof boundaries.",
+        "proof_focus": [
+          "action_evidence",
+          "claim_boundary",
+          "redaction"
+        ],
+        "schema": "x0tta6bl4.product_ideas.idea.v1",
+        "simple_pitch": "Audit log for autonomous agent actions.",
+        "title": "AI agent black box"
+      },
+      {
+        "buyer": "Small teams that cannot depend on SaaS control planes.",
+        "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+        "claim_gate": {
+          "blocked_claim_ids": [
+            "production_readiness",
+            "dataplane_delivery",
+            "traffic_delivery",
+            "customer_traffic",
+            "dpi_bypass",
+            "settlement_finality",
+            "field_deployment"
+          ],
+          "blockers": [
+            "production_readiness_requires_dedicated_evidence",
+            "dataplane_delivery_requires_dedicated_evidence",
+            "traffic_delivery_requires_dedicated_evidence",
+            "customer_traffic_requires_dedicated_evidence",
+            "dpi_bypass_requires_dedicated_evidence",
+            "settlement_finality_requires_dedicated_evidence",
+            "field_deployment_requires_dedicated_evidence"
+          ],
+          "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+          "customer_traffic_claim_allowed": false,
+          "dataplane_delivery_claim_allowed": false,
+          "external_dpi_bypass_claim_allowed": false,
+          "field_deployment_claim_allowed": false,
+          "local_product_scaffold_claim_allowed": true,
+          "production_readiness_claim_allowed": false,
+          "schema": "x0tta6bl4.product_ideas.claim_gate.v1",
+          "sellable_mvp_shape_claim_allowed": true,
+          "settlement_finality_claim_allowed": false,
+          "surface": "product_ideas.sovereign_office",
+          "traffic_delivery_claim_allowed": false
+        },
+        "demo_scenario": {
+          "acceptance_signal": "A buyer can understand the paid offer, see the local evidence, and see which claims are not proven yet.",
+          "operator_goal": "Desktop control plane plus agent onboarding and local status views.",
+          "scenario_id": "sovereign_office.demo.v1",
+          "steps": [
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Open PRODUCT tab and select Sovereign office without cloud.",
+              "proof": "The local app shows buyer, paid offer, first MVP, repo assets, and blocked claims.",
+              "step_id": "open_product_card"
+            },
+            {
+              "desktop_action_id": "mesh.refresh_runtime",
+              "operator_action": "Refresh local mesh runtime status and degraded-mode signals.",
+              "proof": "Evidence focus: local_control_plane, agent_onboarding, offline_status.",
+              "step_id": "mesh_refresh_runtime"
+            },
+            {
+              "desktop_action_id": "provisioning.generate_setup",
+              "operator_action": "Generate a local node setup package.",
+              "proof": "Evidence focus: local_control_plane, agent_onboarding, offline_status.",
+              "step_id": "provisioning_generate_setup"
+            },
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Read the claim gate before saying the product is production ready.",
+              "proof": "Production, customer-traffic, settlement, DPI, and field-deployment claims stay blocked.",
+              "step_id": "check_claim_gate"
+            }
+          ]
+        },
+        "desktop_action_ids": [
+          "mesh.refresh_runtime",
+          "provisioning.generate_setup"
+        ],
+        "existing_repo_assets": [
+          {
+            "exists": true,
+            "path": "src/core/app_desktop.py"
+          },
+          {
+            "exists": true,
+            "path": "x0tta6bl4-app/src/App.tsx"
+          },
+          {
+            "exists": true,
+            "path": "agent/scripts/install.sh"
+          }
+        ],
+        "first_mvp": "Desktop control plane plus agent onboarding and local status views.",
+        "idea_id": "sovereign_office",
+        "implementation_status": "repo_scaffold_ready",
+        "paid_offer": "Self-hosted team package with support.",
+        "proof_focus": [
+          "local_control_plane",
+          "agent_onboarding",
+          "offline_status"
+        ],
+        "schema": "x0tta6bl4.product_ideas.idea.v1",
+        "simple_pitch": "Local control plane, local access, local status.",
+        "title": "Sovereign office without cloud"
+      },
+      {
+        "buyer": "Field teams, emergency operators, expeditions.",
+        "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+        "claim_gate": {
+          "blocked_claim_ids": [
+            "production_readiness",
+            "dataplane_delivery",
+            "traffic_delivery",
+            "customer_traffic",
+            "dpi_bypass",
+            "settlement_finality",
+            "field_deployment"
+          ],
+          "blockers": [
+            "production_readiness_requires_dedicated_evidence",
+            "dataplane_delivery_requires_dedicated_evidence",
+            "traffic_delivery_requires_dedicated_evidence",
+            "customer_traffic_requires_dedicated_evidence",
+            "dpi_bypass_requires_dedicated_evidence",
+            "settlement_finality_requires_dedicated_evidence",
+            "field_deployment_requires_dedicated_evidence"
+          ],
+          "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+          "customer_traffic_claim_allowed": false,
+          "dataplane_delivery_claim_allowed": false,
+          "external_dpi_bypass_claim_allowed": false,
+          "field_deployment_claim_allowed": false,
+          "local_product_scaffold_claim_allowed": true,
+          "production_readiness_claim_allowed": false,
+          "schema": "x0tta6bl4.product_ideas.claim_gate.v1",
+          "sellable_mvp_shape_claim_allowed": true,
+          "settlement_finality_claim_allowed": false,
+          "surface": "product_ideas.crisis_internet_kit",
+          "traffic_delivery_claim_allowed": false
+        },
+        "demo_scenario": {
+          "acceptance_signal": "A buyer can understand the paid offer, see the local evidence, and see which claims are not proven yet.",
+          "operator_goal": "One local server, two agents, one status screen, one runbook.",
+          "scenario_id": "crisis_internet_kit.demo.v1",
+          "steps": [
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Open PRODUCT tab and select Crisis internet in a box.",
+              "proof": "The local app shows buyer, paid offer, first MVP, repo assets, and blocked claims.",
+              "step_id": "open_product_card"
+            },
+            {
+              "desktop_action_id": "mesh.refresh_runtime",
+              "operator_action": "Refresh local mesh runtime status and degraded-mode signals.",
+              "proof": "Evidence focus: offline_runbook, local_mesh_observation, operator_handoff.",
+              "step_id": "mesh_refresh_runtime"
+            },
+            {
+              "desktop_action_id": "vpn.refresh_readiness",
+              "operator_action": "Refresh VPN readiness and show what is locally observable.",
+              "proof": "Evidence focus: offline_runbook, local_mesh_observation, operator_handoff.",
+              "step_id": "vpn_refresh_readiness"
+            },
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Read the claim gate before saying the product is production ready.",
+              "proof": "Production, customer-traffic, settlement, DPI, and field-deployment claims stay blocked.",
+              "step_id": "check_claim_gate"
+            }
+          ]
+        },
+        "desktop_action_ids": [
+          "mesh.refresh_runtime",
+          "vpn.refresh_readiness"
+        ],
+        "existing_repo_assets": [
+          {
+            "exists": true,
+            "path": "deploy/on-prem/docker-compose.yml"
+          },
+          {
+            "exists": true,
+            "path": "agent/scripts/install.sh"
+          },
+          {
+            "exists": true,
+            "path": "docs/05-operations/REAL_READINESS_GATE.md"
+          }
+        ],
+        "first_mvp": "One local server, two agents, one status screen, one runbook.",
+        "idea_id": "crisis_internet_kit",
+        "implementation_status": "repo_scaffold_ready",
+        "paid_offer": "Hardware/software kit plus setup support.",
+        "proof_focus": [
+          "offline_runbook",
+          "local_mesh_observation",
+          "operator_handoff"
+        ],
+        "schema": "x0tta6bl4.product_ideas.idea.v1",
+        "simple_pitch": "Portable kit for local mesh status and operator handoff.",
+        "title": "Crisis internet in a box"
+      },
+      {
+        "buyer": "CTOs, auditors, platform teams.",
+        "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+        "claim_gate": {
+          "blocked_claim_ids": [
+            "production_readiness",
+            "dataplane_delivery",
+            "traffic_delivery",
+            "customer_traffic",
+            "dpi_bypass",
+            "settlement_finality",
+            "field_deployment"
+          ],
+          "blockers": [
+            "production_readiness_requires_dedicated_evidence",
+            "dataplane_delivery_requires_dedicated_evidence",
+            "traffic_delivery_requires_dedicated_evidence",
+            "customer_traffic_requires_dedicated_evidence",
+            "dpi_bypass_requires_dedicated_evidence",
+            "settlement_finality_requires_dedicated_evidence",
+            "field_deployment_requires_dedicated_evidence"
+          ],
+          "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+          "customer_traffic_claim_allowed": false,
+          "dataplane_delivery_claim_allowed": false,
+          "external_dpi_bypass_claim_allowed": false,
+          "field_deployment_claim_allowed": false,
+          "local_product_scaffold_claim_allowed": true,
+          "production_readiness_claim_allowed": false,
+          "schema": "x0tta6bl4.product_ideas.claim_gate.v1",
+          "sellable_mvp_shape_claim_allowed": true,
+          "settlement_finality_claim_allowed": false,
+          "surface": "product_ideas.devops_truth_detector",
+          "traffic_delivery_claim_allowed": false
+        },
+        "demo_scenario": {
+          "acceptance_signal": "A buyer can understand the paid offer, see the local evidence, and see which claims are not proven yet.",
+          "operator_goal": "Run readiness gates and show PASS, FAIL, WARN, and blocked claims.",
+          "scenario_id": "devops_truth_detector.demo.v1",
+          "steps": [
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Open PRODUCT tab and select DevOps truth detector.",
+              "proof": "The local app shows buyer, paid offer, first MVP, repo assets, and blocked claims.",
+              "step_id": "open_product_card"
+            },
+            {
+              "desktop_action_id": "readiness.open_gate",
+              "operator_action": "Run the readiness gate and show PASS, FAIL, WARN, and blocked claims.",
+              "proof": "Evidence focus: readiness_gate, blocked_claims, audit_report.",
+              "step_id": "readiness_open_gate"
+            },
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Read the claim gate before saying the product is production ready.",
+              "proof": "Production, customer-traffic, settlement, DPI, and field-deployment claims stay blocked.",
+              "step_id": "check_claim_gate"
+            }
+          ]
+        },
+        "desktop_action_ids": [
+          "readiness.open_gate"
+        ],
+        "existing_repo_assets": [
+          {
+            "exists": true,
+            "path": "scripts/ops/check_real_readiness.py"
+          },
+          {
+            "exists": true,
+            "path": "scripts/ops/check_commercial_mesh_platform_readiness.py"
+          },
+          {
+            "exists": true,
+            "path": "scripts/ops/run_cross_plane_proof_gate.py"
+          }
+        ],
+        "first_mvp": "Run readiness gates and show PASS, FAIL, WARN, and blocked claims.",
+        "idea_id": "devops_truth_detector",
+        "implementation_status": "repo_scaffold_ready",
+        "paid_offer": "Readiness audit report and recurring evidence review.",
+        "proof_focus": [
+          "readiness_gate",
+          "blocked_claims",
+          "audit_report"
+        ],
+        "schema": "x0tta6bl4.product_ideas.idea.v1",
+        "simple_pitch": "A screen that says what is proved and what is not.",
+        "title": "DevOps truth detector"
+      },
+      {
+        "buyer": "Small datacenters, remote sites, VPS operators.",
+        "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+        "claim_gate": {
+          "blocked_claim_ids": [
+            "production_readiness",
+            "dataplane_delivery",
+            "traffic_delivery",
+            "customer_traffic",
+            "dpi_bypass",
+            "settlement_finality",
+            "field_deployment"
+          ],
+          "blockers": [
+            "production_readiness_requires_dedicated_evidence",
+            "dataplane_delivery_requires_dedicated_evidence",
+            "traffic_delivery_requires_dedicated_evidence",
+            "customer_traffic_requires_dedicated_evidence",
+            "dpi_bypass_requires_dedicated_evidence",
+            "settlement_finality_requires_dedicated_evidence",
+            "field_deployment_requires_dedicated_evidence"
+          ],
+          "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+          "customer_traffic_claim_allowed": false,
+          "dataplane_delivery_claim_allowed": false,
+          "external_dpi_bypass_claim_allowed": false,
+          "field_deployment_claim_allowed": false,
+          "local_product_scaffold_claim_allowed": true,
+          "production_readiness_claim_allowed": false,
+          "schema": "x0tta6bl4.product_ideas.claim_gate.v1",
+          "sellable_mvp_shape_claim_allowed": true,
+          "settlement_finality_claim_allowed": false,
+          "surface": "product_ideas.remote_infra_caretaker",
+          "traffic_delivery_claim_allowed": false
+        },
+        "demo_scenario": {
+          "acceptance_signal": "A buyer can understand the paid offer, see the local evidence, and see which claims are not proven yet.",
+          "operator_goal": "Heartbeat, node readiness, heal handoff, and post-action evidence.",
+          "scenario_id": "remote_infra_caretaker.demo.v1",
+          "steps": [
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Open PRODUCT tab and select Remote infrastructure caretaker.",
+              "proof": "The local app shows buyer, paid offer, first MVP, repo assets, and blocked claims.",
+              "step_id": "open_product_card"
+            },
+            {
+              "desktop_action_id": "node.readiness",
+              "operator_action": "Read node readiness and local telemetry.",
+              "proof": "Evidence focus: heartbeat, safe_heal, post_action_check.",
+              "step_id": "node_readiness"
+            },
+            {
+              "desktop_action_id": "node.heal",
+              "operator_action": "Run or prepare a safe node-heal action with evidence boundaries.",
+              "proof": "Evidence focus: heartbeat, safe_heal, post_action_check.",
+              "step_id": "node_heal"
+            },
+            {
+              "desktop_action_id": "agent_health.run",
+              "operator_action": "Run the health bot and show dry-run or safe-actuator evidence.",
+              "proof": "Evidence focus: heartbeat, safe_heal, post_action_check.",
+              "step_id": "agent_health_run"
+            },
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Read the claim gate before saying the product is production ready.",
+              "proof": "Production, customer-traffic, settlement, DPI, and field-deployment claims stay blocked.",
+              "step_id": "check_claim_gate"
+            }
+          ]
+        },
+        "desktop_action_ids": [
+          "node.readiness",
+          "node.heal",
+          "agent_health.run"
+        ],
+        "existing_repo_assets": [
+          {
+            "exists": true,
+            "path": "agent/main.go"
+          },
+          {
+            "exists": true,
+            "path": "src/api/maas/endpoints/nodes.py"
+          },
+          {
+            "exists": true,
+            "path": "src/self_healing/mape_k/manager.py"
+          }
+        ],
+        "first_mvp": "Heartbeat, node readiness, heal handoff, and post-action evidence.",
+        "idea_id": "remote_infra_caretaker",
+        "implementation_status": "repo_scaffold_ready",
+        "paid_offer": "Per-node monitoring and assisted recovery.",
+        "proof_focus": [
+          "heartbeat",
+          "safe_heal",
+          "post_action_check"
+        ],
+        "schema": "x0tta6bl4.product_ideas.idea.v1",
+        "simple_pitch": "Local agent watches a node and reports safe fixes.",
+        "title": "Remote infrastructure caretaker"
+      },
+      {
+        "buyer": "Mines, ports, farms, construction, remote bases.",
+        "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+        "claim_gate": {
+          "blocked_claim_ids": [
+            "production_readiness",
+            "dataplane_delivery",
+            "traffic_delivery",
+            "customer_traffic",
+            "dpi_bypass",
+            "settlement_finality",
+            "field_deployment"
+          ],
+          "blockers": [
+            "production_readiness_requires_dedicated_evidence",
+            "dataplane_delivery_requires_dedicated_evidence",
+            "traffic_delivery_requires_dedicated_evidence",
+            "customer_traffic_requires_dedicated_evidence",
+            "dpi_bypass_requires_dedicated_evidence",
+            "settlement_finality_requires_dedicated_evidence",
+            "field_deployment_requires_dedicated_evidence"
+          ],
+          "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+          "customer_traffic_claim_allowed": false,
+          "dataplane_delivery_claim_allowed": false,
+          "external_dpi_bypass_claim_allowed": false,
+          "field_deployment_claim_allowed": false,
+          "local_product_scaffold_claim_allowed": true,
+          "production_readiness_claim_allowed": false,
+          "schema": "x0tta6bl4.product_ideas.claim_gate.v1",
+          "sellable_mvp_shape_claim_allowed": true,
+          "settlement_finality_claim_allowed": false,
+          "surface": "product_ideas.abandoned_places_mesh",
+          "traffic_delivery_claim_allowed": false
+        },
+        "demo_scenario": {
+          "acceptance_signal": "A buyer can understand the paid offer, see the local evidence, and see which claims are not proven yet.",
+          "operator_goal": "Local mesh status, peer list, and degraded-mode signals.",
+          "scenario_id": "abandoned_places_mesh.demo.v1",
+          "steps": [
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Open PRODUCT tab and select Mesh for hard places.",
+              "proof": "The local app shows buyer, paid offer, first MVP, repo assets, and blocked claims.",
+              "step_id": "open_product_card"
+            },
+            {
+              "desktop_action_id": "mesh.refresh_runtime",
+              "operator_action": "Refresh local mesh runtime status and degraded-mode signals.",
+              "proof": "Evidence focus: peer_observation, degraded_mode, local_metrics.",
+              "step_id": "mesh_refresh_runtime"
+            },
+            {
+              "desktop_action_id": "vpn.refresh_status",
+              "operator_action": "Refresh VPN status and show transport health fields.",
+              "proof": "Evidence focus: peer_observation, degraded_mode, local_metrics.",
+              "step_id": "vpn_refresh_status"
+            },
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Read the claim gate before saying the product is production ready.",
+              "proof": "Production, customer-traffic, settlement, DPI, and field-deployment claims stay blocked.",
+              "step_id": "check_claim_gate"
+            }
+          ]
+        },
+        "desktop_action_ids": [
+          "mesh.refresh_runtime",
+          "vpn.refresh_status"
+        ],
+        "existing_repo_assets": [
+          {
+            "exists": true,
+            "path": "src/api/maas/endpoints/batman.py"
+          },
+          {
+            "exists": true,
+            "path": "src/network/yggdrasil_client.py"
+          },
+          {
+            "exists": true,
+            "path": "src/core/app_desktop.py"
+          }
+        ],
+        "first_mvp": "Local mesh status, peer list, and degraded-mode signals.",
+        "idea_id": "abandoned_places_mesh",
+        "implementation_status": "repo_scaffold_ready",
+        "paid_offer": "Site pilot plus monthly support.",
+        "proof_focus": [
+          "peer_observation",
+          "degraded_mode",
+          "local_metrics"
+        ],
+        "schema": "x0tta6bl4.product_ideas.idea.v1",
+        "simple_pitch": "Local network view for places with weak internet.",
+        "title": "Mesh for hard places"
+      },
+      {
+        "buyer": "Privacy-heavy teams and isolated operators.",
+        "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+        "claim_gate": {
+          "blocked_claim_ids": [
+            "production_readiness",
+            "dataplane_delivery",
+            "traffic_delivery",
+            "customer_traffic",
+            "dpi_bypass",
+            "settlement_finality",
+            "field_deployment"
+          ],
+          "blockers": [
+            "production_readiness_requires_dedicated_evidence",
+            "dataplane_delivery_requires_dedicated_evidence",
+            "traffic_delivery_requires_dedicated_evidence",
+            "customer_traffic_requires_dedicated_evidence",
+            "dpi_bypass_requires_dedicated_evidence",
+            "settlement_finality_requires_dedicated_evidence",
+            "field_deployment_requires_dedicated_evidence"
+          ],
+          "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+          "customer_traffic_claim_allowed": false,
+          "dataplane_delivery_claim_allowed": false,
+          "external_dpi_bypass_claim_allowed": false,
+          "field_deployment_claim_allowed": false,
+          "local_product_scaffold_claim_allowed": true,
+          "production_readiness_claim_allowed": false,
+          "schema": "x0tta6bl4.product_ideas.claim_gate.v1",
+          "sellable_mvp_shape_claim_allowed": true,
+          "settlement_finality_claim_allowed": false,
+          "surface": "product_ideas.paranoid_self_hosted_mesh",
+          "traffic_delivery_claim_allowed": false
+        },
+        "demo_scenario": {
+          "acceptance_signal": "A buyer can understand the paid offer, see the local evidence, and see which claims are not proven yet.",
+          "operator_goal": "Local controller, agent install, node approval, and local access checks.",
+          "scenario_id": "paranoid_self_hosted_mesh.demo.v1",
+          "steps": [
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Open PRODUCT tab and select Paranoid self-hosted mesh.",
+              "proof": "The local app shows buyer, paid offer, first MVP, repo assets, and blocked claims.",
+              "step_id": "open_product_card"
+            },
+            {
+              "desktop_action_id": "provisioning.generate_setup",
+              "operator_action": "Generate a local node setup package.",
+              "proof": "Evidence focus: local_controller, node_approval, key_boundary.",
+              "step_id": "provisioning_generate_setup"
+            },
+            {
+              "desktop_action_id": "node.approve",
+              "operator_action": "Approve a pending pilot node.",
+              "proof": "Evidence focus: local_controller, node_approval, key_boundary.",
+              "step_id": "node_approve"
+            },
+            {
+              "desktop_action_id": "node.revoke",
+              "operator_action": "Revoke a pilot node.",
+              "proof": "Evidence focus: local_controller, node_approval, key_boundary.",
+              "step_id": "node_revoke"
+            },
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Read the claim gate before saying the product is production ready.",
+              "proof": "Production, customer-traffic, settlement, DPI, and field-deployment claims stay blocked.",
+              "step_id": "check_claim_gate"
+            }
+          ]
+        },
+        "desktop_action_ids": [
+          "provisioning.generate_setup",
+          "node.approve",
+          "node.revoke"
+        ],
+        "existing_repo_assets": [
+          {
+            "exists": true,
+            "path": "src/api/maas/endpoints/provisioning.py"
+          },
+          {
+            "exists": true,
+            "path": "src/api/maas/endpoints/nodes.py"
+          },
+          {
+            "exists": true,
+            "path": "agent/scripts/x0t-agent.service"
+          }
+        ],
+        "first_mvp": "Local controller, agent install, node approval, and local access checks.",
+        "idea_id": "paranoid_self_hosted_mesh",
+        "implementation_status": "repo_scaffold_ready",
+        "paid_offer": "Self-hosted secure mesh access subscription.",
+        "proof_focus": [
+          "local_controller",
+          "node_approval",
+          "key_boundary"
+        ],
+        "schema": "x0tta6bl4.product_ideas.idea.v1",
+        "simple_pitch": "A self-hosted secure access product with no SaaS control plane.",
+        "title": "Paranoid self-hosted mesh"
+      },
+      {
+        "buyer": "Security, compliance, infra owners.",
+        "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+        "claim_gate": {
+          "blocked_claim_ids": [
+            "production_readiness",
+            "dataplane_delivery",
+            "traffic_delivery",
+            "customer_traffic",
+            "dpi_bypass",
+            "settlement_finality",
+            "field_deployment"
+          ],
+          "blockers": [
+            "production_readiness_requires_dedicated_evidence",
+            "dataplane_delivery_requires_dedicated_evidence",
+            "traffic_delivery_requires_dedicated_evidence",
+            "customer_traffic_requires_dedicated_evidence",
+            "dpi_bypass_requires_dedicated_evidence",
+            "settlement_finality_requires_dedicated_evidence",
+            "field_deployment_requires_dedicated_evidence"
+          ],
+          "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+          "customer_traffic_claim_allowed": false,
+          "dataplane_delivery_claim_allowed": false,
+          "external_dpi_bypass_claim_allowed": false,
+          "field_deployment_claim_allowed": false,
+          "local_product_scaffold_claim_allowed": true,
+          "production_readiness_claim_allowed": false,
+          "schema": "x0tta6bl4.product_ideas.claim_gate.v1",
+          "sellable_mvp_shape_claim_allowed": true,
+          "settlement_finality_claim_allowed": false,
+          "surface": "product_ideas.node_trust_passport",
+          "traffic_delivery_claim_allowed": false
+        },
+        "demo_scenario": {
+          "acceptance_signal": "A buyer can understand the paid offer, see the local evidence, and see which claims are not proven yet.",
+          "operator_goal": "Node identity, runtime credential status, claim gate, and evidence ids.",
+          "scenario_id": "node_trust_passport.demo.v1",
+          "steps": [
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Open PRODUCT tab and select Node trust passport.",
+              "proof": "The local app shows buyer, paid offer, first MVP, repo assets, and blocked claims.",
+              "step_id": "open_product_card"
+            },
+            {
+              "desktop_action_id": "identity.refresh_status",
+              "operator_action": "Refresh service identity status and trust-boundary fields.",
+              "proof": "Evidence focus: node_identity, runtime_credential, trust_boundary.",
+              "step_id": "identity_refresh_status"
+            },
+            {
+              "desktop_action_id": "node.readiness",
+              "operator_action": "Read node readiness and local telemetry.",
+              "proof": "Evidence focus: node_identity, runtime_credential, trust_boundary.",
+              "step_id": "node_readiness"
+            },
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Read the claim gate before saying the product is production ready.",
+              "proof": "Production, customer-traffic, settlement, DPI, and field-deployment claims stay blocked.",
+              "step_id": "check_claim_gate"
+            }
+          ]
+        },
+        "desktop_action_ids": [
+          "identity.refresh_status",
+          "node.readiness"
+        ],
+        "existing_repo_assets": [
+          {
+            "exists": true,
+            "path": "src/api/maas/endpoints/nodes.py"
+          },
+          {
+            "exists": true,
+            "path": "src/api/service_identity_status.py"
+          },
+          {
+            "exists": true,
+            "path": "src/services/service_identity_registry.py"
+          }
+        ],
+        "first_mvp": "Node identity, runtime credential status, claim gate, and evidence ids.",
+        "idea_id": "node_trust_passport",
+        "implementation_status": "repo_scaffold_ready",
+        "paid_offer": "Per-node trust inventory and compliance export.",
+        "proof_focus": [
+          "node_identity",
+          "runtime_credential",
+          "trust_boundary"
+        ],
+        "schema": "x0tta6bl4.product_ideas.idea.v1",
+        "simple_pitch": "A readable card for what each node is trusted to do.",
+        "title": "Node trust passport"
+      },
+      {
+        "buyer": "Teams with expensive downtime.",
+        "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+        "claim_gate": {
+          "blocked_claim_ids": [
+            "production_readiness",
+            "dataplane_delivery",
+            "traffic_delivery",
+            "customer_traffic",
+            "dpi_bypass",
+            "settlement_finality",
+            "field_deployment"
+          ],
+          "blockers": [
+            "production_readiness_requires_dedicated_evidence",
+            "dataplane_delivery_requires_dedicated_evidence",
+            "traffic_delivery_requires_dedicated_evidence",
+            "customer_traffic_requires_dedicated_evidence",
+            "dpi_bypass_requires_dedicated_evidence",
+            "settlement_finality_requires_dedicated_evidence",
+            "field_deployment_requires_dedicated_evidence"
+          ],
+          "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+          "customer_traffic_claim_allowed": false,
+          "dataplane_delivery_claim_allowed": false,
+          "external_dpi_bypass_claim_allowed": false,
+          "field_deployment_claim_allowed": false,
+          "local_product_scaffold_claim_allowed": true,
+          "production_readiness_claim_allowed": false,
+          "schema": "x0tta6bl4.product_ideas.claim_gate.v1",
+          "sellable_mvp_shape_claim_allowed": true,
+          "settlement_finality_claim_allowed": false,
+          "surface": "product_ideas.autonomous_network_repair",
+          "traffic_delivery_claim_allowed": false
+        },
+        "demo_scenario": {
+          "acceptance_signal": "A buyer can understand the paid offer, see the local evidence, and see which claims are not proven yet.",
+          "operator_goal": "Detect issue, propose action, run safe actuator, verify local result.",
+          "scenario_id": "autonomous_network_repair.demo.v1",
+          "steps": [
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Open PRODUCT tab and select Autonomous network repair.",
+              "proof": "The local app shows buyer, paid offer, first MVP, repo assets, and blocked claims.",
+              "step_id": "open_product_card"
+            },
+            {
+              "desktop_action_id": "node.heal",
+              "operator_action": "Run or prepare a safe node-heal action with evidence boundaries.",
+              "proof": "Evidence focus: safe_actuator, cooldown, post_action_revalidation.",
+              "step_id": "node_heal"
+            },
+            {
+              "desktop_action_id": "agent_health.run",
+              "operator_action": "Run the health bot and show dry-run or safe-actuator evidence.",
+              "proof": "Evidence focus: safe_actuator, cooldown, post_action_revalidation.",
+              "step_id": "agent_health_run"
+            },
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Read the claim gate before saying the product is production ready.",
+              "proof": "Production, customer-traffic, settlement, DPI, and field-deployment claims stay blocked.",
+              "step_id": "check_claim_gate"
+            }
+          ]
+        },
+        "desktop_action_ids": [
+          "node.heal",
+          "agent_health.run"
+        ],
+        "existing_repo_assets": [
+          {
+            "exists": true,
+            "path": "src/self_healing/mape_k/manager.py"
+          },
+          {
+            "exists": true,
+            "path": "src/mesh/recovery_orchestrator.py"
+          },
+          {
+            "exists": true,
+            "path": "scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py"
+          }
+        ],
+        "first_mvp": "Detect issue, propose action, run safe actuator, verify local result.",
+        "idea_id": "autonomous_network_repair",
+        "implementation_status": "repo_scaffold_ready",
+        "paid_offer": "Per-site recovery automation and support.",
+        "proof_focus": [
+          "safe_actuator",
+          "cooldown",
+          "post_action_revalidation"
+        ],
+        "schema": "x0tta6bl4.product_ideas.idea.v1",
+        "simple_pitch": "Safe self-healing that proves only what it checked.",
+        "title": "Autonomous network repair"
+      },
+      {
+        "buyer": "Factories, logistics, energy, industrial labs.",
+        "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+        "claim_gate": {
+          "blocked_claim_ids": [
+            "production_readiness",
+            "dataplane_delivery",
+            "traffic_delivery",
+            "customer_traffic",
+            "dpi_bypass",
+            "settlement_finality",
+            "field_deployment"
+          ],
+          "blockers": [
+            "production_readiness_requires_dedicated_evidence",
+            "dataplane_delivery_requires_dedicated_evidence",
+            "traffic_delivery_requires_dedicated_evidence",
+            "customer_traffic_requires_dedicated_evidence",
+            "dpi_bypass_requires_dedicated_evidence",
+            "settlement_finality_requires_dedicated_evidence",
+            "field_deployment_requires_dedicated_evidence"
+          ],
+          "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+          "customer_traffic_claim_allowed": false,
+          "dataplane_delivery_claim_allowed": false,
+          "external_dpi_bypass_claim_allowed": false,
+          "field_deployment_claim_allowed": false,
+          "local_product_scaffold_claim_allowed": true,
+          "production_readiness_claim_allowed": false,
+          "schema": "x0tta6bl4.product_ideas.claim_gate.v1",
+          "sellable_mvp_shape_claim_allowed": true,
+          "settlement_finality_claim_allowed": false,
+          "surface": "product_ideas.industrial_edge_commander",
+          "traffic_delivery_claim_allowed": false
+        },
+        "demo_scenario": {
+          "acceptance_signal": "A buyer can understand the paid offer, see the local evidence, and see which claims are not proven yet.",
+          "operator_goal": "Action catalog, live snapshot, readiness gates, and operator controls.",
+          "scenario_id": "industrial_edge_commander.demo.v1",
+          "steps": [
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Open PRODUCT tab and select Industrial edge AI commander.",
+              "proof": "The local app shows buyer, paid offer, first MVP, repo assets, and blocked claims.",
+              "step_id": "open_product_card"
+            },
+            {
+              "desktop_action_id": "mesh.refresh_runtime",
+              "operator_action": "Refresh local mesh runtime status and degraded-mode signals.",
+              "proof": "Evidence focus: operator_screen, action_catalog, human_confirmation.",
+              "step_id": "mesh_refresh_runtime"
+            },
+            {
+              "desktop_action_id": "readiness.open_gate",
+              "operator_action": "Run the readiness gate and show PASS, FAIL, WARN, and blocked claims.",
+              "proof": "Evidence focus: operator_screen, action_catalog, human_confirmation.",
+              "step_id": "readiness_open_gate"
+            },
+            {
+              "desktop_action_id": "node.heal",
+              "operator_action": "Run or prepare a safe node-heal action with evidence boundaries.",
+              "proof": "Evidence focus: operator_screen, action_catalog, human_confirmation.",
+              "step_id": "node_heal"
+            },
+            {
+              "desktop_action_id": "product.refresh_ideas",
+              "operator_action": "Read the claim gate before saying the product is production ready.",
+              "proof": "Production, customer-traffic, settlement, DPI, and field-deployment claims stay blocked.",
+              "step_id": "check_claim_gate"
+            }
+          ]
+        },
+        "desktop_action_ids": [
+          "mesh.refresh_runtime",
+          "readiness.open_gate",
+          "node.heal"
+        ],
+        "existing_repo_assets": [
+          {
+            "exists": true,
+            "path": "src/core/app_desktop.py"
+          },
+          {
+            "exists": true,
+            "path": "x0tta6bl4-app/src/App.tsx"
+          },
+          {
+            "exists": true,
+            "path": "src/core/app.py"
+          }
+        ],
+        "first_mvp": "Action catalog, live snapshot, readiness gates, and operator controls.",
+        "idea_id": "industrial_edge_commander",
+        "implementation_status": "repo_scaffold_ready",
+        "paid_offer": "Pilot dashboard for industrial edge operators.",
+        "proof_focus": [
+          "operator_screen",
+          "action_catalog",
+          "human_confirmation"
+        ],
+        "schema": "x0tta6bl4.product_ideas.idea.v1",
+        "simple_pitch": "One operator screen for edge nodes, actions, and proof.",
+        "title": "Industrial edge AI commander"
+      }
+    ],
+    "ideas_total": 10,
+    "monetization_rule": "Sell one narrow MVP first; keep the other ideas as packaged upsells.",
+    "repo_scaffold_blocked": 0,
+    "repo_scaffold_ready": 10,
+    "schema": "x0tta6bl4.product_ideas.portfolio.v1",
+    "status": "portfolio_ready"
+  },
+  "root": "/mnt/projects",
+  "schema": "x0tta6bl4.product_ideas.export.v1"
+}

@@ -22,6 +22,39 @@ except ImportError:
     TELEGRAM_AVAILABLE = False
     print("pip install python-telegram-bot")
 
+    class Update:
+        pass
+
+    class InlineKeyboardButton:
+        def __init__(self, text, callback_data=None, url=None, **kwargs):
+            self.text = text
+            self.callback_data = callback_data
+            self.url = url
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    class InlineKeyboardMarkup:
+        def __init__(self, keyboard):
+            self.inline_keyboard = keyboard
+
+    class Application:
+        @staticmethod
+        def builder():
+            raise RuntimeError("python-telegram-bot is not installed")
+
+    class CommandHandler:
+        def __init__(self, command, callback):
+            self.command = command
+            self.callback = callback
+
+    class CallbackQueryHandler:
+        def __init__(self, callback, pattern=None):
+            self.callback = callback
+            self.pattern = pattern
+
+    class ContextTypes:
+        DEFAULT_TYPE = None
+
 from datetime import datetime
 from typing import Optional
 
@@ -33,8 +66,8 @@ PROFILE_MESSAGE = """
 
 🆔 ID: `{user_id}`
 📋 План: *{plan}*
-⏳ Действует до: *{expires_at}*
-📊 Использовано запросов: *{requests_count}*
+⏳ Действует до: *{expires_at}* ({days_left})
+📊 Использование: *{usage_percent}%* ({requests_count}/{requests_limit})
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -301,19 +334,37 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ensure_user_exists(user_id, update.effective_user.username)
         user = get_db_user(user_id)
 
+    now = datetime.utcnow()
     expires_at = user.expires_at.strftime("%d.%m.%Y") if user.expires_at else "Бессрочно (Trial)"
-    
+
+    days_left_val = (user.expires_at - now).days if user.expires_at else 999
+    days_left = f"{days_left_val} дн." if user.expires_at else "Unlimited"
+
+    usage_percent = 0
+    if user.requests_limit and user.requests_limit > 0:
+        usage_percent = int((user.requests_count or 0) / user.requests_limit * 100)
+
     is_active = True
-    if user.expires_at and user.expires_at < datetime.utcnow():
+    if user.expires_at and user.expires_at < now:
         is_active = False
     
-    status_text = "✅ Подписка активна" if is_active else "❌ Подписка истекла. Пожалуйста, продлите её."
+    if not is_active:
+        status_text = "❌ *ПОДПИСКА ИСТЕКЛА*\nПожалуйста, продлите доступ для продолжения работы."
+    elif usage_percent > 90:
+        status_text = "⚠️ *ЛИМИТ ПОЧТИ ИСЧЕРПАН*\nРекомендуем перейти на более мощный план."
+    elif days_left_val <= 3 and user.expires_at:
+        status_text = "⚠️ *ЗАКАНЧИВАЕТСЯ ЧЕРЕЗ 3 ДНЯ*\nПродлите подписку заранее, чтобы не терять связь."
+    else:
+        status_text = "✅ *ПОДПИСКА АКТИВНА*\nВсе системы работают штатно. YouTube в 4K доступен."
     
     text = PROFILE_MESSAGE.format(
         user_id=user_id,
         plan=user.plan.upper(),
         expires_at=expires_at,
+        days_left=days_left,
         requests_count=user.requests_count or 0,
+        requests_limit=user.requests_limit or 0,
+        usage_percent=usage_percent,
         status_text=status_text
     )
 

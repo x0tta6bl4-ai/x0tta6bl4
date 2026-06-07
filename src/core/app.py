@@ -10,9 +10,9 @@ import secrets
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
-from fastapi import APIRouter, Depends, FastAPI, Request, Response, status
+from fastapi import APIRouter, Depends, FastAPI, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -31,7 +31,7 @@ from src.core.settings import settings
 from src.core.status_collector import get_current_status
 from src.core.tracing_middleware import TracingMiddleware
 from src.core.api_error_handlers import register_api_error_handlers
-from src.coordination.events import EventBus, get_event_bus
+from src.coordination.events import Event, EventBus, get_event_bus
 from src.mesh.metric_evidence_policy import latest_mesh_metric_policy_evidence
 from src.version import __version__, get_health_info
 
@@ -42,6 +42,7 @@ logger.info(f"✓ Structured logging initialized at level {log_level}")
 
 _LIGHT_MODE = os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true"
 _APP_VERSION = f"{__version__}-light" if _LIGHT_MODE else __version__
+STARTED_AT = time.time()
 
 app = FastAPI(
     title="x0tta6bl4",
@@ -50,6 +51,33 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
+)
+
+_DEFAULT_APP_CORS_ORIGINS = (
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "http://127.0.0.1:8081",
+    "http://localhost:8081",
+    "https://localhost",
+    "capacitor://localhost",
+    "ionic://localhost",
+    "tauri://localhost",
+    "https://tauri.localhost",
+)
+
+
+def _app_cors_origins() -> list[str]:
+    raw = os.getenv("X0TTA6BL4_APP_CORS_ORIGINS", "")
+    configured = [item.strip() for item in raw.split(",") if item.strip()]
+    return configured or list(_DEFAULT_APP_CORS_ORIGINS)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_app_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 
 @app.middleware("http")
@@ -128,13 +156,53 @@ def _health_api_claim_gate(surface: str):
     }
 
 
+def _fast_fail_closed_cross_plane_claim_gate(
+    claims: Sequence[str],
+    *,
+    surface: str,
+    blocker: str,
+    claim_boundary: str,
+) -> dict[str, Any]:
+    requested_claim_ids = list(dict.fromkeys(str(claim) for claim in claims if str(claim)))
+    return {
+        "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+        "decision": "CROSS_PLANE_CLAIMS_BLOCKED_FAST_LOCAL_OBSERVATION",
+        "allowed": False,
+        "available": False,
+        "surface": surface,
+        "requested_claim_ids": requested_claim_ids,
+        "allowed_claim_ids": [],
+        "blocked_claim_ids": requested_claim_ids,
+        "blockers": [blocker],
+        "claim_blockers": {
+            claim_id: [blocker]
+            for claim_id in requested_claim_ids
+        },
+        "plane_claims": {},
+        "allowed_plane_ids": [],
+        "blocked_plane_ids": [],
+        "plane_blockers": {},
+        "proof_dependency_graph": {},
+        "next_actions": [],
+        "next_actions_by_plane": {},
+        "claim_boundary": claim_boundary,
+    }
+
+
 def _health_api_response(payload: dict, *, surface: str):
     return {
         **payload,
         "health_api_claim_gate": _health_api_claim_gate(surface),
-        "cross_plane_claim_gate": cross_plane_claim_gate_metadata(
+        "cross_plane_claim_gate": _fast_fail_closed_cross_plane_claim_gate(
             _HEALTH_API_CROSS_PLANE_CLAIMS,
             surface=surface,
+            blocker="health_liveness_endpoint_does_not_run_full_cross_plane_proof_gate",
+            claim_boundary=(
+                "Health endpoints are fast local liveness/readiness observations. "
+                "They intentionally do not run the full cross-plane proof gate on "
+                "each request and must not be used to promote production, dataplane, "
+                "DPI, traffic, trust-finality, or settlement claims."
+            ),
         ),
     }
 
@@ -160,6 +228,145 @@ _METRICS_API_CLAIM_HEADERS = {
 
 def _metrics_api_claim_boundary_headers():
     return dict(_METRICS_API_CLAIM_HEADERS)
+
+
+_FULL_CORE_DESKTOP_STATE_DIR = Path(
+    os.getenv("X0TTA6BL4_DESKTOP_STATE_DIR", "/opt/x0tta6bl4-mesh/state")
+)
+_FULL_CORE_RUNTIME_STATE_PATH = _FULL_CORE_DESKTOP_STATE_DIR / "runtime-state.json"
+_FULL_CORE_CLIENT_PROFILE_HINT_PATH = _FULL_CORE_DESKTOP_STATE_DIR / "client-profile-hint.json"
+_FULL_CORE_LISTENER_SIGNAL_PATH = _FULL_CORE_DESKTOP_STATE_DIR / "listener-loss-signal.json"
+_FULL_CORE_LIVE_SNAPSHOT_CLAIMS = (
+    "production_readiness",
+    "dataplane_delivery",
+    "traffic_delivery",
+    "customer_traffic",
+    "settlement_finality",
+    "dpi_bypass",
+)
+_FULL_CORE_LIVE_SNAPSHOT_CLAIM_BOUNDARY = (
+    "Full Core live snapshot exposes local process, router, EventBus, and desktop "
+    "runtime-state observations only. It is a fast UI status surface, not a "
+    "production-readiness, customer-traffic, dataplane-delivery, external-DPI, "
+    "trust-finality, or settlement proof."
+)
+_LIVE_SNAPSHOT_SENSITIVE_KEY_PARTS = (
+    "api_key",
+    "authorization",
+    "bearer",
+    "credential",
+    "email",
+    "hostname",
+    "install_command",
+    "key",
+    "link",
+    "node_id",
+    "password",
+    "private",
+    "secret",
+    "spiffe",
+    "svid",
+    "token",
+    "url",
+    "vless",
+    "wallet",
+)
+_LIVE_SNAPSHOT_SURFACE_KEYWORDS = (
+    ("mesh", ("mesh", "node", "peer", "route", "listener", "vpn", "runtime")),
+    ("marketplace", ("market", "listing", "rental", "escrow")),
+    ("billing", ("billing", "invoice", "payment", "subscription")),
+    ("wallet", ("wallet", "ledger", "reward", "settlement")),
+    ("dao", ("dao", "governance", "proposal", "vote")),
+    ("ops", ("readiness", "proof", "gate", "deploy", "health", "mape", "graphsage")),
+)
+
+
+def _live_snapshot_read_json(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _live_snapshot_is_sensitive_key(key: Any) -> bool:
+    normalized = str(key).lower()
+    return any(part in normalized for part in _LIVE_SNAPSHOT_SENSITIVE_KEY_PARTS)
+
+
+def _live_snapshot_safe_scalar(value: Any) -> Any:
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, (int, float)):
+        return value
+    if isinstance(value, str):
+        return value[:160]
+    return None
+
+
+def _live_snapshot_data_summary(data: Any) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        return {"data_type": type(data).__name__, "payloads_redacted": True}
+
+    fields: dict[str, Any] = {}
+    redacted: list[str] = []
+    for key, value in sorted(data.items(), key=lambda pair: str(pair[0]))[:80]:
+        key_text = str(key)
+        if _live_snapshot_is_sensitive_key(key_text):
+            redacted.append(key_text)
+            continue
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            fields[key_text] = _live_snapshot_safe_scalar(value)
+        elif isinstance(value, list):
+            fields[key_text] = {"item_count": len(value)}
+        elif isinstance(value, dict):
+            fields[key_text] = {"keys": sorted(str(item) for item in value.keys())[:12]}
+
+    fields["data_keys"] = sorted(str(key) for key in data.keys())[:80]
+    fields["redacted_sensitive_keys"] = redacted
+    fields["payloads_redacted"] = True
+    return fields
+
+
+def _live_snapshot_event_surface(event: Event) -> str:
+    data = event.data if isinstance(event.data, dict) else {}
+    haystack = " ".join(
+        [
+            event.event_type.value,
+            event.source_agent,
+            str(data.get("surface", "")),
+            str(data.get("operation", "")),
+            str(data.get("action", "")),
+            str(data.get("stage", "")),
+            str(data.get("transition", "")),
+        ]
+    ).lower()
+    for surface, keywords in _LIVE_SNAPSHOT_SURFACE_KEYWORDS:
+        if any(keyword in haystack for keyword in keywords):
+            return surface
+    return "system"
+
+
+def _live_snapshot_event_summary(event: Event) -> dict[str, Any]:
+    return {
+        "event_id": event.event_id,
+        "event_type": event.event_type.value,
+        "surface": _live_snapshot_event_surface(event),
+        "source_agent": event.source_agent,
+        "timestamp": event.timestamp.isoformat(),
+        "priority": event.priority,
+        "requires_ack": event.requires_ack,
+        "acked_by_count": len(event.acked_by),
+        "targeted": event.target_agents is not None,
+        "data": _live_snapshot_data_summary(event.data),
+    }
+
+
+def _live_snapshot_event_bus_or_none() -> EventBus | None:
+    try:
+        return get_event_bus(".")
+    except Exception:
+        return None
 
 
 _peers: dict[str, dict[str, Any]] = {}
@@ -394,9 +601,17 @@ def _status_api_response(status_data: dict):
     return {
         **status_data,
         "status_api_claim_gate": _status_api_claim_gate(),
-        "cross_plane_claim_gate": cross_plane_claim_gate_metadata(
+        "cross_plane_claim_gate": _fast_fail_closed_cross_plane_claim_gate(
             _STATUS_API_CROSS_PLANE_CLAIMS,
             surface="status_api",
+            blocker="status_endpoint_does_not_run_full_cross_plane_proof_gate",
+            claim_boundary=(
+                "Status endpoint responses expose local process, system, resilience, "
+                "mesh-health, and loop-state observations. They intentionally do not "
+                "run the full cross-plane proof gate on each request and must not be "
+                "used to promote production, dataplane, DPI, traffic, trust-finality, "
+                "or settlement claims."
+            ),
         ),
     }
 
@@ -463,6 +678,76 @@ async def mesh_routes(request: Request):
 @app.get("/status")
 async def status_endpoint():
     return JSONResponse(content=_status_api_response(get_current_status()))
+
+
+@app.get("/api/v1/platform/live-snapshot")
+async def platform_live_snapshot(
+    limit: int = Query(default=25, ge=1, le=100),
+) -> dict[str, Any]:
+    runtime = _live_snapshot_read_json(_FULL_CORE_RUNTIME_STATE_PATH)
+    hint = _live_snapshot_read_json(_FULL_CORE_CLIENT_PROFILE_HINT_PATH)
+    signal = _live_snapshot_read_json(_FULL_CORE_LISTENER_SIGNAL_PATH)
+    event_bus = _live_snapshot_event_bus_or_none()
+    events = event_bus.get_event_history(limit=limit) if event_bus else []
+
+    event_type_counts: dict[str, int] = {}
+    source_agent_counts: dict[str, int] = {}
+    surface_counts: dict[str, int] = {}
+    recent_by_surface: dict[str, list[dict[str, Any]]] = {}
+    recent_events: list[dict[str, Any]] = []
+    for event in events:
+        surface = _live_snapshot_event_surface(event)
+        summary = _live_snapshot_event_summary(event)
+        event_type_counts[event.event_type.value] = event_type_counts.get(event.event_type.value, 0) + 1
+        source_agent_counts[event.source_agent] = source_agent_counts.get(event.source_agent, 0) + 1
+        surface_counts[surface] = surface_counts.get(surface, 0) + 1
+        recent_by_surface.setdefault(surface, []).append(summary)
+        recent_events.append(summary)
+
+    local_state = {
+        "runtime_state_present": _FULL_CORE_RUNTIME_STATE_PATH.is_file(),
+        "client_profile_hint_present": _FULL_CORE_CLIENT_PROFILE_HINT_PATH.is_file(),
+        "listener_signal_present": _FULL_CORE_LISTENER_SIGNAL_PATH.is_file(),
+        "runtime_mode": runtime.get("mode") or hint.get("runtime_mode"),
+        "recommended_action": runtime.get("recommended_action") or hint.get("recommended_action"),
+        "recommended_profile": hint.get("recommended_profile"),
+        "listener_signal_status": signal.get("status"),
+    }
+    return {
+        "schema": "x0tta6bl4.platform.live_snapshot.v1",
+        "status": "observed" if event_bus or any(local_state.values()) else "missing",
+        "mode": "full-core-api",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "uptime_seconds": round(time.time() - STARTED_AT, 3),
+        "local_state": local_state,
+        "routers": {
+            "mode": "full-core-api",
+            "full_core_required_for_mutations": False,
+            "loaded": "full-router-set",
+        },
+        "event_bus": {
+            "available": event_bus is not None,
+            "event_log": str(event_bus.event_log_path) if event_bus else None,
+            "events_returned": len(events),
+            "event_type_counts": event_type_counts,
+            "source_agent_counts": source_agent_counts,
+            "surface_counts": surface_counts,
+            "recent_by_surface": {
+                surface: items[-8:]
+                for surface, items in sorted(recent_by_surface.items())
+            },
+            "recent_events": recent_events,
+            "payloads_redacted": True,
+        },
+        "claim_boundary": _FULL_CORE_LIVE_SNAPSHOT_CLAIM_BOUNDARY,
+        "cross_plane_claim_gate": _fast_fail_closed_cross_plane_claim_gate(
+            _FULL_CORE_LIVE_SNAPSHOT_CLAIMS,
+            surface="full_core_api.platform_live_snapshot",
+            blocker="live_snapshot_endpoint_does_not_run_full_cross_plane_proof_gate",
+            claim_boundary=_FULL_CORE_LIVE_SNAPSHOT_CLAIM_BOUNDARY,
+        ),
+    }
+
 
 @app.get("/")
 async def root():

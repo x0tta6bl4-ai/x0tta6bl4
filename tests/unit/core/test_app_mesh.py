@@ -194,6 +194,16 @@ def test_status_api_response_keeps_local_health_out_of_production_claims():
     assert payload["status_api_claim_gate"]["settlement_finality_claim_allowed"] is False
     assert payload["cross_plane_claim_gate"]["surface"] == "status_api"
     assert payload["cross_plane_claim_gate"]["allowed"] is False
+    assert payload["cross_plane_claim_gate"]["decision"] == (
+        "CROSS_PLANE_CLAIMS_BLOCKED_FAST_LOCAL_OBSERVATION"
+    )
+    assert "status_endpoint_does_not_run_full_cross_plane_proof_gate" in payload[
+        "cross_plane_claim_gate"
+    ]["blockers"]
+    assert payload["cross_plane_claim_gate"]["allowed_claim_ids"] == []
+    assert "production_readiness" in payload["cross_plane_claim_gate"][
+        "blocked_claim_ids"
+    ]
 
 
 @pytest.mark.asyncio
@@ -209,6 +219,17 @@ async def test_health_endpoint_again(client):
     assert payload["health_api_claim_gate"]["settlement_finality_claim_allowed"] is False
     assert payload["cross_plane_claim_gate"]["surface"] == "health_api.health"
     assert payload["cross_plane_claim_gate"]["allowed"] is False
+    assert payload["cross_plane_claim_gate"]["decision"] == (
+        "CROSS_PLANE_CLAIMS_BLOCKED_FAST_LOCAL_OBSERVATION"
+    )
+    assert (
+        "health_liveness_endpoint_does_not_run_full_cross_plane_proof_gate"
+        in payload["cross_plane_claim_gate"]["blockers"]
+    )
+    assert payload["cross_plane_claim_gate"]["allowed_claim_ids"] == []
+    assert "production_readiness" in payload["cross_plane_claim_gate"][
+        "blocked_claim_ids"
+    ]
 
 
 @pytest.mark.asyncio

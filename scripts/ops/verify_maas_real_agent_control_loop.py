@@ -127,6 +127,18 @@ def _wait_until(
     return last_value
 
 
+def _local_api_health_ready(api_url: str) -> bool:
+    try:
+        status_code, _body, _raw = _http_json(
+            "GET",
+            f"{api_url}/health",
+            timeout=1.0,
+        )
+    except (OSError, TimeoutError, URLError):
+        return False
+    return status_code == 200
+
+
 def _spawn_output_reader(proc: subprocess.Popen[str], lines: list[str]) -> threading.Thread:
     def read_output() -> None:
         if proc.stdout is None:
@@ -373,7 +385,7 @@ def run_verification(
         )
         _spawn_output_reader(server_proc, server_lines)
         ready = _wait_until(
-            lambda: _http_json("GET", f"{api_url}/health", timeout=1.0)[0] == 200,
+            lambda: _local_api_health_ready(api_url),
             timeout_seconds=min(60.0, timeout_seconds),
         )
         report["stages"].append(
