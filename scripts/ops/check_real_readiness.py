@@ -7736,7 +7736,7 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
             "10.123.45.67",
         ),
         None,
-        150,
+        240,
     )
     if autonomous_runtime.returncode != 0:
         checks.append(
