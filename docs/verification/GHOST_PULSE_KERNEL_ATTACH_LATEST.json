@@ -1,32 +1,32 @@
 {
   "artifacts": [
     {
-      "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/commands.json",
+      "path": "docs/verification/ghost-pulse-kernel-attach-20260607T043236Z/commands.json",
       "role": "kernel_commands",
-      "sha256": "eef30e2288f9e33dc230b28717e1b9280aa1aa25a63c64217d61c16abf0982aa"
+      "sha256": "565cb456cd1aad3bf75ffe10f4b87e575892c5ae3b2093a55adacfed38df5301"
     },
     {
-      "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/measurements.json",
+      "path": "docs/verification/ghost-pulse-kernel-attach-20260607T043236Z/measurements.json",
       "role": "kernel_measurements",
-      "sha256": "03f4f7c199c589ad6b372a414fb6d32a08c74332e6633509072953346687c92e"
+      "sha256": "af77b5a19a367453c1e2706eed71c358144c333f6c85ec9795a2b77a9ddd0022"
     },
     {
-      "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/interface-scan.json",
+      "path": "docs/verification/ghost-pulse-kernel-attach-20260607T043236Z/interface-scan.json",
       "role": "kernel_interface_scan",
-      "sha256": "04782a858f49b9c0019324de21482b55e73432b16b79612112de94f15bcc11c6"
+      "sha256": "8e61fe67dee1f9855fc4fba57b406dd6fb58d81fb8c3560970678dcfd3485606"
     },
     {
-      "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/candidate-audit.json",
+      "path": "docs/verification/ghost-pulse-kernel-attach-20260607T043236Z/candidate-audit.json",
       "role": "kernel_candidate_audit",
-      "sha256": "1016344718dddb325f8f2042697c5b197423b4223521a407e5263112890f2b10"
+      "sha256": "b6829bccb845d7880ce47332b18d6754f710cf236cac4cdecb1c1ff847d7521b"
     },
     {
-      "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/object-preflight.json",
+      "path": "docs/verification/ghost-pulse-kernel-attach-20260607T043236Z/object-preflight.json",
       "role": "kernel_object_preflight",
-      "sha256": "788caf6aa47e92e0726bb3ba4592f1af16f012a38e5f06fadc998a50ed00c341"
+      "sha256": "fdc3661f1d65e7fbea8cf4b5895160fe19187e9d9cd0e0cabdd487c3e0f69037"
     }
   ],
-  "bundle": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z",
+  "bundle": "docs/verification/ghost-pulse-kernel-attach-20260607T043236Z",
   "candidate_audit": {
     "accepted": [],
     "candidates": [
@@ -39,7 +39,7 @@
         "rejection_reasons": [
           "candidate does not contain x0tta6bl4_pulse marker",
           "candidate references xdp_mesh_filter, not x0tta6bl4_pulse",
-          "candidate does not reference interface x0rp021"
+          "candidate does not reference interface docker0"
         ],
         "sha256": "8a95b32aec04d571514798c8c9ec67b32a30dbd3137889e6275aa7f8def38769"
       },
@@ -51,7 +51,7 @@
         "path": "ebpf/prod/results/benchmark-live.json",
         "rejection_reasons": [
           "candidate does not contain x0tta6bl4_pulse marker",
-          "candidate does not reference interface x0rp021"
+          "candidate does not reference interface docker0"
         ],
         "sha256": "e0e6dd7267eb24a151a40ea374831c214739a623c5f6bf777e558caf35f32665"
       }
@@ -70,11 +70,18 @@
         "--json"
       ]
     ],
-    "blocking_reasons": [],
-    "can_stage_candidate": true,
+    "blocking_reasons": [
+      "kernel_evidence_not_verified",
+      "xdp_attach_not_visible",
+      "bpftool_permission_denied",
+      "pulse_program_not_visible",
+      "bpftool_net_missing_interface",
+      "pulse_stats_counter_not_positive"
+    ],
+    "can_stage_candidate": false,
     "candidate_path": "docs/verification/incoming/kernel_attach.json",
     "claim_boundary": "Candidate readiness only; staging/import is allowed only after the collector produces VERIFIED evidence. This section does not promote proof-gate claims.",
-    "do_not_stage_candidate": false,
+    "do_not_stage_candidate": true,
     "read_only_import_command": [
       "python3",
       "scripts/ops/import_ghost_pulse_external_evidence.py",
@@ -86,66 +93,161 @@
       "--json"
     ],
     "source_latest_evidence": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
-    "stage_candidate_command": [
-      "cp",
-      "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
-      "docs/verification/incoming/kernel_attach.json"
-    ],
-    "status": "READY_TO_STAGE_CANDIDATE"
+    "stage_candidate_command": null,
+    "status": "ACTION_REQUIRED"
   },
   "claim_boundary": {
-    "kernel_attach_verified": true,
+    "kernel_attach_verified": false,
     "note": "Verified only when current kernel output shows XDP attach, pulse program visibility, and a positive pulse map counter delta. The collector itself is read-only."
   },
   "claim_id": "kernel_attach",
   "collection_diagnostics": {
-    "blockers": [],
-    "bpftool_failed_commands": [],
-    "bpftool_net_contains_interface": true,
-    "bpftool_permission_denied": false,
-    "bpftool_permission_denied_commands": [],
-    "bpftool_privilege_mode": "sudo_noninteractive",
+    "blockers": [
+      "xdp_attach_not_visible",
+      "bpftool_permission_denied",
+      "pulse_program_not_visible",
+      "bpftool_net_missing_interface",
+      "pulse_stats_counter_not_positive"
+    ],
+    "bpftool_failed_commands": [
+      {
+        "args": [
+          "bpftool",
+          "prog",
+          "show"
+        ],
+        "exit_code": 255,
+        "name": "bpftool_prog_show",
+        "stderr": "Error: can't get next program: Operation not permitted"
+      },
+      {
+        "args": [
+          "bpftool",
+          "net"
+        ],
+        "exit_code": 255,
+        "name": "bpftool_net",
+        "stderr": "Error: can't query prog: Operation not permitted"
+      },
+      {
+        "args": [
+          "bpftool",
+          "map",
+          "show",
+          "name",
+          "pulse_stats"
+        ],
+        "exit_code": 255,
+        "name": "bpftool_map_show",
+        "stderr": "Error: Operation not permitted"
+      },
+      {
+        "args": [
+          "bpftool",
+          "map",
+          "dump",
+          "name",
+          "pulse_stats"
+        ],
+        "exit_code": 255,
+        "name": "bpftool_map_dump_before",
+        "stderr": "Error: Operation not permitted"
+      },
+      {
+        "args": [
+          "bpftool",
+          "map",
+          "dump",
+          "name",
+          "pulse_stats"
+        ],
+        "exit_code": 255,
+        "name": "bpftool_map_dump_after",
+        "stderr": "Error: Operation not permitted"
+      }
+    ],
+    "bpftool_net_contains_interface": false,
+    "bpftool_permission_denied": true,
+    "bpftool_permission_denied_commands": [
+      {
+        "args": [
+          "bpftool",
+          "prog",
+          "show"
+        ],
+        "exit_code": 255,
+        "name": "bpftool_prog_show",
+        "stderr": "Error: can't get next program: Operation not permitted"
+      },
+      {
+        "args": [
+          "bpftool",
+          "net"
+        ],
+        "exit_code": 255,
+        "name": "bpftool_net",
+        "stderr": "Error: can't query prog: Operation not permitted"
+      },
+      {
+        "args": [
+          "bpftool",
+          "map",
+          "show",
+          "name",
+          "pulse_stats"
+        ],
+        "exit_code": 255,
+        "name": "bpftool_map_show",
+        "stderr": "Error: Operation not permitted"
+      },
+      {
+        "args": [
+          "bpftool",
+          "map",
+          "dump",
+          "name",
+          "pulse_stats"
+        ],
+        "exit_code": 255,
+        "name": "bpftool_map_dump_before",
+        "stderr": "Error: Operation not permitted"
+      },
+      {
+        "args": [
+          "bpftool",
+          "map",
+          "dump",
+          "name",
+          "pulse_stats"
+        ],
+        "exit_code": 255,
+        "name": "bpftool_map_dump_after",
+        "stderr": "Error: Operation not permitted"
+      }
+    ],
+    "bpftool_privilege_mode": "direct",
     "bpftool_unavailable_commands": [],
-    "interface": "x0rp021",
+    "interface": "docker0",
     "interface_seen": true,
-    "map_counter_delta_packets": 488,
+    "map_counter_delta_packets": 0,
     "next_action": "Collect on a host where the x0tta6bl4_pulse XDP program is attached to the target interface and bpftool can read programs/maps; keep this claim INCOMPLETE until the pulse_stats packet counter increases.",
-    "object_preflight_blockers": [],
-    "object_preflight_status": "READY_FOR_CONTROLLED_ATTACH_TEST",
-    "pulse_marker_visible": true,
-    "status": "READY_FOR_PROOF",
-    "sudo_noninteractive_enabled": true,
+    "object_preflight_blockers": [
+      "pulse_object_missing_btf_section"
+    ],
+    "object_preflight_status": "ACTION_REQUIRED",
+    "pulse_marker_visible": false,
+    "status": "ACTION_REQUIRED",
+    "sudo_noninteractive_enabled": false,
     "sudo_noninteractive_unavailable": false,
     "sudo_noninteractive_unavailable_commands": [],
     "sudo_unavailable": false,
     "sudo_unavailable_commands": [],
-    "xdp_attached": true,
-    "xdp_interfaces": [
-      {
-        "ifname": "x0rp021",
-        "xdp": {
-          "attached": [
-            {
-              "mode": 2,
-              "prog": {
-                "id": 23589
-              }
-            }
-          ],
-          "mode": 2,
-          "prog": {
-            "id": 23589
-          }
-        }
-      }
-    ]
+    "xdp_attached": false,
+    "xdp_interfaces": []
   },
   "collection_options": {
-    "bpftool_sudo": true,
-    "bpftool_sudo_command_prefix": [
-      "sudo",
-      "-n"
-    ],
+    "bpftool_sudo": false,
+    "bpftool_sudo_command_prefix": [],
     "bpftool_sudo_note": "When enabled, only read-only bpftool observation commands run through sudo -n. The collector never attaches XDP programs or mutates runtime state."
   },
   "commands": [
@@ -172,7 +274,7 @@
       "exit_code": 0,
       "privilege_mode": "direct",
       "stderr": "",
-      "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":0,\"max_mtu\":0,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":2,\"ifname\":\"enp8s0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"18:c0:4d:ab:68:60\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":9194,\"inet6_addr_gen_mode\":\"none\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":64000,\"gso_max_segs\":64,\"tso_max_size\":64000,\"tso_max_segs\":64,\"gro_max_size\":65536,\"parentbus\":\"pci\",\"parentdev\":\"0000:08:00.0\"},{\"ifindex\":3,\"ifname\":\"virbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"52:54:00:34:e7:cf\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":200,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":1,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.52:54:0:34:e7:cf\",\"root_id\":\"8000.52:54:0:34:e7:cf\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.78,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":184.61,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":4,\"ifname\":\"lxcbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"00:16:3e:00:00:00\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":1500,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":0,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.0:16:3e:0:0:0\",\"root_id\":\"8000.0:16:3e:0:0:0\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.00,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":184.61,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":5,\"ifname\":\"x0tctrl\",\"flags\":[\"POINTOPOINT\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"none\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":0,\"max_mtu\":2147483552,\"linkinfo\":{\"info_kind\":\"wireguard\"},\"inet6_addr_gen_mode\":\"none\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":6,\"ifname\":\"br-2346afa010d6\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"9e:d9:ef:93:23:80\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":1500,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":0,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.9e:d9:ef:93:23:80\",\"root_id\":\"8000.9e:d9:ef:93:23:80\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.00,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":184.61,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":7,\"ifname\":\"br-5cce4ae051c7\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"32:ad:9b:96:8e:23\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":1500,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":0,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.32:ad:9b:96:8e:23\",\"root_id\":\"8000.32:ad:9b:96:8e:23\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.00,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":184.61,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":8,\"ifname\":\"br-afb7e5743700\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ae:8a:5a:72:04:6d\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":1500,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":0,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.ae:8a:5a:72:4:6d\",\"root_id\":\"8000.ae:8a:5a:72:4:6d\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.00,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":184.61,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":9,\"ifname\":\"docker0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"1a:d5:9e:f7:f5:69\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":1500,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":0,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.1a:d5:9e:f7:f5:69\",\"root_id\":\"8000.1a:d5:9e:f7:f5:69\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.00,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":184.61,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":10,\"ifname\":\"br-224057b2b3d0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"62:75:0e:8d:0a:8c\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":1500,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":0,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.62:75:e:8d:a:8c\",\"root_id\":\"8000.62:75:e:8d:a:8c\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.00,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":165.15,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":11,\"link_index\":2,\"ifname\":\"veth6864553\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"docker0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"d6:c6:17:be:6d:61\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":0,\"promiscuity\":1,\"allmulti\":1,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"veth\",\"info_slave_kind\":\"bridge\",\"info_slave_data\":{\"state\":\"forwarding\",\"priority\":32,\"cost\":2,\"hairpin\":false,\"guard\":false,\"root_block\":false,\"fastleave\":false,\"learning\":true,\"flood\":true,\"id\":\"0x8001\",\"no\":\"0x1\",\"designated_port\":32769,\"designated_cost\":0,\"bridge_id\":\"8000.1a:d5:9e:f7:f5:69\",\"root_id\":\"8000.1a:d5:9e:f7:f5:69\",\"hold_timer\":0.00,\"message_age_timer\":0.00,\"forward_delay_timer\":0.00,\"topology_change_ack\":0,\"config_pending\":0,\"proxy_arp\":false,\"proxy_arp_wifi\":false,\"multicast_router\":1,\"mcast_flood\":true,\"bcast_flood\":true,\"mcast_to_unicast\":false,\"neigh_suppress\":false,\"group_fwd_mask\":\"0\",\"group_fwd_mask_str\":\"0x0\",\"vlan_tunnel\":false,\"isolated\":false,\"locked\":false}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":4,\"num_rx_queues\":4,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":13,\"link_index\":2,\"ifname\":\"vethb6b7267\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"06:ca:da:6a:35:a2\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":2,\"promiscuity\":1,\"allmulti\":1,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"veth\",\"info_slave_kind\":\"bridge\",\"info_slave_data\":{\"state\":\"forwarding\",\"priority\":32,\"cost\":2,\"hairpin\":false,\"guard\":false,\"root_block\":false,\"fastleave\":false,\"learning\":true,\"flood\":true,\"id\":\"0x8002\",\"no\":\"0x2\",\"designated_port\":32770,\"designated_cost\":0,\"bridge_id\":\"8000.62:75:e:8d:a:8c\",\"root_id\":\"8000.62:75:e:8d:a:8c\",\"hold_timer\":0.00,\"message_age_timer\":0.00,\"forward_delay_timer\":0.00,\"topology_change_ack\":0,\"config_pending\":0,\"proxy_arp\":false,\"proxy_arp_wifi\":false,\"multicast_router\":1,\"mcast_flood\":true,\"bcast_flood\":true,\"mcast_to_unicast\":false,\"neigh_suppress\":false,\"group_fwd_mask\":\"0\",\"group_fwd_mask_str\":\"0x0\",\"vlan_tunnel\":false,\"isolated\":false,\"locked\":false}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":4,\"num_rx_queues\":4,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":14,\"link_index\":2,\"ifname\":\"vethdfca4d4\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"c6:04:bb:36:cb:e8\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":3,\"promiscuity\":1,\"allmulti\":1,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"veth\",\"info_slave_kind\":\"bridge\",\"info_slave_data\":{\"state\":\"forwarding\",\"priority\":32,\"cost\":2,\"hairpin\":false,\"guard\":false,\"root_block\":false,\"fastleave\":false,\"learning\":true,\"flood\":true,\"id\":\"0x8003\",\"no\":\"0x3\",\"designated_port\":32771,\"designated_cost\":0,\"bridge_id\":\"8000.62:75:e:8d:a:8c\",\"root_id\":\"8000.62:75:e:8d:a:8c\",\"hold_timer\":0.00,\"message_age_timer\":0.00,\"forward_delay_timer\":0.00,\"topology_change_ack\":0,\"config_pending\":0,\"proxy_arp\":false,\"proxy_arp_wifi\":false,\"multicast_router\":1,\"mcast_flood\":true,\"bcast_flood\":true,\"mcast_to_unicast\":false,\"neigh_suppress\":false,\"group_fwd_mask\":\"0\",\"group_fwd_mask_str\":\"0x0\",\"vlan_tunnel\":false,\"isolated\":false,\"locked\":false}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":4,\"num_rx_queues\":4,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":54,\"ifname\":\"singbox_tun\",\"flags\":[\"POINTOPOINT\",\"MULTICAST\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"fq\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":500,\"link_type\":\"none\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"tun\",\"info_data\":{\"type\":\"tun\",\"pi\":false,\"vnet_hdr\":true,\"multi_queue\":false,\"persist\":false}},\"inet6_addr_gen_mode\":\"random\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":9265,\"link\":\"x0rp021\",\"ifname\":\"x0rp121\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"32:e5:71:69:01:f8\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"veth\"},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":4,\"num_rx_queues\":4,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":9266,\"link\":\"x0rp121\",\"ifname\":\"x0rp021\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"xdp\":{\"mode\":2,\"prog\":{\"id\":23589},\"attached\":[{\"mode\":2,\"prog\":{\"id\":23589}}]},\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"e6:03:8c:b4:a6:bf\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"veth\"},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":4,\"num_rx_queues\":4,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536}]\n"
+      "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":0,\"max_mtu\":0,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":2,\"ifname\":\"enp8s0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"18:c0:4d:ab:68:60\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":9194,\"inet6_addr_gen_mode\":\"none\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":64000,\"gso_max_segs\":64,\"tso_max_size\":64000,\"tso_max_segs\":64,\"gro_max_size\":65536,\"parentbus\":\"pci\",\"parentdev\":\"0000:08:00.0\"},{\"ifindex\":3,\"ifname\":\"virbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"52:54:00:34:e7:cf\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":200,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":1,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.52:54:0:34:e7:cf\",\"root_id\":\"8000.52:54:0:34:e7:cf\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.23,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":130.70,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":4,\"ifname\":\"lxcbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"00:16:3e:00:00:00\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":1500,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":0,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.0:16:3e:0:0:0\",\"root_id\":\"8000.0:16:3e:0:0:0\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.00,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":130.70,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":5,\"ifname\":\"x0tctrl\",\"flags\":[\"POINTOPOINT\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"none\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":0,\"max_mtu\":2147483552,\"linkinfo\":{\"info_kind\":\"wireguard\"},\"inet6_addr_gen_mode\":\"none\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":6,\"ifname\":\"br-224057b2b3d0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ce:5f:f8:3c:19:f3\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":1500,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":0,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.ce:5f:f8:3c:19:f3\",\"root_id\":\"8000.ce:5f:f8:3c:19:f3\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.00,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":87.69,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":7,\"ifname\":\"docker0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ca:28:94:0c:68:2d\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":1500,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":0,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.ca:28:94:c:68:2d\",\"root_id\":\"8000.ca:28:94:c:68:2d\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.00,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":97.93,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":8,\"link_index\":2,\"ifname\":\"veth31819d9\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"docker0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"e6:ee:9c:ca:ec:3f\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":0,\"promiscuity\":1,\"allmulti\":1,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"veth\",\"info_slave_kind\":\"bridge\",\"info_slave_data\":{\"state\":\"forwarding\",\"priority\":32,\"cost\":2,\"hairpin\":false,\"guard\":false,\"root_block\":false,\"fastleave\":false,\"learning\":true,\"flood\":true,\"id\":\"0x8001\",\"no\":\"0x1\",\"designated_port\":32769,\"designated_cost\":0,\"bridge_id\":\"8000.ca:28:94:c:68:2d\",\"root_id\":\"8000.ca:28:94:c:68:2d\",\"hold_timer\":0.00,\"message_age_timer\":0.00,\"forward_delay_timer\":0.00,\"topology_change_ack\":0,\"config_pending\":0,\"proxy_arp\":false,\"proxy_arp_wifi\":false,\"multicast_router\":1,\"mcast_flood\":true,\"bcast_flood\":true,\"mcast_to_unicast\":false,\"neigh_suppress\":false,\"group_fwd_mask\":\"0\",\"group_fwd_mask_str\":\"0x0\",\"vlan_tunnel\":false,\"isolated\":false,\"locked\":false}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":4,\"num_rx_queues\":4,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":9,\"link_index\":2,\"ifname\":\"veth59c8ac1\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ba:ae:61:99:08:bc\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":1,\"promiscuity\":1,\"allmulti\":1,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"veth\",\"info_slave_kind\":\"bridge\",\"info_slave_data\":{\"state\":\"forwarding\",\"priority\":32,\"cost\":2,\"hairpin\":false,\"guard\":false,\"root_block\":false,\"fastleave\":false,\"learning\":true,\"flood\":true,\"id\":\"0x8001\",\"no\":\"0x1\",\"designated_port\":32769,\"designated_cost\":0,\"bridge_id\":\"8000.ce:5f:f8:3c:19:f3\",\"root_id\":\"8000.ce:5f:f8:3c:19:f3\",\"hold_timer\":0.00,\"message_age_timer\":0.00,\"forward_delay_timer\":0.00,\"topology_change_ack\":0,\"config_pending\":0,\"proxy_arp\":false,\"proxy_arp_wifi\":false,\"multicast_router\":1,\"mcast_flood\":true,\"bcast_flood\":true,\"mcast_to_unicast\":false,\"neigh_suppress\":false,\"group_fwd_mask\":\"0\",\"group_fwd_mask_str\":\"0x0\",\"vlan_tunnel\":false,\"isolated\":false,\"locked\":false}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":4,\"num_rx_queues\":4,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":10,\"link_index\":2,\"ifname\":\"veth6d325d2\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"0a:8c:16:68:12:37\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":2,\"promiscuity\":1,\"allmulti\":1,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"veth\",\"info_slave_kind\":\"bridge\",\"info_slave_data\":{\"state\":\"forwarding\",\"priority\":32,\"cost\":2,\"hairpin\":false,\"guard\":false,\"root_block\":false,\"fastleave\":false,\"learning\":true,\"flood\":true,\"id\":\"0x8002\",\"no\":\"0x2\",\"designated_port\":32770,\"designated_cost\":0,\"bridge_id\":\"8000.ce:5f:f8:3c:19:f3\",\"root_id\":\"8000.ce:5f:f8:3c:19:f3\",\"hold_timer\":0.00,\"message_age_timer\":0.00,\"forward_delay_timer\":0.00,\"topology_change_ack\":0,\"config_pending\":0,\"proxy_arp\":false,\"proxy_arp_wifi\":false,\"multicast_router\":1,\"mcast_flood\":true,\"bcast_flood\":true,\"mcast_to_unicast\":false,\"neigh_suppress\":false,\"group_fwd_mask\":\"0\",\"group_fwd_mask_str\":\"0x0\",\"vlan_tunnel\":false,\"isolated\":false,\"locked\":false}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":4,\"num_rx_queues\":4,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":15,\"ifname\":\"singbox_tun\",\"flags\":[\"POINTOPOINT\",\"MULTICAST\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"fq\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":500,\"link_type\":\"none\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"tun\",\"info_data\":{\"type\":\"tun\",\"pi\":false,\"vnet_hdr\":true,\"multi_queue\":false,\"persist\":false}},\"inet6_addr_gen_mode\":\"random\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536}]\n"
     },
     {
       "args": [
@@ -180,13 +282,13 @@
         "-j",
         "link",
         "show",
-        "x0rp021"
+        "docker0"
       ],
       "available": true,
       "exit_code": 0,
       "privilege_mode": "direct",
       "stderr": "",
-      "stdout": "[{\"ifindex\":9266,\"link\":\"x0rp121\",\"ifname\":\"x0rp021\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"xdp\":{\"mode\":2,\"prog\":{\"id\":23589},\"attached\":[{\"mode\":2,\"prog\":{\"id\":23589}}]},\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"e6:03:8c:b4:a6:bf\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"}]\n"
+      "stdout": "[{\"ifindex\":7,\"ifname\":\"docker0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ca:28:94:0c:68:2d\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"}]\n"
     },
     {
       "args": [
@@ -195,13 +297,13 @@
         "-j",
         "link",
         "show",
-        "x0rp021"
+        "docker0"
       ],
       "available": true,
       "exit_code": 0,
       "privilege_mode": "direct",
       "stderr": "",
-      "stdout": "[{\"ifindex\":9266,\"link\":\"x0rp121\",\"ifname\":\"x0rp021\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"xdp\":{\"mode\":2,\"prog\":{\"id\":23589},\"attached\":[{\"mode\":2,\"prog\":{\"id\":23589}}]},\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"e6:03:8c:b4:a6:bf\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"veth\"},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":4,\"num_rx_queues\":4,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536}]\n"
+      "stdout": "[{\"ifindex\":7,\"ifname\":\"docker0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ca:28:94:0c:68:2d\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":65535,\"linkinfo\":{\"info_kind\":\"bridge\",\"info_data\":{\"forward_delay\":1500,\"hello_time\":200,\"max_age\":2000,\"ageing_time\":30000,\"stp_state\":0,\"priority\":32768,\"vlan_filtering\":0,\"vlan_protocol\":\"802.1Q\",\"bridge_id\":\"8000.ca:28:94:c:68:2d\",\"root_id\":\"8000.ca:28:94:c:68:2d\",\"root_port\":0,\"root_path_cost\":0,\"topology_change\":0,\"topology_change_detected\":0,\"hello_timer\":0.00,\"tcn_timer\":0.00,\"topology_change_timer\":0.00,\"gc_timer\":97.89,\"vlan_default_pvid\":1,\"vlan_stats_enabled\":0,\"vlan_stats_per_port\":0,\"group_fwd_mask\":\"0\",\"group_addr\":\"01:80:c2:00:00:00\",\"mcast_snooping\":1,\"no_linklocal_learn\":0,\"mcast_vlan_snooping\":0,\"mcast_router\":1,\"mcast_query_use_ifaddr\":0,\"mcast_querier\":0,\"mcast_hash_elasticity\":16,\"mcast_hash_max\":4096,\"mcast_last_member_cnt\":2,\"mcast_startup_query_cnt\":2,\"mcast_last_member_intvl\":100,\"mcast_membership_intvl\":26000,\"mcast_querier_intvl\":25500,\"mcast_query_intvl\":12500,\"mcast_query_response_intvl\":1000,\"mcast_startup_query_intvl\":3125,\"mcast_stats_enabled\":0,\"mcast_igmp_version\":2,\"mcast_mld_version\":1,\"nf_call_iptables\":0,\"nf_call_ip6tables\":0,\"nf_call_arptables\":0}},\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536}]\n"
     },
     {
       "args": [
@@ -210,17 +312,10 @@
         "show"
       ],
       "available": true,
-      "execution_args": [
-        "sudo",
-        "-n",
-        "bpftool",
-        "prog",
-        "show"
-      ],
-      "exit_code": 0,
-      "privilege_mode": "sudo_noninteractive",
-      "stderr": "",
-      "stdout": "48: cgroup_device  name s_canonical_liv  tag 03b4eaae2f14641a  gpl\n\tloaded_at 2026-05-21T07:50:57+0300  uid 0\n\txlated 296B  jited 167B  memlock 4096B  map_ids 1\n55: cgroup_device  name s_snapd_desktop  tag 03b4eaae2f14641a  gpl\n\tloaded_at 2026-05-21T07:51:04+0300  uid 1000\n\txlated 296B  jited 167B  memlock 4096B  map_ids 2\n63: cgroup_device  tag ab4bc4523b7fe6b4\n\tloaded_at 2026-05-21T07:51:08+0300  uid 0\n\txlated 552B  jited 361B  memlock 4096B\n73: cgroup_device  tag ab4bc4523b7fe6b4\n\tloaded_at 2026-05-21T07:51:08+0300  uid 0\n\txlated 552B  jited 361B  memlock 4096B\n81: cgroup_device  tag 3918c82a5f4c0360\n\tloaded_at 2026-05-21T07:51:08+0300  uid 0\n\txlated 64B  jited 45B  memlock 4096B\n21272: cgroup_device  name sd_devices  tag fbee7646fdd03110  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 184B  jited 106B  memlock 4096B\n21273: cgroup_device  name sd_devices  tag ee0e253c78993a24  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 416B  jited 263B  memlock 4096B\n21274: cgroup_skb  name sd_fw_egress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21275: cgroup_skb  name sd_fw_ingress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21276: cgroup_skb  name sd_fw_egress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21277: cgroup_skb  name sd_fw_ingress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21278: cgroup_device  name sd_devices  tag 5b66259bfca5c6d7  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 472B  jited 299B  memlock 4096B\n21279: cgroup_device  name sd_devices  tag ee0e253c78993a24  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 416B  jited 263B  memlock 4096B\n21280: cgroup_device  name sd_devices  tag 8b9c33f36f812014  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 744B  jited 452B  memlock 4096B\n21281: cgroup_skb  name sd_fw_egress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21282: cgroup_skb  name sd_fw_ingress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21283: cgroup_skb  name sd_fw_egress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21284: cgroup_skb  name sd_fw_ingress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21285: cgroup_device  name sd_devices  tag 5b66259bfca5c6d7  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 472B  jited 299B  memlock 4096B\n21286: cgroup_device  name sd_devices  tag c8b47a902f1cc68b  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 464B  jited 293B  memlock 4096B\n21287: cgroup_device  name sd_devices  tag e3dbd137be8d6168  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 504B  jited 314B  memlock 4096B\n21288: cgroup_skb  name sd_fw_egress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21289: cgroup_skb  name sd_fw_ingress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21290: cgroup_device  name sd_devices  tag c8b47a902f1cc68b  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 464B  jited 293B  memlock 4096B\n21291: cgroup_skb  name sd_fw_egress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21292: cgroup_skb  name sd_fw_ingress  tag 6deef7357e7b4530  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 64B  jited 59B  memlock 4096B\n21293: cgroup_device  name sd_devices  tag c8b47a902f1cc68b  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 464B  jited 293B  memlock 4096B\n21294: cgroup_device  name sd_devices  tag ee0e253c78993a24  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 416B  jited 263B  memlock 4096B\n21295: cgroup_device  name sd_devices  tag ee0e253c78993a24  gpl\n\tloaded_at 2026-05-22T19:26:33+0300  uid 0\n\txlated 416B  jited 263B  memlock 4096B\n23589: xdp  name xdp_x0tta6bl4_pulse  tag a4dc61ecad4583f0  gpl\n\tloaded_at 2026-05-22T23:17:21+0300  uid 0\n\txlated 368B  jited 244B  memlock 4096B  map_ids 4637\n\tbtf_id 188\n"
+      "exit_code": 255,
+      "privilege_mode": "direct",
+      "stderr": "Error: can't get next program: Operation not permitted\n",
+      "stdout": ""
     },
     {
       "args": [
@@ -228,16 +323,10 @@
         "net"
       ],
       "available": true,
-      "execution_args": [
-        "sudo",
-        "-n",
-        "bpftool",
-        "net"
-      ],
-      "exit_code": 0,
-      "privilege_mode": "sudo_noninteractive",
-      "stderr": "",
-      "stdout": "xdp:\nx0rp021(9266) generic id 23589\n\ntc:\n\nflow_dissector:\n\nnetfilter:\n\n"
+      "exit_code": 255,
+      "privilege_mode": "direct",
+      "stderr": "Error: can't query prog: Operation not permitted\n",
+      "stdout": ""
     },
     {
       "args": [
@@ -248,19 +337,10 @@
         "pulse_stats"
       ],
       "available": true,
-      "execution_args": [
-        "sudo",
-        "-n",
-        "bpftool",
-        "map",
-        "show",
-        "name",
-        "pulse_stats"
-      ],
-      "exit_code": 0,
-      "privilege_mode": "sudo_noninteractive",
-      "stderr": "",
-      "stdout": "4637: array  name pulse_stats  flags 0x0\n\tkey 4B  value 8B  max_entries 1  memlock 272B\n\tbtf_id 188\n"
+      "exit_code": 255,
+      "privilege_mode": "direct",
+      "stderr": "Error: Operation not permitted\n",
+      "stdout": ""
     },
     {
       "args": [
@@ -271,19 +351,10 @@
         "pulse_stats"
       ],
       "available": true,
-      "execution_args": [
-        "sudo",
-        "-n",
-        "bpftool",
-        "map",
-        "dump",
-        "name",
-        "pulse_stats"
-      ],
-      "exit_code": 0,
-      "privilege_mode": "sudo_noninteractive",
-      "stderr": "",
-      "stdout": "[{\n        \"key\": 0,\n        \"value\": 76\n    }\n]\n"
+      "exit_code": 255,
+      "privilege_mode": "direct",
+      "stderr": "Error: Operation not permitted\n",
+      "stdout": ""
     },
     {
       "args": [
@@ -294,90 +365,68 @@
         "pulse_stats"
       ],
       "available": true,
-      "execution_args": [
-        "sudo",
-        "-n",
-        "bpftool",
-        "map",
-        "dump",
-        "name",
-        "pulse_stats"
-      ],
-      "exit_code": 0,
-      "privilege_mode": "sudo_noninteractive",
-      "stderr": "",
-      "stdout": "[{\n        \"key\": 0,\n        \"value\": 564\n    }\n]\n"
+      "exit_code": 255,
+      "privilege_mode": "direct",
+      "stderr": "Error: Operation not permitted\n",
+      "stdout": ""
     }
   ],
   "dry_run": false,
-  "failures": [],
+  "failures": [
+    "ip link did not show an XDP attach on interface: docker0",
+    "bpftool output did not contain an x0tta6bl4_pulse marker",
+    "bpftool net output did not include interface: docker0",
+    "pulse map packet counter did not increase",
+    "command failed: bpftool prog show",
+    "command failed: bpftool net",
+    "command failed: bpftool map show name pulse_stats",
+    "command failed: bpftool map dump name pulse_stats",
+    "command failed: bpftool map dump name pulse_stats"
+  ],
   "interface_scan": {
-    "interface_count": 16,
+    "interface_count": 11,
     "interfaces": [
       "lo",
       "enp8s0",
       "virbr0",
       "lxcbr0",
       "x0tctrl",
-      "br-2346afa010d6",
-      "br-5cce4ae051c7",
-      "br-afb7e5743700",
-      "docker0",
       "br-224057b2b3d0",
-      "veth6864553",
-      "vethb6b7267",
-      "vethdfca4d4",
-      "singbox_tun",
-      "x0rp121",
-      "x0rp021"
+      "docker0",
+      "veth31819d9",
+      "veth59c8ac1",
+      "veth6d325d2",
+      "singbox_tun"
     ],
     "parse_status": "OK",
-    "xdp_interfaces": [
-      {
-        "ifname": "x0rp021",
-        "xdp": {
-          "attached": [
-            {
-              "mode": 2,
-              "prog": {
-                "id": 23589
-              }
-            }
-          ],
-          "mode": 2,
-          "prog": {
-            "id": 23589
-          }
-        }
-      }
-    ]
+    "xdp_interfaces": []
   },
   "measurements": {
-    "bpftool_net_contains_interface": true,
-    "bpftool_prog_show_contains_pulse": true,
+    "bpftool_net_contains_interface": false,
+    "bpftool_prog_show_contains_pulse": false,
     "historical_candidate_audit_status": "NO_ACCEPTED_CANDIDATE",
-    "interface": "x0rp021",
-    "interface_scan_count": 16,
-    "interface_scan_xdp_interfaces": [
-      "x0rp021"
-    ],
+    "interface": "docker0",
+    "interface_scan_count": 11,
+    "interface_scan_xdp_interfaces": [],
     "interface_seen": true,
-    "map_counter_after_packets": 564,
-    "map_counter_before_packets": 76,
-    "map_counter_delta_packets": 488,
+    "map_counter_after_packets": null,
+    "map_counter_before_packets": null,
+    "map_counter_delta_packets": 0,
     "object_preflight_object_contains_pulse_function": true,
     "object_preflight_object_contains_pulse_stats": true,
-    "object_preflight_object_has_btf_section": true,
+    "object_preflight_object_has_btf_section": false,
     "object_preflight_object_has_xdp_section": true,
     "object_preflight_object_is_ebpf": true,
     "object_preflight_object_path": "src/network/ebpf/x0tta6bl4_pulse.o",
     "object_preflight_source_path": "src/network/ebpf/x0tta6bl4_pulse.bpf.c",
-    "object_preflight_status": "READY_FOR_CONTROLLED_ATTACH_TEST",
-    "xdp_attached": true
+    "object_preflight_status": "ACTION_REQUIRED",
+    "xdp_attached": false
   },
   "mode": "READ_ONLY_KERNEL_OBSERVATION",
   "object_preflight": {
-    "blockers": [],
+    "blockers": [
+      "pulse_object_missing_btf_section"
+    ],
     "claim_boundary": "Disk artifact preflight only. This proves the source/object shape needed for a controlled attach test, but it does not prove that the program is loaded, attached, or processing packets in the current kernel.",
     "next_action": "Run the attach proof in a controlled lab or approved temporary interface, then collect current ip/bpftool/map-counter output. Do not stage kernel_attach until runtime evidence is VERIFIED.",
     "object": {
@@ -400,36 +449,18 @@
           ".relxdp",
           ".maps",
           "license",
-          ".debug_loclists",
-          ".debug_abbrev",
-          ".debug_info",
-          ".rel.debug_info",
-          ".debug_str_offsets",
-          ".rel.debug_str_offsets",
-          ".debug_str",
-          ".debug_addr",
-          ".rel.debug_addr",
-          ".BTF",
-          ".rel.BTF",
-          ".BTF.ext",
-          ".rel.BTF.ext",
-          ".debug_frame",
-          ".rel.debug_frame",
-          ".debug_line",
-          ".rel.debug_line",
-          ".debug_line_str",
           ".llvm_addrsig",
           ".symtab"
         ]
       },
       "exists": true,
-      "has_btf_section": true,
+      "has_btf_section": false,
       "has_maps_section": true,
       "has_xdp_section": true,
       "is_ebpf": true,
       "path": "src/network/ebpf/x0tta6bl4_pulse.o",
       "read_error": null,
-      "sha256": "86a613ae31f2440a95a0f10f25dc8db1c1b672dc77b987454ca8c465be18f40d"
+      "sha256": "163b88bd97ed7f1da361554451ea83c39a05e5ace7a89a41057ccfac5289d43b"
     },
     "source": {
       "contains_pulse_function": true,
@@ -438,13 +469,13 @@
       "exists": true,
       "path": "src/network/ebpf/x0tta6bl4_pulse.bpf.c",
       "read_error": null,
-      "sha256": "75bd37951938ff63157ae912c953da08ce189c73a5634ab9b7a2e70d93535475"
+      "sha256": "af5cf6118519a978f11ae926936611b81203f0505b21739ff24aa7d964276188"
     },
-    "status": "READY_FOR_CONTROLLED_ATTACH_TEST"
+    "status": "ACTION_REQUIRED"
   },
-  "observed_at_utc": "2026-05-22T20:17:21.575656+00:00",
+  "observed_at_utc": "2026-06-07T04:32:36.434907+00:00",
   "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
   "simulated": false,
-  "status": "VERIFIED",
+  "status": "INCOMPLETE",
   "template": false
 }

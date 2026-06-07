@@ -1,11 +1,11 @@
 {
   "artifacts": {
-    "audit_bundle_json": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260531T071714Z/audit.json",
-    "audit_bundle_md": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260531T071714Z/summary.md",
+    "audit_bundle_json": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260607T044343Z/audit.json",
+    "audit_bundle_md": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260607T044343Z/summary.md",
     "audit_latest_json": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.json",
     "audit_latest_md": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260531T071714Z",
+  "bundle": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260607T044343Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "note": "Gap audit only; proof-gate claim boundaries are not upgraded by this report.",
@@ -14,6 +14,17 @@
     "whitelist_verified": false
   },
   "failures": [
+    "kernel_attach: status must be VERIFIED",
+    "kernel_attach: failures must be absent or empty for VERIFIED evidence",
+    "kernel_attach: commands[4].exit_code must be integer 0",
+    "kernel_attach: commands[5].exit_code must be integer 0",
+    "kernel_attach: commands[6].exit_code must be integer 0",
+    "kernel_attach: commands[7].exit_code must be integer 0",
+    "kernel_attach: commands[8].exit_code must be integer 0",
+    "kernel_attach: measurements.xdp_attached must be True",
+    "kernel_attach: measurements.bpftool_prog_show_contains_pulse must be True",
+    "kernel_attach: measurements.bpftool_net_contains_interface must be True",
+    "kernel_attach: measurements.map_counter_delta_packets must be positive_int",
     "dpi_lab: status must be VERIFIED",
     "dpi_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
     "dpi_lab: missing_inputs must be absent or empty for VERIFIED evidence",
@@ -68,6 +79,167 @@
       "whitelist_verified": false
     },
     "claims": [
+      {
+        "acceptance_commands": [
+          [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_external_evidence.py",
+            "--claim",
+            "kernel_attach",
+            "--require-pass",
+            "--json"
+          ]
+        ],
+        "blocking_categories": [
+          "commands",
+          "measurements",
+          "proof_errors",
+          "record"
+        ],
+        "candidate_example_path": "docs/verification/incoming/examples/kernel_attach.example.json",
+        "candidate_path": "docs/verification/incoming/kernel_attach.json",
+        "claim_id": "kernel_attach",
+        "current_sha256": "fc8f77bed51825f468582a25cb1087cc00c89a739f880d1d1b0da7496751473d",
+        "current_status": "INVALID",
+        "destination": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
+        "incoming_example_command": [
+          "python3",
+          "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+          "--examples-only"
+        ],
+        "read_only_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "kernel_attach",
+          "--candidate",
+          "docs/verification/incoming/kernel_attach.json",
+          "--require-ready",
+          "--json"
+        ],
+        "replacement_contract": {
+          "acceptance_commands": [
+            [
+              "python3",
+              "scripts/ops/verify_ghost_pulse_external_evidence.py",
+              "--claim",
+              "kernel_attach",
+              "--require-pass",
+              "--json"
+            ]
+          ],
+          "claim_id": "kernel_attach",
+          "destination": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
+          "evidence_schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+          "json_artifact_object_field_links": {
+            "kernel_measurements": [
+              "measurements",
+              "failures",
+              "claim_boundary"
+            ]
+          },
+          "json_artifact_payload_links": {
+            "kernel_candidate_audit": "candidate_audit",
+            "kernel_commands": "commands",
+            "kernel_interface_scan": "interface_scan"
+          },
+          "measurements": {
+            "bpftool_net_contains_interface": true,
+            "bpftool_prog_show_contains_pulse": true,
+            "interface": "nonempty",
+            "map_counter_delta_packets": "positive_int",
+            "xdp_attached": true
+          },
+          "path": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
+          "rejected_placeholder_markers": [
+            "REPLACE_WITH",
+            "EXAMPLE_ONLY_NOT_EVIDENCE",
+            "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+          ],
+          "required_artifact_roles": [
+            "kernel_commands",
+            "kernel_measurements",
+            "kernel_interface_scan",
+            "kernel_candidate_audit"
+          ],
+          "required_commands": [
+            [
+              "uname",
+              "-r"
+            ],
+            [
+              "ip",
+              "-d",
+              "-j",
+              "link",
+              "show"
+            ],
+            [
+              "ip",
+              "-j",
+              "link",
+              "show",
+              "<interface>"
+            ],
+            [
+              "ip",
+              "-d",
+              "-j",
+              "link",
+              "show",
+              "<interface>"
+            ],
+            [
+              "bpftool",
+              "prog",
+              "show"
+            ],
+            [
+              "bpftool",
+              "net"
+            ],
+            [
+              "bpftool",
+              "map",
+              "show",
+              "name",
+              "pulse_stats"
+            ],
+            [
+              "bpftool",
+              "map",
+              "dump",
+              "name",
+              "pulse_stats"
+            ],
+            [
+              "bpftool",
+              "map",
+              "dump",
+              "name",
+              "pulse_stats"
+            ]
+          ],
+          "required_flags": {
+            "dry_run": false,
+            "simulated": false,
+            "template": false
+          },
+          "required_status": "VERIFIED",
+          "title": "XDP attach and map-counter evidence"
+        },
+        "title": "XDP attach and map-counter evidence",
+        "write_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "kernel_attach",
+          "--candidate",
+          "docs/verification/incoming/kernel_attach.json",
+          "--write",
+          "--json"
+        ]
+      },
       {
         "acceptance_commands": [
           [
@@ -390,6 +562,7 @@
     "status": "REPLACEMENT_ACTION_REQUIRED"
   },
   "replacement_required": [
+    "kernel_attach",
     "dpi_lab",
     "whitelist_lab",
     "production_readiness"
@@ -399,51 +572,51 @@
       "artifact_file_audit": {
         "artifacts": [
           {
-            "actual_sha256": "eef30e2288f9e33dc230b28717e1b9280aa1aa25a63c64217d61c16abf0982aa",
+            "actual_sha256": "565cb456cd1aad3bf75ffe10f4b87e575892c5ae3b2093a55adacfed38df5301",
             "exists": true,
-            "expected_sha256": "eef30e2288f9e33dc230b28717e1b9280aa1aa25a63c64217d61c16abf0982aa",
+            "expected_sha256": "565cb456cd1aad3bf75ffe10f4b87e575892c5ae3b2093a55adacfed38df5301",
             "index": 0,
-            "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/commands.json",
+            "path": "docs/verification/ghost-pulse-kernel-attach-20260607T043236Z/commands.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
           },
           {
-            "actual_sha256": "03f4f7c199c589ad6b372a414fb6d32a08c74332e6633509072953346687c92e",
+            "actual_sha256": "af77b5a19a367453c1e2706eed71c358144c333f6c85ec9795a2b77a9ddd0022",
             "exists": true,
-            "expected_sha256": "03f4f7c199c589ad6b372a414fb6d32a08c74332e6633509072953346687c92e",
+            "expected_sha256": "af77b5a19a367453c1e2706eed71c358144c333f6c85ec9795a2b77a9ddd0022",
             "index": 1,
-            "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/measurements.json",
+            "path": "docs/verification/ghost-pulse-kernel-attach-20260607T043236Z/measurements.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
           },
           {
-            "actual_sha256": "04782a858f49b9c0019324de21482b55e73432b16b79612112de94f15bcc11c6",
+            "actual_sha256": "8e61fe67dee1f9855fc4fba57b406dd6fb58d81fb8c3560970678dcfd3485606",
             "exists": true,
-            "expected_sha256": "04782a858f49b9c0019324de21482b55e73432b16b79612112de94f15bcc11c6",
+            "expected_sha256": "8e61fe67dee1f9855fc4fba57b406dd6fb58d81fb8c3560970678dcfd3485606",
             "index": 2,
-            "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/interface-scan.json",
+            "path": "docs/verification/ghost-pulse-kernel-attach-20260607T043236Z/interface-scan.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
           },
           {
-            "actual_sha256": "1016344718dddb325f8f2042697c5b197423b4223521a407e5263112890f2b10",
+            "actual_sha256": "b6829bccb845d7880ce47332b18d6754f710cf236cac4cdecb1c1ff847d7521b",
             "exists": true,
-            "expected_sha256": "1016344718dddb325f8f2042697c5b197423b4223521a407e5263112890f2b10",
+            "expected_sha256": "b6829bccb845d7880ce47332b18d6754f710cf236cac4cdecb1c1ff847d7521b",
             "index": 3,
-            "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/candidate-audit.json",
+            "path": "docs/verification/ghost-pulse-kernel-attach-20260607T043236Z/candidate-audit.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
           },
           {
-            "actual_sha256": "788caf6aa47e92e0726bb3ba4592f1af16f012a38e5f06fadc998a50ed00c341",
+            "actual_sha256": "fdc3661f1d65e7fbea8cf4b5895160fe19187e9d9cd0e0cabdd487c3e0f69037",
             "exists": true,
-            "expected_sha256": "788caf6aa47e92e0726bb3ba4592f1af16f012a38e5f06fadc998a50ed00c341",
+            "expected_sha256": "fdc3661f1d65e7fbea8cf4b5895160fe19187e9d9cd0e0cabdd487c3e0f69037",
             "index": 4,
-            "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/object-preflight.json",
+            "path": "docs/verification/ghost-pulse-kernel-attach-20260607T043236Z/object-preflight.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
@@ -475,14 +648,166 @@
         "status": "PASS"
       },
       "blocking_audit": {
-        "blocking_categories": [],
-        "categories": {},
-        "status": "CLEAR"
+        "blocking_categories": [
+          "commands",
+          "measurements",
+          "proof_errors",
+          "record"
+        ],
+        "categories": {
+          "commands": {
+            "commands_without_args": [],
+            "failed_commands": [
+              {
+                "args": [
+                  "bpftool",
+                  "prog",
+                  "show"
+                ],
+                "exit_code": 255,
+                "index": 4
+              },
+              {
+                "args": [
+                  "bpftool",
+                  "net"
+                ],
+                "exit_code": 255,
+                "index": 5
+              },
+              {
+                "args": [
+                  "bpftool",
+                  "map",
+                  "show",
+                  "name",
+                  "pulse_stats"
+                ],
+                "exit_code": 255,
+                "index": 6
+              },
+              {
+                "args": [
+                  "bpftool",
+                  "map",
+                  "dump",
+                  "name",
+                  "pulse_stats"
+                ],
+                "exit_code": 255,
+                "index": 7
+              },
+              {
+                "args": [
+                  "bpftool",
+                  "map",
+                  "dump",
+                  "name",
+                  "pulse_stats"
+                ],
+                "exit_code": 255,
+                "index": 8
+              }
+            ],
+            "missing_commands": []
+          },
+          "measurements": [
+            {
+              "expected": true,
+              "name": "xdp_attached",
+              "observed": false
+            },
+            {
+              "expected": true,
+              "name": "bpftool_prog_show_contains_pulse",
+              "observed": false
+            },
+            {
+              "expected": true,
+              "name": "bpftool_net_contains_interface",
+              "observed": false
+            },
+            {
+              "expected": "positive_int",
+              "name": "map_counter_delta_packets",
+              "observed": 0
+            }
+          ],
+          "proof_errors": [
+            "status must be VERIFIED",
+            "failures must be absent or empty for VERIFIED evidence",
+            "commands[4].exit_code must be integer 0",
+            "commands[5].exit_code must be integer 0",
+            "commands[6].exit_code must be integer 0",
+            "commands[7].exit_code must be integer 0",
+            "commands[8].exit_code must be integer 0",
+            "measurements.xdp_attached must be True",
+            "measurements.bpftool_prog_show_contains_pulse must be True",
+            "measurements.bpftool_net_contains_interface must be True",
+            "measurements.map_counter_delta_packets must be positive_int"
+          ],
+          "record": [
+            "status must be VERIFIED",
+            "failures must be absent or empty"
+          ]
+        },
+        "status": "BLOCKED"
       },
       "claim_id": "kernel_attach",
       "command_audit": {
         "commands_without_args": [],
-        "failed_commands": [],
+        "failed_commands": [
+          {
+            "args": [
+              "bpftool",
+              "prog",
+              "show"
+            ],
+            "exit_code": 255,
+            "index": 4
+          },
+          {
+            "args": [
+              "bpftool",
+              "net"
+            ],
+            "exit_code": 255,
+            "index": 5
+          },
+          {
+            "args": [
+              "bpftool",
+              "map",
+              "show",
+              "name",
+              "pulse_stats"
+            ],
+            "exit_code": 255,
+            "index": 6
+          },
+          {
+            "args": [
+              "bpftool",
+              "map",
+              "dump",
+              "name",
+              "pulse_stats"
+            ],
+            "exit_code": 255,
+            "index": 7
+          },
+          {
+            "args": [
+              "bpftool",
+              "map",
+              "dump",
+              "name",
+              "pulse_stats"
+            ],
+            "exit_code": 255,
+            "index": 8
+          }
+        ],
         "missing_commands": [],
         "observed_commands": [
           [
@@ -501,7 +826,7 @@
             "-j",
             "link",
             "show",
-            "x0rp021"
+            "docker0"
           ],
           [
             "ip",
@@ -509,7 +834,7 @@
             "-j",
             "link",
             "show",
-            "x0rp021"
+            "docker0"
           ],
           [
             "bpftool",
@@ -559,7 +884,7 @@
             "-j",
             "link",
             "show",
-            "x0rp021"
+            "docker0"
           ],
           [
             "ip",
@@ -567,7 +892,7 @@
             "-j",
             "link",
             "show",
-            "x0rp021"
+            "docker0"
           ],
           [
             "bpftool",
@@ -600,9 +925,21 @@
             "pulse_stats"
           ]
         ],
-        "status": "PASS"
+        "status": "FAIL"
       },
-      "errors": [],
+      "errors": [
+        "status must be VERIFIED",
+        "failures must be absent or empty for VERIFIED evidence",
+        "commands[4].exit_code must be integer 0",
+        "commands[5].exit_code must be integer 0",
+        "commands[6].exit_code must be integer 0",
+        "commands[7].exit_code must be integer 0",
+        "commands[8].exit_code must be integer 0",
+        "measurements.xdp_attached must be True",
+        "measurements.bpftool_prog_show_contains_pulse must be True",
+        "measurements.bpftool_net_contains_interface must be True",
+        "measurements.map_counter_delta_packets must be positive_int"
+      ],
       "evidence": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
       "gap_record_role_audit": {
         "declared_required_roles_on_gap_record": [
@@ -633,32 +970,32 @@
         {
           "expected": "nonempty",
           "name": "interface",
-          "observed": "x0rp021",
+          "observed": "docker0",
           "status": "PASS"
         },
         {
           "expected": true,
           "name": "xdp_attached",
-          "observed": true,
-          "status": "PASS"
+          "observed": false,
+          "status": "FAIL"
         },
         {
           "expected": true,
           "name": "bpftool_prog_show_contains_pulse",
-          "observed": true,
-          "status": "PASS"
+          "observed": false,
+          "status": "FAIL"
         },
         {
           "expected": true,
           "name": "bpftool_net_contains_interface",
-          "observed": true,
-          "status": "PASS"
+          "observed": false,
+          "status": "FAIL"
         },
         {
           "expected": "positive_int",
           "name": "map_counter_delta_packets",
-          "observed": 488,
-          "status": "PASS"
+          "observed": 0,
+          "status": "FAIL"
         }
       ],
       "missing_inputs": [],
@@ -674,7 +1011,10 @@
           "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
           "status": "VERIFIED"
         },
-        "failures": [],
+        "failures": [
+          "status must be VERIFIED",
+          "failures must be absent or empty"
+        ],
         "observed": {
           "claim_id": "kernel_attach",
           "flags": {
@@ -684,15 +1024,15 @@
           },
           "gap_record_markers": {
             "claim_boundary_claim_verified_false": false,
-            "failures_present": false,
+            "failures_present": true,
             "missing_inputs_present": false,
             "mode": "READ_ONLY_KERNEL_OBSERVATION"
           },
-          "observed_at_utc": "2026-05-22T20:17:21.575656+00:00",
+          "observed_at_utc": "2026-06-07T04:32:36.434907+00:00",
           "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
-          "status": "VERIFIED"
+          "status": "INCOMPLETE"
         },
-        "status": "PASS"
+        "status": "FAIL"
       },
       "reference_audit": {
         "current_status_by_claim": {},
@@ -816,7 +1156,7 @@
         "required_status": "VERIFIED",
         "title": "XDP attach and map-counter evidence"
       },
-      "replacement_required": false,
+      "replacement_required": true,
       "required_measurements": {
         "bpftool_net_contains_interface": true,
         "bpftool_prog_show_contains_pulse": true,
@@ -824,8 +1164,8 @@
         "map_counter_delta_packets": "positive_int",
         "xdp_attached": true
       },
-      "sha256": "9a484a124d83b08353e80b8e6ffea02e42bf6e864336a873bf4c6649f52db68c",
-      "status": "VERIFIED",
+      "sha256": "fc8f77bed51825f468582a25cb1087cc00c89a739f880d1d1b0da7496751473d",
+      "status": "INVALID",
       "title": "XDP attach and map-counter evidence"
     },
     {
@@ -2354,6 +2694,7 @@
             ],
             "unexpected_claims": [],
             "unverified_claims": [
+              "kernel_attach",
               "dpi_lab",
               "whitelist_lab"
             ]
@@ -2493,7 +2834,7 @@
         "current_status_by_claim": {
           "baseline_timing_comparison": "VERIFIED",
           "dpi_lab": "INVALID",
-          "kernel_attach": "VERIFIED",
+          "kernel_attach": "INVALID",
           "packet_capture": "VERIFIED",
           "security_review": "VERIFIED",
           "whitelist_lab": "INVALID"
@@ -2520,6 +2861,7 @@
         "status": "FAIL",
         "unexpected_claims": [],
         "unverified_claims": [
+          "kernel_attach",
           "dpi_lab",
           "whitelist_lab"
         ]
@@ -2611,5 +2953,5 @@
     "production_readiness"
   ],
   "status": "EXTERNAL_EVIDENCE_ACTION_REQUIRED",
-  "timestamp_utc": "2026-05-31T07:17:14.012824+00:00"
+  "timestamp_utc": "2026-06-07T04:43:43.235586+00:00"
 }

@@ -1,6 +1,6 @@
 # x0tta6bl4_pulse External Evidence Gap Audit
 
-Timestamp: `2026-05-31T07:17:14.012824+00:00`
+Timestamp: `2026-06-07T04:43:43.235586+00:00`
 
 Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 
@@ -16,7 +16,7 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 
 | Claim | Status | Replacement Required | Evidence |
 | --- | --- | --- | --- |
-| kernel_attach | `VERIFIED` | `False` | `docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json` |
+| kernel_attach | `INVALID` | `True` | `docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json` |
 | packet_capture | `VERIFIED` | `False` | `docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.json` |
 | baseline_timing_comparison | `VERIFIED` | `False` | `docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json` |
 | dpi_lab | `INVALID` | `True` | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json` |
@@ -26,13 +26,14 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 
 ## Next Actions
 
+- kernel_attach: Run the read-only kernel attach collector on the real target interface after the x0tta6bl4_pulse XDP program and pulse_stats map are present; keep the result INCOMPLETE unless bpftool/ip output proves attach and a positive packet delta.
 - dpi_lab: Replace the gap record with an authorized DPI-lab evidence file containing baseline detect-or-block output, pulse output, lab identity, artifact hashes, and a verified conclusion.
 - whitelist_lab: Replace the gap record with authorized provider or lab evidence for provider profile, third-party baseline capture, and verified whitelist-behavior result.
 - production_readiness: Replace the gap record only after all prior proof rows are referenced by an operator approval record with verified rollback and monitoring plans.
 
 ## Blocking Audit
 
-- kernel_attach: `CLEAR`; categories: `none`
+- kernel_attach: `BLOCKED`; categories: `commands, measurements, proof_errors, record`
 - packet_capture: `CLEAR`; categories: `none`
 - baseline_timing_comparison: `CLEAR`; categories: `none`
 - dpi_lab: `BLOCKED`; categories: `artifact_roles, measurements, missing_inputs, proof_errors, record`
@@ -42,7 +43,7 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 
 ## Evidence Records
 
-- kernel_attach: `PASS`; status: `VERIFIED`; mode: `READ_ONLY_KERNEL_OBSERVATION`; missing inputs present: `False`; failures: `none`
+- kernel_attach: `FAIL`; status: `INCOMPLETE`; mode: `READ_ONLY_KERNEL_OBSERVATION`; missing inputs present: `False`; failures: `status must be VERIFIED; failures must be absent or empty`
 - packet_capture: `PASS`; status: `VERIFIED`; mode: `LOCAL_LOOPBACK_INSTRUMENTED_PCAP`; missing inputs present: `False`; failures: `none`
 - baseline_timing_comparison: `PASS`; status: `VERIFIED`; mode: `LOCAL_LOOPBACK_BASELINE_VS_PULSE`; missing inputs present: `False`; failures: `none`
 - dpi_lab: `FAIL`; status: `INCOMPLETE`; mode: `EXTERNAL_EVIDENCE_GAP_RECORD`; missing inputs present: `True`; failures: `status must be VERIFIED; mode must not be EXTERNAL_EVIDENCE_GAP_RECORD; missing_inputs must be absent or empty; failures must be absent or empty; claim_boundary.claim_verified must not be false`
@@ -52,7 +53,7 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 
 ## Commands
 
-- kernel_attach: `PASS`; missing commands: `none`; failed commands: `none`
+- kernel_attach: `FAIL`; missing commands: `none`; failed commands: `bpftool prog show -> 255; bpftool net -> 255; bpftool map show name pulse_stats -> 255; bpftool map dump name pulse_stats -> 255; bpftool map dump name pulse_stats -> 255`
 - packet_capture: no exact command set required
 - baseline_timing_comparison: no exact command set required
 - dpi_lab: no exact command set required
@@ -98,7 +99,7 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 - dpi_lab: no prior-claim references required
 - whitelist_lab: no prior-claim references required
 - security_review: no prior-claim references required
-- production_readiness: `FAIL`; missing references: `kernel_attach, packet_capture, baseline_timing_comparison, dpi_lab, whitelist_lab, security_review`; unverified referenced claims: `dpi_lab, whitelist_lab`
+- production_readiness: `FAIL`; missing references: `kernel_attach, packet_capture, baseline_timing_comparison, dpi_lab, whitelist_lab, security_review`; unverified referenced claims: `kernel_attach, dpi_lab, whitelist_lab`
 
 ## Replacement Contracts
 
@@ -113,12 +114,24 @@ Status: `EXTERNAL_EVIDENCE_ACTION_REQUIRED`
 ## Replacement Passport
 
 - status: `REPLACEMENT_ACTION_REQUIRED`
+- kernel_attach: candidate `docs/verification/incoming/kernel_attach.json`; example `docs/verification/incoming/examples/kernel_attach.example.json`; read-only import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim kernel_attach --candidate docs/verification/incoming/kernel_attach.json --require-ready --json`; write import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim kernel_attach --candidate docs/verification/incoming/kernel_attach.json --write --json`
 - dpi_lab: candidate `docs/verification/incoming/dpi_lab.json`; example `docs/verification/incoming/examples/dpi_lab.example.json`; read-only import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim dpi_lab --candidate docs/verification/incoming/dpi_lab.json --require-ready --json`; write import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim dpi_lab --candidate docs/verification/incoming/dpi_lab.json --write --json`
 - whitelist_lab: candidate `docs/verification/incoming/whitelist_lab.json`; example `docs/verification/incoming/examples/whitelist_lab.example.json`; read-only import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim whitelist_lab --candidate docs/verification/incoming/whitelist_lab.json --require-ready --json`; write import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim whitelist_lab --candidate docs/verification/incoming/whitelist_lab.json --write --json`
 - production_readiness: candidate `docs/verification/incoming/production_readiness.json`; example `docs/verification/incoming/examples/production_readiness.example.json`; read-only import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim production_readiness --candidate docs/verification/incoming/production_readiness.json --require-ready --json`; write import `python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim production_readiness --candidate docs/verification/incoming/production_readiness.json --write --json`
 
 ## Failures
 
+- kernel_attach: status must be VERIFIED
+- kernel_attach: failures must be absent or empty for VERIFIED evidence
+- kernel_attach: commands[4].exit_code must be integer 0
+- kernel_attach: commands[5].exit_code must be integer 0
+- kernel_attach: commands[6].exit_code must be integer 0
+- kernel_attach: commands[7].exit_code must be integer 0
+- kernel_attach: commands[8].exit_code must be integer 0
+- kernel_attach: measurements.xdp_attached must be True
+- kernel_attach: measurements.bpftool_prog_show_contains_pulse must be True
+- kernel_attach: measurements.bpftool_net_contains_interface must be True
+- kernel_attach: measurements.map_counter_delta_packets must be positive_int
 - dpi_lab: status must be VERIFIED
 - dpi_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD
 - dpi_lab: missing_inputs must be absent or empty for VERIFIED evidence

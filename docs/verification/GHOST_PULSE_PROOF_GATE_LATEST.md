@@ -1,13 +1,13 @@
 # x0tta6bl4_pulse Proof Gate
 
-Timestamp: `2026-05-31T08:04:33.312655+00:00`
+Timestamp: `2026-06-07T06:32:30.202627+00:00`
 
 Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
 ## Claim Boundary
 
 - current_runtime_attached: `False`
-- kernel_attach_verified: `True`
+- kernel_attach_verified: `False`
 - production_ready: `False`
 - stealth_verified: `False`
 - whitelist_verified: `False`
@@ -15,7 +15,7 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 ## Replacement Candidate Preflight
 
 - report: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`
-- sha256: `5fa35c138ecdb73355c5ff9e47a33bd0e380e90e06c9c90f50cc170263dea3b9`
+- sha256: `81c4b5e787ab3f57997030e4f346d38bebdccac888f4c37af6adc302ef8c7ad6`
 - status: `PASS`
 - decision: `REPLACEMENT_CANDIDATES_NOT_READY`
 - not_ready: `dpi_lab, whitelist_lab, production_readiness`
@@ -27,7 +27,7 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 | local_timing_replay | `VERIFIED` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
 | false_claim_hygiene | `VERIFIED` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
 | artifact_chain | `VERIFIED` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
-| kernel_attach | `VERIFIED` | `docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json` |
+| kernel_attach | `INVALID` | `docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json` |
 | packet_capture | `VERIFIED` | `docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.json` |
 | baseline_timing_comparison | `VERIFIED` | `docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json` |
 | dpi_lab | `INVALID` | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json` |
@@ -38,6 +38,7 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
 ## Missing Or Invalid Evidence
 
+- kernel_attach
 - dpi_lab
 - whitelist_lab
 - production_readiness
@@ -45,6 +46,17 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
 ## Failures
 
+- kernel_attach: status must be VERIFIED
+- kernel_attach: failures must be absent or empty for VERIFIED evidence
+- kernel_attach: commands[4].exit_code must be integer 0
+- kernel_attach: commands[5].exit_code must be integer 0
+- kernel_attach: commands[6].exit_code must be integer 0
+- kernel_attach: commands[7].exit_code must be integer 0
+- kernel_attach: commands[8].exit_code must be integer 0
+- kernel_attach: measurements.xdp_attached must be True
+- kernel_attach: measurements.bpftool_prog_show_contains_pulse must be True
+- kernel_attach: measurements.bpftool_net_contains_interface must be True
+- kernel_attach: measurements.map_counter_delta_packets must be positive_int
 - dpi_lab: status must be VERIFIED
 - dpi_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD
 - dpi_lab: missing_inputs must be absent or empty for VERIFIED evidence

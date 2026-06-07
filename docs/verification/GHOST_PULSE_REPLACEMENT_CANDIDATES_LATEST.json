@@ -1,16 +1,27 @@
 {
   "artifacts": {
-    "preflight_bundle_json": "docs/verification/ghost-pulse-replacement-candidates-20260531T071715Z/preflight.json",
-    "preflight_bundle_md": "docs/verification/ghost-pulse-replacement-candidates-20260531T071715Z/summary.md",
+    "preflight_bundle_json": "docs/verification/ghost-pulse-replacement-candidates-20260607T044344Z/preflight.json",
+    "preflight_bundle_md": "docs/verification/ghost-pulse-replacement-candidates-20260607T044344Z/summary.md",
     "preflight_latest_json": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
     "preflight_latest_md": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.md"
   },
   "audit": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.json",
-  "audit_sha256": "1946a68370caada0e5001ff7d4ac85ac0a95e80d78b4bc646e41ff93c4f3fb2b",
-  "bundle": "docs/verification/ghost-pulse-replacement-candidates-20260531T071715Z",
+  "audit_sha256": "12c870afa2251e82fdef630bf31362a47af8961f903dc0baf042c476138b5688",
+  "bundle": "docs/verification/ghost-pulse-replacement-candidates-20260607T044344Z",
   "candidate_intake_plan": {
     "claim_boundary": "Intake plan only; run read-only preflight first, import only READY_TO_IMPORT candidates, then refresh proof/inventory/chain. This plan does not promote proof-gate claims.",
-    "currently_ready_write_commands": [],
+    "currently_ready_write_commands": [
+      [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "kernel_attach",
+        "--candidate",
+        "docs/verification/incoming/kernel_attach.json",
+        "--write",
+        "--json"
+      ]
+    ],
     "missing_candidate_paths": [],
     "non_file_candidate_paths": [],
     "not_ready_claims": [
@@ -74,6 +85,16 @@
         "python3",
         "scripts/ops/import_ghost_pulse_external_evidence.py",
         "--claim",
+        "kernel_attach",
+        "--candidate",
+        "docs/verification/incoming/kernel_attach.json",
+        "--require-ready",
+        "--json"
+      ],
+      [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
         "dpi_lab",
         "--candidate",
         "docs/verification/incoming/dpi_lab.json",
@@ -101,10 +122,22 @@
         "--json"
       ]
     ],
-    "ready_claims": [],
+    "ready_claims": [
+      "kernel_attach"
+    ],
     "status": "ACTION_REQUIRED",
     "unsafe_candidate_paths": [],
     "write_commands_after_ready": [
+      [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "kernel_attach",
+        "--candidate",
+        "docs/verification/incoming/kernel_attach.json",
+        "--write",
+        "--json"
+      ],
       [
         "python3",
         "scripts/ops/import_ghost_pulse_external_evidence.py",
@@ -154,13 +187,230 @@
     "whitelist_lab",
     "production_readiness"
   ],
-  "ready": [],
+  "ready": [
+    "kernel_attach"
+  ],
   "replacement_required": [
+    "kernel_attach",
     "dpi_lab",
     "whitelist_lab",
     "production_readiness"
   ],
   "rows": [
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "kernel_attach",
+          "--require-pass",
+          "--json"
+        ]
+      ],
+      "candidate": "docs/verification/incoming/kernel_attach.json",
+      "candidate_example_path": "docs/verification/incoming/examples/kernel_attach.example.json",
+      "candidate_exists": true,
+      "candidate_is_file": true,
+      "candidate_is_symlink": false,
+      "candidate_sha256": "9a484a124d83b08353e80b8e6ffea02e42bf6e864336a873bf4c6649f52db68c",
+      "claim_id": "kernel_attach",
+      "destination": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
+      "destination_sha256_before": "fc8f77bed51825f468582a25cb1087cc00c89a739f880d1d1b0da7496751473d",
+      "destination_validation_before_status": "INVALID",
+      "failures": [],
+      "import_decision": "READY_TO_IMPORT",
+      "incoming_example_command": [
+        "python3",
+        "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+        "--examples-only"
+      ],
+      "incoming_root": {
+        "exists": true,
+        "has_symlink_component": false,
+        "is_dir": true,
+        "is_symlink": false,
+        "path": "docs/verification/incoming",
+        "symlink_component": null
+      },
+      "passport_blocking_categories": [
+        "commands",
+        "measurements",
+        "proof_errors",
+        "record"
+      ],
+      "passport_current_sha256": "fc8f77bed51825f468582a25cb1087cc00c89a739f880d1d1b0da7496751473d",
+      "passport_current_status": "INVALID",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "kernel_attach",
+        "--candidate",
+        "docs/verification/incoming/kernel_attach.json",
+        "--require-ready",
+        "--json"
+      ],
+      "read_only_import_report": {
+        "candidate": "docs/verification/incoming/kernel_attach.json",
+        "candidate_exists": true,
+        "candidate_is_file": true,
+        "candidate_is_symlink": false,
+        "candidate_sha256": "9a484a124d83b08353e80b8e6ffea02e42bf6e864336a873bf4c6649f52db68c",
+        "claim_boundary": {
+          "kernel_attach_verified": false,
+          "note": "Import validation/copy only; proof-gate claim boundaries are changed only by a later proof-gate run over real evidence.",
+          "production_ready": false,
+          "stealth_verified": false,
+          "whitelist_verified": false
+        },
+        "claim_id": "kernel_attach",
+        "decision": "READY_TO_IMPORT",
+        "destination": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
+        "destination_sha256_before": "fc8f77bed51825f468582a25cb1087cc00c89a739f880d1d1b0da7496751473d",
+        "destination_validation_before": {
+          "errors": [
+            "status must be VERIFIED",
+            "failures must be absent or empty for VERIFIED evidence",
+            "commands[4].exit_code must be integer 0",
+            "commands[5].exit_code must be integer 0",
+            "commands[6].exit_code must be integer 0",
+            "commands[7].exit_code must be integer 0",
+            "commands[8].exit_code must be integer 0",
+            "measurements.xdp_attached must be True",
+            "measurements.bpftool_prog_show_contains_pulse must be True",
+            "measurements.bpftool_net_contains_interface must be True",
+            "measurements.map_counter_delta_packets must be positive_int"
+          ],
+          "sha256": "fc8f77bed51825f468582a25cb1087cc00c89a739f880d1d1b0da7496751473d",
+          "status": "INVALID"
+        },
+        "external_dpi_proxy_validation": null,
+        "failures": [],
+        "incoming_root": {
+          "exists": true,
+          "has_symlink_component": false,
+          "is_dir": true,
+          "is_symlink": false,
+          "path": "docs/verification/incoming",
+          "symlink_component": null
+        },
+        "requirement_contract": {
+          "claim_id": "kernel_attach",
+          "json_artifact_object_field_links": {
+            "kernel_measurements": [
+              "measurements",
+              "failures",
+              "claim_boundary"
+            ]
+          },
+          "json_artifact_payload_links": {
+            "kernel_candidate_audit": "candidate_audit",
+            "kernel_commands": "commands",
+            "kernel_interface_scan": "interface_scan"
+          },
+          "measurements": {
+            "bpftool_net_contains_interface": true,
+            "bpftool_prog_show_contains_pulse": true,
+            "interface": "nonempty",
+            "map_counter_delta_packets": "positive_int",
+            "xdp_attached": true
+          },
+          "path": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
+          "rejected_placeholder_markers": [
+            "REPLACE_WITH",
+            "EXAMPLE_ONLY_NOT_EVIDENCE",
+            "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+          ],
+          "required_artifact_roles": [
+            "kernel_commands",
+            "kernel_measurements",
+            "kernel_interface_scan",
+            "kernel_candidate_audit"
+          ],
+          "required_commands": [
+            [
+              "uname",
+              "-r"
+            ],
+            [
+              "ip",
+              "-d",
+              "-j",
+              "link",
+              "show"
+            ],
+            [
+              "ip",
+              "-j",
+              "link",
+              "show",
+              "<interface>"
+            ],
+            [
+              "ip",
+              "-d",
+              "-j",
+              "link",
+              "show",
+              "<interface>"
+            ],
+            [
+              "bpftool",
+              "prog",
+              "show"
+            ],
+            [
+              "bpftool",
+              "net"
+            ],
+            [
+              "bpftool",
+              "map",
+              "show",
+              "name",
+              "pulse_stats"
+            ],
+            [
+              "bpftool",
+              "map",
+              "dump",
+              "name",
+              "pulse_stats"
+            ],
+            [
+              "bpftool",
+              "map",
+              "dump",
+              "name",
+              "pulse_stats"
+            ]
+          ],
+          "title": "XDP attach and map-counter evidence"
+        },
+        "schema": "x0tta6bl4.ghost_pulse.external_evidence_import.v1",
+        "validation": {
+          "errors": [],
+          "sha256": "9a484a124d83b08353e80b8e6ffea02e42bf6e864336a873bf4c6649f52db68c",
+          "status": "VERIFIED"
+        },
+        "write_requested": false,
+        "written": false
+      },
+      "ready_to_import": true,
+      "validation_errors": [],
+      "validation_status": "VERIFIED",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "kernel_attach",
+        "--candidate",
+        "docs/verification/incoming/kernel_attach.json",
+        "--write",
+        "--json"
+      ]
+    },
     {
       "acceptance_commands": [
         [
@@ -931,6 +1181,6 @@
   ],
   "schema": "x0tta6bl4.ghost_pulse.replacement_candidate_preflight.v1",
   "status": "PASS",
-  "timestamp_utc": "2026-05-31T07:17:15.082760+00:00",
+  "timestamp_utc": "2026-06-07T04:43:44.460269+00:00",
   "unsafe_candidates": []
 }

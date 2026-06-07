@@ -1,11 +1,11 @@
 {
   "artifacts": {
-    "intake_bundle_json": "docs/verification/ghost-pulse-external-evidence-intake-20260531T080348Z/intake.json",
-    "intake_bundle_md": "docs/verification/ghost-pulse-external-evidence-intake-20260531T080348Z/summary.md",
+    "intake_bundle_json": "docs/verification/ghost-pulse-external-evidence-intake-20260607T044345Z/intake.json",
+    "intake_bundle_md": "docs/verification/ghost-pulse-external-evidence-intake-20260607T044345Z/summary.md",
     "intake_latest_json": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
     "intake_latest_md": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-external-evidence-intake-20260531T080348Z",
+  "bundle": "docs/verification/ghost-pulse-external-evidence-intake-20260607T044345Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "note": "External evidence intake readiness only; this report does not import evidence or promote proof-gate claims.",
@@ -14,6 +14,128 @@
     "whitelist_verified": false
   },
   "collection_tasks": [
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "kernel_attach",
+          "--require-pass",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/kernel_attach",
+      "blocking_reasons": [],
+      "candidate": "docs/verification/incoming/kernel_attach.json",
+      "candidate_exists": true,
+      "candidate_is_file": true,
+      "candidate_is_symlink": false,
+      "candidate_sha256": "9a484a124d83b08353e80b8e6ffea02e42bf6e864336a873bf4c6649f52db68c",
+      "claim_id": "kernel_attach",
+      "collector_command_shape": null,
+      "example": "docs/verification/incoming/examples/kernel_attach.example.json",
+      "external_dpi_proxy_validation": null,
+      "failures": [],
+      "import_decision": "READY_TO_IMPORT",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "kernel_attach",
+        "--candidate",
+        "docs/verification/incoming/kernel_attach.json",
+        "--require-ready",
+        "--json"
+      ],
+      "ready_to_import": true,
+      "required_artifact_roles": [
+        "kernel_commands",
+        "kernel_measurements",
+        "kernel_interface_scan",
+        "kernel_candidate_audit"
+      ],
+      "required_commands": [
+        [
+          "uname",
+          "-r"
+        ],
+        [
+          "ip",
+          "-d",
+          "-j",
+          "link",
+          "show"
+        ],
+        [
+          "ip",
+          "-j",
+          "link",
+          "show",
+          "<interface>"
+        ],
+        [
+          "ip",
+          "-d",
+          "-j",
+          "link",
+          "show",
+          "<interface>"
+        ],
+        [
+          "bpftool",
+          "prog",
+          "show"
+        ],
+        [
+          "bpftool",
+          "net"
+        ],
+        [
+          "bpftool",
+          "map",
+          "show",
+          "name",
+          "pulse_stats"
+        ],
+        [
+          "bpftool",
+          "map",
+          "dump",
+          "name",
+          "pulse_stats"
+        ],
+        [
+          "bpftool",
+          "map",
+          "dump",
+          "name",
+          "pulse_stats"
+        ]
+      ],
+      "required_measurements": {
+        "bpftool_net_contains_interface": true,
+        "bpftool_prog_show_contains_pulse": true,
+        "interface": "nonempty",
+        "map_counter_delta_packets": "positive_int",
+        "xdp_attached": true
+      },
+      "required_references": [],
+      "safe_local_runner_command": null,
+      "status": "READY_TO_IMPORT",
+      "title": "XDP attach and map-counter evidence",
+      "validation_status": "VERIFIED",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "kernel_attach",
+        "--candidate",
+        "docs/verification/incoming/kernel_attach.json",
+        "--write",
+        "--json"
+      ]
+    },
     {
       "acceptance_commands": [
         [
@@ -386,7 +508,18 @@
     "failures": [],
     "status": "PASS"
   },
-  "currently_ready_write_commands": [],
+  "currently_ready_write_commands": [
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "kernel_attach",
+      "--candidate",
+      "docs/verification/incoming/kernel_attach.json",
+      "--write",
+      "--json"
+    ]
+  ],
   "decision": "EXTERNAL_EVIDENCE_INTAKE_ACTION_REQUIRED",
   "failures": [],
   "incoming_examples_manifest": "docs/verification/incoming/examples/manifest.json",
@@ -996,12 +1129,22 @@
     ]
   ],
   "preflight": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
-  "preflight_sha256": "5fa35c138ecdb73355c5ff9e47a33bd0e380e90e06c9c90f50cc170263dea3b9",
+  "preflight_sha256": "81c4b5e787ab3f57997030e4f346d38bebdccac888f4c37af6adc302ef8c7ad6",
   "preflight_verification": {
     "failures": [],
     "status": "PASS"
   },
   "read_only_preflight_commands": [
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "kernel_attach",
+      "--candidate",
+      "docs/verification/incoming/kernel_attach.json",
+      "--require-ready",
+      "--json"
+    ],
     [
       "python3",
       "scripts/ops/import_ghost_pulse_external_evidence.py",
@@ -1033,17 +1176,30 @@
       "--json"
     ]
   ],
-  "ready": [],
+  "ready": [
+    "kernel_attach"
+  ],
   "replacement_required": [
+    "kernel_attach",
     "dpi_lab",
     "whitelist_lab",
     "production_readiness"
   ],
   "schema": "x0tta6bl4.ghost_pulse.external_evidence_intake.v1",
   "status": "PASS",
-  "timestamp_utc": "2026-05-31T08:03:48.999457+00:00",
+  "timestamp_utc": "2026-06-07T04:43:45.442792+00:00",
   "unsafe_candidate_paths": [],
   "write_commands_after_ready": [
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "kernel_attach",
+      "--candidate",
+      "docs/verification/incoming/kernel_attach.json",
+      "--write",
+      "--json"
+    ],
     [
       "python3",
       "scripts/ops/import_ghost_pulse_external_evidence.py",

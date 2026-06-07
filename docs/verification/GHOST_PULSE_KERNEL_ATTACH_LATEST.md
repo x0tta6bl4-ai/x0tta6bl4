@@ -1,31 +1,59 @@
-# x0tta6bl4_pulse kernel_attach Imported External Evidence
+# x0tta6bl4_pulse Kernel Attach Evidence
 
-Observed at: `2026-05-22T20:17:21.575656+00:00`
+Observed at: `2026-06-07T04:32:36.434907+00:00`
 
-Validation status: `VERIFIED`
+Status: `INCOMPLETE`
 
 ## Measurements
 
-- bpftool_net_contains_interface: `True`
-- bpftool_prog_show_contains_pulse: `True`
-- historical_candidate_audit_status: `NO_ACCEPTED_CANDIDATE`
-- interface: `x0rp021`
-- interface_scan_count: `16`
-- interface_scan_xdp_interfaces: `['x0rp021']`
-- interface_seen: `True`
-- map_counter_after_packets: `564`
-- map_counter_before_packets: `76`
-- map_counter_delta_packets: `488`
-- object_preflight_object_contains_pulse_function: `True`
-- object_preflight_object_contains_pulse_stats: `True`
-- object_preflight_object_has_btf_section: `True`
-- object_preflight_object_has_xdp_section: `True`
-- object_preflight_object_is_ebpf: `True`
-- object_preflight_object_path: `src/network/ebpf/x0tta6bl4_pulse.o`
-- object_preflight_source_path: `src/network/ebpf/x0tta6bl4_pulse.bpf.c`
-- object_preflight_status: `READY_FOR_CONTROLLED_ATTACH_TEST`
-- xdp_attached: `True`
+- Interface: `docker0`
+- Interface seen by ip link: `True`
+- Interfaces seen by full scan: `11`
+- Interfaces with XDP in full scan: `[]`
+- XDP attached: `False`
+- Pulse marker visible in bpftool output: `False`
+- Interface visible in bpftool net: `False`
+- Map packet counter delta: `0`
 
-## Validation Errors
+## eBPF Artifact Preflight
 
-- None
+- Status: `ACTION_REQUIRED`
+- Source: `src/network/ebpf/x0tta6bl4_pulse.bpf.c`
+- Object: `src/network/ebpf/x0tta6bl4_pulse.o`
+- Object is eBPF: `True`
+- Object has XDP section: `True`
+- Object has BTF section: `False`
+- Object contains pulse_stats: `True`
+- Object contains pulse function: `True`
+- Preflight blockers: `pulse_object_missing_btf_section`
+
+## Collection Options
+
+- bpftool sudo: `False`
+- bpftool privilege mode: `direct`
+- sudo non-interactive unavailable: `False`
+
+## Collection Diagnostics
+
+- Status: `ACTION_REQUIRED`
+- Blockers: `xdp_attach_not_visible, bpftool_permission_denied, pulse_program_not_visible, bpftool_net_missing_interface, pulse_stats_counter_not_positive`
+- bpftool permission denied: `True`
+
+## Candidate Import Readiness
+
+- Status: `ACTION_REQUIRED`
+- Candidate path: `docs/verification/incoming/kernel_attach.json`
+- Can stage candidate: `False`
+- Blocking reasons: `kernel_evidence_not_verified, xdp_attach_not_visible, bpftool_permission_denied, pulse_program_not_visible, bpftool_net_missing_interface, pulse_stats_counter_not_positive`
+
+## Failures
+
+- ip link did not show an XDP attach on interface: docker0
+- bpftool output did not contain an x0tta6bl4_pulse marker
+- bpftool net output did not include interface: docker0
+- pulse map packet counter did not increase
+- command failed: bpftool prog show
+- command failed: bpftool net
+- command failed: bpftool map show name pulse_stats
+- command failed: bpftool map dump name pulse_stats
+- command failed: bpftool map dump name pulse_stats

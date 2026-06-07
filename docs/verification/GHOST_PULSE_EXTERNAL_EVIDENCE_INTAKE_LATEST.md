@@ -1,6 +1,6 @@
 # x0tta6bl4_pulse External Evidence Intake
 
-Timestamp: `2026-05-31T08:03:48.999457+00:00`
+Timestamp: `2026-06-07T04:43:45.442792+00:00`
 
 Status: `PASS`
 
@@ -10,18 +10,19 @@ Preflight: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`
 
 ## Summary
 
-- replacement_required: `dpi_lab, whitelist_lab, production_readiness`
-- ready: `none`
+- replacement_required: `kernel_attach, dpi_lab, whitelist_lab, production_readiness`
+- ready: `kernel_attach`
 - not_ready: `dpi_lab, whitelist_lab, production_readiness`
 - missing_candidate_paths: `none`
-- currently_ready_write_commands: `0`
+- currently_ready_write_commands: `1`
 - post_import_refresh_commands: `9`
 - incoming_examples_status: `PASS`
 - incoming_examples_count: `7`
-- collection_tasks: `3`
+- collection_tasks: `4`
 
 ## Collection Tasks
 
+- `kernel_attach`: status `READY_TO_IMPORT`, candidate `docs/verification/incoming/kernel_attach.json`, blockers `none`, external_dpi_proxy_validation `none`, collector_command_shape `none`
 - `dpi_lab`: status `CANDIDATE_REJECTED`, candidate `docs/verification/incoming/dpi_lab.json`, blockers `candidate_validation_failed, preflight_failures_present, external_dpi_proxy_validation_failed`, external_dpi_proxy_validation `FAIL/REJECTED`, collector_command_shape `present`
 - `whitelist_lab`: status `CANDIDATE_REJECTED`, candidate `docs/verification/incoming/whitelist_lab.json`, blockers `candidate_validation_failed, preflight_failures_present`, external_dpi_proxy_validation `none`, collector_command_shape `none`
 - `production_readiness`: status `CANDIDATE_REJECTED`, candidate `docs/verification/incoming/production_readiness.json`, blockers `candidate_validation_failed, preflight_failures_present`, external_dpi_proxy_validation `none`, collector_command_shape `none`
@@ -31,6 +32,26 @@ Preflight: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`
 Placeholder values in angle brackets must be filled locally by the operator.
 Do not paste target URLs, proxy URLs, operator IDs, authorization scope, or policy context into chat.
 External DPI runbook: `docs/verification/ghost-pulse-external-dpi-intake-runbook.md`.
+
+### `kernel_attach`
+
+Read-only import check:
+
+```bash
+python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim kernel_attach --candidate docs/verification/incoming/kernel_attach.json --require-ready --json
+```
+
+Write import command, only after readiness is true:
+
+```bash
+python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim kernel_attach --candidate docs/verification/incoming/kernel_attach.json --write --json
+```
+
+Acceptance commands:
+
+```bash
+python3 scripts/ops/verify_ghost_pulse_external_evidence.py --claim kernel_attach --require-pass --json
+```
 
 ### `dpi_lab`
 
