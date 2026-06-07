@@ -1,0 +1,9 @@
+{
+  "dao_proposal_id": 42,
+  "network_secure_mode": "strict",
+  "allowed_kem_algorithms": ["ML-KEM-768", "ML-KEM-1024"],
+  "forced_rotation_interval_seconds": 0.5,
+  "required_attestation_level": "TEE_MEASURED",
+  "governance_status": "EXECUTED",
+  "applied_at_utc": "2026-06-07T04:30:00Z"
+}

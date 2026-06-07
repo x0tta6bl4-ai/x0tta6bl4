@@ -12,7 +12,7 @@ from decimal import Decimal
 
 
 from src.coordination.events import EventBus, EventType
-from src.dao.token_rewards import TokenRewards
+from src.dao.token_rewards import GasGuard, TokenRewards
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -21,6 +21,16 @@ from src.dao.token_rewards import TokenRewards
 CONTRACT_ADDR = "0x" + "a" * 40
 NODE_ADDR = "0x" + "b" * 40
 FAKE_PRIVATE_KEY = "0x" + "c" * 64
+
+
+class _ViableGasGuard:
+    def is_viable(self, amount):
+        return True, "test gas ok"
+
+
+class _HighGasGuard:
+    def is_viable(self, amount):
+        return False, "gas too high in test"
 
 
 def _make_rewards(private_key=None, rpc_url=None):
@@ -399,6 +409,7 @@ class TestBlockchainIntegration:
         tr.web3 = object()
         tr.contract = object()
         tr.account = object()
+        tr.gas_guard = _ViableGasGuard()
         tr.pending_rewards = Decimal("1.25")
         tx_hash = "0x" + "d" * 64
         tr._send_blockchain_reward = lambda node_address, amount: tx_hash
@@ -434,6 +445,7 @@ class TestBlockchainIntegration:
         tr.web3 = object()
         tr.contract = object()
         tr.account = object()
+        tr.gas_guard = _ViableGasGuard()
         tr.pending_rewards = Decimal("1.25")
         tr._send_blockchain_reward = lambda node_address, amount: None
 
@@ -449,3 +461,59 @@ class TestBlockchainIntegration:
         assert event.data["submitted_transaction"] is False
         assert event.data["simulated"] is False
         assert event.data["reason"] == "blockchain transaction hash was not returned"
+
+    def test_settle_rewards_blocks_when_blockchain_configured_without_gas_guard(self):
+        """Configured blockchain settlement must fail closed if gas guard is missing."""
+        tr = _make_rewards()
+        tr.web3 = object()
+        tr.contract = object()
+        tr.account = object()
+        tr.pending_rewards = Decimal("1.25")
+
+        result = tr._settle_rewards(NODE_ADDR)
+
+        assert result["ok"] is False
+        assert result["status"] == "gas_guard_unavailable"
+        assert result["submitted_transaction"] is False
+        assert result["settlement_recorded"] is False
+        assert result["simulated"] is False
+        assert tr.pending_rewards == Decimal("1.25")
+
+    def test_settle_rewards_defers_when_gas_guard_rejects_cost(self):
+        """High gas keeps pending rewards queued and avoids transaction submission."""
+        tr = _make_rewards()
+        tr.web3 = object()
+        tr.contract = object()
+        tr.account = object()
+        tr.gas_guard = _HighGasGuard()
+        tr.pending_rewards = Decimal("1.25")
+
+        result = tr._settle_rewards(NODE_ADDR)
+
+        assert result["ok"] is False
+        assert result["status"] == "deferred_high_gas"
+        assert result["submitted_transaction"] is False
+        assert result["settlement_recorded"] is False
+        assert result["error"] == "gas too high in test"
+        assert tr.pending_rewards == Decimal("1.25")
+
+
+class TestGasGuard:
+    def test_allows_local_mode_without_web3(self):
+        guard = GasGuard(None)
+
+        assert guard.is_viable(Decimal("1.0")) == (True, "No blockchain connected")
+
+    def test_rejects_gas_above_absolute_cap(self):
+        class _Eth:
+            gas_price = 20_000_000_000
+
+        class _Web3:
+            eth = _Eth()
+
+        guard = GasGuard(_Web3())
+
+        ok, reason = guard.is_viable(Decimal("1.0"))
+
+        assert ok is False
+        assert "Gas too high" in reason

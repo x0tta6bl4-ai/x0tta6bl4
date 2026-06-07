@@ -16,9 +16,9 @@ from math import isfinite
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.dao.governance import GovernanceEngine, Proposal, ProposalState
-from src.dao.mapek_threshold_proposal import (MAPEKThresholdProposal,
-                                              ThresholdChange)
+from src.dao.mapek_threshold_proposal import MAPEKThresholdProposal, ThresholdChange
 from src.storage.ipfs_client import IPFSClient
 
 logger = logging.getLogger(__name__)
@@ -79,6 +79,12 @@ class MAPEKThresholdManager:
         self.threshold_audit_file = self.storage_path / "mapek_threshold_audit.jsonl"
         # Optional integrity key for zero-trust local storage verification.
         self.threshold_hmac_key = os.getenv("X0TTA6BL4_THRESHOLDS_HMAC_KEY", "").strip()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="dao-mapek-threshold-manager",
+            role="governance",
+            capabilities=("security", "zero-trust", "mape_k"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Current thresholds (loaded from storage or defaults)
         self.thresholds: Dict[str, float] = self._load_thresholds()
@@ -139,9 +145,7 @@ class MAPEKThresholdManager:
             return True
 
         if not self.threshold_hmac_file.exists():
-            logger.error(
-                "Missing thresholds HMAC file: %s", self.threshold_hmac_file
-            )
+            logger.error("Missing thresholds HMAC file: %s", self.threshold_hmac_file)
             return False
 
         expected_hmac = self.threshold_hmac_file.read_text(encoding="utf-8").strip()
@@ -199,6 +203,45 @@ class MAPEKThresholdManager:
                 )
 
         return (len(errors) == 0), errors
+
+    def _prepare_threshold_thinking_context(
+        self,
+        *,
+        task_type: str,
+        source: str,
+        changes: Dict[str, Any],
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Prepare bounded decision context without local secret material."""
+        known_parameters = sorted(
+            parameter for parameter in changes if parameter in THRESHOLD_BOUNDS
+        )
+        unknown_parameters = sorted(
+            parameter for parameter in changes if parameter not in THRESHOLD_BOUNDS
+        )
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": "apply only validated DAO-governed MAPE-K threshold changes",
+            "source": source,
+            "change_count": len(changes),
+            "known_parameters": known_parameters,
+            "unknown_parameter_count": len(unknown_parameters),
+            "unknown_parameters": unknown_parameters,
+            "has_integrity_key": bool(self.threshold_hmac_key),
+            "constraints": {
+                "allowed_parameters": sorted(THRESHOLD_BOUNDS),
+                "must_validate_bounds": True,
+                "must_preserve_auditability": True,
+            },
+            "safety_boundary": (
+                "Do not apply unknown, non-finite, or out-of-bounds threshold values; "
+                "do not include HMAC keys in diagnostic context."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
 
     def _record_threshold_change_audit(
         self,
@@ -285,6 +328,11 @@ class MAPEKThresholdManager:
             True if applied successfully
         """
         try:
+            self._prepare_threshold_thinking_context(
+                task_type="mapek_threshold_change",
+                source=source,
+                changes=changes,
+            )
             valid, reasons = self._validate_threshold_changes(changes)
             if not valid:
                 logger.error(
@@ -343,6 +391,7 @@ class MAPEKThresholdManager:
             Number of proposals applied
         """
         applied_count = 0
+        passed_threshold_proposals = 0
 
         # Check all proposals
         for proposal_id, proposal in self.governance.proposals.items():
@@ -362,6 +411,16 @@ class MAPEKThresholdManager:
                                 changes[parameter] = value
 
                     if changes:
+                        passed_threshold_proposals += 1
+                        self._prepare_threshold_thinking_context(
+                            task_type="dao_threshold_proposal_execution",
+                            source="dao",
+                            changes=changes,
+                            extra={
+                                "passed_threshold_proposals_seen": passed_threshold_proposals,
+                                "proposal_action_count": len(proposal.actions),
+                            },
+                        )
                         # Apply changes
                         if self.apply_threshold_changes(changes, source="dao"):
                             # Mark proposal as executed
@@ -370,6 +429,13 @@ class MAPEKThresholdManager:
                             logger.info(f"✅ Applied DAO proposal: {proposal_id}")
 
         return applied_count
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose thinking profile and latest redacted threshold decision context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def create_threshold_proposal(
         self, title: str, changes: List[ThresholdChange], rationale: str = ""

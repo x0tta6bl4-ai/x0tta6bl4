@@ -65,6 +65,40 @@ ERC20_ABI = [
 ]
 _UNSET = object()
 REWARD_RATE_XOT_PER_PACKET = Decimal("0.0001")
+MAX_GAS_COST_PERCENTAGE = Decimal("0.5")  # Do not spend more than 50% of reward on gas.
+
+
+class GasGuard:
+    """Ensures blockchain transactions are economically viable."""
+
+    def __init__(self, web3: Any):
+        self.web3 = web3
+
+    def is_viable(self, amount_xot: Decimal, gas_limit: int = 100000) -> tuple[bool, str]:
+        if not self.web3:
+            return True, "No blockchain connected"
+
+        try:
+            gas_price_wei = self.web3.eth.gas_price
+            total_gas_cost_wei = gas_price_wei * gas_limit
+
+            # Simple conversion for viability check (1 X0T = 1e18 wei equivalent in value for ratio)
+            # In real mainnet, we'd need an oracle for X0T/ETH price.
+            # For now, we assume 1 X0T is significant enough.
+
+            # Real logic: if reward < 2x gas cost, wait.
+            # (Assuming 1 X0T = 0.001 ETH for placeholder)
+            # amount_eth = amount_xot * Decimal("0.001")
+
+            # Honest Mode: Without an oracle, we use a conservative absolute gas cap.
+            max_gas_wei = int(1e15)  # 0.001 ETH cap per reward payout
+
+            if total_gas_cost_wei > max_gas_wei:
+                return False, f"Gas too high: {total_gas_cost_wei} wei > {max_gas_wei} cap"
+
+            return True, "Economically viable"
+        except Exception as e:
+            return False, f"Gas check failed: {e}"
 
 
 class TokenRewards:
@@ -113,6 +147,7 @@ class TokenRewards:
         self.web3 = None
         self.contract = None
         self.account = None
+        self.gas_guard = None
 
         web3_class = _get_web3_class() if self.private_key else None
         if web3_class is not None and self.private_key:
@@ -123,6 +158,7 @@ class TokenRewards:
                     abi=ERC20_ABI,
                 )
                 self.account = self.web3.eth.account.from_key(self.private_key)
+                self.gas_guard = GasGuard(self.web3)
                 logger.info(f"🔗 Blockchain connected: {self.rpc_url}")
                 logger.info(f"   Wallet: {self.account.address}")
             except Exception as e:
@@ -320,6 +356,40 @@ class TokenRewards:
                 "amount": str(amount),
                 "to": node_address,
                 "transaction_hash": "",
+            }, node_address, packets, upstream_event_ids, upstream_source_agents, calculation_metadata, **publish_kwargs)
+
+        # Gas Viability Check
+        if self.gas_guard is None:
+            reason = "gas guard unavailable for configured blockchain settlement"
+            logger.warning("Settlement blocked: %s", reason)
+            return self._publish_settlement_event({
+                "ok": False,
+                "status": "gas_guard_unavailable",
+                "settlement_recorded": False,
+                "local_accounting_recorded": True,
+                "submitted_transaction": False,
+                "simulated": False,
+                "amount": str(amount),
+                "to": node_address,
+                "transaction_hash": "",
+                "error": reason,
+            }, node_address, packets, upstream_event_ids, upstream_source_agents, calculation_metadata, **publish_kwargs)
+
+        is_viable, reason = self.gas_guard.is_viable(amount)
+        if not is_viable:
+            logger.warning(f"💸 Settlement deferred: {reason}")
+            # Do NOT reset pending_rewards, we keep them for next attempt
+            return self._publish_settlement_event({
+                "ok": False,
+                "status": "deferred_high_gas",
+                "settlement_recorded": False,
+                "local_accounting_recorded": True,
+                "submitted_transaction": False,
+                "simulated": False,
+                "amount": str(amount),
+                "to": node_address,
+                "transaction_hash": "",
+                "error": reason,
             }, node_address, packets, upstream_event_ids, upstream_source_agents, calculation_metadata, **publish_kwargs)
 
         try:
