@@ -11,7 +11,7 @@ import hashlib
 import logging
 import os
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import redis
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -67,7 +67,7 @@ _ANALYTICS_CLAIM_BOUNDARY = (
 )
 
 
-def _redacted_sha256_prefix(value: Any) -> str | None:
+def _redacted_sha256_prefix(value: Any) -> Optional[str]:
     if value is None:
         return None
     text = str(value).strip()
@@ -76,7 +76,7 @@ def _redacted_sha256_prefix(value: Any) -> str | None:
     return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:16]
 
 
-def _analytics_event_bus_from_request(request: Request | None) -> EventBus | None:
+def _analytics_event_bus_from_request(request: Optional[Request]) -> Optional[EventBus]:
     if request is None:
         return None
     state = getattr(request, "state", None)
@@ -109,7 +109,7 @@ def _safe_non_negative_int(value: Any) -> int:
         return 0
 
 
-def _safe_float(value: Any) -> float | None:
+def _safe_float(value: Any) -> Optional[float]:
     try:
         if value is None:
             return None
@@ -119,7 +119,7 @@ def _safe_float(value: Any) -> float | None:
 
 
 def _publish_analytics_read_event(
-    request: Request | None,
+    request: Optional[Request],
     *,
     source_agent: str,
     layer: str,
@@ -128,12 +128,12 @@ def _publish_analytics_read_event(
     current_user: Any,
     mesh_id: Any,
     status: str,
-    result: Dict[str, Any] | None = None,
-    time_range: str | None = None,
-    http_status_code: int | None = None,
+    result: Optional[Dict[str, Any]] = None,
+    time_range: Optional[str] = None,
+    http_status_code: Optional[int] = None,
     duration_ms: float = 0.0,
     reason: str = "",
-) -> str | None:
+) -> Optional[str]:
     event_bus = _analytics_event_bus_from_request(request)
     if event_bus is None:
         return None
@@ -276,15 +276,11 @@ def _analytics_readiness_status(db: Any) -> Dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
 @router.get("/readiness")
 async def analytics_readiness(
     request: Request,
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     payload = _analytics_readiness_status(db)
     for dependency in payload["degraded_dependencies"]:
         mark_degraded_dependency(request, dependency)
@@ -297,7 +293,7 @@ async def get_mesh_analytics(
     request: Request,
     current_user: User = Depends(require_permission("analytics:view")),
     db: Session = Depends(get_db),
-):
+) -> AnalyticsSummary:
     started = time.monotonic()
     service = MaaSAnalyticsService(db, _redis_client)
     try:
@@ -358,7 +354,7 @@ async def get_mesh_timeseries(
     time_range: str = "24h",
     current_user: User = Depends(require_permission("analytics:view")),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     started = time.monotonic()
     service = MaaSAnalyticsService(db, _redis_client)
     try:
@@ -421,7 +417,7 @@ async def get_marketplace_roi(
     request: Request,
     current_user: User = Depends(require_permission("analytics:view")),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     started = time.monotonic()
     service = MaaSAnalyticsService(db, _redis_client)
     try:

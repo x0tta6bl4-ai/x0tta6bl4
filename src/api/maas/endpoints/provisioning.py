@@ -12,7 +12,7 @@ import base64
 import json
 import hashlib
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
@@ -72,7 +72,7 @@ class ProvisionResponse(BaseModel):
 def _provisioning_setup_claim_gate(
     *,
     surface: str = "maas_provisioning.generate_setup",
-    db_write_succeeded: bool | None = None,
+    db_write_succeeded: Optional[bool] = None,
 ) -> Dict[str, Any]:
     return {
         "schema": "x0tta6bl4.maas_provisioning_setup_claim_gate.v1",
@@ -102,12 +102,12 @@ def _provisioning_setup_claim_boundary_headers() -> Dict[str, str]:
     return dict(_PROVISIONING_SETUP_CLAIM_HEADERS)
 
 
-def _set_provisioning_setup_claim_headers(http_response: Response) -> None:
+def _set_provisioning_setup_claim_headers(http_response: Optional[Response]) -> None:
     if http_response is not None:
         http_response.headers.update(_provisioning_setup_claim_boundary_headers())
 
 
-def _redacted_sha256_prefix(value: Any) -> str | None:
+def _redacted_sha256_prefix(value: Any) -> Optional[str]:
     if value is None:
         return None
     text = str(value).strip()
@@ -116,7 +116,7 @@ def _redacted_sha256_prefix(value: Any) -> str | None:
     return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:16]
 
 
-def _provisioning_event_bus_from_request(request: Request | None) -> EventBus | None:
+def _provisioning_event_bus_from_request(request: Optional[Request]) -> Optional[EventBus]:
     if request is None:
         return None
     state = getattr(request, "state", None)
@@ -194,7 +194,7 @@ def _provisioning_readiness_status(db: Any) -> Dict[str, Any]:
     }
 
 
-def _event_type_for_status(http_status_code: int | None) -> EventType:
+def _event_type_for_status(http_status_code: Optional[int]) -> EventType:
     if http_status_code is None or http_status_code < 400:
         return EventType.PIPELINE_STAGE_END
     if http_status_code >= 500:
@@ -203,22 +203,22 @@ def _event_type_for_status(http_status_code: int | None) -> EventType:
 
 
 def _publish_provisioning_event(
-    request: Request | None,
+    request: Optional[Request],
     *,
     status: str,
     current_user: Any = None,
-    provision_request: ProvisionRequest | None = None,
-    node_id: str | None = None,
-    join_token: str | None = None,
-    install_command: str | None = None,
-    config_json: str | None = None,
-    db_backed: bool | None = None,
+    provision_request: Optional[ProvisionRequest] = None,
+    node_id: Optional[str] = None,
+    join_token: Optional[str] = None,
+    install_command: Optional[str] = None,
+    config_json: Optional[str] = None,
+    db_backed: Optional[bool] = None,
     db_write_attempted: bool = False,
-    db_write_succeeded: bool | None = None,
-    http_status_code: int | None = None,
+    db_write_succeeded: Optional[bool] = None,
+    http_status_code: Optional[int] = None,
     duration_ms: float = 0.0,
     reason: str = "",
-) -> str | None:
+) -> Optional[str]:
     event_bus = _provisioning_event_bus_from_request(request)
     if event_bus is None:
         return None
@@ -285,19 +285,20 @@ def _publish_provisioning_event(
 async def provisioning_readiness(
     request: Request,
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     payload = _provisioning_readiness_status(db)
     for dependency in payload["degraded_dependencies"]:
         mark_degraded_dependency(request, dependency)
     return payload
 
+
 @router.post("/generate-setup")
 async def generate_provisioning_setup(
     req: ProvisionRequest,
+    request: Request,
+    http_response: Response,
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db),
-    http_response: Response = None,
-    request: Request = None,
 ) -> ProvisionResponse:
     """Generates a one-liner installation script for a new node."""
     started = time.monotonic()
@@ -384,5 +385,6 @@ async def generate_provisioning_setup(
         ),
     )
 
-def include_provisioning_router(app):
+
+def include_provisioning_router(app: Any) -> None:
     app.include_router(router)

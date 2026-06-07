@@ -84,6 +84,8 @@ def get_usage_service() -> UsageMeteringService:
 
 
 def _billing_event_bus_from_request(request: Optional[Request]) -> Optional[EventBus]:
+    if request is None:
+        return None
     state = getattr(request, "state", None)
     injected_bus = getattr(state, "event_bus", None)
     if injected_bus is not None:
@@ -715,7 +717,7 @@ async def pay_invoice_manual(
     invoice_id: str,
     user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db)
-):
+) -> Dict[str, Any]:
     """Mark an invoice as paid manually (for tests)."""
     inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not inv:
@@ -736,7 +738,7 @@ async def create_checkout_session(
     invoice_id: str,
     user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db)
-):
+) -> Dict[str, Any]:
     """Mock checkout session creation."""
     inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not inv:
@@ -762,7 +764,7 @@ async def billing_webhook(
     x_billing_webhook_secret: Optional[str] = Header(default=None),
     x_billing_timestamp: Optional[str] = Header(default=None),
     x_billing_signature: Optional[str] = Header(default=None),
-):
+) -> Dict[str, Any]:
     """Unified billing webhook handler with modular evidence publication."""
     started = time.monotonic()
     body = await request.body()
@@ -867,7 +869,7 @@ async def billing_webhook(
 
 
 @router.post("/webhook/stripe", summary="Stripe webhook")
-async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)) -> Dict[str, str]:
     """Stripe webhook endpoint."""
     from src.api import maas_billing as legacy_billing
 
@@ -908,7 +910,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 async def get_usage_reports(
     user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db)
-):
+) -> Dict[str, Any]:
     """Return usage reports for the current user."""
     meshes = [
         mesh
@@ -943,7 +945,7 @@ async def get_mesh_usage(
     mesh_id: str,
     user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db)
-):
+) -> Dict[str, Any]:
     """Return usage for a specific mesh."""
     mesh = get_mesh(mesh_id)
     if mesh is None or str(getattr(mesh, "owner_id", "")) != str(user.user_id):
@@ -953,7 +955,7 @@ async def get_mesh_usage(
 @router.get("/limits", summary="Get plan limits")
 async def get_plan_limits(
     user: UserContext = Depends(get_current_user),
-):
+) -> Dict[str, Any]:
     """Return plan limits for the current user."""
     plan = user.plan or "starter"
     return PLAN_REQUEST_LIMITS.get(plan, PLAN_REQUEST_LIMITS["starter"])

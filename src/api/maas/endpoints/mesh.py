@@ -227,7 +227,7 @@ def _mesh_read_list_claim_boundary_headers(surface: str) -> Dict[str, str]:
 
 
 def _set_mesh_read_list_claim_headers(
-    response: Response | None,
+    response: Optional[Response],
     *,
     surface: str,
 ) -> None:

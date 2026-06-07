@@ -70,19 +70,19 @@ _LIVE_RUNTIME_IDENTITY_BINDING_TYPES = {"verified_spiffe_svid", "verified_jwt_sv
 router = APIRouter(tags=["nodes"])
 
 
-def _extract_db(db: Any) -> Session:
+def _extract_db(db: Any) -> Optional[Session]:
     if hasattr(db, "dependency"): return None
     return db
 
 
-def _request_client_host(request: Request | None) -> str | None:
+def _request_client_host(request: Optional[Request]) -> Optional[str]:
     client = getattr(request, "client", None)
     return getattr(client, "host", None)
 
 
 def _verified_runtime_identity_context_from_request(
-    request: Request | None,
-) -> Dict[str, Any] | None:
+    request: Optional[Request],
+) -> Optional[Dict[str, Any]]:
     if request is None:
         return None
     return verified_node_runtime_identity_from_headers(
@@ -92,10 +92,10 @@ def _verified_runtime_identity_context_from_request(
 
 
 def _jwt_svid_runtime_identity_context_from_request(
-    request: Request | None,
+    request: Optional[Request],
     *,
-    expected_node_id: str | None,
-) -> Dict[str, Any] | None:
+    expected_node_id: Optional[str],
+) -> Optional[Dict[str, Any]]:
     if request is None:
         return None
     return verified_node_runtime_identity_from_jwt_svid(
@@ -105,9 +105,9 @@ def _jwt_svid_runtime_identity_context_from_request(
 
 
 def _runtime_identity_context_for_bound_node(
-    request: Request | None,
+    request: Optional[Request],
     node: MeshNode,
-) -> Dict[str, Any] | None:
+) -> Optional[Dict[str, Any]]:
     binding_type = str(getattr(node, "runtime_identity_binding_type", "") or "").lower()
     if binding_type == "verified_jwt_svid":
         return _jwt_svid_runtime_identity_context_from_request(
@@ -119,7 +119,7 @@ def _runtime_identity_context_for_bound_node(
 
 def _live_runtime_identity_failure_detail(
     binding_type: str,
-    verified_identity: Dict[str, Any] | None,
+    verified_identity: Optional[Dict[str, Any]],
 ) -> str:
     reason = verified_runtime_identity_failure_reason(verified_identity)
     if binding_type == "verified_jwt_svid":
@@ -132,7 +132,7 @@ def _live_runtime_identity_failure_detail(
 def _ensure_live_runtime_identity_for_bound_node(
     node: MeshNode,
     *,
-    request: Request | None,
+    request: Optional[Request],
     db: Session,
 ) -> None:
     binding_type = str(getattr(node, "runtime_identity_binding_type", "") or "").lower()
@@ -164,10 +164,10 @@ def _ensure_live_runtime_identity_for_bound_node(
 
 
 def _ensure_mesh_db_mirror(mesh_id: str, db: Session) -> None:
-    db = _extract_db(db)
-    if db is None: return
+    db_session = _extract_db(db)
+    if db_session is None: return
 
-    exists = db.query(DBMeshInstance).filter(DBMeshInstance.id == mesh_id).first()
+    exists = db_session.query(DBMeshInstance).filter(DBMeshInstance.id == mesh_id).first()
     if not exists:
         from ..registry import get_mesh
         registry_mesh = get_mesh(mesh_id)
@@ -179,19 +179,19 @@ def _ensure_mesh_db_mirror(mesh_id: str, db: Session) -> None:
             plan=str(getattr(registry_mesh, "plan", None) or "starter"),
             status="active"
         )
-        db.add(new_mesh)
-        db.commit()
+        db_session.add(new_mesh)
+        db_session.commit()
 
 
 def _load_node_or_404(mesh_id: str, node_id: str, db: Session) -> MeshNode:
-    db = _extract_db(db)
-    if db is None: raise HTTPException(status_code=500, detail="DB session unavailable")
-    node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
+    db_session = _extract_db(db)
+    if db_session is None: raise HTTPException(status_code=500, detail="DB session unavailable")
+    node = db_session.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
     if node is None: raise HTTPException(status_code=404, detail="Node not found")
     return node
 
 
-def _ensure_node_runtime_credential(mesh_id: str, node_id: str, *, db: Session, runtime_credential: str | None) -> MeshNode:
+def _ensure_node_runtime_credential(mesh_id: str, node_id: str, *, db: Session, runtime_credential: Optional[str]) -> MeshNode:
     node = _load_node_or_404(mesh_id, node_id, db)
     if not verify_node_runtime_credential(
         runtime_credential,
@@ -213,9 +213,9 @@ def _ensure_node_runtime_credential(mesh_id: str, node_id: str, *, db: Session, 
 
 def _runtime_credential_from_headers(
     *,
-    x_api_key: str | None,
-    authorization: str | None,
-) -> str | None:
+    x_api_key: Optional[str],
+    authorization: Optional[str],
+) -> Optional[str]:
     if x_api_key:
         return x_api_key
     value = str(authorization or "").strip()
@@ -224,7 +224,7 @@ def _runtime_credential_from_headers(
     return value or None
 
 
-def _ensure_node_config_access(mesh_id: str, node_id: str, *, db: Session, current_user: UserContext | None, runtime_credential: str | None, request: Request | None) -> UserContext | None:
+def _ensure_node_config_access(mesh_id: str, node_id: str, *, db: Session, current_user: Optional[UserContext], runtime_credential: Optional[str], request: Optional[Request]) -> Optional[UserContext]:
     if current_user is not None: return current_user
     return None
 
@@ -233,15 +233,15 @@ def _ensure_node_config_access(mesh_id: str, node_id: str, *, db: Session, curre
 async def register_node(
     mesh_id: str,
     req: NodeRegisterRequest,
+    request: Request,
     db: Session = Depends(get_db),
-    request: Request = None,
-):
+) -> Dict[str, Any]:
     """Register a new node."""
-    db = _extract_db(db)
+    db_session = _extract_db(db)
     result = core_register_node(
         mesh_id,
         req.enrollment_token or "",
-        db,
+        db_session,
         node_id=req.node_id,
         device_class=req.device_class,
         hardware_id=req.hardware_id,
@@ -257,10 +257,10 @@ async def register_node(
 @router.get("/{mesh_id}/nodes/pending")
 async def list_pending_nodes(
     mesh_id: str,
-    current_user: Any = Depends(get_current_user),
+    current_user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    db = _extract_db(db)
+) -> Dict[str, Any]:
+    db_session = _extract_db(db)
     return {"mesh_id": mesh_id, "pending": {}}
 
 
@@ -268,16 +268,16 @@ async def list_pending_nodes(
 async def approve_node(
     mesh_id: str,
     node_id: str,
-    req: NodeApproveRequest | None = None,
-    current_user: Any = Depends(get_current_user),
+    request: Request,
+    req: Optional[NodeApproveRequest] = None,
+    current_user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
-    request: Request = None,
-):
-    db = _extract_db(db)
+) -> Dict[str, Any]:
+    db_session = _extract_db(db)
     result = core_approve_node(
         mesh_id,
         node_id,
-        db,
+        db_session,
         current_user,
         attestation_data=req.attestation_data if req else None,
     )
@@ -288,17 +288,17 @@ async def approve_node(
 async def revoke_node(
     mesh_id: str,
     node_id: str,
-    req: Any = None,
-    current_user: Any = Depends(get_current_user),
+    request: Request,
+    req: Optional[Any] = None,
+    current_user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
-    request: Request = None,
-    reason: str | None = None,
-):
-    db = _extract_db(db)
+    reason: Optional[str] = None,
+) -> Dict[str, Any]:
+    db_session = _extract_db(db)
     if req is not None and not hasattr(req, "reason") and (hasattr(req, "user_id") or hasattr(req, "role")):
         current_user = req
         req = None
-    result = core_revoke_node(mesh_id, node_id, db, current_user)
+    result = core_revoke_node(mesh_id, node_id, db_session, current_user)
     return {
         "mesh_id": mesh_id,
         "reason": getattr(req, "reason", None) or reason or "manual_revoke",
@@ -311,10 +311,10 @@ async def node_heartbeat(
     mesh_id: str,
     node_id: str,
     req: NodeHeartbeatRequest,
+    request: Request,
     x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
-    request: Request = None,
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     db = _extract_db(db)
     if req.node_id and req.node_id != node_id:
         raise HTTPException(
@@ -358,11 +358,11 @@ async def node_heartbeat(
 async def get_node_config(
     mesh_id: str,
     node_id: str,
+    request: Request,
     x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
     authorization: Optional[str] = Header(default=None, alias="Authorization"),
-    request: Request = None,
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     db = _extract_db(db)
     node = _ensure_node_runtime_credential(
         mesh_id,
@@ -378,8 +378,12 @@ async def get_node_config(
 
 
 @router.get("/{mesh_id}/nodes/all")
-async def list_mesh_nodes_all(mesh_id: str, current_user: Any = Depends(get_current_user), db: Session = Depends(get_db)):
-    db = _extract_db(db)
+async def list_mesh_nodes_all(
+    mesh_id: str,
+    current_user: UserContext = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
+    db_session = _extract_db(db)
     return []
 
 
@@ -390,20 +394,24 @@ async def get_node_telemetry(
     history_limit: int = Query(default=20, ge=1, le=100),
     current_user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    db = _extract_db(db)
+) -> Dict[str, Any]:
+    db_session = _extract_db(db)
     return get_node_telemetry_data(
         mesh_id,
         node_id,
-        db,
+        db_session,
         current_user,
         history_limit=history_limit,
     )
 
 
 @router.get("/{mesh_id}/nodes")
-async def list_mesh_nodes(mesh_id: str, db: Session = Depends(get_db), **kwargs):
-    db = _extract_db(db)
+async def list_mesh_nodes(
+    mesh_id: str,
+    db: Session = Depends(get_db),
+    **kwargs: Any,
+) -> List[Dict[str, Any]]:
+    db_session = _extract_db(db)
     return []
 
 
@@ -411,23 +419,27 @@ async def list_mesh_nodes(mesh_id: str, db: Session = Depends(get_db), **kwargs)
 async def heal_node(
     mesh_id: str,
     node_id: str,
-    current_user: Any = Depends(get_current_user),
-    request: Request = None,
+    request: Request,
+    current_user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    db = _extract_db(db)
+) -> Dict[str, Any]:
+    db_session = _extract_db(db)
     return await trigger_node_healing(
         mesh_id,
         node_id,
-        db,
+        db_session,
         current_user,
         request=request,
     )
 
 
 @router.get("/{mesh_id}/nodes/{node_id}/readiness")
-async def node_readiness(mesh_id: str, node_id: str, db: Session = Depends(get_db)):
-    db = _extract_db(db)
+async def node_readiness(
+    mesh_id: str,
+    node_id: str,
+    db: Session = Depends(get_db),
+) -> Dict[str, str]:
+    db_session = _extract_db(db)
     return {"status": "ready"}
 
 
@@ -435,16 +447,16 @@ async def node_readiness(mesh_id: str, node_id: str, db: Session = Depends(get_d
 async def rotate_node_runtime_credential(
     mesh_id: str,
     node_id: str,
-    req: NodeRuntimeCredentialRotateRequest | None = None,
+    request: Request,
+    req: Optional[NodeRuntimeCredentialRotateRequest] = None,
     x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
-    request: Request = None,
     db: Session = Depends(get_db),
-):
-    db = _extract_db(db)
+) -> Dict[str, Any]:
+    db_session = _extract_db(db)
     node = _ensure_node_runtime_credential(
         mesh_id,
         node_id,
-        db=db,
+        db=db_session,
         runtime_credential=x_api_key,
     )
 
@@ -478,7 +490,7 @@ async def rotate_node_runtime_credential(
 
     result = core_rotate_node_runtime_credential(
         node,
-        db,
+        db_session,
         ttl_seconds=getattr(req, "ttl_seconds", None),
     )
     return {
@@ -498,17 +510,17 @@ async def bind_node_runtime_identity(
     mesh_id: str,
     node_id: str,
     req: NodeRuntimeIdentityBindRequest,
-    current_user: Any = Depends(get_current_user),
+    current_user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """Manually bind a node to a runtime identity proof (Operator only)."""
-    db = _extract_db(db)
-    node = _load_node_or_404(mesh_id, node_id, db)
+    db_session = _extract_db(db)
+    node = _load_node_or_404(mesh_id, node_id, db_session)
 
     # Permission check for manual binding
-    check_node_access(AccessCheckRequest(mesh_id=mesh_id, node_id=node_id), current_user, db)
+    check_node_access(AccessCheckRequest(mesh_id=mesh_id, node_id=node_id), current_user, db_session)
 
-    result = core_bind_node_runtime_identity(node, db, req)
+    result = core_bind_node_runtime_identity(node, db_session, req)
 
     binding_hash = str(result.get("runtime_identity_binding_hash") or "")
     return {
@@ -529,16 +541,16 @@ async def bind_node_runtime_identity(
 async def bind_verified_node_runtime_identity(
     mesh_id: str,
     node_id: str,
+    request: Request,
     x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
-    request: Request = None,
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """Bind a node to its current proxy-verified SPIFFE identity."""
-    db = _extract_db(db)
+    db_session = _extract_db(db)
     node = _ensure_node_runtime_credential(
         mesh_id,
         node_id,
-        db=db,
+        db=db_session,
         runtime_credential=x_api_key,
     )
 
@@ -550,7 +562,7 @@ async def bind_verified_node_runtime_identity(
         )
 
     proof = runtime_identity_proof_from_verified_context(verified_identity)
-    result = core_bind_node_runtime_identity(node, db, proof)
+    result = core_bind_node_runtime_identity(node, db_session, proof)
 
     binding_hash = str(result.get("runtime_identity_binding_hash") or "")
     return {
@@ -573,16 +585,16 @@ async def bind_verified_node_runtime_identity(
 async def bind_jwt_svid_node_runtime_identity(
     mesh_id: str,
     node_id: str,
+    request: Request,
     x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
-    request: Request = None,
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """Bind a node to its current API-verified JWT-SVID identity."""
-    db = _extract_db(db)
+    db_session = _extract_db(db)
     node = _ensure_node_runtime_credential(
         mesh_id,
         node_id,
-        db=db,
+        db=db_session,
         runtime_credential=x_api_key,
     )
 
@@ -594,7 +606,7 @@ async def bind_jwt_svid_node_runtime_identity(
         )
 
     proof = runtime_identity_proof_from_verified_context(verified_identity)
-    result = core_bind_node_runtime_identity(node, db, proof)
+    result = core_bind_node_runtime_identity(node, db_session, proof)
 
     binding_hash = str(result.get("runtime_identity_binding_hash") or "")
     return {
@@ -618,16 +630,16 @@ async def refresh_measured_attestation_runtime_identity(
     mesh_id: str,
     node_id: str,
     req: NodeMeasuredAttestationRefreshRequest,
+    request: Request,
     x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
-    request: Request = None,
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """Refresh a node's measured attestation runtime identity binding."""
-    db = _extract_db(db)
+    db_session = _extract_db(db)
     node = _ensure_node_runtime_credential(
         mesh_id,
         node_id,
-        db=db,
+        db=db_session,
         runtime_credential=x_api_key,
     )
 
@@ -636,7 +648,7 @@ async def refresh_measured_attestation_runtime_identity(
         "binding_type": "measured_attestation",
         "attestation_digest": verified_context["attestation_digest"],
     }
-    result = core_bind_node_runtime_identity(node, db, proof)
+    result = core_bind_node_runtime_identity(node, db_session, proof)
 
     binding_hash = str(result.get("runtime_identity_binding_hash") or "")
     return {

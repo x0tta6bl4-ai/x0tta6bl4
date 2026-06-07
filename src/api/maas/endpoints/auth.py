@@ -31,7 +31,7 @@ router = APIRouter(tags=["auth"])
 root_router = APIRouter(tags=["auth"])
 
 
-def _extract_db(db: Any) -> Session:
+def _extract_db(db: Any) -> Optional[Session]:
     if hasattr(db, "dependency"): return None
     return db
 
@@ -47,19 +47,19 @@ def get_auth_service() -> MaaSAuthService:
     return _db_auth_service
 
 
-def record_audit_log(*args, **kwargs):
+def record_audit_log(*args: Any, **kwargs: Any) -> None:
     pass
 
 
-def make_admin(*args, **kwargs):
+def make_admin(*args: Any, **kwargs: Any) -> Dict[str, str]:
     return {"status": "success"}
 
 
-def find_user_by_api_key(*args, **kwargs):
+def find_user_by_api_key(*args: Any, **kwargs: Any) -> Optional[Any]:
     return None
 
 
-def list_api_keys(*args, **kwargs):
+def list_api_keys(*args: Any, **kwargs: Any) -> List[Any]:
     return []
 
 
@@ -75,13 +75,13 @@ def list_api_keys(*args, **kwargs):
 )
 async def register(
     req: RegisterRequest,
-    request: Request = None,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> RegisterResponse:
-    db = _extract_db(db)
-    if db is not None:
+    db_session = _extract_db(db)
+    if db_session is not None:
         try:
-            user = _db_auth_service.register(db, req)
+            user = _db_auth_service.register(db_session, req)
         except HTTPException as exc:
             if (
                 exc.status_code == status.HTTP_400_BAD_REQUEST
@@ -93,73 +93,73 @@ async def register(
                 )
             raise
         api_key = _db_auth_service.issued_api_key(user) or ""
-        return {
-            "user_id": str(user.id),
-            "email": str(user.email),
-            "api_key": api_key,
-            "access_token": api_key,
-            "message": "User registered successfully",
-        }
+        return RegisterResponse(
+            user_id=str(user.id),
+            email=str(user.email),
+            api_key=api_key,
+            access_token=api_key,
+            message="User registered successfully",
+        )
 
     api_key = "x0t_register_secret_api_key"
-    return {
-        "user_id": "u-1",
-        "email": req.email,
-        "api_key": api_key,
-        "access_token": api_key,
-        "message": "User registered successfully",
-    }
+    return RegisterResponse(
+        user_id="u-1",
+        email=req.email,
+        api_key=api_key,
+        access_token=api_key,
+        message="User registered successfully",
+    )
 
 
 @root_router.post("/login", response_model=LoginResponse)
 @router.post("/login", response_model=LoginResponse)
 async def login(
     req: LoginRequest,
-    request: Request = None,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
-    db = _extract_db(db)
-    if db is not None:
-        api_key = _db_auth_service.login(db, req)
+    db_session = _extract_db(db)
+    if db_session is not None:
+        api_key = _db_auth_service.login(db_session, req)
         normalized_email = _db_auth_service._normalize_email(req.email)
-        user = db.query(User).filter(User.email == normalized_email).first()
-        return {
-            "user_id": str(getattr(user, "id", "")),
-            "session_token": api_key,
-            "access_token": api_key,
-        }
+        user = db_session.query(User).filter(User.email == normalized_email).first()
+        return LoginResponse(
+            user_id=str(getattr(user, "id", "")),
+            session_token=api_key,
+            access_token=api_key,
+        )
 
     api_key = "x0t_login_secret_api_key"
-    return {"user_id": "u-1", "session_token": api_key, "access_token": api_key}
+    return LoginResponse(user_id="u-1", session_token=api_key, access_token=api_key)
 
 
 @root_router.post("/api-key", response_model=ApiKeyRotateResponse)
 @router.post("/api-key", response_model=ApiKeyRotateResponse)
 async def rotate_api_key(
-    request: ApiKeyRotateRequest | None = None,
-    http_request: Request = None,
+    http_request: Request,
+    request: Optional[ApiKeyRotateRequest] = None,
     user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ApiKeyRotateResponse:
-    db = _extract_db(db)
-    if db is not None:
-        db_user = db.query(User).filter(User.id == user.user_id).first()
+    db_session = _extract_db(db)
+    if db_session is not None:
+        db_user = db_session.query(User).filter(User.id == user.user_id).first()
         if db_user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authenticated user not found",
             )
-        api_key, rotated_at = _db_auth_service.rotate_api_key(db, db_user)
-        return {
-            "api_key": api_key,
-            "created_at": rotated_at.isoformat(),
-            "message": "API key rotated successfully",
-        }
-    return {
-        "api_key": "x0t_rotate_secret_api_key",
-        "created_at": None,
-        "message": "API key rotated successfully",
-    }
+        api_key, rotated_at = _db_auth_service.rotate_api_key(db_session, db_user)
+        return ApiKeyRotateResponse(
+            api_key=api_key,
+            created_at=rotated_at.isoformat(),
+            message="API key rotated successfully",
+        )
+    return ApiKeyRotateResponse(
+        api_key="x0t_rotate_secret_api_key",
+        created_at=None,
+        message="API key rotated successfully",
+    )
 
 
 @root_router.get("/me")
@@ -167,15 +167,15 @@ async def rotate_api_key(
 @root_router.get("/profile")
 @router.get("/profile")
 async def get_profile(
-    request: Request = None,
+    request: Request,
     user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     effective_user = user if not hasattr(user, "dependency") else None
-    db = _extract_db(db)
+    db_session = _extract_db(db)
     db_user = None
-    if db is not None and effective_user is not None:
-        db_user = db.query(User).filter(User.id == effective_user.user_id).first()
+    if db_session is not None and effective_user is not None:
+        db_user = db_session.query(User).filter(User.id == effective_user.user_id).first()
     return {
         "user_id": getattr(effective_user, "user_id", "u-1"),
         "email": (
@@ -217,7 +217,7 @@ def _require_oidc_redirect_flow() -> Any:
 
 @root_router.get("/login/oidc")
 @router.get("/login/oidc")
-async def login_oidc(http_request: Request) -> Any:
+async def login_oidc(http_request: Request) -> Dict[str, str]:
     _require_oidc_redirect_flow()
     return {"status": "redirect", "url": "https://oidc.example.test/auth"}
 
@@ -227,7 +227,7 @@ async def login_oidc(http_request: Request) -> Any:
 async def auth_callback(
     http_request: Request,
     db: Session = Depends(get_db),
-) -> Any:
+) -> Dict[str, str]:
     _require_oidc_redirect_flow()
     return {"status": "success", "user_id": "oidc-1"}
 
@@ -239,24 +239,24 @@ async def set_admin(
     current_user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    db = _extract_db(db)
+    db_session = _extract_db(db)
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin role required",
         )
-    if db is None:
+    if db_session is None:
         return {"message": f"User {email} promoted to admin", "role": "admin"}
 
     normalized_email = str(email or "").strip().lower()
-    user = db.query(User).filter(User.email == normalized_email).first()
+    user = db_session.query(User).filter(User.email == normalized_email).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
     user.role = "admin"
-    db.commit()
+    db_session.commit()
     return {
         "message": f"User {normalized_email} promoted to admin",
         "email": normalized_email,
@@ -268,11 +268,11 @@ async def set_admin(
 @router.post("/bootstrap-admin")
 async def bootstrap_admin(
     request: RegisterRequest,
-    http_request: Request = None,
-    x_bootstrap_token: str | None = Header(default=None, alias="X-Bootstrap-Token"),
+    http_request: Request,
+    x_bootstrap_token: Optional[str] = Header(default=None, alias="X-Bootstrap-Token"),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    db = _extract_db(db)
+    db_session = _extract_db(db)
     bootstrap_token = os.getenv("BOOTSTRAP_TOKEN", "")
     if not bootstrap_token:
         raise HTTPException(
@@ -284,17 +284,17 @@ async def bootstrap_admin(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid bootstrap token",
         )
-    if db is not None and db.query(User).filter(User.role == "admin").first() is not None:
+    if db_session is not None and db_session.query(User).filter(User.role == "admin").first() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Admin already exists - bootstrap disabled",
         )
-    if db is None:
+    if db_session is None:
         return {"message": "Bootstrap admin created", "role": "admin"}
 
-    user = _db_auth_service.register(db, request)
+    user = _db_auth_service.register(db_session, request)
     user.role = "admin"
-    db.commit()
+    db_session.commit()
     api_key = _db_auth_service.issued_api_key(user) or ""
     return {
         "message": "Bootstrap admin created",

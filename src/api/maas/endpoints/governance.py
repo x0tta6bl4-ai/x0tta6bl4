@@ -85,13 +85,13 @@ GOVERNANCE_PROPOSAL_CLAIM_BOUNDARY = (
 def get_gov_power(user: User) -> float:
     """Quadratic voting power by plan."""
     powers = {"free": 10.0, "starter": 100.0, "pro": 1000.0, "enterprise": 10000.0}
-    return powers.get(user.plan, 10.0)
+    return powers.get(str(getattr(user, "plan", "")), 10.0)
 
-def _compute_finality_hash(proposal: GovernanceProposal, results: List[Dict]) -> str:
+def _compute_finality_hash(proposal: GovernanceProposal, results: List[Dict[str, Any]]) -> str:
     """Compute a tamper-evident SHA-256 hash anchoring the governance decision."""
     vote_records = sorted(
         [(v.voter_id, v.vote, v.tokens) for v in proposal.votes],
-        key=lambda x: x[0],
+        key=lambda x: str(x[0]),
     )
     payload = json.dumps(
         {
@@ -102,6 +102,7 @@ def _compute_finality_hash(proposal: GovernanceProposal, results: List[Dict]) ->
         sort_keys=True,
     ).encode()
     return hashlib.sha256(payload).hexdigest()
+
 
 class GovernanceAction(BaseModel):
     type: str = Field(..., pattern="^(update_config|rotate_keys|restart_node|update_price)$")
@@ -205,7 +206,7 @@ def _governance_readiness_status(db: Any) -> Dict[str, Any]:
 async def governance_readiness(
     request: Request,
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     payload = _governance_readiness_status(db)
     for dependency in payload["degraded_dependencies"]:
         mark_degraded_dependency(request, dependency)
