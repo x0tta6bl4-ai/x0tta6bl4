@@ -879,6 +879,7 @@ class MAPEKLoop:
         fl_integration=None,
         event_bus: EventBus | None = None,
         event_project_root: str = ".",
+        self_healing_manager=None,
     ):
         self.consciousness = consciousness_engine
         self.mesh = mesh_manager
@@ -890,6 +891,20 @@ class MAPEKLoop:
         self.fl_integration = fl_integration  # FL integration compatibility
         self.event_project_root = event_project_root
         self.event_bus = _event_bus_or_none(event_bus, event_project_root)
+        self.self_healing = self_healing_manager
+
+        # TD-008: Auto-initialize modular self-healing if not provided
+        if self.self_healing is None:
+            try:
+                from src.self_healing.mape_k.manager import SelfHealingManager
+                self.self_healing = SelfHealingManager(
+                    node_id=service_event_identity(service_name=_SERVICE_AGENT).get("node_id", "core-mapek"),
+                    event_bus=self.event_bus,
+                    event_project_root=event_project_root,
+                )
+            except Exception as exc:
+                logger.debug("Modular SelfHealingManager unavailable: %s", exc)
+
         if self.event_bus is not None:
             try:
                 self.mesh.event_bus = self.event_bus
@@ -1583,9 +1598,40 @@ class MAPEKLoop:
                     logger.info(
                         f"🐝 Swarm detection: Risk penalty {swarm_risk_penalty:.2f} applied"
                     )
-
             except Exception as e:
-                logger.error(f"Swarm analysis failed: {e}")
+                logger.debug(f"Swarm analysis failed: {e}")
+
+        # TD-008: Modular MAPE-K Shadow Check
+        if self.self_healing:
+            try:
+                # Map raw_metrics to format expected by modular check
+                modular_metrics = {
+                    "node_id": self.mesh.node_id if hasattr(self.mesh, "node_id") else "core-mapek",
+                    **raw_metrics
+                }
+                modular_result = self.self_healing.monitor.check(modular_metrics)
+
+                # Check for discrepancies
+                legacy_has_issue = swarm_risk_penalty > 0.5
+                modular_has_issue = modular_result.get("anomaly_detected", False)
+
+                if legacy_has_issue != modular_has_issue:
+                    logger.info(
+                        f"⚖️ TD-008 Discrepancy: legacy={legacy_has_issue}, modular={modular_has_issue}. "
+                        f"Modular Issue: {modular_result.get('issue')}"
+                    )
+
+                # Record modular evidence
+                self._publish_control_event(
+                    EventType.MONITOR_PHASE_END,
+                    stage="analyze",
+                    operation="shadow_check",
+                    status="success" if modular_has_issue else "stable",
+                    metrics=raw_metrics,
+                    check_result=modular_result,
+                )
+            except Exception as exc:
+                logger.debug("Modular shadow check failed: %s", exc)
 
         metrics = self.consciousness.get_consciousness_metrics(
             raw_metrics, swarm_risk_penalty=swarm_risk_penalty

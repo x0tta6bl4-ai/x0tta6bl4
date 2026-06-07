@@ -384,12 +384,13 @@ class LateralThinking:
 class ReversePlanner:
     """Реализация обратного планирования"""
 
-    def plan(self, goal: str) -> List[str]:
+    def plan(self, goal: str, max_steps: int = 8) -> List[str]:
         """
         Планирование от цели к началу.
 
         Args:
             goal: Конечная цель
+            max_steps: Защита от зацикливания при неизвестной формулировке цели
 
         Returns:
             План в обратном порядке (от цели к началу)
@@ -398,16 +399,31 @@ class ReversePlanner:
 
         # Двигаемся назад от цели
         current = goal
-        while not self._is_start_state(current):
+        seen = {current}
+        for _ in range(max(1, max_steps)):
+            if self._is_start_state(current):
+                break
             previous = self._find_previous_step(current)
+            if previous in seen:
+                if not self._is_start_state(previous):
+                    previous = "Начальное состояние"
+                plan.append(previous)
+                break
             plan.append(previous)
+            seen.add(previous)
             current = previous
 
         return plan
 
     def _is_start_state(self, state: str) -> bool:
         """Проверка, является ли состояние начальным"""
-        return "начало" in state.lower() or "start" in state.lower()
+        lower = state.lower()
+        return (
+            "начало" in lower
+            or "начальн" in lower
+            or "start" in lower
+            or "initial" in lower
+        )
 
     def _find_previous_step(self, current: str) -> str:
         """Поиск предыдущего шага"""

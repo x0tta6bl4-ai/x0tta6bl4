@@ -5,6 +5,7 @@ Tests cover: MAPEKMonitor, MAPEKAnalyzer, MAPEKPlanner,
 MAPEKExecutor, MAPEKKnowledge, SelfHealingManager.
 """
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -49,17 +50,22 @@ class TestMAPEKMonitor:
 
     def test_register_detector(self):
         monitor = MAPEKMonitor()
+
         def fn(m):
             return True
+
         monitor.register_detector(fn)
         assert fn in monitor.anomaly_detectors
 
     def test_register_multiple_detectors(self):
         monitor = MAPEKMonitor()
+
         def fn1(m):
             return False
+
         def fn2(m):
             return True
+
         monitor.register_detector(fn1)
         monitor.register_detector(fn2)
         assert len(monitor.anomaly_detectors) == 2
@@ -69,6 +75,26 @@ class TestMAPEKMonitor:
     def test_check_default_cpu_anomaly(self):
         monitor = MAPEKMonitor()
         assert monitor.check({"cpu_percent": 95})["anomaly_detected"] is True
+
+    def test_check_records_redacted_thinking_context(self):
+        monitor = MAPEKMonitor()
+        result = monitor.check(
+            {"node_id": "node-secret-1", "cpu_percent": 95, "memory_percent": 30}
+        )
+
+        thinking_status = monitor.get_thinking_status()
+        thinking_context = thinking_status["last_thinking_context"]
+        assert result["anomaly_detected"] is True
+        assert thinking_status["thinking"]["profile"]["role"] == "monitoring"
+        assert "mape_k" in thinking_status["thinking"]["techniques"]
+        assert (
+            thinking_context["applied"]["framing"]["problem"] == "mapek_monitor_check"
+        )
+        assert (
+            thinking_context["applied"]["framing"]["constraints"]["redact_node_ids"]
+            is True
+        )
+        assert "node-secret-1" not in json.dumps(thinking_context, sort_keys=True)
 
     def test_check_default_cpu_normal(self):
         monitor = MAPEKMonitor()
@@ -216,17 +242,21 @@ class TestMAPEKMonitor:
             GraphSAGEAnomalyDetector=MagicMock,
             create_graphsage_detector_for_mapek=MagicMock(),
         )
-        with patch.dict("sys.modules", {"src.ml.graphsage_anomaly_detector": mock_module}):
+        with patch.dict(
+            "sys.modules", {"src.ml.graphsage_anomaly_detector": mock_module}
+        ):
             monitor.enable_graphsage(detector=mock_detector)
         assert monitor.graphsage_detector is mock_detector
 
     def test_enable_graphsage_with_provided_detector(self):
         monitor = MAPEKMonitor()
         mock_detector = MagicMock()
-        with patch(
-            "src.self_healing.mape_k.GraphSAGEAnomalyDetector", create=True
-        ), patch(
-            "src.self_healing.mape_k.create_graphsage_detector_for_mapek", create=True
+        with (
+            patch("src.self_healing.mape_k.GraphSAGEAnomalyDetector", create=True),
+            patch(
+                "src.self_healing.mape_k.create_graphsage_detector_for_mapek",
+                create=True,
+            ),
         ):
             # Patch the import inside enable_graphsage
             with patch.dict(
@@ -249,7 +279,9 @@ class TestMAPEKMonitor:
             GraphSAGEAnomalyDetector=MagicMock,
             create_graphsage_detector_for_mapek=mock_factory,
         )
-        with patch.dict("sys.modules", {"src.ml.graphsage_anomaly_detector": mock_module}):
+        with patch.dict(
+            "sys.modules", {"src.ml.graphsage_anomaly_detector": mock_module}
+        ):
             monitor.enable_graphsage(detector=None)
         assert monitor.graphsage_detector is mock_factory.return_value
         assert monitor.use_graphsage is True
@@ -509,7 +541,9 @@ class TestMAPEKAnalyzer:
             GraphSAGEAnomalyDetector=MagicMock,
             create_graphsage_detector_for_mapek=MagicMock(),
         )
-        with patch.dict("sys.modules", {"src.ml.graphsage_anomaly_detector": mock_module}):
+        with patch.dict(
+            "sys.modules", {"src.ml.graphsage_anomaly_detector": mock_module}
+        ):
             analyzer.enable_graphsage(detector=mock_detector)
         assert analyzer.graphsage_detector is mock_detector
         assert analyzer.use_graphsage is True
@@ -521,7 +555,9 @@ class TestMAPEKAnalyzer:
             GraphSAGEAnomalyDetector=MagicMock,
             create_graphsage_detector_for_mapek=mock_factory,
         )
-        with patch.dict("sys.modules", {"src.ml.graphsage_anomaly_detector": mock_module}):
+        with patch.dict(
+            "sys.modules", {"src.ml.graphsage_anomaly_detector": mock_module}
+        ):
             analyzer.enable_graphsage(detector=None)
         assert analyzer.graphsage_detector is mock_factory.return_value
 
@@ -1218,16 +1254,19 @@ class TestSelfHealingManager:
     def test_init_with_knowledge_storage(self, mock_executor_cls):
         storage = MagicMock()
         mock_adapter = MagicMock()
-        with patch(
-            "src.self_healing.mape_k.MAPEKKnowledgeStorageAdapter",
-            create=True,
-        ) as mock_adapter_cls, patch.dict(
-            "sys.modules",
-            {
-                "src.storage.mapek_integration": MagicMock(
-                    MAPEKKnowledgeStorageAdapter=mock_adapter_cls
-                )
-            },
+        with (
+            patch(
+                "src.self_healing.mape_k.MAPEKKnowledgeStorageAdapter",
+                create=True,
+            ) as mock_adapter_cls,
+            patch.dict(
+                "sys.modules",
+                {
+                    "src.storage.mapek_integration": MagicMock(
+                        MAPEKKnowledgeStorageAdapter=mock_adapter_cls
+                    )
+                },
+            ),
         ):
             mock_adapter_cls.return_value = mock_adapter
             manager = SelfHealingManager(knowledge_storage=storage)

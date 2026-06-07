@@ -148,6 +148,14 @@ class OptimizationEngine:
 
             # 5. Initialize MAPE-K Loop
             logger.info("🌀 Configuring MAPE-K Autonomic Loop...")
+
+            # TD-008: Initialize modular self-healing manager
+            from src.self_healing.mape_k.manager import SelfHealingManager
+            self_healing = SelfHealingManager(
+                node_id=settings.node_id,
+                event_project_root=".",
+            )
+
             self.mape_k_loop = MAPEKLoop(
                 consciousness_engine=consciousness,
                 mesh_manager=self.network_manager,
@@ -155,6 +163,7 @@ class OptimizationEngine:
                 zero_trust=zero_trust,
                 parl_controller=self.parl_controller,
                 fl_integration=self.fl_integration,
+                self_healing_manager=self_healing,
             )
 
             # 6. Start the Loop

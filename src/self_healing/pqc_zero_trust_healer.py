@@ -7,12 +7,14 @@ Monitors PQC sessions, detects anomalies, plans remediation, and executes healin
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
 from ..coordination.events import EventBus, EventType, get_event_bus
 from ..network.ebpf.pqc_xdp_loader import PQCXDPLoader
 from ..security.ebpf_pqc_gateway import EBPFPQCGateway, get_pqc_gateway
@@ -26,6 +28,12 @@ from ..services.service_event_identity import service_event_identity
 from .mape_k import MAPEKAnalyzer, MAPEKExecutor, MAPEKMonitor, MAPEKPlanner
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
 
 _SERVICE_AGENT = "pqc-zero-trust-healer"
 PQC_CLAIM_BOUNDARY = (
@@ -127,6 +135,46 @@ class PQCZeroTrustMonitor(MAPEKMonitor):
         self.session_expiry_threshold = timedelta(hours=1)
         self.max_failure_rate = 0.1  # 10% failure rate
         self.max_anomalies_per_hour = 10
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="pqc-zero-trust-monitor",
+            role="monitoring",
+            capabilities=("mape_k", "zero-trust", "pqc"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "tracked_anomaly_count": len(self.anomalies),
+            "session_expiry_threshold_seconds": int(
+                self.session_expiry_threshold.total_seconds()
+            ),
+            "constraints": {
+                "redact_session_ids": True,
+                "redact_peer_ids": True,
+                "redact_identity_ids": True,
+                "monitoring_is_not_pqc_trust_finality": True,
+                "does_not_prove_dataplane_delivery": True,
+            },
+            "safety_boundary": PQC_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose monitor thinking state without raw PQC identifiers."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def monitor(self) -> Dict[str, Any]:
         """Monitor PQC system health and detect anomalies"""
@@ -139,6 +187,11 @@ class PQCZeroTrustMonitor(MAPEKMonitor):
 
             # Get current sessions
             sessions = self.pqc_gateway.sessions
+            self._record_thinking(
+                "pqc_zero_trust_monitor",
+                "monitor local PQC session health without raw session IDs",
+                {"session_count": len(sessions), "pqc_loader_present": self.pqc_loader is not None},
+            )
 
             # Get eBPF stats if loader available
             ebpf_stats = {}
@@ -194,6 +247,11 @@ class PQCZeroTrustMonitor(MAPEKMonitor):
             return monitoring_data
 
         except Exception as e:
+            self._record_thinking(
+                "pqc_zero_trust_monitor",
+                "record PQC monitoring failure without raw error text",
+                {"status": "error", "error_type": type(e).__name__},
+            )
             logger.error(f"PQC monitoring failed: {e}")
             return {"error": str(e), "timestamp": datetime.now()}
 
@@ -310,14 +368,63 @@ class PQCZeroTrustAnalyzer(MAPEKAnalyzer):
 
     def __init__(self):
         super().__init__()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="pqc-zero-trust-analyzer",
+            role="analysis",
+            capabilities=("mape_k", "zero-trust", "pqc"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "constraints": {
+                "redact_issue_text": True,
+                "redact_raw_anomalies": True,
+                "analysis_is_not_healing_proof": True,
+                "does_not_prove_pqc_trust_finality": True,
+            },
+            "safety_boundary": PQC_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose analyzer thinking state without raw issue text."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def analyze(self, monitoring_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze monitoring data and determine if healing is needed"""
         try:
             anomalies = monitoring_data.get("anomalies", [])
             health_metrics = monitoring_data.get("health_metrics")
+            self._record_thinking(
+                "pqc_zero_trust_analyze",
+                "analyze local PQC health data without raw anomaly payloads",
+                {
+                    "anomaly_count": len(anomalies),
+                    "health_metrics_present": health_metrics is not None,
+                    "monitoring_keys": sorted(str(key) for key in monitoring_data),
+                },
+            )
 
             if not health_metrics:
+                self._record_thinking(
+                    "pqc_zero_trust_analyze",
+                    "record missing PQC health metrics",
+                    {"severity": "unknown", "requires_action": False},
+                )
                 return {"issues": [], "severity": "unknown", "requires_action": False}
 
             issues = []
@@ -359,7 +466,7 @@ class PQCZeroTrustAnalyzer(MAPEKAnalyzer):
                 severity = "high"
                 requires_action = True
 
-            return {
+            result = {
                 "issues": issues,
                 "severity": severity,
                 "requires_action": requires_action,
@@ -370,8 +477,23 @@ class PQCZeroTrustAnalyzer(MAPEKAnalyzer):
                     / max(1, health_metrics.total_sessions),
                 },
             }
+            self._record_thinking(
+                "pqc_zero_trust_analyze",
+                "record local PQC analysis result without issue text",
+                {
+                    "issue_count": len(issues),
+                    "severity": severity,
+                    "requires_action": requires_action,
+                },
+            )
+            return result
 
         except Exception as e:
+            self._record_thinking(
+                "pqc_zero_trust_analyze",
+                "record PQC analysis failure without raw error text",
+                {"severity": "critical", "error_type": type(e).__name__},
+            )
             logger.error(f"PQC analysis failed: {e}")
             return {
                 "issues": [f"Analysis error: {e}"],
@@ -416,13 +538,61 @@ class PQCZeroTrustPlanner(MAPEKPlanner):
 
     def __init__(self):
         super().__init__()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="pqc-zero-trust-planner",
+            role="planning",
+            capabilities=("mape_k", "zero-trust", "pqc"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "constraints": {
+                "redact_action_text": True,
+                "plan_is_not_execution_proof": True,
+                "does_not_prove_pqc_trust_finality": True,
+                "does_not_prove_dataplane_delivery": True,
+            },
+            "safety_boundary": PQC_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose planner thinking state without raw action text."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def plan(self, analysis_result: Dict[str, Any]) -> Dict[str, Any]:
         """Plan remediation actions for PQC anomalies"""
         try:
             actions = []
+            self._record_thinking(
+                "pqc_zero_trust_plan",
+                "plan local PQC recovery actions without execution overclaiming",
+                {
+                    "requires_action": bool(analysis_result.get("requires_action", False)),
+                    "severity": analysis_result.get("severity", "low"),
+                },
+            )
 
             if not analysis_result.get("requires_action", False):
+                self._record_thinking(
+                    "pqc_zero_trust_plan",
+                    "record no-action PQC recovery plan",
+                    {"action_count": 0, "priority": "low"},
+                )
                 return {"actions": [], "priority": "low", "estimated_duration": 0}
 
             anomaly_count = analysis_result.get("analysis_data", {}).get(
@@ -469,7 +639,7 @@ class PQCZeroTrustPlanner(MAPEKPlanner):
 
             priority = "high" if severity in ["critical", "high"] else "medium"
 
-            return {
+            result = {
                 "actions": actions,
                 "priority": priority,
                 "estimated_duration": len(actions) * 30,  # 30 seconds per action
@@ -479,8 +649,23 @@ class PQCZeroTrustPlanner(MAPEKPlanner):
                     "health_score": health_score,
                 },
             }
+            self._record_thinking(
+                "pqc_zero_trust_plan",
+                "record PQC recovery action count without action text",
+                {
+                    "action_count": len(actions),
+                    "priority": priority,
+                    "severity": severity,
+                },
+            )
+            return result
 
         except Exception as e:
+            self._record_thinking(
+                "pqc_zero_trust_plan",
+                "record PQC planning failure without raw error text",
+                {"priority": "critical", "error_type": type(e).__name__},
+            )
             logger.error(f"PQC planning failed: {e}")
             return {
                 "actions": ["Emergency: Manual intervention required"],
@@ -531,6 +716,44 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
             "spiffe_id": spiffe_id or service_identity["spiffe_id"],
             "did": did or service_identity["did"],
             "wallet_address": wallet_address or service_identity["wallet_address"],
+        }
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=source_agent,
+            role="healing",
+            capabilities=("mape_k", "zero-trust", "pqc"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "policy_required": self.require_policy or self.policy_engine is not None,
+            "pqc_loader_present": self.pqc_loader is not None,
+            "constraints": {
+                "redact_action_text": True,
+                "redact_plan_payload": True,
+                "local_action_is_not_pqc_trust_finality": True,
+                "does_not_prove_dataplane_delivery": True,
+                "does_not_prove_production_readiness": True,
+            },
+            "safety_boundary": PQC_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose executor thinking state without raw action text."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
 
     @staticmethod
@@ -708,6 +931,15 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
         try:
             actions = list(plan.get("actions", []))
             plan_context = self._plan_context(plan, actions)
+            self._record_thinking(
+                "pqc_zero_trust_execute",
+                "execute local PQC recovery plan without treating it as trust finality",
+                {
+                    "action_count": len(actions),
+                    "priority": plan.get("priority"),
+                    "estimated_duration": plan.get("estimated_duration"),
+                },
+            )
             self._publish_executor_event(
                 EventType.COORDINATION_REQUEST,
                 stage="plan_received",
@@ -730,6 +962,14 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
                             "policy_required": True,
                             "matched_rules": self._policy_rules(policy_decision),
                         }
+                        self._record_thinking(
+                            "pqc_zero_trust_execute",
+                            "record policy-denied PQC recovery action",
+                            {
+                                "action_hash": _safe_hash(action),
+                                "status": "policy_denied",
+                            },
+                        )
                         results.append(result)
                         self._publish_executor_event(
                             EventType.TASK_BLOCKED,
@@ -755,6 +995,16 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
                     results.append(result)
                     if result["success"]:
                         success_count += 1
+                    self._record_thinking(
+                        "pqc_zero_trust_execute",
+                        "record local PQC recovery action result",
+                        {
+                            "action_hash": _safe_hash(action),
+                            "status": "success" if result.get("success") else "failed",
+                            "live_pqc_trust_finality_claim_allowed": False,
+                            "dataplane_delivery_claim_allowed": False,
+                        },
+                    )
                     self._publish_executor_event(
                         EventType.PIPELINE_STAGE_END
                         if result["success"]
@@ -775,6 +1025,15 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
                 except Exception as e:
                     logger.error(f"PQC action error: {action} - {e}")
                     result = {"action": action, "success": False, "error": str(e)}
+                    self._record_thinking(
+                        "pqc_zero_trust_execute",
+                        "record PQC recovery action exception without raw error text",
+                        {
+                            "action_hash": _safe_hash(action),
+                            "status": "exception",
+                            "error_type": type(e).__name__,
+                        },
+                    )
                     results.append(result)
                     self._publish_executor_event(
                         EventType.TASK_FAILED,
@@ -787,7 +1046,7 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
 
             overall_success = success_count == len(actions)
 
-            return {
+            final_result = {
                 "actions_executed": len(actions),
                 "success_count": success_count,
                 "failed_actions": len(actions) - success_count,
@@ -797,8 +1056,23 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
                     "duration": plan.get("estimated_duration", 0),
                 },
             }
+            self._record_thinking(
+                "pqc_zero_trust_execute",
+                "record local PQC recovery plan result without trust overclaiming",
+                {
+                    "actions_executed": len(actions),
+                    "success_count": success_count,
+                    "success": overall_success,
+                },
+            )
+            return final_result
 
         except Exception as e:
+            self._record_thinking(
+                "pqc_zero_trust_execute",
+                "record PQC recovery execution failure without raw error text",
+                {"status": "error", "error_type": type(e).__name__},
+            )
             logger.error(f"PQC execution failed: {e}")
             return {
                 "actions_executed": 0,
@@ -1069,13 +1343,62 @@ class PQCZeroTrustHealer:
             did=did,
             wallet_address=wallet_address,
         )
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"{source_agent}:healer",
+            role="healing",
+            capabilities=("mape_k", "zero-trust", "pqc"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+        self._record_thinking(
+            "pqc_zero_trust_healer_initialized",
+            "initialize PQC zero-trust healer without trust-finality overclaiming",
+            {"node_id_hash": _safe_hash(node_id)},
+        )
 
         # Start healing loop
         asyncio.create_task(self.run_healing_loop())
 
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "constraints": {
+                "redact_node_ids": True,
+                "redact_session_ids": True,
+                "healing_loop_state_is_not_trust_finality": True,
+                "does_not_prove_dataplane_delivery": True,
+                "does_not_prove_production_readiness": True,
+            },
+            "safety_boundary": PQC_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose healer thinking state and nested MAPE-K component status."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "monitor": self.monitor.get_thinking_status(),
+            "analyzer": self.analyzer.get_thinking_status(),
+            "planner": self.planner.get_thinking_status(),
+            "executor": self.executor.get_thinking_status(),
+        }
+
     async def run_healing_loop(self):
         """Run the continuous MAPE-K healing loop"""
         logger.info("Starting PQC Zero-Trust healing loop")
+        self._record_thinking(
+            "pqc_zero_trust_healer_loop",
+            "start continuous local MAPE-K healing loop",
+        )
 
         while True:
             try:
@@ -1086,6 +1409,16 @@ class PQCZeroTrustHealer:
                 if analysis_result.get("requires_action", False):
                     plan = await self.planner.plan(analysis_result)
                     execution_result = await self.executor.execute(plan)
+                    self._record_thinking(
+                        "pqc_zero_trust_healer_loop",
+                        "record local PQC healing cycle result",
+                        {
+                            "actions_executed": execution_result.get(
+                                "actions_executed", 0
+                            ),
+                            "success_count": execution_result.get("success_count", 0),
+                        },
+                    )
 
                     logger.info(
                         f"PQC healing cycle completed: {execution_result.get('success_count', 0)}/{execution_result.get('actions_executed', 0)} actions successful"

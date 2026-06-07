@@ -6,13 +6,44 @@ dynamic optimizer, and the main MAPE-K cycle.
 """
 
 import logging
+import hashlib
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _value_band(value: float) -> str:
+    if value >= 0.9:
+        return "very_high"
+    if value >= 0.7:
+        return "high"
+    if value >= 0.4:
+        return "medium"
+    if value > 0:
+        return "low"
+    return "zero"
 
 
 class FeedbackLoopType(Enum):
@@ -78,12 +109,70 @@ class FeedbackLoopManager:
         self.callbacks: Dict[FeedbackLoopType, List[Callable]] = {
             loop_type: [] for loop_type in FeedbackLoopType
         }
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"feedback-loop-manager:{_safe_hash(id(self))}",
+            role="coordinator",
+            capabilities=("mape_k", "monitoring", "causal_analysis"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "feedback_loop_manager_init",
+                "goal": "Initialize MAPE-K feedback loop decisions",
+                "signals": {
+                    "self_learning_available": self_learning_optimizer is not None,
+                    "dynamic_optimizer_available": dynamic_optimizer is not None,
+                    "loop_count": len(self.loop_metrics),
+                },
+                "safety_boundary": (
+                    "Do not expose raw parameter names, decision ids, resource names, "
+                    "callback identities, or optimizer internals in thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_parameter_names": True,
+                    "redact_decision_ids": True,
+                    "redact_resource_names": True,
+                    "preserve_feedback_contract": True,
+                },
+                "safety_boundary": (
+                    "Use loop names, hashes, value bands, counters, and action flags."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def register_callback(
         self, loop_type: FeedbackLoopType, callback: Callable[[FeedbackSignal], None]
     ):
         """Register callback for feedback loop"""
         self.callbacks[loop_type].append(callback)
+        self._record_thinking(
+            "feedback_loop_callback_registered",
+            "Register callback for feedback loop",
+            {
+                "loop_type": loop_type.value,
+                "callback_count": len(self.callbacks[loop_type]),
+            },
+        )
 
     def signal_metrics_learning(
         self, parameter: str, threshold_value: float, confidence: float
@@ -122,8 +211,36 @@ class FeedbackLoopManager:
             self.loop_metrics[FeedbackLoopType.METRICS_LEARNING]["actions_taken"] += 1
 
             self._execute_callbacks(FeedbackLoopType.METRICS_LEARNING, signal)
+            self._record_thinking(
+                "feedback_loop_metrics_learning_action",
+                "Convert metrics learning signal into threshold action",
+                {
+                    "loop_type": FeedbackLoopType.METRICS_LEARNING.value,
+                    "parameter_hash": _safe_hash(parameter),
+                    "threshold_band": _value_band(threshold_value / 100.0),
+                    "confidence_band": _value_band(confidence),
+                    "action_taken": True,
+                    "signal_count_bucket": _safe_count_bucket(
+                        len(self.signal_history)
+                    ),
+                    "action_count_bucket": _safe_count_bucket(
+                        len(self.action_history)
+                    ),
+                },
+            )
             return action
 
+        self._record_thinking(
+            "feedback_loop_metrics_learning_signal",
+            "Record metrics learning signal without action",
+            {
+                "loop_type": FeedbackLoopType.METRICS_LEARNING.value,
+                "parameter_hash": _safe_hash(parameter),
+                "threshold_band": _value_band(threshold_value / 100.0),
+                "confidence_band": _value_band(confidence),
+                "self_learning_available": False,
+            },
+        )
         return None
 
     def signal_performance_degradation(
@@ -166,8 +283,33 @@ class FeedbackLoopManager:
             ] += 1
 
             self._execute_callbacks(FeedbackLoopType.PERFORMANCE_ADAPTATION, signal)
+            self._record_thinking(
+                "feedback_loop_performance_action",
+                "Convert performance degradation into optimizer action",
+                {
+                    "loop_type": FeedbackLoopType.PERFORMANCE_ADAPTATION.value,
+                    "cpu_band": _value_band(cpu_usage / 100.0),
+                    "memory_band": _value_band(memory_usage / 100.0),
+                    "latency_band": _value_band(latency_ms / 1000.0),
+                    "action_taken": True,
+                    "signal_count_bucket": _safe_count_bucket(
+                        len(self.signal_history)
+                    ),
+                },
+            )
             return action
 
+        self._record_thinking(
+            "feedback_loop_performance_signal",
+            "Record performance degradation signal without optimizer action",
+            {
+                "loop_type": FeedbackLoopType.PERFORMANCE_ADAPTATION.value,
+                "cpu_band": _value_band(cpu_usage / 100.0),
+                "memory_band": _value_band(memory_usage / 100.0),
+                "latency_band": _value_band(latency_ms / 1000.0),
+                "dynamic_optimizer_available": False,
+            },
+        )
         return None
 
     def signal_decision_quality(
@@ -224,8 +366,30 @@ class FeedbackLoopManager:
                 ] += 1
 
             self._execute_callbacks(FeedbackLoopType.DECISION_QUALITY, signal)
+            self._record_thinking(
+                "feedback_loop_decision_quality_signal",
+                "Process decision quality feedback",
+                {
+                    "loop_type": FeedbackLoopType.DECISION_QUALITY.value,
+                    "decision_hash": _safe_hash(decision_id),
+                    "accuracy_band": _value_band(accuracy),
+                    "error_band": _value_band(error / max(abs(actual_outcome), 1.0)),
+                    "action_taken": new_rate != old_rate,
+                    "learning_rate_band": _value_band(new_rate),
+                },
+            )
             return action
 
+        self._record_thinking(
+            "feedback_loop_decision_quality_signal",
+            "Record decision quality feedback without optimizer action",
+            {
+                "loop_type": FeedbackLoopType.DECISION_QUALITY.value,
+                "decision_hash": _safe_hash(decision_id),
+                "accuracy_band": _value_band(accuracy),
+                "dynamic_optimizer_available": False,
+            },
+        )
         return None
 
     def signal_anomaly_detection(
@@ -268,8 +432,32 @@ class FeedbackLoopManager:
             self.loop_metrics[FeedbackLoopType.ANOMALY_FEEDBACK]["actions_taken"] += 1
 
             self._execute_callbacks(FeedbackLoopType.ANOMALY_FEEDBACK, signal)
+            self._record_thinking(
+                "feedback_loop_anomaly_action",
+                "Convert anomaly detection feedback into sensitivity action",
+                {
+                    "loop_type": FeedbackLoopType.ANOMALY_FEEDBACK.value,
+                    "true_positive": true_positive,
+                    "false_positive": false_positive,
+                    "false_negative": false_negative,
+                    "adjustment": adjustment,
+                    "action_taken": True,
+                },
+            )
             return action
 
+        self._record_thinking(
+            "feedback_loop_anomaly_signal",
+            "Record anomaly detection feedback without adjustment",
+            {
+                "loop_type": FeedbackLoopType.ANOMALY_FEEDBACK.value,
+                "true_positive": true_positive,
+                "false_positive": false_positive,
+                "false_negative": false_negative,
+                "adjustment": adjustment,
+                "action_taken": False,
+            },
+        )
         return None
 
     def signal_resource_pressure(
@@ -312,8 +500,30 @@ class FeedbackLoopManager:
             ] += 1
 
             self._execute_callbacks(FeedbackLoopType.RESOURCE_OPTIMIZATION, signal)
+            self._record_thinking(
+                "feedback_loop_resource_action",
+                "Convert resource pressure into execution parallelism action",
+                {
+                    "loop_type": FeedbackLoopType.RESOURCE_OPTIMIZATION.value,
+                    "resource_hash": _safe_hash(resource_type),
+                    "utilization_band": _value_band(utilization),
+                    "action_taken": True,
+                    "parallelism_bucket": _safe_count_bucket(new_parallelism),
+                },
+            )
             return action
 
+        self._record_thinking(
+            "feedback_loop_resource_signal",
+            "Record resource pressure without action",
+            {
+                "loop_type": FeedbackLoopType.RESOURCE_OPTIMIZATION.value,
+                "resource_hash": _safe_hash(resource_type),
+                "utilization_band": _value_band(utilization),
+                "dynamic_optimizer_available": self.dynamic_optimizer is not None,
+                "above_action_threshold": utilization > 0.8,
+            },
+        )
         return None
 
     def _execute_callbacks(self, loop_type: FeedbackLoopType, signal: FeedbackSignal):
@@ -358,7 +568,7 @@ class FeedbackLoopManager:
         total_signals = sum(m["signals_processed"] for m in self.loop_metrics.values())
         total_actions = sum(m["actions_taken"] for m in self.loop_metrics.values())
 
-        return {
+        stats = {
             "total_signals": total_signals,
             "total_actions": total_actions,
             "action_ratio": total_actions / max(1, total_signals),
@@ -367,3 +577,14 @@ class FeedbackLoopManager:
                 lt.value: len(cbs) for lt, cbs in self.callbacks.items()
             },
         }
+        self._record_thinking(
+            "feedback_loop_stats_collected",
+            "Collect feedback loop statistics",
+            {
+                "total_signals_bucket": _safe_count_bucket(total_signals),
+                "total_actions_bucket": _safe_count_bucket(total_actions),
+                "action_ratio_band": _value_band(stats["action_ratio"]),
+                "active_callback_counts": stats["active_callbacks"],
+            },
+        )
+        return stats

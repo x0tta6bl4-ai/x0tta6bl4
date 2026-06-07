@@ -3,12 +3,20 @@ Analyze phase for MAPE-K Self-Healing.
 """
 import logging
 import asyncio
+import hashlib
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.core.mape_k.interfaces import AnalyzerInterface
+
+
+def _safe_hash(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
 
 class MAPEKAnalyzer(AnalyzerInterface):
     """
@@ -22,6 +30,47 @@ class MAPEKAnalyzer(AnalyzerInterface):
         self.use_graphsage = False
         self.llm_integration = None
         self.use_llm = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="self-healing-mapek-analyzer",
+            role="analysis",
+            capabilities=("mape_k", "causal_analysis", "zero-trust"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "causal_enabled": self.use_causal_analysis,
+            "graphsage_enabled": self.use_graphsage,
+            "llm_enabled": self.use_llm,
+            "constraints": {
+                "redact_node_ids": True,
+                "redact_raw_metrics": True,
+                "redact_logs": True,
+                "analysis_is_not_recovery_proof": True,
+            },
+            "safety_boundary": (
+                "MAPE-K analysis produces local diagnosis only; it does not prove "
+                "recovery action execution, dataplane delivery, or production readiness."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose analyzer thinking state without raw metrics or logs."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def enable_causal_analysis(self, analyzer=None):
         """Enable Causal Analysis for root cause identification."""
@@ -31,6 +80,10 @@ class MAPEKAnalyzer(AnalyzerInterface):
         else:
             self.causal_analyzer = analyzer
         self.use_causal_analysis = True
+        self._record_thinking(
+            "mapek_analyzer_enable_causal",
+            "enable causal analysis for local root-cause diagnostics",
+        )
         logger.info("Causal Analysis enabled for Analyzer phase")
 
     def enable_graphsage(self, detector=None):
@@ -41,6 +94,10 @@ class MAPEKAnalyzer(AnalyzerInterface):
         else:
             self.graphsage_detector = detector
         self.use_graphsage = True
+        self._record_thinking(
+            "mapek_analyzer_enable_graphsage",
+            "enable GraphSAGE for local anomaly diagnostics",
+        )
         logger.info("GraphSAGE enabled for Analyzer phase")
 
     def enable_llm(self, integration=None):
@@ -52,15 +109,38 @@ class MAPEKAnalyzer(AnalyzerInterface):
             else:
                 self.llm_integration = integration
             self.use_llm = True
+            self._record_thinking(
+                "mapek_analyzer_enable_llm",
+                "enable LLM-assisted local log analysis with redaction boundary",
+            )
             logger.info("🤖 Kimi K2.5 LLM enabled for Analyzer phase")
         except ImportError:
+            self._record_thinking(
+                "mapek_analyzer_enable_llm",
+                "record unavailable LLM integration",
+                {"status": "unavailable"},
+            )
             logger.warning("KimiK25Integration not available, LLM analysis disabled")
 
     async def analyze_with_llm(self, metrics: Dict, logs: Optional[str] = None) -> str:
         """Perform intelligent root cause analysis using LLM."""
         if not self.use_llm or not self.llm_integration:
+            self._record_thinking(
+                "mapek_analyzer_llm_analysis",
+                "skip LLM analysis when integration is unavailable",
+                {"logs_present": bool(logs), "metric_keys": sorted(str(key) for key in metrics)},
+            )
             return "LLM analysis not available"
 
+        self._record_thinking(
+            "mapek_analyzer_llm_analysis",
+            "run LLM-assisted analysis without storing raw logs",
+            {
+                "logs_present": bool(logs),
+                "logs_hash": _safe_hash(logs),
+                "metric_keys": sorted(str(key) for key in metrics),
+            },
+        )
         from src.swarm.intelligence import DecisionContext, DecisionType
         context = DecisionContext(
             topic="Root Cause Analysis",
@@ -81,6 +161,15 @@ class MAPEKAnalyzer(AnalyzerInterface):
 
     def analyze(self, metrics: Dict, node_id: str = "unknown", event_id: Optional[str] = None) -> str:
         """Analyze metrics and identify root cause."""
+        self._record_thinking(
+            "mapek_analyzer_analyze",
+            "analyze local MAPE-K metrics without raw metric payloads",
+            {
+                "node_id_hash": _safe_hash(node_id),
+                "event_id_hash": _safe_hash(event_id),
+                "metric_keys": sorted(str(key) for key in metrics),
+            },
+        )
         if self.use_graphsage and self.graphsage_detector:
             try:
                 node_features = {
@@ -146,4 +235,14 @@ class MAPEKAnalyzer(AnalyzerInterface):
                     root_cause = result.root_causes[0]
                     issue = f"{issue} (Root cause: {root_cause.root_cause_type}, confidence: {root_cause.confidence:.1%})"
             except Exception: pass
+        self._record_thinking(
+            "mapek_analyzer_analyze",
+            "record local MAPE-K analysis result class",
+            {
+                "node_id_hash": _safe_hash(node_id),
+                "event_id_hash": _safe_hash(event_id),
+                "issue_hash": _safe_hash(issue),
+                "issue_redacted": True,
+            },
+        )
         return issue

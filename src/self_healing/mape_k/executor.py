@@ -1,7 +1,9 @@
 """
 Executor phase for MAPE-K Self-Healing.
 """
+import importlib
 import logging
+import sys
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -16,7 +18,17 @@ class MAPEKExecutor(ExecutorInterface):
     def __init__(self, *, event_bus: Optional[Any] = None):
         self.was_simulated = False
         try:
-            from src.self_healing.recovery_actions import RecoveryActionExecutor
+            legacy_module_name = "src.self_healing.recovery_actions"
+            if (
+                legacy_module_name in sys.modules
+                and sys.modules[legacy_module_name] is None
+            ):
+                raise ImportError("RecoveryActionExecutor not available")
+            try:
+                module = importlib.import_module(legacy_module_name)
+            except ImportError:
+                module = importlib.import_module("src.self_healing.recovery")
+            RecoveryActionExecutor = getattr(module, "RecoveryActionExecutor")
             kwargs = {"event_bus": event_bus} if event_bus is not None else {}
             self.recovery_executor = RecoveryActionExecutor(**kwargs)
             self.use_recovery_executor = True

@@ -1,12 +1,25 @@
 """
 Monitor phase for MAPE-K Self-Healing.
 """
+
+import hashlib
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.core.mape_k.interfaces import MonitorInterface
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return None
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()
+
 
 class MAPEKMonitor(MonitorInterface):
     """
@@ -19,12 +32,16 @@ class MAPEKMonitor(MonitorInterface):
     Now supports DAO-managed thresholds via ThresholdManager.
     """
 
-    def __init__(
-        self, knowledge: Optional[Any] = None, threshold_manager=None
-    ):
+    def __init__(self, knowledge: Optional[Any] = None, threshold_manager=None):
         self.anomaly_detectors: List[Callable[[Dict], bool]] = []
         self.knowledge = knowledge
         self.threshold_manager = threshold_manager
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="self-healing-mapek-monitor",
+            role="monitoring",
+            capabilities=("mape_k", "causal_analysis", "security"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Default thresholds (can be overridden by DAO)
         self.default_thresholds = {
@@ -36,6 +53,58 @@ class MAPEKMonitor(MonitorInterface):
         # GraphSAGE v2 detector (optional, loaded on demand)
         self.graphsage_detector = None
         self.use_graphsage = False
+
+    def _prepare_thinking_context(
+        self,
+        *,
+        metrics: Dict[str, Any],
+        thresholds: Optional[Dict[str, float]] = None,
+        result: Optional[Dict[str, Any]] = None,
+        error_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Prepare redacted thinking context for monitor decisions."""
+        numeric_metrics = {
+            str(key): round(float(value), 4)
+            for key, value in metrics.items()
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        }
+        context: Dict[str, Any] = {
+            "type": "mapek_monitor_check",
+            "goal": "detect anomalies from bounded metrics and adaptive thresholds",
+            "node_id_hash": _hash_value(metrics.get("node_id")),
+            "node_id_redacted": "node_id" in metrics,
+            "metric_keys": sorted(str(key) for key in metrics),
+            "numeric_metrics": numeric_metrics,
+            "thresholds": thresholds or {},
+            "detector_count": len(self.anomaly_detectors),
+            "graphsage_enabled": bool(self.use_graphsage),
+            "threshold_source": (
+                "dao"
+                if self.threshold_manager
+                else "knowledge" if self.knowledge else "default"
+            ),
+            "result": dict(result or {}),
+            "error_type": error_type,
+            "constraints": {
+                "redact_node_ids": True,
+                "only_use_bounded_metric_summary": True,
+                "separate_local_anomaly_detection_from_recovery_claims": True,
+            },
+            "safety_boundary": (
+                "Do not expose raw node identifiers or claim recovery, dataplane "
+                "restoration, production readiness, or root cause finality from the "
+                "monitor phase alone."
+            ),
+        }
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose thinking profile and latest redacted monitor context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def register_detector(self, fn: Callable[[Dict], bool]):
         """Register custom anomaly detector."""
@@ -86,6 +155,11 @@ class MAPEKMonitor(MonitorInterface):
             cpu_threshold = self.default_thresholds["cpu_percent"]
             memory_threshold = self.default_thresholds["memory_percent"]
             packet_loss_threshold = self.default_thresholds["packet_loss_percent"]
+        thresholds = {
+            "cpu_percent": float(cpu_threshold),
+            "memory_percent": float(memory_threshold),
+            "packet_loss_percent": float(packet_loss_threshold),
+        }
 
         # 1. Simple Threshold Check
         anomaly_detected = False
@@ -143,7 +217,7 @@ class MAPEKMonitor(MonitorInterface):
             except Exception as e:
                 logger.warning(f"GraphSAGE check failed: {e}")
 
-        return {
+        result = {
             "anomaly_detected": anomaly_detected,
             "scaling_recommended": scaling_recommended,
             "issue": (
@@ -152,3 +226,9 @@ class MAPEKMonitor(MonitorInterface):
                 else ("Predicted Peak" if scaling_recommended else "Healthy")
             ),
         }
+        self._prepare_thinking_context(
+            metrics=metrics,
+            thresholds=thresholds,
+            result=result,
+        )
+        return result

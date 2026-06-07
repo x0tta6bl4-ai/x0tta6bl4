@@ -90,6 +90,10 @@ class TestSelfHealingManager:
         assert data["metrics"]["numeric"]["cpu_percent"] == 10.0
         assert data["metrics"]["values_redacted"] is True
         assert data["node_id_redacted"] is True
+        assert data["thinking"]["profile"]["role"] == "healing"
+        assert data["last_thinking_context"]["applied"]["framing"]["problem"] == (
+            "self_healing_mapek_monitor"
+        )
         assert "node-secret" not in event_text
         assert "raw-node-id" not in event_text
         assert "10.0.0.1" not in event_text
@@ -161,6 +165,9 @@ class TestSelfHealingManager:
         assert metadata["evidence"]["raw_result_values_redacted"] is True
         assert data["action"]["redacted"] is True
         assert data["issue"]["redacted"] is True
+        assert data["last_thinking_context"]["applied"]["framing"]["problem"] == (
+            "self_healing_mapek_execute"
+        )
         assert "raw-node-id" not in event_text
         assert "10.0.0.1" not in event_text
         assert "Root cause" not in event_text
