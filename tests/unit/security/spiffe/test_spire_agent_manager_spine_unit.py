@@ -1,3 +1,4 @@
+import socket
 from unittest.mock import MagicMock, patch
 
 from src.coordination.events import EventBus, EventType
@@ -32,7 +33,8 @@ def _manager(tmp_path, **overrides):
     config_path = tmp_path / "agent.conf"
     config_path.write_text("agent {}", encoding="utf-8")
     socket_path = tmp_path / "agent.sock"
-    socket_path.write_text("", encoding="utf-8")
+    bound_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    bound_socket.bind(str(socket_path))
     kwargs = {
         "event_bus": EventBus(str(tmp_path)),
         "policy_engine": _allow_policy("identity:spire_agent:start_agent"),
@@ -48,11 +50,13 @@ def _manager(tmp_path, **overrides):
         "src.security.spiffe.agent.manager.shutil.which",
         side_effect=lambda binary: f"/usr/bin/{binary}",
     ):
-        return SPIREAgentManager(
+        manager = SPIREAgentManager(
             config_path=config_path,
             socket_path=socket_path,
             **kwargs,
         )
+        manager._test_bound_socket = bound_socket
+        return manager
 
 
 def _metadata_dict(result):
@@ -65,7 +69,9 @@ def test_start_agent_publishes_identity_policy_and_safe_actuator_events(tmp_path
     process.pid = 4242
     process.poll.return_value = None
 
-    with patch("src.security.spiffe.agent.manager.subprocess.Popen", return_value=process) as popen:
+    with patch(
+        "src.security.spiffe.agent.manager.subprocess.Popen", return_value=process
+    ) as popen:
         result = manager.start()
 
     assert result is True
@@ -76,8 +82,7 @@ def test_start_agent_publishes_identity_policy_and_safe_actuator_events(tmp_path
     assert "actuator_start" in stages
     assert "actuator_completed" in stages
     completed = [
-        event for event in events
-        if event.event_type == EventType.PIPELINE_STAGE_END
+        event for event in events if event.event_type == EventType.PIPELINE_STAGE_END
     ][-1]
     payload = completed.data
     assert payload["node_id"] == "node-spire-1"
@@ -87,6 +92,12 @@ def test_start_agent_publishes_identity_policy_and_safe_actuator_events(tmp_path
     assert payload["resource"] == "identity:spire_agent:start_agent"
     assert payload["policy_allowed"] is True
     assert payload["safe_actuator"] is True
+    assert payload["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in payload["thinking"]["techniques"]
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "spire_agent_control_action"
+    )
     assert payload["claim_boundary"]
     metadata = payload["safe_actuator_evidence_metadata"]
     assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
@@ -180,6 +191,10 @@ def test_join_token_replay_is_blocked_before_attestation_action(tmp_path):
     assert payload["stage"] == "join_token_guard_blocked"
     assert payload["reason"] == "join_token_replay_detected"
     assert payload["context"]["token"] == "<redacted>"
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "spire_agent_control_action"
+    )
     assert "secret-token" not in str(payload)
 
 

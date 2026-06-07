@@ -11,7 +11,9 @@ import ssl
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 try:
     from prometheus_client import Counter, Gauge
@@ -21,6 +23,36 @@ except ImportError:
     PROMETHEUS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 60:
+        return "1-60"
+    if value <= 3600:
+        return "61-3600"
+    return "3600+"
 
 
 @dataclass
@@ -61,6 +93,28 @@ class MTLSControllerProduction:
         self._temp_files: List[tempfile.NamedTemporaryFile] = []
         self.enable_optimizations = enable_optimizations
         self._cached_svid: Optional[Any] = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"libx0t-mtls-controller-production:{_safe_hash(rotation_interval)}",
+            role="security",
+            capabilities=("zero-trust", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mtls_controller_production_init",
+                "goal": "Initialize libx0t production mTLS controller safely",
+                "signals": {
+                    "rotation_interval_band": _safe_number_band(rotation_interval),
+                    "optimizations_enabled": enable_optimizations,
+                    "current_context_present": False,
+                    "cached_svid_present": False,
+                },
+                "safety_boundary": (
+                    "Keep SVID certificate bytes, private keys, CA bundles, temp "
+                    "file paths, peer certs, SPIFFE IDs, and exception text out of "
+                    "thinking context."
+                ),
+            }
+        )
 
         # Try to import optimizations
         if enable_optimizations:
@@ -79,6 +133,38 @@ class MTLSControllerProduction:
         else:
             self.optimizations = None
             self.token_cache = None
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_svid_certificates": True,
+                    "redact_private_keys": True,
+                    "redact_ca_bundles": True,
+                    "redact_temp_paths": True,
+                    "redact_peer_certificates": True,
+                    "redact_spiffe_ids": True,
+                    "redact_exception_text": True,
+                    "preserve_mtls_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, TLS labels, and size bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def setup_mtls_context(self) -> ssl.SSLContext:
         """
@@ -150,6 +236,26 @@ class MTLSControllerProduction:
 
             self.current_context = context
             logger.info("✅ mTLS context setup complete (TLS 1.3)")
+            self._record_thinking(
+                "mtls_context_setup",
+                "Set up libx0t production mTLS context safely",
+                {
+                    "cert_length_band": _safe_number_band(
+                        len(getattr(svid, "cert_pem", b"") or b"")
+                    ),
+                    "key_length_band": _safe_number_band(
+                        len(getattr(svid, "private_key_pem", b"") or b"")
+                    ),
+                    "ca_chain_count_bucket": _safe_count_bucket(
+                        len(getattr(svid, "cert_chain", []) or [])
+                    ),
+                    "temp_file_count_bucket": _safe_count_bucket(
+                        len(self._temp_files)
+                    ),
+                    "context_present": self.current_context is not None,
+                    "tls_minimum_version": str(context.minimum_version),
+                },
+            )
 
             # Update metrics if Prometheus is available
             if PROMETHEUS_AVAILABLE:
@@ -178,6 +284,11 @@ class MTLSControllerProduction:
 
         except Exception as e:
             logger.error(f"❌ Failed to setup mTLS context: {e}")
+            self._record_thinking(
+                "mtls_context_setup_failed",
+                "Record libx0t production mTLS context setup failure safely",
+                {"error_type": type(e).__name__},
+            )
             raise
 
     def _is_cached_svid_usable(self) -> bool:
@@ -220,6 +331,15 @@ class MTLSControllerProduction:
         self._temp_files.append(temp_file)  # Store reference to the tempfile object
 
         logger.debug(f"Wrote temp cert to: {temp_file.name}")
+        self._record_thinking(
+            "mtls_temp_cert_written",
+            "Write temporary SVID certificate safely",
+            {
+                "temp_path_hash": _safe_hash(temp_file.name),
+                "cert_length_band": _safe_number_band(len(cert_pem)),
+                "temp_file_count_bucket": _safe_count_bucket(len(self._temp_files)),
+            },
+        )
         return temp_file.name
 
     def _write_temp_key(self, key_pem: bytes) -> str:
@@ -234,6 +354,16 @@ class MTLSControllerProduction:
         self._temp_files.append(temp_file)  # Store reference to the tempfile object
 
         logger.debug(f"Wrote temp key to: {temp_file.name}")
+        self._record_thinking(
+            "mtls_temp_key_written",
+            "Write temporary SVID private key safely",
+            {
+                "temp_path_hash": _safe_hash(temp_file.name),
+                "key_length_band": _safe_number_band(len(key_pem)),
+                "temp_file_count_bucket": _safe_count_bucket(len(self._temp_files)),
+                "permissions": "0600",
+            },
+        )
         return temp_file.name
 
     def _write_temp_ca(self, ca_pem: bytes) -> str:
@@ -247,6 +377,15 @@ class MTLSControllerProduction:
         self._temp_files.append(temp_file)  # Store reference to the tempfile object
 
         logger.debug(f"Wrote temp CA to: {temp_file.name}")
+        self._record_thinking(
+            "mtls_temp_ca_written",
+            "Write temporary SVID CA bundle safely",
+            {
+                "temp_path_hash": _safe_hash(temp_file.name),
+                "ca_length_band": _safe_number_band(len(ca_pem)),
+                "temp_file_count_bucket": _safe_count_bucket(len(self._temp_files)),
+            },
+        )
         return temp_file.name
 
     async def verify_peer_spiffe_id(
@@ -282,6 +421,18 @@ class MTLSControllerProduction:
 
             if not spiffe_ids:
                 logger.warning("⚠️ No SPIFFE ID found in certificate")
+                self._record_thinking(
+                    "mtls_peer_spiffe_verified",
+                    "Reject peer certificate without SPIFFE ID safely",
+                    {
+                        "peer_cert_hash": _safe_hash(peer_cert),
+                        "peer_cert_length_band": _safe_number_band(len(peer_cert)),
+                        "expected_spiffe_hash": _safe_hash(expected_spiffe_id),
+                        "spiffe_count_bucket": "0",
+                        "verified": False,
+                        "reason_code": "missing_spiffe_id",
+                    },
+                )
                 return False
 
             spiffe_id = spiffe_ids[0]
@@ -293,18 +444,63 @@ class MTLSControllerProduction:
                     logger.warning(
                         f"⚠️ SPIFFE ID mismatch: expected {expected_spiffe_id}, got {spiffe_id}"
                     )
+                    self._record_thinking(
+                        "mtls_peer_spiffe_verified",
+                        "Reject peer SPIFFE ID mismatch safely",
+                        {
+                            "peer_cert_hash": _safe_hash(peer_cert),
+                            "spiffe_hash": _safe_hash(spiffe_id),
+                            "expected_spiffe_hash": _safe_hash(expected_spiffe_id),
+                            "spiffe_count_bucket": _safe_count_bucket(len(spiffe_ids)),
+                            "verified": False,
+                            "reason_code": "spiffe_mismatch",
+                        },
+                    )
                     return False
 
             # Verify SPIFFE ID format
             if not spiffe_id.startswith("spiffe://x0tta6bl4.mesh/"):
                 logger.warning(f"⚠️ Invalid SPIFFE ID trust domain: {spiffe_id}")
+                self._record_thinking(
+                    "mtls_peer_spiffe_verified",
+                    "Reject peer SPIFFE trust domain safely",
+                    {
+                        "peer_cert_hash": _safe_hash(peer_cert),
+                        "spiffe_hash": _safe_hash(spiffe_id),
+                        "expected_spiffe_hash": _safe_hash(expected_spiffe_id),
+                        "spiffe_count_bucket": _safe_count_bucket(len(spiffe_ids)),
+                        "verified": False,
+                        "reason_code": "invalid_trust_domain",
+                    },
+                )
                 return False
 
             logger.info(f"✅ SPIFFE ID verified: {spiffe_id}")
+            self._record_thinking(
+                "mtls_peer_spiffe_verified",
+                "Verify peer SPIFFE ID safely",
+                {
+                    "peer_cert_hash": _safe_hash(peer_cert),
+                    "spiffe_hash": _safe_hash(spiffe_id),
+                    "expected_spiffe_hash": _safe_hash(expected_spiffe_id),
+                    "spiffe_count_bucket": _safe_count_bucket(len(spiffe_ids)),
+                    "verified": True,
+                },
+            )
             return True
 
         except Exception as e:
             logger.error(f"❌ SPIFFE ID verification failed: {e}")
+            self._record_thinking(
+                "mtls_peer_spiffe_verify_failed",
+                "Record peer SPIFFE verification failure safely",
+                {
+                    "peer_cert_hash": _safe_hash(peer_cert),
+                    "peer_cert_length_band": _safe_number_band(len(peer_cert)),
+                    "expected_spiffe_hash": _safe_hash(expected_spiffe_id),
+                    "error_type": type(e).__name__,
+                },
+            )
             return False
 
     async def start_auto_rotation(self) -> None:
@@ -314,6 +510,11 @@ class MTLSControllerProduction:
         Rotates certificates every hour (configurable).
         """
         logger.info(f"🔄 Starting auto-rotation (interval: {self.rotation_interval}s)")
+        self._record_thinking(
+            "mtls_auto_rotation_started",
+            "Start libx0t production mTLS auto-rotation safely",
+            {"rotation_interval_band": _safe_number_band(self.rotation_interval)},
+        )
 
         while True:
             try:
@@ -336,6 +537,11 @@ class MTLSControllerProduction:
 
             except Exception as e:
                 logger.error(f"❌ Certificate rotation failed: {e}")
+                self._record_thinking(
+                    "mtls_auto_rotation_failed",
+                    "Record libx0t production mTLS auto-rotation failure safely",
+                    {"error_type": type(e).__name__},
+                )
                 # Retry after 5 minutes on failure
                 await asyncio.sleep(300)
 
@@ -348,6 +554,14 @@ class MTLSControllerProduction:
         self._rotation_task = asyncio.create_task(self.start_auto_rotation())
 
         logger.info("✅ mTLS Controller started")
+        self._record_thinking(
+            "mtls_controller_started",
+            "Start libx0t production mTLS controller safely",
+            {
+                "rotation_task_present": self._rotation_task is not None,
+                "context_present": self.current_context is not None,
+            },
+        )
 
     async def stop(self) -> None:
         """Stop mTLS controller and clean up temporary files."""
@@ -367,23 +581,56 @@ class MTLSControllerProduction:
                 logger.warning(
                     f"Failed to clean up temporary file {temp_file_obj.name}: {e}"
                 )
+                self._record_thinking(
+                    "mtls_temp_file_cleanup_failed",
+                    "Record mTLS temp file cleanup failure safely",
+                    {
+                        "temp_path_hash": _safe_hash(temp_file_obj.name),
+                        "error_type": type(e).__name__,
+                    },
+                )
         self._temp_files.clear()  # Clear the list after cleanup
 
         logger.info("🛑 mTLS Controller stopped")
+        self._record_thinking(
+            "mtls_controller_stopped",
+            "Stop libx0t production mTLS controller safely",
+            {
+                "rotation_task_present": self._rotation_task is not None,
+                "temp_file_count_bucket": _safe_count_bucket(len(self._temp_files)),
+            },
+        )
 
     def get_tls_config(self) -> TLSConfig:
         """Get current TLS configuration"""
         if not self.current_context:
+            self._record_thinking(
+                "mtls_tls_config_missing",
+                "Reject TLS config request before context initialization",
+                {"context_present": False},
+            )
             raise RuntimeError("mTLS context not initialized")
 
         # Extract config from context
         # In production, store these separately
-        return TLSConfig(
+        config = TLSConfig(
             cert_pem=b"",  # Would be stored from SVID
             key_pem=b"",
             ca_bundle=b"",
             min_tls_version=ssl.TLSVersion.TLSv1_3,
         )
+        self._record_thinking(
+            "mtls_tls_config_reported",
+            "Report libx0t production TLS config safely",
+            {
+                "context_present": True,
+                "min_tls_version": str(config.min_tls_version),
+                "cert_length_band": _safe_number_band(len(config.cert_pem)),
+                "key_length_band": _safe_number_band(len(config.key_pem)),
+                "ca_length_band": _safe_number_band(len(config.ca_bundle)),
+            },
+        )
+        return config
 
 
 # Example usage

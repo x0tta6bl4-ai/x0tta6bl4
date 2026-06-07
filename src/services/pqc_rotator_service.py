@@ -15,6 +15,7 @@ from src.security.policy_decision_adapter import (
     policy_reason as normalize_policy_reason,
     policy_rules as normalize_policy_rules,
 )
+from src.services.pqc_logic_contract import PQCFormalState, PQCRotationLogicContract
 from src.services.service_event_identity import service_event_identity
 
 # Configuration
@@ -108,6 +109,7 @@ class PQCRotatorService:
             "did": did or service_identity["did"],
             "wallet_address": wallet_address or service_identity["wallet_address"],
         }
+        self.logic_contract = PQCRotationLogicContract(node_id=self.identity["node_id"])
         self.safe_actuator = safe_actuator or AsyncSafeActuator(self._rotate_identity_internal)
 
     @staticmethod
@@ -314,6 +316,7 @@ class PQCRotatorService:
             if policy_decision is not None
             else [],
             "safe_actuator": True,
+            "formal_trust_proof": self.logic_contract.get_trust_proof_fragment(),
             "claim_boundary": PQC_ROTATOR_CLAIM_BOUNDARY,
         }
         if safe_actuator_evidence_metadata is not None:
@@ -455,10 +458,18 @@ class PQCRotatorService:
                 reason="PQC signer command is not configured",
             )
 
+        # Transition to GENERATING
+        self.logic_contract.transition_to(PQCFormalState.GENERATING, {})
+        if self.logic_contract.current_state == PQCFormalState.TRUST_FAILURE:
+            return self._safe_actuator_result_from_flags(success=False, reason="Logic violation: ASM failure")
+
         self.temp_identity_file.parent.mkdir(parents=True, exist_ok=True)
         self.identity_file.parent.mkdir(parents=True, exist_ok=True)
 
         try:
+            # Transition to STAGING
+            self.logic_contract.transition_to(PQCFormalState.STAGING, {})
+
             with open(self.temp_identity_file, "wb") as stdout:
                 proc = await self.process_factory(
                     *self.signer_cmd,
@@ -468,6 +479,7 @@ class PQCRotatorService:
                 returncode = await proc.wait()
         except Exception as exc:
             self.temp_identity_file.unlink(missing_ok=True)
+            self.logic_contract.transition_to(PQCFormalState.TRUST_FAILURE, {"error": str(exc)})
             return self._safe_actuator_result_from_flags(
                 success=False,
                 reason=f"PQC signer execution failed: {exc}",
@@ -475,10 +487,39 @@ class PQCRotatorService:
 
         if returncode != 0:
             self.temp_identity_file.unlink(missing_ok=True)
+            self.logic_contract.transition_to(PQCFormalState.TRUST_FAILURE, {"returncode": returncode})
             return self._safe_actuator_result_from_flags(
                 success=False,
                 reason=f"PQC signer exited with code {returncode}",
             )
+
+        # Transition to VERIFYING
+        # Extract algorithm from signer_cmd for T3 check
+        algorithm = "ML-DSA-65" # Default if not found
+        for i, arg in enumerate(self.signer_cmd):
+            if arg == "--algorithm" and i + 1 < len(self.signer_cmd):
+                algorithm = self.signer_cmd[i+1]
+                break
+
+        # Verify physical presence of staged keys
+        keys_staged = self.temp_identity_file.exists()
+
+        self.logic_contract.transition_to(
+            PQCFormalState.VERIFYING,
+            {
+                "algorithm": algorithm,
+                "verification_success": keys_staged, # Atomic check for T1
+                "keys_staged": keys_staged
+            }
+        )
+        if self.logic_contract.current_state == PQCFormalState.TRUST_FAILURE:
+            self.temp_identity_file.unlink(missing_ok=True)
+            return self._safe_actuator_result_from_flags(success=False, reason="Logic violation: T3/T1 failure")
+
+        # Transition to COMMITTING
+        self.logic_contract.transition_to(PQCFormalState.COMMITTING, {"new_keys_exist": self.temp_identity_file.exists()})
+        if self.logic_contract.current_state == PQCFormalState.TRUST_FAILURE:
+            return self._safe_actuator_result_from_flags(success=False, reason="Logic violation: T1 failure")
 
         self.temp_identity_file.replace(self.identity_file)
 
@@ -488,10 +529,14 @@ class PQCRotatorService:
                 if asyncio.iscoroutine(maybe_result):
                     await maybe_result
         except Exception as exc:
+            self.logic_contract.transition_to(PQCFormalState.TRUST_FAILURE, {"error": str(exc)})
             return self._safe_actuator_result_from_flags(
                 success=False,
                 reason=f"PQC report generation failed: {exc}",
             )
+
+        # Final transition to STABLE
+        self.logic_contract.transition_to(PQCFormalState.STABLE, {})
 
         return self._safe_actuator_result_from_flags(
             success=True,

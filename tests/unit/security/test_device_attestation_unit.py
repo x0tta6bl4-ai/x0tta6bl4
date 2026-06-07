@@ -1,5 +1,7 @@
 """Unit tests for src.security.device_attestation module."""
 
+import json
+
 from unittest.mock import patch
 
 import pytest
@@ -312,6 +314,32 @@ class TestDeviceAttestorCreateAttestation:
         assert claim.device_fingerprint.platform_type == "darwin"
         assert claim.device_fingerprint.arch_type == "arm64"
 
+    @patch("src.security.device_attestation.time")
+    @patch("src.security.device_attestation.platform")
+    def test_thinking_status_redacts_secret_fingerprint_nonce_and_signature(
+        self, mock_platform, mock_time
+    ):
+        mock_platform.system.return_value = "Linux"
+        mock_platform.machine.return_value = "x86_64"
+        mock_platform.python_version.return_value = "3.12.0"
+        mock_platform.processor.return_value = "intel"
+        mock_platform.architecture.return_value = ("64bit", "ELF")
+        mock_platform.python_implementation.return_value = "CPython"
+        mock_platform.python_version_tuple.return_value = ("3", "12", "0")
+        mock_time.time.return_value = 5000.0
+
+        attestor = DeviceAttestor(secret_salt="super-secret-salt")
+        claim = attestor.create_attestation()
+
+        status = json.dumps(attestor.get_thinking_status(), sort_keys=True)
+
+        assert "device_attestation_created" in status
+        assert "hash" in status
+        assert "super-secret-salt" not in status
+        assert claim.device_fingerprint.fingerprint_hash not in status
+        assert claim.device_fingerprint.nonce not in status
+        assert claim.signature not in status
+
 
 class TestDeviceAttestorVerifyAttestation:
     """Tests for DeviceAttestor.verify_attestation()."""
@@ -397,6 +425,22 @@ class TestAdaptiveTrustManager:
         assert score.level == TrustLevel.MEDIUM
         assert score.device_id == "new-device"
         assert score.factors == {}
+
+    def test_thinking_status_redacts_device_id(self):
+        manager = AdaptiveTrustManager()
+        manager.evaluate_trust(
+            "device-secret",
+            behavior_event={"type": "negative", "event": "private-failure"},
+            network_context={"known_network": True, "private_ip": "10.0.0.8"},
+        )
+
+        status = json.dumps(manager.get_thinking_status(), sort_keys=True)
+
+        assert "adaptive_trust_evaluated" in status
+        assert "hash" in status
+        assert "device-secret" not in status
+        assert "private-failure" not in status
+        assert "10.0.0.8" not in status
 
     def test_get_trust_score_returns_same_instance(self):
         manager = AdaptiveTrustManager()
@@ -570,6 +614,32 @@ class TestMeshDeviceAttestor:
         # fingerprint should be a dict (from to_dict)
         assert isinstance(claim["fingerprint"], dict)
         assert claim["fingerprint"]["platform_type"] == "linux"
+
+    @patch("src.security.device_attestation.time")
+    @patch("src.security.device_attestation.platform")
+    def test_mesh_thinking_status_redacts_node_and_claim_material(
+        self, mock_platform, mock_time
+    ):
+        mock_platform.system.return_value = "Linux"
+        mock_platform.machine.return_value = "x86_64"
+        mock_platform.python_version.return_value = "3.12.0"
+        mock_platform.processor.return_value = "intel"
+        mock_platform.architecture.return_value = ("64bit", "ELF")
+        mock_platform.python_implementation.return_value = "CPython"
+        mock_platform.python_version_tuple.return_value = ("3", "12", "0")
+        mock_time.time.return_value = 5000.0
+
+        mesh_attestor = MeshDeviceAttestor(node_id="mesh-node-secret")
+        result = mesh_attestor.create_mesh_attestation()
+
+        status = json.dumps(mesh_attestor.get_thinking_status(), sort_keys=True)
+
+        assert "mesh_device_attestation_created" in status
+        assert "hash" in status
+        assert "mesh-node-secret" not in status
+        assert result["claim"]["fingerprint"]["fingerprint_hash"] not in status
+        assert result["claim"]["fingerprint"]["nonce"] not in status
+        assert result["claim"]["signature"] not in status
 
     @patch("src.security.device_attestation.time")
     @patch("src.security.device_attestation.platform")

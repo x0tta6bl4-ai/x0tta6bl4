@@ -13,6 +13,7 @@ Zero Trust Principle: Never trust, always verify, limit blast radius.
 """
 
 import logging
+import hashlib
 import threading
 import time
 from collections import defaultdict
@@ -20,7 +21,29 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_node_ref(value: object) -> Dict[str, Any]:
+    return {"hash": _safe_hash(value), "present": value is not None}
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
 
 
 class IsolationLevel(Enum):
@@ -281,6 +304,25 @@ class AutoIsolationManager:
         )
         self._lock = threading.RLock()
         self._callbacks: List[Callable[[str, IsolationLevel], None]] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"auto-isolation-manager:{_safe_hash(node_id)}",
+            role="security",
+            capabilities=("zero-trust", "healing", "monitoring"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "auto_isolation_manager_init",
+                "goal": "Initialize zero-trust isolation decisions",
+                "signals": {
+                    "node": _safe_node_ref(node_id),
+                    "policy_count": len(self.policies),
+                },
+                "safety_boundary": (
+                    "Do not expose raw node ids, IP addresses, or incident details "
+                    "in isolation thinking context."
+                ),
+            }
+        )
         
         # Zero-Trust XDP Enforcement
         try:
@@ -292,6 +334,37 @@ class AutoIsolationManager:
             self._quarantine = None
 
         logger.info(f"AutoIsolationManager initialized for {node_id}")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_node_identifiers": True,
+                    "redact_network_addresses": True,
+                    "redact_incident_details": True,
+                    "preserve_zero_trust_policy": True,
+                },
+                "safety_boundary": (
+                    "Use only hashes, isolation levels, reasons, counters, and "
+                    "boolean flags."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def _enforce_network_isolation(self, node_id: str, level: IsolationLevel) -> None:
         """Bridge between logic and kernel-level enforcement."""
@@ -328,6 +401,11 @@ class AutoIsolationManager:
     ) -> None:
         """Register callback for isolation events."""
         self._callbacks.append(callback)
+        self._record_thinking(
+            "auto_isolation_callback_registered",
+            "Register isolation event callback",
+            {"callback_count": len(self._callbacks)},
+        )
 
     def _notify_callbacks(self, node_id: str, level: IsolationLevel) -> None:
         """Notify registered callbacks."""
@@ -409,6 +487,24 @@ class AutoIsolationManager:
                 f"Isolated node {node_id}: level={level.name}, "
                 f"reason={reason.value}, duration={duration}s"
             )
+            self._record_thinking(
+                "auto_isolation_node_isolated",
+                "Select isolation level and duration for node",
+                {
+                    "node": _safe_node_ref(node_id),
+                    "reason": reason.value,
+                    "level": level.name,
+                    "violation_count_bucket": _safe_count_bucket(violation_count),
+                    "policy_found": policy is not None,
+                    "level_override": level_override is not None,
+                    "duration_override": duration_override is not None,
+                    "duration_bucket": _safe_count_bucket(duration),
+                    "details_hash": _safe_hash(details) if details else None,
+                    "isolated_count_bucket": _safe_count_bucket(
+                        len(self.isolated_nodes)
+                    ),
+                },
+            )
 
             return record
 
@@ -437,6 +533,18 @@ class AutoIsolationManager:
             f"Escalated isolation for {node_id}: "
             f"level={new_level.name}, escalation={escalation_count}"
         )
+        self._record_thinking(
+            "auto_isolation_escalated",
+            "Escalate existing node isolation",
+            {
+                "node": _safe_node_ref(node_id),
+                "reason": current.reason.value,
+                "level": new_level.name,
+                "violation_count_bucket": _safe_count_bucket(violation_count),
+                "escalation_count_bucket": _safe_count_bucket(escalation_count),
+                "duration_bucket": _safe_count_bucket(new_duration),
+            },
+        )
 
         return current
 
@@ -453,11 +561,26 @@ class AutoIsolationManager:
         """
         with self._lock:
             if node_id not in self.isolated_nodes:
+                self._record_thinking(
+                    "auto_isolation_release_missing",
+                    "Reject release for non-isolated node",
+                    {"node": _safe_node_ref(node_id), "force": force},
+                )
                 return False
 
             record = self.isolated_nodes[node_id]
 
             if not record.auto_recover and not force:
+                self._record_thinking(
+                    "auto_isolation_release_rejected",
+                    "Reject non-forced release for manual isolation",
+                    {
+                        "node": _safe_node_ref(node_id),
+                        "level": record.level.name,
+                        "reason": record.reason.value,
+                        "force": force,
+                    },
+                )
                 logger.warning(
                     f"Cannot auto-release {node_id}, manual release required"
                 )
@@ -471,12 +594,28 @@ class AutoIsolationManager:
                 self.circuit_breakers[node_id]._close()
 
             logger.info(f"Released node {node_id} from isolation")
+            self._record_thinking(
+                "auto_isolation_released",
+                "Release node from isolation",
+                {
+                    "node": _safe_node_ref(node_id),
+                    "force": force,
+                    "remaining_isolated_bucket": _safe_count_bucket(
+                        len(self.isolated_nodes)
+                    ),
+                },
+            )
             return True
 
     def get_isolation_level(self, node_id: str) -> IsolationLevel:
         """Get current isolation level for node."""
         with self._lock:
             if node_id not in self.isolated_nodes:
+                self._record_thinking(
+                    "auto_isolation_level_checked",
+                    "Check node isolation level",
+                    {"node": _safe_node_ref(node_id), "level": IsolationLevel.NONE.name},
+                )
                 return IsolationLevel.NONE
 
             record = self.isolated_nodes[node_id]
@@ -484,8 +623,22 @@ class AutoIsolationManager:
             if record.is_expired():
                 if record.auto_recover:
                     self.release(node_id)
+                    self._record_thinking(
+                        "auto_isolation_level_auto_recovered",
+                        "Auto-release expired isolation before level check",
+                        {"node": _safe_node_ref(node_id)},
+                    )
                     return IsolationLevel.NONE
 
+            self._record_thinking(
+                "auto_isolation_level_checked",
+                "Check node isolation level",
+                {
+                    "node": _safe_node_ref(node_id),
+                    "level": record.level.name,
+                    "reason": record.reason.value,
+                },
+            )
             return record.level
 
     def is_allowed(self, node_id: str, operation: str = "default") -> Tuple[bool, str]:
@@ -504,36 +657,71 @@ class AutoIsolationManager:
         # Check circuit breaker
         cb = self.circuit_breakers[node_id]
         if not cb.allow_request():
+            self._record_thinking(
+                "auto_isolation_operation_denied_circuit",
+                "Deny operation because circuit breaker is open",
+                {"node": _safe_node_ref(node_id), "operation_hash": _safe_hash(operation)},
+            )
             return False, "Circuit breaker open"
 
         # Level-based access control
         if level == IsolationLevel.NONE:
-            return True, "OK"
+            allowed, reason = True, "OK"
         elif level == IsolationLevel.MONITOR:
-            return True, "Monitored"
+            allowed, reason = True, "Monitored"
         elif level == IsolationLevel.RATE_LIMIT:
             # Would implement actual rate limiting here
-            return True, "Rate limited"
+            allowed, reason = True, "Rate limited"
         elif level == IsolationLevel.RESTRICTED:
             # Only essential operations
             essential = ["health", "heartbeat", "auth"]
             if operation in essential:
-                return True, "Restricted - essential only"
-            return False, f"Restricted - {operation} not allowed"
+                allowed, reason = True, "Restricted - essential only"
+            else:
+                allowed, reason = False, f"Restricted - {operation} not allowed"
         elif level == IsolationLevel.QUARANTINE:
             if operation == "health":
-                return True, "Quarantine - health only"
-            return False, "Quarantine - blocked"
+                allowed, reason = True, "Quarantine - health only"
+            else:
+                allowed, reason = False, "Quarantine - blocked"
         else:  # BLOCKED
-            return False, "Blocked"
+            allowed, reason = False, "Blocked"
+
+        self._record_thinking(
+            "auto_isolation_operation_checked",
+            "Evaluate operation against isolation level",
+            {
+                "node": _safe_node_ref(node_id),
+                "operation_hash": _safe_hash(operation),
+                "level": level.name,
+                "allowed": allowed,
+                "decision_reason_hash": _safe_hash(reason),
+            },
+        )
+        return allowed, reason
 
     def record_success(self, node_id: str) -> None:
         """Record successful operation for circuit breaker."""
         self.circuit_breakers[node_id].record_success()
+        self._record_thinking(
+            "auto_isolation_circuit_success",
+            "Record successful node operation for circuit breaker",
+            {"node": _safe_node_ref(node_id)},
+        )
 
     def record_failure(self, node_id: str) -> None:
         """Record failed operation for circuit breaker."""
         self.circuit_breakers[node_id].record_failure()
+        cb = self.circuit_breakers[node_id]
+        self._record_thinking(
+            "auto_isolation_circuit_failure",
+            "Record failed node operation for circuit breaker",
+            {
+                "node": _safe_node_ref(node_id),
+                "state": cb.state.value,
+                "failure_count_bucket": _safe_count_bucket(cb.failure_count),
+            },
+        )
 
     def cleanup_expired(self) -> int:
         """Cleanup expired isolation records."""
@@ -546,6 +734,11 @@ class AutoIsolationManager:
             for node_id in expired:
                 self.release(node_id)
 
+            self._record_thinking(
+                "auto_isolation_expired_cleaned",
+                "Clean up expired auto-recoverable isolations",
+                {"expired_count": len(expired)},
+            )
             return len(expired)
 
     def get_isolated_nodes(self) -> List[Dict[str, Any]]:
@@ -574,7 +767,7 @@ class AutoIsolationManager:
                 if cb.state != CircuitBreaker.State.CLOSED
             )
 
-            return {
+            stats = {
                 "total_isolated": len(
                     [r for r in self.isolated_nodes.values() if not r.is_expired()]
                 ),
@@ -583,6 +776,20 @@ class AutoIsolationManager:
                 "open_circuit_breakers": open_breakers,
                 "total_circuit_breakers": len(self.circuit_breakers),
             }
+            self._record_thinking(
+                "auto_isolation_stats_collected",
+                "Collect isolation and circuit breaker statistics",
+                {
+                    "total_isolated_bucket": _safe_count_bucket(
+                        stats["total_isolated"]
+                    ),
+                    "by_level": stats["by_level"],
+                    "by_reason": stats["by_reason"],
+                    "open_circuit_breakers": open_breakers,
+                    "total_circuit_breakers": len(self.circuit_breakers),
+                },
+            )
+            return stats
 
 
 class QuarantineZone:
@@ -598,17 +805,82 @@ class QuarantineZone:
         self.max_bandwidth: int = 1024  # bytes/sec
         self.allowed_operations: Set[str] = {"health", "metrics"}
         self._lock = threading.Lock()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"quarantine-zone:{_safe_hash(zone_id)}",
+            role="security",
+            capabilities=("zero-trust", "monitoring"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "quarantine_zone_init",
+                "goal": "Initialize quarantine communication policy",
+                "signals": {
+                    "zone": {"hash": _safe_hash(zone_id), "present": True},
+                    "allowed_operation_count": len(self.allowed_operations),
+                    "max_bandwidth_bucket": _safe_count_bucket(self.max_bandwidth),
+                },
+                "safety_boundary": (
+                    "Do not expose raw zone ids or node ids in quarantine thinking "
+                    "context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_zone_identifier": True,
+                    "redact_node_identifiers": True,
+                    "preserve_quarantine_policy": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, counts, operation names, and boolean decisions only."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def add_node(self, node_id: str) -> None:
         """Add node to quarantine zone."""
         with self._lock:
             self.nodes.add(node_id)
+            self._record_thinking(
+                "quarantine_zone_node_added",
+                "Add node to quarantine zone",
+                {
+                    "node": _safe_node_ref(node_id),
+                    "node_count_bucket": _safe_count_bucket(len(self.nodes)),
+                },
+            )
             logger.info(f"Node {node_id} added to quarantine zone {self.zone_id}")
 
     def remove_node(self, node_id: str) -> None:
         """Remove node from quarantine zone."""
         with self._lock:
             self.nodes.discard(node_id)
+            self._record_thinking(
+                "quarantine_zone_node_removed",
+                "Remove node from quarantine zone",
+                {
+                    "node": _safe_node_ref(node_id),
+                    "node_count_bucket": _safe_count_bucket(len(self.nodes)),
+                },
+            )
             logger.info(f"Node {node_id} removed from quarantine zone {self.zone_id}")
 
     def is_quarantined(self, node_id: str) -> bool:
@@ -618,17 +890,37 @@ class QuarantineZone:
     def can_communicate(self, source: str, target: str) -> bool:
         """Check if communication is allowed in quarantine."""
         if source not in self.nodes and target not in self.nodes:
-            return True  # Neither quarantined
+            allowed = True  # Neither quarantined
+        elif source in self.nodes and target in self.nodes:
+            allowed = True  # Both quarantined, can communicate
+        elif target in self.allowed_peers or source in self.allowed_peers:
+            allowed = True
+        else:
+            allowed = False
 
-        if source in self.nodes and target in self.nodes:
-            return True  # Both quarantined, can communicate
-
-        # One quarantined, one not
-        if target in self.allowed_peers or source in self.allowed_peers:
-            return True
-
-        return False
+        self._record_thinking(
+            "quarantine_zone_communication_checked",
+            "Evaluate quarantine communication rule",
+            {
+                "source": _safe_node_ref(source),
+                "target": _safe_node_ref(target),
+                "source_quarantined": source in self.nodes,
+                "target_quarantined": target in self.nodes,
+                "allowed": allowed,
+            },
+        )
+        return allowed
 
     def is_operation_allowed(self, operation: str) -> bool:
         """Check if operation is allowed in quarantine."""
-        return operation in self.allowed_operations
+        allowed = operation in self.allowed_operations
+        self._record_thinking(
+            "quarantine_zone_operation_checked",
+            "Evaluate quarantine operation rule",
+            {
+                "operation": operation,
+                "allowed": allowed,
+                "allowed_operation_count": len(self.allowed_operations),
+            },
+        )
+        return allowed

@@ -9,14 +9,9 @@ Manages SPIRE Agent lifecycle:
 
 Interacts with SPIRE Server for identity provisioning.
 
-The implementation supports two operational modes:
-
-* **Real SPIRE mode** – when the ``spire-agent`` binary is available
-  and not explicitly disabled; a subprocess is spawned and the agent
-  socket is monitored.
-* **Mock mode** – used in local development and tests when the binary
-  is not present or ``FORCE_MOCK_SPIRE=1`` is set; the Workload API
-  socket is simulated by creating a regular file on disk.
+The implementation starts a real ``spire-agent`` process. Tests may mock
+subprocess calls, but a regular file must never count as a ready SPIRE
+Workload API socket.
 """
 
 import logging
@@ -32,6 +27,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
+from src.core.agent_thinking import AgentThinkingCoach
 from src.integration.spine import (
     SafeActuator,
     SafeActuatorEvidenceMetadata,
@@ -173,6 +169,12 @@ class SPIREAgentManager:
             ),
         }
         self.safe_actuator = safe_actuator
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=source_agent,
+            role="security",
+            capabilities=("zero-trust", "ops", "mape_k"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         self._spire_agent_bin = self._find_spire_binary("spire-agent")
         self._spire_server_bin = self._find_spire_binary("spire-server")
@@ -241,9 +243,71 @@ class SPIREAgentManager:
     @classmethod
     def _safe_context(cls, context: Dict[str, Any]) -> Dict[str, Any]:
         return {
-            str(key): cls._safe_value(str(key), value)
-            for key, value in context.items()
+            str(key): cls._safe_value(str(key), value) for key, value in context.items()
         }
+
+    @classmethod
+    def _context_summary(
+        cls,
+        operation: str,
+        context: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        summary: Dict[str, Any] = {
+            "operation": operation,
+            "context_keys": sorted(str(key) for key in context),
+            "context_value_count": len(context),
+            "raw_values_redacted": True,
+        }
+        if "strategy" in context:
+            summary["strategy"] = str(context.get("strategy"))
+        if "token" in context:
+            summary["join_token_present"] = bool(context.get("token"))
+        if "join_token_configured" in context:
+            summary["join_token_configured"] = bool(
+                context.get("join_token_configured")
+            )
+        if "agent_running" in context:
+            summary["agent_running"] = bool(context.get("agent_running"))
+        if "selectors" in context and isinstance(context.get("selectors"), dict):
+            summary["selector_count"] = len(context["selectors"])
+        if "ttl" in context:
+            try:
+                summary["ttl_seconds"] = int(context.get("ttl"))
+            except (TypeError, ValueError):
+                summary["ttl_seconds"] = None
+        for key in ("config_path", "socket_path", "spiffe_id", "parent_id", "pid"):
+            if key in context:
+                summary[f"{key}_present"] = context.get(key) is not None
+        return summary
+
+    def _prepare_thinking_context(
+        self,
+        *,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Prepare redacted thinking context for SPIRE agent control decisions."""
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "policy_required": self.require_policy or self.policy_engine is not None,
+            "constraints": {
+                "redact_join_tokens": True,
+                "redact_raw_spiffe_ids": True,
+                "redact_raw_paths": True,
+                "safe_actuator_required_for_control": True,
+            },
+            "safety_boundary": (
+                "Do not claim live SPIRE mTLS, workload SVID possession, node "
+                "attestation finality, dataplane delivery, customer traffic, or "
+                "production readiness from local SPIRE CLI lifecycle evidence."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
 
     def _safe_actuator_claim_gate(
         self,
@@ -260,12 +324,16 @@ class SPIREAgentManager:
             "safe_actuator_result_recorded": True,
             "safe_actuator_simulated": simulated,
             "policy_required": self.require_policy or self.policy_engine is not None,
-            "policy_allowed": self._policy_allowed(policy_decision)
-            if policy_decision is not None
-            else None,
-            "policy_reason": self._policy_reason(policy_decision)
-            if policy_decision is not None
-            else "",
+            "policy_allowed": (
+                self._policy_allowed(policy_decision)
+                if policy_decision is not None
+                else None
+            ),
+            "policy_reason": (
+                self._policy_reason(policy_decision)
+                if policy_decision is not None
+                else ""
+            ),
             "live_spire_mtls_claim_allowed": False,
             "workload_svid_possession_claim_allowed": False,
             "workload_identity_trust_finality_claim_allowed": False,
@@ -278,10 +346,7 @@ class SPIREAgentManager:
             "redacted": True,
         }
         claim_gate.update(
-            {
-                claim_id: False
-                for claim_id in _SPIRE_AGENT_STRONG_CLAIM_IDS
-            }
+            {claim_id: False for claim_id in _SPIRE_AGENT_STRONG_CLAIM_IDS}
         )
         return claim_gate
 
@@ -384,12 +449,28 @@ class SPIREAgentManager:
         policy_decision: Any = None,
         success: Optional[bool] = None,
         simulated: Optional[bool] = None,
-        safe_actuator_evidence_metadata: Optional[
-            SafeActuatorEvidenceMetadata
-        ] = None,
+        safe_actuator_evidence_metadata: Optional[SafeActuatorEvidenceMetadata] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
+        policy_allowed = (
+            self._policy_allowed(policy_decision)
+            if policy_decision is not None
+            else None
+        )
+        thinking_context = self._prepare_thinking_context(
+            task_type="spire_agent_control_action",
+            goal="gate SPIRE agent lifecycle action through policy and SafeActuator evidence",
+            extra={
+                "stage": stage,
+                "operation": operation,
+                "success": success,
+                "simulated": simulated,
+                "policy_checked": policy_decision is not None,
+                "policy_allowed": policy_allowed,
+                "context_summary": self._context_summary(operation, context),
+            },
+        )
         payload = {
             "component": "security.spiffe.agent.manager",
             "stage": stage,
@@ -404,15 +485,17 @@ class SPIREAgentManager:
             "success": success,
             "simulated": simulated,
             "reason": reason,
-            "policy_allowed": self._policy_allowed(policy_decision)
-            if policy_decision is not None
-            else None,
-            "policy_reason": self._policy_reason(policy_decision)
-            if policy_decision is not None
-            else "",
-            "matched_rules": self._policy_rules(policy_decision)
-            if policy_decision is not None
-            else [],
+            "policy_allowed": policy_allowed,
+            "policy_reason": (
+                self._policy_reason(policy_decision)
+                if policy_decision is not None
+                else ""
+            ),
+            "matched_rules": (
+                self._policy_rules(policy_decision)
+                if policy_decision is not None
+                else []
+            ),
             "safe_actuator": True,
             "safe_actuator_evidence_metadata": (
                 safe_actuator_evidence_metadata.to_dict()
@@ -421,6 +504,8 @@ class SPIREAgentManager:
             ),
             "policy_required": self.require_policy or self.policy_engine is not None,
             "claim_boundary": SPIRE_AGENT_CLAIM_BOUNDARY,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": thinking_context,
         }
         try:
             event = self.event_bus.publish(
@@ -434,14 +519,29 @@ class SPIREAgentManager:
             logger.error("Failed to publish SPIRE agent manager event: %s", exc)
             return None
 
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose thinking profile and latest redacted SPIRE agent context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
+
     def _evaluate_control_policy(self, operation: str) -> tuple[bool, Any, str]:
         if self.policy_engine is None:
             if self.require_policy:
-                return False, None, "SPIRE agent policy engine is required but unavailable"
+                return (
+                    False,
+                    None,
+                    "SPIRE agent policy engine is required but unavailable",
+                )
             return True, None, ""
         spiffe_id = self.identity.get("spiffe_id")
         if not spiffe_id:
-            return False, None, "SPIRE agent SPIFFE identity is required for policy evaluation"
+            return (
+                False,
+                None,
+                "SPIRE agent SPIFFE identity is required for policy evaluation",
+            )
         try:
             decision = self.policy_engine.evaluate(
                 spiffe_id,
@@ -534,9 +634,7 @@ class SPIREAgentManager:
             stage=(
                 "actuator_completed"
                 if success and not simulated
-                else "actuator_simulated"
-                if simulated
-                else "actuator_failed"
+                else "actuator_simulated" if simulated else "actuator_failed"
             ),
             operation=operation,
             context=context,
@@ -605,7 +703,7 @@ class SPIREAgentManager:
             logger.info("Started SPIRE Agent (PID=%s)", self.agent_process.pid)
 
             for _ in range(20):
-                if self.socket_path.exists():
+                if self._socket_ready():
                     logger.info("SPIRE Agent socket is ready at %s", self.socket_path)
                     return self._safe_actuator_result(
                         _operation,
@@ -782,9 +880,7 @@ class SPIREAgentManager:
     ) -> SafeActuatorResult:
         safe_context = dict(context or {"agent_running": agent_running, "token": token})
         self._join_token = token
-        logger.info(
-            "Join token has been set. It will be used for agent attestation."
-        )
+        logger.info("Join token has been set. It will be used for agent attestation.")
 
         # If agent is already running, restart it to apply the new token.
         if agent_running:
@@ -1037,26 +1133,7 @@ class SPIREAgentManager:
         if not self.agent_process or self.agent_process.poll() is not None:
             return False
 
-        exists_fn = self.socket_path.exists
-        try:
-            # Some tests use a MagicMock Path.exists with side_effect from startup logic.
-            # If a test explicitly sets return_value, we should respect it.
-            if hasattr(exists_fn, "side_effect") and exists_fn.side_effect is not None:
-                if hasattr(exists_fn, "return_value") and isinstance(
-                    exists_fn.return_value, bool
-                ):
-                    _saved = exists_fn.side_effect
-                    exists_fn.side_effect = None
-                    socket_exists = bool(exists_fn())
-                    exists_fn.side_effect = _saved
-                else:
-                    socket_exists = bool(exists_fn())
-            else:
-                socket_exists = bool(exists_fn())
-        except Exception:
-            socket_exists = False
-
-        if not socket_exists:
+        if not self._socket_ready():
             return False
 
         result = self._run_control_action(
@@ -1095,17 +1172,23 @@ class SPIREAgentManager:
             )
         except Exception:
             logger.exception("SPIRE Agent healthcheck command failed")
-            # Fallback: if process is running and socket exists, treat as healthy.
             return self._safe_actuator_result(
                 _operation,
                 _context,
-                success=True,
-                reason="SPIRE Agent healthcheck fallback healthy",
+                success=False,
+                reason="SPIRE Agent healthcheck command failed",
             )
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _socket_ready(self) -> bool:
+        """Return True only when the SPIRE endpoint is a real Unix socket."""
+        try:
+            return bool(self.socket_path.exists()) and bool(self.socket_path.is_socket())
+        except Exception:
+            return False
 
     def _find_spire_binary(self, binary_name: str) -> str:
         """Locate a SPIRE binary or raise FileNotFoundError."""

@@ -69,6 +69,11 @@ async def test_validate_action_success_records_metrics_and_audit():
     assert profile.actions_taken == 1
     assert profile.nodes_affected == {"n1", "n2"}
     assert oracle.get_metrics()["actions_validated"] == 1
+    metrics = oracle.get_metrics()
+    assert metrics["thinking"]["profile"]["role"] == "security"
+    assert metrics["last_thinking_context"]["applied"]["framing"]["problem"] == (
+        "anti_meave_action_validation"
+    )
 
     events = [e["event"] for e in oracle.get_audit_log(agent_id="a1", limit=10)]
     assert "agent_registered" in events

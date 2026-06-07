@@ -6,12 +6,10 @@ Provides interface for workloads to:
 - Rotate credentials automatically
 - Validate peer identities
 
-This module currently provides a lightweight, file-system based mock
-implementation suitable for development and unit tests. It verifies the
-presence of the configured SPIRE Agent Unix socket and returns
-in-memory SVID objects. The design keeps clear extension points for
-connecting to a real SPIFFE Workload API implementation (for example
-via gRPC or an external SDK) without exposing that dependency here.
+This module requires a real SPIFFE Workload API endpoint by default.
+The in-memory mock implementation is available only when explicitly
+enabled with ``X0TTA6BL4_FORCE_MOCK_SPIFFE=true`` for tests or local
+experiments; it is never treated as production SPIRE evidence.
 """
 
 import logging
@@ -122,6 +120,9 @@ class WorkloadAPIClient:
         self._force_mock_spiffe = (
             os.getenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "false").lower() == "true"
         )
+        self._spiffe_endpoint = socket_path or os.getenv("SPIFFE_ENDPOINT_SOCKET")
+        self._spiffe_endpoint_path = self._endpoint_path(self._spiffe_endpoint)
+        self._real_socket_verified = False
 
         # In production, mock mode is not allowed
         if PRODUCTION_MODE and self._force_mock_spiffe:
@@ -136,39 +137,47 @@ class WorkloadAPIClient:
             )
 
         if not SPIFFE_SDK_AVAILABLE:
-            if PRODUCTION_MODE:
+            if self._force_mock_spiffe:
+                logger.warning(
+                    "SPIFFE SDK not available; explicit mock SPIFFE mode enabled. "
+                    "This is not real SPIRE evidence."
+                )
+            else:
                 raise ImportError(
-                    "🔴 The 'spiffe' SDK is REQUIRED in production. "
-                    "Install with: pip install py-spiffe"
+                    "The 'spiffe' SDK is required for real SPIFFE Workload API. "
+                    "Install py-spiffe, or set X0TTA6BL4_FORCE_MOCK_SPIFFE=true "
+                    "only for unit tests/local simulations."
                 )
-            elif not self._force_mock_spiffe:
-                logger.warning(
-                    "⚠️ SPIFFE SDK not available. Install 'py-spiffe' for real SPIFFE support. "
-                    "Using mock mode (set X0TTA6BL4_FORCE_MOCK_SPIFFE=true to suppress this warning)."
-                )
-                self._force_mock_spiffe = True
 
-        self._spiffe_endpoint = socket_path or os.getenv("SPIFFE_ENDPOINT_SOCKET")
-        if not self._spiffe_endpoint:
-            if PRODUCTION_MODE:
+        if not self._force_mock_spiffe:
+            if not self._spiffe_endpoint:
                 raise ValueError(
-                    "🔴 SPIFFE endpoint socket is REQUIRED in production. "
-                    "Set SPIFFE_ENDPOINT_SOCKET environment variable or provide socket_path."
+                    "SPIFFE endpoint socket is required for real SPIFFE Workload API. "
+                    "Set SPIFFE_ENDPOINT_SOCKET or provide socket_path."
                 )
-            elif not self._force_mock_spiffe:
-                logger.warning(
-                    "⚠️ SPIFFE endpoint socket not configured. Using mock mode. "
-                    "Set SPIFFE_ENDPOINT_SOCKET or X0TTA6BL4_FORCE_MOCK_SPIFFE=true"
+            if self._spiffe_endpoint_path is None:
+                raise ValueError(
+                    "SPIFFE endpoint must be a Unix socket path or unix:// path."
                 )
-                self._force_mock_spiffe = True
+            if not self._spiffe_endpoint_path.exists():
+                raise FileNotFoundError(
+                    f"SPIFFE endpoint socket does not exist: {self._spiffe_endpoint_path}"
+                )
+            if not self._spiffe_endpoint_path.is_socket():
+                raise ValueError(
+                    "SPIFFE endpoint must be a real Unix socket; regular files "
+                    "are not accepted as SPIRE evidence."
+                )
+            self._real_socket_verified = True
 
         if self._force_mock_spiffe:
             logger.warning(
-                "⚠️ Workload API client initialized in MOCK mode (not for production)"
+                "Workload API client initialized in explicit MOCK mode; "
+                "not real SPIRE evidence."
             )
         else:
             logger.info(
-                "✅ Workload API client initialized with endpoint %s",
+                "Workload API client initialized with verified endpoint %s",
                 self._spiffe_endpoint,
             )
 
@@ -193,6 +202,17 @@ class WorkloadAPIClient:
         if value is None:
             return None
         return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _endpoint_path(endpoint: Any) -> Optional[Path]:
+        if endpoint is None:
+            return None
+        endpoint_text = str(endpoint)
+        if endpoint_text.startswith("unix://"):
+            endpoint_text = endpoint_text[len("unix://") :]
+        if "://" in endpoint_text:
+            return None
+        return Path(endpoint_text)
 
     @staticmethod
     def _duration_ms(start: float) -> float:
@@ -222,6 +242,14 @@ class WorkloadAPIClient:
             "duration_ms": self._duration_ms(start),
             "sdk_available": SPIFFE_SDK_AVAILABLE,
             "socket_configured": bool(self._spiffe_endpoint),
+            "real_socket_verified": self._real_socket_verified,
+            "mock_mode": self._force_mock_spiffe,
+            "real_spire_workload_api_required": True,
+            "real_spire_evidence": (
+                SPIFFE_SDK_AVAILABLE
+                and self._real_socket_verified
+                and not self._force_mock_spiffe
+            ),
             "socket_path_hash": self._hash_value(self._spiffe_endpoint),
             "socket_path_redacted": self._spiffe_endpoint is not None,
             "trust_bundle_configured": self.trust_bundle_path is not None,
