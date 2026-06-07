@@ -234,7 +234,8 @@
         "result.json",
         "scripts/gitmark_memory_bank.py",
         ".gitmark-memory/",
-        "x0tta6bl4-project-audit-2026-06-06.md"
+        "x0tta6bl4-project-audit-2026-06-06.md",
+        "config/dao_policy.json"
       ]
     },
     "codex": {
