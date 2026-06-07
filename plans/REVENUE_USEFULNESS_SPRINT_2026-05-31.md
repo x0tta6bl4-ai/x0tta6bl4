@@ -30,6 +30,14 @@ Non-goal:
 - Do not claim or promise "unblockable", "production proven", "anonymous", or "guaranteed bypass".
 - Do not turn this into another broad readiness audit.
 
+## Execution Artifacts
+
+- Pilot packet: `docs/ghost-access/reliability-pilot-packet-2026-06-07.md`
+- Outreach sheet: `docs/ghost-access/reliability-pilot-outreach-2026-06-07.md`
+- Pilot tracker: `docs/ghost-access/reliability-pilot-tracker-2026-06-07.md`
+- Safe intake template: `docs/templates/GHOST_ACCESS_RELIABILITY_INTAKE_TEMPLATE.md`
+- Final report template: `docs/templates/GHOST_ACCESS_RELIABILITY_REPORT_TEMPLATE.md`
+
 ## 7-Day Goal
 
 By the end of 7 days:
