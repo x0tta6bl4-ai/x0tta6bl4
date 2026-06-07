@@ -9,6 +9,7 @@ from sqlalchemy import func
 from src.dao.token import MeshToken
 from src.database import License, Payment, SessionLocal, User
 from src.monitoring.production_monitoring import get_production_monitor
+from src.core.agent_thinking import AgentThinkingCoach
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("GTM-Agent")
@@ -30,6 +31,12 @@ class GTMAgent:
         self.token = (
             MeshToken()
         )  # In real app, this should be accessed from a global manager
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="gtm-agent",
+            role="gtm",
+            capabilities=("kpi_analysis", "reporting", "community_co_design"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
     def get_kpi_stats(self) -> Dict[str, Any]:
         """Fetch current KPI from database."""
@@ -88,6 +95,13 @@ class GTMAgent:
 
     def format_report(self, stats: Dict[str, Any]) -> str:
         """Format stats into a readable Telegram message."""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "gtm_report",
+                "goal": "format KPI report with clear operator signal",
+                "stats": stats,
+            }
+        )
         if not stats:
             return "❌ Ошибка при получении статистики."
 

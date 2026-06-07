@@ -2,6 +2,8 @@ import subprocess
 import logging
 from pathlib import Path
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
@@ -22,6 +24,12 @@ class PhotoRecoveryAgent:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.log_file = "/mnt/projects/recovery_agent.log"
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="photo-recovery",
+            role="ops",
+            capabilities=("recovery", "reverse_planning", "safety"),
+        )
+        self.last_thinking_context = {}
 
     def run_command(self, cmd, timeout=3600):
         """Запуск системной команды с логированием."""
@@ -50,6 +58,17 @@ class PhotoRecoveryAgent:
 
     def start_recovery(self):
         """Запуск процесса восстановления."""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "photo_recovery",
+                "goal": "recover deleted photos with auditable external commands",
+                "constraints": {
+                    "device": self.device,
+                    "output_dir": str(self.output_dir),
+                    "long_running": True,
+                },
+            }
+        )
         logger.info("--- СТАРТ ПРОЦЕССА ВОССТАНОВЛЕНИЯ ---")
         
         # 1. Поиск крупных удаленных файлов через ntfsundelete

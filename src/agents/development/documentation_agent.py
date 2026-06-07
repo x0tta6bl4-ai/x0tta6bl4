@@ -12,6 +12,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -73,7 +75,13 @@ class DocumentationAgent:
             config: Конфигурация агента
         """
         self.config = config or self._default_config()
-        
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="documentation",
+            role="documentation",
+            capabilities=("documentation", "rag", "mind_maps"),
+        )
+        self.last_thinking_context: Optional[dict] = None
+
         # Целевая директория для документации
         self.docs_root = Path(self.config.get("docs_root", "docs"))
         
@@ -103,7 +111,14 @@ class DocumentationAgent:
             Сгенерированная документация
         """
         logger.info(f"Generating API docs from {source_path}")
-        
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "api_documentation",
+                "goal": "create accurate API reference from source files",
+                "source_path": source_path,
+            }
+        )
+
         # Парсинг исходного кода
         endpoints = await self._parse_endpoints(source_path)
         
@@ -215,6 +230,13 @@ See individual endpoint documentation for details.
         Returns:
             Сгенерированная документация
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "runbook_documentation",
+                "goal": title,
+                "steps": steps,
+            }
+        )
         content = f'''# {title}
 
 **Generated:** {datetime.utcnow().isoformat()}
@@ -292,6 +314,13 @@ To rollback:
         Returns:
             Сгенерированная документация
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "readme_documentation",
+                "goal": f"document {project_name}",
+                "description": description,
+            }
+        )
         content = f'''# {project_name}
 
 {description}

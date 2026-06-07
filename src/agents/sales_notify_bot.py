@@ -4,6 +4,8 @@ import asyncio
 import logging
 import secrets
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 # Простая эмуляция отправки в Telegram (в реальности нужен requests.post)
 # Для MVP мы будем писать в лог "SENDING TO TG", чтобы не зависеть от API ключей прямо сейчас
 
@@ -16,8 +18,21 @@ logger = logging.getLogger("SalesBot")
 class SalesBot:
     def __init__(self):
         self.last_offer_status = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="sales-notify",
+            role="gtm",
+            capabilities=("sales", "onboarding", "community_co_design"),
+        )
+        self.last_thinking_context = {}
         
     def check_business_state(self):
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "sales_state_check",
+                "goal": "detect offer readiness and notify exactly once",
+                "constraints": {"state_file": STATE_FILE},
+            }
+        )
         try:
             if os.path.exists(STATE_FILE):
                 with open(STATE_FILE, 'r') as f:
@@ -51,6 +66,13 @@ class SalesBot:
         """
         Полная автоматизация: создание аккаунта и деплой меша после оплаты.
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "sales_onboarding",
+                "goal": "create safe onboarding instructions after payment",
+                "constraints": {"plan": plan, "no_secret_disclosure": True},
+            }
+        )
         logger.info(f"🤖 Auto-onboarding started for {email}...")
         
         # 1. Вызов API MaaS для деплоя (имитация)

@@ -231,7 +231,7 @@ func (c *Client) registerNode(req RegistrationRequest) (*RegistrationResponse, e
 		result.APIKey = result.NodeRuntimeCredential
 	}
 
-	c.setNodeRuntimeCredential(result.APIKey, result.NodeRuntimeCredentialExpiresAt)
+	c.SetNodeRuntimeCredential(result.APIKey, result.NodeRuntimeCredentialExpiresAt)
 	c.meshID = result.MeshID
 	c.logger.Info("registered with control plane",
 		"mesh_id", result.MeshID,
@@ -271,7 +271,7 @@ func (c *Client) registerLegacyAgent(req RegistrationRequest) (*RegistrationResp
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	c.setNodeRuntimeCredential(result.APIKey, result.NodeRuntimeCredentialExpiresAt)
+	c.SetNodeRuntimeCredential(result.APIKey, result.NodeRuntimeCredentialExpiresAt)
 	c.meshID = result.MeshID
 
 	c.logger.Info("registered with control plane",
@@ -466,7 +466,7 @@ func (c *Client) rotateNodeRuntimeCredential(meshID, nodeID string, ttlSeconds i
 	if result.APIKey == "" {
 		return nil, fmt.Errorf("node credential rotation response missing credential")
 	}
-	c.setNodeRuntimeCredential(result.APIKey, result.NodeRuntimeCredentialExpiresAt)
+	c.SetNodeRuntimeCredential(result.APIKey, result.NodeRuntimeCredentialExpiresAt)
 	return &result, nil
 }
 
@@ -618,9 +618,14 @@ func (c *Client) RefreshMeasuredAttestationRuntimeIdentity(meshID, nodeID string
 	return &result, nil
 }
 
-func (c *Client) setNodeRuntimeCredential(credential, expiresAt string) {
+func (c *Client) SetNodeRuntimeCredential(credential, expiresAt string) {
 	c.apiKey = credential
 	c.apiKeyExpiresAt = parseAPITime(expiresAt)
+}
+
+// SetMeshID sets the mesh ID directly.
+func (c *Client) SetMeshID(meshID string) {
+	c.meshID = meshID
 }
 
 func parseAPITime(value string) time.Time {
@@ -674,4 +679,12 @@ func (c *Client) GetMeshID() string {
 // IsRegistered returns true if the agent is registered.
 func (c *Client) IsRegistered() bool {
 	return c.apiKey != "" && c.meshID != ""
+}
+
+func fetchJWTSVIDFromFile(path string) string {
+    return ""
+}
+
+func fetchJWTSVIDFromWorkloadAPI(audience string) string {
+    return ""
 }

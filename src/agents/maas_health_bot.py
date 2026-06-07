@@ -25,6 +25,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 ABORT_MARKERS = (
@@ -34,7 +36,7 @@ ABORT_MARKERS = (
     "broken pipe",
 )
 DELAY_RE = re.compile(r"the delay:\s*(\d+)\s*ms", re.IGNORECASE)
-DEFAULT_SOCKS_PORT_CANDIDATES = (10918, 10808, 10809, 10924, 40467, 1080, 7890, 7891)
+DEFAULT_SOCKS_PORT_CANDIDATES = (10818, 10918, 10808, 10809, 10924, 40467, 1080)
 
 
 def _utc_now() -> str:
@@ -168,6 +170,12 @@ class MaasHealthBot:
         self._history: deque[dict[str, Any]] = deque(maxlen=config.history_size)
         self._lock = Lock()
         self._last_action_at: dict[str, float] = {}
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="maas-health-bot",
+            role="monitoring",
+            capabilities=("monitoring", "healing", "local-rule-engine"),
+        )
+        self.last_thinking_context: dict[str, Any] = {}
 
     def _tail_log_lines(self) -> list[str]:
         path = Path(self.config.proxy_log_path)
@@ -396,6 +404,20 @@ class MaasHealthBot:
 
         failing = [item for item in signals if item.get("status") == "fail"]
         status = "healthy" if not failing else "degraded"
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "maas_health_check",
+                "goal": "classify local health and propose safe recovery actions",
+                "signals": signals,
+                "auto_heal": auto_heal,
+                "dry_run": dry_run,
+                "constraints": {
+                    "external_ai_providers_used": False,
+                    "enable_execute": self.config.enable_execute,
+                    "local_only": not self.config.allow_external_urls,
+                },
+            }
+        )
         proposed = self._proposed_actions(signals)
 
         executed_actions: list[dict[str, Any]] = []
@@ -417,6 +439,7 @@ class MaasHealthBot:
             "dry_run": dry_run,
             "proposed_actions": proposed,
             "executed_actions": executed_actions,
+            "thinking": self.last_thinking_context,
         }
         with self._lock:
             self._history.append(report)

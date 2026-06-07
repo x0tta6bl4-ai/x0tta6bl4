@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -137,7 +139,13 @@ class LogAnalyzerAgent:
             config: Конфигурация агента
         """
         self.config = config or self._default_config()
-        
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="log-analyzer",
+            role="logging",
+            capabilities=("analysis", "causal_analysis"),
+        )
+        self.last_thinking_context: Optional[dict] = None
+
         # Компилированные паттерны
         self.patterns: list[dict] = []
         self._compile_patterns()
@@ -227,6 +235,17 @@ class LogAnalyzerAgent:
         Returns:
             Результаты анализа
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "log_analysis",
+                "goal": "detect patterns and identify likely root causes",
+                "log_count": len(logs),
+                "constraints": {
+                    "min_occurrences_for_issue": self.config["min_occurrences_for_issue"],
+                    "pattern_window_minutes": self.config["pattern_window_minutes"],
+                },
+            }
+        )
         # Парсинг логов
         parsed_logs = []
         for log_line in logs:
@@ -254,6 +273,7 @@ class LogAnalyzerAgent:
             "patterns": patterns,
             "issues": issues,
             "summary": self._generate_summary(issues),
+            "thinking": self.last_thinking_context,
         }
     
     def _parse_log_line(self, line: str) -> Optional[LogEntry]:
@@ -421,6 +441,7 @@ class LogAnalyzerAgent:
                 }
                 for i in self.detected_issues.values()
             ],
+            "thinking": self.thinking_coach.status(),
         }
     
     def add_pattern(self, pattern_id: str, regex: str, description: str, severity: IssueSeverity) -> None:

@@ -97,7 +97,7 @@ func main() {
 	)
 
 	// Initialize components
-	agent, err := newAgent(cfg)
+	agent, err := newAgent(cfg, *configPath)
 	if err != nil {
 		slog.Error("failed to initialize agent", "error", err)
 		os.Exit(1)
@@ -122,6 +122,7 @@ func main() {
 // agent orchestrates all components.
 type agent struct {
 	cfg       *config.Config
+	cfgPath   string
 	node      *mesh.Node
 	disc      *discovery.Discovery
 	pqcMgr    *pqc.TunnelManager
@@ -130,7 +131,7 @@ type agent struct {
 	telem     *telemetry.Reporter
 }
 
-func newAgent(cfg *config.Config) (*agent, error) {
+func newAgent(cfg *config.Config, cfgPath string) (*agent, error) {
 	// Discovery
 	disc := discovery.New(
 		cfg.NodeID,
@@ -159,10 +160,18 @@ func newAgent(cfg *config.Config) (*agent, error) {
 	var apiClient *api.Client
 	if cfg.JoinToken != "" {
 		apiClient = api.NewClient(cfg.APIEndpoint, cfg.JoinToken)
+
+		// Load persisted credentials if they exist
+		if cfg.RuntimeCredential != "" && cfg.MeshID != "" {
+			apiClient.SetNodeRuntimeCredential(cfg.RuntimeCredential, cfg.RuntimeCredentialExpiresAt)
+			apiClient.SetMeshID(cfg.MeshID)
+			slog.Info("loaded persisted credentials", "mesh_id", cfg.MeshID, "expires_at", cfg.RuntimeCredentialExpiresAt)
+		}
 	}
 
 	return &agent{
 		cfg:       cfg,
+		cfgPath:   cfgPath,
 		node:      node,
 		disc:      disc,
 		pqcMgr:    pqcMgr,
@@ -200,26 +209,40 @@ func (a *agent) stop() {
 }
 
 func (a *agent) registerAndHeartbeat() {
-	// Register
-	hostname, _ := os.Hostname()
-	resp, err := a.apiClient.Register(api.RegistrationRequest{
-		NodeID:      a.cfg.NodeID,
-		MeshID:      a.cfg.MeshID,
-		Token:       a.cfg.JoinToken,
-		DeviceClass: "edge",
-		Hostname:    hostname,
-		Arch:        runtime.GOARCH,
-		OS:          runtime.GOOS,
-		Version:     Version,
-		Services:    []string{"mesh"},
-	})
-
-	if err != nil {
-		slog.Error("registration failed, will retry", "error", err)
-		// Continue without registration — mesh still works P2P
+	// Skip registration if we already have valid persisted credentials
+	if a.apiClient.IsRegistered() {
+		slog.Info("agent already registered", "mesh_id", a.cfg.MeshID)
 	} else {
-		slog.Info("registered", "mesh_id", resp.MeshID)
-		a.cfg.MeshID = resp.MeshID
+		// Register
+		hostname, _ := os.Hostname()
+		resp, err := a.apiClient.Register(api.RegistrationRequest{
+			NodeID:      a.cfg.NodeID,
+			MeshID:      a.cfg.MeshID,
+			Token:       a.cfg.JoinToken,
+			DeviceClass: "edge",
+			Hostname:    hostname,
+			Arch:        runtime.GOARCH,
+			OS:          runtime.GOOS,
+			Version:     Version,
+			Services:    []string{"mesh"},
+		})
+
+		if err != nil {
+			slog.Error("registration failed, will retry", "error", err)
+			// Continue without registration — mesh still works P2P
+		} else {
+			slog.Info("registered", "mesh_id", resp.MeshID)
+			a.cfg.MeshID = resp.MeshID
+			a.cfg.RuntimeCredential = resp.NodeRuntimeCredential
+			a.cfg.RuntimeCredentialExpiresAt = resp.NodeRuntimeCredentialExpiresAt
+
+			// Persist credentials to disk
+			if err := a.cfg.SaveToFile(a.cfgPath); err != nil {
+				slog.Error("failed to persist agent config", "error", err)
+			} else {
+				slog.Info("agent config persisted successfully", "path", a.cfgPath)
+			}
+		}
 	}
 
 	readJWTSVID := func() (string, error) {

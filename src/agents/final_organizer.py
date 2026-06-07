@@ -4,10 +4,18 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 
 logger = logging.getLogger(__name__)
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".3gp", ".avi"}
+thinking_coach = AgentThinkingCoach(
+    agent_id="final-organizer",
+    role="ops",
+    capabilities=("photo_recovery", "organization", "safe_commands"),
+)
+last_thinking_context = {}
 
 
 def run_cmd(args: list[str]) -> bool:
@@ -39,10 +47,22 @@ def move_videos(source_dir: Path, target_dir: Path) -> int:
 
 
 def organize() -> None:
+    global last_thinking_context
     source_base = Path("/mnt/projects/recovered_photos")
     target_base = Path("/mnt/projects/PHOTOS_COLLECTION")
     video_dir = target_base / "VIDEOS"
     log_file = Path("/mnt/projects/RECOVERY_FINAL.log")
+    last_thinking_context = thinking_coach.prepare_task(
+        {
+            "type": "final_recovery_organization",
+            "goal": "move recovered media into final organized collection",
+            "constraints": {
+                "source": str(source_base),
+                "target": str(target_base),
+                "video_dir": str(video_dir),
+            },
+        }
+    )
 
     video_dir.mkdir(parents=True, exist_ok=True)
     dirs = sorted(source_base.glob("photorec_out.*"))

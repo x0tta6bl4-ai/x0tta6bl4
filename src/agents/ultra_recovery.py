@@ -3,9 +3,17 @@ import shutil
 import subprocess
 from typing import Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 SOURCE = "/mnt/projects/recovered_photos"
 TARGET = "/mnt/projects/FAMILY_FINAL_SORTED"
 UNKNOWN_DATE = ("UNKNOWN", "UNKNOWN")
+thinking_coach = AgentThinkingCoach(
+    agent_id="ultra-recovery",
+    role="ops",
+    capabilities=("photo_recovery", "organization", "safety"),
+)
+last_thinking_context = {}
 
 
 def get_exif_date(file_path: str) -> Tuple[str, str]:
@@ -31,6 +39,14 @@ def get_exif_date(file_path: str) -> Tuple[str, str]:
     return UNKNOWN_DATE
 
 def main():
+    global last_thinking_context
+    last_thinking_context = thinking_coach.prepare_task(
+        {
+            "type": "family_photo_sort",
+            "goal": "sort recovered images by best available EXIF date",
+            "constraints": {"source": SOURCE, "target": TARGET},
+        }
+    )
     os.makedirs(TARGET, exist_ok=True)
     count = 0
     

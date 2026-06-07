@@ -9,6 +9,9 @@ This package contains all AI agents for x0tta6bl4:
 - Orchestration: Agent Orchestrator
 """
 
+from importlib import import_module
+from typing import Any
+
 # Orchestration
 from src.agents.orchestration import (
     AgentOrchestrator,
@@ -59,6 +62,11 @@ from src.agents.development import (
     get_documentation_agent,
 )
 
+_LAZY_EXPORTS = {
+    "MarketingAgent": "src.agents.marketing_agent",
+    "SalesBot": "src.agents.sales_notify_bot",
+}
+
 __all__ = [
     # Orchestration
     "AgentOrchestrator",
@@ -95,7 +103,23 @@ __all__ = [
     "GeneratedCode",
     "get_spec_to_code_agent",
     "get_documentation_agent",
+    # Top-level lightweight agents
+    *_LAZY_EXPORTS,
 ]
+
+
+def __getattr__(name: str) -> Any:
+    module_name = _LAZY_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module 'src.agents' has no attribute {name!r}")
+    module = import_module(module_name)
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))
 
 # Version
 __version__ = "1.0.0"

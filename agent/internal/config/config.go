@@ -28,6 +28,8 @@ type Config struct {
 	APIEndpoint string `yaml:"api_endpoint"` // Control Plane URL
 	JoinToken   string `yaml:"join_token"`   // mesh enrollment token
 	MeshID      string `yaml:"mesh_id"`      // assigned after registration
+	RuntimeCredential          string `yaml:"runtime_credential,omitempty"`            // assigned after registration
+	RuntimeCredentialExpiresAt string `yaml:"runtime_credential_expires_at,omitempty"` // assigned after registration
 
 	// Networking
 	ListenPort           int    `yaml:"listen_port"`            // mesh data port (default 5000)

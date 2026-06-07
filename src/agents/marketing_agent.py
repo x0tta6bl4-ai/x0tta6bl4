@@ -1,5 +1,7 @@
 import random
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 
 class MarketingAgent:
     """
@@ -15,8 +17,21 @@ class MarketingAgent:
 
     def __init__(self, bot_username: str = "x0tta6bl4_bot"):
         self.bot_link = f"https://t.me/{bot_username}?start=gtm"
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="marketing",
+            role="marketing",
+            capabilities=("copywriting", "brainstorming", "framing"),
+        )
+        self.last_thinking_context = {}
 
     def generate_random_post(self) -> str:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "marketing_copy",
+                "goal": "generate a concise conversion-oriented post",
+                "constraints": {"cta": self.bot_link},
+            }
+        )
         template = random.choice(self.POST_TEMPLATES)
         return template.format(bot_link=self.bot_link)
 

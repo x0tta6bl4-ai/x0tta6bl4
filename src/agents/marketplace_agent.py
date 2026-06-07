@@ -2,6 +2,8 @@ import json
 import logging
 import time
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("MarketplaceAgent")
 
@@ -13,8 +15,21 @@ class MarketplaceAgent:
     def __init__(self):
         self.listings = []
         self.state_file = "/mnt/projects/marketplace_state.json"
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="marketplace",
+            role="marketplace",
+            capabilities=("pricing", "governance", "decision_matrix"),
+        )
+        self.last_thinking_context = {}
 
     def sync_listings(self):
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "marketplace_sync",
+                "goal": "refresh available MaaS node listings",
+                "constraints": {"state_file": self.state_file},
+            }
+        )
         # Имитация получения списка доступных узлов от провайдеров
         logger.info("Scanning for available P2P nodes...")
         self.listings = [

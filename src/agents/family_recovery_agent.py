@@ -3,11 +3,19 @@ import subprocess
 import json
 import time
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 # Конфигурация
 SOURCE_BASE = "/mnt/projects/recovered_photos"
 TARGET_BASE = "/mnt/projects/ГЛАВНЫЙ_СЕМЕЙНЫЙ_АРХИВ"
 STATE_FILE = "/mnt/projects/recovery_progress_state.json"
 LOG_FILE = "/mnt/projects/FAMILY_RECOVERY_LIVE.log"
+thinking_coach = AgentThinkingCoach(
+    agent_id="family-recovery",
+    role="ops",
+    capabilities=("photo_recovery", "organization", "checkpointing"),
+)
+last_thinking_context = {}
 
 def log(message):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -37,6 +45,18 @@ def organize_directory(dir_path):
         return False
 
 def main():
+    global last_thinking_context
+    last_thinking_context = thinking_coach.prepare_task(
+        {
+            "type": "family_recovery",
+            "goal": "organize recovered photos and videos with checkpointed progress",
+            "constraints": {
+                "source": SOURCE_BASE,
+                "target": TARGET_BASE,
+                "state_file": STATE_FILE,
+            },
+        }
+    )
     if not os.path.exists(TARGET_BASE):
         os.makedirs(TARGET_BASE, exist_ok=True)
     
