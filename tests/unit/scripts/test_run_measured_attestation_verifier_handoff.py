@@ -180,3 +180,8 @@ def test_handoff_cli_require_ready_fails_when_inputs_are_missing() -> None:
         "MEASURED_ATTESTATION_VERIFIER_HANDOFF_BLOCKED_ON_OPERATOR"
     )
     assert "report_data_file_required" in payload["blockers"]
+
+
+"""
+test_handoff_redacts_raw_evidence
+"""

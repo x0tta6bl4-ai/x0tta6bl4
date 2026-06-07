@@ -70,6 +70,11 @@ bash scripts/production-readiness-check.sh --write-json --write-md
   SGX/SEV/Nitro local verifier commands. Missing commands, unsupported
   providers, mock providers, and overpromoted production-trust claims fail
   closed.
+- SPIRE/eBPF/PQC runtime truth is gated explicitly: mock SPIFFE is allowed only
+  behind `X0TTA6BL4_FORCE_MOCK_SPIFFE=true` and is never real SPIRE evidence,
+  SPIRE readiness requires an observed Unix socket, synthetic eBPF metrics are
+  labeled as non-kernel and non-dataplane proof, and HMAC fallback is never
+  treated as PQC-secured evidence.
 - Cross-plane proof-gate output includes the redacted measured-attestation
   handoff diagnostic when the verifier-smoke artifact is missing, so the local
   blocker names missing input classes without making the trust claim true.
@@ -112,6 +117,20 @@ bash scripts/production-readiness-check.sh --write-json --write-md
   may record local/pending economy state, but must not promote dataplane
   delivery, customer traffic, revenue recognition, SLO, or production
   readiness.
+- Traffic-delivery operator flow is command-gated:
+  `verify_traffic_delivery_operator_flow.py --require-verified --json` must
+  prove a controlled loopback request/response, redacted proof intake, EventBus
+  retention, and cross-plane proof-gate allowance without customer,
+  external-reachability, DPI, settlement, SLO, or production claims.
+- Commercial mesh-platform static wiring is command-gated:
+  `check_commercial_mesh_platform_readiness.py --require-ready --json` must
+  prove the repo has a coherent Mesh-as-a-Service target, native app/API
+  control-plane routes, headless agent onboarding, marketplace/billing loop,
+  and fail-closed evidence gates. It is static-only and must not be used as
+  production readiness, customer traffic, settlement finality, or SLO proof.
+  The main real-readiness gate also requires this as
+  `commercial_mesh_platform_readiness_contract`, plus
+  `commercial_mesh_platform_readiness_runtime` when command checks are enabled.
 - Settlement finality has its own command-gated cross-plane check:
   `run_cross_plane_proof_gate.py --claim settlement_finality` must keep the
   claim blocked until retained external settlement evidence and matching live
@@ -131,6 +150,17 @@ bash scripts/production-readiness-check.sh --write-json --write-md
 - Swarm coordination is gated: executable `.githooks` hooks, ownership-map
   coverage, pre-commit staged-file lease enforcement, and post-commit lease
   release must satisfy `scripts/agents/check_coordination_contract.sh`.
+- Dirty worktree review is command-gated: `summarize_dirty_worktree_review.py`
+  is read-only and groups uncommitted paths into explicit review packages using
+  the swarm ownership map. It does not stage, commit, delete, or prove release
+  readiness by itself. Use `--require-owned` before staging; unowned scratch
+  paths must fail closed until they are removed, moved into a maintained tool
+  path, or assigned an owner. Each package also carries `suggested_checks`;
+  run the package-specific checks before staging that package.
+- API route inventory is bounded and read-only: `list_api_routes.py` imports
+  the local FastAPI app and records route-table metadata only. It does not
+  start a server, call endpoints, prove authorization, live reachability,
+  customer traffic, SLOs, or production readiness.
 - Current cross-plane evidence context exists in
   `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json` and
   `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md`.
@@ -156,6 +186,10 @@ Run these after the gate is green or when investigating a specific blocker:
 
 ```bash
 python3 -m alembic heads
+python3 scripts/ops/summarize_dirty_worktree_review.py --json
+python3 scripts/ops/summarize_dirty_worktree_review.py --require-owned --json
+python3 scripts/ops/list_api_routes.py --json
+python3 scripts/ops/check_commercial_mesh_platform_readiness.py --require-ready --json
 python3 scripts/ops/run_cross_plane_proof_gate.py --json
 python3 scripts/ops/run_cross_plane_proof_gate.py --output-json .tmp/validation-shards/cross-plane-proof-gate-current.json
 python3 scripts/ops/verify_cross_plane_proof_gate_retention.py --require-valid
@@ -167,6 +201,7 @@ python3 scripts/ops/run_production_deploy_blocked_preflight_evidence.py --requir
 python3 scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py --target 10.123.45.67 --require-ready --json
 python3 scripts/ops/verify_maas_real_agent_control_loop.py --dataplane-probe-target 10.123.45.67 --timeout-seconds 180
 python3 scripts/ops/verify_dataplane_delivery_operator_flow.py --require-verified --json
+python3 scripts/ops/verify_traffic_delivery_operator_flow.py --require-verified --json
 # Readiness safe preflight; must block without opening a private-target probe:
 python3 scripts/ops/verify_dataplane_delivery_private_target_operator_run.py --target-host 10.0.0.5 --require-retained --json
 # Authorized dataplane operator run only; set the target locally, not in chat:
@@ -179,6 +214,7 @@ bash scripts/agents/check_coordination_contract.sh
 python3 -m pytest --no-cov tests/unit/scripts/test_check_real_readiness_unit.py -q
 python3 -m pytest --no-cov tests/unit/scripts/test_collect_dataplane_delivery_eventbus_evidence.py -q
 python3 -m pytest --no-cov tests/unit/scripts/test_verify_dataplane_delivery_operator_flow.py -q
+python3 -m pytest --no-cov tests/unit/scripts/test_verify_traffic_delivery_operator_flow.py -q
 python3 -m pytest --no-cov tests/unit/scripts/test_run_dataplane_delivery_operator_evidence.py -q
 python3 -m pytest --no-cov tests/unit/scripts/test_run_cross_plane_proof_gate.py -q
 python3 -m pytest --no-cov tests/unit/services/test_maas_auth_service_unit.py tests/api/test_maas_auth.py -q

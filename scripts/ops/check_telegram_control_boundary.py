@@ -22,18 +22,22 @@ from typing import Iterable
 DEFAULT_TELEGRAM_ENTRYPOINTS = (
     "telegram_bot.py",
     "src/sales/telegram_bot.py",
+    "src/sales/telegram_bot_v2.py",
     "scripts/telegram_webhook_server.py",
+    "services/nl-server/redacted/ghost-access/telegram_bot_simple.redacted.py",
 )
 
 FORBIDDEN_IMPORT_PREFIXES = (
     "src.api.maas.endpoints",
     "src.api.maas_nodes",
     "src.api.maas_provisioning",
+    "src.api.maas_marketplace",
     "src.core.mape_k",
     "src.core.mape_orchestrator",
     "src.dao.action_dispatcher",
     "src.mesh",
     "src.self_healing",
+    "src.security.pqc",
 )
 
 FORBIDDEN_CALL_NAMES = {

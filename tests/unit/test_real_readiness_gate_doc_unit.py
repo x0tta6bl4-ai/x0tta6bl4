@@ -104,6 +104,16 @@ def test_real_readiness_gate_lists_settlement_finality_cross_plane_gate():
     assert "matching live RPC proof" in compact_text
 
 
+def test_real_readiness_gate_lists_traffic_delivery_operator_flow_gate():
+    text = _doc_text()
+    compact_text = " ".join(text.split())
+
+    assert "Traffic-delivery operator flow is command-gated" in text
+    assert "verify_traffic_delivery_operator_flow.py --require-verified --json" in text
+    assert "controlled loopback request/response" in compact_text
+    assert "cross-plane proof-gate allowance without customer" in compact_text
+
+
 def test_real_readiness_gate_lists_traffic_cross_plane_gates():
     text = _doc_text()
     compact_text = " ".join(text.split())

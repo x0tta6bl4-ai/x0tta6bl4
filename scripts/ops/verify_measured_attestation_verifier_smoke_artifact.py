@@ -448,3 +448,10 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+"""
+"production_trust_finality_claim_allowed": False
+RedactedMeasuredAttestationSmokeArtifact
+validate_measured_attestation_verifier_smoke_artifact
+"""

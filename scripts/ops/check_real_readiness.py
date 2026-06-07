@@ -27,6 +27,9 @@ DEFAULT_OUTPUT_MD = ".tmp/validation-shards/real-readiness-current.md"
 GIT_STATUS_TIMEOUT_SECONDS = 90
 CURRENT_ACTIVE_AUDIT = "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md"
 CURRENT_CROSS_PLANE_MAP = "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json"
+CURRENT_AUTONOMOUS_MESH_REALITY_MAP = (
+    "docs/architecture/CURRENT_AUTONOMOUS_MESH_REALITY_MAP.json"
+)
 EXTERNAL_DPI_PROOF_MISSING_GAP_ID = "external-dpi-proof-missing"
 EXTERNAL_DPI_INTAKE_ACTION_ID = "external-dpi-real-artifact-intake"
 EXTERNAL_DPI_CANDIDATE = "docs/verification/incoming/dpi_lab.json"
@@ -53,6 +56,7 @@ DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER = (
 TRAFFIC_DELIVERY_OPERATOR_FLOW_VERIFIER = (
     "scripts/ops/verify_traffic_delivery_operator_flow.py"
 )
+DIRTY_WORKTREE_REVIEWER = "scripts/ops/summarize_dirty_worktree_review.py"
 DATAPLANE_DELIVERY_PRIVATE_TARGET_OPERATOR_RUN_VERIFIER = (
     "scripts/ops/verify_dataplane_delivery_private_target_operator_run.py"
 )
@@ -76,6 +80,9 @@ CROSS_PLANE_PROOF_GATE_RETENTION_VERIFIER = (
 )
 CROSS_PLANE_PROOF_GATE = "scripts/ops/run_cross_plane_proof_gate.py"
 GHOST_PULSE_PROOF_GATE_VERIFIER = "scripts/ops/verify_ghost_pulse_proof_gate.py"
+COMMERCIAL_MESH_PLATFORM_READINESS_VERIFIER = (
+    "scripts/ops/check_commercial_mesh_platform_readiness.py"
+)
 INTEGRATION_SPINE_CODE_WIRING = "src/integration/code_wiring.py"
 SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER = (
     "scripts/ops/verify_safe_actuator_metadata_adoption.py"
@@ -235,6 +242,23 @@ HIGH_RISK_TRUE_CLAIM_SCAN_EXCLUDED_PARTS = {
     ".venv",
     "node_modules",
 }
+CURRENT_EVIDENCE_FORBIDDEN_TRUE_CLAIM_FLAGS = frozenset(
+    {
+        "production_ready",
+        "production_readiness_claim_allowed",
+        "production_customer_traffic_confirmed",
+        "live_customer_traffic_confirmed",
+        "customer_traffic_claim_allowed",
+        "customer_traffic_claimed",
+        "revenue_recognition_claim_allowed",
+        "revenue_recognition_confirmed",
+        "payment_or_token_settlement_finality_confirmed",
+        "production_attestation_verifier_claim_allowed",
+        "external_settlement_finality_confirmed",
+        "settlement_finality_confirmed",
+        "live_token_settlement_confirmed",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -372,6 +396,7 @@ def check_required_files(root: Path) -> list[CheckResult]:
         "alembic/versions/d7c8f1a2b3c4_add_hashed_api_keys.py",
         "src/integration/external_settlement_operator_handoff.py",
         "scripts/ops/run_cross_plane_proof_gate.py",
+        COMMERCIAL_MESH_PLATFORM_READINESS_VERIFIER,
         CROSS_PLANE_PROOF_GATE_RETENTION_VERIFIER,
         SAFE_ACTUATOR_METADATA_ADOPTION_VERIFIER,
         SAFE_ACTUATOR_RUNTIME_METADATA_RETENTION_VERIFIER,
@@ -380,6 +405,8 @@ def check_required_files(root: Path) -> list[CheckResult]:
         DATAPLANE_DELIVERY_OPERATOR_HANDOFF,
         DATAPLANE_DELIVERY_OPERATOR_EVIDENCE_RUNNER,
         DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER,
+        TRAFFIC_DELIVERY_OPERATOR_FLOW_VERIFIER,
+        DIRTY_WORKTREE_REVIEWER,
         DATAPLANE_DELIVERY_PRIVATE_TARGET_OPERATOR_RUN_VERIFIER,
         PRODUCTION_DEPLOY_BLOCKED_PREFLIGHT_EVIDENCE_RUNNER,
         MAAS_HEAL_POST_ACTION_DATAPLANE_PROBE_VERIFIER,
@@ -564,6 +591,8 @@ def check_pulse_contract(root: Path) -> list[CheckResult]:
 def check_ghost_pulse_local_timing_evidence_contract(root: Path) -> list[CheckResult]:
     required_paths = {
         "pulse_transport": "src/network/transport/pulse_transport.py",
+        "ghost_pulse_transport": "src/network/transport/ghost_pulse_transport.py",
+        "client_engine": "src/client/engine.py",
         "whitelist_mimicry": "src/network/obfuscation/whitelist_mimicry.py",
         "pulse_ebpf_source": "src/network/ebpf/x0tta6bl4_pulse.bpf.c",
         "ghost_core_entrypoint": "ghost-core.sh",
@@ -586,6 +615,8 @@ def check_ghost_pulse_local_timing_evidence_contract(root: Path) -> list[CheckRe
         ]
 
     pulse_transport = _read(root, required_paths["pulse_transport"])
+    ghost_pulse_transport = _read(root, required_paths["ghost_pulse_transport"])
+    client_engine = _read(root, required_paths["client_engine"])
     whitelist_mimicry = _read(root, required_paths["whitelist_mimicry"])
     pulse_ebpf_source = _read(root, required_paths["pulse_ebpf_source"])
     ghost_core = _read(root, required_paths["ghost_core_entrypoint"])
@@ -613,6 +644,19 @@ def check_ghost_pulse_local_timing_evidence_contract(root: Path) -> list[CheckRe
             "EXPERIMENTAL_LOCAL_TIMING_PROFILE" in pulse_transport
             and '"stealth_mode": "NOT_VERIFIED"' in pulse_transport
             and "production" in pulse_transport.lower()
+        ),
+        "ghost_pulse_transport_client_surface": (
+            "class GhostPulseTransport" in ghost_pulse_transport
+            and "PulseUDPTransport.timing_plan_replay_digest" in ghost_pulse_transport
+            and "timing_plan_replay" in ghost_pulse_transport
+            and "EXPERIMENTAL_LOCAL_TIMING_PROFILE" in ghost_pulse_transport
+            and '"stealth_mode": "NOT_VERIFIED"' in ghost_pulse_transport
+            and "PULSE_LOCAL_CLAIM_BOUNDARY" in ghost_pulse_transport
+        ),
+        "client_engine_uses_ghost_pulse_transport": (
+            "from src.network.transport.ghost_pulse_transport import GhostPulseTransport"
+            in client_engine
+            and "GhostPulseTransport(master_key" in client_engine
         ),
         "whitelist_mimicry_local_only_boundary": (
             "WHITELIST_MIMICRY_CLAIM_BOUNDARY" in whitelist_mimicry
@@ -657,7 +701,7 @@ def check_ghost_pulse_local_timing_evidence_contract(root: Path) -> list[CheckRe
         pass_check(
             "ghost_pulse_local_timing_evidence_contract",
             "Ghost Pulse local timing evidence keeps deterministic seed replay, bounded metadata, static artifact-chain markers, and local-only claim boundaries",
-            "src/network/transport/pulse_transport.py; scripts/ops/verify_ghost_pulse_rng_replay.py; scripts/ops/verify_ghost_pulse_artifact_chain.py",
+            "src/network/transport/pulse_transport.py; src/network/transport/ghost_pulse_transport.py; src/client/engine.py; scripts/ops/verify_ghost_pulse_rng_replay.py; scripts/ops/verify_ghost_pulse_artifact_chain.py",
         )
     ]
 
@@ -669,6 +713,7 @@ def check_post_action_dataplane_gate_contract(root: Path) -> list[CheckResult]:
         root,
         "src/api/maas_nodes.py",
         "src/api/maas_nodes_legacy.py",
+        "src/api/maas/nodes/healing.py",
         "src/api/maas/endpoints/nodes.py",
         "src/api/maas/endpoints/nodes_legacy.py",
     )
@@ -1400,6 +1445,108 @@ def check_spire_join_token_replay_guard_contract(root: Path) -> list[CheckResult
                 "fail-closed"
             ),
             "src/security/spiffe/agent/join_token_guard.py; src/security/spiffe/agent/manager.py",
+        )
+    ]
+
+
+def check_runtime_reality_boundary_contract(root: Path) -> list[CheckResult]:
+    """Keep mock/synthetic/fallback evidence from becoming runtime truth."""
+    paths = {
+        "spiffe_workload": "src/security/spiffe/workload/api_client.py",
+        "libx0t_spiffe_workload": "src/libx0t/security/spiffe/workload/api_client.py",
+        "spire_agent": "src/security/spiffe/agent/manager.py",
+        "libx0t_spire_agent": "src/libx0t/security/spiffe/agent/manager.py",
+        "libx0t_ebpf_performance": "src/libx0t/network/ebpf/performance_monitor.py",
+        "maas_security": "src/api/maas_security.py",
+    }
+    missing_files = [
+        relative for relative in paths.values() if not _exists(root, relative)
+    ]
+    if missing_files:
+        return [
+            fail_check(
+                "runtime_reality_boundary_contract",
+                "Runtime reality-boundary files are missing: "
+                + ", ".join(missing_files),
+                "static file scan",
+            )
+        ]
+
+    contents = {name: _read(root, relative) for name, relative in paths.items()}
+    spiffe_required: dict[str, bool] = {}
+    for name in ("spiffe_workload", "libx0t_spiffe_workload"):
+        text = contents[name]
+        spiffe_required[f"{name}_explicit_mock_env"] = (
+            "X0TTA6BL4_FORCE_MOCK_SPIFFE" in text
+            and "_force_mock_spiffe" in text
+        )
+        spiffe_required[f"{name}_production_rejects_mock"] = (
+            "PRODUCTION_MODE and self._force_mock_spiffe" in text
+        )
+        spiffe_required[f"{name}_real_socket_required"] = (
+            "not self._force_mock_spiffe" in text
+            and ".is_socket()" in text
+            and "_real_socket_verified = True" in text
+        )
+        spiffe_required[f"{name}_mock_not_real_evidence"] = (
+            "not real SPIRE evidence" in text
+            and '"mock_mode"' in text
+            and '"real_spire_evidence"' in text
+            and '"real_socket_verified"' in text
+        )
+
+    required = {
+        **spiffe_required,
+        "spire_agent_requires_unix_socket": (
+            ".is_socket()" in contents["spire_agent"]
+        ),
+        "libx0t_spire_agent_requires_unix_socket": (
+            ".is_socket()" in contents["libx0t_spire_agent"]
+            and "mock_is_not_spire_evidence" in contents["libx0t_spire_agent"]
+        ),
+        "libx0t_ebpf_synthetic_metrics_labeled": (
+            '"synthetic_mock_generators"' in contents["libx0t_ebpf_performance"]
+            and '"real_ebpf_map_evidence": self.real_ebpf_map_evidence'
+            in contents["libx0t_ebpf_performance"]
+            and "synthetic_metrics_are_not_dataplane_proof"
+            in contents["libx0t_ebpf_performance"]
+            and "do_not_claim_kernel_ebpf_runtime_from_mock_values"
+            in contents["libx0t_ebpf_performance"]
+        ),
+        "maas_hmac_fallback_not_pqc": (
+            "hmac_fallback_is_not_pqc_secured" in contents["maas_security"]
+            and '"algorithm": "HMAC-SHA256"' in contents["maas_security"]
+            and '"pqc_secured": False' in contents["maas_security"]
+            and "not PQC-secured" in contents["maas_security"]
+            and "not external trust finality" in contents["maas_security"]
+        ),
+    }
+    missing = [name for name, ok in required.items() if not ok]
+    if missing:
+        return [
+            fail_check(
+                "runtime_reality_boundary_contract",
+                (
+                    "SPIRE/eBPF/PQC runtime evidence must fail closed: mock "
+                    "SPIFFE requires an explicit test flag and is never real "
+                    "SPIRE proof, SPIRE readiness requires a Unix socket, "
+                    "synthetic eBPF metrics are not kernel/dataplane proof, "
+                    "and HMAC fallback is not PQC: "
+                    + ", ".join(missing)
+                ),
+                "src/security/spiffe; src/libx0t/security/spiffe; src/libx0t/network/ebpf/performance_monitor.py; src/api/maas_security.py",
+            )
+        ]
+    return [
+        pass_check(
+            "runtime_reality_boundary_contract",
+            (
+                "SPIRE/eBPF/PQC runtime evidence boundaries are explicit: "
+                "mock SPIFFE is opt-in and non-evidence, SPIRE readiness checks "
+                "Unix sockets, synthetic eBPF metrics stay labeled, and HMAC "
+                "fallback is not PQC"
+            ),
+            "src/security/spiffe; src/libx0t/security/spiffe; src/libx0t/network/ebpf/performance_monitor.py; src/api/maas_security.py",
         )
     ]
 
@@ -2343,7 +2490,10 @@ def check_mesh_api_claim_gate_contract(root: Path) -> list[CheckResult]:
     required = {
         "core_mesh_claim_gate_helper": "def _mesh_api_claim_gate" in core_app,
         "core_mesh_cross_plane_gate": '"cross_plane_claim_gate"' in core_app
-        and "cross_plane_claim_gate_metadata" in core_app,
+        and (
+            "cross_plane_claim_gate_metadata" in core_app
+            or "_fast_fail_closed_cross_plane_claim_gate" in core_app
+        ),
         "core_mesh_dataplane_false": '"dataplane_delivery_claim_allowed": False' in core_app,
         "core_mesh_customer_traffic_false": '"customer_traffic_claim_allowed": False' in core_app,
         "core_mesh_dpi_false": '"external_dpi_bypass_claim_allowed": False' in core_app,
@@ -2382,7 +2532,10 @@ def check_status_api_claim_gate_contract(root: Path) -> list[CheckResult]:
         "core_status_claim_gate_helper": "def _status_api_claim_gate" in core_app,
         "core_status_response_helper": "def _status_api_response" in core_app,
         "core_status_cross_plane_gate": '"cross_plane_claim_gate"' in core_app
-        and "cross_plane_claim_gate_metadata" in core_app,
+        and (
+            "cross_plane_claim_gate_metadata" in core_app
+            or "_fast_fail_closed_cross_plane_claim_gate" in core_app
+        ),
         "core_status_production_false": '"production_readiness_claim_allowed": False' in core_app,
         "core_status_dataplane_false": '"dataplane_delivery_claim_allowed": False' in core_app,
         "core_status_dpi_false": '"external_dpi_bypass_claim_allowed": False' in core_app,
@@ -2422,7 +2575,10 @@ def check_health_api_claim_gate_contract(root: Path) -> list[CheckResult]:
         "core_health_claim_gate_helper": "def _health_api_claim_gate" in core_app,
         "core_health_response_helper": "def _health_api_response" in core_app,
         "core_health_cross_plane_gate": '"cross_plane_claim_gate"' in core_app
-        and "cross_plane_claim_gate_metadata" in core_app,
+        and (
+            "cross_plane_claim_gate_metadata" in core_app
+            or "_fast_fail_closed_cross_plane_claim_gate" in core_app
+        ),
         "core_health_production_false": '"production_readiness_claim_allowed": False' in core_app,
         "core_health_dataplane_false": '"dataplane_delivery_claim_allowed": False' in core_app,
         "core_health_dpi_false": '"external_dpi_bypass_claim_allowed": False' in core_app,
@@ -2565,6 +2721,18 @@ def check_maas_mesh_metrics_claim_gate_contract(root: Path) -> list[CheckResult]
         and "mesh_metrics_claim_gate_present=bool(metrics_claim_gate)" in compat_maas
         and "cross_plane_claim_gate_present=bool(cross_plane_claim_gate)" in compat_maas
     )
+    compat_metrics_alias_fail_closed_claims = (
+        compat_metrics_alias_summarizes_cross_plane_gate
+        and '"local_lifecycle_state_observation_claim_allowed"' in compat_maas
+        and '"production_readiness_claim_allowed": False' in compat_maas
+        and '"production_slo_claim_allowed": False' in compat_maas
+        and '"dataplane_delivery_claim_allowed": False' in compat_maas
+        and '"traffic_delivery_claim_allowed": False' in compat_maas
+        and '"customer_traffic_claim_allowed": False' in compat_maas
+        and '"external_dpi_bypass_claim_allowed": False' in compat_maas
+        and '"settlement_finality_claim_allowed": False' in compat_maas
+        and '"mesh_metrics_claim_gate_present"' in compat_maas
+    )
 
     required = {
         "mesh_metrics_model_claim_gate": "mesh_metrics_claim_gate" in mesh_models,
@@ -2609,15 +2777,19 @@ def check_maas_mesh_metrics_claim_gate_contract(root: Path) -> list[CheckResult]
         ),
         "legacy_mesh_metrics_model_claim_gate": (
             "mesh_metrics_claim_gate" in legacy_maas
+            or compat_metrics_alias_summarizes_cross_plane_gate
         ),
         "legacy_mesh_metrics_model_cross_plane_gate": (
             "cross_plane_claim_gate" in legacy_maas
+            or compat_metrics_alias_summarizes_cross_plane_gate
         ),
         "legacy_mesh_metrics_claim_gate_helper": (
             "def _legacy_mesh_metrics_claim_gate" in legacy_maas
+            or compat_metrics_alias_summarizes_cross_plane_gate
         ),
         "legacy_mesh_metrics_cross_plane_helper": (
             "cross_plane_claim_gate_metadata" in legacy_maas
+            or compat_metrics_alias_summarizes_cross_plane_gate
         ),
         "legacy_mesh_metrics_response_claim_gate": (
             "mesh_metrics_claim_gate=_legacy_mesh_metrics_claim_gate()" in legacy_maas
@@ -2629,30 +2801,39 @@ def check_maas_mesh_metrics_claim_gate_contract(root: Path) -> list[CheckResult]
         ),
         "legacy_mesh_metrics_local_observation_true": (
             '"local_mesh_metrics_observation_claim_allowed": True' in legacy_maas
+            or compat_metrics_alias_fail_closed_claims
         ),
         "legacy_mesh_metrics_production_false": (
             '"production_readiness_claim_allowed": False' in legacy_maas
+            or compat_metrics_alias_fail_closed_claims
         ),
         "legacy_mesh_metrics_slo_false": (
             '"production_slo_claim_allowed": False' in legacy_maas
+            or compat_metrics_alias_fail_closed_claims
         ),
         "legacy_mesh_metrics_dataplane_false": (
             '"dataplane_delivery_claim_allowed": False' in legacy_maas
+            or compat_metrics_alias_fail_closed_claims
         ),
         "legacy_mesh_metrics_traffic_false": (
             '"traffic_delivery_claim_allowed": False' in legacy_maas
+            or compat_metrics_alias_fail_closed_claims
         ),
         "legacy_mesh_metrics_customer_traffic_false": (
             '"customer_traffic_claim_allowed": False' in legacy_maas
+            or compat_metrics_alias_fail_closed_claims
         ),
         "legacy_mesh_metrics_dpi_false": (
             '"external_dpi_bypass_claim_allowed": False' in legacy_maas
+            or compat_metrics_alias_fail_closed_claims
         ),
         "legacy_mesh_metrics_settlement_false": (
             '"settlement_finality_claim_allowed": False' in legacy_maas
+            or compat_metrics_alias_fail_closed_claims
         ),
         "legacy_mesh_metrics_summary_claim_gate": (
             '"mesh_metrics_claim_gate_present"' in legacy_maas
+            or compat_metrics_alias_fail_closed_claims
         ),
     }
     missing = [name for name, ok in required.items() if not ok]
@@ -4412,6 +4593,25 @@ def check_economy_dataplane_claim_gate_contract(root: Path) -> list[CheckResult]
     )
     mesh_vpn_bridge = _read(root, "src/network/mesh_vpn_bridge.py")
     share_to_earn_service = _read(root, "src/services/share_to_earn_service.py")
+    maas_billing_shim_delegates_to_modular = (
+        "MaaS Billing API Shim" in maas_billing
+        and "from .maas.endpoints.billing import" in maas_billing
+        and '"router"' in maas_billing
+    )
+    modular_billing_fail_closed_payment_gate = (
+        "def _modular_billing_claim_gate" in modular_billing
+        and "def _modular_cross_plane_claim_gate" in modular_billing
+        and '"checkout_intent_claim_allowed": bool(checkout_intent_allowed)' in modular_billing
+        and "checkout_intent_allowed=True" in modular_billing
+        and '"serviceability_claim_allowed": False' in modular_billing
+        and '"paid_customer_serviceability_claim_allowed": False' in modular_billing
+        and '"customer_access_claim_allowed": False' in modular_billing
+        and '"node_provisioning_claim_allowed": False' in modular_billing
+        and '"dataplane_delivery_claim_allowed": False' in modular_billing
+        and '"traffic_delivery_claim_allowed": False' in modular_billing
+        and '"customer_traffic_claim_allowed": False' in modular_billing
+        and '"production_readiness_claim_allowed": False' in modular_billing
+    )
 
     required = {
         "economy_finality_summary": "def economy_finality_summary" in service_trace,
@@ -4523,7 +4723,11 @@ def check_economy_dataplane_claim_gate_contract(root: Path) -> list[CheckResult]
             and "_billing_api_webhook_response_claim_metadata(" in billing_api
         ),
         "maas_billing_claim_gate": "def _billing_local_claim_gate" in maas_billing
-        and "claim_gate: dict[str, Any] = Field(default_factory=dict)" in maas_billing,
+        and "claim_gate: dict[str, Any] = Field(default_factory=dict)" in maas_billing
+        or (
+            maas_billing_shim_delegates_to_modular
+            and modular_billing_fail_closed_payment_gate
+        ),
         "maas_billing_intent_response_claim_gate": (
             "def _billing_intent_response_claim_metadata" in maas_billing
             and '"claim_gate": _billing_local_claim_gate' in maas_billing
@@ -4531,6 +4735,14 @@ def check_economy_dataplane_claim_gate_contract(root: Path) -> list[CheckResult]
             and 'surface="maas_billing.subscription_checkout"' in maas_billing
             and 'surface="maas_billing.customer_portal"' in maas_billing
             and 'surface="maas_billing.invoice_checkout"' in maas_billing
+            or (
+                maas_billing_shim_delegates_to_modular
+                and modular_billing_fail_closed_payment_gate
+                and "async def create_payment(" in modular_billing
+                and '"claim_gate": settlement["claim_gate"]' in modular_billing
+                and '"cross_plane_claim_gate": _modular_cross_plane_claim_gate("create_payment")'
+                in modular_billing
+            )
         ),
         "modular_billing_payment_response_claim_gate": (
             "async def create_payment(" in modular_billing
@@ -6717,6 +6929,58 @@ def _current_map_claims_external_dpi_subclaim(source_data: Mapping[str, object])
     return False
 
 
+def _forbidden_true_claim_flags_in_payload(
+    payload: object,
+    *,
+    source: str,
+) -> list[str]:
+    findings: list[str] = []
+
+    def walk(value: object, trail: str) -> None:
+        if isinstance(value, Mapping):
+            for key, child in value.items():
+                key_text = str(key)
+                child_trail = f"{trail}.{key_text}" if trail else key_text
+                if (
+                    key_text in CURRENT_EVIDENCE_FORBIDDEN_TRUE_CLAIM_FLAGS
+                    and child is True
+                ):
+                    findings.append(f"{source}:{child_trail}")
+                walk(child, child_trail)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                walk(child, f"{trail}[{index}]")
+
+    walk(payload, "")
+    return findings
+
+
+def _current_evidence_forbidden_true_claim_flags(
+    root: Path,
+    *,
+    cross_plane_payload: object,
+) -> list[str]:
+    findings = _forbidden_true_claim_flags_in_payload(
+        cross_plane_payload,
+        source=CURRENT_CROSS_PLANE_MAP,
+    )
+    reality_map_path = root / CURRENT_AUTONOMOUS_MESH_REALITY_MAP
+    if not reality_map_path.exists():
+        return findings
+    try:
+        reality_payload = json.loads(reality_map_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        findings.append(f"{CURRENT_AUTONOMOUS_MESH_REALITY_MAP}:json_invalid:{exc}")
+        return findings
+    findings.extend(
+        _forbidden_true_claim_flags_in_payload(
+            reality_payload,
+            source=CURRENT_AUTONOMOUS_MESH_REALITY_MAP,
+        )
+    )
+    return findings
+
+
 def _external_dpi_latest_artifact_state(root: Path) -> dict[str, object]:
     path = root / EXTERNAL_DPI_LATEST
     state: dict[str, object] = {
@@ -6948,6 +7212,10 @@ def current_evidence_context(root: Path) -> dict[str, object]:
     )
     external_dpi_subclaim_claimed = _current_map_claims_external_dpi_subclaim(source_data)
     context["external_dpi_subclaim_claimed"] = external_dpi_subclaim_claimed
+    context["forbidden_true_claim_flags"] = _current_evidence_forbidden_true_claim_flags(
+        root,
+        cross_plane_payload=data,
+    )
     context["external_dpi_latest_artifact"] = (
         _external_dpi_latest_artifact_state(root)
         if external_dpi_subclaim_claimed
@@ -7018,6 +7286,20 @@ def check_current_evidence_context(root: Path) -> list[CheckResult]:
                 CURRENT_ACTIVE_AUDIT,
             )
         ]
+    forbidden_true_claim_flags = context.get("forbidden_true_claim_flags")
+    if forbidden_true_claim_flags:
+        return [
+            fail_check(
+                "current_evidence_overclaim_flags",
+                (
+                    "Current evidence maps contain forbidden high-risk true claim "
+                    "flags. Keep production/customer/revenue/settlement finality "
+                    "claims false until their dedicated proof-gates allow them: "
+                    + "; ".join(str(item) for item in list(forbidden_true_claim_flags)[:8])
+                ),
+                f"{CURRENT_CROSS_PLANE_MAP}; {CURRENT_AUTONOMOUS_MESH_REALITY_MAP}",
+            )
+        ]
     gap_count = context.get("current_gap_count")
     next_action_count = context.get("next_action_count")
     if gap_count or next_action_count:
@@ -7070,6 +7352,98 @@ def check_current_evidence_context(root: Path) -> list[CheckResult]:
     ]
 
 
+def _load_commercial_mesh_platform_readiness_module():
+    module_path = Path(__file__).resolve().parent / "check_commercial_mesh_platform_readiness.py"
+    spec = importlib.util.spec_from_file_location(
+        "x0tta6bl4_commercial_mesh_platform_readiness",
+        module_path,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"unable to load {module_path.as_posix()}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _commercial_mesh_platform_report_ready(report: Mapping[str, object]) -> bool:
+    summary = report.get("summary", {})
+    claim_boundary = str(report.get("claim_boundary", ""))
+    return (
+        report.get("ready") is True
+        and report.get("decision") == "COMMERCIAL_MESH_PLATFORM_STATIC_CONTRACT_READY"
+        and isinstance(summary, Mapping)
+        and summary.get("requirements_total") == summary.get("passed")
+        and summary.get("failures") == 0
+        and summary.get("static_only") is True
+        and summary.get("starts_services") is False
+        and summary.get("mutates_state") is False
+        and summary.get("charges_customers") is False
+        and summary.get("proves_production_readiness") is False
+        and summary.get("proves_customer_traffic") is False
+        and summary.get("proves_settlement_finality") is False
+        and not report.get("blockers")
+        and "does not start services" in claim_boundary
+        and "prove production readiness" in claim_boundary
+    )
+
+
+def _commercial_mesh_platform_failure_details(report: Mapping[str, object]) -> str:
+    blockers = report.get("blockers", [])
+    if isinstance(blockers, list) and blockers:
+        blocker_ids = [
+            str(item.get("requirement_id") or item.get("check_id") or "unknown")
+            for item in blockers
+            if isinstance(item, Mapping)
+        ]
+        if blocker_ids:
+            return "Commercial mesh-platform gate blocked: " + ", ".join(blocker_ids)
+    decision = report.get("decision")
+    return f"Commercial mesh-platform gate did not return ready static contract; decision={decision}"
+
+
+def check_commercial_mesh_platform_readiness_contract(root: Path) -> list[CheckResult]:
+    try:
+        module = _load_commercial_mesh_platform_readiness_module()
+        report = module.build_report(root)
+    except Exception as exc:
+        return [
+            fail_check(
+                "commercial_mesh_platform_readiness_contract",
+                f"Commercial mesh-platform readiness verifier failed to run: {exc}",
+                COMMERCIAL_MESH_PLATFORM_READINESS_VERIFIER,
+            )
+        ]
+
+    if _commercial_mesh_platform_report_ready(report):
+        summary = report.get("summary", {})
+        passed = summary.get("passed") if isinstance(summary, Mapping) else "unknown"
+        total = (
+            summary.get("requirements_total")
+            if isinstance(summary, Mapping)
+            else "unknown"
+        )
+        return [
+            pass_check(
+                "commercial_mesh_platform_readiness_contract",
+                (
+                    "Commercial Mesh-as-a-Service static contract is wired "
+                    "through app/API, device agent, marketplace, billing, "
+                    f"and evidence gates ({passed}/{total})"
+                ),
+                COMMERCIAL_MESH_PLATFORM_READINESS_VERIFIER,
+            )
+        ]
+
+    return [
+        fail_check(
+            "commercial_mesh_platform_readiness_contract",
+            _commercial_mesh_platform_failure_details(report),
+            COMMERCIAL_MESH_PLATFORM_READINESS_VERIFIER,
+        )
+    ]
+
+
 def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
     checks: list[CheckResult] = []
 
@@ -7114,6 +7488,51 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
                 f"python scripts/claim_hygiene_scan.py --zone {zone} --fail-on-active --json",
             )
         )
+
+    commercial_mesh_platform = runner(
+        (
+            sys.executable,
+            COMMERCIAL_MESH_PLATFORM_READINESS_VERIFIER,
+            "--require-ready",
+            "--json",
+        ),
+        None,
+        60,
+    )
+    if commercial_mesh_platform.returncode != 0:
+        checks.append(
+            fail_check(
+                "commercial_mesh_platform_readiness_runtime",
+                _format_command_failure(commercial_mesh_platform),
+                f"python {COMMERCIAL_MESH_PLATFORM_READINESS_VERIFIER} --require-ready --json",
+            )
+        )
+    else:
+        commercial_mesh_platform_payload = _json_mapping_from_stdout(
+            commercial_mesh_platform.stdout
+        )
+        if _commercial_mesh_platform_report_ready(commercial_mesh_platform_payload):
+            checks.append(
+                pass_check(
+                    "commercial_mesh_platform_readiness_runtime",
+                    (
+                        "Commercial mesh-platform verifier command proves "
+                        "static app/API, agent, marketplace, billing, and "
+                        "evidence-gate wiring while keeping production claims bounded"
+                    ),
+                    f"python {COMMERCIAL_MESH_PLATFORM_READINESS_VERIFIER} --require-ready --json",
+                )
+            )
+        else:
+            checks.append(
+                fail_check(
+                    "commercial_mesh_platform_readiness_runtime",
+                    _commercial_mesh_platform_failure_details(
+                        commercial_mesh_platform_payload
+                    ),
+                    f"python {COMMERCIAL_MESH_PLATFORM_READINESS_VERIFIER} --require-ready --json",
+                )
+            )
 
     ghost_pulse_runtime = runner(
         (
@@ -7579,14 +7998,14 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
                     f"python {DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
                 )
             )
-    else:
-        checks.append(
-            fail_check(
-                "dataplane_delivery_operator_flow_runtime",
-                "Dataplane operator-flow verifier did not prove the local handoff/collector/proof-gate path remains bounded and redacted",
-                f"python {DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
+        else:
+            checks.append(
+                fail_check(
+                    "dataplane_delivery_operator_flow_runtime",
+                    "Dataplane operator-flow verifier did not prove the local handoff/collector/proof-gate path remains bounded and redacted",
+                    f"python {DATAPLANE_DELIVERY_OPERATOR_FLOW_VERIFIER} --require-verified --json",
+                )
             )
-        )
 
     traffic_delivery_operator_flow = runner(
         (
@@ -8570,6 +8989,7 @@ def _git_dirty_path(line: str) -> str:
 def _summarize_git_dirty_lines(dirty_lines: Sequence[str]) -> str:
     status_counts: dict[str, int] = {}
     top_path_counts: dict[str, int] = {}
+    review_samples: list[str] = []
     for line in dirty_lines:
         status = line[:2] if len(line) >= 2 else line
         status_label = _git_dirty_status_label(status)
@@ -8577,6 +8997,8 @@ def _summarize_git_dirty_lines(dirty_lines: Sequence[str]) -> str:
         path = _git_dirty_path(line)
         top_path = path.split("/", 1)[0]
         top_path_counts[top_path] = top_path_counts.get(top_path, 0) + 1
+        if len(review_samples) < 8:
+            review_samples.append(f"{status_label}:{path}")
 
     preferred_order = ("modified", "deleted", "untracked", "added", "renamed", "copied", "unknown")
     status_parts = [
@@ -8596,7 +9018,21 @@ def _summarize_git_dirty_lines(dirty_lines: Sequence[str]) -> str:
             key=lambda item: (-item[1], item[0]),
         )[:8]
     ]
-    return f"status_counts: {', '.join(status_parts)}; top_paths: {', '.join(top_parts)}"
+    review_sample = "; ".join(review_samples)
+    return (
+        f"status_counts: {', '.join(status_parts)}; "
+        f"top_paths: {', '.join(top_parts)}; "
+        f"review_sample: {review_sample}"
+    )
+
+
+def _dirty_worktree_review_guidance() -> str:
+    return (
+        "run package owner review before staging: "
+        f"PYTHONPATH=. ./.venv/bin/python {DIRTY_WORKTREE_REVIEWER} "
+        "--json --agent <agent> --require-owned --require-agent-claimable; "
+        "use per-package owner_claim_example/suggested_checks and never git add -A"
+    )
 
 
 def check_git_state(root: Path, runner: Runner) -> list[CheckResult]:
@@ -8608,11 +9044,58 @@ def check_git_state(root: Path, runner: Runner) -> list[CheckResult]:
         details = (
             f"Worktree has {len(dirty_lines)} uncommitted paths; "
             f"{_summarize_git_dirty_lines(dirty_lines)}; "
-            "release readiness requires reviewed commits or a clean worktree"
+            "release readiness requires reviewed commits or a clean worktree; "
+            f"{_dirty_worktree_review_guidance()}"
         )
         return [fail_check("git_worktree_clean", details, "git status --porcelain")]
     return [pass_check("git_worktree_clean", "Worktree is clean", "git status --porcelain")]
 
+
+def check_formal_nexus_contract(root: Path) -> list[CheckResult]:
+    """AlphaProof Nexus: Formal logical integrity check for MAPE-K, PQC, and Dataplane."""
+    nexus_logic_files = (
+        "src/self_healing/mape_k/logic_contract.py",
+        "src/services/pqc_logic_contract.py",
+        "src/network/ebpf/dataplane_logic_contract.py",
+        "src/integration/formal_proof_registry.py",
+    )
+    missing = [item for item in nexus_logic_files if not _exists(root, item)]
+    if missing:
+        return [fail_check("alpha_proof_nexus_logic", "Missing Nexus logic contracts: " + ", ".join(missing), "file existence")]
+
+    # Verification markers in consumers
+    mape_k_manager = _read(root, "src/self_healing/mape_k/manager.py")
+    pqc_rotator = _read(root, "src/services/pqc_rotator_service.py")
+    xdp_loader = _read(root, "src/network/ebpf/pqc_xdp_loader.py")
+    formal_registry = _read(root, "src/integration/formal_proof_registry.py")
+
+    required = {
+        "mapek_logic_gate": "SelfHealingLogicContract" in mape_k_manager and "logic_contract.transition_to" in mape_k_manager,
+        "pqc_logic_gate": "PQCRotationLogicContract" in pqc_rotator and "logic_contract.transition_to" in pqc_rotator,
+        "dataplane_logic_gate": "DataplaneLogicContract" in xdp_loader and "logic_contract.transition_to" in xdp_loader,
+        "global_registry_schema": '"x0tta6bl4.global_readiness_proof.v1"' in formal_registry,
+        "dataplane_required_plane": '"dataplane"' in formal_registry
+        and "required_planes" in formal_registry,
+        "dataplane_fragment_schema": '"x0tta6bl4.dataplane_proof.fragment.v1"' in formal_registry,
+    }
+
+    missing_fragments = [name for name, ok in required.items() if not ok]
+    if missing_fragments:
+        return [fail_check("alpha_proof_nexus_instrumentation", "Nexus instrumentation missing in: " + ", ".join(missing_fragments), "static file scan")]
+
+    # Check for Global Proof artifact
+    proof_path = root / ".tmp/formal_proofs/global_readiness.json"
+    if not proof_path.exists():
+        return [warn_check("alpha_proof_nexus_readiness", "Global Formal Proof missing. Run verification to generate .tmp/formal_proofs/global_readiness.json", "artifact check")]
+
+    try:
+        proof = json.loads(proof_path.read_text(encoding="utf-8"))
+        if proof.get("decision") == "GLOBAL_VERIFIED":
+            return [pass_check("alpha_proof_nexus_readiness", "AlphaProof Nexus: System-wide logical integrity proven.", "formal proof artifact")]
+        else:
+            return [fail_check("alpha_proof_nexus_readiness", f"Nexus BLOCKED: {proof.get('global_violations')}", "formal proof artifact")]
+    except Exception as exc:
+        return [fail_check("alpha_proof_nexus_readiness", f"Error parsing global proof: {exc}", "artifact check")]
 
 def build_report(
     root: Path,
@@ -8638,8 +9121,10 @@ def build_report(
         checks.extend(check_service_identity_trust_claim_gate_contract(root))
         checks.extend(check_spire_local_socket_boundary_contract(root))
         checks.extend(check_spire_join_token_replay_guard_contract(root))
+        checks.extend(check_runtime_reality_boundary_contract(root))
         checks.extend(check_node_runtime_identity_binding_contract(root))
         checks.extend(check_mapek_safe_mode_contract(root))
+        checks.extend(check_formal_nexus_contract(root))
         checks.extend(check_mapek_recovery_plan_cid_contract(root))
         checks.extend(check_ebpf_telemetry_loss_fail_closed_contract(root))
         checks.extend(check_ebpf_map_freeze_guard_contract(root))
@@ -8686,6 +9171,7 @@ def build_report(
         checks.extend(check_production_gap_index_context_gate_contract(root))
         checks.extend(check_production_closeout_review_context_gate_contract(root))
         checks.extend(check_api_readiness_claim_gate_inventory(root))
+        checks.extend(check_commercial_mesh_platform_readiness_contract(root))
         checks.extend(check_current_evidence_context(root))
         if include_command_checks:
             checks.extend(check_command_contracts(root, runner))

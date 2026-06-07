@@ -17,6 +17,7 @@ import contextlib
 import io
 import json
 import os
+import socket
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -440,35 +441,41 @@ def _run_spire_agent_case(root: Path) -> dict[str, Any]:
     config_path = case_root / "agent.conf"
     socket_path = case_root / "agent.sock"
     config_path.write_text("agent {}", encoding="utf-8")
-    socket_path.write_text("", encoding="utf-8")
+    if socket_path.exists():
+        socket_path.unlink()
+    bound_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    bound_socket.bind(str(socket_path))
 
     event_bus = EventBus(str(root / "agent-eventbus"))
     resource = "identity:spire_agent:start_agent"
-    with patch(
-        "src.security.spiffe.agent.manager.shutil.which",
-        side_effect=lambda binary: f"/usr/bin/{binary}",
-    ):
-        manager = SPIREAgentManager(
-            config_path=config_path,
-            socket_path=socket_path,
-            event_bus=event_bus,
-            policy_engine=_allow_policy(SPIRE_AGENT_SPIFFE_ID, resource),
-            require_policy=True,
-            source_agent="spire-agent-manager",
-            node_id="node-spire-agent-runtime",
-            spiffe_id=SPIRE_AGENT_SPIFFE_ID,
-            did="did:mesh:identity:spire-agent-runtime",
-            wallet_address="0xspireagentruntime",
-        )
+    try:
+        with patch(
+            "src.security.spiffe.agent.manager.shutil.which",
+            side_effect=lambda binary: f"/usr/bin/{binary}",
+        ):
+            manager = SPIREAgentManager(
+                config_path=config_path,
+                socket_path=socket_path,
+                event_bus=event_bus,
+                policy_engine=_allow_policy(SPIRE_AGENT_SPIFFE_ID, resource),
+                require_policy=True,
+                source_agent="spire-agent-manager",
+                node_id="node-spire-agent-runtime",
+                spiffe_id=SPIRE_AGENT_SPIFFE_ID,
+                did="did:mesh:identity:spire-agent-runtime",
+                wallet_address="0xspireagentruntime",
+            )
 
-    process = MagicMock()
-    process.pid = 424242
-    process.poll.return_value = None
-    with patch(
-        "src.security.spiffe.agent.manager.subprocess.Popen",
-        return_value=process,
-    ):
-        result = manager.start()
+        process = MagicMock()
+        process.pid = 424242
+        process.poll.return_value = None
+        with patch(
+            "src.security.spiffe.agent.manager.subprocess.Popen",
+            return_value=process,
+        ):
+            result = manager.start()
+    finally:
+        bound_socket.close()
 
     event = _last_completed_event(
         event_bus,

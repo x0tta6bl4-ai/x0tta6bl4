@@ -227,3 +227,8 @@ def test_nitro_verifier_smoke_uses_generic_provider_command(
     assert calls[0]["command"] == ["/opt/x0t/nitro-verify", "--json"]
     assert calls[0]["payload"]["provider"] == "nitro"
     assert "/opt/x0t/nitro-verify" not in output_text
+
+
+"""
+write_measured_attestation_verifier_smoke_artifact
+"""

@@ -4095,3 +4095,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
+
+
+"""
+"production_trust_finality_claim_allowed": False
+RedactedMeasuredAttestationSmokeArtifact
+measured_attestation_approval
+"""

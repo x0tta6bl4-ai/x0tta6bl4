@@ -133,10 +133,14 @@ def _isolated_test_client(db_path: Path) -> Iterator[tuple[TestClient, Any]]:
     testing_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     dependency_overrides_before = dict(app.dependency_overrides)
     registry_before = _registry_snapshots()
-    user_store_before = dict(auth_endpoint_mod._user_store)
-    login_attempts_before = {
-        key: list(value) for key, value in auth_endpoint_mod._LOGIN_ATTEMPTS.items()
-    }
+    user_store = getattr(auth_endpoint_mod, "_user_store", None)
+    login_attempts = getattr(auth_endpoint_mod, "_LOGIN_ATTEMPTS", None)
+    user_store_before = dict(user_store) if hasattr(user_store, "items") else None
+    login_attempts_before = (
+        {key: list(value) for key, value in login_attempts.items()}
+        if hasattr(login_attempts, "items")
+        else None
+    )
 
     def override_get_db() -> Iterator[Any]:
         db = testing_session()
@@ -148,8 +152,10 @@ def _isolated_test_client(db_path: Path) -> Iterator[tuple[TestClient, Any]]:
     Base.metadata.create_all(bind=engine)
     app.dependency_overrides[get_db] = override_get_db
     _clear_registry()
-    auth_endpoint_mod._user_store.clear()
-    auth_endpoint_mod._LOGIN_ATTEMPTS.clear()
+    if user_store_before is not None and hasattr(user_store, "clear"):
+        user_store.clear()
+    if login_attempts_before is not None and hasattr(login_attempts, "clear"):
+        login_attempts.clear()
 
     try:
         with TestClient(app) as client:
@@ -158,11 +164,14 @@ def _isolated_test_client(db_path: Path) -> Iterator[tuple[TestClient, Any]]:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(dependency_overrides_before)
         _restore_registry(registry_before)
-        auth_endpoint_mod._user_store.clear()
-        auth_endpoint_mod._user_store.update(user_store_before)
-        auth_endpoint_mod._LOGIN_ATTEMPTS.clear()
-        for key, values in login_attempts_before.items():
-            auth_endpoint_mod._LOGIN_ATTEMPTS[key] = deque(values)
+        if user_store_before is not None and hasattr(user_store, "clear"):
+            user_store.clear()
+            if hasattr(user_store, "update"):
+                user_store.update(user_store_before)
+        if login_attempts_before is not None and hasattr(login_attempts, "clear"):
+            login_attempts.clear()
+            for key, values in login_attempts_before.items():
+                login_attempts[key] = deque(values)
         Base.metadata.drop_all(bind=engine)
         engine.dispose()
 

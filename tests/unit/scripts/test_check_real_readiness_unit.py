@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from scripts.ops import check_commercial_mesh_platform_readiness as commercial_mesh_readiness
 from scripts.ops.check_real_readiness import (
     CommandResult,
+    DIRTY_WORKTREE_REVIEWER,
     GIT_STATUS_TIMEOUT_SECONDS,
     build_report,
     check_git_state,
@@ -16,6 +18,21 @@ def _write(root: Path, relative: str, text: str) -> None:
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+
+
+def _write_commercial_mesh_platform_ready_root(root: Path) -> None:
+    _write(
+        root,
+        "scripts/ops/check_commercial_mesh_platform_readiness.py",
+        "# commercial mesh-platform readiness fixture\n",
+    )
+    for spec in commercial_mesh_readiness.REQUIREMENT_SPECS:
+        for expected_file in spec.files:
+            path = root / expected_file.path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            existing = path.read_text(encoding="utf-8") if path.exists() else ""
+            markers = "\n".join(expected_file.markers)
+            path.write_text(f"{existing}\n{markers}\n", encoding="utf-8")
 
 
 def _ready_root(root: Path) -> None:
@@ -141,6 +158,10 @@ from src.security.spiffe.agent.join_token_guard import JoinTokenReplayGuard
 class SPIREAgentManager:
     def __init__(self):
         self.join_token_guard = JoinTokenReplayGuard()
+        self.socket_path = None
+
+    def _socket_ready(self):
+        return bool(self.socket_path.exists()) and bool(self.socket_path.is_socket())
 
     def attest_node(self, token):
         guard_decision = self.join_token_guard.reserve(token)
@@ -155,6 +176,66 @@ class SPIREAgentManager:
             return success
         finally:
             self.join_token_guard.complete(token, success=success)
+""",
+    )
+    _write(
+        root,
+        "src/libx0t/security/spiffe/agent/manager.py",
+        """
+class SPIREAgentManager:
+    def __init__(self):
+        self.socket_path = None
+        self.status = {"mock_is_not_spire_evidence": True}
+
+    def _socket_ready(self):
+        return bool(self.socket_path.exists()) and bool(self.socket_path.is_socket())
+""",
+    )
+    spiffe_workload_fixture = """
+PRODUCTION_MODE = False
+
+class SPIFFEWorkloadAPIClient:
+    def __init__(self):
+        self._force_mock_spiffe = os.getenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "false").lower() == "true"
+        self._real_socket_verified = False
+        if PRODUCTION_MODE and self._force_mock_spiffe:
+            raise RuntimeError("mock SPIFFE disabled in production")
+        if not self._force_mock_spiffe:
+            if not self._spiffe_endpoint_path.is_socket():
+                raise RuntimeError("real SPIRE Workload API Unix socket required")
+            self._real_socket_verified = True
+        if self._force_mock_spiffe:
+            reason = "explicit mock SPIFFE mode; not real SPIRE evidence"
+
+    def evidence_status(self):
+        return {
+            "real_socket_verified": self._real_socket_verified,
+            "mock_mode": self._force_mock_spiffe,
+            "real_spire_evidence": self._real_socket_verified and not self._force_mock_spiffe,
+        }
+"""
+    _write(root, "src/security/spiffe/workload/api_client.py", spiffe_workload_fixture)
+    _write(
+        root,
+        "src/libx0t/security/spiffe/workload/api_client.py",
+        spiffe_workload_fixture,
+    )
+    _write(
+        root,
+        "src/libx0t/network/ebpf/performance_monitor.py",
+        """
+class EBPFPerformanceMonitor:
+    def __init__(self):
+        self.metric_source = "synthetic_mock_generators"
+        self.real_ebpf_map_evidence = False
+
+    def get_status(self):
+        return {
+            "metric_source": self.metric_source,
+            "real_ebpf_map_evidence": self.real_ebpf_map_evidence,
+            "synthetic_metrics_are_not_dataplane_proof": True,
+            "do_not_claim_kernel_ebpf_runtime_from_mock_values": True,
+        }
 """,
     )
     _write(
@@ -381,7 +462,27 @@ def ensure_schema_compatible(): pass
         "src/services/maas_auth_service.py",
         "db.query(User).filter(User.api_key_hash == ApiKeyManager.hash_key(api_key)).first()\nuser.api_key = None\n",
     )
-    _write(root, "src/api/maas_security.py", "hashlib.sha256(key.encode(\"utf-8\")).hexdigest()\n")
+    _write(
+        root,
+        "src/api/maas_security.py",
+        """
+hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+class PQCTokenSigner:
+    def __init__(self):
+        self.claim_boundary = {
+            "hmac_fallback_is_not_pqc_secured": True,
+            "local_signature_is_not_external_trust_finality": True,
+        }
+
+    def sign_with_hmac_fallback(self):
+        return {
+            "algorithm": "HMAC-SHA256",
+            "pqc_secured": False,
+            "claim_boundary": "HMAC-SHA256 fallback only; not PQC-secured or not external trust finality.",
+        }
+""",
+    )
     _write(root, "scripts/check_orm_schema_parity.py", "from src.database import get_schema_parity_report\n")
     _write(
         root,
@@ -428,6 +529,39 @@ class PulseUDPTransport:
             "timing_plan_replay": {},
             "claim_boundary": PULSE_LOCAL_CLAIM_BOUNDARY,
         }
+""",
+    )
+    _write(
+        root,
+        "src/network/transport/ghost_pulse_transport.py",
+        """
+from src.network.transport.pulse_transport import PULSE_LOCAL_CLAIM_BOUNDARY, PulseUDPTransport
+
+class GhostPulseTransport:
+    timing_plan_replay_digest = staticmethod(PulseUDPTransport.timing_plan_replay_digest)
+    timing_plan_replay_projection = staticmethod(PulseUDPTransport.timing_plan_replay_projection)
+
+    def get_stats(self):
+        return {
+            "evidence_status": "EXPERIMENTAL_LOCAL_TIMING_PROFILE",
+            "stealth_mode": "NOT_VERIFIED",
+            "timing_plan_samples": [],
+            "timing_plan_samples_tail": [],
+            "timing_plan_summary": {},
+            "timing_plan_replay": {},
+            "claim_boundary": PULSE_LOCAL_CLAIM_BOUNDARY,
+        }
+""",
+    )
+    _write(
+        root,
+        "src/client/engine.py",
+        """
+from src.network.transport.ghost_pulse_transport import GhostPulseTransport
+
+class QuantumShieldEngine:
+    def __init__(self, master_key, mode="corporate"):
+        self.transport = GhostPulseTransport(master_key, mode=mode)
 """,
     )
     _write(
@@ -789,6 +923,10 @@ payload = {
 class Manager:
     def __init__(self):
         self.join_token_guard = JoinTokenReplayGuard()
+        self.socket_path = None
+
+    def _socket_ready(self):
+        return bool(self.socket_path.exists()) and bool(self.socket_path.is_socket())
 
     def attest_node(self, token):
         guard_decision = self.join_token_guard.reserve(token)
@@ -3738,12 +3876,16 @@ def economy_finality_summary(summary):
 """,
     )
     _write(
-        root,
-        "src/self_healing/mape_k/manager.py",
-        """
+    root,
+    "src/self_healing/mape_k/manager.py",
+    """
+from src.self_healing.mape_k.logic_contract import SelfHealingLogicContract
 from src.integration.spine import SafeActuatorEvidenceMetadata
 
 SELF_HEALING_MAPEK_SAFE_ACTUATOR_CLAIM_BOUNDARY = "bounded local control-action evidence"
+
+logic_contract = SelfHealingLogicContract(node_id="fixture-node")
+logic_contract.transition_to
 
 def _self_healing_safe_actuator_claim_gate():
     return {
@@ -3762,12 +3904,16 @@ payload = {
 """,
     )
     _write(
-        root,
-        "src/services/pqc_rotator_service.py",
-        """
+    root,
+    "src/services/pqc_rotator_service.py",
+    """
+from src.services.pqc_logic_contract import PQCRotationLogicContract
 from src.integration.spine import SafeActuatorEvidenceMetadata
 
 PQC_ROTATOR_SAFE_ACTUATOR_CLAIM_BOUNDARY = "bounded local PQC rotation evidence"
+
+logic_contract = PQCRotationLogicContract()
+logic_contract.transition_to
 
 def _pqc_claim_gate():
     return {
@@ -3785,6 +3931,55 @@ payload = {
         claim_gate=_pqc_claim_gate(),
     ).to_dict(),
 }
+""",
+    )
+    _write(
+        root,
+        "src/network/ebpf/pqc_xdp_loader.py",
+        """
+from src.network.ebpf.dataplane_logic_contract import DataplaneLogicContract
+
+logic_contract = DataplaneLogicContract()
+logic_contract.transition_to
+""",
+    )
+    _write(
+        root,
+        "src/self_healing/mape_k/logic_contract.py",
+        """
+class SelfHealingLogicContract:
+    def __init__(self, node_id):
+        self.node_id = node_id
+
+    def transition_to(self, state, context=None):
+        return None
+""",
+    )
+    _write(
+        root,
+        "src/services/pqc_logic_contract.py",
+        """
+class PQCRotationLogicContract:
+    def transition_to(self, state, context=None):
+        return None
+""",
+    )
+    _write(
+        root,
+        "src/network/ebpf/dataplane_logic_contract.py",
+        """
+class DataplaneLogicContract:
+    def transition_to(self, state, context=None):
+        return None
+""",
+    )
+    _write(
+        root,
+        "src/integration/formal_proof_registry.py",
+        """
+SCHEMA = "x0tta6bl4.global_readiness_proof.v1"
+required_planes = {"mape_k", "trust_pqc", "dataplane"}
+DATAPLANE_SCHEMA = "x0tta6bl4.dataplane_proof.fragment.v1"
 """,
     )
     _write(
@@ -4623,6 +4818,28 @@ def build_report(root):
         "failures": [],
     }
 REQUIRE_FLAG = "--require-verified"
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/verify_traffic_delivery_operator_flow.py",
+        """
+SCHEMA = "x0tta6bl4.traffic_delivery_operator_flow.v1"
+DECISION_VERIFIED = "TRAFFIC_DELIVERY_OPERATOR_FLOW_VERIFIED"
+CLAIM_BOUNDARY = (
+    "Traffic-delivery operator-flow verifier is a local controlled loopback "
+    "harness only. It does not prove customer traffic, external reachability, "
+    "DPI bypass, settlement finality, production SLOs, or production readiness."
+)
+REQUIRE_FLAG = "--require-verified"
+""",
+    )
+    _write(
+        root,
+        "scripts/ops/summarize_dirty_worktree_review.py",
+        """
+SCHEMA = "x0tta6bl4.dirty_worktree_review.v1"
+CLAIM_BOUNDARY = "Read-only dirty-worktree review inventory."
 """,
     )
     _write(
@@ -6193,6 +6410,7 @@ payload = {
 }
 """,
     )
+    _write_commercial_mesh_platform_ready_root(root)
     _write_current_evidence(root)
 
 
@@ -6349,6 +6567,35 @@ def _passing_runner(
         return CommandResult(0, "")
     if tuple(args[-2:]) == ("alembic", "heads"):
         return CommandResult(0, "d7c8f1a2b3c4 (head)\n")
+    if (
+        len(args) > 1
+        and args[1] == "scripts/ops/check_commercial_mesh_platform_readiness.py"
+    ):
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "ready": True,
+                    "decision": commercial_mesh_readiness.DECISION_READY,
+                    "claim_boundary": commercial_mesh_readiness.CLAIM_BOUNDARY,
+                    "summary": {
+                        "requirements_total": len(
+                            commercial_mesh_readiness.REQUIREMENT_SPECS
+                        ),
+                        "passed": len(commercial_mesh_readiness.REQUIREMENT_SPECS),
+                        "failures": 0,
+                        "static_only": True,
+                        "starts_services": False,
+                        "mutates_state": False,
+                        "charges_customers": False,
+                        "proves_production_readiness": False,
+                        "proves_customer_traffic": False,
+                        "proves_settlement_finality": False,
+                    },
+                    "blockers": [],
+                }
+            ),
+        )
     if len(args) > 1 and args[1] == "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py":
         return CommandResult(
             0,
@@ -6702,6 +6949,46 @@ def _passing_runner(
         )
     if (
         len(args) > 1
+        and args[1] == "scripts/ops/verify_traffic_delivery_operator_flow.py"
+    ):
+        return CommandResult(
+            0,
+            json.dumps(
+                {
+                    "decision": "TRAFFIC_DELIVERY_OPERATOR_FLOW_VERIFIED",
+                    "ok": True,
+                    "claim_boundary": (
+                        "local controlled traffic-delivery smoke only; "
+                        "does not prove customer traffic, external reachability, "
+                        "or production readiness"
+                    ),
+                    "summary": {
+                        "cases_run": 6,
+                        "cases_checked": 6,
+                        "local_loopback_probe": True,
+                        "controlled_synthetic_traffic": True,
+                        "collector_ready": True,
+                        "event_written": True,
+                        "proof_gate_allowed": True,
+                        "proof_gate_artifact_valid": True,
+                        "eventbus_evidence_recognized_by_proof_gate": True,
+                        "raw_targets_redacted": True,
+                        "payloads_redacted": True,
+                        "mutates_project_runtime": False,
+                        "writes_temp_eventbus": True,
+                        "traffic_delivery_claimed": True,
+                        "customer_traffic_claimed": False,
+                        "external_reachability_claimed": False,
+                        "dpi_bypass_claimed": False,
+                        "settlement_finality_claimed": False,
+                        "production_readiness_claimed": False,
+                    },
+                    "failures": [],
+                }
+            ),
+        )
+    if (
+        len(args) > 1
         and args[1]
         == "scripts/ops/verify_dataplane_delivery_private_target_operator_run.py"
     ):
@@ -6815,7 +7102,17 @@ def test_dirty_git_worktree_reports_actionable_counts(tmp_path: Path) -> None:
     assert "libx0t=1" in result.details
     assert "src=1" in result.details
     assert "tests=1" in result.details
+    assert "review_sample:" in result.details
+    assert "modified:src/core/app.py" in result.details
+    assert "deleted:libx0t/core/app.py" in result.details
+    assert "untracked:tests/unit/new_test.py" in result.details
+    assert "renamed:docs/new/path.py" in result.details
     assert "reviewed commits or a clean worktree" in result.details
+    assert DIRTY_WORKTREE_REVIEWER in result.details
+    assert "--agent <agent>" in result.details
+    assert "--require-owned" in result.details
+    assert "--require-agent-claimable" in result.details
+    assert "never git add -A" in result.details
 
 
 def test_ready_contract_passes_with_clean_static_and_command_evidence(tmp_path: Path) -> None:
@@ -6850,13 +7147,83 @@ def test_ready_contract_passes_with_clean_static_and_command_evidence(tmp_path: 
     assert "dataplane_delivery_private_target_operator_run_preflight" in check_ids
     assert "ghost_pulse_current_runtime_boundary" in check_ids
     assert "integration_spine_code_wiring_runtime" in check_ids
+    assert "traffic_delivery_operator_flow_runtime" in check_ids
     assert "settlement_finality_cross_plane_gate" in check_ids
     assert "traffic_delivery_cross_plane_gate" in check_ids
     assert "customer_traffic_cross_plane_gate" in check_ids
+    assert "commercial_mesh_platform_readiness_contract" in check_ids
+    assert "commercial_mesh_platform_readiness_runtime" in check_ids
     assert captured_runtime_timeouts["api_heal_probe_timeout"] == 180
     assert captured_runtime_timeouts["real_agent_timeout"] == 240
     assert "--timeout-seconds" in captured_runtime_timeouts["real_agent_args"]
     assert "180" in captured_runtime_timeouts["real_agent_args"]
+
+
+def test_missing_commercial_mesh_platform_static_contract_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    roadmap = tmp_path / "ROADMAP.md"
+    roadmap.write_text(
+        roadmap.read_text(encoding="utf-8").replace(
+            "Convert to paid pilots",
+            "Convert to unpaid demos",
+        ),
+        encoding="utf-8",
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "commercial_mesh_platform_readiness_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "commercial_mesh_platform_readiness_contract"
+    ]
+    assert "commercial_target_contract" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_commercial_mesh_platform_command_failure_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def failing_runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/check_commercial_mesh_platform_readiness.py"
+        ):
+            return CommandResult(
+                2,
+                json.dumps(
+                    {
+                        "ready": False,
+                        "decision": commercial_mesh_readiness.DECISION_BLOCKED,
+                        "blockers": [
+                            {"requirement_id": "commercial_loop_contract"}
+                        ],
+                    }
+                ),
+                "",
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=failing_runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "commercial_mesh_platform_readiness_runtime" in blocker_ids
+    assert report["ready"] is False
 
 
 def test_ghost_pulse_current_runtime_boundary_blocks_readiness_on_overclaim(
@@ -7669,6 +8036,64 @@ def test_dataplane_delivery_operator_flow_blocks_readiness_on_overpromotion(
 
     blocker_ids = {item["check_id"] for item in report["blockers"]}
     assert "dataplane_delivery_operator_flow_runtime" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_traffic_delivery_operator_flow_blocks_readiness_on_overpromotion(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+
+    def runner(
+        args: Sequence[str],
+        env: Mapping[str, str] | None = None,
+        timeout: int = 60,
+    ) -> CommandResult:
+        if (
+            len(args) > 1
+            and args[1] == "scripts/ops/verify_traffic_delivery_operator_flow.py"
+        ):
+            return CommandResult(
+                0,
+                json.dumps(
+                    {
+                        "decision": "TRAFFIC_DELIVERY_OPERATOR_FLOW_VERIFIED",
+                        "ok": True,
+                        "claim_boundary": (
+                            "local controlled traffic-delivery smoke only; "
+                            "does not prove customer traffic"
+                        ),
+                        "summary": {
+                            "cases_run": 6,
+                            "cases_checked": 6,
+                            "local_loopback_probe": True,
+                            "controlled_synthetic_traffic": True,
+                            "collector_ready": True,
+                            "event_written": True,
+                            "proof_gate_allowed": True,
+                            "proof_gate_artifact_valid": True,
+                            "eventbus_evidence_recognized_by_proof_gate": True,
+                            "raw_targets_redacted": True,
+                            "payloads_redacted": True,
+                            "mutates_project_runtime": False,
+                            "writes_temp_eventbus": True,
+                            "traffic_delivery_claimed": True,
+                            "customer_traffic_claimed": True,
+                            "external_reachability_claimed": False,
+                            "dpi_bypass_claimed": False,
+                            "settlement_finality_claimed": False,
+                            "production_readiness_claimed": False,
+                        },
+                        "failures": [],
+                    }
+                ),
+            )
+        return _passing_runner(args, env, timeout)
+
+    report = build_report(tmp_path, runner=runner, include_git_check=False)
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "traffic_delivery_operator_flow_runtime" in blocker_ids
     assert report["ready"] is False
 
 
@@ -10999,6 +11424,111 @@ def test_missing_current_evidence_context_blocks_readiness(tmp_path: Path) -> No
     assert report["ready"] is False
 
 
+def test_current_evidence_overclaim_true_flags_block_readiness(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
+        json.dumps(
+            {
+                "status": "working_map_not_production_completion_proof",
+                "planes": {
+                    "data_plane": {},
+                    "control_plane": {},
+                    "trust_plane": {},
+                    "evidence_plane": {},
+                    "economy_plane": {},
+                },
+                "cross_plane_links": [
+                    {
+                        "id": "unsafe-customer-claim",
+                        "claim_boundary": "fixture should fail closed",
+                        "proof_flags": {
+                            "customer_traffic_claim_allowed": True,
+                            "production_attestation_verifier_claim_allowed": True,
+                            "production_readiness_claim_allowed": False,
+                        },
+                    }
+                ],
+                "current_gaps": [],
+                "next_actions": [],
+            },
+            indent=2,
+        ),
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "current_evidence_overclaim_flags" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "current_evidence_overclaim_flags"
+    ]
+    assert "customer_traffic_claim_allowed" in blocker["details"]
+    assert "production_attestation_verifier_claim_allowed" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_current_evidence_local_preflight_true_flags_do_not_overclaim(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
+        json.dumps(
+            {
+                "status": "working_map_not_production_completion_proof",
+                "planes": {
+                    "data_plane": {},
+                    "control_plane": {},
+                    "trust_plane": {},
+                    "evidence_plane": {},
+                    "economy_plane": {},
+                },
+                "cross_plane_links": [
+                    {
+                        "id": "local-production-deploy-blocked-preflight",
+                        "claim_boundary": (
+                            "local blocked-preflight evidence only, not live "
+                            "deployment or production readiness"
+                        ),
+                        "proof_flags": {
+                            "production_deploy_blocked_preflight_evidence_retained": True,
+                            "production_deploy_blocked_before_live_subprocess": True,
+                            "production_deploy_blocked_before_kubectl_prerequisites": True,
+                            "production_readiness_claim_allowed": False,
+                            "customer_traffic_claim_allowed": False,
+                        },
+                    }
+                ],
+                "current_gaps": [],
+                "next_actions": [],
+            },
+            indent=2,
+        ),
+    )
+
+    report = build_report(
+        tmp_path,
+        runner=_passing_runner,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "current_evidence_overclaim_flags" not in blocker_ids
+
+
 def test_command_failure_blocks_readiness(tmp_path: Path) -> None:
     _ready_root(tmp_path)
 
@@ -11103,6 +11633,106 @@ class SPIREAgentManager:
     ]
     assert "hash-only" in blocker["details"]
     assert "reused" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_runtime_reality_boundary_blocks_silent_mock_spiffe(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/security/spiffe/workload/api_client.py",
+        """
+class SPIFFEWorkloadAPIClient:
+    def __init__(self):
+        self.mock_mode = True
+
+    def evidence_status(self):
+        return {"real_spire_evidence": True}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "runtime_reality_boundary_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "runtime_reality_boundary_contract"
+    ]
+    assert "mock SPIFFE" in blocker["details"]
+    assert "real SPIRE proof" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_runtime_reality_boundary_blocks_synthetic_ebpf_overclaim(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/libx0t/network/ebpf/performance_monitor.py",
+        """
+class EBPFPerformanceMonitor:
+    def get_status(self):
+        return {"real_ebpf_map_evidence": True}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "runtime_reality_boundary_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "runtime_reality_boundary_contract"
+    ]
+    assert "synthetic eBPF metrics" in blocker["details"]
+    assert "kernel/dataplane proof" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_runtime_reality_boundary_blocks_hmac_as_pqc(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/api/maas_security.py",
+        """
+hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+class PQCTokenSigner:
+    def sign_with_hmac_fallback(self):
+        return {"algorithm": "HMAC-SHA256", "pqc_secured": True}
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "runtime_reality_boundary_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "runtime_reality_boundary_contract"
+    ]
+    assert "HMAC fallback is not PQC" in blocker["details"]
     assert report["ready"] is False
 
 
@@ -11533,6 +12163,12 @@ def test_dirty_git_state_blocks_readiness_without_traceback(tmp_path: Path) -> N
     ]
     assert "status_counts: modified=1, untracked=1" in git_blocker["details"]
     assert "top_paths: docs=1, scripts=1" in git_blocker["details"]
+    assert "review_sample: modified:scripts/ops/check_real_readiness.py" in git_blocker["details"]
+    assert "untracked:docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json" in git_blocker["details"]
+    assert DIRTY_WORKTREE_REVIEWER in git_blocker["details"]
+    assert "--agent <agent>" in git_blocker["details"]
+    assert "--require-owned" in git_blocker["details"]
+    assert "--require-agent-claimable" in git_blocker["details"]
     assert report["ready"] is False
 
 
