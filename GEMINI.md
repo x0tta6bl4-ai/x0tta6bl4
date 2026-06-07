@@ -50,6 +50,25 @@ Local evidence is not production readiness proof.
 - Runtime use of `src/core/structured_logging.py` is not proven just because
   its unit tests pass. Verify the actual import path used by `src/core/app.py`.
 
+## GitMark RAG Memory Bank
+
+Use the local GitMark-style RAG graph for navigation and context retrieval:
+
+```bash
+python3 scripts/gitmark_memory_bank.py build --root /mnt/projects --out-dir /mnt/projects/.gitmark-memory --profile rag
+python3 scripts/gitmark_memory_bank.py search "Horizon-2 RAG"
+python3 scripts/gitmark_memory_bank.py context "VPN routing evidence" --limit 5
+```
+
+The visual graph is `/mnt/projects/.gitmark-memory/graph.html`. For browser
+review, serve `/mnt/projects` and open
+`http://127.0.0.1:8765/.gitmark-memory/graph.html`.
+
+Rebuild after changing docs, skills, agent instructions, or runbooks. The graph
+is not readiness, production, external DPI, customer traffic, or VPN-health
+evidence. Use `--include-archive` only when historical context is explicitly
+requested.
+
 ## External Evidence
 
 - Never ask the user to paste private target URLs, proxy endpoints, operator
