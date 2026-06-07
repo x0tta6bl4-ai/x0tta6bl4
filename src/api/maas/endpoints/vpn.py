@@ -12,6 +12,7 @@ import os
 import secrets
 import time
 import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
@@ -495,6 +496,18 @@ class VPNStatusResponse(BaseModel):
     uptime: float
 
 
+class SubscriptionStatusResponse(BaseModel):
+    user_id: str
+    email: str
+    plan: str
+    status: str  # active, expired, pending, blocked
+    expires_at: Optional[datetime] = None
+    days_left: Optional[int] = None
+    requests_count: int
+    requests_limit: int
+    vpn_uuid_present: bool
+
+
 def _normalize_identity(value: Any) -> str:
     """Normalize identity values for safe str/int compatibility checks."""
     if value is None:
@@ -825,6 +838,49 @@ async def get_secure_config(
             }]
         }
     }
+
+@router.get("/subscription/status")
+@limiter.limit("10/minute")
+async def vpn_subscription_status(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> SubscriptionStatusResponse:
+    """
+    Get current user's subscription status.
+    Requires authentication.
+    """
+    user = await get_current_user_from_maas(request=request, db=db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    now = datetime.now()
+    days_left = None
+    status = "active"
+
+    if user.expires_at:
+        if user.expires_at < now:
+            status = "expired"
+            days_left = 0
+        else:
+            days_left = (user.expires_at - now).days
+            if days_left <= 3:
+                status = "warning"
+
+    if user.plan == "free" and status != "expired":
+        status = "basic"
+
+    return SubscriptionStatusResponse(
+        user_id=str(user.id),
+        email=user.email,
+        plan=user.plan,
+        status=status,
+        expires_at=user.expires_at,
+        days_left=days_left,
+        requests_count=user.requests_count,
+        requests_limit=user.requests_limit,
+        vpn_uuid_present=bool(user.vpn_uuid),
+    )
+
 
 @router.get("/config")
 @limiter.limit("30/minute")

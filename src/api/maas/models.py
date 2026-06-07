@@ -488,4 +488,20 @@ __all__ = [
     # Billing
     "BillingWebhookRequest",
     "BillingWebhookResponse",
+    "LegacyBillingResponse",
 ]
+
+
+class LegacyBillingResponse(BaseModel):
+    """Compatibility response for legacy billing actions."""
+
+    status: str
+    message: str
+    processed: bool = True
+    event_id: Optional[str] = None
+    user_id: Optional[str] = None
+    plan_before: Optional[str] = None
+    plan_after: Optional[str] = None
+    requests_limit: Optional[int] = None
+    idempotent_replay: bool = False
+    data: Optional[Dict[str, Any]] = None

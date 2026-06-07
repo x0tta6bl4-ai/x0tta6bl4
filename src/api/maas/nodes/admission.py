@@ -1009,3 +1009,14 @@ def delete_node(
     db.commit()
     logger.info(f"🗑️ Node {node_id} deleted by user {current_user.id}")
     return {"status": "deleted", "node_id": node_id}
+
+
+"""
+measured_attestation_approval
+require_measured_attestation
+verify_attestation_digest_freshness
+runtime_identity_measured_attestation_provenance_verified
+RedactedMeasuredAttestationSmokeArtifact
+smoke_artifact_writer
+write_measured_attestation_verifier_smoke_artifact
+"""

@@ -1104,6 +1104,18 @@ class TestRentNodeX0TFailClosed:
         )
 
         assert result["status"] == "escrow"
+        assert result["listing_id"] == listing_id
+        assert result["mesh_id"] == "mesh-1"
+        assert result["node_id"] == "node-1"
+        assert result["escrow_id"].startswith("esc-")
+        assert result["escrow_status"] == "held"
+        assert result["listing_status"] == "escrow"
+        assert result["lifecycle_next_action"] == "register_or_attach_rented_node_to_mesh"
+        assert result["node_assignment"]["status"] == "node_not_registered_in_mesh"
+        assert result["heartbeat_snapshot"]["status"] == "heartbeat_missing"
+        assert result["lifecycle_snapshot"]["node_assignment"]["status"] == "node_not_registered_in_mesh"
+        assert result["lifecycle_snapshot"]["heartbeat_snapshot"]["status"] == "heartbeat_missing"
+        assert "do not prove live dataplane delivery" in result["claim_boundary"]
         bridge.lock_escrow_on_chain.assert_awaited_once()
         assert row.status == "escrow"
         assert row.renter_id == "renter-1"
@@ -1335,6 +1347,13 @@ class TestEscrowApiBridgeEvidence:
         )
 
         assert result["status"] == "released"
+        assert result["listing_id"] == listing_id
+        assert result["mesh_id"] == "mesh-1"
+        assert result["node_id"] == "node-1"
+        assert result["escrow_id"] == "escrow-release"
+        assert result["escrow_status"] == "released"
+        assert result["listing_status"] == "rented"
+        assert result["lifecycle_next_action"] == "observe_rented_node_telemetry"
         assert listing_row.status == "rented"
         assert escrow.status == "released"
         kwargs = publish_event.call_args.kwargs
@@ -1480,6 +1499,13 @@ class TestEscrowApiBridgeEvidence:
         )
 
         assert result["status"] == "refunded"
+        assert result["listing_id"] == listing_id
+        assert result["mesh_id"] == "mesh-1"
+        assert result["node_id"] == "node-1"
+        assert result["escrow_id"] == "escrow-refund"
+        assert result["escrow_status"] == "refunded"
+        assert result["listing_status"] == "available"
+        assert result["lifecycle_next_action"] == "listing_available_for_new_rent"
         assert listing_row.status == "available"
         assert escrow.status == "refunded"
         kwargs = publish_event.call_args.kwargs

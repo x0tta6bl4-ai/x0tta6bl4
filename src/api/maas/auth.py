@@ -19,6 +19,7 @@ from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBea
 from sqlalchemy.orm import Session
 
 from src.api.maas_security import ApiKeyManager
+from src.core.rbac import DEFAULT_ROLE_PERMISSIONS, MeshPermission
 from src.database import get_db
 from src.services.maas_auth_service import MaaSAuthService, find_user_by_api_key
 
@@ -124,6 +125,45 @@ def _get_db_auth_service() -> MaaSAuthService:
     return _db_auth_service
 
 
+def _permission_scopes_from_db_user(user: Any) -> List[str]:
+    permissions = getattr(user, "permissions", None)
+    if permissions is None:
+        return []
+    if isinstance(permissions, str):
+        return [item.strip() for item in permissions.split(",") if item.strip()]
+    try:
+        return [
+            str(getattr(item, "value", item)).strip()
+            for item in permissions
+            if str(getattr(item, "value", item)).strip()
+        ]
+    except TypeError:
+        text = str(getattr(permissions, "value", permissions)).strip()
+        return [text] if text else []
+
+
+def _permission_value(permission: str) -> str:
+    try:
+        return MeshPermission(permission).value
+    except ValueError:
+        return str(permission)
+
+
+def _role_allows_permission(role: str, permission: str) -> bool:
+    wanted = _permission_value(permission)
+    allowed = DEFAULT_ROLE_PERMISSIONS.get(str(role or "user"), set())
+    return any(getattr(item, "value", str(item)) == wanted for item in allowed)
+
+
+def _user_scope_values(user: UserContext) -> set[str]:
+    scopes = user.scopes or []
+    return {
+        str(getattr(scope, "value", scope)).strip()
+        for scope in scopes
+        if str(getattr(scope, "value", scope)).strip()
+    }
+
+
 def _as_user_context_from_db_user(user: Any, *, api_key: Optional[str] = None) -> UserContext:
     return UserContext(
         user_id=str(getattr(user, "id", "")),
@@ -131,6 +171,7 @@ def _as_user_context_from_db_user(user: Any, *, api_key: Optional[str] = None) -
         role=str(getattr(user, "role", "user") or "user"),
         plan=str(getattr(user, "plan", "starter") or "starter"),
         api_key=api_key,
+        scopes=_permission_scopes_from_db_user(user),
     )
 
 
@@ -280,6 +321,28 @@ def require_role(roles: Union[str, List[str]]):
         return user
 
     return role_checker
+
+
+def require_permission(permission: str):
+    """FastAPI dependency factory requiring a specific permission string."""
+
+    async def permission_checker(user: UserContext = Depends(get_current_user)) -> UserContext:
+        if user.role == "admin":
+            return user
+
+        user_scopes = _user_scope_values(user)
+        wanted = _permission_value(permission)
+        if "*" in user_scopes or wanted in user_scopes:
+            return user
+        if _role_allows_permission(user.role, permission):
+            return user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Missing required permission: {permission}",
+        )
+
+    return permission_checker
 
 
 # ---------------------------------------------------------------------------

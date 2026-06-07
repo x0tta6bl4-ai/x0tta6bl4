@@ -256,12 +256,12 @@ class TestSetAdmin:
 
 
 class TestRegisterLogin:
-    def test_duplicate_email_returns_400(self, client, normal_user):
+    def test_duplicate_email_returns_409(self, client, normal_user):
         resp = client.post(
             "/api/v1/maas/auth/register",
             json={"email": normal_user["email"], "password": "password123"},
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 409
 
     def test_short_password_returns_422(self, client):
         resp = client.post(

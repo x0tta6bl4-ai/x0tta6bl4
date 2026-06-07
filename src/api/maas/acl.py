@@ -5,10 +5,13 @@ Provides ACL policy management and evaluation for fine-grained access control.
 """
 
 import logging
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -341,6 +344,66 @@ class ACLManager:
 
     def __init__(self, evaluator: Optional[ACLEvaluator] = None):
         self._evaluator = evaluator or ACLEvaluator()
+        self.source_agent = "maas-acl-manager"
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "access-control", "api-security"),
+            extra_techniques=("reverse_planning",),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
+        self._record_thinking(
+            operation="init",
+            goal="initialize ACL manager with deny-by-default evaluator",
+            constraints={"policy_mesh_count": len(self._evaluator._policies)},
+        )
+
+    @staticmethod
+    def _hash_value(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            return hashlib.sha256(value).hexdigest()
+        return hashlib.sha256(
+            str(value).encode("utf-8", errors="replace")
+        ).hexdigest()
+
+    def _record_thinking(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "maas_acl_manager_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                "raw_mesh_ids_redacted": True,
+                "raw_principals_redacted": True,
+                "raw_resources_redacted": True,
+                "raw_context_redacted": True,
+                "acl_decision_is_local_policy_evaluation": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local MaaS ACL policy metadata, hashes, counts, "
+                "and allow/deny status. Do not expose raw mesh IDs, principals, "
+                "resources, IPs, attributes, or policy context. A local ACL "
+                "decision is not proof of external identity or dataplane delivery."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose ACL decision thinking state without raw access inputs."""
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
 
     def grant_access(
         self,
@@ -366,6 +429,18 @@ class ACLManager:
             Created ACL entry
         """
         import secrets
+        self._record_thinking(
+            operation="grant_access",
+            goal="grant ACL access without exposing principal or resource",
+            constraints={
+                "mesh_id_hash": self._hash_value(mesh_id),
+                "principal_hash": self._hash_value(user_id),
+                "action_hash": self._hash_value(action),
+                "resource_hash": self._hash_value(resource),
+                "granted_by_hash": self._hash_value(granted_by),
+                "expires": expires_at is not None,
+            },
+        )
 
         entry = ACLEntry(
             id=f"acl-{secrets.token_hex(8)}",
@@ -382,6 +457,16 @@ class ACLManager:
         # Sync to registry
         from .registry import add_mesh_policy
         add_mesh_policy(mesh_id, entry.to_dict())
+        self._record_thinking(
+            operation="grant_access",
+            goal="record ACL grant result",
+            constraints={
+                "mesh_id_hash": self._hash_value(mesh_id),
+                "entry_id_hash": self._hash_value(entry.id),
+                "policy_count": len(self._evaluator.get_policies(mesh_id)),
+                "effect": entry.effect.value,
+            },
+        )
 
         return entry
 
@@ -400,7 +485,17 @@ class ACLManager:
         Returns:
             True if entry was revoked
         """
-        return self._evaluator.remove_policy(mesh_id, entry_id)
+        revoked = self._evaluator.remove_policy(mesh_id, entry_id)
+        self._record_thinking(
+            operation="revoke_access",
+            goal="record ACL revoke result without exposing entry ID",
+            constraints={
+                "mesh_id_hash": self._hash_value(mesh_id),
+                "entry_id_hash": self._hash_value(entry_id),
+                "revoked": revoked,
+            },
+        )
+        return revoked
 
     def check_access(
         self,
@@ -423,9 +518,22 @@ class ACLManager:
         Returns:
             True if access is allowed
         """
-        return self._evaluator.evaluate(
+        allowed = self._evaluator.evaluate(
             mesh_id, user_id, action, resource, context
         )
+        self._record_thinking(
+            operation="check_access",
+            goal="record local ACL allow/deny decision without raw request data",
+            constraints={
+                "mesh_id_hash": self._hash_value(mesh_id),
+                "principal_hash": self._hash_value(user_id),
+                "action_hash": self._hash_value(action),
+                "resource_hash": self._hash_value(resource),
+                "context_key_count": len(context or {}),
+                "allowed": allowed,
+            },
+        )
+        return allowed
 
     def list_user_permissions(
         self,
@@ -448,6 +556,16 @@ class ACLManager:
         for entry in policies:
             if entry.principal == user_id or entry.principal == "*":
                 permissions.append(entry.to_dict())
+        self._record_thinking(
+            operation="list_user_permissions",
+            goal="list ACL permissions without exposing principal or policy payload",
+            constraints={
+                "mesh_id_hash": self._hash_value(mesh_id),
+                "principal_hash": self._hash_value(user_id),
+                "policy_count": len(policies),
+                "permission_count": len(permissions),
+            },
+        )
 
         return permissions
 

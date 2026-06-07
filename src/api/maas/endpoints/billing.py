@@ -35,7 +35,7 @@ from ..constants import PLAN_REQUEST_LIMITS
 from ..services import BillingService, UsageMeteringService
 from src.database import get_db, User, MeshInstance, Invoice
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.api import maas_legacy
+from .helpers.legacy_billing import legacy_billing_webhook as maas_legacy_webhook
 from ..registry import get_all_meshes, get_mesh
 
 logger = logging.getLogger(__name__)
@@ -775,14 +775,14 @@ async def billing_webhook(
     try:
         if "event_type" in payload and "email" in payload:
             # This looks like a MaaS legacy webhook used in integration tests
-            from src.api.maas_legacy import BillingWebhookRequest
+            from ..models import BillingWebhookRequest
             try:
                 req = BillingWebhookRequest(**payload)
             except Exception as exc:
                 # If required fields are missing (like event_id in some tests)
                 raise HTTPException(status_code=400, detail=str(exc))
 
-            return await maas_legacy.legacy_billing_webhook(
+            return await maas_legacy_webhook(
                 req=req,
                 request=request,
                 db=db,
@@ -918,15 +918,16 @@ async def get_usage_reports(
     mesh_summaries = []
     total_node_hours = 0.0
     for mesh in meshes:
-        usage = maas_legacy.usage_metering_service.get_mesh_usage(mesh)
+        usage = get_usage_service()._get_mesh_usage(mesh.mesh_id, db=db)
         total_node_hours += float(usage.get("total_node_hours") or 0.0)
         mesh_summaries.append(
             {
                 "mesh_id": usage.get("mesh_id"),
-                "mesh_name": usage.get("mesh_name"),
+                "mesh_name": getattr(mesh, "name", "Unnamed"),
                 "status": usage.get("status"),
                 "active_nodes": usage.get("active_nodes"),
                 "total_node_hours": usage.get("total_node_hours"),
+                "nodes": usage.get("nodes", []),
             }
         )
     return {
@@ -947,7 +948,7 @@ async def get_mesh_usage(
     mesh = get_mesh(mesh_id)
     if mesh is None or str(getattr(mesh, "owner_id", "")) != str(user.user_id):
         raise HTTPException(status_code=404, detail="Mesh not found")
-    return maas_legacy.usage_metering_service.get_mesh_usage(mesh)
+    return get_usage_service()._get_mesh_usage(mesh_id, db=db)
 
 @router.get("/limits", summary="Get plan limits")
 async def get_plan_limits(

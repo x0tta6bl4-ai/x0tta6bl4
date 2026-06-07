@@ -12,15 +12,14 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-import src.api.maas_supply_chain as supply_mod
-from src.api.maas_supply_chain import (
+from src.api.maas.endpoints.supply_chain import (
     AttestationMeta,
     BinaryVerifyRequest,
     ComponentEntry,
     SBOMRegisterRequest,
     SBOMResponse,
-    _coerce_components,
     _db_session_available,
+    _coerce_components,
     _legacy_verify,
     _lookup_in_memory_sbom,
     _safe_record_audit,
@@ -81,6 +80,7 @@ class TestDbSessionAvailable:
 
 class TestSupplyChainReadiness:
     def test_ready_when_persistent_paths_and_adapter_are_available(self, monkeypatch):
+        import src.api.maas.endpoints.supply_chain as supply_mod
         monkeypatch.setattr(supply_mod, "_ebpf_attestation_filter_available", lambda: True)
         db = MagicMock(spec=["query", "commit", "add", "rollback"])
 
@@ -100,6 +100,7 @@ class TestSupplyChainReadiness:
         assert payload["degraded_dependencies"] == []
 
     def test_degraded_when_db_registry_audit_and_adapter_are_missing(self, monkeypatch):
+        import src.api.maas.endpoints.supply_chain as supply_mod
         monkeypatch.setattr(supply_mod, "_sbom_registry", {})
         monkeypatch.setattr(supply_mod, "_ebpf_attestation_filter_available", lambda: False)
 
@@ -120,6 +121,7 @@ class TestSupplyChainReadiness:
         assert "durable SBOM and binary-attestation evidence" in payload["claim_boundary"]
 
     def test_readiness_endpoint_marks_degraded_dependencies(self, monkeypatch):
+        import src.api.maas.endpoints.supply_chain as supply_mod
         monkeypatch.setattr(supply_mod, "_ebpf_attestation_filter_available", lambda: False)
         request = SimpleNamespace(state=SimpleNamespace())
 
@@ -272,7 +274,7 @@ class TestSafeRecordAudit:
 
     def test_calls_record_audit_log_when_db_available(self):
         db = _fake_db()
-        with patch("src.api.maas_supply_chain.record_audit_log") as mock_ral:
+        with patch("src.api.maas.endpoints.supply_chain.record_audit_log") as mock_ral:
             _safe_record_audit(
                 db,
                 action="SBOM_REGISTERED",
@@ -285,7 +287,7 @@ class TestSafeRecordAudit:
 
     def test_rollback_on_audit_exception(self):
         db = _fake_db()
-        with patch("src.api.maas_supply_chain.record_audit_log", side_effect=RuntimeError("db down")):
+        with patch("src.api.maas.endpoints.supply_chain.record_audit_log", side_effect=RuntimeError("db down")):
             # Should not propagate exception
             _safe_record_audit(
                 db,

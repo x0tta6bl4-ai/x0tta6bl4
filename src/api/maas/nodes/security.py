@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from src.database import MeshInstance, User, get_db
 from src.core.rbac import MeshPermission, DEFAULT_ROLE_PERMISSIONS as ROLE_PERMISSIONS
-from src.api.maas_auth import require_role
+from src.api.maas.auth import require_role
 
 logger = logging.getLogger(__name__)
 

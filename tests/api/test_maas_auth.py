@@ -560,6 +560,27 @@ class TestRequirePermissionUnit:
             perm_checker(user=user)
         assert exc.value.status_code == 403
 
+
+class TestModularRequirePermissionUnit:
+    """Direct tests for the modular async permission checker."""
+
+    def test_modular_user_context_scope_grants_access(self):
+        import asyncio
+
+        from src.api.maas.auth import UserContext, require_permission
+
+        perm_checker = require_permission("analytics:view")
+        user = UserContext(
+            user_id="user-with-explicit-scope",
+            plan="starter",
+            role="user",
+            scopes=["analytics:view"],
+        )
+
+        result = asyncio.run(perm_checker(user=user))
+
+        assert result is user
+
     def test_non_matching_explicit_permissions_raises_403(self):
         """Explicit permissions set but doesn't include required → 403."""
         from fastapi import HTTPException

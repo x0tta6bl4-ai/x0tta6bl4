@@ -150,6 +150,55 @@ class TestACLManager:
         assert recorded[0][0] == "mesh-1"
         assert recorded[0][1]["id"] == "acl-abcd1234"
 
+    def test_thinking_status_redacts_acl_inputs(self, monkeypatch):
+        evaluator = ACLEvaluator()
+        manager = ACLManager(evaluator)
+        recorded = []
+        monkeypatch.setattr(
+            "src.api.maas.registry.add_mesh_policy",
+            lambda mesh_id, policy: recorded.append((mesh_id, policy)),
+        )
+
+        manager.grant_access(
+            mesh_id="SECRET_MESH_ID",
+            user_id="SECRET_USER_ID",
+            action="read",
+            resource="SECRET_RESOURCE/*",
+            granted_by="SECRET_ADMIN_ID",
+        )
+        allowed = manager.check_access(
+            "SECRET_MESH_ID",
+            "SECRET_USER_ID",
+            "read",
+            "SECRET_RESOURCE/node-1",
+            {"ip": "10.0.0.1", "attributes": {"tier": "SECRET_TIER_GOLD"}},
+        )
+
+        assert allowed is True
+        status = manager.get_thinking_status()
+        techniques = set(status["techniques"])
+        assert status["profile"]["role"] == "security"
+        assert "zero_trust_review" in techniques
+        assert "reverse_planning" in techniques
+        context = status["last_context"]
+        assert context["applied"]["framing"]["problem"] == "maas_acl_manager_operation"
+        constraints = context["applied"]["framing"]["constraints"]
+        assert constraints["operation"] == "check_access"
+        assert constraints["allowed"] is True
+        assert constraints["acl_decision_is_local_policy_evaluation"] is True
+        assert constraints["raw_mesh_ids_redacted"] is True
+        assert constraints["raw_principals_redacted"] is True
+        assert constraints["raw_resources_redacted"] is True
+        assert constraints["raw_context_redacted"] is True
+
+        rendered_status = str(status)
+        assert "SECRET_MESH_ID" not in rendered_status
+        assert "SECRET_USER_ID" not in rendered_status
+        assert "SECRET_RESOURCE" not in rendered_status
+        assert "SECRET_ADMIN_ID" not in rendered_status
+        assert "10.0.0.1" not in rendered_status
+        assert "SECRET_TIER_GOLD" not in rendered_status
+
     def test_list_user_permissions_includes_user_and_wildcard(self):
         evaluator = ACLEvaluator()
         manager = ACLManager(evaluator)
@@ -193,4 +242,3 @@ class TestPolicyFactories:
         assert entry.resource == "*"
         assert entry.effect == Effect.ALLOW
         assert entry.created_by == "admin-1"
-

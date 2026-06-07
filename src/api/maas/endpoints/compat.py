@@ -16,22 +16,25 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 import src.api.maas.registry as maas_registry
-from src.api import maas_legacy
 from src.api.cross_plane_claim_gate import (
     cross_plane_claim_gate_metadata,
     readiness_cross_plane_claim_gate_metadata,
 )
-from src.api.maas.auth import UserContext
+from src.api.maas.auth import (
+    get_current_user as get_current_user_from_maas,
+    require_permission,
+    UserContext,
+)
 from src.api.maas.endpoints import mesh as modular_mesh
 from src.api.maas.models import (
     MeshDeployRequest as ModularMeshDeployRequest,
     MeshDeployResponse as ModularMeshDeployResponse,
     MeshMetricsResponse,
     MeshStatusResponse,
+    ScaleRequest,
 )
-from src.api.maas_auth import get_current_user_from_maas, register as register_v1
+from src.api.maas.endpoints.auth import register as register_v1
 from src.api.maas_auth_models import TokenResponse, UserRegisterRequest
-from src.api.maas_billing import create_subscription_session
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.core.reliability_policy import mark_degraded_dependency
 from src.database import User, get_db
@@ -195,7 +198,7 @@ def _compat_auth_alias_available() -> bool:
 
 def _compat_legacy_deploy_available() -> bool:
     return (
-        callable(getattr(maas_legacy, "require_permission", None))
+        callable(require_permission)
         and callable(getattr(modular_mesh, "deploy_mesh", None))
         and callable(getattr(modular_mesh, "get_mesh_status", None))
         and callable(getattr(modular_mesh, "get_mesh_metrics", None))
@@ -207,7 +210,18 @@ def _compat_legacy_deploy_available() -> bool:
 
 
 def _compat_billing_alias_available() -> bool:
-    return callable(create_subscription_session)
+    return callable(_resolve_create_subscription_session())
+
+
+def _resolve_create_subscription_session():
+    try:
+        from src.api.maas.endpoints.billing import create_subscription_session
+    except Exception:
+        try:
+            from src.api.maas.endpoints.billing import create_subscription_session
+        except Exception:
+            return None
+    return create_subscription_session
 
 
 def _compat_models_available() -> bool:
@@ -1927,7 +1941,7 @@ async def deploy_mesh_alias(
     req: ModularMeshDeployRequest,
     request: Request,
     http_response: Response = None,
-    current_user: User = Depends(maas_legacy.require_permission("mesh:create")),
+    current_user: User = Depends(require_permission("mesh:create")),
     db: Session = Depends(get_db),
 ):
     """Alias historical deploy paths to the modular mesh lifecycle endpoint."""
@@ -2189,7 +2203,7 @@ async def get_mesh_metrics_alias(
 @router.post("/api/v1/maas/{mesh_id}/scale", include_in_schema=False)
 async def scale_mesh_alias(
     mesh_id: str,
-    req: maas_legacy.ScaleRequest,
+    req: ScaleRequest,
     request: Request,
     http_response: Response = None,
     current_user: User = Depends(get_current_user_from_maas),
@@ -2553,6 +2567,30 @@ async def billing_pay_alias(
                 surface=claim_surface,
                 claim_boundary=_COMPAT_BILLING_PAY_CLAIM_BOUNDARY,
                 local_crypto_disabled_rejection_claim_allowed=True,
+            ),
+        )
+
+    create_subscription_session = _resolve_create_subscription_session()
+    if not callable(create_subscription_session):
+        _publish_compat_billing_pay_event(
+            request,
+            stage="subscription_checkout_unavailable",
+            status="failed",
+            method=method,
+            plan=plan,
+            current_user=current_user,
+            delegated_to_billing=False,
+            checkout_url_present=False,
+            http_status_code=503,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+            reason="subscription_checkout_unavailable",
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Subscription checkout is unavailable",
+            headers=_compat_billing_pay_claim_boundary_headers(
+                surface=claim_surface,
+                claim_boundary=_COMPAT_BILLING_PAY_CLAIM_BOUNDARY,
             ),
         )
 
