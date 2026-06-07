@@ -1,14 +1,29 @@
 # x0tta6bl4 Xray VPS Deployment System
 
-A comprehensive, production-ready Xray Core deployment system featuring Reality protocol, XTLS Vision, and multiple fallback protocols for maximum compatibility and stealth.
+Xray Core deployment system with VLESS-XTLS-Reality-Vision as the current
+production profile and fallback examples quarantined until external validation
+proves they work for real users.
+
+## Current production profile policy
+
+As of the latest local validation, only **VLESS-XTLS-Reality-Vision on TCP port
+443** is distributable to users.
+
+Do not distribute profiles for ports **8443**, **9443**, **8388**, or **8080**
+until `sudo bash scripts/validate-installation.sh` proves external reachability
+for that exact public port. Local Xray listeners are not enough proof: a router,
+NAT rule, or another TLS service can still make a profile fail for real users.
+
+Fallback examples that are not externally verified are kept in
+`clients/quarantine-unverified/` and are reference material only.
 
 ## 🌟 Features
 
 - **VLESS-XTLS-Reality-Vision** - Primary protocol with maximum speed and security
-- **Trojan-XTLS-Reality** - Fallback #1 with enhanced security
-- **VLESS-splitHTTP** - Fallback #2 for packet fragmentation support
-- **Shadowsocks 2022** - Fallback #3 for simple compatibility
-- **ShadowTLS** - Fallback #4 for maximum stealth
+- **Trojan-XTLS-Reality** - Fallback #1, issue only after external validation
+- **VLESS-splitHTTP/xHTTP** - Fallback #2, issue only after external validation
+- **Shadowsocks 2022** - Fallback #3, issue only after external validation
+- **ShadowTLS/VMess WebSocket** - Fallback #4, issue only after external validation
 - **Automatic WARP routing** for Google/Netflix services
 - **BBR TCP optimization** for best performance
 - **Comprehensive health checks** and monitoring
@@ -54,10 +69,10 @@ sudo bash scripts/validate-installation.sh
 │  │                  Xray Core v25.1.30                  │   │
 │  ├─────────────────────────────────────────────────────┤   │
 │  │  Port 443  │ VLESS-XTLS-Reality-Vision (Primary)    │   │
-│  │  Port 9443 │ Trojan-XTLS-Reality (Fallback #1)      │   │
-│  │  Port 8443 │ VLESS-splitHTTP (Fallback #2)          │   │
-│  │  Port 8388 │ Shadowsocks 2022 (Fallback #3)         │   │
-│  │  Port 8080 │ ShadowTLS (Fallback #4)                │   │
+│  │  Port 9443 │ Trojan-XTLS-Reality (validate first)   │   │
+│  │  Port 8443 │ VLESS-splitHTTP/xHTTP (validate first) │   │
+│  │  Port 8388 │ Shadowsocks 2022 (validate first)      │   │
+│  │  Port 8080 │ ShadowTLS/VMess (validate first)       │   │
 │  └─────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │              Traffic Routing & Filtering             │   │
@@ -72,16 +87,16 @@ See [Architecture Diagram](docs/architecture-diagram.md) for detailed visual doc
 
 ## 📱 Client Compatibility Matrix
 
-| Client | Platform | VLESS-Reality | Trojan-Reality | VLESS-xHTTP | Shadowsocks | ShadowTLS |
-|--------|----------|:-------------:|:--------------:|:-----------:|:-----------:|:---------:|
-| **FlClashX** | macOS/iOS | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **v2rayN** | Windows | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Nekoray** | Windows/Linux | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **v2rayNG** | Android | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Shadowrocket** | iOS | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Streisand** | iOS | ✅ | ✅ | ❌ | ❌ | ✅ |
-| **Quantumult X** | iOS | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Surge** | macOS/iOS | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Client | Platform | VLESS-Reality :443 | Fallback profiles |
+|--------|----------|:------------------:|:-----------------:|
+| **FlClashX** | macOS/iOS | supported | validate public port first |
+| **v2rayN** | Windows | supported | validate public port first |
+| **Nekoray** | Windows/Linux | supported | validate public port first |
+| **v2rayNG** | Android | supported | validate public port first |
+| **Shadowrocket** | iOS | supported | validate public port first |
+| **Streisand** | iOS | supported | validate public port first |
+| **Quantumult X** | iOS | supported | validate public port first |
+| **Surge** | macOS/iOS | supported | validate public port first |
 
 ### Recommended Clients by Platform
 
@@ -133,8 +148,10 @@ Server configuration is located at `/usr/local/etc/xray/config.json`.
 
 Key configuration files:
 - [Server Config Template](configs/server-config.json) - Base server configuration
-- [FlClashX Configs](clients/flclashx/) - macOS/iOS client configurations
-- [v2ray Configs](clients/v2ray/) - Windows/Linux client configurations
+- [Client distribution policy](clients/README_DISTRIBUTION_POLICY.md) - Current
+  production profile rules
+- [FlClashX Configs](clients/flclashx/) - Active macOS/iOS Reality profile
+- [v2ray Configs](clients/v2ray/) - Active Windows/Linux Reality profile
 
 ### Environment Variables
 
@@ -148,6 +165,7 @@ The following placeholders need to be replaced in configuration files:
 | `REPLACE_PUBLIC_KEY` | Reality public key | `XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX` |
 | `REPLACE_PRIVATE_KEY` | Reality private key | `XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX` |
 | `REPLACE_SHORT_ID` | Reality short ID | `0123456789abcdef` |
+| `REPLACE_REALITY_SERVER_NAME` | First SNI value from the live Reality server config | `www.example.com` |
 | `REPLACE_SS_PASSWORD` | Shadowsocks password | `base64-encoded-password` |
 | `REPLACE_TROJAN_PASSWORD` | Trojan password | `password-string` |
 
@@ -158,12 +176,27 @@ After installation, client configurations are saved to `/root/xray-clients/`:
 ```
 /root/xray-clients/
 ├── vless-reality.json      # VLESS + Reality config
-├── vless-xhttp.json        # VLESS + xHTTP config
-├── vmess-ws.json           # VMess + WebSocket config
-├── trojan.json             # Trojan config
-├── shadowsocks.txt         # Shadowsocks URL
+├── vless-reality.qr.txt    # QR code for the default Reality profile
+├── README_STATUS.txt       # Current distribution policy
+├── disabled-*/             # Old or unverified client files, do not distribute
 └── *.qr.txt                # QR codes for mobile clients
 ```
+
+To regenerate production client profiles from the live Xray config without
+restarting Xray:
+
+```bash
+sudo bash scripts/generate-live-client-profiles.sh --dry-run
+sudo bash scripts/generate-live-client-profiles.sh
+sudo bash scripts/validate-installation.sh
+sudo bash scripts/check-client-distribution-gate.sh
+```
+
+The generator reads `/usr/local/etc/xray/config.json` and writes only
+`vless-reality*.json` profiles. It does not generate fallback profiles.
+The distribution gate fails if active client files contain fallback profiles,
+HTML error pages, unsupported Reality fingerprints, malformed `shortId` values,
+or Reality values that do not match the live server config.
 
 ## 🔍 Troubleshooting
 
@@ -216,7 +249,8 @@ sudo firewall-cmd --list-all
 
 #### Reality Connection Fails
 
-1. Verify SNI domain is accessible: `curl -I https://www.microsoft.com`
+1. Verify the configured SNI domain is accessible:
+   `SNI=$(sudo jq -r '([.inbounds[] | select(.streamSettings.security=="reality")][0].streamSettings.realitySettings.serverNames[0])' /usr/local/etc/xray/config.json); curl -I "https://${SNI}"`
 2. Check Reality keys match between client and server
 3. Ensure system time is synchronized: `timedatectl status`
 
@@ -305,20 +339,22 @@ sudo bash scripts/restore-config.sh /path/to/backup.tar.gz
 
 - **Port**: 443
 - **Security**: Reality + XTLS Vision
-- **SNI**: www.microsoft.com
+- **SNI**: use `serverNames[0]` from `/usr/local/etc/xray/config.json`
 - **Flow**: xtls-rprx-vision
 - **Best for**: Maximum speed and security
 
 ### Trojan-XTLS-Reality (Fallback #1)
 
 - **Port**: 9443
+- **Distribution status**: Do not issue until external reachability passes
 - **Security**: Reality + TLS
-- **SNI**: www.microsoft.com
+- **SNI**: do not issue until externally validated
 - **Best for**: High security environments
 
 ### VLESS-splitHTTP (Fallback #2)
 
 - **Port**: 8443
+- **Distribution status**: Do not issue until the public TLS endpoint matches local Xray
 - **Transport**: SplitHTTP
 - **Security**: TLS
 - **Best for**: Packet fragmentation support
@@ -326,12 +362,14 @@ sudo bash scripts/restore-config.sh /path/to/backup.tar.gz
 ### Shadowsocks 2022 (Fallback #3)
 
 - **Port**: 8388
+- **Distribution status**: Do not issue until external reachability passes
 - **Method**: 2022-blake3-aes-256-gcm
 - **Best for**: Simple compatibility
 
 ### ShadowTLS (Fallback #4)
 
 - **Port**: 8080
+- **Distribution status**: Do not issue until external reachability passes
 - **Security**: TLS
 - **Best for**: Maximum stealth
 

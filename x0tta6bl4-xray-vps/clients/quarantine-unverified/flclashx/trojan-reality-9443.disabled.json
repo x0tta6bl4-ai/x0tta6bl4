@@ -1,4 +1,5 @@
 {
+  "_distribution_status": "quarantined_unverified_public_port",
   "log": {
     "level": "warning"
   },
@@ -14,25 +15,24 @@
   ],
   "outbounds": [
     {
-      "type": "vless",
-      "tag": "x0tta6bl4-vless-splithttp",
+      "type": "trojan",
+      "tag": "x0tta6bl4-trojan-reality",
       "server": "REPLACE_SERVER_IP",
-      "server_port": 8443,
-      "uuid": "REPLACE_UUID",
-      "transport": {
-        "type": "splithttp",
-        "path": "/splithttp",
-        "headers": {
-          "Host": "REPLACE_SERVER_IP"
-        }
-      },
+      "server_port": 9443,
+      "password": "REPLACE_TROJAN_PASSWORD",
       "tls": {
         "enabled": true,
-        "server_name": "REPLACE_SERVER_IP",
-        "insecure": false,
-        "alpn": ["h2", "http/1.1"]
-      },
-      "packet_encoding": "xudp"
+        "server_name": "www.microsoft.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "REPLACE_PUBLIC_KEY",
+          "short_id": "REPLACE_SHORT_ID"
+        }
+      }
     },
     {
       "type": "direct",
@@ -45,7 +45,7 @@
   ],
   "route": {
     "auto_detect_interface": true,
-    "final": "x0tta6bl4-vless-splithttp",
+    "final": "x0tta6bl4-trojan-reality",
     "rules": [
       {
         "ip_is_private": true,
@@ -86,7 +86,7 @@
       {
         "tag": "cloudflare",
         "address": "https://1.1.1.1/dns-query",
-        "detour": "x0tta6bl4-vless-splithttp"
+        "detour": "x0tta6bl4-trojan-reality"
       }
     ],
     "final": "cloudflare"

@@ -38,7 +38,15 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
         echo "--- attempt $attempt/$ATTEMPTS $(date -Is) ---"
     } >> "$LOG_FILE"
 
-    if (cd "$PROJECT_DIR" && bash scripts/vpn_status.sh --check --no-color) >> "$LOG_FILE" 2>&1; then
+    set +e
+    (
+        cd "$PROJECT_DIR" \
+            && VPN_STATUS_SKIP_BOOT_VALIDATION=1 bash scripts/vpn_status.sh --check --no-color
+    ) >> "$LOG_FILE" 2>&1
+    rc=$?
+    set -e
+
+    if [ "$rc" -eq 0 ]; then
         {
             echo "PASS attempt=$attempt boot_id=$BOOT_ID"
             echo "=== validation complete $(date -Is) ==="
@@ -47,7 +55,6 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
         exit 0
     fi
 
-    rc=$?
     echo "attempt $attempt failed rc=$rc" >> "$LOG_FILE"
     if [ "$attempt" -lt "$ATTEMPTS" ]; then
         sleep "$SLEEP_SEC"

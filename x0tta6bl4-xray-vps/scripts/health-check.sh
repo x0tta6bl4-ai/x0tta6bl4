@@ -23,11 +23,14 @@ CHECKS_WARNINGS=0
 # Configuration
 CONFIG_DIR="${CONFIG_DIR:-/usr/local/etc/xray}"
 LOG_DIR="${LOG_DIR:-/var/log/xray}"
+CLIENT_DIR="${CLIENT_DIR:-/root/xray-clients}"
 ALERT_THRESHOLD_ERRORS=50
 ALERT_THRESHOLD_LOAD=80
 XRAY_SERVICE="${XRAY_SERVICE:-}"
 XRAY_CONFIG="${XRAY_CONFIG:-}"
 XRAY_BIN="${XRAY_BIN:-}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DISTRIBUTION_GATE_SCRIPT="${DISTRIBUTION_GATE_SCRIPT:-${SCRIPT_DIR}/check-client-distribution-gate.sh}"
 
 if [[ -z "$XRAY_SERVICE" ]]; then
     if systemctl list-unit-files x-ui.service &>/dev/null; then
@@ -61,10 +64,43 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; ((++CHECKS_WARNINGS)); }
 log_section() { echo -e "\n${CYAN}=== $1 ===${NC}"; }
 xray_version() {
     if [[ -n "$XRAY_BIN" && -x "$XRAY_BIN" ]]; then
-        "$XRAY_BIN" -version 2>/dev/null | head -1 || echo "unknown"
+        local output
+        output="$("$XRAY_BIN" version 2>/dev/null || true)"
+        output="${output%%$'\n'*}"
+        echo "${output:-unknown}"
     else
         echo "unknown"
     fi
+}
+
+xray_config_test() {
+    [[ -n "$XRAY_BIN" && -x "$XRAY_BIN" ]] && "$XRAY_BIN" run -test -config "$XRAY_CONFIG" &>/dev/null
+}
+
+is_ipv4() {
+    local value="${1:-}"
+    [[ "$value" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+    local IFS=.
+    read -r o1 o2 o3 o4 <<< "$value"
+    for octet in "$o1" "$o2" "$o3" "$o4"; do
+        [[ "$octet" =~ ^[0-9]+$ ]] || return 1
+        ((octet >= 0 && octet <= 255)) || return 1
+    done
+}
+
+detect_public_ipv4() {
+    local endpoint value
+    for endpoint in \
+        "https://api.ipify.org" \
+        "https://ifconfig.co/ip" \
+        "https://ifconfig.me/ip"; do
+        value="$(curl -fsS -4 --max-time 8 "$endpoint" 2>/dev/null | tr -d '[:space:]' || true)"
+        if is_ipv4 "$value"; then
+            printf '%s\n' "$value"
+            return 0
+        fi
+    done
+    return 1
 }
 
 # Check if running as root
@@ -120,7 +156,7 @@ check_config() {
     fi
     
     # Test with Xray
-    if [[ -x "$XRAY_BIN" ]] && "$XRAY_BIN" -test -config "$XRAY_CONFIG" &>/dev/null; then
+    if xray_config_test; then
         log_pass "Xray configuration test passed"
     else
         log_fail "Xray configuration test failed"
@@ -207,7 +243,9 @@ check_logs() {
     fi
     
     # Check recent errors (last 100 lines)
-    local recent_errors=$(tail -100 "${LOG_DIR}/error.log" 2>/dev/null | grep -ci "error\|failed\|fatal" || echo "0")
+    local recent_errors
+    recent_errors=$(tail -100 "${LOG_DIR}/error.log" 2>/dev/null | awk 'BEGIN{IGNORECASE=1; count=0} /error|failed|fatal/{count++} END{print count}')
+    recent_errors=${recent_errors//[[:space:]]/}
     
     if [[ $recent_errors -eq 0 ]]; then
         log_pass "No errors in recent logs"
@@ -263,7 +301,8 @@ check_network() {
     fi
     
     # Get public IP
-    local public_ip=$(curl -s -4 --max-time 5 ifconfig.me 2>/dev/null || echo "unknown")
+    local public_ip
+    public_ip=$(detect_public_ipv4 || echo "unknown")
     log_info "Public IP: $public_ip"
     
     # Check DNS resolution
@@ -318,6 +357,31 @@ check_connections() {
             log_info "Port $port connections: $count"
         fi
     done
+}
+
+# Check 10: Client distribution safety
+check_client_distribution() {
+    log_section "CLIENT DISTRIBUTION"
+
+    if [[ ! -d "$CLIENT_DIR" ]]; then
+        log_fail "Client directory missing: $CLIENT_DIR"
+        return 1
+    fi
+
+    if [[ ! -x "$DISTRIBUTION_GATE_SCRIPT" ]]; then
+        log_fail "Distribution gate script missing or not executable: $DISTRIBUTION_GATE_SCRIPT"
+        return 1
+    fi
+
+    local gate_output
+    if gate_output="$(CONFIG_FILE="$XRAY_CONFIG" CLIENT_DIR="$CLIENT_DIR" bash "$DISTRIBUTION_GATE_SCRIPT" 2>&1)"; then
+        log_pass "Client distribution gate passed"
+        echo "$gate_output" | grep -E "Distribution gate summary:|Passed:|Failed:|Warnings:|Client profiles are safe to distribute" || true
+    else
+        log_fail "Client distribution gate failed"
+        echo "$gate_output"
+        return 1
+    fi
 }
 
 # Generate health report
@@ -393,6 +457,7 @@ main() {
     check_network
     check_process
     check_connections
+    check_client_distribution
     generate_report
     save_report
     

@@ -1,8 +1,17 @@
 # Xray Core Setup Guide for x0tta6bl4 VPS
 
+Status: archived reference, not current production policy.
+
+Use the root README and `scripts/validate-installation.sh` for current
+production distribution rules. As of the current validated policy, only VLESS
+Reality on TCP port 443 is distributable by default. Fallback ports in this
+document are examples only until external reachability validates the exact
+public port.
+
 ## Overview
 
-This guide provides production-ready configuration for Xray Core on VPS 89.125.1.107 with Reality + xhttp fallback, optimized for FlClashX client compatibility.
+This archived guide preserves an older Reality + xHTTP example for VPS
+89.125.1.107. It is not the current production distribution policy.
 
 ## Architecture
 
