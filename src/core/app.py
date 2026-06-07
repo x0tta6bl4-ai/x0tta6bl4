@@ -19,7 +19,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
 from src.core.graceful_shutdown import (ShutdownMiddleware, shutdown_manager)
 from src.core.mtls_middleware import MTLSMiddleware
 from src.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
@@ -534,6 +533,8 @@ _MESH_API_CLAIM_BOUNDARY = (
     "policy evidence only. They do not prove dataplane delivery, customer "
     "traffic, external DPI bypass, production SLOs, or production readiness."
 )
+_MESH_API_EVENT_LOG_MAX_BYTES_ENV = "X0TTA6BL4_MESH_API_EVENT_LOG_MAX_BYTES"
+_MESH_API_EVENT_LOG_MAX_BYTES_DEFAULT = 16 * 1024 * 1024
 _STATUS_API_CROSS_PLANE_CLAIMS = (
     "production_readiness",
     "dataplane_delivery",
@@ -555,7 +556,33 @@ def _mesh_event_bus_from_request(request: Request) -> EventBus | None:
     injected_bus = getattr(state, "event_bus", None)
     if injected_bus is not None:
         return injected_bus
+    app_state = getattr(getattr(request, "app", None), "state", None)
+    injected_bus = getattr(app_state, "event_bus", None)
+    if injected_bus is not None:
+        return injected_bus
     project_root = getattr(state, "event_project_root", ".")
+    event_log_path = Path(project_root) / EventBus.EVENT_LOG
+    try:
+        max_bytes = int(
+            os.getenv(
+                _MESH_API_EVENT_LOG_MAX_BYTES_ENV,
+                str(_MESH_API_EVENT_LOG_MAX_BYTES_DEFAULT),
+            )
+        )
+    except ValueError:
+        max_bytes = _MESH_API_EVENT_LOG_MAX_BYTES_DEFAULT
+    try:
+        if max_bytes > 0 and event_log_path.stat().st_size > max_bytes:
+            logger.warning(
+                "Skipping mesh API EventBus evidence from oversized log: %s",
+                event_log_path,
+            )
+            return None
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        logger.error("Failed to stat mesh API EventBus log %s: %s", event_log_path, exc)
+        return None
     try:
         return get_event_bus(project_root)
     except Exception as exc:
@@ -634,9 +661,17 @@ def _call_yggdrasil_with_api_evidence(func, request: Request, *, operation: str)
             **result,
             "control_policy_evidence": latest_mesh_metric_policy_evidence(event_bus),
             "mesh_api_claim_gate": _mesh_api_claim_gate(operation),
-            "cross_plane_claim_gate": cross_plane_claim_gate_metadata(
+            "cross_plane_claim_gate": _fast_fail_closed_cross_plane_claim_gate(
                 _MESH_API_CROSS_PLANE_CLAIMS,
                 surface=f"mesh_api.{operation}",
+                blocker="mesh_endpoint_does_not_run_full_cross_plane_proof_gate",
+                claim_boundary=(
+                    "Mesh endpoints expose local Yggdrasil observed-state and local "
+                    "control policy evidence. They intentionally do not run the full "
+                    "cross-plane proof gate on each request and must not be used to "
+                    "promote production, dataplane, DPI, traffic, or customer-traffic "
+                    "claims."
+                ),
             ),
         }
     return result

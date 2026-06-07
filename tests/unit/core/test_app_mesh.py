@@ -24,9 +24,12 @@ async def client():
 
 
 @pytest.mark.asyncio
-async def test_mesh_endpoints(monkeypatch, client):
+async def test_mesh_endpoints(monkeypatch, tmp_path, client):
+    import src.core.app as app_module
     import src.network.yggdrasil_client as yc
 
+    bus = EventBus(project_root=str(tmp_path))
+    monkeypatch.setattr(app_module, "_mesh_event_bus_from_request", lambda _request: bus)
     monkeypatch.setattr(
         yc,
         "get_yggdrasil_status",
@@ -204,6 +207,26 @@ def test_status_api_response_keeps_local_health_out_of_production_claims():
     assert "production_readiness" in payload["cross_plane_claim_gate"][
         "blocked_claim_ids"
     ]
+
+
+def test_mesh_event_bus_from_request_skips_oversized_root_log(monkeypatch, tmp_path):
+    import src.core.app as app_module
+
+    event_log = tmp_path / ".agent_coordination" / "events.log"
+    event_log.parent.mkdir()
+    event_log.write_text("x" * 8, encoding="utf-8")
+    request = DummyMonkey()
+    request.state = DummyMonkey()
+    request.state.event_project_root = str(tmp_path)
+
+    monkeypatch.setenv("X0TTA6BL4_MESH_API_EVENT_LOG_MAX_BYTES", "4")
+    monkeypatch.setattr(
+        app_module,
+        "get_event_bus",
+        lambda _project_root: pytest.fail("oversized log should not be loaded"),
+    )
+
+    assert app_module._mesh_event_bus_from_request(request) is None
 
 
 @pytest.mark.asyncio
