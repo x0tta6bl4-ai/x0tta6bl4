@@ -16,6 +16,7 @@ triage steps, root cause paths, mitigations, and escalation paths.
 | [HIGH_LATENCY.md](HIGH_LATENCY.md) | `MaaSHighLatencyP95`, `DatabaseQuerySlowP99` | Warning/Critical |
 | [HIGH_ERROR_RATE.md](HIGH_ERROR_RATE.md) | `MaaSHighErrorRate`, `MaaSCriticalErrorRate` | Warning/Critical |
 | [MAAS_ESCROW_FAILURE.md](MAAS_ESCROW_FAILURE.md) | `MaaSEscrowFailureSpike`, `MaaSNodeHeartbeatMissing` | Warning |
+| [PILOT0_EDGE_MESH_MAAS.md](PILOT0_EDGE_MESH_MAAS.md) | — | Pilot/lab |
 | [../operations/INCIDENT_RESPONSE_PLAN.md](../operations/INCIDENT_RESPONSE_PLAN.md) | — | P0 Escalation |
 | [../operations/DISASTER_RECOVERY_PLAN.md](../operations/DISASTER_RECOVERY_PLAN.md) | — | DR |
 | [../operations/db-migration-rollback-runbook.md](../operations/db-migration-rollback-runbook.md) | — | DB migration |

@@ -1,7 +1,7 @@
 # Makefile for x0tta6bl4 v3.3.0
 # ================================
 
-.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft iso-p2-readiness-check mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-reproducibility mesh-operator-release-dry-run mesh-operator-lifecycle-e2e mesh-operator-canary-rollback-e2e api-memory-profile-longrun maas-api-load-scenarios maas-api-load-scenarios-ci mesh-operator-uninstall
+.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft iso-p2-readiness-check mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-reproducibility mesh-operator-release-dry-run mesh-operator-lifecycle-e2e mesh-operator-canary-rollback-e2e api-memory-profile-longrun maas-api-load-scenarios maas-api-load-scenarios-ci pilot0-edge-mesh-maas mesh-operator-uninstall
 
 .DEFAULT_GOAL := help
 
@@ -56,6 +56,7 @@ help:
 	@echo "  make api-memory-profile-longrun - Run long-run API memory profile with report artifacts"
 	@echo "  make maas-api-load-scenarios - Run Marketplace/Telemetry/Nodes load scenarios with report artifacts"
 	@echo "  make maas-api-load-scenarios-ci - Run deterministic CI profile for Marketplace/Telemetry/Nodes load scenarios"
+	@echo "  make pilot0-edge-mesh-maas - Run local/lab Pilot 0 MaaS + Go-agent report"
 	@echo "  make mesh-operator-uninstall - Uninstall operator chart release"
 	@echo ""
 	@echo "=== Development ==="
@@ -272,6 +273,10 @@ maas-api-load-scenarios-ci:
 	MAX_SCENARIO_P95_MS=900 \
 	STARTUP_TIMEOUT_SECONDS=300 \
 	bash scripts/ops/run_maas_api_load_scenarios.sh
+
+pilot0-edge-mesh-maas:
+	@echo "Running Pilot 0 Edge Mesh MaaS local/lab scenario..."
+	PYTHONPATH=. python3 scripts/ops/run_pilot0_edge_mesh_maas.py --require-ready --output-dir docs/operations
 
 mesh-operator-uninstall:
 	@echo "🧹 Uninstalling x0tta mesh operator..."
