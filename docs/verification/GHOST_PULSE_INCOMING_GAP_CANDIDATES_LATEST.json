@@ -1,11 +1,11 @@
 {
   "artifacts": {
-    "incoming_gap_candidates_bundle_json": "docs/verification/ghost-pulse-incoming-gap-candidates-20260607T044540Z/gap_candidates.json",
-    "incoming_gap_candidates_bundle_md": "docs/verification/ghost-pulse-incoming-gap-candidates-20260607T044540Z/summary.md",
+    "incoming_gap_candidates_bundle_json": "docs/verification/ghost-pulse-incoming-gap-candidates-20260607T175124Z/gap_candidates.json",
+    "incoming_gap_candidates_bundle_md": "docs/verification/ghost-pulse-incoming-gap-candidates-20260607T175124Z/summary.md",
     "incoming_gap_candidates_latest_json": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.json",
     "incoming_gap_candidates_latest_md": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-incoming-gap-candidates-20260607T044540Z",
+  "bundle": "docs/verification/ghost-pulse-incoming-gap-candidates-20260607T175124Z",
   "checks": {
     "importer_rejects_gap_candidates": {
       "row_count": 3,
@@ -41,11 +41,11 @@
   ],
   "failures": [],
   "intake": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
-  "intake_sha256": "f9e40fb298ebd9fe7e34a9dbfeaef40523edfd1dde62d4119c748f9662fd0ecb",
+  "intake_sha256": "c036cfe6b3d71b0cce6cbf555db1e9eab318cb2baee514c9f0b3c0229b329995",
   "proof": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json",
-  "proof_sha256": "4a8255b78d798afd986afc833686241a13a041301012877db6f4a99f427f4aba",
+  "proof_sha256": "9068e80bf33e7fd22dc263f6f2a8e75fe4b3a1c09039d347471c469d8c97ff5f",
   "replacement": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
-  "replacement_sha256": "81c4b5e787ab3f57997030e4f346d38bebdccac888f4c37af6adc302ef8c7ad6",
+  "replacement_sha256": "b17342e7d1a3bcc744c24af464c0967fe720e1cd856363a7db113990c120d537",
   "rows": [
     {
       "candidate": "docs/verification/incoming/dpi_lab.json",
@@ -364,6 +364,6 @@
   ],
   "schema": "x0tta6bl4.ghost_pulse.incoming_gap_candidate_verification.v1",
   "status": "PASS",
-  "timestamp_utc": "2026-06-07T04:45:40.407771+00:00",
+  "timestamp_utc": "2026-06-07T17:51:24.730842+00:00",
   "unexpected_gap_claims": []
 }

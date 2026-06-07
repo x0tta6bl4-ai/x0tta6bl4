@@ -91,6 +91,45 @@ def stable_subset(report: dict[str, Any]) -> dict[str, Any]:
     return {key: report.get(key) for key in STABLE_REPORT_KEYS}
 
 
+def stable_subset_for_current_state_compare(report: dict[str, Any]) -> dict[str, Any]:
+    """Return stable fields while excluding fresh runtime observation drift.
+
+    `current_runtime_attached` is intentionally a fresh read-only kernel
+    observation. Recomputing it inside this verifier can differ from the saved
+    proof unless the same interface, sudo mode, and packet-counter traffic window
+    are present. The verifier still checks the saved runtime row's internal
+    consistency through `claim_boundary` and row validation above; this helper
+    only prevents the current-state recomputation from making proof hygiene
+    depend on live traffic timing.
+    """
+    subset = stable_subset(report)
+    rows = subset.get("proof_rows")
+    if isinstance(rows, list):
+        subset["proof_rows"] = [
+            row
+            for row in rows
+            if not (isinstance(row, dict) and row.get("claim_id") == "current_runtime_attached")
+        ]
+    failures = subset.get("failures")
+    if isinstance(failures, list):
+        subset["failures"] = [
+            failure
+            for failure in failures
+            if not (isinstance(failure, str) and failure.startswith("current_runtime_attached:"))
+        ]
+    not_verified = subset.get("not_verified_yet")
+    if isinstance(not_verified, list):
+        subset["not_verified_yet"] = [
+            claim for claim in not_verified if claim != "current_runtime_attached"
+        ]
+    claim_boundary = subset.get("claim_boundary")
+    if isinstance(claim_boundary, dict):
+        normalized = dict(claim_boundary)
+        normalized.pop("current_runtime_attached", None)
+        subset["claim_boundary"] = normalized
+    return subset
+
+
 def status_by_claim(rows: list[dict[str, Any]]) -> dict[str, str]:
     return {
         row["claim_id"]: row.get("status")
@@ -252,7 +291,7 @@ def verify_proof(
 
     if check_current_state and suite_path and suite_path.exists():
         expected = runner.build_report(root=root, suite_path=suite_path)
-        if stable_subset(data) != stable_subset(expected):
+        if stable_subset_for_current_state_compare(data) != stable_subset_for_current_state_compare(expected):
             failures.append("proof stable fields do not match current suite/external evidence state")
 
     failures.extend(

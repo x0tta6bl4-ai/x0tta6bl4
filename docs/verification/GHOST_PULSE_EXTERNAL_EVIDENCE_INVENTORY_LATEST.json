@@ -1,16 +1,16 @@
 {
   "artifacts": {
-    "inventory_bundle_json": "docs/verification/ghost-pulse-external-evidence-inventory-20260607T044700Z/inventory.json",
-    "inventory_bundle_md": "docs/verification/ghost-pulse-external-evidence-inventory-20260607T044700Z/summary.md",
+    "inventory_bundle_json": "docs/verification/ghost-pulse-external-evidence-inventory-20260607T175915Z/inventory.json",
+    "inventory_bundle_md": "docs/verification/ghost-pulse-external-evidence-inventory-20260607T175915Z/summary.md",
     "inventory_latest_json": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
     "inventory_latest_md": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-external-evidence-inventory-20260607T044700Z",
+  "bundle": "docs/verification/ghost-pulse-external-evidence-inventory-20260607T175915Z",
   "claim_boundary": {
     "note": "External evidence inventory only; this report does not promote proof-gate claims.",
     "proof_claim_boundary": {
       "current_runtime_attached": false,
-      "kernel_attach_verified": false,
+      "kernel_attach_verified": true,
       "production_ready": false,
       "stealth_verified": false,
       "whitelist_verified": false
@@ -20,13 +20,11 @@
   "gap_audit": {
     "contract_mismatches": [],
     "covered_replacement_required": [
-      "kernel_attach",
       "dpi_lab",
       "whitelist_lab",
       "production_readiness"
     ],
     "expected_replacement_required": [
-      "kernel_attach",
       "dpi_lab",
       "whitelist_lab",
       "production_readiness"
@@ -35,7 +33,6 @@
     "missing_replacement_rows": [],
     "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.json",
     "replacement_required": [
-      "kernel_attach",
       "dpi_lab",
       "whitelist_lab",
       "production_readiness"
@@ -43,7 +40,6 @@
     "status": "PASS"
   },
   "invalid": [
-    "kernel_attach",
     "dpi_lab",
     "whitelist_lab",
     "production_readiness"
@@ -59,36 +55,12 @@
       "json_exists": true,
       "markdown": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.md",
       "markdown_exists": true,
-      "proof_errors": [
-        "status must be VERIFIED",
-        "failures must be absent or empty for VERIFIED evidence",
-        "commands[4].exit_code must be integer 0",
-        "commands[5].exit_code must be integer 0",
-        "commands[6].exit_code must be integer 0",
-        "commands[7].exit_code must be integer 0",
-        "commands[8].exit_code must be integer 0",
-        "measurements.xdp_attached must be True",
-        "measurements.bpftool_prog_show_contains_pulse must be True",
-        "measurements.bpftool_net_contains_interface must be True",
-        "measurements.map_counter_delta_packets must be positive_int"
-      ],
-      "proof_status": "INVALID",
-      "sha256": "fc8f77bed51825f468582a25cb1087cc00c89a739f880d1d1b0da7496751473d",
+      "proof_errors": [],
+      "proof_status": "VERIFIED",
+      "sha256": "3d6ff548e890d4197d7a9bff670f8eacaea4fcfd8e46c58e5938388a65860529",
       "title": "XDP attach and map-counter evidence",
-      "validation_errors": [
-        "status must be VERIFIED",
-        "failures must be absent or empty for VERIFIED evidence",
-        "commands[4].exit_code must be integer 0",
-        "commands[5].exit_code must be integer 0",
-        "commands[6].exit_code must be integer 0",
-        "commands[7].exit_code must be integer 0",
-        "commands[8].exit_code must be integer 0",
-        "measurements.xdp_attached must be True",
-        "measurements.bpftool_prog_show_contains_pulse must be True",
-        "measurements.bpftool_net_contains_interface must be True",
-        "measurements.map_counter_delta_packets must be positive_int"
-      ],
-      "validation_status": "INVALID"
+      "validation_errors": [],
+      "validation_status": "VERIFIED"
     },
     {
       "claim_id": "packet_capture",
@@ -271,8 +243,9 @@
   ],
   "schema": "x0tta6bl4.ghost_pulse.external_evidence_inventory.v1",
   "status": "PASS",
-  "timestamp_utc": "2026-06-07T04:47:00.014643+00:00",
+  "timestamp_utc": "2026-06-07T17:59:15.133994+00:00",
   "verified": [
+    "kernel_attach",
     "packet_capture",
     "baseline_timing_comparison",
     "security_review"

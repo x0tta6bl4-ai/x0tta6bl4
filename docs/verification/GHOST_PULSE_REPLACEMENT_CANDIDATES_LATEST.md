@@ -6,7 +6,7 @@ Decision: `REPLACEMENT_CANDIDATES_NOT_READY`
 
 Audit: `docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.json`
 
-Audit sha256: `12c870afa2251e82fdef630bf31362a47af8961f903dc0baf042c476138b5688`
+Audit sha256: `a466cb1f37698ae1cc6b54ed45f0d301e7e32670e6570bf8fcd475f5b317ddc6`
 
 ## Claim Boundary
 
@@ -18,8 +18,8 @@ Audit sha256: `12c870afa2251e82fdef630bf31362a47af8961f903dc0baf042c476138b5688`
 
 ## Summary
 
-- replacement_required: `kernel_attach, dpi_lab, whitelist_lab, production_readiness`
-- ready: `kernel_attach`
+- replacement_required: `dpi_lab, whitelist_lab, production_readiness`
+- ready: `none`
 - not_ready: `dpi_lab, whitelist_lab, production_readiness`
 - missing_candidates: `none`
 - non_file_candidates: `none`
@@ -28,17 +28,16 @@ Audit sha256: `12c870afa2251e82fdef630bf31362a47af8961f903dc0baf042c476138b5688`
 ## Candidate Intake Plan
 
 - status: `ACTION_REQUIRED`
-- ready_claims: `kernel_attach`
+- ready_claims: `none`
 - not_ready_claims: `dpi_lab, whitelist_lab, production_readiness`
 - missing_candidate_paths: `none`
-- currently_ready_write_commands: `1`
+- currently_ready_write_commands: `0`
 - post_import_refresh_commands: `9`
 
 ## Rows
 
 | Claim | Candidate | Exists | Is File | Symlink | Import Decision | Ready |
 | --- | --- | --- | --- | --- | --- | --- |
-| kernel_attach | `docs/verification/incoming/kernel_attach.json` | `True` | `True` | `False` | `READY_TO_IMPORT` | `True` |
 | dpi_lab | `docs/verification/incoming/dpi_lab.json` | `True` | `True` | `False` | `REJECTED` | `False` |
 | whitelist_lab | `docs/verification/incoming/whitelist_lab.json` | `True` | `True` | `False` | `REJECTED` | `False` |
 | production_readiness | `docs/verification/incoming/production_readiness.json` | `True` | `True` | `False` | `REJECTED` | `False` |

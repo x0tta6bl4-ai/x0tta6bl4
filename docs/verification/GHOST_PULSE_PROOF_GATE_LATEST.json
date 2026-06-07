@@ -1,14 +1,14 @@
 {
   "artifacts": {
-    "proof_bundle_json": "docs/verification/ghost-pulse-proof-gate-20260607T063230Z/proof.json",
-    "proof_bundle_md": "docs/verification/ghost-pulse-proof-gate-20260607T063230Z/summary.md",
+    "proof_bundle_json": "docs/verification/ghost-pulse-proof-gate-20260607T180323Z/proof.json",
+    "proof_bundle_md": "docs/verification/ghost-pulse-proof-gate-20260607T180323Z/summary.md",
     "proof_latest_json": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json",
     "proof_latest_md": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-proof-gate-20260607T063230Z",
+  "bundle": "docs/verification/ghost-pulse-proof-gate-20260607T180323Z",
   "claim_boundary": {
     "current_runtime_attached": false,
-    "kernel_attach_verified": false,
+    "kernel_attach_verified": true,
     "production_ready": false,
     "stealth_verified": false,
     "whitelist_verified": false
@@ -16,17 +16,6 @@
   "claim_boundary_note": "Only the local timing replay, false-claim hygiene, and artifact chain can be proven from current repo-local evidence. DPI, whitelist, kernel attach, and production claims require the external evidence files listed in required_external_evidence. Historical kernel_attach evidence does not prove that the current runtime is attached; current_runtime_attached is verified only by a fresh read-only kernel observation. Replacement-candidate preflight is supporting evidence only and never promotes claims.",
   "decision": "GHOST_PULSE_PROOF_INCOMPLETE",
   "failures": [
-    "kernel_attach: status must be VERIFIED",
-    "kernel_attach: failures must be absent or empty for VERIFIED evidence",
-    "kernel_attach: commands[4].exit_code must be integer 0",
-    "kernel_attach: commands[5].exit_code must be integer 0",
-    "kernel_attach: commands[6].exit_code must be integer 0",
-    "kernel_attach: commands[7].exit_code must be integer 0",
-    "kernel_attach: commands[8].exit_code must be integer 0",
-    "kernel_attach: measurements.xdp_attached must be True",
-    "kernel_attach: measurements.bpftool_prog_show_contains_pulse must be True",
-    "kernel_attach: measurements.bpftool_net_contains_interface must be True",
-    "kernel_attach: measurements.map_counter_delta_packets must be positive_int",
     "dpi_lab: status must be VERIFIED",
     "dpi_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
     "dpi_lab: missing_inputs must be absent or empty for VERIFIED evidence",
@@ -74,7 +63,6 @@
     "current_runtime_attached: current runtime interface not configured; set GHOST_PULSE_RUNTIME_INTERFACE or pass --runtime-interface"
   ],
   "not_verified_yet": [
-    "kernel_attach",
     "dpi_lab",
     "whitelist_lab",
     "production_readiness",
@@ -85,7 +73,7 @@
       "claim_id": "local_timing_replay",
       "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-      "sha256": "85115ed3576ecadb19ed69ced47495d1778bc2c804019f4f5a31ae45c446493c",
+      "sha256": "6724db850077ce93c4e1098568f364f4c8ff674a391e78177835644e1fdd5c24",
       "status": "VERIFIED",
       "title": "Seeded local timing plan replay"
     },
@@ -93,7 +81,7 @@
       "claim_id": "false_claim_hygiene",
       "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-      "sha256": "85115ed3576ecadb19ed69ced47495d1778bc2c804019f4f5a31ae45c446493c",
+      "sha256": "6724db850077ce93c4e1098568f364f4c8ff674a391e78177835644e1fdd5c24",
       "status": "VERIFIED",
       "title": "False-claim hygiene scan"
     },
@@ -101,28 +89,16 @@
       "claim_id": "artifact_chain",
       "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-      "sha256": "85115ed3576ecadb19ed69ced47495d1778bc2c804019f4f5a31ae45c446493c",
+      "sha256": "6724db850077ce93c4e1098568f364f4c8ff674a391e78177835644e1fdd5c24",
       "status": "VERIFIED",
       "title": "Latest artifact chain integrity"
     },
     {
       "claim_id": "kernel_attach",
-      "errors": [
-        "status must be VERIFIED",
-        "failures must be absent or empty for VERIFIED evidence",
-        "commands[4].exit_code must be integer 0",
-        "commands[5].exit_code must be integer 0",
-        "commands[6].exit_code must be integer 0",
-        "commands[7].exit_code must be integer 0",
-        "commands[8].exit_code must be integer 0",
-        "measurements.xdp_attached must be True",
-        "measurements.bpftool_prog_show_contains_pulse must be True",
-        "measurements.bpftool_net_contains_interface must be True",
-        "measurements.map_counter_delta_packets must be positive_int"
-      ],
+      "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
-      "sha256": "fc8f77bed51825f468582a25cb1087cc00c89a739f880d1d1b0da7496751473d",
-      "status": "INVALID",
+      "sha256": "3d6ff548e890d4197d7a9bff670f8eacaea4fcfd8e46c58e5938388a65860529",
+      "status": "VERIFIED",
       "title": "XDP attach and map-counter evidence"
     },
     {
@@ -247,17 +223,14 @@
       "whitelist_lab",
       "production_readiness"
     ],
-    "ready": [
-      "kernel_attach"
-    ],
+    "ready": [],
     "replacement_required": [
-      "kernel_attach",
       "dpi_lab",
       "whitelist_lab",
       "production_readiness"
     ],
     "report": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
-    "sha256": "81c4b5e787ab3f57997030e4f346d38bebdccac888f4c37af6adc302ef8c7ad6",
+    "sha256": "b17342e7d1a3bcc744c24af464c0967fe720e1cd856363a7db113990c120d537",
     "status": "PASS",
     "verifier_command": [
       "python3",
@@ -575,6 +548,6 @@
   ],
   "schema": "x0tta6bl4.ghost_pulse.proof_gate.v1",
   "suite": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-  "suite_sha256": "85115ed3576ecadb19ed69ced47495d1778bc2c804019f4f5a31ae45c446493c",
-  "timestamp_utc": "2026-06-07T06:32:30.202627+00:00"
+  "suite_sha256": "6724db850077ce93c4e1098568f364f4c8ff674a391e78177835644e1fdd5c24",
+  "timestamp_utc": "2026-06-07T18:03:23.398286+00:00"
 }
