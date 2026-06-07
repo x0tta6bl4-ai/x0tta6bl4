@@ -15,6 +15,7 @@ from typing import Optional
 from src.federated_learning.coordinator import (FederatedCoordinator,
                                                 RoundStatus, TrainingRound)
 from src.federated_learning.protocol import ModelUpdate, ModelWeights
+from src.core.agent_thinking import AgentThinkingCoach
 from src.swarm.parl.controller import PARLController
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,13 @@ class PARLFederatedOrchestrator:
     ):
         self.coordinator = coordinator
         self.parl_config = parl_config or PARLFLConfig()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="parl_federated_orchestrator",
+            role="fl",
+            capabilities=("coordinator", "quality"),
+            extra_techniques=("mape_k", "reverse_planning"),
+        )
+        self.last_thinking_context = {}
 
         # Initialize PARL Controller
         self.parl = PARLController(
@@ -117,6 +125,19 @@ class PARLFederatedOrchestrator:
 
         round_start = time.time()
         self.current_round += 1
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "parl_fl_training_round",
+                "goal": "Dispatch one PARL training task per selected FL node.",
+                "round_number": self.current_round,
+                "node_count": len(nodes),
+                "constraints": {
+                    "max_nodes_per_round": self.parl_config.max_nodes_per_round,
+                    "max_workers": self.parl_config.max_workers,
+                    "preserve_result_keys": True,
+                },
+            }
+        )
         nodes_selected = min(
             len(nodes),
             self.parl_config.max_nodes_per_round,
@@ -187,6 +208,18 @@ class PARLFederatedOrchestrator:
         if not round_obj:
             logger.error("Failed to start FL round")
             return None
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "parl_fl_coordinator_round",
+                "goal": "Run a coordinator-backed FL round through PARL workers.",
+                "round_number": round_obj.round_number,
+                "selected_nodes": len(round_obj.selected_nodes),
+                "constraints": {
+                    "aggregation_method": self.parl_config.aggregation_method,
+                    "use_gpu": self.parl_config.use_gpu,
+                },
+            }
+        )
 
         selected_nodes = list(round_obj.selected_nodes)
         logger.info(

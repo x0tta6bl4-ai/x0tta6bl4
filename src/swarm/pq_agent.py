@@ -10,6 +10,7 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.swarm.agent import AgentMessage, TaskResult, SpecializedAgent
 from src.security.pqc_spiffe import PQCSpiffeBridge
 
@@ -31,6 +32,12 @@ class PQSecureAgent(SpecializedAgent):
     ):
         super().__init__(agent_id, swarm_id, specialization, **kwargs)
         self.pqc_bridge = PQCSpiffeBridge(agent_id, trust_domain=trust_domain)
+        self.pq_thinking_coach = AgentThinkingCoach(
+            agent_id=agent_id,
+            role="security",
+            capabilities=("zero-trust", "pqc", specialization),
+        )
+        self.last_pq_thinking_context: Dict[str, Any] = {}
         logger.info(f"PQSecureAgent {agent_id} initialized with PQC identity {self.pqc_bridge.pqc_identity.did}")
 
     def get_pqc_identity(self) -> str:
@@ -41,6 +48,18 @@ class PQSecureAgent(SpecializedAgent):
         """
         Executes a task and signs the result with PQC.
         """
+        self.last_pq_thinking_context = self.pq_thinking_coach.prepare_task(
+            {
+                "type": "pqc_signed_task_execution",
+                "goal": "execute the task and sign the result with PQC identity",
+                "constraints": {
+                    "task_type": str((task or {}).get("task_type", "")),
+                    "task_id_present": bool((task or {}).get("task_id")),
+                    "specialization": self.specialization,
+                },
+                "safety_boundary": "Do not expose private keys or raw secret material.",
+            }
+        )
         # Execute the base task logic
         result = await super().execute_task(task)
         
@@ -57,6 +76,10 @@ class PQSecureAgent(SpecializedAgent):
             
             # Attach the PQC signature and public key to the result
             result.result = signed_manifest
+            result.thinking_context = {
+                **(result.thinking_context or {}),
+                "pqc": self.last_pq_thinking_context,
+            }
             logger.debug(f"PQC Signed task result for {result.task_id}")
             
         return result
@@ -65,6 +88,18 @@ class PQSecureAgent(SpecializedAgent):
         """
         Sends a PQC-signed and ZKP-attested message to another agent.
         """
+        self.last_pq_thinking_context = self.pq_thinking_coach.prepare_task(
+            {
+                "type": "pqc_signed_message",
+                "goal": "send a PQC-signed and ZKP-attested agent message",
+                "constraints": {
+                    "recipient_present": bool(recipient_id),
+                    "message_type": message_type,
+                    "payload_keys": sorted((payload or {}).keys()),
+                },
+                "safety_boundary": "Do not expose private keys or raw secret material.",
+            }
+        )
         # Generate NIZKP for this specific message
         zkp_proof = self.pqc_bridge.zkp_attestor.generate_identity_proof(message=message_type)
         
@@ -95,6 +130,18 @@ class PQSecureAgent(SpecializedAgent):
         """
         Verifies PQC signature AND ZKP attestation.
         """
+        self.last_pq_thinking_context = self.pq_thinking_coach.prepare_task(
+            {
+                "type": "pqc_message_verification",
+                "goal": "verify PQC signature and optional ZKP attestation",
+                "constraints": {
+                    "message_type": message.message_type,
+                    "remote_pubkey_present": bool(remote_pubkey_hex),
+                    "payload_keys": sorted((message.payload or {}).keys()),
+                },
+                "safety_boundary": "Do not expose private keys or raw secret material.",
+            }
+        )
         if "manifest" not in message.payload or "proof" not in message.payload:
             return False
             
@@ -113,6 +160,13 @@ class PQSecureAgent(SpecializedAgent):
             )
         
         return True
+
+    def get_status(self) -> Dict[str, Any]:
+        """Return status with PQC-specific thinking profile."""
+        status = super().get_status()
+        status["pqc_thinking"] = self.pq_thinking_coach.status()
+        status["last_pq_thinking_context"] = self.last_pq_thinking_context
+        return status
 
 # Factory function for PQSecureAgent
 def create_pq_agent(

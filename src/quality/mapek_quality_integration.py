@@ -23,9 +23,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 from ..core.mape_k_thread_safe import ThreadSafeMAPEKLoop
 from ..core.thread_safe_stats import ThreadSafeMetrics
-from .code_quality_analyzer import CodeQualityAnalyzer
+from .code_quality_analyzer import (
+    CodeQualityAnalyzer,
+    _safe_count_bucket,
+    _safe_hash,
+    _safe_number_band,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +85,7 @@ class MAPEKQualityMonitor:
 
         # Initialize components
         self.quality_analyzer = CodeQualityAnalyzer(repo_root)
+        self.analyzer = self.quality_analyzer
         self.mapek_loop = ThreadSafeMAPEKLoop("quality_monitor")
 
         # Quality metrics storage
@@ -93,8 +101,68 @@ class MAPEKQualityMonitor:
         self.metrics.set_gauge("security_issues", 0.0)
         self.metrics.set_gauge("technical_debt", 0.0)
         self.metrics.increment_counter("analysis_cycles")
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"mapek-quality-monitor:{_safe_hash(self.repo_root)}",
+            role="quality",
+            capabilities=("monitoring", "ops", "healing"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mapek_quality_monitor_init",
+                "goal": "Initialize autonomous quality monitoring safely",
+                "signals": {
+                    "repo_hash": _safe_hash(self.repo_root),
+                    "min_overall_score_band": _safe_number_band(
+                        self.thresholds.min_overall_score
+                    ),
+                    "max_complexity_band": _safe_number_band(
+                        self.thresholds.max_complexity
+                    ),
+                    "min_test_coverage_band": _safe_number_band(
+                        self.thresholds.min_test_coverage
+                    ),
+                    "max_security_issues_bucket": _safe_count_bucket(
+                        self.thresholds.max_security_issues
+                    ),
+                },
+                "safety_boundary": (
+                    "Keep raw repository paths, file paths, code snippets, "
+                    "improvement descriptions, and git output out of thinking context."
+                ),
+            }
+        )
 
         logger.info(f"MAPEKQualityMonitor initialized for {repo_root}")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_repo_paths": True,
+                    "redact_file_paths": True,
+                    "redact_code_snippets": True,
+                    "redact_improvement_descriptions": True,
+                    "redact_git_output": True,
+                    "preserve_mapek_quality_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, priorities, and metric bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def start_monitoring(self, interval_seconds: int = 300) -> None:
         """
@@ -104,6 +172,14 @@ class MAPEKQualityMonitor:
             interval_seconds: Monitoring interval (default: 5 minutes)
         """
         logger.info(f"Starting quality monitoring every {interval_seconds} seconds")
+        self._record_thinking(
+            "mapek_quality_monitoring_started",
+            "Start continuous quality monitoring safely",
+            {
+                "interval_seconds_band": _safe_number_band(interval_seconds),
+                "repo_hash": _safe_hash(self.repo_root),
+            },
+        )
 
         while True:
             try:
@@ -123,6 +199,11 @@ class MAPEKQualityMonitor:
                 await asyncio.sleep(interval_seconds)
 
             except Exception as e:
+                self._record_thinking(
+                    "mapek_quality_monitoring_cycle_failed",
+                    "Record quality monitoring cycle failure safely",
+                    {"error_type": type(e).__name__},
+                )
                 logger.error(f"Quality monitoring cycle failed: {e}")
                 await asyncio.sleep(60)  # Brief pause before retry
 
@@ -139,6 +220,18 @@ class MAPEKQualityMonitor:
 
         # Process results
         await self._process_cycle_results(state)
+
+        self._record_thinking(
+            "mapek_quality_single_analysis_completed",
+            "Complete one MAPE-K quality analysis safely",
+            {
+                "mapek_phase": str(getattr(state, "phase", "")),
+                "improvement_count_bucket": _safe_count_bucket(
+                    len(self.improvement_queue)
+                ),
+                "has_quality_metrics": bool(self.quality_metrics),
+            },
+        )
 
         return {
             "analysis_timestamp": datetime.now().isoformat(),
@@ -160,6 +253,21 @@ class MAPEKQualityMonitor:
             "health_score": self._calculate_health_score(),
         }
 
+        self._record_thinking(
+            "mapek_quality_system_metrics_collected",
+            "Collect repository health signals safely",
+            {
+                "repo_size_band": _safe_number_band(repo_stats["size_mb"]),
+                "file_count_bucket": _safe_count_bucket(int(repo_stats["file_count"])),
+                "last_commit_hours_band": _safe_number_band(
+                    repo_stats["last_commit_hours"]
+                ),
+                "active_branches_bucket": _safe_count_bucket(
+                    int(repo_stats["active_branches"])
+                ),
+                "health_score_band": _safe_number_band(metrics["health_score"]),
+            },
+        )
         return metrics
 
     async def _process_cycle_results(self, state) -> None:
@@ -182,12 +290,29 @@ class MAPEKQualityMonitor:
             for action in actions:
                 self.metrics.add_to_set("quality_actions", action)
                 self.metrics.increment_counter("actions_executed")
+            self._record_thinking(
+                "mapek_quality_cycle_processed",
+                "Process completed quality MAPE-K cycle safely",
+                {
+                    "phase": phase,
+                    "decision_count_bucket": _safe_count_bucket(len(decisions)),
+                    "action_count_bucket": _safe_count_bucket(len(actions)),
+                },
+            )
 
         elif phase == "ERROR":
             logger.error(
                 f"MAPE-K quality cycle failed: {state.metrics.get('error', 'Unknown error')}"
             )
             self.metrics.increment_counter("failed_cycles")
+            self._record_thinking(
+                "mapek_quality_cycle_error",
+                "Process failed quality MAPE-K cycle safely",
+                {
+                    "phase": phase,
+                    "error_present": bool(state.metrics.get("error")),
+                },
+            )
 
     def _get_repository_stats(self) -> Dict[str, float]:
         """Get repository statistics for monitoring."""
@@ -305,6 +430,34 @@ class MAPEKQualityMonitor:
         logger.info(f"  Technical debt: {total_metrics.technical_debt} minutes")
         logger.info(f"  Improvements suggested: {len(self.improvement_queue)}")
 
+        self._record_thinking(
+            "mapek_quality_analyzed",
+            "Analyze repository quality and queue improvements safely",
+            {
+                "files_analyzed_bucket": _safe_count_bucket(
+                    int(analysis_results.get("files_analyzed", 0))
+                ),
+                "overall_score_band": (
+                    _safe_number_band(total_metrics.overall_score())
+                    if total_metrics
+                    else "missing"
+                ),
+                "security_issue_count_bucket": (
+                    _safe_count_bucket(total_metrics.security_issues)
+                    if total_metrics
+                    else "missing"
+                ),
+                "technical_debt_bucket": (
+                    _safe_count_bucket(total_metrics.technical_debt)
+                    if total_metrics
+                    else "missing"
+                ),
+                "improvement_count_bucket": _safe_count_bucket(
+                    len(self.improvement_queue)
+                ),
+            },
+        )
+
         return analysis_results
 
     def _generate_improvements(
@@ -388,14 +541,42 @@ class MAPEKQualityMonitor:
         # Sort by priority
         priority_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
         improvements.sort(key=lambda x: priority_order.get(x.priority, 3))
+        self._record_thinking(
+            "mapek_quality_improvements_generated",
+            "Generate quality improvement queue safely",
+            {
+                "improvement_count_bucket": _safe_count_bucket(len(improvements)),
+                "action_types": sorted(
+                    {improvement.action_type for improvement in improvements}
+                ),
+                "priorities": sorted(
+                    {improvement.priority for improvement in improvements}
+                ),
+            },
+        )
 
         return improvements
 
     def get_quality_report(self) -> Dict[str, Any]:
         """Get comprehensive quality report."""
         if not self.quality_metrics:
+            self._record_thinking(
+                "mapek_quality_report_missing",
+                "Report missing quality analysis data safely",
+                {"has_quality_metrics": False},
+            )
             return {"error": "No analysis data available. Run analyze_quality() first."}
 
+        self._record_thinking(
+            "mapek_quality_report_generated",
+            "Generate quality report safely",
+            {
+                "has_quality_metrics": True,
+                "improvement_count_bucket": _safe_count_bucket(
+                    len(self.improvement_queue)
+                ),
+            },
+        )
         return {
             "report_timestamp": datetime.now().isoformat(),
             "last_analysis": (
@@ -435,6 +616,19 @@ class MAPEKQualityMonitor:
             True if successful, False otherwise
         """
         logger.info(f"Executing improvement: {improvement.description}")
+        self._record_thinking(
+            "mapek_quality_improvement_execution_started",
+            "Execute quality improvement safely",
+            {
+                "action_type": improvement.action_type,
+                "file_hash": _safe_hash(improvement.file_path),
+                "priority": improvement.priority,
+                "estimated_effort_bucket": _safe_count_bucket(
+                    improvement.estimated_effort
+                ),
+                "automated": improvement.automated,
+            },
+        )
 
         try:
             if improvement.action_type == "FORMAT_CODE" and improvement.automated:
@@ -454,11 +648,30 @@ class MAPEKQualityMonitor:
                 logger.info(f"Successfully executed: {improvement.description}")
             else:
                 logger.warning(f"Failed to execute: {improvement.description}")
+            self._record_thinking(
+                "mapek_quality_improvement_execution_finished",
+                "Finish quality improvement safely",
+                {
+                    "action_type": improvement.action_type,
+                    "file_hash": _safe_hash(improvement.file_path),
+                    "success": success,
+                    "automated": improvement.automated,
+                },
+            )
 
             return success
 
         except Exception as e:
             logger.error(f"Error executing improvement {improvement.description}: {e}")
+            self._record_thinking(
+                "mapek_quality_improvement_execution_failed",
+                "Record quality improvement failure safely",
+                {
+                    "action_type": improvement.action_type,
+                    "file_hash": _safe_hash(improvement.file_path),
+                    "error_type": type(e).__name__,
+                },
+            )
             return False
 
     async def _auto_format_code(self) -> bool:
@@ -585,10 +798,26 @@ class MAPEKQualityMonitor:
                 )
 
             logger.info(f"✅ Security fix suggestions saved to {suggestion_file}")
+            self._record_thinking(
+                "mapek_quality_security_fix_suggested",
+                "Suggest security fix safely",
+                {
+                    "file_hash": _safe_hash(file_path),
+                    "suggestion_count_bucket": _safe_count_bucket(len(suggestions)),
+                    "security_issue_count_bucket": _safe_count_bucket(
+                        metrics.security_issues
+                    ),
+                },
+            )
             return True
 
         except Exception as e:
             logger.error(f"Error suggesting security fix: {e}", exc_info=True)
+            self._record_thinking(
+                "mapek_quality_security_fix_failed",
+                "Record security fix suggestion failure safely",
+                {"error_type": type(e).__name__},
+            )
             return False
 
     async def _suggest_test_addition(self, improvement: QualityImprovement) -> bool:
@@ -636,6 +865,11 @@ class MAPEKQualityMonitor:
             # Check if test file already exists
             if test_file.exists():
                 logger.info(f"Test file already exists: {test_file}")
+                self._record_thinking(
+                    "mapek_quality_test_suggestion_skipped",
+                    "Skip existing test suggestion safely",
+                    {"file_hash": _safe_hash(file_path), "test_file_exists": True},
+                )
                 return True
 
             # Generate basic test template
@@ -678,10 +912,25 @@ class Test{file_path.stem.capitalize()}:
             logger.info(
                 f"   Suggested tests for {len(functions)} functions and {len(classes)} classes"
             )
+            self._record_thinking(
+                "mapek_quality_test_suggestion_generated",
+                "Generate test suggestion safely",
+                {
+                    "file_hash": _safe_hash(file_path),
+                    "function_count_bucket": _safe_count_bucket(len(functions)),
+                    "class_count_bucket": _safe_count_bucket(len(classes)),
+                    "test_file_hash": _safe_hash(test_file),
+                },
+            )
             return True
 
         except Exception as e:
             logger.error(f"Error suggesting test addition: {e}", exc_info=True)
+            self._record_thinking(
+                "mapek_quality_test_suggestion_failed",
+                "Record test suggestion failure safely",
+                {"error_type": type(e).__name__},
+            )
             return False
 
     async def _suggest_refactoring(self, improvement: QualityImprovement) -> bool:
@@ -769,6 +1018,14 @@ class Test{file_path.stem.capitalize()}:
 
             if not suggestions:
                 logger.info(f"No refactoring suggestions for {improvement.file_path}")
+                self._record_thinking(
+                    "mapek_quality_refactoring_not_needed",
+                    "Skip refactoring suggestion safely",
+                    {
+                        "file_hash": _safe_hash(file_path),
+                        "suggestion_count_bucket": "0",
+                    },
+                )
                 return True
 
             # Log suggestions
@@ -800,8 +1057,26 @@ class Test{file_path.stem.capitalize()}:
                 )
 
             logger.info(f"✅ Refactoring suggestions saved to {suggestion_file}")
+            self._record_thinking(
+                "mapek_quality_refactoring_suggested",
+                "Suggest refactoring safely",
+                {
+                    "file_hash": _safe_hash(file_path),
+                    "suggestion_count_bucket": _safe_count_bucket(len(suggestions)),
+                    "complexity_band": _safe_number_band(metrics.complexity_score),
+                    "maintainability_band": _safe_number_band(
+                        metrics.maintainability_index
+                    ),
+                    "duplication_band": _safe_number_band(metrics.duplicate_code),
+                },
+            )
             return True
 
         except Exception as e:
             logger.error(f"Error suggesting refactoring: {e}", exc_info=True)
+            self._record_thinking(
+                "mapek_quality_refactoring_failed",
+                "Record refactoring suggestion failure safely",
+                {"error_type": type(e).__name__},
+            )
             return False

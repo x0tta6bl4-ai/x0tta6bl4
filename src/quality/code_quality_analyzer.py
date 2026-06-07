@@ -16,6 +16,7 @@ Features:
 """
 
 import ast
+import hashlib
 import logging
 import re
 from collections import defaultdict
@@ -24,7 +25,45 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    if value <= 1000:
+        return "101-1000"
+    return "1000+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 50:
+        return "10-50"
+    if value <= 100:
+        return "50-100"
+    return "100+"
 
 
 @dataclass
@@ -72,6 +111,25 @@ class CodeQualityAnalyzer:
         self.repo_root = Path(repo_root)
         self.quality_history: List[Dict] = []
         self.max_history_size = 100
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"code-quality-analyzer:{_safe_hash(self.repo_root)}",
+            role="quality",
+            capabilities=("security", "ops", "development"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "code_quality_analyzer_init",
+                "goal": "Initialize code quality analysis safely",
+                "signals": {
+                    "repo_hash": _safe_hash(self.repo_root),
+                    "history_limit_bucket": _safe_count_bucket(self.max_history_size),
+                },
+                "safety_boundary": (
+                    "Keep raw repository paths, file paths, code snippets, and "
+                    "detected secret values out of thinking context."
+                ),
+            }
+        )
 
         # Security patterns for vulnerability detection
         self.security_patterns = {
@@ -106,11 +164,45 @@ class CodeQualityAnalyzer:
 
         logger.info(f"CodeQualityAnalyzer initialized for {repo_root}")
 
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_repo_paths": True,
+                    "redact_file_paths": True,
+                    "redact_code_snippets": True,
+                    "redact_detected_secrets": True,
+                    "preserve_quality_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, languages, and metric bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
+
     def analyze_file(self, file_path: str) -> QualityMetrics:
         """Analyze a single file for quality metrics."""
         path = Path(file_path)
 
         if not path.exists():
+            self._record_thinking(
+                "code_quality_file_missing",
+                "Reject missing file analysis safely",
+                {"file_hash": _safe_hash(file_path), "exists": False},
+            )
             raise FileNotFoundError(f"File not found: {file_path}")
 
         language = self._detect_language(path)
@@ -135,7 +227,7 @@ class CodeQualityAnalyzer:
             complexity_score, security_issues, style_violations
         )
 
-        return QualityMetrics(
+        metrics = QualityMetrics(
             file_path=str(path),
             language=language,
             lines_of_code=lines_of_code,
@@ -147,6 +239,24 @@ class CodeQualityAnalyzer:
             duplicate_code=duplicate_code,
             technical_debt=technical_debt,
         )
+        self._record_thinking(
+            "code_quality_file_analyzed",
+            "Analyze one file quality safely",
+            {
+                "file_hash": _safe_hash(path),
+                "language": language,
+                "lines_of_code_bucket": _safe_count_bucket(lines_of_code),
+                "complexity_band": _safe_number_band(complexity_score),
+                "maintainability_band": _safe_number_band(maintainability_index),
+                "test_coverage_band": _safe_number_band(test_coverage),
+                "security_issue_count_bucket": _safe_count_bucket(security_issues),
+                "style_violation_count_bucket": _safe_count_bucket(style_violations),
+                "duplicate_code_band": _safe_number_band(duplicate_code),
+                "technical_debt_bucket": _safe_count_bucket(technical_debt),
+                "overall_score_band": _safe_number_band(metrics.overall_score()),
+            },
+        )
+        return metrics
 
     def analyze_repository(self) -> Dict[str, Any]:
         """Analyze entire repository for quality metrics."""
@@ -186,6 +296,16 @@ class CodeQualityAnalyzer:
         files_to_analyze = []
         for pattern in include_patterns:
             files_to_analyze.extend(self.repo_root.rglob(pattern))
+        self._record_thinking(
+            "code_quality_repository_scan_started",
+            "Prepare repository quality analysis safely",
+            {
+                "repo_hash": _safe_hash(self.repo_root),
+                "candidate_file_count_bucket": _safe_count_bucket(
+                    len(files_to_analyze)
+                ),
+            },
+        )
 
         # Filter out excluded patterns
         filtered_files = []
@@ -247,6 +367,14 @@ class CodeQualityAnalyzer:
                     results["security_issues"].extend(issues)
 
             except Exception as e:
+                self._record_thinking(
+                    "code_quality_file_analysis_failed",
+                    "Record file quality analysis failure safely",
+                    {
+                        "file_hash": _safe_hash(file_path),
+                        "error_type": type(e).__name__,
+                    },
+                )
                 logger.warning(f"Failed to analyze {file_path}: {e}")
 
         # Calculate averages
@@ -270,6 +398,35 @@ class CodeQualityAnalyzer:
 
         # Update trend history
         self._update_trend_history(total_metrics)
+
+        self._record_thinking(
+            "code_quality_repository_analyzed",
+            "Summarize repository quality safely",
+            {
+                "repo_hash": _safe_hash(self.repo_root),
+                "files_analyzed_bucket": _safe_count_bucket(
+                    results["files_analyzed"]
+                ),
+                "language_count_bucket": _safe_count_bucket(
+                    len(results["language_breakdown"])
+                ),
+                "security_issue_count_bucket": _safe_count_bucket(
+                    total_metrics.security_issues
+                ),
+                "style_violation_count_bucket": _safe_count_bucket(
+                    total_metrics.style_violations
+                ),
+                "technical_debt_bucket": _safe_count_bucket(
+                    total_metrics.technical_debt
+                ),
+                "overall_score_band": _safe_number_band(
+                    total_metrics.overall_score()
+                ),
+                "recommendation_count_bucket": _safe_count_bucket(
+                    len(results["recommendations"])
+                ),
+            },
+        )
 
         return results
 
@@ -612,6 +769,18 @@ class CodeQualityAnalyzer:
         # Maintain history size
         if len(self.quality_history) > self.max_history_size:
             self.quality_history = self.quality_history[-self.max_history_size :]
+        self._record_thinking(
+            "code_quality_trend_history_updated",
+            "Update quality trend history safely",
+            {
+                "history_count_bucket": _safe_count_bucket(len(self.quality_history)),
+                "overall_score_band": _safe_number_band(metrics.overall_score()),
+                "security_issue_count_bucket": _safe_count_bucket(
+                    metrics.security_issues
+                ),
+                "technical_debt_bucket": _safe_count_bucket(metrics.technical_debt),
+            },
+        )
 
     def _get_recent_trends(self, limit: int = 10) -> List[Dict]:
         """Get recent quality trends."""

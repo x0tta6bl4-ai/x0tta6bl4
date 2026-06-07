@@ -1,4 +1,5 @@
 import functools
+import hashlib
 import logging
 import threading
 import time
@@ -7,7 +8,43 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    if value <= 1000:
+        return "100-1000"
+    return "1000+"
 
 
 @dataclass
@@ -281,6 +318,57 @@ class PerformanceTuner:
         self.edge_case_handler = EdgeCaseHandler()
         self.recommendations: List[str] = []
         self.lock = threading.Lock()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="performance-tuner",
+            role="quality",
+            capabilities=("ops", "monitoring"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "performance_tuner_init",
+                "goal": "Initialize performance tuning without raw operation names",
+                "signals": {
+                    "latency_tracker_ready": True,
+                    "bottleneck_detector_ready": True,
+                    "memory_optimizer_ready": True,
+                    "connection_pool_ready": True,
+                },
+                "safety_boundary": (
+                    "Keep operation names, function names, cache keys, payload values, "
+                    "and exception messages out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Dict[str, Any] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_operation_names": True,
+                    "redact_function_names": True,
+                    "redact_cache_keys": True,
+                    "redact_payload_values": True,
+                    "redact_exception_messages": True,
+                    "preserve_performance_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, bands, and booleans.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def analyze_performance(self) -> Dict:
         analysis = {
@@ -291,6 +379,28 @@ class PerformanceTuner:
             "edge_cases": self.edge_case_handler.get_recent_edge_cases(10),
             "recommendations": self._generate_recommendations(),
         }
+        self._record_thinking(
+            "performance_analysis",
+            "Analyze performance signals safely",
+            {
+                "latency_operation_count_bucket": _safe_count_bucket(
+                    len(analysis["latency_stats"])
+                ),
+                "slowdown_count_bucket": _safe_count_bucket(len(analysis["slowdowns"])),
+                "edge_case_count_bucket": _safe_count_bucket(
+                    len(analysis["edge_cases"])
+                ),
+                "recommendation_count_bucket": _safe_count_bucket(
+                    len(analysis["recommendations"])
+                ),
+                "memory_hit_rate_band": _safe_number_band(
+                    analysis["memory"].get("hit_rate", 0)
+                ),
+                "connection_utilization_band": _safe_number_band(
+                    analysis["connections"].get("utilization", 0)
+                ),
+            },
+        )
         return analysis
 
     def _generate_recommendations(self) -> List[str]:
@@ -310,6 +420,20 @@ class PerformanceTuner:
         if slowdowns and slowdowns[0]["slowdown_ratio"] > 2.0:
             recommendations.append(f"Critical slowdown in {slowdowns[0]['operation']}")
 
+        self._record_thinking(
+            "performance_recommendations",
+            "Generate performance tuning recommendations safely",
+            {
+                "recommendation_count_bucket": _safe_count_bucket(len(recommendations)),
+                "slowdown_count_bucket": _safe_count_bucket(len(slowdowns)),
+                "memory_hit_rate_band": _safe_number_band(
+                    memory_stats.get("hit_rate", 0)
+                ),
+                "connection_utilization_band": _safe_number_band(
+                    conn_stats.get("utilization", 0)
+                ),
+            },
+        )
         return recommendations
 
     def profile_function(self, func_name: str):
@@ -322,11 +446,30 @@ class PerformanceTuner:
                     latency_ms = (time.time() - start) * 1000
                     self.latency_tracker.record(func_name, latency_ms)
                     self.bottleneck_detector.record_current(func_name, latency_ms)
+                    self._record_thinking(
+                        "performance_profiled_function",
+                        "Record profiled function latency",
+                        {
+                            "function_hash": _safe_hash(func_name),
+                            "latency_band": _safe_number_band(latency_ms),
+                            "success": True,
+                        },
+                    )
                     return result
                 except Exception as e:
                     latency_ms = (time.time() - start) * 1000
                     self.latency_tracker.record(
                         func_name, latency_ms, metadata={"error": str(e)}
+                    )
+                    self._record_thinking(
+                        "performance_profiled_function",
+                        "Record profiled function failure latency",
+                        {
+                            "function_hash": _safe_hash(func_name),
+                            "latency_band": _safe_number_band(latency_ms),
+                            "error_type": type(e).__name__,
+                            "success": False,
+                        },
                     )
                     raise
 
@@ -344,11 +487,30 @@ class PerformanceTuner:
                     latency_ms = (time.time() - start) * 1000
                     self.latency_tracker.record(func_name, latency_ms)
                     self.bottleneck_detector.record_current(func_name, latency_ms)
+                    self._record_thinking(
+                        "performance_profiled_async_function",
+                        "Record profiled async function latency",
+                        {
+                            "function_hash": _safe_hash(func_name),
+                            "latency_band": _safe_number_band(latency_ms),
+                            "success": True,
+                        },
+                    )
                     return result
                 except Exception as e:
                     latency_ms = (time.time() - start) * 1000
                     self.latency_tracker.record(
                         func_name, latency_ms, metadata={"error": str(e)}
+                    )
+                    self._record_thinking(
+                        "performance_profiled_async_function",
+                        "Record profiled async function failure latency",
+                        {
+                            "function_hash": _safe_hash(func_name),
+                            "latency_band": _safe_number_band(latency_ms),
+                            "error_type": type(e).__name__,
+                            "success": False,
+                        },
                     )
                     raise
 

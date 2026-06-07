@@ -30,6 +30,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.mesh.recovery_dataplane_probe import (
     build_recovery_dataplane_ping_probe,
     normalize_recovery_dataplane_probe_result,
@@ -70,6 +71,12 @@ MESH_NETWORK_MANAGER_HEALING_CLAIM_BOUNDARY = (
     "external reachability, production SLOs, or production readiness without a "
     "separate bounded post-action dataplane probe."
 )
+_MESH_THINKING_COACH = AgentThinkingCoach(
+    agent_id=_SERVICE_AGENT,
+    role="healing",
+    capabilities=("mape_k", "security", "network"),
+)
+_MESH_LAST_THINKING_CONTEXT: Dict[str, Any] = {}
 
 
 def _identity_metadata() -> Dict[str, Any]:
@@ -184,11 +191,7 @@ def _evidence_summary(evidence: Any) -> Dict[str, Any]:
             "redacted": True,
         }
     event_ids = (
-        [
-            str(event_id)
-            for event_id in evidence.get("event_ids", [])
-            if str(event_id)
-        ]
+        [str(event_id) for event_id in evidence.get("event_ids", []) if str(event_id)]
         if isinstance(evidence.get("event_ids"), list)
         else []
     )
@@ -319,9 +322,7 @@ def _healing_claim_gate(
     probe_result = _probe_result_summary(post_action_probe_result)
     probe_attempted = post_action_probe_result is not None
     evidence = probe_result["evidence"] if probe_attempted else _evidence_summary({})
-    dataplane_confirmed = bool(
-        probe_attempted and probe_result["dataplane_confirmed"]
-    )
+    dataplane_confirmed = bool(probe_attempted and probe_result["dataplane_confirmed"])
     shared_gate = build_post_action_dataplane_claim_gate(
         probe_required=True,
         probe_enabled=post_action_probe_enabled,
@@ -395,13 +396,13 @@ def _safe_claim_gate(gate: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]
             gate.get("requires_post_action_dataplane_revalidation")
         ),
         "blockers": [
-            str(blocker)
-            for blocker in gate.get("blockers", [])
-            if str(blocker).strip()
+            str(blocker) for blocker in gate.get("blockers", []) if str(blocker).strip()
         ][:10],
-        "probe_result": _probe_result_summary(gate.get("probe_result"))
-        if isinstance(gate.get("probe_result"), dict)
-        else None,
+        "probe_result": (
+            _probe_result_summary(gate.get("probe_result"))
+            if isinstance(gate.get("probe_result"), dict)
+            else None
+        ),
         "evidence": _evidence_summary(gate.get("evidence")),
         "claim_boundary": str(gate.get("claim_boundary", "")),
         "redacted": True,
@@ -461,6 +462,35 @@ def _safe_verification_result(result: Any) -> Dict[str, Any]:
     return safe
 
 
+def _prepare_mesh_thinking_context(
+    *,
+    task_type: str,
+    goal: str,
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Prepare redacted thinking context for mesh manager decisions."""
+    global _MESH_LAST_THINKING_CONTEXT
+    context: Dict[str, Any] = {
+        "type": task_type,
+        "goal": goal,
+        "constraints": {
+            "redact_raw_peer_addresses": True,
+            "redact_raw_node_ids": True,
+            "redact_raw_route_tables": True,
+            "separate_local_healing_from_dataplane_claims": True,
+        },
+        "safety_boundary": (
+            "Do not claim remote peer authenticity, live packet reachability, "
+            "customer traffic delivery, external reachability, production SLOs, "
+            "or production readiness from mesh manager local evidence alone."
+        ),
+    }
+    if extra:
+        context.update(extra)
+    _MESH_LAST_THINKING_CONTEXT = _MESH_THINKING_COACH.prepare_task(context)
+    return _MESH_LAST_THINKING_CONTEXT
+
+
 def _publish_mesh_manager_observation(
     *,
     event_bus: Optional[EventBus],
@@ -486,6 +516,20 @@ def _publish_mesh_manager_observation(
             for boundary in downstream_claim_boundaries or []
             if str(boundary).strip()
         }
+    )
+    thinking_context = _prepare_mesh_thinking_context(
+        task_type="mesh_network_observation",
+        goal="aggregate local mesh health signals without exposing peers or overclaiming reachability",
+        extra={
+            "operation": operation,
+            "status": status,
+            "stats": _safe_stats_summary(stats),
+            "router_status": router_summary.get("status"),
+            "yggdrasil_status": yggdrasil_summary.get("status"),
+            "downstream_events_total": len(evidence_ids),
+            "claim_boundaries_total": len(distinct_claim_boundaries),
+            "read_only": True,
+        },
     )
     payload: Dict[str, Any] = {
         "component": "mesh.network_manager",
@@ -518,6 +562,8 @@ def _publish_mesh_manager_observation(
         },
         "input_redacted": True,
         "claim_boundary": MESH_NETWORK_MANAGER_OBSERVED_STATE_CLAIM_BOUNDARY,
+        "thinking": _MESH_THINKING_COACH.status(),
+        "last_thinking_context": thinking_context,
     }
     if error_types:
         payload["errors"] = [
@@ -562,6 +608,22 @@ def _publish_mesh_manager_action(
         return None
 
     evidence_ids = sorted(set(evidence_event_ids or []))
+    safe_claim_gate = _safe_claim_gate(claim_gate)
+    thinking_context = _prepare_mesh_thinking_context(
+        task_type="mesh_network_action",
+        goal="record local mesh control action without exposing routes or overstating dataplane recovery",
+        extra={
+            "operation": operation,
+            "stage": stage,
+            "status": status,
+            "success": bool(success),
+            "context": _safe_action_context(context),
+            "result": _safe_action_result(result),
+            "downstream_events_total": len(evidence_ids),
+            "claim_gate": safe_claim_gate,
+            "read_only": False,
+        },
+    )
     payload: Dict[str, Any] = {
         "component": "mesh.network_manager",
         "stage": stage,
@@ -581,25 +643,24 @@ def _publish_mesh_manager_action(
         "result": _safe_action_result(result),
         "success": success,
         "downstream_evidence": {
-            "source_agents": sorted(set(downstream_source_agents or []))
-            if evidence_ids
-            else [],
+            "source_agents": (
+                sorted(set(downstream_source_agents or [])) if evidence_ids else []
+            ),
             "event_ids": evidence_ids,
             "events_total": len(evidence_ids),
             "redacted": True,
         },
         "input_redacted": True,
         "claim_boundary": MESH_NETWORK_MANAGER_OBSERVED_STATE_CLAIM_BOUNDARY,
+        "thinking": _MESH_THINKING_COACH.status(),
+        "last_thinking_context": thinking_context,
     }
-    safe_claim_gate = _safe_claim_gate(claim_gate)
     if safe_claim_gate is not None:
         payload["claim_gate"] = safe_claim_gate
         payload["post_action_dataplane_revalidation"] = {
             "required_for_restored_dataplane_claim": True,
             "probe_enabled": safe_claim_gate["post_action_probe_enabled"],
-            "probe_target_present": safe_claim_gate[
-                "post_action_probe_target_present"
-            ],
+            "probe_target_present": safe_claim_gate["post_action_probe_target_present"],
             "probe_attempted": safe_claim_gate["post_action_probe_attempted"],
             "dataplane_confirmed": safe_claim_gate["dataplane_confirmed"],
             "post_action_dataplane_revalidated": safe_claim_gate[
@@ -649,6 +710,33 @@ def _publish_mesh_manager_verification(
     if bus is None:
         return None
 
+    safe_context = _safe_verification_context(
+        node_id=node_id,
+        mode=mode,
+        expected_last_seen=expected_last_seen,
+        expected_config_hash=expected_config_hash,
+    )
+    safe_result = (
+        _safe_verification_result(result)
+        if result is not None
+        else {"returned": "none", "values_redacted": True}
+    )
+    thinking_context = _prepare_mesh_thinking_context(
+        task_type="mesh_node_verification",
+        goal="verify node state from bounded local checks without exposing node identifiers",
+        extra={
+            "status": status,
+            "context": safe_context,
+            "result": safe_result,
+            "retry": {
+                "attempts_used": int(attempts_used),
+                "attempts_configured": int(attempts_configured),
+                "cache_written": bool(cache_written),
+                "bypassed": bool(bypassed),
+            },
+            "read_only": True,
+        },
+    )
     payload: Dict[str, Any] = {
         "component": "mesh.network_manager",
         "stage": "node_verification",
@@ -664,17 +752,8 @@ def _publish_mesh_manager_verification(
         "observed_state": True,
         "control_action": False,
         "safe_actuator": False,
-        "context": _safe_verification_context(
-            node_id=node_id,
-            mode=mode,
-            expected_last_seen=expected_last_seen,
-            expected_config_hash=expected_config_hash,
-        ),
-        "result": (
-            _safe_verification_result(result)
-            if result is not None
-            else {"returned": "none", "values_redacted": True}
-        ),
+        "context": safe_context,
+        "result": safe_result,
         "retry": {
             "attempts_used": int(attempts_used),
             "attempts_configured": int(attempts_configured),
@@ -685,9 +764,7 @@ def _publish_mesh_manager_verification(
             "raw_node_id_redacted": True,
             "raw_endpoint_redacted": True,
             "raw_config_hash_redacted": bool(expected_config_hash),
-            "raw_error_message_redacted": bool(
-                getattr(result, "error_message", None)
-            ),
+            "raw_error_message_redacted": bool(getattr(result, "error_message", None)),
             "return_code": None,
         },
         "downstream_evidence": {
@@ -698,6 +775,8 @@ def _publish_mesh_manager_verification(
         },
         "input_redacted": True,
         "claim_boundary": MESH_NETWORK_MANAGER_OBSERVED_STATE_CLAIM_BOUNDARY,
+        "thinking": _MESH_THINKING_COACH.status(),
+        "last_thinking_context": thinking_context,
     }
     if error_types:
         payload["errors"] = [
@@ -843,6 +922,13 @@ class MeshNetworkManager:
         self.enable_database_node_healing = bool(enable_database_node_healing)
         # Cache for verification results
         self._verification_cache: Dict[str, NodeVerificationResult] = {}
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose thinking profile and latest redacted mesh decision context."""
+        return {
+            "thinking": _MESH_THINKING_COACH.status(),
+            "last_thinking_context": _MESH_LAST_THINKING_CONTEXT,
+        }
 
     def _post_heal_probe_enabled(self) -> bool:
         if self._post_heal_probe_config_source == "env":
@@ -1110,9 +1196,7 @@ class MeshNetworkManager:
                     cache_written=cache_written,
                     bypassed=False,
                     error_types=(
-                        ["NodeVerificationUnhealthy"]
-                        if not result.is_healthy
-                        else None
+                        ["NodeVerificationUnhealthy"] if not result.is_healthy else None
                     ),
                 )
 
@@ -1782,7 +1866,9 @@ class MeshNetworkManager:
                                     )
                             except NodeVerificationError as e:
                                 error_types.append(type(e).__name__)
-                                logger.error(f"❌ Node {node.id} verification error: {e}")
+                                logger.error(
+                                    f"❌ Node {node.id} verification error: {e}"
+                                )
                             except Exception as e:
                                 error_types.append(type(e).__name__)
                                 logger.warning(

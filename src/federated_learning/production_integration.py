@@ -6,11 +6,14 @@ including monitoring, metrics, and production deployment.
 """
 
 import asyncio
+import hashlib
 import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,38 @@ except ImportError as e:
     FL_AVAILABLE = False
     FederatedCoordinator = None
     CoordinatorConfig = None
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_mapping_summary(values: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    mapping = values or {}
+    return {
+        "key_count_bucket": _safe_count_bucket(len(mapping)),
+        "key_hashes": sorted(_safe_hash(key) for key in mapping.keys()),
+        "value_type_counts": {
+            type(value).__name__: sum(
+                1
+                for item in mapping.values()
+                if type(item).__name__ == type(value).__name__
+            )
+            for value in mapping.values()
+        },
+    }
 
 
 @dataclass
@@ -91,9 +126,41 @@ class FLProductionManager:
         self.metrics = FLMetrics()
         self.is_running = False
         self._training_task: Optional[asyncio.Task] = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"fl-production-manager:{_safe_hash(config.coordinator_id)}",
+            role="fl",
+            capabilities=("coordinator", "privacy", "monitoring"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "fl_production_manager_init",
+                "goal": "Initialize federated learning production manager safely",
+                "signals": {
+                    "coordinator_hash": _safe_hash(config.coordinator_id),
+                    "fl_enabled": config.enable_fl,
+                    "privacy_enabled": config.enable_privacy,
+                    "byzantine_protection_enabled": config.enable_byzantine_protection,
+                    "participant_bounds": {
+                        "min": config.min_participants,
+                        "max": config.max_participants,
+                    },
+                    "model_storage_configured": config.model_storage_path is not None,
+                    "fl_available": FL_AVAILABLE,
+                },
+                "safety_boundary": (
+                    "Keep coordinator ids, node ids, node info, model paths, raw "
+                    "updates, and error messages out of thinking context."
+                ),
+            }
+        )
 
         if not FL_AVAILABLE:
             logger.error("Federated Learning components not available")
+            self._record_thinking(
+                "fl_production_unavailable",
+                "Disable FL production manager when components are unavailable",
+                {"fl_available": False, "coordinator_configured": False},
+            )
             return
 
         # Initialize coordinator
@@ -101,6 +168,39 @@ class FLProductionManager:
             self._initialize_coordinator()
 
         logger.info("FLProductionManager initialized")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_coordinator_ids": True,
+                    "redact_node_ids": True,
+                    "redact_node_info": True,
+                    "redact_model_paths": True,
+                    "redact_raw_updates": True,
+                    "redact_error_messages": True,
+                    "preserve_fl_decision": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, counts, booleans, statuses, and privacy flags only."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def _initialize_coordinator(self):
         """Initialize FL coordinator"""
@@ -120,7 +220,31 @@ class FLProductionManager:
             )
 
             logger.info("FL Coordinator initialized")
+            self._record_thinking(
+                "fl_coordinator_initialized",
+                "Initialize FL coordinator safely",
+                {
+                    "coordinator_hash": _safe_hash(self.config.coordinator_id),
+                    "aggregation_method_hash": _safe_hash(
+                        self.config.aggregation_method
+                    ),
+                    "privacy_enabled": self.config.enable_privacy,
+                    "byzantine_tolerance": self.config.byzantine_tolerance,
+                    "min_participants": self.config.min_participants,
+                    "max_participants": self.config.max_participants,
+                    "success": True,
+                },
+            )
         except Exception as e:
+            self._record_thinking(
+                "fl_coordinator_initialized",
+                "Record FL coordinator initialization failure",
+                {
+                    "coordinator_hash": _safe_hash(self.config.coordinator_id),
+                    "error_type": type(e).__name__,
+                    "success": False,
+                },
+            )
             logger.error(f"Failed to initialize FL coordinator: {e}")
 
     async def start(self) -> bool:
@@ -131,21 +255,45 @@ class FLProductionManager:
             True if started successfully
         """
         if not self.config.enable_fl or not self.coordinator:
+            self._record_thinking(
+                "fl_production_start",
+                "Reject FL production start when disabled or coordinator missing",
+                {
+                    "fl_enabled": self.config.enable_fl,
+                    "coordinator_configured": self.coordinator is not None,
+                    "started": False,
+                },
+            )
             logger.warning("FL is disabled or coordinator not available")
             return False
 
         if self.is_running:
+            self._record_thinking(
+                "fl_production_start",
+                "Confirm FL production manager already running",
+                {"already_running": True, "started": True},
+            )
             logger.warning("FL Production Manager already running")
             return True
 
         try:
             self.is_running = True
             self._training_task = asyncio.create_task(self._training_loop())
+            self._record_thinking(
+                "fl_production_start",
+                "Start FL production training loop",
+                {"running": True, "training_task_created": self._training_task is not None},
+            )
             logger.info("FL Production Manager started")
             return True
         except Exception as e:
             logger.error(f"Failed to start FL Production Manager: {e}")
             self.is_running = False
+            self._record_thinking(
+                "fl_production_start",
+                "Record FL production start failure",
+                {"running": False, "error_type": type(e).__name__},
+            )
             return False
 
     async def stop(self) -> bool:
@@ -156,6 +304,11 @@ class FLProductionManager:
             True if stopped successfully
         """
         if not self.is_running:
+            self._record_thinking(
+                "fl_production_stop",
+                "Confirm FL production manager already stopped",
+                {"running": False, "stopped": True},
+            )
             return True
 
         try:
@@ -169,9 +322,19 @@ class FLProductionManager:
                     pass
 
             logger.info("FL Production Manager stopped")
+            self._record_thinking(
+                "fl_production_stop",
+                "Stop FL production manager",
+                {"running": False, "task_cancelled": self._training_task is not None},
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to stop FL Production Manager: {e}")
+            self._record_thinking(
+                "fl_production_stop",
+                "Record FL production stop failure",
+                {"error_type": type(e).__name__, "stopped": False},
+            )
             return False
 
     async def _training_loop(self):
@@ -211,6 +374,11 @@ class FLProductionManager:
             True if round completed successfully
         """
         if not self.coordinator:
+            self._record_thinking(
+                "fl_training_round",
+                "Skip FL training round without coordinator",
+                {"coordinator_configured": False, "success": False},
+            )
             return False
 
         try:
@@ -218,6 +386,11 @@ class FLProductionManager:
             round_id = await self.coordinator.start_round()
 
             if not round_id:
+                self._record_thinking(
+                    "fl_training_round",
+                    "Reject FL round when start_round returned no id",
+                    {"round_started": False, "success": False},
+                )
                 logger.warning("Failed to start training round")
                 return False
 
@@ -228,6 +401,18 @@ class FLProductionManager:
             updates = await self.coordinator.collect_updates(timeout=60)
 
             if not updates or len(updates) < self.config.min_participants:
+                self._record_thinking(
+                    "fl_training_round",
+                    "Reject FL round with insufficient participants",
+                    {
+                        "round_hash": _safe_hash(round_id),
+                        "update_count_bucket": _safe_count_bucket(
+                            len(updates) if updates else 0
+                        ),
+                        "min_participants": self.config.min_participants,
+                        "success": False,
+                    },
+                )
                 logger.warning(
                     f"Insufficient participants: {len(updates) if updates else 0}"
                 )
@@ -252,12 +437,35 @@ class FLProductionManager:
                     self.metrics.byzantine_detections += 1
 
                 logger.info(f"Training round {round_id} completed successfully")
+                self._record_thinking(
+                    "fl_training_round",
+                    "Complete FL training round safely",
+                    {
+                        "round_hash": _safe_hash(round_id),
+                        "update_count_bucket": _safe_count_bucket(len(updates)),
+                        "byzantine_detected": bool(
+                            hasattr(result, "byzantine_detected")
+                            and result.byzantine_detected
+                        ),
+                        "success": True,
+                    },
+                )
                 return True
             else:
+                self._record_thinking(
+                    "fl_training_round",
+                    "Record failed FL aggregation result",
+                    {"round_hash": _safe_hash(round_id), "success": False},
+                )
                 logger.warning(f"Training round {round_id} failed")
                 return False
 
         except Exception as e:
+            self._record_thinking(
+                "fl_training_round",
+                "Record FL training round failure",
+                {"error_type": type(e).__name__, "success": False},
+            )
             logger.error(f"Error in training round: {e}")
             return False
 
@@ -278,9 +486,19 @@ class FLProductionManager:
             Health status dictionary
         """
         if not self.config.enable_fl:
+            self._record_thinking(
+                "fl_health_status",
+                "Report disabled FL health",
+                {"enabled": False, "status": "disabled"},
+            )
             return {"status": "disabled", "enabled": False}
 
         if not self.coordinator:
+            self._record_thinking(
+                "fl_health_status",
+                "Report FL health without coordinator",
+                {"enabled": True, "coordinator_configured": False, "status": "error"},
+            )
             return {
                 "status": "error",
                 "enabled": True,
@@ -288,6 +506,11 @@ class FLProductionManager:
             }
 
         if not self.is_running:
+            self._record_thinking(
+                "fl_health_status",
+                "Report stopped FL health",
+                {"enabled": True, "running": False, "status": "stopped"},
+            )
             return {"status": "stopped", "enabled": True, "running": False}
 
         # Calculate success rate
@@ -297,7 +520,7 @@ class FLProductionManager:
                 self.metrics.successful_rounds / self.metrics.total_rounds
             ) * 100
 
-        return {
+        status = {
             "status": "healthy" if success_rate > 80 else "degraded",
             "enabled": True,
             "running": True,
@@ -312,6 +535,23 @@ class FLProductionManager:
                 else None
             ),
         }
+        self._record_thinking(
+            "fl_health_status",
+            "Summarize FL health safely",
+            {
+                "status": status["status"],
+                "success_rate": success_rate,
+                "total_rounds_bucket": _safe_count_bucket(self.metrics.total_rounds),
+                "successful_rounds_bucket": _safe_count_bucket(
+                    self.metrics.successful_rounds
+                ),
+                "failed_rounds_bucket": _safe_count_bucket(self.metrics.failed_rounds),
+                "byzantine_detections_bucket": _safe_count_bucket(
+                    self.metrics.byzantine_detections
+                ),
+            },
+        )
+        return status
 
     def register_participant(self, node_id: str, node_info: Dict[str, Any]) -> bool:
         """
@@ -325,14 +565,37 @@ class FLProductionManager:
             True if registered successfully
         """
         if not self.coordinator:
+            self._record_thinking(
+                "fl_participant_registered",
+                "Reject participant registration without coordinator",
+                {"node_hash": _safe_hash(node_id), "registered": False},
+            )
             return False
 
         try:
             # Register node with coordinator
             # This would integrate with the coordinator's node management
+            self._record_thinking(
+                "fl_participant_registered",
+                "Register FL participant safely",
+                {
+                    "node_hash": _safe_hash(node_id),
+                    "node_info": _safe_mapping_summary(node_info),
+                    "registered": True,
+                },
+            )
             logger.info(f"Registered participant: {node_id}")
             return True
         except Exception as e:
+            self._record_thinking(
+                "fl_participant_registered",
+                "Record participant registration failure",
+                {
+                    "node_hash": _safe_hash(node_id),
+                    "error_type": type(e).__name__,
+                    "registered": False,
+                },
+            )
             logger.error(f"Failed to register participant {node_id}: {e}")
             return False
 

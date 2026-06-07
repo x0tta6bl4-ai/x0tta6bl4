@@ -104,6 +104,23 @@ async def test_edge_node_manager_and_task_distributor_flow():
     n2._resources.available_slots = 1
 
     assert manager.get_best_node(required_capabilities={"gpu"}).config.node_id == n1.config.node_id
+    status = manager.get_thinking_status()
+    techniques = set(status["techniques"])
+    assert status["profile"]["role"] == "coordination"
+    assert "zero_trust_review" in techniques
+    assert "reverse_planning" in techniques
+    context = status["last_context"]
+    assert context["applied"]["framing"]["problem"] == "edge_node_manager_operation"
+    constraints = context["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == "get_best_node"
+    assert constraints["selection_is_local_scheduler_decision"] is True
+    assert constraints["raw_node_ids_redacted"] is True
+    assert constraints["raw_endpoints_redacted"] is True
+    rendered_status = str(status)
+    assert "http://n1.local:8001" not in rendered_status
+    assert "http://n2.local:8002" not in rendered_status
+    assert n1.config.node_id not in rendered_status
+
     assert manager.list_nodes(capability_filter="compute")
     assert manager.get_node_resources(n1.config.node_id)["network_mbps"] >= 0.0
 
@@ -135,6 +152,10 @@ async def test_edge_node_manager_and_task_distributor_flow():
     metrics = distributor.get_metrics_summary()
     assert metrics["total_distributed"] >= 1
     assert metrics["strategy"] == "hash_based"
+    assert metrics["thinking"]["profile"]["role"] == "coordinator"
+    assert metrics["last_thinking_context"]["applied"]["framing"]["problem"] == (
+        "edge_distribution_strategy_update"
+    )
 
     assert manager.deregister_node(n2.config.node_id) is True
     assert manager.deregister_node("missing") is False

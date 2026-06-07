@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.parl.types import (
     Task, TaskId, Experience, Policy, StepResult,
     WorkerId, WorkerState
@@ -86,6 +87,13 @@ class AgentWorker:
         self._local_policy = policy
         self._on_experience = on_experience
         self._capabilities = capabilities or {"task_types": ["*"]}
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=str(worker_id),
+            role="coordinator",
+            capabilities=("fl", "ops"),
+            extra_techniques=("mape_k",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
         
         # State
         self._state = WorkerState.IDLE
@@ -259,6 +267,8 @@ class AgentWorker:
             "avg_latency_ms": self._metrics.avg_latency_ms,
             "queue_size": self._task_queue.qsize(),
             "capabilities": self._capabilities,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
     
     def get_metrics(self) -> WorkerMetrics:
@@ -278,6 +288,18 @@ class AgentWorker:
             Step result with execution details
         """
         start_time = time.time()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task.task_type,
+                "goal": "Execute one PARL worker task and collect experience.",
+                "priority": int(task.priority),
+                "payload": task.payload,
+                "constraints": {
+                    "timeout_seconds": task.timeout_seconds,
+                    "capabilities": self._capabilities,
+                },
+            }
+        )
         
         try:
             # Check capabilities

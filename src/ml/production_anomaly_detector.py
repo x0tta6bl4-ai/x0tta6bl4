@@ -9,6 +9,7 @@ Advanced anomaly detection system with:
 - Distributed system awareness
 """
 
+import hashlib
 import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -17,8 +18,43 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    if value <= 1000:
+        return "100-1000"
+    return "1000+"
 
 
 class AnomalySeverity(Enum):
@@ -224,6 +260,59 @@ class ProductionAnomalyDetector:
         self.metric_history: Dict[str, List[float]] = defaultdict(list)
         self.last_anomaly_time: Dict[str, datetime] = {}
         self.suppression_window: timedelta = timedelta(seconds=60)
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="production-anomaly-detector",
+            role="monitoring",
+            capabilities=("healing", "quality", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "production_anomaly_detector_init",
+                "goal": "Initialize anomaly detection without exposing metric labels",
+                "signals": {
+                    "sensitivity_band": _safe_number_band(sensitivity),
+                    "min_history_bucket": _safe_count_bucket(min_history),
+                    "suppression_window_seconds": int(
+                        self.suppression_window.total_seconds()
+                    ),
+                },
+                "safety_boundary": (
+                    "Keep component names, metric names, raw metric values, and "
+                    "anomaly descriptions out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_component_names": True,
+                    "redact_metric_names": True,
+                    "redact_raw_metric_values": True,
+                    "redact_descriptions": True,
+                    "preserve_anomaly_decision": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, counts, value bands, severity, and confidence bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def record_metric(
         self, component: str, metric_name: str, value: float
@@ -252,8 +341,38 @@ class ProductionAnomalyDetector:
         )
 
         if is_anomalous:
-            return self._create_anomaly_event(component, metric_name, value, z_score)
+            event = self._create_anomaly_event(component, metric_name, value, z_score)
+            self._record_thinking(
+                "production_metric_recorded",
+                "Record metric and anomaly decision",
+                {
+                    "component_hash": _safe_hash(component),
+                    "metric_hash": _safe_hash(metric_name),
+                    "value_band": _safe_number_band(value),
+                    "history_count_bucket": _safe_count_bucket(
+                        len(self.metric_history[full_name])
+                    ),
+                    "z_score_band": _safe_number_band(z_score),
+                    "is_anomalous": True,
+                    "event_created": event is not None,
+                },
+            )
+            return event
 
+        self._record_thinking(
+            "production_metric_recorded",
+            "Record metric and confirm normal range",
+            {
+                "component_hash": _safe_hash(component),
+                "metric_hash": _safe_hash(metric_name),
+                "value_band": _safe_number_band(value),
+                "history_count_bucket": _safe_count_bucket(
+                    len(self.metric_history[full_name])
+                ),
+                "z_score_band": _safe_number_band(z_score),
+                "is_anomalous": False,
+            },
+        )
         return None
 
     def _create_anomaly_event(
@@ -265,10 +384,32 @@ class ProductionAnomalyDetector:
 
         last_time = self.last_anomaly_time.get(full_name)
         if last_time and (now - last_time) < self.suppression_window:
+            self._record_thinking(
+                "production_anomaly_event",
+                "Suppress repeated anomaly within suppression window",
+                {
+                    "component_hash": _safe_hash(component),
+                    "metric_hash": _safe_hash(metric_name),
+                    "value_band": _safe_number_band(value),
+                    "z_score_band": _safe_number_band(z_score),
+                    "suppressed": True,
+                },
+            )
             return None
 
         baseline = self.threshold_calc.get_baseline(full_name)
         if not baseline:
+            self._record_thinking(
+                "production_anomaly_event",
+                "Skip anomaly event without baseline",
+                {
+                    "component_hash": _safe_hash(component),
+                    "metric_hash": _safe_hash(metric_name),
+                    "value_band": _safe_number_band(value),
+                    "z_score_band": _safe_number_band(z_score),
+                    "has_baseline": False,
+                },
+            )
             return None
 
         expected = baseline.mean
@@ -294,6 +435,21 @@ class ProductionAnomalyDetector:
         self.anomalies.append(event)
         self.last_anomaly_time[full_name] = now
 
+        self._record_thinking(
+            "production_anomaly_event",
+            "Create anomaly event from baseline deviation",
+            {
+                "component_hash": _safe_hash(component),
+                "metric_hash": _safe_hash(metric_name),
+                "value_band": _safe_number_band(value),
+                "expected_band": _safe_number_band(expected),
+                "deviation_band": _safe_number_band(abs(deviation)),
+                "z_score_band": _safe_number_band(z_score),
+                "severity": severity.value,
+                "confidence_band": _safe_number_band(confidence),
+                "total_anomalies_bucket": _safe_count_bucket(len(self.anomalies)),
+            },
+        )
         logger.warning(f"Anomaly detected: {event.description}")
 
         return event
@@ -324,6 +480,15 @@ class ProductionAnomalyDetector:
         if severity:
             recent = [a for a in recent if a.severity == severity]
 
+        self._record_thinking(
+            "production_recent_anomalies",
+            "Filter recent anomalies by time and optional severity",
+            {
+                "minutes": minutes,
+                "severity": severity.value if severity else None,
+                "recent_count_bucket": _safe_count_bucket(len(recent)),
+            },
+        )
         return recent
 
     def get_anomaly_summary(self) -> Dict[str, Any]:
@@ -334,13 +499,24 @@ class ProductionAnomalyDetector:
         for anomaly in recent_anomalies:
             by_severity[anomaly.severity.value] += 1
 
-        return {
+        summary = {
             "total_anomalies": len(self.anomalies),
             "recent_60min": len(recent_anomalies),
             "by_severity": dict(by_severity),
             "metrics_tracked": len(self.metric_history),
             "timestamp": datetime.utcnow().isoformat(),
         }
+        self._record_thinking(
+            "production_anomaly_summary",
+            "Summarize anomaly detector state",
+            {
+                "total_anomalies_bucket": _safe_count_bucket(len(self.anomalies)),
+                "recent_count_bucket": _safe_count_bucket(len(recent_anomalies)),
+                "severity_counts": dict(by_severity),
+                "metrics_tracked_bucket": _safe_count_bucket(len(self.metric_history)),
+            },
+        )
+        return summary
 
     def analyze_component_health(self, component: str) -> Dict[str, Any]:
         """Analyze health of a specific component"""
@@ -351,15 +527,16 @@ class ProductionAnomalyDetector:
         health_score = 100 - (len(component_anomalies) * 10)
         health_score = max(0, min(100, health_score))
 
-        return {
+        status = (
+            "healthy"
+            if health_score >= 80
+            else "warning" if health_score >= 60 else "critical"
+        )
+        result = {
             "component": component,
             "health_score": health_score,
             "anomaly_count": len(component_anomalies),
-            "status": (
-                "healthy"
-                if health_score >= 80
-                else "warning" if health_score >= 60 else "critical"
-            ),
+            "status": status,
             "recent_anomalies": [
                 {
                     "metric": a.metric_name,
@@ -370,6 +547,17 @@ class ProductionAnomalyDetector:
                 for a in component_anomalies
             ],
         }
+        self._record_thinking(
+            "production_component_health",
+            "Analyze component health from recent anomalies",
+            {
+                "component_hash": _safe_hash(component),
+                "health_score_band": _safe_number_band(health_score),
+                "anomaly_count_bucket": _safe_count_bucket(len(component_anomalies)),
+                "status": status,
+            },
+        )
+        return result
 
 
 _detector = None

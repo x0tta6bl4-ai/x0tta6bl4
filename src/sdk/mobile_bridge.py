@@ -8,6 +8,8 @@ import base64
 import threading
 import time
 from typing import Dict, Any, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 from src.security.post_quantum import LibOQSBackend
 
 logger = logging.getLogger(__name__)
@@ -72,6 +74,12 @@ class MobileMeshAgent:
     def __init__(self, mesh_id: str, token: str):
         self.mesh_id = mesh_id
         self.token = token
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="mobile-mesh-agent",
+            role="monitoring",
+            capabilities=("mobile", "pqc", "battery_aware_polling"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
         self.is_running: bool = False
         self._status: Dict[str, Any] = {
             "connected": False,
@@ -86,6 +94,13 @@ class MobileMeshAgent:
 
     def start(self) -> int:
         """Start the background mesh loop. Returns 0 on success."""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "mobile_mesh_start",
+                "goal": "start battery-aware mesh connectivity loop",
+                "constraints": {"mesh_id": self.mesh_id, "pqc_active": True},
+            }
+        )
         self.is_running = True
         self._thread = threading.Thread(target=self._mesh_loop, daemon=True)
         self._thread.start()

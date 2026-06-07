@@ -297,6 +297,24 @@ async def test_projection_and_manager_end_to_end():
     assert summary.items == {}
     await manager.stop_all()
     assert manager.get_status()["running_projections"] == 0
+    status = manager.get_thinking_status()
+    techniques = set(status["techniques"])
+    assert status["profile"]["role"] == "coordination"
+    assert "zero_trust_review" in techniques
+    assert "reverse_planning" in techniques
+    context = status["last_context"]
+    assert context["applied"]["framing"]["problem"] == "projection_manager_operation"
+    constraints = context["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == "stop_all"
+    assert constraints["projection_state_is_eventually_consistent"] is True
+    assert constraints["local_projection_is_not_source_of_truth_finality"] is True
+    assert constraints["raw_projection_names_redacted"] is True
+    assert constraints["raw_event_payloads_redacted"] is True
+    rendered_status = str(status)
+    assert "name_projection" not in rendered_status
+    assert "counter_projection" not in rendered_status
+    assert "Renamed" not in rendered_status
+    assert "Unknown" not in rendered_status
 
 
 def test_mongodb_and_postgres_configs_and_helper_converters():

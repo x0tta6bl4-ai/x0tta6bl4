@@ -18,8 +18,63 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_duration_band(duration_ms: float) -> str:
+    if duration_ms <= 0:
+        return "0"
+    if duration_ms <= 10:
+        return "0-10ms"
+    if duration_ms <= 100:
+        return "10-100ms"
+    if duration_ms <= 1000:
+        return "100-1000ms"
+    return "1000ms+"
+
+
+def _safe_span_summary(span: "Span") -> Dict[str, Any]:
+    return {
+        "trace_hash": _safe_hash(span.trace_id),
+        "span_hash": _safe_hash(span.span_id),
+        "has_parent": span.parent_span_id is not None,
+        "parent_hash": _safe_hash(span.parent_span_id) if span.parent_span_id else None,
+        "operation_hash": _safe_hash(span.operation_name),
+        "service_hash": _safe_hash(span.service_name),
+        "status": span.status,
+        "has_error_message": bool(span.error_message),
+        "tag_count_bucket": _safe_count_bucket(len(span.tags)),
+        "log_count_bucket": _safe_count_bucket(len(span.logs)),
+        "duration_band": _safe_duration_band(span.duration_ms),
+    }
+
+
+def _safe_trace_summary(trace: "Trace") -> Dict[str, Any]:
+    return {
+        "trace_hash": _safe_hash(trace.trace_id),
+        "span_count_bucket": _safe_count_bucket(trace.span_count),
+        "service_count_bucket": _safe_count_bucket(trace.service_count),
+        "has_errors": trace.has_errors,
+        "duration_band": _safe_duration_band(trace.total_duration_ms),
+    }
 
 
 class SamplingStrategy(Enum):
@@ -91,6 +146,55 @@ class SamplingCalculator:
         self.default_rate = default_rate
         self.latency_buckets = defaultdict(lambda: deque(maxlen=1000))
         self.error_rates = defaultdict(lambda: {"errors": 0, "total": 0})
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="tracing-sampling-calculator",
+            role="monitoring",
+            capabilities=("ops", "quality"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "trace_sampling_init",
+                "goal": "Initialize trace sampling decisions without raw trace data",
+                "signals": {
+                    "default_rate": default_rate,
+                    "latency_bucket_limit": 1000,
+                },
+                "safety_boundary": (
+                    "Keep trace ids, span ids, service names, operation names, "
+                    "tags, logs, and error messages out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_trace_ids": True,
+                    "redact_service_names": True,
+                    "redact_error_messages": True,
+                    "preserve_sampling_decision": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, booleans, counts, strategy names, and latency bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def should_sample(
         self,
@@ -103,18 +207,32 @@ class SamplingCalculator:
         """Determine if trace should be sampled"""
 
         if strategy == SamplingStrategy.ALL:
-            return True
+            decision = True
         elif strategy == SamplingStrategy.NONE:
-            return False
+            decision = False
         elif strategy == SamplingStrategy.RANDOM:
             hash_val = int(hashlib.sha256(trace_id.encode()).hexdigest(), 16)
-            return (hash_val % 100) < (self.default_rate * 100)
+            decision = (hash_val % 100) < (self.default_rate * 100)
         elif strategy == SamplingStrategy.ERROR_BASED:
-            return has_error
+            decision = has_error
         elif strategy == SamplingStrategy.ADAPTIVE:
-            return self._adaptive_sample(service_name, duration_ms, has_error)
+            decision = self._adaptive_sample(service_name, duration_ms, has_error)
+        else:
+            decision = False
 
-        return False
+        self._record_thinking(
+            "trace_sampling_decision",
+            "Decide whether to sample a trace",
+            {
+                "trace_hash": _safe_hash(trace_id),
+                "service_hash": _safe_hash(service_name),
+                "duration_band": _safe_duration_band(duration_ms),
+                "has_error": has_error,
+                "strategy": strategy.value,
+                "sample": decision,
+            },
+        )
+        return decision
 
     def _adaptive_sample(
         self, service_name: str, duration_ms: float, has_error: bool
@@ -144,6 +262,48 @@ class LatencyAnalyzer:
     def __init__(self):
         self.operation_latencies = defaultdict(lambda: deque(maxlen=5000))
         self.service_latencies = defaultdict(lambda: deque(maxlen=5000))
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="tracing-latency-analyzer",
+            role="monitoring",
+            capabilities=("ops", "quality"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "trace_latency_analyzer_init",
+                "goal": "Initialize latency analysis without raw span names",
+                "signals": {"latency_window_limit": 5000},
+                "safety_boundary": (
+                    "Keep service names and operation names hashed in thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_operation_names": True,
+                    "redact_service_names": True,
+                    "preserve_latency_distribution": True,
+                },
+                "safety_boundary": "Use hashes, counts, and latency bands only.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def record_span_latency(
         self, operation: str, service: str, duration_ms: float
@@ -156,10 +316,18 @@ class LatencyAnalyzer:
         """Get latency stats for operation"""
         latencies = list(self.operation_latencies.get(operation, []))
         if not latencies:
+            self._record_thinking(
+                "trace_operation_latency_stats",
+                "Report missing operation latency data",
+                {
+                    "operation_hash": _safe_hash(operation),
+                    "sample_count_bucket": "0",
+                },
+            )
             return {}
 
         arr = np.array(latencies)
-        return {
+        stats = {
             "count": len(latencies),
             "min": float(np.min(arr)),
             "max": float(np.max(arr)),
@@ -168,15 +336,34 @@ class LatencyAnalyzer:
             "p95": float(np.percentile(arr, 95)),
             "p99": float(np.percentile(arr, 99)),
         }
+        self._record_thinking(
+            "trace_operation_latency_stats",
+            "Summarize operation latency distribution",
+            {
+                "operation_hash": _safe_hash(operation),
+                "sample_count_bucket": _safe_count_bucket(len(latencies)),
+                "p95_band": _safe_duration_band(stats["p95"]),
+                "p99_band": _safe_duration_band(stats["p99"]),
+            },
+        )
+        return stats
 
     def get_service_stats(self, service: str) -> Dict[str, float]:
         """Get latency stats for service"""
         latencies = list(self.service_latencies.get(service, []))
         if not latencies:
+            self._record_thinking(
+                "trace_service_latency_stats",
+                "Report missing service latency data",
+                {
+                    "service_hash": _safe_hash(service),
+                    "sample_count_bucket": "0",
+                },
+            )
             return {}
 
         arr = np.array(latencies)
-        return {
+        stats = {
             "count": len(latencies),
             "min": float(np.min(arr)),
             "max": float(np.max(arr)),
@@ -185,6 +372,17 @@ class LatencyAnalyzer:
             "p95": float(np.percentile(arr, 95)),
             "p99": float(np.percentile(arr, 99)),
         }
+        self._record_thinking(
+            "trace_service_latency_stats",
+            "Summarize service latency distribution",
+            {
+                "service_hash": _safe_hash(service),
+                "sample_count_bucket": _safe_count_bucket(len(latencies)),
+                "p95_band": _safe_duration_band(stats["p95"]),
+                "p99_band": _safe_duration_band(stats["p99"]),
+            },
+        )
+        return stats
 
 
 class RootCauseAnalyzer:
@@ -192,15 +390,74 @@ class RootCauseAnalyzer:
 
     def __init__(self):
         self.error_traces: List[Trace] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="tracing-root-cause-analyzer",
+            role="monitoring",
+            capabilities=("ops", "healing", "quality"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "trace_root_cause_analyzer_init",
+                "goal": "Initialize root-cause analysis without raw trace payloads",
+                "signals": {"error_trace_count_bucket": "0"},
+                "safety_boundary": (
+                    "Keep trace ids, span ids, service names, operation names, "
+                    "and error messages out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_trace_ids": True,
+                    "redact_span_ids": True,
+                    "redact_service_names": True,
+                    "redact_operation_names": True,
+                    "redact_error_messages": True,
+                    "preserve_causal_counts": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, counts, propagation depth, duration bands, and "
+                    "boolean flags only."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def analyze_error_trace(self, trace: Trace) -> Dict[str, Any]:
         """Analyze error trace for root cause"""
         if not trace.has_errors:
+            self._record_thinking(
+                "trace_root_cause_analysis",
+                "Skip root-cause analysis for trace without errors",
+                {"trace": _safe_trace_summary(trace), "has_root_cause": False},
+            )
             return {"error": "Trace has no errors"}
 
         error_spans = [s for s in trace.spans if s.status == "error"]
 
         if not error_spans:
+            self._record_thinking(
+                "trace_root_cause_analysis",
+                "Skip root-cause analysis when no error spans are present",
+                {"trace": _safe_trace_summary(trace), "has_root_cause": False},
+            )
             return {"error": "No error spans found"}
 
         root_error = error_spans[0]
@@ -211,6 +468,21 @@ class RootCauseAnalyzer:
             if any(s.parent_span_id == es.span_id for es in error_spans)
         ]
 
+        propagation_depth = self._calculate_propagation_depth(trace, root_error)
+        self._record_thinking(
+            "trace_root_cause_analysis",
+            "Identify likely root-cause span from error trace",
+            {
+                "trace": _safe_trace_summary(trace),
+                "root_span": _safe_span_summary(root_error),
+                "error_span_count_bucket": _safe_count_bucket(len(error_spans)),
+                "affected_service_count_bucket": _safe_count_bucket(
+                    len(set(s.service_name for s in affected_downstream))
+                ),
+                "propagation_depth": propagation_depth,
+                "has_root_cause": True,
+            },
+        )
         return {
             "trace_id": trace.trace_id,
             "root_cause_service": root_error.service_name,
@@ -218,7 +490,7 @@ class RootCauseAnalyzer:
             "error_message": root_error.error_message,
             "affected_services": list(set(s.service_name for s in affected_downstream)),
             "error_span_count": len(error_spans),
-            "propagation_depth": self._calculate_propagation_depth(trace, root_error),
+            "propagation_depth": propagation_depth,
             "timestamp": datetime.utcnow().isoformat(),
         }
 
@@ -244,14 +516,35 @@ class RootCauseAnalyzer:
     def find_slow_spans(self, trace: Trace, percentile: float = 95) -> List[Span]:
         """Find slow spans in trace"""
         if not trace.spans:
+            self._record_thinking(
+                "trace_slow_span_search",
+                "Skip slow-span search for empty trace",
+                {"trace": _safe_trace_summary(trace), "slow_span_count_bucket": "0"},
+            )
             return []
 
         durations = [s.duration_ms for s in trace.spans if s.duration_ms > 0]
         if not durations:
+            self._record_thinking(
+                "trace_slow_span_search",
+                "Skip slow-span search when spans have no duration",
+                {"trace": _safe_trace_summary(trace), "slow_span_count_bucket": "0"},
+            )
             return []
 
         threshold = np.percentile(durations, percentile)
-        return [s for s in trace.spans if s.duration_ms > threshold]
+        slow_spans = [s for s in trace.spans if s.duration_ms > threshold]
+        self._record_thinking(
+            "trace_slow_span_search",
+            "Find spans above percentile latency threshold",
+            {
+                "trace": _safe_trace_summary(trace),
+                "percentile": percentile,
+                "threshold_band": _safe_duration_band(float(threshold)),
+                "slow_span_count_bucket": _safe_count_bucket(len(slow_spans)),
+            },
+        )
+        return slow_spans
 
 
 class TracingOptimizer:
@@ -264,6 +557,61 @@ class TracingOptimizer:
         self.rca = RootCauseAnalyzer()
         self.span_buffer: List[Span] = []
         self.lock = __import__("threading").Lock()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="tracing-optimizer",
+            role="monitoring",
+            capabilities=("ops", "healing", "quality"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "tracing_optimizer_init",
+                "goal": "Initialize trace optimization decisions safely",
+                "signals": {
+                    "trace_count_bucket": "0",
+                    "span_buffer_count_bucket": "0",
+                    "max_traces": 100000,
+                },
+                "safety_boundary": (
+                    "Keep trace ids, span ids, operation names, service names, "
+                    "tags, logs, and error messages out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_trace_ids": True,
+                    "redact_span_ids": True,
+                    "redact_operation_names": True,
+                    "redact_service_names": True,
+                    "redact_error_messages": True,
+                    "preserve_diagnostic_decision": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, counts, booleans, latency bands, and strategy names."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "sampling": self.sampling_calc.get_thinking_status(),
+            "latency": self.latency_analyzer.get_thinking_status(),
+            "root_cause": self.rca.get_thinking_status(),
+        }
 
     def create_span(
         self,
@@ -281,6 +629,11 @@ class TracingOptimizer:
             operation_name=operation_name,
             service_name=service_name,
             start_time=datetime.utcnow(),
+        )
+        self._record_thinking(
+            "trace_span_created",
+            "Create a trace span with redacted identifiers",
+            {"span": _safe_span_summary(span)},
         )
         return span
 
@@ -301,6 +654,16 @@ class TracingOptimizer:
 
             if len(self.span_buffer) >= 10:
                 self._flush_spans()
+            self._record_thinking(
+                "trace_span_finished",
+                "Finish span and update latency buffers",
+                {
+                    "span": _safe_span_summary(span),
+                    "span_buffer_count_bucket": _safe_count_bucket(
+                        len(self.span_buffer)
+                    ),
+                },
+            )
 
     def process_span(self, span: Span) -> None:
         """
@@ -321,9 +684,20 @@ class TracingOptimizer:
 
             if len(self.span_buffer) >= 10:
                 self._flush_spans()
+            self._record_thinking(
+                "trace_span_processed",
+                "Process an externally-created span",
+                {
+                    "span": _safe_span_summary(span),
+                    "span_buffer_count_bucket": _safe_count_bucket(
+                        len(self.span_buffer)
+                    ),
+                },
+            )
 
     def _flush_spans(self) -> None:
         """Flush buffered spans to traces"""
+        flushed_count = len(self.span_buffer)
         for span in self.span_buffer:
             if span.trace_id not in self.traces:
                 self.traces[span.trace_id] = Trace(trace_id=span.trace_id)
@@ -337,14 +711,35 @@ class TracingOptimizer:
                 :50000
             ]
             self.traces = dict(old_traces)
+        self._record_thinking(
+            "trace_span_flush",
+            "Flush buffered spans into trace store",
+            {
+                "flushed_span_count_bucket": _safe_count_bucket(flushed_count),
+                "trace_count_bucket": _safe_count_bucket(len(self.traces)),
+                "buffer_empty": len(self.span_buffer) == 0,
+            },
+        )
 
     def should_sample_trace(
         self, trace_id: str, duration_ms: float, has_error: bool, service_name: str = ""
     ) -> bool:
         """Determine if trace should be sampled"""
-        return self.sampling_calc.should_sample(
+        decision = self.sampling_calc.should_sample(
             trace_id, service_name, duration_ms, has_error, SamplingStrategy.ADAPTIVE
         )
+        self._record_thinking(
+            "trace_optimizer_sampling_decision",
+            "Delegate trace sampling decision to sampling calculator",
+            {
+                "trace_hash": _safe_hash(trace_id),
+                "service_hash": _safe_hash(service_name),
+                "duration_band": _safe_duration_band(duration_ms),
+                "has_error": has_error,
+                "sample": decision,
+            },
+        )
+        return decision
 
     def analyze_trace(self, trace_id: str) -> Dict[str, Any]:
         """Analyze complete trace"""
@@ -352,6 +747,11 @@ class TracingOptimizer:
             self._flush_spans()
             trace = self.traces.get(trace_id)
             if not trace:
+                self._record_thinking(
+                    "trace_optimizer_analysis",
+                    "Report missing trace analysis target",
+                    {"trace_hash": _safe_hash(trace_id), "found": False},
+                )
                 return {"error": "Trace not found"}
 
             result = {
@@ -376,6 +776,15 @@ class TracingOptimizer:
                 for s in slow_spans
             ]
 
+            self._record_thinking(
+                "trace_optimizer_analysis",
+                "Analyze complete trace for errors and slow spans",
+                {
+                    "trace": _safe_trace_summary(trace),
+                    "slow_span_count_bucket": _safe_count_bucket(len(slow_spans)),
+                    "has_root_cause": "root_cause" in result,
+                },
+            )
             return result
 
     def get_performance_report(self) -> Dict[str, Any]:
@@ -395,13 +804,24 @@ class TracingOptimizer:
 
             total_spans = sum(len(trace.spans) for trace in self.traces.values())
 
-            return {
+            report = {
                 "total_traces": len(self.traces),
                 "total_spans": total_spans,
                 "operations": operation_stats,
                 "services": service_stats,
                 "timestamp": datetime.utcnow().isoformat(),
             }
+            self._record_thinking(
+                "trace_performance_report",
+                "Summarize trace optimizer performance",
+                {
+                    "trace_count_bucket": _safe_count_bucket(len(self.traces)),
+                    "span_count_bucket": _safe_count_bucket(total_spans),
+                    "operation_count_bucket": _safe_count_bucket(len(operations)),
+                    "service_count_bucket": _safe_count_bucket(len(services)),
+                },
+            )
+            return report
 
     def reset(self) -> None:
         """Reset in-memory optimizer state."""
@@ -410,6 +830,15 @@ class TracingOptimizer:
             self.span_buffer.clear()
             self.latency_analyzer.operation_latencies.clear()
             self.latency_analyzer.service_latencies.clear()
+            self._record_thinking(
+                "trace_optimizer_reset",
+                "Clear in-memory trace optimizer state",
+                {
+                    "trace_count_bucket": "0",
+                    "span_buffer_count_bucket": "0",
+                    "latency_buffers_cleared": True,
+                },
+            )
 
 
 _optimizer = None

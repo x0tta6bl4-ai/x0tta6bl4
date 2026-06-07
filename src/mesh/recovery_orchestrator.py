@@ -7,6 +7,7 @@ import time
 import uuid
 from typing import Any, Callable, Mapping
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.coordination.events import EventBus, EventType
 from src.mesh.recovery_contracts import (
     BoundedClaims,
@@ -41,10 +42,10 @@ MESH_RECOVERY_DATAPLANE_CLAIM_BOUNDARY = (
 )
 
 
-def _identity_metadata(service_name: str) -> ServiceIdentityEvidence:
-    identity = service_event_identity(service_name=service_name)
+def _identity_metadata() -> ServiceIdentityEvidence:
+    identity = service_event_identity(service_name=MESH_RECOVERY_SOURCE_AGENT)
     return ServiceIdentityEvidence(
-        service_name=service_name,
+        service_name=MESH_RECOVERY_SOURCE_AGENT,
         spiffe_id_configured=bool(identity.get("spiffe_id")),
         did_configured=bool(identity.get("did")),
         wallet_address_configured=bool(identity.get("wallet_address")),
@@ -80,6 +81,13 @@ class MeshRecoveryOrchestrator:
         self.post_action_wait_seconds = post_action_wait_seconds
         self._sleeper = sleeper or time.sleep
         self._clock = clock or time.monotonic
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=source_agent,
+            role="healing",
+            capabilities=("ops", "zero-trust"),
+            extra_techniques=("mape_k", "chaos_driven_design"),
+        )
+        self.last_thinking_context: dict[str, Any] = {}
 
     def run_recovery_flow(
         self,
@@ -91,11 +99,25 @@ class MeshRecoveryOrchestrator:
             raise ValueError("incident_id cannot be empty")
 
         started = self._clock()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mesh_node_recovery_flow",
+                "goal": "Run bounded observe-policy-action-revalidate recovery for a mesh node.",
+                "incident_id_present": True,
+                "incident_key_present": bool(incident_key),
+                "constraints": {
+                    "source_agent": self.source_agent,
+                    "post_action_wait_seconds": self.post_action_wait_seconds,
+                    "dataplane_probe_configured": self.dataplane_probe is not None,
+                    "do_not_expose_raw_node_id": True,
+                },
+            }
+        )
         before_state = self.get_node_state()
         policy_result = self.policy_manager.check_policy(incident_key)
         policy_decision = policy_result.to_decision()
         node_id_hash = generate_node_id_hash(self.node_id, self.local_audit_secret)
-        service_identity = _identity_metadata(self.source_agent)
+        service_identity = _identity_metadata()
 
         if not policy_result.allowed:
             evidence = RecoveryEvidenceV1(
@@ -283,6 +305,8 @@ class MeshRecoveryOrchestrator:
             "raw_identifiers_redacted": True,
             "payloads_redacted": True,
             "claim_boundary": MESH_RECOVERY_CLAIM_BOUNDARY,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
 
     def _dataplane_revalidation(

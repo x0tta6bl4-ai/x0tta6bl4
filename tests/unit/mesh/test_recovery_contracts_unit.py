@@ -204,6 +204,11 @@ def test_first_restart_allowed_and_records_bounded_evidence() -> None:
     assert evidence.escalation_required is False
     assert restart_mock.call_count == 1
     assert evidence.raw_values_redacted is True
+    assert orchestrator.last_thinking_context["role"] == "healing"
+    assert (
+        orchestrator.last_thinking_context["applied"]["framing"]["problem"]
+        == "mesh_node_recovery_flow"
+    )
     assert evidence.post_action_dataplane_revalidation is not None
     assert evidence.post_action_dataplane_revalidation.status == "not_attempted"
     assert (
@@ -239,6 +244,7 @@ def test_recovery_success_publishes_redacted_eventbus_evidence(tmp_path) -> None
     assert event.event_type == EventType.PIPELINE_STAGE_END
     assert event.data["schema"] == "mesh_node_degradation_recovery.eventbus.v1"
     assert event.data["recovery_event_id"] == evidence.event_id
+    assert event.data["thinking"]["profile"]["role"] == "healing"
     assert event.data["node_id_hash"] == evidence.node_id_hash
     assert event.data["policy_allowed"] is True
     assert event.data["success"] is True

@@ -6,6 +6,7 @@ and performance optimization for HNSW-based similarity search.
 """
 
 import asyncio
+import hashlib
 import logging
 import time
 from collections import deque
@@ -13,8 +14,51 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    if value <= 1000:
+        return "100-1000"
+    return "1000+"
+
+
+def _safe_results_summary(results: List[Tuple[str, float]]) -> Dict[str, Any]:
+    return {
+        "result_count_bucket": _safe_count_bucket(len(results)),
+        "doc_hashes": [_safe_hash(doc_id) for doc_id, _ in results[:5]],
+        "top_score_band": _safe_number_band(results[0][1]) if results else "none",
+    }
 
 
 class QueryType(Enum):
@@ -244,6 +288,56 @@ class HNSWPerformanceOptimizer:
         self.batch_manager = BatchRetrievalManager()
         self.metrics = QueryOptimizationMetrics()
         self.latency_history: deque = deque(maxlen=1000)
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="rag-hnsw-performance-optimizer",
+            role="monitoring",
+            capabilities=("rag", "quality", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "rag_hnsw_optimizer_init",
+                "goal": "Initialize RAG retrieval optimization without raw queries",
+                "signals": {
+                    "max_cache_size_bucket": _safe_count_bucket(max_cache_size),
+                    "latency_history_limit": 1000,
+                },
+                "safety_boundary": (
+                    "Keep raw queries, rewritten variants, document ids, cache keys, "
+                    "and retrieved content out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_queries": True,
+                    "redact_query_variants": True,
+                    "redact_cache_keys": True,
+                    "redact_document_ids": True,
+                    "preserve_optimization_decision": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, counts, booleans, score bands, and latency bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def retrieve_with_optimization(
         self,
@@ -319,6 +413,25 @@ class HNSWPerformanceOptimizer:
         optimization_info["latency_ms"] = elapsed_ms
         optimization_info["cache_hit_rate"] = self.query_cache.hit_rate()
 
+        self._record_thinking(
+            "rag_hnsw_retrieve_optimized",
+            "Retrieve with cache, rewrite, and latency optimization",
+            {
+                "query_hash": _safe_hash(query),
+                "query_length_bucket": _safe_count_bucket(len(query)),
+                "k_bucket": _safe_count_bucket(k),
+                "cache_hit": optimization_info["cache_hit"],
+                "rewritten": optimization_info["rewritten"],
+                "variants_tried_bucket": _safe_count_bucket(
+                    optimization_info["variants_tried"]
+                ),
+                "latency_band": _safe_number_band(elapsed_ms),
+                "cache_hit_rate_band": _safe_number_band(
+                    optimization_info["cache_hit_rate"]
+                ),
+                "results": _safe_results_summary(results),
+            },
+        )
         return results, optimization_info
 
     def _make_cache_key(self, query: str, k: int) -> str:
@@ -358,11 +471,26 @@ class HNSWPerformanceOptimizer:
 
         results_list = await asyncio.gather(*tasks)
 
-        return {query: results for query, (results, _) in zip(queries, results_list)}
+        batch_results = {
+            query: results for query, (results, _) in zip(queries, results_list)
+        }
+        self._record_thinking(
+            "rag_hnsw_batch_retrieve",
+            "Retrieve batch of RAG queries safely",
+            {
+                "query_count_bucket": _safe_count_bucket(len(queries)),
+                "query_hashes": [_safe_hash(query) for query in queries[:5]],
+                "k_bucket": _safe_count_bucket(k),
+                "batch_operations_bucket": _safe_count_bucket(
+                    self.metrics.batch_operations
+                ),
+            },
+        )
+        return batch_results
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get optimization metrics"""
-        return {
+        metrics = {
             "total_queries": self.metrics.total_queries,
             "cache_hits": self.metrics.cache_hits,
             "cache_hit_rate_percent": (
@@ -380,15 +508,53 @@ class HNSWPerformanceOptimizer:
                 "ef_construction": self.param_tuner.current_params.ef_construction,
             },
         }
+        self._record_thinking(
+            "rag_hnsw_optimizer_metrics",
+            "Summarize HNSW optimizer metrics safely",
+            {
+                "total_queries_bucket": _safe_count_bucket(self.metrics.total_queries),
+                "cache_hits_bucket": _safe_count_bucket(self.metrics.cache_hits),
+                "rewrites_bucket": _safe_count_bucket(
+                    self.metrics.rewrites_performed
+                ),
+                "avg_latency_band": _safe_number_band(self.metrics.avg_latency_ms),
+                "p95_latency_band": _safe_number_band(self.metrics.p95_latency_ms),
+                "p99_latency_band": _safe_number_band(self.metrics.p99_latency_ms),
+                "batch_operations_bucket": _safe_count_bucket(
+                    self.metrics.batch_operations
+                ),
+            },
+        )
+        return metrics
 
     def get_adaptive_parameters(self) -> HNSWParameters:
         """Get currently adapted parameters"""
-        return self.param_tuner.adapt_parameters()
+        params = self.param_tuner.adapt_parameters()
+        self._record_thinking(
+            "rag_hnsw_adaptive_parameters",
+            "Adapt HNSW search parameters from latency history",
+            {
+                "ef_search": params.ef_search,
+                "ef_construction": params.ef_construction,
+                "latency_sample_count_bucket": _safe_count_bucket(
+                    len(self.param_tuner.latency_history)
+                ),
+                "param_history_count_bucket": _safe_count_bucket(
+                    len(self.param_tuner.param_history)
+                ),
+            },
+        )
+        return params
 
     def clear_cache(self) -> None:
         """Clear query cache"""
         self.query_cache.cache.clear()
         self.query_cache.access_times.clear()
+        self._record_thinking(
+            "rag_hnsw_cache_cleared",
+            "Clear HNSW query cache safely",
+            {"cache_size_bucket": "0", "access_time_count_bucket": "0"},
+        )
         logger.info("Cleared HNSW optimization cache")
 
 

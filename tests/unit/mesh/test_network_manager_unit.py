@@ -142,6 +142,12 @@ class TestGetStatistics:
         assert data["read_only"] is True
         assert data["observed_state"] is True
         assert data["safe_actuator"] is False
+        assert data["thinking"]["profile"]["role"] == "healing"
+        assert "mape_k" in data["thinking"]["techniques"]
+        assert (
+            data["last_thinking_context"]["applied"]["framing"]["problem"]
+            == "mesh_network_observation"
+        )
         assert data["status"] == "success"
         assert data["stats"]["active_peers"] == 5.0
         assert data["sources"]["router"]["status"] == "success"
@@ -266,6 +272,10 @@ class TestVerifyNodeStateEvidence:
         assert data["control_action"] is False
         assert data["safe_actuator"] is False
         assert data["status"] == "success"
+        assert (
+            data["last_thinking_context"]["applied"]["framing"]["problem"]
+            == "mesh_node_verification"
+        )
         assert data["context"]["node_id_redacted"] is True
         assert data["context"]["node_id_sha256"]
         assert data["context"]["expected_config_hash_redacted"] is True
@@ -378,6 +388,10 @@ class TestSetRoutePreference:
         assert data["control_action"] is True
         assert data["safe_actuator"] is False
         assert data["success"] is True
+        assert (
+            data["last_thinking_context"]["applied"]["framing"]["problem"]
+            == "mesh_network_action"
+        )
         assert data["context"]["route_preference"] == "low_latency"
         assert data["downstream_evidence"]["events_total"] == 0
 
@@ -564,7 +578,9 @@ class TestAggressiveHealing:
         assert action_data["operation"] == "trigger_aggressive_healing"
         assert action_data["result"]["numeric"]["verification_results"] == 1.0
         assert action_data["result"]["numeric"]["verification_evidence_events"] == 1.0
-        assert action_data["claim_gate"]["local_node_verification_claim_allowed"] is True
+        assert (
+            action_data["claim_gate"]["local_node_verification_claim_allowed"] is True
+        )
         assert action_data["claim_gate"]["verification_evidence_events"] == 1
         assert action_data["claim_gate"]["restored_dataplane_claim_allowed"] is False
         assert action_data["downstream_evidence"]["source_agents"] == [

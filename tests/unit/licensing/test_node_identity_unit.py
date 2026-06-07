@@ -53,6 +53,25 @@ def test_node_activation_uses_injected_activation_client(monkeypatch, tmp_path):
     assert requests[0]["fingerprint_hash"] == fp.to_hash()
     assert manager.CERT_PATH.exists()
     assert manager.verify()[0] is True
+    status = manager.get_thinking_status()
+    techniques = set(status["techniques"])
+    assert status["profile"]["role"] == "security"
+    assert "zero_trust_review" in techniques
+    assert "reverse_planning" in techniques
+    context = status["last_context"]
+    assert context["applied"]["framing"]["problem"] == (
+        "node_license_manager_operation"
+    )
+    constraints = context["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == "verify"
+    assert constraints["fingerprint_match"] is True
+    assert constraints["certificate_valid"] is True
+    assert constraints["license_check_is_not_hardware_attestation"] is True
+    assert constraints["license_check_is_not_external_identity_finality"] is True
+    rendered_status = str(status)
+    assert "X0T-PRO-token" not in rendered_status
+    assert "00:11:22:33:44:55" not in rendered_status
+    assert "machine" not in rendered_status
 
 
 def test_node_activation_requires_license_server(monkeypatch, tmp_path):
@@ -106,3 +125,10 @@ def test_node_activation_client_error_fails_closed(monkeypatch, tmp_path):
     assert ok is False
     assert message == "License activation client failed."
     assert manager.certificate is None
+    status = manager.get_thinking_status()
+    constraints = status["last_context"]["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == "activate"
+    assert constraints["error_type"] == "LicenseActivationError"
+    assert constraints["raw_activation_token_redacted"] is True
+    assert "X0T-BAS-token" not in str(status)
+    assert "network down" not in str(status)

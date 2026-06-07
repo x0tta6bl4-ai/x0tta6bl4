@@ -136,9 +136,20 @@ class DynamicPricingAgent(Agent):
         start_time = time.time()
         try:
             node_id = payload.get("node_id")
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "task_id": task_id,
+                    "task_type": "pricing",
+                    "goal": "produce a bounded marketplace price recommendation",
+                    "payload": payload,
+                }
+            )
             recommendation = await self._recommend(payload)
             recommendation["node_id"] = node_id
             recommendation["task_id"] = task_id
+            recommendation["thinking_techniques"] = list(
+                (self.last_thinking_context or {}).get("techniques", [])
+            )
 
             logger.info(
                 "💰 Node %s: Suggested price $%.4f (Multiplier: %.2fx)",

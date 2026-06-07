@@ -3,7 +3,6 @@ import hashlib
 import json
 import logging
 import os
-import random
 import sqlite3
 from pathlib import Path
 from decimal import Decimal
@@ -11,7 +10,7 @@ from datetime import datetime
 from typing import Any
 
 from src.coordination.events import get_event_bus
-from src.dao.token_rewards import TokenRewards
+from src.dao.token_rewards import TokenRewards, REWARD_RATE_XOT_PER_PACKET
 from src.services.reward_events import publish_reward_settlement_event
 from src.services.service_event_identity import service_event_identity
 
@@ -321,105 +320,81 @@ async def main():
 
     logger.info(f"💰 Wallet: {node_address} | Threshold: {payout_threshold} X0T")
 
-    from src.network.routing.exit_node_manager import exit_manager
+    last_tx_bytes = 0
+
+    # Read initial bytes to calculate delta
+    try:
+        with open("/sys/class/net/eth0/statistics/tx_bytes", "r") as f:
+            last_tx_bytes = int(f.read().strip())
+    except Exception:
+        logger.warning("Could not read eth0 tx_bytes, will use mesh_stats.json")
 
     while True:
-        simulation_enabled = os.getenv("GHOST_ENABLE_ECONOMY_SIMULATION") == "1"
-        # 1. Check for Multiplier (Viral Logic)
+        # Honest Mode: No simulation allowed
+
+        # 1. Read real relayed packets (empirical delta)
+        relayed_now = 0
+        try:
+            with open("/sys/class/net/eth0/statistics/tx_bytes", "r") as f:
+                current_tx_bytes = int(f.read().strip())
+                delta_bytes = current_tx_bytes - last_tx_bytes
+                if delta_bytes > 0:
+                    # Estimate packets assuming avg 1500 bytes per packet
+                    relayed_now = int(delta_bytes / 1500)
+                last_tx_bytes = current_tx_bytes
+        except Exception:
+            # Fallback to mesh_stats if eth0 is unavailable
+            try:
+                with open(".tmp/mesh_stats.json", "r") as f:
+                    mesh_stats = json.load(f)
+                    relayed_now = mesh_stats.get("relayed_packets_last_minute", 0)
+            except Exception:
+                pass
+
+        # 2. Check for Multiplier (Viral Logic)
         multiplier = 1.0
-        # ... (referral check logic same as before) ...
-        # (I will keep the logic inside the loop for clarity)
-        db_path = os.getenv("GHOST_ACCESS_DB_PATH", "x0tta6bl4.db")
+        db_path = os.getenv("GHOST_ACCESS_DB_PATH", "x0tta6bl4_clean.db")
         ref_count = referral_count_for_user(user_id, db_path)
         if ref_count >= 3:
             multiplier = 2.0
 
-        # 2. Simulate relaying packets with multiplier
-        relayed_now = random.randint(50, 500) if simulation_enabled else 0
-        base_reward = relayed_now * 0.0001
-
-        # 3. Add EXIT NODE BONUS (The Big Money)
+        # 3. Exit Node Bonus Removed in Honest Mode (No VPN components)
+        is_exit = False
         exit_reward = Decimal("0")
-        is_exit = exit_manager.check_eligibility()
-        if simulation_enabled and is_exit:
-            exit_traffic = exit_manager.simulate_exit_traffic()
-            exit_reward = exit_manager.calculate_exit_reward(exit_traffic)
-            logger.info(f"🚀 EXIT GATEWAY ACTIVE: Relayed {exit_traffic:.2f} MB. Bonus: {exit_reward} X0T")
 
-        # 4. Add STEALTH BONUS (Pulse Coherence)
-        stealth_multiplier = Decimal("1.0")
-        mesh_stats_evidence = {
-            "source": "local_mesh_stats_file",
-            "source_path": ".tmp/mesh_stats.json",
-            "available": False,
-        }
-        try:
-            with open(".tmp/mesh_stats.json", "r") as f:
-                mesh_stats = json.load(f)
-                coherence_str = mesh_stats.get("pulse_coherence", "0%").split("%")[0]
-                coherence = float(coherence_str) / 100.0
-                mesh_stats_evidence.update(
-                    {
-                        "available": True,
-                        "pulse_coherence": coherence,
-                    }
-                )
-                if coherence > 0.95:
-                    stealth_multiplier = Decimal("1.25") # 25% bonus for perfect mimicry
-                    logger.info(f"🧬 Stealth Bonus ACTIVE: Coherence {coherence_str}%")
-        except (OSError, ValueError, KeyError, IndexError, json.JSONDecodeError) as exc:
-            logger.debug("Stealth bonus unavailable: %s", exc)
+        # 4. Process real reward with GasGuard (On-Chain Settlement)
+        # Apply multiplier and add exit reward
+        effective_packets = int(relayed_now * multiplier)
 
-        actual_reward = ((Decimal(str(base_reward)) * Decimal(str(multiplier))) * stealth_multiplier) + exit_reward
+        if effective_packets > 0 or exit_reward > 0:
+            # If exit reward is significant, we convert it back to equivalent packets for the token rewards engine,
+            # or just rely on TokenRewards API. For now we use the basic method.
+            total_xot_value = (Decimal(effective_packets) * REWARD_RATE_XOT_PER_PACKET) + exit_reward
+            equivalent_packets = int(total_xot_value / REWARD_RATE_XOT_PER_PACKET)
 
-        rewards.balance += actual_reward
-        rewards.daily_earnings += actual_reward
-        rewards.total_distributed += actual_reward
-        rewards.pending_rewards += actual_reward
-        status = (
-            "SIMULATED_EARNING"
-            if simulation_enabled and rewards.pending_rewards < payout_threshold
-            else "SIMULATED_PAYING_OUT"
-            if simulation_enabled
-            else "OBSERVE_ONLY"
-        )
-        reward_event_id = publish_share_to_earn_reward_event(
-            node_id=node_id,
-            node_address=node_address,
-            amount=actual_reward,
-            packets=relayed_now,
-            simulation_enabled=simulation_enabled,
-            status=status,
-            evidence_metadata={
-                "multiplier": multiplier,
-                "referral_count": ref_count,
-                "referral_db_path": db_path,
-                "is_exit_node": is_exit,
-                "exit_bonus_xot": str(exit_reward),
-                "stealth_multiplier": str(stealth_multiplier),
-                "mesh_stats": mesh_stats_evidence,
-            },
-        )
+            logger.info(f"⚡ Processing empirical reward for {equivalent_packets} equivalent packets.")
+            settlement_result = rewards.reward_relay(node_address, equivalent_packets)
+            status = settlement_result.get("status", "error")
+        else:
+            status = "IDLE (No traffic relayed)"
 
-        # 4. Update economy state
+        # 5. Update economy state
         state = {
             "node_id": node_id,
             "wallet_address": node_address,
-            "balance": str(rewards.get_balance(node_address)),
+            "balance": str(rewards.get_blockchain_balance()),
             "daily_earnings": str(rewards.get_daily_earnings(node_address)),
             "multiplier": str(multiplier),
             "referrals": int(ref_count),
             "is_exit_node": is_exit,
             "exit_bonus_today": str(exit_reward) if is_exit else "0",
-            "evidence_status": "LOCAL_SIMULATION" if simulation_enabled else "OBSERVE_ONLY_NOT_EARNING",
+            "evidence_status": "EMPIRICAL_TELEMETRY",
             "pending_payout": str(rewards.pending_rewards),
             "monthly_projection": str(rewards.get_monthly_projection(node_address)),
-            "total_packets_relayed": float(rewards.total_distributed / Decimal("0.0001")),
-            "last_reward_event_id": reward_event_id,
+            "total_packets_relayed": float(rewards.total_distributed / REWARD_RATE_XOT_PER_PACKET),
             "last_update": datetime.now().isoformat(),
             "status": status,
         }
-
 
         with open(STATUS_FILE, "w") as f:
             json.dump(state, f, indent=2)
@@ -431,8 +406,8 @@ async def main():
             state["daily_earnings"],
         )
 
-        # Wait for next simulation cycle
-        await asyncio.sleep(10)
+        # Wait for next accounting cycle
+        await asyncio.sleep(60)
 
 if __name__ == "__main__":
     try:

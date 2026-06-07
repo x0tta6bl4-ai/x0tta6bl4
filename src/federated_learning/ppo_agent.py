@@ -18,6 +18,8 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -585,6 +587,13 @@ class PPOAgent:
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.config = config or PPOConfig()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="ppo_mesh_routing",
+            role="fl",
+            capabilities=("coordinator", "zero-trust"),
+            extra_techniques=("reverse_planning",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Build networks
         hidden = self.config.hidden_sizes
@@ -628,6 +637,20 @@ class PPOAgent:
         Returns:
             Tuple of (action, log_prob, value)
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "ppo_action_selection",
+                "goal": "Select a mesh next hop from policy probabilities.",
+                "state_dim": self.state_dim,
+                "action_dim": self.action_dim,
+                "deterministic": deterministic,
+                "constraints": {
+                    "preserve_return_shape": "(action, log_prob, value)",
+                    "valid_action_count": self.action_dim,
+                },
+            }
+        )
+
         # Get action probabilities
         probs = self.actor.forward(state)
 
@@ -671,6 +694,19 @@ class PPOAgent:
         Returns:
             Training metrics
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "ppo_policy_update",
+                "goal": "Update PPO metrics from buffered mesh-routing trajectories.",
+                "buffer_size": len(self.buffer),
+                "constraints": {
+                    "preserve_metric_keys": True,
+                    "epochs_per_update": self.config.epochs_per_update,
+                    "batch_size": self.config.batch_size,
+                },
+            }
+        )
+
         if len(self.buffer) == 0:
             return {"loss": 0.0}
 

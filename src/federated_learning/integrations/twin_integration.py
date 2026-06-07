@@ -17,6 +17,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 from ..aggregators import get_aggregator
 from ..blockchain import ModelBlockchain, ModelMetadata
 from ..coordinator import CoordinatorConfig, FederatedCoordinator
@@ -343,6 +345,13 @@ class FederatedTrainingOrchestrator:
     def __init__(self, twin: MeshDigitalTwin, config: Optional[TrainingConfig] = None):
         self.twin = twin
         self.config = config or TrainingConfig()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="federated_twin_training_orchestrator",
+            role="fl",
+            capabilities=("coordinator", "healing"),
+            extra_techniques=("mape_k", "chaos_driven_design"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Initialize components
         self._init_coordinator()
@@ -427,6 +436,19 @@ class FederatedTrainingOrchestrator:
         """
         self.current_round += 1
         round_start = time.time()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "digital_twin_fl_training_round",
+                "goal": "Coordinate PPO local training, privacy, aggregation, distribution, and audit.",
+                "round_number": self.current_round,
+                "agent_count": len(self.agents),
+                "constraints": {
+                    "aggregation_method": self.config.aggregation_method,
+                    "dp_enabled": self.dp is not None,
+                    "blockchain_enabled": self.blockchain is not None,
+                },
+            }
+        )
 
         logger.info(f"Starting training round {self.current_round}")
 
@@ -639,6 +661,8 @@ class FederatedTrainingOrchestrator:
                 self.blockchain.get_stats() if self.blockchain else None
             ),
             "privacy_budget": self.dp.get_stats() if self.dp else None,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
 
     def inject_chaos(
@@ -651,6 +675,22 @@ class FederatedTrainingOrchestrator:
             scenario: Type of chaos (node_failure, network_partition)
             target: Specific target node (random if None)
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "digital_twin_fl_chaos_injection",
+                "goal": "Inject a bounded failure scenario to test FL routing resilience.",
+                "scenario": scenario,
+                "target_present": bool(target),
+                "constraints": {
+                    "preserve_return_shape": True,
+                    "healthy_nodes": sum(
+                        1
+                        for node in self.twin.nodes.values()
+                        if node.state == NodeState.HEALTHY
+                    ),
+                },
+            }
+        )
         if scenario == "node_failure":
             if target is None:
                 healthy = [

@@ -20,6 +20,7 @@ Integrates resilience patterns:
 """
 
 import asyncio
+import hashlib
 import logging
 import uuid
 from datetime import datetime
@@ -41,6 +42,7 @@ from src.event_sourcing.event_store import EventStore, Event, EventMetadata
 from src.event_sourcing.command_bus import CommandBus, Command
 from src.event_sourcing.query_bus import QueryBus, Query as ESQuery
 from src.event_sourcing.projection import ProjectionManager
+from src.core.agent_thinking import AgentThinkingCoach
 
 # Import resilience patterns
 from src.resilience import (
@@ -186,6 +188,20 @@ _command_bus: Optional[CommandBus] = None
 _query_bus: Optional[QueryBus] = None
 _projection_manager: Optional[ProjectionManager] = None
 _startup_hook_completed: bool = False
+_api_thinking_coach = AgentThinkingCoach(
+    agent_id="event-sourcing-api",
+    role="coordination",
+    capabilities=("mape_k", "event-sourcing", "api-security"),
+    extra_techniques=(
+        "mape_k",
+        "mind_maps",
+        "causal_analysis",
+        "graphsage",
+        "zero_trust_review",
+        "reverse_planning",
+    ),
+)
+_last_api_thinking_context: Optional[Dict[str, Any]] = None
 
 # Resilience patterns
 _api_rate_limiter = TokenBucket(capacity=200, refill_rate=50.0, name="events_api")
@@ -207,6 +223,55 @@ _projection_circuit_breaker = CircuitBreaker(
 _query_fallback = CacheFallback(ttl_seconds=300, max_size=1000)
 
 
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return hashlib.sha256(value).hexdigest()
+    return hashlib.sha256(
+        str(value).encode("utf-8", errors="replace")
+    ).hexdigest()
+
+
+def _record_api_thinking(
+    *,
+    operation: str,
+    goal: str,
+    constraints: Dict[str, Any],
+) -> Dict[str, Any]:
+    global _last_api_thinking_context
+    safe_task = {
+        "task_type": "event_sourcing_api_operation",
+        "goal": goal,
+        "constraints": {
+            "operation": operation,
+            "redacted": True,
+            "raw_command_payload_redacted": True,
+            "raw_query_parameters_redacted": True,
+            "raw_event_payloads_redacted": True,
+            "raw_errors_redacted": True,
+            "local_api_result_is_not_external_delivery_proof": True,
+            **constraints,
+        },
+        "safety_boundary": (
+            "Record only local Event Sourcing API execution metadata, hashes, "
+            "counts, timing, and status. Do not expose raw command payloads, "
+            "query parameters, event payloads, metadata, or exception text. "
+            "A local API result is not proof of external delivery or finality."
+        ),
+    }
+    _last_api_thinking_context = _api_thinking_coach.prepare_task(safe_task)
+    return _last_api_thinking_context
+
+
+def get_api_thinking_status() -> Dict[str, Any]:
+    """Expose Event Sourcing API thinking state without raw request payloads."""
+    return {
+        **_api_thinking_coach.status(),
+        "last_context": _last_api_thinking_context,
+    }
+
+
 # =============================================================================
 # Health Check Endpoint
 # =============================================================================
@@ -219,6 +284,17 @@ async def health_check():
     Returns status of Event Store components and database connectivity.
     """
     from datetime import datetime as dt
+    _record_api_thinking(
+        operation="health_check",
+        goal="check local event sourcing API component readiness",
+        constraints={
+            "startup_hook_completed": _startup_hook_completed,
+            "event_store_initialized": _event_store is not None,
+            "command_bus_initialized": _command_bus is not None,
+            "query_bus_initialized": _query_bus is not None,
+            "projection_manager_initialized": _projection_manager is not None,
+        },
+    )
     
     health_status = {
         "status": "healthy",
@@ -314,6 +390,20 @@ async def health_check():
             getattr(_projection_circuit_breaker, "failure_count", "unknown"),
         )
     }
+    _record_api_thinking(
+        operation="health_check",
+        goal="record local event sourcing API health result",
+        constraints={
+            "status": health_status["status"],
+            "component_count": len(health_status["components"]),
+            "unhealthy_component_count": sum(
+                1
+                for component in health_status["components"].values()
+                if isinstance(component, dict)
+                and component.get("status") == "unhealthy"
+            ),
+        },
+    )
     
     return health_status
 
@@ -704,6 +794,16 @@ async def execute_command(
 ):
     """Execute a command through the command bus."""
     bus = get_command_bus()
+    _record_api_thinking(
+        operation="execute_command",
+        goal="execute command through local command bus without exposing payload",
+        constraints={
+            "command_id_hash": _hash_value(request.command_id),
+            "command_type_hash": _hash_value(request.command_type),
+            "payload_key_count": len(request.payload or {}),
+            "metadata_key_count": len(request.metadata or {}),
+        },
+    )
     
     command = Command(
         command_id=uuid.UUID(request.command_id) if request.command_id else uuid.uuid4(),
@@ -722,6 +822,17 @@ async def execute_command(
         result = await _resolve_awaitable(result)
         
         execution_time = int((time.time() - start) * 1000)
+        _record_api_thinking(
+            operation="execute_command",
+            goal="record local command execution result",
+            constraints={
+                "command_id_hash": _hash_value(str(command.command_id)),
+                "command_type_hash": _hash_value(command.command_type),
+                "success": bool(result.success),
+                "events_produced": result.events_produced,
+                "execution_time_ms": execution_time,
+            },
+        )
         
         return CommandResultResponse(
             command_id=str(command.command_id),
@@ -733,11 +844,27 @@ async def execute_command(
         )
         
     except BulkheadFullException:
+        _record_api_thinking(
+            operation="execute_command",
+            goal="reject command because command bulkhead is full",
+            constraints={
+                "command_type_hash": _hash_value(request.command_type),
+                "error_type": "BulkheadFullException",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Command execution temporarily unavailable"
         )
     except Exception as e:
+        _record_api_thinking(
+            operation="execute_command",
+            goal="record command execution failure without raw error text",
+            constraints={
+                "command_type_hash": _hash_value(request.command_type),
+                "error_type": type(e).__name__,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -751,6 +878,17 @@ async def execute_batch_commands(
 ):
     """Execute multiple commands."""
     bus = get_command_bus()
+    _record_api_thinking(
+        operation="execute_batch_commands",
+        goal="execute command batch through local command bus without exposing payloads",
+        constraints={
+            "command_count": len(request.commands),
+            "atomic": request.atomic,
+            "command_type_hashes": [
+                _hash_value(command.command_type) for command in request.commands
+            ],
+        },
+    )
     
     results = []
     success_count = 0
@@ -792,6 +930,15 @@ async def execute_batch_commands(
                 execution_time_ms=0
             ))
             failure_count += 1
+    _record_api_thinking(
+        operation="execute_batch_commands",
+        goal="record local command batch execution result",
+        constraints={
+            "command_count": len(request.commands),
+            "success_count": success_count,
+            "failure_count": failure_count,
+        },
+    )
     
     return {
         "results": [r.dict() for r in results],
@@ -830,6 +977,16 @@ async def execute_query(
 ):
     """Execute a query through the query bus."""
     bus = get_query_bus()
+    _record_api_thinking(
+        operation="execute_query",
+        goal="execute query through local query bus without exposing parameters",
+        constraints={
+            "query_id_hash": _hash_value(request.query_id),
+            "query_type_hash": _hash_value(request.query_type),
+            "parameter_key_count": len(request.parameters or {}),
+            "option_key_count": len(request.options or {}),
+        },
+    )
     
     query = ESQuery(
         query_id=uuid.UUID(request.query_id) if request.query_id else uuid.uuid4(),
@@ -848,6 +1005,16 @@ async def execute_query(
         result = await _resolve_awaitable(result)
         
         execution_time = int((time.time() - start) * 1000)
+        _record_api_thinking(
+            operation="execute_query",
+            goal="record local query execution result",
+            constraints={
+                "query_id_hash": _hash_value(str(query.query_id)),
+                "query_type_hash": _hash_value(query.query_type),
+                "from_cache": bool(result.from_cache),
+                "execution_time_ms": execution_time,
+            },
+        )
         
         return QueryResultResponse(
             query_id=str(query.query_id),
@@ -857,11 +1024,27 @@ async def execute_query(
         )
         
     except BulkheadFullException:
+        _record_api_thinking(
+            operation="execute_query",
+            goal="reject query because query bulkhead is full",
+            constraints={
+                "query_type_hash": _hash_value(request.query_type),
+                "error_type": "BulkheadFullException",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Query execution temporarily unavailable"
         )
     except Exception as e:
+        _record_api_thinking(
+            operation="execute_query",
+            goal="record query execution failure without raw error text",
+            constraints={
+                "query_type_hash": _hash_value(request.query_type),
+                "error_type": type(e).__name__,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
