@@ -23,8 +23,9 @@ static __always_inline void update_csum(__u16 *csum, __u16 old_val, __u16 new_va
     __u32 sum = *csum;
     sum = ~sum & 0xFFFF;
     sum += (~old_val & 0xFFFF) + new_val;
-    sum = (sum & 0xFFFF) + (sum >> 16);
-    *csum = ~(sum + (sum >> 16));
+    while (sum >> 16)
+        sum = (sum & 0xFFFF) + (sum >> 16);
+    *csum = ~(sum & 0xFFFF);
 }
 
 SEC("xdp")
@@ -53,27 +54,30 @@ int xdp_x0tta6bl4_pulse(struct xdp_md *ctx)
     }
 
     // Stealth Mode: Modify TTL to break OS fingerprinting
-    // We use a simple counter mod 64 + 64 to generate dynamic TTLs
+    // Use a larger window for TTL stability to avoid ISP suspicion
     __u8 old_ttl = ip->ttl;
-    __u8 new_ttl = 64 + (count_val % 64);
+    __u8 new_ttl = 64 + ((count_val >> 8) % 32);
 
     // Stealth Mode: Clear TOS to blend with standard background traffic
     __u8 old_tos = ip->tos;
     __u8 new_tos = 0x00;
 
+    if (old_ttl == new_ttl && old_tos == new_tos)
+        return XDP_PASS;
+
     // Update IP header
     ip->ttl = new_ttl;
     ip->tos = new_tos;
 
-    // Incrementally update checksum for TTL
-    __u16 old_val = (__u16)old_ttl << 8;
-    __u16 new_val = (__u16)new_ttl << 8;
-    update_csum(&ip->check, old_val, new_val);
+    // Incrementally update checksum for TTL (High byte of word 4)
+    __u16 old_word4 = (__u16)old_ttl << 8;
+    __u16 new_word4 = (__u16)new_ttl << 8;
+    update_csum(&ip->check, old_word4, new_word4);
 
-    // Incrementally update checksum for TOS
-    old_val = (__u16)old_tos;
-    new_val = (__u16)new_tos;
-    update_csum(&ip->check, old_val, new_val);
+    // Incrementally update checksum for TOS (Low byte of word 0)
+    __u16 old_word0 = (__u16)old_tos;
+    __u16 new_word0 = (__u16)new_tos;
+    update_csum(&ip->check, old_word0, new_word0);
 
     return XDP_PASS;
 }

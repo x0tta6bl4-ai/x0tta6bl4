@@ -546,274 +546,283 @@ class SelfHealingManager:
         )
 
     def run_cycle(self, metrics: Dict):
-        """Run MAPE-K cycle with Verification phase and bounded MTTR evidence."""
-        if self.logic_contract.is_in_safe_mode():
-            logger.critical("SelfHealingManager is in SAFE_MODE due to logic violation. Action blocked.")
-            return
-
-        self._prepare_thinking_context(
-            "self_healing_mapek_monitor",
-            "monitor local metrics and decide whether MAPE-K should continue",
-            metrics=metrics,
-            constraints={
-                "pending_verification": self.node_id in self.pending_verifications,
-                "safe_mode": self.logic_contract.is_in_safe_mode(),
-            },
-        )
-        monitor_start = time.time()
-        _check_result = self.monitor.check(metrics)
-
-        anomaly_detected = (
-            _check_result.get("anomaly_detected", False)
-            if isinstance(_check_result, dict)
-            else bool(_check_result)
-        )
-        monitor_duration = time.time() - monitor_start
-
-        verification_success: Optional[bool] = None
-        if self.node_id in self.pending_verifications:
-            self.logic_contract.transition_to(FormalState.VERIFYING, {})
-            verification_success = self._verify_healing(metrics, _check_result)
-            if self.logic_contract.is_in_safe_mode(): return
-
-        self._publish_cycle_event(
-            EventType.PIPELINE_STAGE_END,
-            stage="monitor_completed",
-            operation="monitor",
-            status="anomaly_detected" if anomaly_detected else "healthy",
-            metrics=metrics,
-            check_result=_check_result,
-            duration_ms=monitor_duration * 1000,
-        )
-
-        if not anomaly_detected:
-            if self.logic_contract.current_state != FormalState.IDLE:
-                self.logic_contract.transition_to(FormalState.IDLE, {})
-            logger.info("No anomalies detected. System healthy.")
-            return
-
-        if verification_success is False:
-            self._publish_failed_verification_cooldown_event(
+        """Run MAPE-K cycle with resilience and error handling."""
+        try:
+            """Run MAPE-K cycle with Verification phase and bounded MTTR evidence."""
+            if self.logic_contract.is_in_safe_mode():
+                logger.critical("SelfHealingManager is in SAFE_MODE due to logic violation. Action blocked.")
+                return
+    
+            self._prepare_thinking_context(
+                "self_healing_mapek_monitor",
+                "monitor local metrics and decide whether MAPE-K should continue",
                 metrics=metrics,
-                failed_context=dict(self.last_failed_verification),
+                constraints={
+                    "pending_verification": self.node_id in self.pending_verifications,
+                    "safe_mode": self.logic_contract.is_in_safe_mode(),
+                },
             )
-            logger.warning(
-                "Skipping immediate self-healing retry after failed verification "
-                "for node %s.",
-                _sha256_text(str(self.node_id)),
+            monitor_start = time.time()
+            _check_result = self.monitor.check(metrics)
+    
+            anomaly_detected = (
+                _check_result.get("anomaly_detected", False)
+                if isinstance(_check_result, dict)
+                else bool(_check_result)
             )
-            return
-
-        if self.logic_contract.current_state == FormalState.COOLDOWN:
-            failed_context = dict(self.last_failed_verification)
-            cooldown_key = self._remediation_key(
-                str(failed_context.get("issue") or ""),
-                str(failed_context.get("action") or ""),
+            monitor_duration = time.time() - monitor_start
+    
+            verification_success: Optional[bool] = None
+            if self.node_id in self.pending_verifications:
+                self.logic_contract.transition_to(FormalState.VERIFYING, {})
+                verification_success = self._verify_healing(metrics, _check_result)
+                if self.logic_contract.is_in_safe_mode(): return
+    
+            self._publish_cycle_event(
+                EventType.PIPELINE_STAGE_END,
+                stage="monitor_completed",
+                operation="monitor",
+                status="anomaly_detected" if anomaly_detected else "healthy",
+                metrics=metrics,
+                check_result=_check_result,
+                duration_ms=monitor_duration * 1000,
             )
-            cooldown_until = self.remediation_cooldowns.get(cooldown_key, 0.0)
-            if cooldown_until > self._clock():
+    
+            if not anomaly_detected:
+                if self.logic_contract.current_state != FormalState.IDLE:
+                    self.logic_contract.transition_to(FormalState.IDLE, {})
+                logger.info("No anomalies detected. System healthy.")
+                return
+    
+            if verification_success is False:
+                self._publish_failed_verification_cooldown_event(
+                    metrics=metrics,
+                    failed_context=dict(self.last_failed_verification),
+                )
                 logger.warning(
-                    "Skipping self-healing retry while failed-verification "
-                    "cooldown is active for node %s.",
+                    "Skipping immediate self-healing retry after failed verification "
+                    "for node %s.",
                     _sha256_text(str(self.node_id)),
                 )
                 return
+    
+            if self.logic_contract.current_state == FormalState.COOLDOWN:
+                failed_context = dict(self.last_failed_verification)
+                cooldown_key = self._remediation_key(
+                    str(failed_context.get("issue") or ""),
+                    str(failed_context.get("action") or ""),
+                )
+                cooldown_until = self.remediation_cooldowns.get(cooldown_key, 0.0)
+                if cooldown_until > self._clock():
+                    logger.warning(
+                        "Skipping self-healing retry while failed-verification "
+                        "cooldown is active for node %s.",
+                        _sha256_text(str(self.node_id)),
+                    )
+                    return
+                self.logic_contract.transition_to(
+                    FormalState.IDLE,
+                    {"cooldown": "expired_after_failed_verification"},
+                )
+                if self.logic_contract.is_in_safe_mode():
+                    return
+    
+            # Transition to ANALYZING
+            self.logic_contract.transition_to(FormalState.ANALYZING, {"metrics": metrics})
+            if self.logic_contract.is_in_safe_mode(): return
+    
+            self._prepare_thinking_context(
+                "self_healing_mapek_analyze",
+                "identify the local anomaly cause from bounded metric evidence",
+                metrics=metrics,
+                constraints={"anomaly_detected": True},
+            )
+            analyze_start = time.time()
+            analyze_event_id = f"{self.node_id}_{int(time.time() * 1000)}"
+            issue = self.analyzer.analyze(
+                metrics,
+                node_id=self.node_id,
+                event_id=analyze_event_id,
+            )
+            analyze_duration = time.time() - analyze_start
+    
+            # Transition to PLANNING
+            self.logic_contract.transition_to(FormalState.PLANNING, {"issue": issue})
+            if self.logic_contract.is_in_safe_mode(): return
+    
+            self._prepare_thinking_context(
+                "self_healing_mapek_plan",
+                "choose a bounded recovery action for the analyzed issue",
+                metrics=metrics,
+                constraints={
+                    "issue_present": bool(issue),
+                    "issue_sha256": _sha256_text(str(issue)),
+                },
+            )
+            plan_start = time.time()
+            action = self.planner.plan(issue)
+            plan_duration = time.time() - plan_start
+    
+            self._prepare_thinking_context(
+                "self_healing_mapek_execute",
+                "execute recovery through SafeActuator only when guards allow it",
+                metrics=metrics,
+                constraints={
+                    "issue_present": bool(issue),
+                    "issue_sha256": _sha256_text(str(issue)),
+                    "action_present": bool(action),
+                    "action_sha256": _sha256_text(str(action)),
+                },
+            )
+            execute_start = time.time()
+            guard_now = self._clock()
+            oscillation_guard = self._recovery_guard_state(issue, action, now=guard_now)
+    
+            # Transition to EXECUTING with invariants I1 and I2
+            cooldown_key = self._remediation_key(issue, action)
+            cooldown_until = self.remediation_cooldowns.get(cooldown_key, 0.0)
+            cooldown_active = cooldown_until > time.time()
+    
+            if oscillation_guard["blocked"]:
+                self.oscillation_blocks += 1
+                success = False
+                simulated = False
+                downstream_event_ids: List[str] = []
+                error_type = "OscillationGuardBlocked"
+            else:
+                if cooldown_active:
+                    self._publish_cycle_event(
+                        EventType.TASK_FAILED,
+                        stage="execute_blocked_by_cooldown",
+                        operation="execute",
+                        status="blocked_by_cooldown",
+                        metrics=metrics,
+                        issue=issue,
+                        action=action,
+                        success=False,
+                        simulated=False,
+                        duration_ms=0.0,
+                        error_type="RemediationCooldownActive",
+                        safe_actuator_evidence_metadata=self._blocked_safe_actuator_metadata(
+                            "remediation_cooldown_active"
+                        ),
+                        oscillation_guard=oscillation_guard,
+                    )
+                    logger.warning(
+                        "Self-healing action blocked by remediation cooldown for node %s.",
+                        _sha256_text(str(self.node_id)),
+                    )
+                    self.logic_contract.transition_to(
+                        FormalState.IDLE,
+                        {"execute_blocked": "remediation_cooldown_active"},
+                    )
+                    return
+    
+                self.logic_contract.transition_to(
+                    FormalState.EXECUTING,
+                    {
+                        "pending_verification": self.node_id in self.pending_verifications,
+                        "cooldown_active": False,
+                        "issue": issue,
+                        "action": action
+                    }
+                )
+                if self.logic_contract.is_in_safe_mode(): return
+    
+                downstream_before = _event_ids_for_agent(
+                    self.event_bus,
+                    _RECOVERY_EXECUTOR_AGENT,
+                )
+                self._record_recovery_attempt(issue, action, now=guard_now)
+                self.remediation_cooldowns[cooldown_key] = (
+                    time.time() + self.remediation_cooldown_seconds
+                )
+                actuator = SafeActuator(self.executor)
+                actuator_result = actuator.execute(
+                    action,
+                    {"node_id": self.node_id, "metrics": metrics},
+                )
+                success = bool(actuator_result.success)
+                simulated = bool(actuator_result.simulated)
+                downstream_event_ids = _new_event_ids_for_agent(
+                    self.event_bus,
+                    _RECOVERY_EXECUTOR_AGENT,
+                    downstream_before,
+                )
+                error_type = None if success else "SafeActuatorFailure"
+    
+            execute_duration = time.time() - execute_start
+            mttr = execute_duration
+            safe_actuator_evidence_metadata = _safe_actuator_evidence_metadata(
+                event_bus=self.event_bus,
+                success=bool(success),
+                simulated=simulated,
+                downstream_event_ids=downstream_event_ids,
+            )
+            stage = (
+                "execute_completed"
+                if success and not simulated
+                else "execute_simulated"
+                if simulated
+                else "execute_blocked_by_oscillation_guard"
+                if oscillation_guard["blocked"]
+                else "execute_failed"
+            )
+            self._publish_cycle_event(
+                EventType.PIPELINE_STAGE_END
+                if success and not simulated
+                else EventType.TASK_FAILED,
+                stage=stage,
+                operation="execute",
+                status="success" if success and not simulated else "failed",
+                metrics=metrics,
+                issue=issue,
+                action=action,
+                success=success and not simulated,
+                simulated=simulated,
+                duration_ms=execute_duration * 1000,
+                mttr=mttr,
+                error_type=error_type,
+                downstream_event_ids=downstream_event_ids,
+                safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
+                oscillation_guard=oscillation_guard,
+            )
             self.logic_contract.transition_to(
                 FormalState.IDLE,
-                {"cooldown": "expired_after_failed_verification"},
+                {"execute_result_recorded": True, "verification_pending": bool(success)},
             )
             if self.logic_contract.is_in_safe_mode():
                 return
-
-        # Transition to ANALYZING
-        self.logic_contract.transition_to(FormalState.ANALYZING, {"metrics": metrics})
-        if self.logic_contract.is_in_safe_mode(): return
-
-        self._prepare_thinking_context(
-            "self_healing_mapek_analyze",
-            "identify the local anomaly cause from bounded metric evidence",
-            metrics=metrics,
-            constraints={"anomaly_detected": True},
-        )
-        analyze_start = time.time()
-        analyze_event_id = f"{self.node_id}_{int(time.time() * 1000)}"
-        issue = self.analyzer.analyze(
-            metrics,
-            node_id=self.node_id,
-            event_id=analyze_event_id,
-        )
-        analyze_duration = time.time() - analyze_start
-
-        # Transition to PLANNING
-        self.logic_contract.transition_to(FormalState.PLANNING, {"issue": issue})
-        if self.logic_contract.is_in_safe_mode(): return
-
-        self._prepare_thinking_context(
-            "self_healing_mapek_plan",
-            "choose a bounded recovery action for the analyzed issue",
-            metrics=metrics,
-            constraints={
-                "issue_present": bool(issue),
-                "issue_sha256": _sha256_text(str(issue)),
-            },
-        )
-        plan_start = time.time()
-        action = self.planner.plan(issue)
-        plan_duration = time.time() - plan_start
-
-        self._prepare_thinking_context(
-            "self_healing_mapek_execute",
-            "execute recovery through SafeActuator only when guards allow it",
-            metrics=metrics,
-            constraints={
-                "issue_present": bool(issue),
-                "issue_sha256": _sha256_text(str(issue)),
-                "action_present": bool(action),
-                "action_sha256": _sha256_text(str(action)),
-            },
-        )
-        execute_start = time.time()
-        guard_now = self._clock()
-        oscillation_guard = self._recovery_guard_state(issue, action, now=guard_now)
-
-        # Transition to EXECUTING with invariants I1 and I2
-        cooldown_key = self._remediation_key(issue, action)
-        cooldown_until = self.remediation_cooldowns.get(cooldown_key, 0.0)
-        cooldown_active = cooldown_until > time.time()
-
-        if oscillation_guard["blocked"]:
-            self.oscillation_blocks += 1
-            success = False
-            simulated = False
-            downstream_event_ids: List[str] = []
-            error_type = "OscillationGuardBlocked"
-        else:
-            if cooldown_active:
-                self._publish_cycle_event(
-                    EventType.TASK_FAILED,
-                    stage="execute_blocked_by_cooldown",
-                    operation="execute",
-                    status="blocked_by_cooldown",
-                    metrics=metrics,
-                    issue=issue,
-                    action=action,
-                    success=False,
-                    simulated=False,
-                    duration_ms=0.0,
-                    error_type="RemediationCooldownActive",
-                    safe_actuator_evidence_metadata=self._blocked_safe_actuator_metadata(
-                        "remediation_cooldown_active"
-                    ),
-                    oscillation_guard=oscillation_guard,
-                )
-                logger.warning(
-                    "Self-healing action blocked by remediation cooldown for node %s.",
-                    _sha256_text(str(self.node_id)),
-                )
-                self.logic_contract.transition_to(
-                    FormalState.IDLE,
-                    {"execute_blocked": "remediation_cooldown_active"},
-                )
-                return
-
-            self.logic_contract.transition_to(
-                FormalState.EXECUTING,
-                {
-                    "pending_verification": self.node_id in self.pending_verifications,
-                    "cooldown_active": False,
+    
+            knowledge_start = time.time()
+            self.knowledge.record(metrics, issue, action, success=success, mttr=mttr)
+            self._apply_feedback_loop(issue, action, success, mttr)
+            knowledge_duration = time.time() - knowledge_start
+    
+            if success:
+                self.pending_verifications[self.node_id] = {
+                    "action": action,
                     "issue": issue,
-                    "action": action
+                    "start_time": time.time(),
+                    "initial_metrics": metrics,
                 }
-            )
-            if self.logic_contract.is_in_safe_mode(): return
-
-            downstream_before = _event_ids_for_agent(
-                self.event_bus,
-                _RECOVERY_EXECUTOR_AGENT,
-            )
-            self._record_recovery_attempt(issue, action, now=guard_now)
-            self.remediation_cooldowns[cooldown_key] = (
-                time.time() + self.remediation_cooldown_seconds
-            )
-            actuator = SafeActuator(self.executor)
-            actuator_result = actuator.execute(
+                logger.info("Recovery action %s initiated. Waiting for verification.", action)
+    
+            logger.info(
+                "Self-healing cycle: %s -> %s, MTTR=%.3fs, success=%s",
+                issue,
                 action,
-                {"node_id": self.node_id, "metrics": metrics},
+                mttr,
+                success,
             )
-            success = bool(actuator_result.success)
-            simulated = bool(actuator_result.simulated)
-            downstream_event_ids = _new_event_ids_for_agent(
-                self.event_bus,
-                _RECOVERY_EXECUTOR_AGENT,
-                downstream_before,
+    
+        except Exception as e:
+            logger.error(f"CRITICAL: MAPE-K cycle failed for node {self.node_id}: {e}")
+            self._publish_cycle_event(
+                EventType.TASK_FAILED,
+                stage='cycle_error',
+                error=str(e)
             )
-            error_type = None if success else "SafeActuatorFailure"
-
-        execute_duration = time.time() - execute_start
-        mttr = execute_duration
-        safe_actuator_evidence_metadata = _safe_actuator_evidence_metadata(
-            event_bus=self.event_bus,
-            success=bool(success),
-            simulated=simulated,
-            downstream_event_ids=downstream_event_ids,
-        )
-        stage = (
-            "execute_completed"
-            if success and not simulated
-            else "execute_simulated"
-            if simulated
-            else "execute_blocked_by_oscillation_guard"
-            if oscillation_guard["blocked"]
-            else "execute_failed"
-        )
-        self._publish_cycle_event(
-            EventType.PIPELINE_STAGE_END
-            if success and not simulated
-            else EventType.TASK_FAILED,
-            stage=stage,
-            operation="execute",
-            status="success" if success and not simulated else "failed",
-            metrics=metrics,
-            issue=issue,
-            action=action,
-            success=success and not simulated,
-            simulated=simulated,
-            duration_ms=execute_duration * 1000,
-            mttr=mttr,
-            error_type=error_type,
-            downstream_event_ids=downstream_event_ids,
-            safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
-            oscillation_guard=oscillation_guard,
-        )
-        self.logic_contract.transition_to(
-            FormalState.IDLE,
-            {"execute_result_recorded": True, "verification_pending": bool(success)},
-        )
-        if self.logic_contract.is_in_safe_mode():
-            return
-
-        knowledge_start = time.time()
-        self.knowledge.record(metrics, issue, action, success=success, mttr=mttr)
-        self._apply_feedback_loop(issue, action, success, mttr)
-        knowledge_duration = time.time() - knowledge_start
-
-        if success:
-            self.pending_verifications[self.node_id] = {
-                "action": action,
-                "issue": issue,
-                "start_time": time.time(),
-                "initial_metrics": metrics,
-            }
-            logger.info("Recovery action %s initiated. Waiting for verification.", action)
-
-        logger.info(
-            "Self-healing cycle: %s -> %s, MTTR=%.3fs, success=%s",
-            issue,
-            action,
-            mttr,
-            success,
-        )
-
     def _verify_healing(
         self,
         current_metrics: Dict,

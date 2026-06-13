@@ -19,6 +19,8 @@ import aiohttp
 from sqlalchemy.orm import Session
 
 from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
+from src.core.settings import settings
+from src.sales.payment_verification import BaseUSDCVerifier
 
 from .constants import (
     BILLING_WEBHOOK_EVENTS,
@@ -523,208 +525,66 @@ class BillingService:
         tx_hash: str,
         expected_amount: float,
         expected_recipient: Optional[str] = None,
-        min_confirmations: int = 3,
+        min_confirmations: int = 2,
     ) -> bool:
         """
         Verify on-chain crypto payment via blockchain RPC.
         
-        Supports Ethereum mainnet and testnets via Etherscan/Alchemy API.
-        
-        Args:
-            tx_hash: Transaction hash (0x-prefixed)
-            expected_amount: Expected amount in USD
-            expected_recipient: Expected recipient address (optional, uses CRYPTO_DEPOSIT_ADDRESS)
-            min_confirmations: Minimum confirmations required (default: 3)
-        
-        Returns:
-            True if payment is valid and confirmed
-
-        Raises:
-            ValueError: If transaction format is invalid
-            RuntimeError: If blockchain verification fails
+        Supports Base network USDC payments natively. Falls back to stub
+        only in non-production environments.
         """
-        # Validate transaction hash format
-        if not tx_hash or not isinstance(tx_hash, str):
-            raise ValueError("Invalid transaction hash: must be a non-empty string")
+        # 1. Validate transaction hash format
+        if not tx_hash or not isinstance(tx_hash, str) or not tx_hash.startswith("0x"):
+            raise ValueError("Invalid transaction hash format")
         
-        if not tx_hash.startswith("0x"):
-            raise ValueError("Invalid transaction hash: must be 0x-prefixed")
-        
-        if len(tx_hash) != 66:  # 0x + 64 hex chars
-            raise ValueError("Invalid transaction hash: must be 66 characters (0x + 64 hex)")
-        
-        try:
-            int(tx_hash[2:], 16)
-        except ValueError:
-            raise ValueError("Invalid transaction hash: must be valid hexadecimal")
-        
-        # Get expected recipient
+        # 2. Get expected recipient
         recipient = expected_recipient or os.getenv("CRYPTO_DEPOSIT_ADDRESS")
         if not recipient:
             logger.error("No crypto deposit address configured")
             raise RuntimeError("Crypto payment verification not configured")
         
-        # Get blockchain API configuration
-        api_key = os.getenv("ETHERSCAN_API_KEY") or os.getenv("ALCHEMY_API_KEY")
-        network = os.getenv("ETH_NETWORK", "mainnet")
+        # 3. Determine if we are in production
+        is_prod = settings.is_production() or os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
+        stub_enabled = _env_flag("STUB_CRYPTO_ENABLED", False)
         
-        if not api_key:
-            # Check if stub mode is explicitly enabled for development
-            stub_enabled = _env_flag("STUB_CRYPTO_ENABLED", False)
+        if is_prod and stub_enabled:
+            logger.critical("🛑 SECURITY BREACH: STUB_CRYPTO_ENABLED is TRUE in PRODUCTION. Blocking stub.")
+            stub_enabled = False
 
-            if not stub_enabled:
-                logger.error(
-                    "SECURITY: Crypto payment verification failed. "
-                    "No ETHERSCAN_API_KEY or ALCHEMY_API_KEY configured, "
-                    "and STUB_CRYPTO_ENABLED is not 'true'. "
-                    "Set STUB_CRYPTO_ENABLED=true ONLY in development environments."
-                )
-                raise RuntimeError(
-                    "Crypto payment verification not configured. "
-                    "Configure ETHERSCAN_API_KEY/ALCHEMY_API_KEY for production, "
-                    "or set STUB_CRYPTO_ENABLED=true for development only."
-                )
-            
-            # Stub mode for development only - log warning prominently
-            logger.warning(
-                "⚠️ STUB CRYPTO VERIFICATION (DEVELOPMENT ONLY) - NOT FOR PRODUCTION USE"
-            )
-            return self._stub_verify_crypto_payment(tx_hash, expected_amount)
-        
-        # Real blockchain verification
+        # 4. Try real verification on Base (USDC)
         try:
-            tx_data = await self._fetch_transaction(tx_hash, api_key, network)
-            
-            # Verify transaction details
-            return self._validate_transaction(
-                tx_data=tx_data,
+            verifier = BaseUSDCVerifier()
+            res = verifier.verify_payment(
+                tx_hash=tx_hash,
                 expected_amount=expected_amount,
                 expected_recipient=recipient,
-                min_confirmations=min_confirmations,
+                min_confirmations=min_confirmations
             )
-        except Exception as e:
-            logger.error(f"Blockchain verification failed for {tx_hash[:16]}...: {e}")
-            raise RuntimeError(f"Blockchain verification failed: {e}")
-    
-    async def _fetch_transaction(
-        self,
-        tx_hash: str,
-        api_key: str,
-        network: str = "mainnet",
-    ) -> Dict[str, Any]:
-        """
-        Fetch transaction data from Etherscan API.
-        
-        Args:
-            tx_hash: Transaction hash
-            api_key: Etherscan API key
-            network: Network name (mainnet, goerli, sepolia)
-        
-        Returns:
-            Transaction data dictionary
-        """
-        # Select API endpoint based on network
-        if network == "mainnet":
-            base_url = "https://api.etherscan.io/api"
-        elif network == "goerli":
-            base_url = "https://api-goerli.etherscan.io/api"
-        elif network == "sepolia":
-            base_url = "https://api-sepolia.etherscan.io/api"
-        else:
-            base_url = "https://api.etherscan.io/api"
-        
-        params = {
-            "module": "proxy",
-            "action": "eth_getTransactionReceipt",
-            "txhash": tx_hash,
-            "apikey": api_key,
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(base_url, params=params, timeout=10) as response:
-                data = await response.json()
-
-                if data.get("status") == "0" or data.get("error"):
-                    error_msg = data.get("result", {}).get("message", "Unknown error")
-                    raise RuntimeError(f"Etherscan API error: {error_msg}")
+            if res.get("verified"):
+                logger.info(f"✅ Crypto payment verified on-chain: {tx_hash[:16]}...")
+                return True
+            
+            # If real verification failed with a specific error (not just 'not found')
+            if res.get("error") and "Transaction failed" in res["error"]:
+                logger.warning(f"❌ Crypto payment transaction FAILED on-chain: {res['error']}")
+                return False
                 
-                return data.get("result", {})
-    
-    def _validate_transaction(
-        self,
-        tx_data: Dict[str, Any],
-        expected_amount: float,
-        expected_recipient: str,
-        min_confirmations: int,
-    ) -> bool:
-        """
-        Validate transaction data against expected values.
+        except Exception as e:
+            logger.warning(f"On-chain verification error (falling back to legacy/stub if allowed): {e}")
+
+        # 5. Legacy/Stub Fallback
+        if not is_prod and stub_enabled:
+            return self._stub_verify_crypto_payment(tx_hash, expected_amount)
         
-        Args:
-            tx_data: Transaction data from blockchain
-            expected_amount: Expected amount in USD
-            expected_recipient: Expected recipient address
-            min_confirmations: Minimum confirmations required
-        
-        Returns:
-            True if transaction is valid
-        """
-        # Check transaction status (1 = success, 0 = failure)
-        status = tx_data.get("status")
-        if status != "0x1":
-            logger.warning(f"Transaction failed with status: {status}")
-            return False
-        
-        # Check recipient
-        actual_recipient = tx_data.get("to", "").lower()
-        if actual_recipient != expected_recipient.lower():
-            logger.warning(
-                f"Recipient mismatch: expected {expected_recipient}, got {actual_recipient}"
-            )
-            return False
-        
-        # Check confirmations (would need additional API call for block number)
-        # For now, we trust the transaction receipt status
-        
-        # Note: Amount validation would require converting ETH value to USD
-        # This is a simplified check - production would need price oracle
-        value_wei = int(tx_data.get("value", "0x0"), 16)
-        value_eth = value_wei / 1e18
-        
-        logger.info(
-            f"Transaction validated: recipient={actual_recipient}, "
-            f"value={value_eth} ETH, status=success"
-        )
-        
-        return True
-    
+        logger.error(f"❌ Crypto payment verification FAILED for {tx_hash[:16]}... (Prod={is_prod}, Stub={stub_enabled})")
+        return False
+
     def _stub_verify_crypto_payment(self, tx_hash: str, expected_amount: float) -> bool:
-        """
-        Stub verification for development/testing only.
-        
-        WARNING: This does NOT verify actual blockchain state.
-        Only use in development environment.
-        
-        SECURITY: This method is blocked in production environments.
-        """
-        # Check multiple production indicators
-        is_production = (
-            _env_flag("PRODUCTION", False)
-            or _env_value("ENVIRONMENT", "development").lower() in ("production", "prod", "live")
-            or _env_value("NODE_ENV", "development").lower() == "production"
-        )
-        
-        if is_production:
-            raise RuntimeError(
-                "SECURITY: Stub crypto verification BLOCKED in production environment. "
-                "Configure ETHERSCAN_API_KEY or ALCHEMY_API_KEY for real verification."
-            )
-        
+        """Stub verification for development only."""
         logger.warning(
             f"⚠️ STUB crypto verification (development only): {tx_hash[:16]}... "
-            f"expected_amount={expected_amount} - THIS IS NOT REAL VERIFICATION"
+            f"amount={expected_amount} - THIS IS NOT REAL VERIFICATION"
         )
-        
         return True
     
     async def process_webhook(

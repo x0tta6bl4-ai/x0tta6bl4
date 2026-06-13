@@ -299,10 +299,11 @@
       "scripts/ops/verify_maas_real_agent_control_loop.py:1086",
       "scripts/ops/check_real_readiness.py:7153",
       "scripts/ops/check_real_readiness.py:7199",
-      "src/api/maas/endpoints/nodes.py:366",
-      "src/api/maas/endpoints/nodes.py:675",
-      "src/api/maas/endpoints/nodes.py:763",
-      "src/api/maas/endpoints/nodes.py:799",
+      "src/api/maas/endpoints/nodes.py:309",
+      "src/api/maas/endpoints/nodes.py:357",
+      "src/api/maas/endpoints/nodes.py:418",
+      "src/api/maas/endpoints/nodes.py:447",
+      "src/api/maas/endpoints/nodes.py:628",
       "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:14",
       "tests/unit/scripts/test_verify_maas_real_agent_control_loop.py:45"
     ]

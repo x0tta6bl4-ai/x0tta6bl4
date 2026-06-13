@@ -94,6 +94,7 @@ marshmallow==4.2.1
 mccabe==0.7.0
 mdit-py-plugins==0.5.0
 mdurl==0.1.2
+mcp==1.27.2
 memory-profiler==0.61.0
 mmh3==5.2.0
 morphys==1.0

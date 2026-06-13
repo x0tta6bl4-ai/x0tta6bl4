@@ -56,6 +56,26 @@ reasons.
 failover checklist, помощь с конкретным клиентом/устройством, другое.
 ```
 
+## Follow-Up If Ready To Pay
+
+Use the payment handoff:
+`docs/ghost-access/reliability-pilot-payment-handoff-2026-06-08.md`
+
+```text
+Ок. Тогда фиксируем платный формат перед оплатой:
+
+Формат: starter incident / 7-day pilot.
+Цена: 3,000-7,000 RUB за starter incident или 15,000-40,000 RUB за 7-day pilot.
+Результат: redacted incident note или ежедневная health summary + incident
+timeline + финальный отчёт.
+Reference: X0T-PILOT-6017E099 или согласованный invoice/local reference.
+
+Если оплата через wallet/криптокошелёк, отдельно согласуем точную сеть и
+платёжный актив, то есть какую монету переводить. Не присылай приватные ключи,
+seed phrases, raw subscription links, UUID, QR-коды, bot tokens или скриншоты с
+секретами.
+```
+
 ## Tracking Table
 
 Use the working tracker for real outreach:
@@ -67,6 +87,12 @@ Use the working tracker for real outreach:
 
 ## Daily Minimum
 
+For exact Day 1 execution, use
+`docs/ghost-access/reliability-pilot-day1-runbook-2026-06-08.md`.
+
+For Day 2-3 paid conversion, use
+`docs/ghost-access/reliability-pilot-day2-day3-conversion-runbook-2026-06-08.md`.
+
 - Send 10 direct messages.
 - Record every reply or non-reply.
 - Ask for payment by day 3 if the problem is real.
@@ -75,6 +101,11 @@ Use the working tracker for real outreach:
 ## Links
 
 - Pilot packet: `docs/ghost-access/reliability-pilot-packet-2026-06-07.md`
+- Day 1 runbook: `docs/ghost-access/reliability-pilot-day1-runbook-2026-06-08.md`
+- Day 2-3 conversion runbook: `docs/ghost-access/reliability-pilot-day2-day3-conversion-runbook-2026-06-08.md`
 - Pilot tracker: `docs/ghost-access/reliability-pilot-tracker-2026-06-07.md`
+- Payment handoff: `docs/ghost-access/reliability-pilot-payment-handoff-2026-06-08.md`
 - Intake template: `docs/templates/GHOST_ACCESS_RELIABILITY_INTAKE_TEMPLATE.md`
+- Starter incident note template: `docs/templates/GHOST_ACCESS_STARTER_INCIDENT_NOTE_TEMPLATE.md`
+- Daily health summary template: `docs/templates/GHOST_ACCESS_DAILY_HEALTH_SUMMARY_TEMPLATE.md`
 - Report template: `docs/templates/GHOST_ACCESS_RELIABILITY_REPORT_TEMPLATE.md`

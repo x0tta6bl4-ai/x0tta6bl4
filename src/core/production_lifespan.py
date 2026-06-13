@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import FastAPI
 
-from src.core.consciousness import ConsciousnessEngine
+# from src.core.consciousness import ConsciousnessEngine # Purged in Honest Mode
 from src.core.mape_k_loop import MAPEKLoop
 from src.core.settings import settings
 from src.database import ensure_schema_compatible
@@ -128,12 +128,22 @@ class OptimizationEngine:
             # Note: In a real deployment, we might need to wait for Yggdrasil to be ready
             # or simply let the manager handle retries.
 
+            # Initialize Native eBPF Exporter
+            try:
+                from src.monitoring.ebpf_native_exporter import get_native_exporter
+                native_ebpf = get_native_exporter()
+                native_ebpf.start()
+                logger.info("✅ Native eBPF Exporter started")
+            except Exception as e:
+                logger.warning(f"⚠️ Native eBPF Exporter failed to start: {e}")
+
             prometheus = PrometheusExporter()
             zero_trust = ZeroTrustValidator()
 
-            # 2. Initialize Consciousness
-            logger.info("🔮 Awakening Consciousness...")
-            consciousness = ConsciousnessEngine(enable_advanced_metrics=True)
+            # 2. Initialize Consciousness (Purged in Honest Mode)
+            # logger.info("🔮 Awakening Consciousness...")
+            # consciousness = ConsciousnessEngine(enable_advanced_metrics=True)
+            consciousness = None
 
             # 3. Initialize Swarm (PARL)
             logger.info("🐝 Initializing Swarm Intelligence (PARL)...")
@@ -147,30 +157,33 @@ class OptimizationEngine:
             await self.fl_integration.startup()
 
             # 5. Initialize MAPE-K Loop
-            logger.info("🌀 Configuring MAPE-K Autonomic Loop...")
+            try:
+                logger.info("🌀 Configuring MAPE-K Autonomic Loop...")
 
-            # TD-008: Initialize modular self-healing manager
-            from src.self_healing.mape_k.manager import SelfHealingManager
-            self_healing = SelfHealingManager(
-                node_id=settings.node_id,
-                event_project_root=".",
-            )
+                # TD-008: Initialize modular self-healing manager
+                from src.self_healing.mape_k.manager import SelfHealingManager
+                self_healing = SelfHealingManager(
+                    node_id=settings.node_id,
+                    event_project_root=".",
+                )
 
-            self.mape_k_loop = MAPEKLoop(
-                consciousness_engine=consciousness,
-                mesh_manager=self.network_manager,
-                prometheus=prometheus,
-                zero_trust=zero_trust,
-                parl_controller=self.parl_controller,
-                fl_integration=self.fl_integration,
-                self_healing_manager=self_healing,
-            )
+                self.mape_k_loop = MAPEKLoop(
+                    consciousness_engine=consciousness,
+                    mesh_manager=self.network_manager,
+                    prometheus=prometheus,
+                    zero_trust=zero_trust,
+                    parl_controller=self.parl_controller,
+                    fl_integration=self.fl_integration,
+                    self_healing_manager=self_healing,
+                )
 
-            # 6. Start the Loop
-            self.loop_task = asyncio.create_task(
-                self.mape_k_loop.start(fl_integration=True)
-            )
-            logger.info("✅ MAPE-K Loop started in background")
+                # 6. Start the Loop
+                self.loop_task = asyncio.create_task(
+                    self.mape_k_loop.start(fl_integration=True)
+                )
+                logger.info("✅ MAPE-K Loop started in background")
+            except Exception as e:
+                logger.warning(f"⚠️ MAPE-K Loop failed to start: {e}. System will run without self-healing.")
 
             # 7. Initialize Edge Computing Module
             if EDGE_MODULE_AVAILABLE and edge_startup:

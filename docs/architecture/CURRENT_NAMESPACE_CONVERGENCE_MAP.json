@@ -29,8 +29,8 @@
       "libx0t"
     ],
     "direct_import_statements": {
-      "libx0t": 44,
-      "src.libx0t": 101
+      "libx0t": 48,
+      "src.libx0t": 113
     }
   },
   "known_bridges": [
@@ -154,22 +154,26 @@
         "tests/unit/libx0t/network/obfuscation/test_domain_fronting_unit.py:7",
         "tests/unit/libx0t/network/obfuscation/test_simple_xor_obfuscation_unit.py:4",
         "tests/unit/libx0t/network/obfuscation/test_simple_xor_obfuscation_unit.py:5",
+        "tests/unit/libx0t/network/obfuscation/test_traffic_shaping_unit.py:5",
         "tests/unit/libx0t/test_pqc_module_unit.py:9",
         "tests/unit/libx0t/test_secure_chat_unit.py:3",
-        "tests/unit/network/test_batman_health.py:12",
-        "tests/unit/network/test_batman_health.py:20",
-        "tests/unit/network/test_batman_health.py:25",
+        "tests/unit/network/test_batman_health.py:14",
+        "tests/unit/network/test_batman_health.py:22",
+        "tests/unit/network/test_batman_health.py:27",
         "tests/unit/network/test_dns_over_https_libx0t_unit.py:15",
         "tests/unit/network/test_geo_proxy_sharding_libx0t_unit.py:8",
         "tests/unit/network/test_geo_proxy_sharding_libx0t_unit.py:9",
         "tests/unit/network/test_proxy_auth_middleware_libx0t_unit.py:12",
         "tests/unit/network/test_proxy_auth_middleware_libx0t_unit.py:16",
         "tests/unit/network/test_proxy_config_manager_libx0t_unit.py:12",
+        "tests/unit/network/test_proxy_orchestrator_libx0t_unit.py:12",
+        "tests/unit/network/test_proxy_orchestrator_libx0t_unit.py:13",
         "tests/unit/network/test_proxy_selection_algorithm_libx0t_unit.py:11",
         "tests/unit/network/test_proxy_selection_algorithm_libx0t_unit.py:12",
         "tests/unit/network/test_reputation_scoring_libx0t_unit.py:9",
         "tests/unit/network/test_residential_proxy_manager_libx0t_unit.py:12",
         "tests/unit/network/test_vpn_leak_protection_libx0t_unit.py:6",
+        "tests/unit/network/test_vpn_obfuscation_manager_libx0t_unit.py:9",
         "tests/unit/network/test_vpn_proxy_libx0t_unit.py:7",
         "tests/unit/network/test_vpn_proxy_libx0t_unit.py:8",
         "tests/unit/network/test_webrtc_leak_fix_libx0t_unit.py:7",

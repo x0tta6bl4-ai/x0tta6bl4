@@ -116,6 +116,19 @@ project_files_list.txt
 *.sqlite
 *.sqlite3
 
+# Large local artifacts & backups
+backups/
+docker-data-old/
+offload/
+backup_sessions/
+data/live_captures/
+bin/xray
+bin/xray.zip
+bin/geoip.dat
+ai-actuator
+x0t-agent-smoke
+data-16bbdde1-92ce-4f6f-ac13-c7217d4cd06a-*/
+
 # Large design/source assets
 *.cdr
 

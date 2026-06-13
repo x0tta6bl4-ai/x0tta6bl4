@@ -83,11 +83,12 @@ def _request_client_host(request: Optional[Request]) -> Optional[str]:
 def _verified_runtime_identity_context_from_request(
     request: Optional[Request],
 ) -> Optional[Dict[str, Any]]:
+    # Fallback to pure JWT-SVID verification, blocking header-based spoofing.
     if request is None:
         return None
-    return verified_node_runtime_identity_from_headers(
+    return verified_node_runtime_identity_from_jwt_svid(
         request.headers,
-        client_host=_request_client_host(request),
+        expected_node_id=None,
     )
 
 
@@ -108,13 +109,11 @@ def _runtime_identity_context_for_bound_node(
     request: Optional[Request],
     node: MeshNode,
 ) -> Optional[Dict[str, Any]]:
-    binding_type = str(getattr(node, "runtime_identity_binding_type", "") or "").lower()
-    if binding_type == "verified_jwt_svid":
-        return _jwt_svid_runtime_identity_context_from_request(
-            request,
-            expected_node_id=str(getattr(node, "id", "") or ""),
-        )
-    return _verified_runtime_identity_context_from_request(request)
+    # Always enforce JWT-SVID for any live runtime identity binding, removing trusted proxy header spoofing.
+    return _jwt_svid_runtime_identity_context_from_request(
+        request,
+        expected_node_id=str(getattr(node, "id", "") or ""),
+    )
 
 
 def _live_runtime_identity_failure_detail(

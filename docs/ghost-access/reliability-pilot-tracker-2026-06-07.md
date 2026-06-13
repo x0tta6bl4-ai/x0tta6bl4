@@ -19,7 +19,13 @@ By day 7, reach one of these outcomes:
 - Current offer: Ghost Access Reliability Pilot
 - Current status: `outreach_not_started`
 - Next action: send 10 direct messages using
-  `docs/ghost-access/reliability-pilot-outreach-2026-06-07.md`
+  `docs/ghost-access/reliability-pilot-day1-runbook-2026-06-08.md`
+- Day 2-3 conversion runbook:
+  `docs/ghost-access/reliability-pilot-day2-day3-conversion-runbook-2026-06-08.md`
+- Payment handoff:
+  `docs/ghost-access/reliability-pilot-payment-handoff-2026-06-08.md`
+- Starter incident note template:
+  `docs/templates/GHOST_ACCESS_STARTER_INCIDENT_NOTE_TEMPLATE.md`
 - Payment asked: `no`
 - Paid conversion: `no`
 - Offer rewrite needed: `unknown`
@@ -34,6 +40,14 @@ By day 7, reach one of these outcomes:
 | Paid asks | 1 | 0 |
 | Paid pilots/deposits | 1 | 0 |
 | Refusal reasons recorded | 3 | 0 |
+
+## Payment Log
+
+Do not write private payment data here. Use local reference names only.
+
+| Date | Contact nickname | Product | Amount | Method | Reference | Verification | Delivery status |
+|---|---|---|---:|---|---|---|---|
+| `YYYY-MM-DD` | | `starter-incident` / `7-day-pilot` | | `wallet` / `invoice` / `local-provider` | | `not-started` / `pending` / `verified` / `failed` | |
 
 ## Outreach Queue
 
@@ -147,5 +161,10 @@ Create one entry per serious reply.
 
 - Pilot packet: `docs/ghost-access/reliability-pilot-packet-2026-06-07.md`
 - Outreach sheet: `docs/ghost-access/reliability-pilot-outreach-2026-06-07.md`
+- Day 1 runbook: `docs/ghost-access/reliability-pilot-day1-runbook-2026-06-08.md`
+- Day 2-3 conversion runbook: `docs/ghost-access/reliability-pilot-day2-day3-conversion-runbook-2026-06-08.md`
+- Payment handoff: `docs/ghost-access/reliability-pilot-payment-handoff-2026-06-08.md`
 - Intake template: `docs/templates/GHOST_ACCESS_RELIABILITY_INTAKE_TEMPLATE.md`
+- Starter incident note template: `docs/templates/GHOST_ACCESS_STARTER_INCIDENT_NOTE_TEMPLATE.md`
+- Daily health summary template: `docs/templates/GHOST_ACCESS_DAILY_HEALTH_SUMMARY_TEMPLATE.md`
 - Report template: `docs/templates/GHOST_ACCESS_RELIABILITY_REPORT_TEMPLATE.md`

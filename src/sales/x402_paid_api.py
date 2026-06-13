@@ -95,7 +95,7 @@ class PaidApiSettings:
             x402_enabled=os.getenv("X0T_X402_ENABLED", "true").lower()
             not in {"0", "false", "no"},
             allow_unpaid_dev=os.getenv("X0T_X402_ALLOW_UNPAID_DEV", "false").lower()
-            in {"1", "true", "yes"},
+            in {"1", "true", "yes"} and os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() != "true",
             bothire_verify_access=os.getenv("X0T_BOTHIRE_VERIFY_ACCESS", "true").lower()
             not in {"0", "false", "no"},
             bothire_api_base=os.getenv("X0T_BOTHIRE_API_BASE", DEFAULT_BOTHIRE_API_BASE),

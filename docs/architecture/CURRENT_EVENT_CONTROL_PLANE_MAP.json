@@ -4,8 +4,8 @@
   "scope": "EventBus, service identity, and SafeActuator cross-layer control plane surface.",
   "current_scan": {
     "scanned_root": "src",
-    "event_surface_files": 137,
-    "service_identity_services": 88,
+    "event_surface_files": 136,
+    "service_identity_services": 89,
     "event_trace_services": 193,
     "event_type_values": 32,
     "markers": [
@@ -100,7 +100,7 @@
       "path": "src/services/service_identity_registry.py",
       "api_route": "/api/v1/service-identity/status",
       "contract": "Reports redacted identity configuration status for every current service_event_identity caller; exposes configured/source/env_var metadata but never identity values.",
-      "services_total": 88,
+      "services_total": 89,
       "source_refs": [
         "src/services/service_identity_registry.py:10",
         "src/services/service_identity_registry.py:16",
@@ -364,7 +364,6 @@
       "role": "Modular MaaS auth registration, login, API-key rotation, profile read, logout, and account deletion routes now emit redacted EventBus evidence through source_agent=maas-modular-auth-register, source_agent=maas-modular-auth-login, source_agent=maas-modular-auth-api-key-rotation, source_agent=maas-modular-auth-profile-read, source_agent=maas-modular-auth-session-control, and source_agent=maas-modular-auth-account-delete under the maas-auth trace filter. The events record duration, HTTP status, hashed email/user context, bounded request field presence, in-memory auth-store read/write metadata, credential/session mutation flags, and explicit claim boundaries without copying raw emails, passwords, names, API keys, session tokens, or user IDs, and without claiming external IdP authentication, durable database persistence, downstream key acceptance, billing cancellation, mesh termination, or complete account cleanup.",
       "markers": [
         "event_bus",
-        "event_contract_reexport",
         "event_bus_singleton"
       ],
       "source_refs": [
@@ -425,6 +424,19 @@
         "src/api/maas/endpoints/governance.py:26",
         "src/api/maas/endpoints/governance.py:34",
         "src/api/maas/endpoints/governance.py:28"
+      ]
+    },
+    {
+      "path": "src/api/maas/endpoints/helpers/legacy_billing.py",
+      "layer": "api_maas_endpoints_helpers_legacy_billing_event_control_surface",
+      "role": "Legacy billing helper is a current event/control surface because it imports EventBus, EventType, and get_event_bus for modular MaaS billing webhook processing. The map records source presence and bounded local evidence metadata only; it does not prove live provider settlement, customer VPN access, or production readiness.",
+      "markers": [
+        "event_bus",
+        "event_contract_reexport",
+        "event_bus_singleton"
+      ],
+      "source_refs": [
+        "src/api/maas/endpoints/helpers/legacy_billing.py:18"
       ]
     },
     {
@@ -622,32 +634,6 @@
       ]
     },
     {
-      "path": "src/api/maas_auth_legacy_full.py",
-      "layer": "api_maas_auth_legacy_full_event_control_surface",
-      "role": "src/api/maas_auth_legacy_full.py is a current event/control surface detected by event_bus, event_contract_reexport, event_bus_singleton. The map records source presence and bounded local evidence metadata only; it does not prove live customer traffic, external reachability, settlement finality, or production readiness.",
-      "markers": [
-        "event_bus",
-        "event_contract_reexport",
-        "event_bus_singleton"
-      ],
-      "source_refs": [
-        "src/api/maas_auth_legacy_full.py:27"
-      ]
-    },
-    {
-      "path": "src/api/maas_billing.py",
-      "layer": "billing_webhook_to_commerce_bridge",
-      "role": "MaaS billing webhook emits redacted local Stripe webhook state transitions into EventBus, including early checkout-session outcomes for payment-not-completed, idempotent replay, missing session id, missing user, invalid plan, and missing invoice; invoice generation emits redacted local usage-to-invoice evidence, invoice checkout and subscription checkout emit redacted Stripe session-attempt evidence, customer portal creation emits redacted portal-session intent evidence, manual invoice payment emits redacted local mock-payment mutation evidence, Stripe subscription update/delete webhooks emit redacted lifecycle evidence, invoice history reads emit redacted observed-state aggregates, and subscription sync emits redacted Stripe-read/local-plan-mutation evidence, so Ledger trace citations can connect Stripe webhook handling, DB/audit state, optional X0T bridge intent, local invoice writes, checkout-session persistence, billing history visibility, customer portal intent, manual payment mutation, subscription checkout intent, checkout-session webhook lifecycle, subscription webhook lifecycle, and subscription reconciliation without treating them as payment settlement proof or exposing raw Stripe/user/invoice IDs.",
-      "markers": [
-        "event_bus",
-        "event_contract_reexport",
-        "event_bus_singleton"
-      ],
-      "source_refs": [
-        "src/api/maas_billing.py:22"
-      ]
-    },
-    {
       "path": "src/api/maas_dashboard.py",
       "layer": "api_dashboard_observed_state",
       "role": "MaaS dashboard summary, analytics timeseries, and per-mesh node views now emit redacted read-only EventBus evidence through source_agent=maas-dashboard-summary-read, source_agent=maas-dashboard-analytics-read, and source_agent=maas-dashboard-node-read. The dashboard records bounded DB/analytics/resilience metadata, hashed actor/mesh context, count buckets for meshes/nodes/audit/invoices/security/health/device classes, HTTP status, and duration without copying raw emails, mesh IDs, mesh names, node IDs, hardware IDs, invoice IDs, audit details, or credentials. The dashboard analytics endpoint now uses MaaSAnalyticsService instead of local random data, keeping chart reads tied to the existing DB/telemetry-backed analytics boundary.",
@@ -671,22 +657,6 @@
       ],
       "source_refs": [
         "src/api/maas_legacy.py:55"
-      ]
-    },
-    {
-      "path": "src/api/maas_nodes_legacy.py",
-      "layer": "api_maas_nodes_legacy_event_control_surface",
-      "role": "src/api/maas_nodes_legacy.py is a current event/control surface detected by event_bus, event_contract_reexport, event_bus_singleton, marketplace_event_helper. The map records source presence and bounded local evidence metadata only; it does not prove live customer traffic, external reachability, settlement finality, or production readiness.",
-      "markers": [
-        "event_bus",
-        "event_contract_reexport",
-        "event_bus_singleton",
-        "marketplace_event_helper"
-      ],
-      "source_refs": [
-        "src/api/maas_nodes_legacy.py:76",
-        "src/api/maas_nodes_legacy.py:48",
-        "src/api/maas_nodes_legacy.py:50"
       ]
     },
     {
@@ -762,6 +732,20 @@
       ],
       "source_refs": [
         "src/core/app.py:34"
+      ]
+    },
+    {
+      "path": "src/core/app_desktop.py",
+      "layer": "desktop_control_plane_local_event_surface",
+      "role": "Desktop control-plane API exposes local read/action surfaces and uses EventBus access for redacted local event summaries. The map records local desktop control-plane evidence only; it does not prove production readiness, customer traffic, external DPI bypass, settlement finality, or live service delivery.",
+      "markers": [
+        "event_bus",
+        "event_contract_reexport",
+        "event_bus_singleton"
+      ],
+      "source_refs": [
+        "src/core/app_desktop.py:21",
+        "src/core/app_desktop.py:601"
       ]
     },
     {
@@ -2811,7 +2795,7 @@
       "id": "billing-webhook-bridges-stripe-db-token-evidence",
       "summary": "maas-billing is route-only but trace-visible: Stripe webhook handling now emits redacted EventBus evidence for local DB/audit mutation, optional X0T bridge intent, and early checkout-session outcomes such as payment-not-completed, idempotent replay, missing session id, missing user, invalid plan, and missing invoice. Billing events now also carry non-dataplane settlement_evidence with provider/payment-status, duration, DB-write, bridge, and output summaries that explicitly mark live Stripe settlement, bank settlement, and chain finality as unconfirmed, without exposing raw Stripe event/session/customer/subscription IDs, user IDs, invoice IDs, or claiming live Stripe or chain finality; the trace registry also binds invoice-generation, invoice-checkout, customer-portal, billing-history, manual-payment, subscription-checkout, subscription-sync, subscription-webhook, and legacy billing source-agent aliases to billing layers.",
       "source_refs": [
-        "src/api/maas_billing.py:22",
+        "src/api/maas/endpoints/billing.py:37",
         "src/services/service_identity_registry.py:7"
       ]
     },
@@ -2819,7 +2803,7 @@
       "id": "maas-billing-invoice-generation-to-evidence",
       "summary": "Canonical MaaS invoice generation now emits redacted EventBus evidence through source_agent=maas-billing-invoice, linking legacy usage-metering input, computed invoice cents, minimum invoice policy, local DB invoice write, and non-settlement settlement_evidence without exposing raw user IDs, mesh IDs, node IDs, invoice IDs, or treating invoice creation as customer payment settlement.",
       "source_refs": [
-        "src/api/maas_billing.py:22",
+        "src/api/maas/endpoints/billing.py:37",
         "src/services/service_identity_registry.py:7"
       ]
     },
@@ -2827,7 +2811,7 @@
       "id": "maas-billing-history-to-evidence",
       "summary": "MaaS invoice history reads now emit read-only observed-state EventBus evidence through source_agent=maas-billing-history, preserving billing visibility as aggregate invoice counts, status counts, currencies, amount totals, Stripe-session counts, and read-only non-settlement evidence without exposing raw invoice IDs, mesh IDs, user IDs, or Stripe session IDs.",
       "source_refs": [
-        "src/api/maas_billing.py:22",
+        "src/api/maas/endpoints/billing.py:37",
         "src/services/service_identity_registry.py:7"
       ]
     },
@@ -2835,7 +2819,7 @@
       "id": "maas-billing-checkout-intent-to-evidence",
       "summary": "MaaS invoice checkout now emits redacted EventBus evidence through source_agent=maas-billing-checkout for invoice-not-found, already-paid, Stripe-not-configured, checkout-created, and checkout-failed outcomes, linking local invoice eligibility, bounded Stripe Checkout session attempts, local stripe_session_id persistence, and settlement_evidence that marks checkout as intent only rather than customer payment or bank settlement without exposing raw invoice IDs, mesh IDs, user IDs, checkout URLs, or Stripe session IDs.",
       "source_refs": [
-        "src/api/maas_billing.py:22",
+        "src/api/maas/endpoints/billing.py:37",
         "src/services/service_identity_registry.py:7"
       ]
     },
@@ -2843,7 +2827,7 @@
       "id": "maas-billing-customer-portal-to-evidence",
       "summary": "MaaS customer portal creation now emits redacted EventBus evidence through source_agent=maas-billing-customer-portal for missing-customer, portal-created, and portal-failed outcomes, linking local customer eligibility, bounded Stripe portal session attempts, and settlement_evidence that marks portal creation as intent only without exposing raw user IDs, customer IDs, portal session IDs, portal URLs, emails, or names.",
       "source_refs": [
-        "src/api/maas_billing.py:22",
+        "src/api/maas/endpoints/billing.py:37",
         "src/services/service_identity_registry.py:7"
       ]
     },
@@ -2851,7 +2835,7 @@
       "id": "maas-billing-manual-payment-to-evidence",
       "summary": "MaaS manual invoice payment now emits redacted EventBus evidence through source_agent=maas-billing-manual-payment for invoice-not-found, local payment-recorded, and local payment-failed outcomes, making the mock/local invoice status mutation traceable with settlement_evidence that keeps it separate from Stripe payment settlement without exposing raw user IDs, invoice IDs, or mesh IDs.",
       "source_refs": [
-        "src/api/maas_billing.py:22",
+        "src/api/maas/endpoints/billing.py:37",
         "src/services/service_identity_registry.py:7"
       ]
     },
@@ -2859,7 +2843,7 @@
       "id": "maas-billing-subscription-checkout-to-evidence",
       "summary": "MaaS subscription checkout now emits redacted EventBus evidence through source_agent=maas-billing-subscription-checkout for invalid-plan, missing-price, Stripe-not-configured, checkout-created, and checkout-failed outcomes, linking local plan eligibility, bounded Stripe customer/session attempts, local customer-id persistence, audit intent, and settlement_evidence that marks the flow as subscription intent only without exposing raw user IDs, customer IDs, session IDs, price IDs, checkout URLs, emails, or names.",
       "source_refs": [
-        "src/api/maas_billing.py:22",
+        "src/api/maas/endpoints/billing.py:37",
         "src/services/service_identity_registry.py:7"
       ]
     },
@@ -2867,7 +2851,7 @@
       "id": "maas-billing-subscription-sync-to-evidence",
       "summary": "MaaS subscription sync now emits redacted EventBus evidence through source_agent=maas-billing-subscription-sync for skipped, synced, cleared, and failed Stripe reconciliation outcomes, linking bounded Stripe subscription reads to local user plan/subscription-id mutation plus settlement_evidence that keeps subscription-state reconciliation separate from payment settlement without exposing raw user IDs, customer IDs, subscription IDs, or price IDs.",
       "source_refs": [
-        "src/api/maas_billing.py:22",
+        "src/api/maas/endpoints/billing.py:37",
         "src/services/service_identity_registry.py:7"
       ]
     },
@@ -2875,7 +2859,7 @@
       "id": "maas-billing-subscription-webhook-to-evidence",
       "summary": "MaaS Stripe subscription update/delete webhooks now emit redacted EventBus evidence through source_agent=maas-billing-subscription-webhook, separating audit-only update handling from local cancellation mutation and adding settlement_evidence that marks lifecycle webhooks as provider events rather than live settlement proof while keeping raw Stripe event IDs, customer IDs, subscription IDs, user IDs, emails, and names out of the event payload.",
       "source_refs": [
-        "src/api/maas_billing.py:22",
+        "src/api/maas/endpoints/billing.py:37",
         "src/services/service_identity_registry.py:7"
       ]
     },

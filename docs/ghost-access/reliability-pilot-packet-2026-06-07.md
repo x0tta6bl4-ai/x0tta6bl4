@@ -76,6 +76,9 @@ Expected result: the user can describe the symptom without sending secrets.
 4. Record action taken or "observe only".
 5. Record next check time.
 
+Daily summary template:
+`docs/templates/GHOST_ACCESS_DAILY_HEALTH_SUMMARY_TEMPLATE.md`
+
 ## Evidence To Use
 
 Allowed examples:
@@ -106,8 +109,17 @@ The pilot is not useful if:
 Operational outreach sheet:
 `docs/ghost-access/reliability-pilot-outreach-2026-06-07.md`
 
+Day 1 runbook:
+`docs/ghost-access/reliability-pilot-day1-runbook-2026-06-08.md`
+
+Day 2-3 conversion runbook:
+`docs/ghost-access/reliability-pilot-day2-day3-conversion-runbook-2026-06-08.md`
+
 Working tracker:
 `docs/ghost-access/reliability-pilot-tracker-2026-06-07.md`
+
+Payment handoff:
+`docs/ghost-access/reliability-pilot-payment-handoff-2026-06-08.md`
 
 ```text
 Привет. Я открываю 1-2 коротких reliability-пилота для команд или людей,
@@ -129,6 +141,12 @@ If 7 days is too large, offer a starter incident support slot:
 - price: 3,000-7,000 RUB one-time;
 - output: one redacted incident note;
 - rule: if the likely cause cannot be explained, do not charge.
+
+When the buyer is ready to pay, use
+`docs/ghost-access/reliability-pilot-payment-handoff-2026-06-08.md`.
+
+For delivery, use
+`docs/templates/GHOST_ACCESS_STARTER_INCIDENT_NOTE_TEMPLATE.md`.
 
 ## Final Report
 

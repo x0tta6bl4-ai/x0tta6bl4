@@ -1,3 +1,5 @@
+from __future__ import annotations
+import tempfile
 """Local-first health bot for MaaS Agent Mesh.
 
 This bot intentionally avoids external AI providers and internet APIs.
@@ -7,7 +9,6 @@ It uses only local signals:
  - local proxy log analysis (delay + connection abort markers)
 """
 
-from __future__ import annotations
 
 import os
 import re
@@ -133,7 +134,7 @@ class HealthBotConfig:
             enable_socks_probe=_parse_bool(
                 os.getenv("MAAS_HEALTH_BOT_ENABLE_SOCKS_PROBE"), True
             ),
-            proxy_log_path=os.getenv("MAAS_HEALTH_BOT_PROXY_LOG", "/tmp/xray.log"),
+            proxy_log_path=os.getenv("MAAS_HEALTH_BOT_PROXY_LOG", os.path.join(tempfile.gettempdir(), "xray.log")),
             log_tail_lines=max(10, int(os.getenv("MAAS_HEALTH_BOT_LOG_TAIL_LINES", "500"))),
             max_delay_ms=max(1, int(os.getenv("MAAS_HEALTH_BOT_MAX_DELAY_MS", "250"))),
             max_abort_events=max(

@@ -3,32 +3,23 @@ x0tta6bl4 gateway application entrypoint.
 """
 
 import importlib
-import logging
 import os
 import random
 import secrets
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Sequence
 
-from fastapi import APIRouter, Depends, FastAPI, Query, Request, Response, status
+from fastapi import FastAPI, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
-from src.database import get_db
-from src.core.graceful_shutdown import (ShutdownMiddleware, shutdown_manager)
-from src.core.mtls_middleware import MTLSMiddleware
-from src.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
-from src.core.request_validation import (RequestValidationMiddleware,
-                                          ValidationConfig)
+from src.core.graceful_shutdown import (shutdown_manager)
 from src.core.reliability_policy import set_degraded_dependencies_header
 from src.core.logging_config import RequestIdContextVar, setup_logging
-from src.core.settings import settings
 from src.core.status_collector import get_current_status
-from src.core.tracing_middleware import TracingMiddleware
 from src.core.api_error_handlers import register_api_error_handlers
 from src.coordination.events import Event, EventBus, get_event_bus
 from src.mesh.metric_evidence_policy import latest_mesh_metric_policy_evidence
@@ -43,6 +34,8 @@ _LIGHT_MODE = os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true"
 _APP_VERSION = f"{__version__}-light" if _LIGHT_MODE else __version__
 STARTED_AT = time.time()
 
+from src.core.production_lifespan import production_lifespan
+
 app = FastAPI(
     title="x0tta6bl4",
     version=_APP_VERSION,
@@ -50,6 +43,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
+    lifespan=production_lifespan,
 )
 
 _DEFAULT_APP_CORS_ORIGINS = (
@@ -806,4 +800,4 @@ async def index_html():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=os.getenv("X0TTA6BL4_API_HOST", "127.0.0.1"), port=8000)

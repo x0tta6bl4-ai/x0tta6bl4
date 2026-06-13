@@ -9,11 +9,11 @@
       ".json",
       ".jsonl"
     ],
-        "current_indexable_files": 1383,
+        "current_indexable_files": 1619,
         "current_latest_alias_files": 39,
         "by_suffix": {
-            ".json": 719,
-            ".md": 625,
+            ".json": 858,
+            ".md": 722,
             ".jsonl": 39
         },
         "latest_by_suffix": {
@@ -74,7 +74,7 @@
     "registration_mode": "full_mode_only",
     "source_refs": [
       "src/core/app.py:87",
-      "src/api/maas/endpoints/combined.py:165",
+      "src/api/maas/endpoints/combined.py:126",
       "src/api/maas/endpoints/ledger.py:30"
     ],
     "endpoints": [
@@ -444,9 +444,9 @@
             "src/api/maas/endpoints/nodes.py:255",
             "src/api/maas/endpoints/nodes.py:322",
             "src/api/maas/endpoints/nodes.py:366",
-            "src/api/maas/endpoints/nodes.py:675",
-            "src/api/maas/endpoints/nodes.py:763",
-            "src/api/maas/endpoints/nodes.py:799",
+            "src/api/maas/endpoints/nodes.py:447",
+            "src/api/maas/endpoints/nodes.py:508",
+            "src/api/maas/endpoints/nodes.py:628",
             "scripts/ops/check_real_readiness.py:7153",
             "scripts/ops/check_real_readiness.py:7199"
         ]

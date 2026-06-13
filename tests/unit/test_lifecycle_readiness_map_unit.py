@@ -57,7 +57,8 @@ def test_lifecycle_map_tracks_current_combined_router_entrypoint():
     assert "get_combined_router" in app_source
     assert "app.include_router(get_combined_router())" in app_source
     assert "def get_combined_router(" in combined_source
-    assert "router.include_router(nodes_router, prefix=maas_prefix)" in combined_source
+    assert 'router.include_router(nodes_router, prefix=f"{p}/nodes")' in combined_source
+    assert "router.include_router(nodes_router, prefix=p)" in combined_source
     assert "router.include_router(ledger_router, prefix=\"/api/v1/ledger\")" in combined_source
 
 

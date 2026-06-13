@@ -997,10 +997,10 @@ def _resolve_state(proposal: GovernanceProposal) -> str:
 @router.post("/proposals")
 async def create_maas_proposal(
     req: ProposalCreate,
+    request: Request,
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db),
-    request: Request = None,
-):
+) -> Dict[str, Any]:
     started = time.monotonic()
     if current_user.plan not in ("pro", "enterprise"):
         _publish_governance_proposal_event(
@@ -1058,14 +1058,15 @@ async def create_maas_proposal(
     )
     return {"proposal_id": proposal_id, "status": "active", "expires_at": end_dt.isoformat()}
 
+
 @router.post("/proposals/{proposal_id}/vote")
 async def cast_maas_vote(
     proposal_id: str,
     req: VoteRequest,
+    request: Request,
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db),
-    request: Request = None,
-):
+) -> Dict[str, Any]:
     started = time.monotonic()
     p = db.query(GovernanceProposal).filter(GovernanceProposal.id == proposal_id).first()
     if not p:
@@ -1167,13 +1168,14 @@ async def cast_maas_vote(
         "quadratic_weight": power ** 0.5,
     }
 
+
 @router.post("/proposals/{proposal_id}/execute")
 async def execute_maas_proposal(
     proposal_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db),
-    request: Request = None,
-):
+) -> Dict[str, Any]:
     started = time.monotonic()
     p = db.query(GovernanceProposal).filter(GovernanceProposal.id == proposal_id).first()
     if not p:
@@ -1292,8 +1294,12 @@ async def execute_maas_proposal(
         "results": results,
     }
 
+
 @router.get("/proposals")
-async def list_proposals(db: Session = Depends(get_db), request: Request = None):
+async def list_proposals(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     started = time.monotonic()
     rows = db.query(GovernanceProposal).order_by(GovernanceProposal.created_at.desc()).all()
     _publish_governance_proposal_event(
@@ -1310,12 +1316,13 @@ async def list_proposals(db: Session = Depends(get_db), request: Request = None)
     )
     return {"proposals": [{"id": p.id, "title": p.title, "state": _resolve_state(p)} for p in rows]}
 
+
 @router.get("/proposals/{proposal_id}")
 async def get_proposal(
     proposal_id: str,
+    request: Request,
     db: Session = Depends(get_db),
-    request: Request = None,
-):
+) -> Dict[str, Any]:
     started = time.monotonic()
     p = db.query(GovernanceProposal).filter(GovernanceProposal.id == proposal_id).first()
     if not p:

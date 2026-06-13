@@ -86,6 +86,17 @@ def _wallet_probe(wallet: str) -> dict[str, Any]:
     }
 
 
+def _offline_wallet_probe(wallet: str) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "address": wallet,
+        "offline_mode": True,
+        "skipped": True,
+        "funds_received": False,
+        "claim_boundary": "Offline validation does not query wallet balances or prove funds received.",
+    }
+
+
 def _run_command(name: str, argv: list[str], *, timeout_seconds: float) -> dict[str, Any]:
     env = os.environ.copy()
     env["PYTHONPATH"] = f".{os.pathsep}{env.get('PYTHONPATH', '')}".rstrip(os.pathsep)
@@ -121,6 +132,22 @@ def _run_command(name: str, argv: list[str], *, timeout_seconds: float) -> dict[
         "stdout_tail": completed.stdout[-2_000:],
         "stderr_tail": completed.stderr[-2_000:],
         "argv": argv,
+    }
+
+
+def _offline_command_result(name: str, argv: list[str], timeout_seconds: float) -> dict[str, Any]:
+    return {
+        "name": name,
+        "ok": True,
+        "skipped": True,
+        "skip_reason": "offline_mode_no_external_probe",
+        "timed_out": False,
+        "returncode": 0,
+        "duration_seconds": 0.0,
+        "stdout_tail": "",
+        "stderr_tail": "",
+        "argv": argv,
+        "timeout_seconds": timeout_seconds,
     }
 
 
@@ -314,19 +341,36 @@ def _is_tls_eof_failure(item: dict[str, Any]) -> bool:
     return "UNEXPECTED_EOF_WHILE_READING" in text or "SSL_ERROR_SYSCALL" in text
 
 
-def run_cycle(*, wallet: str, output: Path, agentjob_wait_seconds: int, cycle: int | None = None) -> dict[str, Any]:
-    before = _wallet_probe(wallet)
-    results = [
-        _run_command(name, argv, timeout_seconds=timeout_seconds)
-        for name, argv, timeout_seconds in _commands(agentjob_wait_seconds)
-    ]
-    after = _wallet_probe(wallet)
+def run_cycle(
+    *,
+    wallet: str,
+    output: Path,
+    agentjob_wait_seconds: int,
+    cycle: int | None = None,
+    offline: bool = False,
+) -> dict[str, Any]:
+    commands = _commands(agentjob_wait_seconds)
+    if offline:
+        before = _offline_wallet_probe(wallet)
+        results = [
+            _offline_command_result(name, argv, timeout_seconds)
+            for name, argv, timeout_seconds in commands
+        ]
+        after = _offline_wallet_probe(wallet)
+    else:
+        before = _wallet_probe(wallet)
+        results = [
+            _run_command(name, argv, timeout_seconds=timeout_seconds)
+            for name, argv, timeout_seconds in commands
+        ]
+        after = _wallet_probe(wallet)
     paid_signal = after.get("funds_received") is True
     result_summary = _summarise_results(results)
     snapshot = {
         "schema": "x0tta6bl4.income_watch_cycle.v1",
         "checked_at_utc": _utc_now(),
         "cycle": cycle,
+        "offline_mode": offline,
         "wallet": wallet,
         "wallet_before": before,
         "wallet_after": after,
@@ -335,7 +379,19 @@ def run_cycle(*, wallet: str, output: Path, agentjob_wait_seconds: int, cycle: i
         "paid_signal": paid_signal,
         "funds_received_claim_allowed": paid_signal,
         "results": results,
-        "next_action": "verify_received_funds" if paid_signal else "keep_watchers_running",
+        "next_action": (
+            "verify_received_funds"
+            if paid_signal
+            else "run_online_watch_with_operator_approval"
+            if offline
+            else "keep_watchers_running"
+        ),
+        "claim_boundary": (
+            "Offline validation proves command wiring only. It does not query external "
+            "marketplaces, submit listings, query wallet balances, or prove funds received."
+            if offline
+            else "Online watch cycle may query external services but still does not prove funds without wallet evidence."
+        ),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(snapshot, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
@@ -356,6 +412,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--agentjob-wait-seconds", type=int, default=20)
     parser.add_argument("--cycles", type=int, default=1, help="0 means run forever")
     parser.add_argument("--interval-seconds", type=float, default=300.0)
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Validate command wiring without wallet probes, network calls, submissions, or marketplace polling.",
+    )
     return parser.parse_args()
 
 
@@ -370,6 +431,7 @@ def main() -> int:
             output=args.output,
             agentjob_wait_seconds=max(5, min(60, args.agentjob_wait_seconds)),
             cycle=cycle,
+            offline=args.offline,
         )
         _append_history(args.history_jsonl, last_snapshot)
         print(
@@ -379,6 +441,7 @@ def main() -> int:
                     "output": str(args.output),
                     "history_jsonl": str(args.history_jsonl),
                     "wallet": last_snapshot["wallet"],
+                    "offline_mode": last_snapshot["offline_mode"],
                     "funds_received": last_snapshot["wallet_after"].get("funds_received"),
                     "commands_ok": last_snapshot["commands_ok"],
                     "commands_total": last_snapshot["commands_total"],

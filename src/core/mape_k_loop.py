@@ -38,7 +38,8 @@ from ..mesh.recovery_orchestrator import MeshRecoveryOrchestrator
 from ..monitoring.prometheus_client import PrometheusExporter
 from ..security.zero_trust import ZeroTrustValidator
 from ..services.service_event_identity import service_event_identity
-from .consciousness import ConsciousnessEngine, ConsciousnessMetrics
+# from .consciousness import ConsciousnessEngine, ConsciousnessMetrics # Purged in Honest Mode
+class ConsciousnessMetrics: pass # Dummy for compatibility
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -869,7 +870,6 @@ class MAPEKLoop:
 
     def __init__(
         self,
-        consciousness_engine: ConsciousnessEngine,
         mesh_manager: MeshNetworkManager,
         prometheus: PrometheusExporter,
         zero_trust: ZeroTrustValidator,
@@ -880,6 +880,7 @@ class MAPEKLoop:
         event_bus: EventBus | None = None,
         event_project_root: str = ".",
         self_healing_manager=None,
+        consciousness_engine=None,
     ):
         self.consciousness = consciousness_engine
         self.mesh = mesh_manager
@@ -1530,36 +1531,14 @@ class MAPEKLoop:
         )
         return metrics
 
-    async def _analyze(self, raw_metrics: Dict[str, float]) -> ConsciousnessMetrics:
+    async def _analyze(self, raw_metrics: Dict[str, float]) -> Any:
         """
-        ANALYZE phase: Evaluate consciousness state using Swarm Intelligence & ML
+        ANALYZE phase: Evaluate metrics deterministically
         """
         swarm_risk_penalty = 0.0
 
-        # 1. Neural Anomaly Detection
-        try:
-            from src.ml.anomaly import AnomalyDetectionSystem
-            import numpy as np
-
-            detector_system = AnomalyDetectionSystem()
-            # Vectorize metrics
-            metric_vector = np.array(
-                [v for v in raw_metrics.values() if isinstance(v, (int, float))]
-            )
-            anomaly, confidence = await detector_system.check_component(
-                "mesh_core", metric_vector
-            )
-            if anomaly:
-                logger.warning(
-                    f"🧠 ML: Anomaly detected with confidence {confidence:.2f}"
-                )
-        except Exception as e:
-            logger.debug(f"ML analysis failed: {e}")
-
-        # 2. Swarm Intelligence Analysis
         if self.parl_controller:
             try:
-                # Define analysis tasks
                 tasks = [
                     {
                         "task_id": "analyze_security_logs",
@@ -1567,61 +1546,27 @@ class MAPEKLoop:
                         "priority": 10,
                         "payload": {"metrics": raw_metrics},
                     },
-                    {
-                        "task_id": "analyze_performance_trends",
-                        "task_type": "performance_analysis",
-                        "priority": 5,
-                        "payload": {"metrics": raw_metrics},
-                    },
-                    {
-                        "task_id": "predict_resource_usage",
-                        "task_type": "oracle_prediction",
-                        "priority": 5,
-                        "payload": {"metrics": raw_metrics},
-                    },
                 ]
-
-                # Execute in parallel
                 results = await self.parl_controller.execute_parallel(tasks)
-
-                # Aggregate risks
                 for res in results:
                     if not res.get("success"):
                         continue
-
                     inner = res.get("result", {})
                     risk = inner.get("risk_score", 0.0)
                     if risk > 0:
                         swarm_risk_penalty = max(swarm_risk_penalty, risk)
-
-                if swarm_risk_penalty > 0:
-                    logger.info(
-                        f"🐝 Swarm detection: Risk penalty {swarm_risk_penalty:.2f} applied"
-                    )
             except Exception as e:
                 logger.debug(f"Swarm analysis failed: {e}")
 
-        # TD-008: Modular MAPE-K Shadow Check
         if self.self_healing:
             try:
-                # Map raw_metrics to format expected by modular check
                 modular_metrics = {
                     "node_id": self.mesh.node_id if hasattr(self.mesh, "node_id") else "core-mapek",
                     **raw_metrics
                 }
                 modular_result = self.self_healing.monitor.check(modular_metrics)
-
-                # Check for discrepancies
-                legacy_has_issue = swarm_risk_penalty > 0.5
                 modular_has_issue = modular_result.get("anomaly_detected", False)
 
-                if legacy_has_issue != modular_has_issue:
-                    logger.info(
-                        f"⚖️ TD-008 Discrepancy: legacy={legacy_has_issue}, modular={modular_has_issue}. "
-                        f"Modular Issue: {modular_result.get('issue')}"
-                    )
-
-                # Record modular evidence
                 self._publish_control_event(
                     EventType.MONITOR_PHASE_END,
                     stage="analyze",
@@ -1633,48 +1578,31 @@ class MAPEKLoop:
             except Exception as exc:
                 logger.debug("Modular shadow check failed: %s", exc)
 
-        metrics = self.consciousness.get_consciousness_metrics(
-            raw_metrics, swarm_risk_penalty=swarm_risk_penalty
-        )
-        try:
-            setattr(metrics, "raw_metrics", raw_metrics)
-        except Exception:
-            logger.debug("Unable to attach raw MAPE-K metrics to analysis result")
-        return metrics
+        class DummyMetrics:
+            def __init__(self, raw):
+                self.raw_metrics = raw
+                class DummyState:
+                    value = "IDLE"
+                self.state = DummyState()
+                self.phi_ratio = 1.0
 
-    def _plan(self, metrics: ConsciousnessMetrics) -> Dict[str, Any]:
+        return DummyMetrics(raw_metrics)
+
+    def _plan(self, metrics: Any) -> Dict[str, Any]:
         """
         PLAN phase: Generate operational directives
         """
-        directives = self.consciousness.get_operational_directive(metrics)
-
+        directives = {"route_preference": "balanced"}
         raw = getattr(metrics, "raw_metrics", {}) or {}
 
-        # SLA Policy: If premium nodes are failing, override to AGGRESSIVE HEALING
         if raw.get("premium_node_failure", 0.0) > 0:
             directives["enable_aggressive_healing"] = True
             directives["message"] = (
                 "🚨 Emergency: Premium node failure detected. Overriding to AGGRESSIVE HEALING."
             )
-            logger.info(
-                "⚖️ Plan: SLA Policy override triggered (Aggressive Healing enabled)"
-            )
 
-        # Trust Policy: If low trust nodes detected, trigger re-attestation
         if raw.get("low_trust_nodes", 0.0) > 0:
             directives["audit_required"] = True
-            logger.info(
-                "🛡️ Plan: Low trust nodes detected. Scheduling mandatory re-attestation."
-            )
-
-        # Add trend analysis for proactive planning
-        trend = self.consciousness.get_trend_analysis()
-        directives["trend"] = trend
-
-        # If degrading trend in CONTEMPLATIVE state, prepare for MYSTICAL
-        if metrics.state.value == "CONTEMPLATIVE" and trend.get("trend") == "degrading":
-            directives["preemptive_healing"] = True
-            logger.warning("⚠️  Degrading trend detected, preparing preemptive healing")
 
         directives = _apply_mesh_metric_evidence_policy(directives, raw)
         directives = self._attach_recovery_plan_cid(directives)

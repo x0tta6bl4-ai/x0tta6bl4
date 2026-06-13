@@ -66,8 +66,8 @@ class NodeState(StrictRecoveryModel):
 class ServiceIdentityEvidence(StrictRecoveryModel):
     """Redacted workload identity presence attached to recovery evidence."""
 
-    schema: Literal["x0tta6bl4.service_identity_evidence.v1"] = (
-        "x0tta6bl4.service_identity_evidence.v1"
+    schema_id: Literal["x0tta6bl4.service_identity_evidence.v1"] = Field(
+        default="x0tta6bl4.service_identity_evidence.v1", alias="schema"
     )
     service_name: str
     spiffe_id_configured: bool = False
@@ -92,8 +92,8 @@ class DataplaneEvidenceRef(StrictRecoveryModel):
 class PostActionDataplaneClaimGate(StrictRecoveryModel):
     """Gate that prevents local recovery from becoming a dataplane claim."""
 
-    schema: Literal["x0tta6bl4.post_action_dataplane_claim_gate.v1"] = (
-        POST_ACTION_DATAPLANE_CLAIM_GATE_SCHEMA
+    schema_id: Literal["x0tta6bl4.post_action_dataplane_claim_gate.v1"] = Field(
+        default=POST_ACTION_DATAPLANE_CLAIM_GATE_SCHEMA, alias="schema"
     )
     decision: PostActionDataplaneDecision
     required_for_restored_dataplane_claim: bool = True
@@ -142,8 +142,8 @@ class PostActionDataplaneRevalidation(StrictRecoveryModel):
 class RecoveryEvidenceV1(StrictRecoveryModel):
     """Machine-readable mesh_node_degradation_recovery.v1 evidence packet."""
 
-    schema: Literal["mesh_node_degradation_recovery.v1"] = (
-        "mesh_node_degradation_recovery.v1"
+    schema_id: Literal["mesh_node_degradation_recovery.v1"] = Field(
+        default="mesh_node_degradation_recovery.v1", alias="schema"
     )
     event_id: str
     incident_id: str

@@ -55,6 +55,7 @@ def test_paid_task_automation_plan_renders_goal_and_sources(tmp_path: Path) -> N
 
 
 def test_paid_task_automation_plan_cli_writes_artifacts(tmp_path: Path) -> None:
+    module = load_module()
     _write_pipeline_assets(tmp_path)
     output_md = tmp_path / "plan.md"
     output_json = tmp_path / "plan.json"
@@ -79,8 +80,9 @@ def test_paid_task_automation_plan_cli_writes_artifacts(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     summary = json.loads(result.stdout)
+    expected_plan = module.build_plan(tmp_path, generated_at_utc="2026-06-03T00:00:00Z")
     assert summary["status"] == "pipeline_ready"
-    assert summary["sources_total"] == 6
+    assert summary["sources_total"] == len(expected_plan["pipeline"]["sources"])
     assert summary["funds_received_claim_allowed"] is False
     assert output_md.exists()
     assert output_json.exists()

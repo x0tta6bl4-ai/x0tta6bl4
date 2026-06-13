@@ -50,3 +50,32 @@ def test_staging_and_pyproject_keep_security_floor_versions() -> None:
     assert str(staging["python-multipart"].specifier) == ">=0.0.27"
     assert str(project_requirements["python-multipart"].specifier) == ">=0.0.27"
     assert str(project_requirements["urllib3"].specifier) == ">=2.7.0"
+
+
+def test_pyproject_core_dependencies_are_installable_with_requirements_lock() -> None:
+    requirements = _requirements(ROOT / "requirements.txt")
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    missing_or_incompatible: list[str] = []
+    for raw_dependency in pyproject["project"]["dependencies"]:
+        project_req = Requirement(raw_dependency)
+        name = canonicalize_name(project_req.name)
+        locked_req = requirements.get(name)
+        if locked_req is None:
+            missing_or_incompatible.append(f"{name}: missing from requirements.txt")
+            continue
+
+        locked_specifiers = list(locked_req.specifier)
+        if len(locked_specifiers) != 1 or locked_specifiers[0].operator != "==":
+            missing_or_incompatible.append(
+                f"{name}: requirements.txt must use an exact pin"
+            )
+            continue
+
+        locked_version = locked_specifiers[0].version
+        if locked_version not in project_req.specifier:
+            missing_or_incompatible.append(
+                f"{name}: {locked_req} does not satisfy {project_req}"
+            )
+
+    assert missing_or_incompatible == []

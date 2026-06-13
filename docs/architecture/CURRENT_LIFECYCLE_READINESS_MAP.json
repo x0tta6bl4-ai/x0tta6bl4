@@ -33,11 +33,11 @@
     "app_binding": "app.include_router(get_combined_router())",
     "registration_mode": "always",
     "source_refs": [
-      "src/core/app.py:87",
-      "src/core/app.py:88",
+      "src/core/app.py:114",
+      "src/core/app.py:115",
+      "src/api/maas/endpoints/combined.py:23",
       "src/api/maas/endpoints/combined.py:61",
-      "src/api/maas/endpoints/combined.py:82",
-      "src/api/maas/endpoints/combined.py:160"
+      "src/api/maas/endpoints/combined.py:126"
     ]
   },
   "production_lifespan_runtime": {
@@ -92,7 +92,7 @@
         "src/api/maas/endpoints/combined.py:86",
         "src/api/maas/endpoints/combined.py:88",
         "src/api/maas/endpoints/nodes.py:36",
-        "src/api/maas/endpoints/nodes.py:811"
+        "src/api/maas/endpoints/nodes.py:436"
       ]
     },
     {
@@ -111,7 +111,7 @@
         "src/api/maas/endpoints/combined.py:92",
         "src/api/maas/endpoints/combined.py:94",
         "src/api/maas/endpoints/auth.py:42",
-        "src/api/maas/endpoints/auth.py:783"
+        "src/api/maas/endpoints/auth.py:30"
       ]
     },
     {
@@ -293,7 +293,7 @@
       "runtime_readiness_field": "agent_mesh_runtime_ready",
       "hidden_dependency": "Agent-mesh health-bot readiness depends on local health-bot surface/config, auth dependency, status payload shape, and non-dry-run execution token guard. It does not prove SOCKS reachability or executed self-heal commands.",
       "source_refs": [
-        "src/api/maas/endpoints/combined.py:138",
+        "src/api/maas/endpoints/combined.py:106",
         "src/api/maas/endpoints/agent_mesh.py:299",
         "src/api/maas/endpoints/agent_mesh.py:385"
       ]
@@ -311,7 +311,7 @@
       "runtime_readiness_field": "persistent_supply_chain_ready",
       "hidden_dependency": "Supply-chain readiness checks durable attestation/SBOM storage, audit-log persistence, compatibility SBOM registry, and eBPF adapter importability. It does not prove a kernel filter is loaded.",
       "source_refs": [
-        "src/api/maas/endpoints/combined.py:139",
+        "src/api/maas/endpoints/combined.py:107",
         "src/api/maas/endpoints/supply_chain.py:343",
         "src/api/maas/endpoints/supply_chain.py:405"
       ]
@@ -329,7 +329,7 @@
       "runtime_readiness_field": "policy_runtime_ready",
       "hidden_dependency": "Policy readiness checks DB-backed ACL policy surfaces and RBAC dependencies. It does not prove dataplane policy enforcement on nodes.",
       "source_refs": [
-        "src/api/maas/endpoints/combined.py:143",
+        "src/api/maas/endpoints/combined.py:108",
         "src/api/maas/endpoints/policies.py:185",
         "src/api/maas/endpoints/policies.py:248"
       ]
@@ -348,7 +348,7 @@
       "hidden_dependency": "Telemetry readiness checks DB session shape, MeshNode model, Redis/fallback cache, uptime tracker, reputation system, metrics export, and auth dependency. Cached topology or heartbeat observations remain local-only and not dataplane proof.",
       "source_refs": [
         "src/api/maas/endpoints/combined.py:98",
-        "src/api/maas/endpoints/combined.py:144",
+        "src/api/maas/endpoints/combined.py:65",
         "src/api/maas/endpoints/telemetry.py:909",
         "src/api/maas/endpoints/telemetry.py:1043"
       ]
@@ -366,8 +366,8 @@
       "runtime_readiness_field": "compat_runtime_ready",
       "hidden_dependency": "Compat readiness covers alias wiring and delegated local dependencies for auth, mesh deploy, and billing aliases without executing delegated operations.",
       "source_refs": [
-        "src/api/maas/endpoints/combined.py:145",
-        "src/api/maas/endpoints/combined.py:156",
+        "src/api/maas/endpoints/combined.py:119",
+        "src/api/maas/endpoints/combined.py:18",
         "src/api/maas/endpoints/compat.py:1755",
         "src/api/maas/endpoints/compat.py:1852"
       ]
@@ -385,7 +385,7 @@
       "runtime_readiness_field": "vpn_runtime_ready",
       "hidden_dependency": "VPN readiness checks DB/session/model/config-generator/XUI/cache/auth/ZKP/production-env surfaces. It does not prove customer VPN traffic availability.",
       "source_refs": [
-        "src/api/maas/endpoints/combined.py:162",
+        "src/api/maas/endpoints/combined.py:123",
         "src/api/maas/endpoints/vpn.py:334",
         "src/api/maas/endpoints/vpn.py:463"
       ]
@@ -403,7 +403,7 @@
       "runtime_readiness_field": "users_runtime_ready",
       "hidden_dependency": "Users readiness checks DB/session/user model, password hashing, token generation, rate limiter, and admin-token configuration.",
       "source_refs": [
-        "src/api/maas/endpoints/combined.py:163",
+        "src/api/maas/endpoints/combined.py:124",
         "src/api/maas/endpoints/users.py:286",
         "src/api/maas/endpoints/users.py:388"
       ]
@@ -421,7 +421,7 @@
       "runtime_readiness_field": "swarm_runtime_ready",
       "hidden_dependency": "Swarm API readiness checks local registry, admin token, rate limiter, orchestrator import, task model, and vision engine import. It does not prove a live distributed swarm is healthy.",
       "source_refs": [
-        "src/api/maas/endpoints/combined.py:164",
+        "src/api/maas/endpoints/combined.py:125",
         "src/api/maas/endpoints/swarm.py:112",
         "src/api/maas/endpoints/swarm.py:723"
       ]
@@ -439,7 +439,7 @@
       "runtime_readiness_field": "ledger_runtime_ready",
       "hidden_dependency": "Ledger readiness checks local RAG surfaces, continuity file handle, verification evidence indexing methods, and EventBus trace indexing dependencies. It does not prove indexed data freshness or production readiness.",
       "source_refs": [
-        "src/api/maas/endpoints/combined.py:165",
+        "src/api/maas/endpoints/combined.py:126",
         "src/api/maas/endpoints/ledger.py:548",
         "src/api/maas/endpoints/ledger.py:822"
       ]
@@ -457,7 +457,7 @@
       "runtime_readiness_field": "swarm_orchestration_ready",
       "hidden_dependency": "Swarm orchestration readiness checks component imports, runtime state, task scheduler, and agent availability without proving production orchestration outcomes.",
       "source_refs": [
-        "src/api/maas/endpoints/combined.py:166",
+        "src/api/maas/endpoints/combined.py:127",
         "src/api/maas/endpoints/swarm_orchestration.py:79",
         "src/api/maas/endpoints/swarm_orchestration.py:171"
       ]
@@ -475,7 +475,7 @@
       "runtime_readiness_field": "vision_runtime_ready",
       "hidden_dependency": "Vision readiness checks local image/processor/topology/correction/upload surfaces only and does not prove production vision accuracy.",
       "source_refs": [
-        "src/api/maas/endpoints/combined.py:167",
+        "src/api/maas/endpoints/combined.py:128",
         "src/api/maas/endpoints/vision.py:74",
         "src/api/maas/endpoints/vision.py:146"
       ]
@@ -493,7 +493,7 @@
       "runtime_readiness_field": "service_identity_runtime_ready",
       "hidden_dependency": "Service identity readiness checks registry and redacted EventBus trace surfaces. It does not prove live SPIFFE, DID, wallet, or chain trust finality.",
       "source_refs": [
-        "src/api/maas/endpoints/combined.py:168",
+        "src/api/maas/endpoints/combined.py:129",
         "src/api/maas/endpoints/service_identity_status.py:103",
         "src/api/maas/endpoints/service_identity_status.py:167"
       ]

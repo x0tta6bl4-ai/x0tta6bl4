@@ -726,7 +726,7 @@ class LedgerRAGSearch:
 
     def _verification_document_id(self, path: Path) -> str:
         relative = self._relative_evidence_path(path)
-        digest = hashlib.sha1(relative.encode("utf-8")).hexdigest()[:12]
+        digest = hashlib.sha256(relative.encode("utf-8")).hexdigest()[:12]
         safe_name = (
             relative.replace("/", "_")
             .replace(".", "_")
@@ -862,7 +862,7 @@ class LedgerRAGSearch:
 
     def _event_trace_document_id(self, event: Dict[str, Any]) -> str:
         event_id = str(event.get("event_id") or "unknown")
-        digest = hashlib.sha1(event_id.encode("utf-8")).hexdigest()[:12]
+        digest = hashlib.sha256(event_id.encode("utf-8")).hexdigest()[:12]
         safe_id = (
             event_id.replace("/", "_")
             .replace(".", "_")

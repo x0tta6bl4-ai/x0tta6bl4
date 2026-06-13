@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -98,3 +99,28 @@ def test_income_watch_cycle_includes_agentpact_alert_subscription() -> None:
     assert "jaypay_402directory_submit_all" in names
     assert "github_bounty_claim_watch" in names
     assert "mergework_mrwk_claim_watch" in names
+
+
+def test_offline_income_watch_cycle_skips_external_commands(tmp_path: Path) -> None:
+    mod = _load_module()
+    output = tmp_path / "income-watch-cycle.json"
+
+    snapshot = mod.run_cycle(
+        wallet=mod.TARGET_WALLET,
+        output=output,
+        agentjob_wait_seconds=5,
+        cycle=1,
+        offline=True,
+    )
+
+    assert output.exists()
+    persisted = json.loads(output.read_text(encoding="utf-8"))
+    assert persisted == snapshot
+    assert snapshot["offline_mode"] is True
+    assert snapshot["funds_received_claim_allowed"] is False
+    assert snapshot["wallet_before"]["skipped"] is True
+    assert snapshot["wallet_after"]["skipped"] is True
+    assert snapshot["commands_failed"] == []
+    assert snapshot["commands_total"] == len(snapshot["results"])
+    assert all(item["skipped"] is True for item in snapshot["results"])
+    assert snapshot["next_action"] == "run_online_watch_with_operator_approval"

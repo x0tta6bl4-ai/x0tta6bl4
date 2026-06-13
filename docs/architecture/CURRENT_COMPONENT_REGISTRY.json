@@ -106,7 +106,7 @@
     {
       "id": "maas-governance-api",
       "layer": "api_to_control_plane",
-      "entrypoint": "src/api/maas_governance.py",
+      "entrypoint": "src/api/maas/endpoints/governance.py",
       "lifecycle_mode": "fastapi_router",
       "api_prefixes": [
         "/api/v1/maas/governance"
@@ -119,45 +119,46 @@
         "Finality hash can be signed through src.libx0t.core.app.pqc_sign when available."
       ],
       "source_refs": [
-        "src/api/maas_governance.py:24",
-        "src/api/maas_governance.py:25",
-        "src/api/maas_governance.py:26",
-        "src/api/maas_governance.py:31",
-        "src/api/maas_governance.py:150",
-        "src/api/maas_governance.py:273",
-        "src/api/maas_governance.py:362",
-        "src/api/maas_governance.py:500"
+        "src/api/maas/endpoints/governance.py:26",
+        "src/api/maas/endpoints/governance.py:28",
+        "src/api/maas/endpoints/governance.py:38",
+        "src/api/maas/endpoints/governance.py:139",
+        "src/api/maas/endpoints/governance.py:205",
+        "src/api/maas/endpoints/governance.py:243",
+        "src/api/maas/endpoints/governance.py:362",
+        "src/api/maas/endpoints/governance.py:500"
       ]
     },
     {
       "id": "maas-billing-api",
       "layer": "api_to_commerce",
-      "entrypoint": "src/api/maas_billing.py",
+      "entrypoint": "src/api/maas/endpoints/billing.py",
       "lifecycle_mode": "fastapi_router",
       "api_prefixes": [
         "/api/v1/maas/billing"
       ],
-      "event_bus": "none_direct",
+      "event_bus": "direct_publish",
       "service_identity": "current_user_dependency",
       "actuator": "none_direct",
       "hidden_dependencies": [
-        "Stripe billing still imports legacy MaaS mesh lookup and usage metering.",
-        "Invoice generation depends on legacy mesh semantics.",
-        "Billing router must stay before legacy MaaS catch-all routes."
+        "Modular billing emits local billing intent, usage, estimate, plan, invoice, and webhook lifecycle evidence through EventBus.",
+        "Invoice generation and payment/session routes remain local lifecycle evidence, not provider settlement proof.",
+        "Billing router is mounted by the combined MaaS router and must not be promoted to customer VPN access or production revenue evidence."
       ],
       "source_refs": [
-        "src/api/maas_billing.py:30",
-        "src/api/maas_billing.py:61",
-        "src/api/maas_billing.py:245",
-        "src/api/maas_billing.py:260",
-        "src/api/maas_billing.py:266",
-        "src/api/maas_billing.py:267"
+        "src/api/maas/endpoints/billing.py:37",
+        "src/api/maas/endpoints/billing.py:47",
+        "src/api/maas/endpoints/billing.py:63",
+        "src/api/maas/endpoints/billing.py:86",
+        "src/api/maas/endpoints/billing.py:128",
+        "src/api/maas/endpoints/billing.py:315",
+        "src/api/maas/endpoints/billing.py:355"
       ]
     },
     {
       "id": "ledger-api",
       "layer": "api_to_memory",
-      "entrypoint": "src/api/ledger_endpoints.py",
+      "entrypoint": "src/api/maas/endpoints/ledger.py",
       "lifecycle_mode": "fastapi_router",
       "api_prefixes": [
         "/api/v1/ledger"
@@ -170,11 +171,12 @@
         "Operator-facing answers can be influenced by local evidence documents through the RAG pipeline."
       ],
       "source_refs": [
-        "src/api/ledger_endpoints.py:18",
-        "src/api/ledger_endpoints.py:38",
-        "src/api/ledger_endpoints.py:75",
-        "src/api/ledger_endpoints.py:91",
-        "src/api/ledger_endpoints.py:119"
+        "src/api/maas/endpoints/ledger.py:17",
+        "src/api/maas/endpoints/ledger.py:30",
+        "src/api/maas/endpoints/ledger.py:33",
+        "src/api/maas/endpoints/ledger.py:690",
+        "src/api/maas/endpoints/ledger.py:793",
+        "src/api/maas/endpoints/ledger.py:829"
       ]
     },
     {
@@ -225,7 +227,7 @@
     {
       "id": "token-bridge",
       "layer": "dao_chain_bridge",
-      "entrypoint": "src/dao/token_bridge.py",
+      "entrypoint": "src/dao/bridge/core.py",
       "lifecycle_mode": "service_class",
       "event_bus": "direct_publish_plus_reward_and_marketplace_events",
       "service_identity": "token-bridge",
@@ -236,16 +238,14 @@
         "Reward and marketplace event publishers reuse this bridge as a settlement evidence source."
       ],
       "source_refs": [
-        "src/dao/token_bridge.py:30",
-        "src/dao/token_bridge.py:31",
-        "src/dao/token_bridge.py:32",
-        "src/dao/token_bridge.py:33",
-        "src/dao/token_bridge.py:34",
-        "src/dao/token_bridge.py:349",
-        "src/dao/token_bridge.py:360",
-        "src/dao/token_bridge.py:517",
-        "src/dao/token_bridge.py:578",
-        "src/dao/token_bridge.py:612"
+        "src/dao/bridge/core.py:20",
+        "src/dao/bridge/core.py:21",
+        "src/dao/bridge/core.py:31",
+        "src/dao/bridge/core.py:32",
+        "src/dao/bridge/core.py:33",
+        "src/dao/bridge/core.py:463",
+        "src/dao/bridge/core.py:508",
+        "src/dao/bridge/core.py:588"
       ]
     },
     {
