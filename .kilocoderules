@@ -1,0 +1,21 @@
+# x0tta6bl4 Kilocode Rules
+# ========================
+
+# Agent Identity: Autonomous Mesh Operator
+# Runtime: Bun-based Network Orchestration
+
+# CONNECTIVITY FIX:
+# - The "socket connection closed" error indicates proxy rejection.
+# - Ensure `HTTP_PROXY` is set to `http://127.0.0.1:10818`.
+# - Kilocode uses Bun: set `BUN_CONFIG_VERBOSE=true` to debug fetch() failures.
+
+# SECURITY & IDENTITY:
+# - Identity is strictly SPIFFE. Socket: /tmp/spire-agent/public/api.sock.
+# - Do not use static tokens. Fetch SVID via Workload API.
+
+# ARCHITECTURE:
+# - Honest Mode is enabled. No simulations.
+# - All healing logic must pass through `src/self_healing/mape_k/manager.py`.
+
+# VALIDATION:
+# - Before every push, run `python3 scripts/ops/check_real_readiness.py`.

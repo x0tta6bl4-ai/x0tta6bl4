@@ -1,19 +1,23 @@
 {
   "source": "scripts/review_nl_no_progress_nudge.sh",
-  "generated_at": "2026-06-06T17:01:56Z",
-  "ready": true,
-  "ready_blockers": [],
+  "generated_at": "2026-06-08T04:30:22Z",
+  "ready": false,
+  "ready_blockers": [
+    "action_not_review_and_send_no_progress_nudge",
+    "user_message_not_allowed_after_review",
+    "no_progress_candidate_count_zero"
+  ],
   "overall_status": "advisory",
-  "action": "review_and_send_no_progress_nudge",
-  "reason": "some active users still have no progress signal",
+  "action": "collect_user_replies",
+  "reason": "user connectivity is not fully verified",
   "user_status": "partial_user_progress",
-  "user_message_allowed_after_review": true,
-  "no_progress_candidate_count": 4,
+  "user_message_allowed_after_review": false,
+  "no_progress_candidate_count": 0,
   "earliest_mutation_at": "2026-06-06T02:28:51Z",
   "earliest_mutation_seconds_until": 0,
   "cooldown_active": false,
   "automatic_restart_allowed": false,
-  "hash_collection_status": "success",
+  "hash_collection_status": "not_required",
   "hash_collection_exit_code": 0,
   "hash_collection_error_sha256": "",
   "hash_collection_error_size_bytes": 0,
@@ -31,11 +35,5 @@
     "not_all_users_confirmed_by_reply",
     "some_active_users_without_progress_signal"
   ],
-  "expected_hashes": {
-    "packet": "974534b6e0ae5f9b1e7809f4978e3483401c97bc0bfeee59692cc395566a2b79",
-    "dry_run": "06789038d602509d4dfa6d93bd27b90100cd371198502fa40a586dd8a7f7630c",
-    "subscription_payload": "8c356cd8c8f6898b94512552293256e05f9ac9c60370c3602e365c1f30f0717f",
-    "transport_usage": "5e2882962606c8f0a3dc67a8541b3254dc321e9a15d0dcf79a46e2d3b4ebd423",
-    "replies": "7cb409980004afc844e31b5c7532556bf97487a479d7cf0f5330528d748dce4f"
-  }
+  "expected_hashes": {}
 }

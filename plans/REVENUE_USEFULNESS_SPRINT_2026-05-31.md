@@ -34,8 +34,13 @@ Non-goal:
 
 - Pilot packet: `docs/ghost-access/reliability-pilot-packet-2026-06-07.md`
 - Outreach sheet: `docs/ghost-access/reliability-pilot-outreach-2026-06-07.md`
+- Day 1 runbook: `docs/ghost-access/reliability-pilot-day1-runbook-2026-06-08.md`
+- Day 2-3 conversion runbook: `docs/ghost-access/reliability-pilot-day2-day3-conversion-runbook-2026-06-08.md`
 - Pilot tracker: `docs/ghost-access/reliability-pilot-tracker-2026-06-07.md`
+- Payment handoff: `docs/ghost-access/reliability-pilot-payment-handoff-2026-06-08.md`
 - Safe intake template: `docs/templates/GHOST_ACCESS_RELIABILITY_INTAKE_TEMPLATE.md`
+- Starter incident note template: `docs/templates/GHOST_ACCESS_STARTER_INCIDENT_NOTE_TEMPLATE.md`
+- Daily health summary template: `docs/templates/GHOST_ACCESS_DAILY_HEALTH_SUMMARY_TEMPLATE.md`
 - Final report template: `docs/templates/GHOST_ACCESS_RELIABILITY_REPORT_TEMPLATE.md`
 
 ## 7-Day Goal

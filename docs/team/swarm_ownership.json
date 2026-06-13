@@ -332,7 +332,31 @@
         "go.sum",
         "GEMINI.md",
         ".hermes/",
-        ".workflow/"
+        ".workflow/",
+        ".coverage.aggregated",
+        ".cursorrules",
+        ".env.ide",
+        ".kilocoderules",
+        ".windsurfrules",
+        "Dockerfile.production-simple",
+        "aggregate_tests.sh",
+        "audit_report.json",
+        "claim_bounties.py",
+        "config/chaos_agent.json",
+        "docker-compose.x402.yml",
+        "internal/",
+        "nl-diagnostics/",
+        "products/",
+        "project/",
+        "requirements-x402.txt",
+        "run_api_nl.py",
+        "scripts/setup-ai-editors.sh",
+        "scripts/verify_codex_environment.py",
+        "scripts/verify_ebpf_core.py",
+        "test_real_verify.py",
+        "xray_config_warp.json",
+        "templates/",
+        "scripts/mcp/"
       ]
     }
   }

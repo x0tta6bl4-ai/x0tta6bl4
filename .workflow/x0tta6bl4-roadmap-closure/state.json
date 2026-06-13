@@ -1,0 +1,661 @@
+{
+  "title": "x0tta6bl4 roadmap closure",
+  "slug": "x0tta6bl4-roadmap-closure",
+  "created_at": "2026-06-08T21:34:48+00:00",
+  "status": "in_progress",
+  "approval": {
+    "required": true,
+    "granted": false,
+    "notes": "Required for NL production writes, external outreach, payment requests, publishing, destructive git operations, and broad staging. Not required for local read-only checks and workflow notes."
+  },
+  "packets": [
+    {
+      "id": "security_identity_runtime",
+      "status": "verified_local_full_security_suite",
+      "files": [
+        "src/libx0t/security/post_quantum.py",
+        "src/libx0t/security/pqc_core.py",
+        "src/security/pqc/compat.py",
+        "tests/unit/security/test_pqc_compat_unit.py"
+      ]
+    },
+    {
+      "id": "maas_api_compat",
+      "status": "verified_local",
+      "files": [
+        "src/api/maas/endpoints/governance.py"
+      ]
+    },
+    {
+      "id": "network_runtime",
+      "status": "verified_local_compile",
+      "files": [
+        "src/network/ebpf/x0tta6bl4_pulse.bpf.c"
+      ]
+    },
+    {
+      "id": "ghost_access_revenue_pilot",
+      "status": "doc_consistency_verified_operator_handoff_ready_outreach_not_executed",
+      "files": [
+        "plans/REVENUE_USEFULNESS_SPRINT_2026-05-31.md",
+        "docs/ghost-access/reliability-pilot-packet-2026-06-07.md",
+        "docs/ghost-access/reliability-pilot-outreach-2026-06-07.md",
+        "docs/ghost-access/reliability-pilot-tracker-2026-06-07.md",
+        "docs/ghost-access/reliability-pilot-day1-runbook-2026-06-08.md",
+        "docs/ghost-access/reliability-pilot-day2-day3-conversion-runbook-2026-06-08.md",
+        "docs/ghost-access/reliability-pilot-payment-handoff-2026-06-08.md",
+        "docs/templates/GHOST_ACCESS_RELIABILITY_INTAKE_TEMPLATE.md",
+        "docs/templates/GHOST_ACCESS_DAILY_HEALTH_SUMMARY_TEMPLATE.md",
+        "docs/templates/GHOST_ACCESS_STARTER_INCIDENT_NOTE_TEMPLATE.md",
+        "docs/templates/GHOST_ACCESS_RELIABILITY_REPORT_TEMPLATE.md"
+      ]
+    },
+    {
+      "id": "nl_runtime_diagnostics",
+      "status": "verified_readonly_local",
+      "files": [
+        "nl-diagnostics/nl-legacy-client-migration-progress-2026-06-05.json",
+        "nl-diagnostics/nl-legacy-client-migration-replies-2026-06-05.json",
+        "nl-diagnostics/nl-legacy-no-progress-nudge-dry-run-latest.json",
+        "nl-diagnostics/nl-live-subscription-payload-latest.json",
+        "nl-diagnostics/nl-no-progress-nudge-guarded-send-latest.json",
+        "nl-diagnostics/nl-no-progress-nudge-review-latest.json",
+        "nl-diagnostics/nl-transport-usage-latest.json",
+        "nl-diagnostics/incidents/"
+      ]
+    },
+    {
+      "id": "repo_coordination_mcp",
+      "status": "verified_local",
+      "files": [
+        "docs/team/swarm_ownership.json",
+        "pyproject.toml",
+        "requirements.txt",
+        "scripts/verify_codex_environment.py",
+        "scripts/mcp/github_mcp_stdio.sh",
+        "mcp-server/src/operator_tools.py",
+        "mcp-server/src/spb_readonly_tools.py",
+        "mcp-server/test_operator_tools.py",
+        "tests/unit/test_spb_readonly_tools.py"
+      ]
+    },
+    {
+      "id": "repo_hygiene_config",
+      "status": "verified_local_manifest_and_template_policy",
+      "files": [
+        "pyproject.toml",
+        "requirements.txt",
+        "docs/templates/GHOST_ACCESS_DAILY_HEALTH_SUMMARY_TEMPLATE.md",
+        "docs/templates/GHOST_ACCESS_STARTER_INCIDENT_NOTE_TEMPLATE.md",
+        "tests/unit/security/test_dependency_security_pins_unit.py"
+      ]
+    },
+    {
+      "id": "commercial_income_automation",
+      "status": "verified_local_static_contract_and_offline_watch",
+      "files": [
+        "src/sales/",
+        "scripts/ops/build_non_bounty_income_map.py",
+        "scripts/ops/build_paid_task_automation_plan.py",
+        "scripts/ops/check_commercial_mesh_platform_readiness.py",
+        "scripts/ops/run_income_watch_cycle.py",
+        "scripts/ops/run_paid_task_hunter.py",
+        "scripts/ops/run_paid_task_watch_loop.py",
+        "scripts/ops/score_paid_task_listings.py",
+        "tests/unit/sales/",
+        "tests/unit/scripts/test_agent_work_receipt_gate.py",
+        "tests/unit/scripts/test_build_non_bounty_income_map.py",
+        "tests/unit/scripts/test_build_paid_task_automation_plan.py",
+        "tests/unit/scripts/test_check_commercial_mesh_platform_readiness.py",
+        "tests/unit/scripts/test_collect_paid_task_listings.py",
+        "tests/unit/scripts/test_ensure_x402_paid_api_public.py",
+        "tests/unit/scripts/test_run_income_watch_cycle.py",
+        "tests/unit/scripts/test_run_paid_task_hunter.py",
+        "tests/unit/scripts/test_run_paid_task_watch_loop.py",
+        "tests/unit/scripts/test_score_paid_task_listings.py"
+      ]
+    },
+    {
+      "id": "evidence_readiness",
+      "status": "verified_local_real_readiness_ready",
+      "files": [
+        "docs/architecture/CURRENT_CANONICAL_IMPORT_MAP.json",
+        "docs/architecture/CURRENT_NAMESPACE_CONVERGENCE_MAP.json",
+        "docs/architecture/CURRENT_CROSS_LAYER_LINK_MAP.md",
+        "scripts/ops/check_real_readiness.py",
+        "scripts/ops/summarize_dirty_worktree_review.py",
+        "scripts/ops/verify_traffic_delivery_operator_flow.py",
+        "scripts/ops/run_measured_attestation_verifier_handoff.py",
+        "scripts/ops/verify_measured_attestation_verifier_smoke.py",
+        "scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py",
+        "src/api/maas/endpoints/governance.py"
+      ]
+    },
+    {
+      "id": "coordination_product_readiness",
+      "status": "verified_local_registered_products_ready",
+      "files": [
+        "docs/team/swarm_ownership.json",
+        "docs/agent-engineering/",
+        "products/agent-work-receipt-gate/",
+        "products/security-gates/",
+        "products/production-readiness.json",
+        "scripts/agents/agent_work_receipt_gate.py",
+        "scripts/agents/test_all_agents.py",
+        "scripts/agents/verify_agent_work_receipt_gate_release.py",
+        "scripts/agents/verify_products_production_readiness.py",
+        "scripts/agents/verify_security_gates_release.py",
+        "templates/security/",
+        "tests/unit/scripts/test_agent_work_receipt_gate.py",
+        "tests/unit/scripts/test_security_scan_template_unit.py"
+      ]
+    },
+    {
+      "id": "runbook_pilot_edge_mesh_lab",
+      "status": "verified_local_pilot0_baseline_runbook_ready",
+      "files": [
+        "docs/runbooks/README.md",
+        "docs/runbooks/PILOT1_EDGE_MESH_LAB.md",
+        "config/chaos_agent.json",
+        "scripts/ops/run_pilot0_edge_mesh_maas.py",
+        "scripts/agents/chaos_engineer_agent.py"
+      ]
+    },
+    {
+      "id": "coordination_agent_suite",
+      "status": "verified_local_coordination_and_policy_map_refs",
+      "files": [
+        "docs/team/swarm_ownership.json",
+        "scripts/agent-coord.sh",
+        "scripts/agents/",
+        ".githooks/pre-commit",
+        ".githooks/post-commit",
+        "docs/architecture/CURRENT_POLICY_ENFORCEMENT_MAP.json",
+        "docs/architecture/CURRENT_EVIDENCE_RUNTIME_BRIDGE_MAP.json",
+        "tests/unit/scripts/test_agent_work_receipt_gate.py",
+        "tests/unit/scripts/test_security_scan_template_unit.py",
+        "tests/unit/scripts/test_summarize_dirty_worktree_review.py",
+        "tests/unit/scripts/test_check_real_readiness_unit.py",
+        "tests/unit/test_policy_enforcement_map_unit.py",
+        "tests/unit/test_cross_plane_evidence_map_unit.py",
+        "tests/unit/test_real_readiness_gate_doc_unit.py"
+      ]
+    }
+  ],
+  "verification": {
+    "status": "partial_pass_coordination_agent_suite_verified",
+    "checks": [
+      {
+        "command": "find src/security src/libx0t/security -name '*.py' -not -path '*/__pycache__/*' -print0 | xargs -0 python3 -m py_compile",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/security/test_pqc_compat_unit.py -q --no-cov",
+        "status": "passed",
+        "result": "4 passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/security/test_post_quantum_unit.py -q --no-cov",
+        "status": "passed",
+        "result": "66 passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/security/test_hybrid_tls_demo.py::test_handshake_performance_sla -q --no-cov",
+        "status": "passed",
+        "result": "1 passed"
+      },
+      {
+        "command": "python3 -m py_compile src/api/maas/endpoints/governance.py src/api/maas_auth.py src/api/maas_legacy.py src/api/maas_compat.py src/api/maas_billing.py",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/api/test_maas_package_compat_unit.py -q --no-cov",
+        "status": "passed",
+        "result": "3 passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/api/test_maas_compat_* tests/unit/api/test_maas_legacy_* -q --no-cov",
+        "status": "passed",
+        "result": "57 passed"
+      },
+      {
+        "command": "python3 -m py_compile src/network/transport/ghost_pulse_transport.py src/network/firstparty_vpn/*.py",
+        "status": "passed"
+      },
+      {
+        "command": "clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I/usr/include/x86_64-linux-gnu -c src/network/ebpf/x0tta6bl4_pulse.bpf.c -o /tmp/x0tta6bl4_pulse.bpf.o",
+        "status": "passed"
+      },
+      {
+        "command": "python3 -m json.tool docs/team/swarm_ownership.json >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "bash scripts/agents/check_coordination_contract.sh",
+        "status": "passed",
+        "result": "coordination-contract: ok"
+      },
+      {
+        "command": "python3 -m py_compile scripts/verify_codex_environment.py",
+        "status": "passed"
+      },
+      {
+        "command": "bash -n scripts/mcp/github_mcp_stdio.sh",
+        "status": "passed"
+      },
+      {
+        "command": "python3 -c \"import pathlib, tomllib; tomllib.loads(pathlib.Path('pyproject.toml').read_text()); print('pyproject: ok')\"",
+        "status": "passed",
+        "result": "pyproject: ok"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/test_spb_readonly_tools.py mcp-server/test_operator_tools.py -q --no-cov",
+        "status": "passed",
+        "result": "14 passed"
+      },
+      {
+        "command": "python3 scripts/ops/summarize_dirty_worktree_review.py --require-owned --json",
+        "status": "passed",
+        "result": "DIRTY_WORKTREE_OWNER_REVIEW_READY; dirty_path_count=80; unowned_path_count=0"
+      },
+      {
+        "command": "python3 scripts/verify_codex_environment.py --skip-slow-mcp",
+        "status": "passed",
+        "result": "status=pass; x0tta-operator/spb-readonly/codegraph/openaiDeveloperDocs pass; github skipped because token endpoint returned 403"
+      },
+      {
+        "command": "find services/nl-server -name '*.py' -not -path '*/__pycache__/*' -print0 | xargs -0 python3 -m py_compile",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest services/nl-server/tests -q --no-cov",
+        "status": "passed",
+        "result": "249 passed"
+      },
+      {
+        "command": "python3 -m json.tool <each dirty nl-diagnostics JSON file> >/dev/null",
+        "status": "passed",
+        "result": "7 dirty JSON files parsed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest nl-diagnostics/test_*.py -q --no-cov",
+        "status": "passed",
+        "result": "279 passed"
+      },
+      {
+        "command": "inline redaction scan over dirty nl-diagnostics JSON files and incident notes",
+        "status": "passed",
+        "result": "redaction_scan: ok"
+      },
+      {
+        "command": "local link check across Ghost Access reliability pilot docs and templates",
+        "status": "passed",
+        "result": "local_link_check: ok"
+      },
+      {
+        "command": "placeholder and price-band scan across Ghost Access reliability pilot docs",
+        "status": "passed",
+        "result": "no empty buyer-facing prices remain; remaining blanks are starter incident delivery-template fields"
+      },
+      {
+        "command": "no-secret scan across Ghost Access reliability pilot docs and templates",
+        "status": "passed",
+        "result": "pilot_doc_secret_scan: ok"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/security tests/security -q --no-cov",
+        "status": "passed",
+        "result": "1704 passed, 24 skipped in 821.44s"
+      },
+      {
+        "command": "python3 -m py_compile scripts/ops/check_real_readiness.py scripts/ops/summarize_dirty_worktree_review.py scripts/ops/verify_traffic_delivery_operator_flow.py scripts/ops/run_measured_attestation_verifier_handoff.py scripts/ops/verify_measured_attestation_verifier_smoke.py scripts/ops/verify_measured_attestation_verifier_smoke_artifact.py",
+        "status": "passed"
+      },
+      {
+        "command": "python3 -m json.tool docs/architecture/CURRENT_CANONICAL_IMPORT_MAP.json >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "python3 -m json.tool docs/architecture/CURRENT_NAMESPACE_CONVERGENCE_MAP.json >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/scripts/test_check_real_readiness_unit.py tests/unit/scripts/test_summarize_dirty_worktree_review.py tests/unit/scripts/test_verify_traffic_delivery_operator_flow.py tests/unit/scripts/test_run_measured_attestation_verifier_handoff.py tests/unit/scripts/test_verify_measured_attestation_verifier_smoke.py tests/unit/scripts/test_verify_measured_attestation_verifier_smoke_artifact.py tests/unit/test_real_readiness_gate_doc_unit.py tests/unit/test_cross_plane_evidence_map_unit.py tests/unit/test_autonomous_mesh_reality_map_unit.py -q --no-cov",
+        "status": "passed",
+        "result": "224 passed in 31.30s"
+      },
+      {
+        "command": "python3 -m py_compile src/api/maas/endpoints/governance.py",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python -c \"import src.core.app; print('app_import_ok')\"",
+        "status": "passed",
+        "result": "app_import_ok"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/api/test_maas_governance_evidence_unit.py tests/api/test_maas_governance.py tests/api/test_maas_governance_edge.py -q --no-cov",
+        "status": "passed",
+        "result": "52 passed in 110.71s"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/verify_safe_actuator_runtime_metadata_retention.py --require-retained --json",
+        "status": "passed",
+        "result": "SAFE_ACTUATOR_RUNTIME_METADATA_RETAINED; 25/25 cases retained"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/verify_maas_heal_api_post_action_dataplane_probe.py --target 10.123.45.67 --require-ready --json",
+        "status": "passed",
+        "result": "MAAS_HEAL_API_POST_ACTION_DATAPLANE_PROBE_READY"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/verify_maas_autonomous_mesh_runtime_smoke.py --dataplane-probe-target 10.123.45.67",
+        "status": "passed",
+        "result": "MAAS_AUTONOMOUS_MESH_RUNTIME_SMOKE_READY"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/verify_maas_real_agent_control_loop.py --dataplane-probe-target 10.123.45.67 --timeout-seconds 180",
+        "status": "passed",
+        "result": "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/check_real_readiness.py --json --skip-git-check",
+        "status": "passed",
+        "result": "REAL_READINESS_READY; checks_total=95; passed=95; failures=0; warnings=0"
+      },
+      {
+        "command": "python3 -m json.tool .workflow/x0tta6bl4-roadmap-closure/state.json >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "python3 /mnt/projects/user_data/x0ttta6bl4/.codex/skills/codex-dynamic-workflows/scripts/verify_workflow.py .workflow/x0tta6bl4-roadmap-closure",
+        "status": "passed",
+        "result": "Workflow verification passed: .workflow/x0tta6bl4-roadmap-closure"
+      },
+      {
+        "command": "git diff --check",
+        "status": "passed"
+      },
+      {
+        "command": "python3 scripts/ops/summarize_dirty_worktree_review.py --require-owned --json",
+        "status": "passed",
+        "result": "DIRTY_WORKTREE_OWNER_REVIEW_READY; dirty_path_count=81; unowned_path_count=0"
+      },
+      {
+        "command": "python3 -m json.tool docs/team/swarm_ownership.json >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "bash scripts/agents/check_coordination_contract.sh",
+        "status": "passed",
+        "result": "coordination-contract: ok"
+      },
+      {
+        "command": "python3 -m py_compile scripts/agents/agent_feedback_loop.py scripts/agents/agent_trainer.py scripts/agents/agent_work_receipt_gate.py scripts/agents/audit_mvp_sellable_products.py scripts/agents/build_tooling_registry.py scripts/agents/chaos_agent.py scripts/agents/chaos_engineer_agent.py scripts/agents/compliance_agent.py scripts/agents/devrel_agent.py scripts/agents/docs_agent.py scripts/agents/docs_agent_v2.py scripts/agents/finops_agent.py scripts/agents/integrity_ledger.py scripts/agents/mcp_client_proxy.py scripts/agents/memory_recall.py scripts/agents/micro_niche_scout.py scripts/agents/ml_ops_agent.py scripts/agents/niche_hunter_agent.py scripts/agents/quantum_agent.py scripts/agents/quantum_optimizer_agent.py scripts/agents/rkn_spy_agent.py scripts/agents/rkn_tspu_scout.py scripts/agents/run_real_tasks.py scripts/agents/run_training_cycle.py scripts/agents/session_end_helper.py scripts/agents/sre_agent.py scripts/agents/swarm_controller.py scripts/agents/swarm_dashboard.py scripts/agents/test_all_agents.py scripts/agents/tool_audit_helper.py scripts/agents/verify_agent_work_receipt_gate_release.py scripts/agents/verify_products_production_readiness.py scripts/agents/verify_security_gates_release.py",
+        "status": "passed"
+      },
+      {
+        "command": "bash -n scripts/agents/lane_pickup.sh scripts/agents/start_micro_niche_scout.sh scripts/agents/start_rkn_tspu_scout.sh scripts/agents/stop_micro_niche_scout.sh scripts/agents/stop_rkn_tspu_scout.sh",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/agents/test_all_agents.py",
+        "status": "passed",
+        "result": "8/8 agents passed"
+      },
+      {
+        "command": "python3 -m json.tool products/agent-work-receipt-gate/policy.example.json >/dev/null && python3 -m json.tool products/agent-work-receipt-gate/receipts/valid.json >/dev/null && python3 -m json.tool products/agent-work-receipt-gate/receipts/invalid-missing-verification.json >/dev/null && python3 -m json.tool products/agent-work-receipt-gate/receipts/invalid-forbidden-claim.json >/dev/null && python3 -m json.tool products/agent-work-receipt-gate/receipts/invalid-missing-source-truth.json >/dev/null && python3 -m json.tool products/production-readiness.json >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "python3 -m py_compile scripts/agents/agent_work_receipt_gate.py scripts/agents/verify_agent_work_receipt_gate_release.py scripts/agents/verify_security_gates_release.py scripts/agents/verify_products_production_readiness.py tests/unit/scripts/test_agent_work_receipt_gate.py tests/unit/scripts/test_security_scan_template_unit.py",
+        "status": "passed"
+      },
+      {
+        "command": "bash -n templates/security/security-scan.sh",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/scripts/test_agent_work_receipt_gate.py tests/unit/scripts/test_security_scan_template_unit.py -q --no-cov",
+        "status": "passed",
+        "result": "7 passed in 0.84s"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/agents/verify_agent_work_receipt_gate_release.py --output-dir .tmp/validation-shards/agent-work-receipt-gate-coordination --json",
+        "status": "passed",
+        "result": "READY_FOR_CLIENT_REPO_INSTALL; checks_passed=9; checks_failed=0"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/agents/verify_security_gates_release.py --output-dir .tmp/validation-shards/security-gates-coordination --json",
+        "status": "passed",
+        "result": "READY_FOR_CLIENT_REPO_INSTALL; checks_passed=6; checks_failed=0"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/agents/verify_products_production_readiness.py --output-dir .tmp/validation-shards/products-production-coordination --json",
+        "status": "passed",
+        "result": "ALL_REGISTERED_PRODUCTS_READY; products_passed=2; products_failed=0"
+      },
+      {
+        "command": "python3 scripts/ops/summarize_dirty_worktree_review.py --require-owned --json",
+        "status": "passed",
+        "result": "DIRTY_WORKTREE_OWNER_REVIEW_READY; dirty_path_count=86; unowned_path_count=0"
+      },
+      {
+        "command": "python3 -m json.tool .workflow/x0tta6bl4-roadmap-closure/state.json >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "python3 /mnt/projects/user_data/x0ttta6bl4/.codex/skills/codex-dynamic-workflows/scripts/verify_workflow.py .workflow/x0tta6bl4-roadmap-closure",
+        "status": "passed",
+        "result": "Workflow verification passed: .workflow/x0tta6bl4-roadmap-closure"
+      },
+      {
+        "command": "git diff --check",
+        "status": "passed"
+      },
+      {
+        "command": "python3 -m json.tool config/chaos_agent.json >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. python3 scripts/ops/run_pilot0_edge_mesh_maas.py --help",
+        "status": "passed"
+      },
+      {
+        "command": "local link check for docs/runbooks/README.md and docs/runbooks/PILOT1_EDGE_MESH_LAB.md",
+        "status": "passed",
+        "result": "runbook_link_check: ok"
+      },
+      {
+        "command": "local secret scan for docs/runbooks/PILOT1_EDGE_MESH_LAB.md and config/chaos_agent.json",
+        "status": "passed",
+        "result": "runbook_secret_scan: ok"
+      },
+      {
+        "command": "local schema check for config/chaos_agent.json",
+        "status": "passed",
+        "result": "chaos_agent_config_schema: ok"
+      },
+      {
+        "command": "local claim-boundary marker check for docs/runbooks/PILOT1_EDGE_MESH_LAB.md",
+        "status": "passed",
+        "result": "pilot1_claim_boundary_markers: ok"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/agents/chaos_engineer_agent.py --config config/chaos_agent.json --mode report",
+        "status": "passed",
+        "result": "status=no_experiments"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/run_pilot0_edge_mesh_maas.py --require-ready --output-dir .tmp/validation-shards/pilot1-edge-mesh-lab --json",
+        "status": "passed",
+        "result": "PILOT0_EDGE_MESH_MAAS_READY; ready=true; required_stages_passed=11/11"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/security/test_dependency_security_pins_unit.py -q --no-cov",
+        "status": "passed",
+        "result": "3 passed"
+      },
+      {
+        "command": "inline pyproject/requirements installability check",
+        "status": "passed",
+        "result": "pyproject_requirements_installability: ok"
+      },
+      {
+        "command": "inline Ghost Access daily health and starter incident template policy check",
+        "status": "passed",
+        "result": "ghost_access_template_policy: ok"
+      },
+      {
+        "command": "./.venv/bin/python -m pip install -e . --no-deps",
+        "status": "passed",
+        "result": "editable x0tta6bl4 metadata refreshed without dependency install"
+      },
+      {
+        "command": "./.venv/bin/python -m pip install --no-deps fastapi==0.128.5 starlette==0.52.1",
+        "status": "passed",
+        "result": "local .venv restored to requirements.txt lock for FastAPI/Starlette"
+      },
+      {
+        "command": "./.venv/bin/python -m pip check",
+        "status": "failed_known_unrelated_local_env",
+        "result": "x0tta6bl4-specific dependency conflicts cleared; remaining failures are pre-existing opentelemetry/flwr/shap/numba/spiffe environment drift"
+      },
+      {
+        "command": "python3 scripts/ops/summarize_dirty_worktree_review.py --require-owned --json",
+        "status": "passed",
+        "result": "DIRTY_WORKTREE_OWNER_REVIEW_READY; dirty_path_count=87; unowned_path_count=0"
+      },
+      {
+        "command": "python3 -m py_compile src/sales/*.py scripts/ops/*agent*.py scripts/ops/*paid*.py scripts/ops/*income*.py",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/sales tests/unit/scripts/test_run_income_watch_cycle.py tests/unit/scripts/test_run_paid_task_hunter.py tests/unit/scripts/test_check_commercial_mesh_platform_readiness.py tests/unit/scripts/test_agent_work_receipt_gate.py -q --no-cov",
+        "status": "passed",
+        "result": "192 passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/scripts/test_build_non_bounty_income_map.py tests/unit/scripts/test_build_paid_task_automation_plan.py tests/unit/scripts/test_collect_paid_task_listings.py tests/unit/scripts/test_ensure_x402_paid_api_public.py tests/unit/scripts/test_run_paid_task_watch_loop.py tests/unit/scripts/test_score_paid_task_listings.py -q --no-cov",
+        "status": "passed",
+        "result": "9 passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/check_commercial_mesh_platform_readiness.py --require-ready --json",
+        "status": "passed",
+        "result": "COMMERCIAL_MESH_PLATFORM_STATIC_CONTRACT_READY; passed=8/8; static_only=true"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/build_paid_task_automation_plan.py --write-md .tmp/validation-shards/commercial-income/paid-task-automation-plan.md --write-json .tmp/validation-shards/commercial-income/paid-task-automation-plan.json",
+        "status": "passed",
+        "result": "pipeline_ready; sources_total=7; funds_received_claim_allowed=false"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/build_non_bounty_income_map.py --write-md .tmp/validation-shards/commercial-income/non-bounty-income-map.md --write-json .tmp/validation-shards/commercial-income/non-bounty-income-map.json --artifact-dir .tmp/validation-shards/commercial-income/non-bounty-artifacts",
+        "status": "passed",
+        "result": "map_ready; selected_first=gate402_x402_catalog,x402_paid_micro_api,agora402_native_registry; funds_received_claim_allowed=false"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/run_income_watch_cycle.py --offline --cycles 1 --agentjob-wait-seconds 0 --output .tmp/validation-shards/commercial-income/income-watch-cycle-offline.json --history-jsonl .tmp/validation-shards/commercial-income/income-watch-history-offline.jsonl",
+        "status": "passed",
+        "result": "offline_mode=true; commands_failed=0; funds_received=false; next_action=run_online_watch_with_operator_approval"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/score_paid_task_listings.py --input docs/commercial/paid_task_listings.example.json --top 5 --write-json .tmp/validation-shards/commercial-income/paid-task-score-example.json --write-md .tmp/validation-shards/commercial-income/paid-task-score-example.md",
+        "status": "passed",
+        "result": "selection_ready; selected_first=Fix Python test failure in CLI command; funds_received_claim_allowed=false"
+      },
+      {
+        "command": "find .tmp/validation-shards/commercial-income -name '*.json' -print0 | xargs -0 -I{} python3 -m json.tool {} >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "python3 scripts/ops/summarize_dirty_worktree_review.py --require-owned --json",
+        "status": "passed",
+        "result": "DIRTY_WORKTREE_OWNER_REVIEW_READY; dirty_path_count=90; unowned_path_count=0"
+      },
+      {
+        "command": "python3 -m json.tool docs/team/swarm_ownership.json >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "bash scripts/agents/check_coordination_contract.sh",
+        "status": "passed",
+        "result": "coordination-contract: ok"
+      },
+      {
+        "command": "find scripts/agents -name '*.py' -not -path '*/__pycache__/*' -print0 | xargs -0 python3 -m py_compile",
+        "status": "passed"
+      },
+      {
+        "command": "find scripts/agents -maxdepth 1 -name '*.sh' -print0 | xargs -0 bash -n",
+        "status": "passed"
+      },
+      {
+        "command": "find scripts/agents -maxdepth 1 -name '*.json' -print0 | xargs -0 -I{} python3 -m json.tool {} >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/agents/test_all_agents.py",
+        "status": "passed",
+        "result": "8/8 agents passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/scripts/test_agent_work_receipt_gate.py tests/unit/scripts/test_security_scan_template_unit.py -q --no-cov",
+        "status": "passed",
+        "result": "7 passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/agents/check_swarm_ownership.py --agent lead-coordinator --print-scope",
+        "status": "passed",
+        "result": "lead-coordinator scope printed"
+      },
+      {
+        "command": "bash -n scripts/agent-coord.sh scripts/agents/request_channel.sh scripts/agents/start_swarm_session.sh scripts/agents/stop_swarm_session.sh scripts/agents/install_swarm_hook.sh",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/scripts/test_summarize_dirty_worktree_review.py tests/unit/test_policy_enforcement_map_unit.py tests/unit/scripts/test_check_real_readiness_unit.py::test_swarm_coordination_contract_failure_blocks_readiness -q --no-cov",
+        "status": "passed",
+        "result": "18 passed"
+      },
+      {
+        "command": "python3 -m json.tool docs/architecture/CURRENT_POLICY_ENFORCEMENT_MAP.json >/dev/null && python3 -m json.tool docs/architecture/CURRENT_EVIDENCE_RUNTIME_BRIDGE_MAP.json >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/pytest tests/unit/test_cross_plane_evidence_map_unit.py tests/unit/test_real_readiness_gate_doc_unit.py -q --no-cov",
+        "status": "passed",
+        "result": "30 passed"
+      },
+      {
+        "command": "python3 scripts/ops/summarize_dirty_worktree_review.py --require-owned --json",
+        "status": "passed",
+        "result": "DIRTY_WORKTREE_OWNER_REVIEW_READY; dirty_path_count=92; unowned_path_count=0"
+      },
+      {
+        "command": "PYTHONPATH=. ./.venv/bin/python scripts/ops/check_real_readiness.py --json --skip-git-check",
+        "status": "not_completed_current_tranche",
+        "result": "post-map-fix rerun session became unavailable after compaction; no active local verifier process remained; previous evidence_readiness run remains recorded as REAL_READINESS_READY"
+      },
+      {
+        "command": "python3 -m json.tool .workflow/x0tta6bl4-roadmap-closure/state.json >/dev/null",
+        "status": "passed"
+      },
+      {
+        "command": "python3 /mnt/projects/user_data/x0ttta6bl4/.codex/skills/codex-dynamic-workflows/scripts/verify_workflow.py .workflow/x0tta6bl4-roadmap-closure",
+        "status": "passed",
+        "result": "Workflow verification passed: .workflow/x0tta6bl4-roadmap-closure"
+      },
+      {
+        "command": "git diff --check",
+        "status": "passed"
+      },
+      {
+        "command": "python3 scripts/ops/summarize_dirty_worktree_review.py --require-owned --json",
+        "status": "passed",
+        "result": "DIRTY_WORKTREE_OWNER_REVIEW_READY; dirty_path_count=92; unowned_path_count=0"
+      }
+    ]
+  }
+}

@@ -1,19 +1,19 @@
 {
   "db_progress": {
-    "active_user_count": 14,
+    "active_user_count": 12,
     "combined": {
-      "active_users_with_any_progress_since_message": 10,
-      "active_users_with_subscription_and_device_progress_since_message": 4
+      "active_users_with_any_progress_since_message": 12,
+      "active_users_with_subscription_and_device_progress_since_message": 8
     },
     "db_available": true,
     "device_activity": {
-      "active_users_with_device_activity_since_message": 9,
-      "device_activity_rows_since_message": 20,
+      "active_users_with_device_activity_since_message": 8,
+      "device_activity_rows_since_message": 21,
       "device_status_counts": {
-        "active": 20
+        "active": 21
       },
       "profile_kind_counts": {
-        "reality": 20
+        "reality": 21
       },
       "raw_ip_stored": false,
       "raw_user_ids_stored": false,
@@ -21,25 +21,25 @@
     },
     "request_events": {
       "action_counts": {
-        "config": 3,
-        "repair": 1
+        "config": 1,
+        "repair": 7
       },
-      "config_requests_since_message": 3,
+      "config_requests_since_message": 1,
       "raw_user_ids_stored": false
     },
     "subscription_refresh": {
-      "active_users_with_subscription_pull_since_message": 5,
+      "active_users_with_subscription_pull_since_message": 12,
       "client_app_counts": {
-        "happ": 1,
-        "v2raytun": 4
+        "v2raytun": 5,
+        "x0tta-order-check": 12
       },
       "raw_subscription_urls_stored": false,
       "raw_tokens_stored": false,
       "raw_user_ids_stored": false,
-      "subscription_pull_rows_since_message": 5
+      "subscription_pull_rows_since_message": 17
     }
   },
-  "generated_at": "2026-06-06T17:03:00Z",
+  "generated_at": "2026-06-08T04:39:14Z",
   "message_send": {
     "available": true,
     "decision": "LEGACY_CLIENT_MIGRATION_MESSAGE_SENT",
