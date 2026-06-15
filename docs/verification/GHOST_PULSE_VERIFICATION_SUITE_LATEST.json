@@ -4,12 +4,12 @@
     "local_evidence_sha256": "27012e7f09e24581aee066243cb4dd13ecbe9bf9fe5742f6e25d4926412c30b9",
     "profile_matrix": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
     "profile_matrix_sha256": "34f05acbf1555cb638347fe7c140e51fd07e0e31e415daf29cc030b7f36ad053",
-    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260607T180013Z/suite.json",
-    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260607T180013Z/summary.md",
+    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260615T055533Z/suite.json",
+    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260615T055533Z/summary.md",
     "suite_latest_json": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
     "suite_latest_md": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-verification-suite-20260607T180013Z",
+  "bundle": "docs/verification/ghost-pulse-verification-suite-20260615T055533Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "kernel_read_only_visible": false,
@@ -322,38 +322,38 @@
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
-          "sha256": "47e9f025b8add9391af63b843fbad9422f1e2be9d101677f2cb87ea1785caead",
-          "size_bytes": 11333
+          "sha256": "364684644a19df5af1097da62e92f4ca8c8ca103ffd927255ddeb4e815c1be90",
+          "size_bytes": 12984
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.md",
-          "sha256": "55d654798f3778759ef03b83020031873281696f0731992d2a16ea4693892b68",
-          "size_bytes": 2518
+          "sha256": "2a09a142920fd0130b341ba1dca79cba58fa2cd2658ddf26b0570378339811e6",
+          "size_bytes": 2550
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
-          "sha256": "c036cfe6b3d71b0cce6cbf555db1e9eab318cb2baee514c9f0b3c0229b329995",
-          "size_bytes": 39298
+          "sha256": "b7dce847f465d37b8c6b0ca2f4a3d30e80b30c6b540f76e918a6f35c58dad1c8",
+          "size_bytes": 43009
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.md",
-          "sha256": "215cea168670a21a10370b3dd13f38fc7367fdb6c8ad51dc15778ac09e8e5371",
-          "size_bytes": 4754
+          "sha256": "79605be0c49e531450a6e06d7324d9fb1825e8fcd66d4b8985da62af1a45a4ba",
+          "size_bytes": 5630
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.json",
-          "sha256": "331cb2e70d96af7f60850ef20fe1e24b9b6fee95c6fb714602e3e83d967cf183",
-          "size_bytes": 22150
+          "sha256": "dcb5d3e961be469ef67c27b582ab110c64affe789f01784e2ab43f2661fb2b09",
+          "size_bytes": 26655
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.md",
-          "sha256": "11621787239b6c2e1e5eceae5a2b8833d456e9b1d7fd8395e502b20a70c9d2a3",
-          "size_bytes": 1085
+          "sha256": "056040d2ee76ce01cbfc98bc6de5f5b202433190e4ef5d90405f22c91419d66b",
+          "size_bytes": 1244
         }
       ],
       "targets_scanned": [
@@ -572,5 +572,5 @@
       "seed": 20260522
     }
   },
-  "timestamp_utc": "2026-06-07T18:00:13.192050+00:00"
+  "timestamp_utc": "2026-06-15T05:55:33.604171+00:00"
 }

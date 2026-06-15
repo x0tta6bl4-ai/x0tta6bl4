@@ -1,6 +1,6 @@
 # x0tta6bl4_pulse Proof Gate
 
-Timestamp: `2026-06-07T18:03:23.398286+00:00`
+Timestamp: `2026-06-15T05:59:16.174046+00:00`
 
 Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
@@ -15,10 +15,10 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 ## Replacement Candidate Preflight
 
 - report: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`
-- sha256: `b17342e7d1a3bcc744c24af464c0967fe720e1cd856363a7db113990c120d537`
+- sha256: `510f178d43ee398e4e8a88b55ac02f48371dc1be37cba196db5e41c973ee77d0`
 - status: `PASS`
 - decision: `REPLACEMENT_CANDIDATES_NOT_READY`
-- not_ready: `dpi_lab, whitelist_lab, production_readiness`
+- not_ready: `dpi_lab, whitelist_lab, security_review, production_readiness`
 
 ## Proof Rows
 
@@ -32,7 +32,7 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 | baseline_timing_comparison | `VERIFIED` | `docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json` |
 | dpi_lab | `INVALID` | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json` |
 | whitelist_lab | `INVALID` | `docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json` |
-| security_review | `VERIFIED` | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json` |
+| security_review | `INVALID` | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json` |
 | production_readiness | `INVALID` | `docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json` |
 | current_runtime_attached | `INVALID` | `READ_ONLY_KERNEL_OBSERVATION:unconfigured` |
 
@@ -40,6 +40,7 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
 - dpi_lab
 - whitelist_lab
+- security_review
 - production_readiness
 - current_runtime_attached
 
@@ -73,6 +74,19 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 - whitelist_lab: measurements.third_party_baseline_captured must be True
 - whitelist_lab: measurements.whitelist_behavior_verified must be True
 - whitelist_lab: artifact role missing for content check: whitelist_conclusion
+- security_review: status must be VERIFIED
+- security_review: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD
+- security_review: missing_inputs must be absent or empty for VERIFIED evidence
+- security_review: failures must be absent or empty for VERIFIED evidence
+- security_review: claim_boundary.claim_verified must not be false for VERIFIED evidence
+- security_review: required artifact role missing: reviewer_identity
+- security_review: required artifact role missing: review_scope
+- security_review: required artifact role missing: findings_report
+- security_review: measurements.reviewer must be nonempty
+- security_review: measurements.scope_includes_pulse_transport must be True
+- security_review: measurements.open_critical_findings must be 0
+- security_review: measurements.open_high_findings must be 0
+- security_review: artifact role missing for content check: findings_report
 - production_readiness: status must be VERIFIED
 - production_readiness: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD
 - production_readiness: missing_inputs must be absent or empty for VERIFIED evidence

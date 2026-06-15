@@ -1,12 +1,12 @@
 {
   "artifacts": [
     {
-      "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/production_readiness-gap-record.json",
+      "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260615T055033Z/production_readiness-gap-record.json",
       "role": "evidence_gap_record",
-      "sha256": "765480051731c4d0d6e8f2729ca6f681f40728d5bbe05491a8015181ed228980"
+      "sha256": "feb3eb2eb9f3dba7a77ef398f3945d2bbd247ac1bad5d436ff110d66a37bd361"
     }
   ],
-  "bundle": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z",
+  "bundle": "docs/verification/ghost-pulse-external-evidence-gaps-20260615T055033Z",
   "claim_boundary": {
     "claim_verified": false,
     "note": "Required external evidence is absent; proof gate must reject this claim."
@@ -47,7 +47,7 @@
     "references to all prior proof rows"
   ],
   "mode": "EXTERNAL_EVIDENCE_GAP_RECORD",
-  "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
+  "observed_at_utc": "2026-06-15T05:50:33.672974+00:00",
   "references": [],
   "required_artifact_roles": [
     "operator_approval",

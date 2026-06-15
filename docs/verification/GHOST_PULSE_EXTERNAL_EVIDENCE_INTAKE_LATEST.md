@@ -1,6 +1,6 @@
 # x0tta6bl4_pulse External Evidence Intake
 
-Timestamp: `2026-06-07T17:50:21.206640+00:00`
+Timestamp: `2026-06-15T05:50:40.245210+00:00`
 
 Status: `PASS`
 
@@ -10,20 +10,21 @@ Preflight: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`
 
 ## Summary
 
-- replacement_required: `dpi_lab, whitelist_lab, production_readiness`
+- replacement_required: `dpi_lab, whitelist_lab, security_review, production_readiness`
 - ready: `none`
-- not_ready: `dpi_lab, whitelist_lab, production_readiness`
+- not_ready: `dpi_lab, whitelist_lab, security_review, production_readiness`
 - missing_candidate_paths: `none`
 - currently_ready_write_commands: `0`
 - post_import_refresh_commands: `9`
 - incoming_examples_status: `PASS`
 - incoming_examples_count: `7`
-- collection_tasks: `3`
+- collection_tasks: `4`
 
 ## Collection Tasks
 
 - `dpi_lab`: status `CANDIDATE_REJECTED`, candidate `docs/verification/incoming/dpi_lab.json`, blockers `candidate_validation_failed, preflight_failures_present, external_dpi_proxy_validation_failed`, external_dpi_proxy_validation `FAIL/REJECTED`, collector_command_shape `present`
 - `whitelist_lab`: status `CANDIDATE_REJECTED`, candidate `docs/verification/incoming/whitelist_lab.json`, blockers `candidate_validation_failed, preflight_failures_present`, external_dpi_proxy_validation `none`, collector_command_shape `none`
+- `security_review`: status `CANDIDATE_REJECTED`, candidate `docs/verification/incoming/security_review.json`, blockers `candidate_validation_failed, preflight_failures_present`, external_dpi_proxy_validation `none`, collector_command_shape `none`
 - `production_readiness`: status `CANDIDATE_REJECTED`, candidate `docs/verification/incoming/production_readiness.json`, blockers `candidate_validation_failed, preflight_failures_present`, external_dpi_proxy_validation `none`, collector_command_shape `none`
 
 ## Operator Command Shapes
@@ -82,6 +83,26 @@ Acceptance commands:
 
 ```bash
 python3 scripts/ops/verify_ghost_pulse_external_evidence.py --claim whitelist_lab --require-pass --json
+```
+
+### `security_review`
+
+Read-only import check:
+
+```bash
+python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim security_review --candidate docs/verification/incoming/security_review.json --require-ready --json
+```
+
+Write import command, only after readiness is true:
+
+```bash
+python3 scripts/ops/import_ghost_pulse_external_evidence.py --claim security_review --candidate docs/verification/incoming/security_review.json --write --json
+```
+
+Acceptance commands:
+
+```bash
+python3 scripts/ops/verify_ghost_pulse_external_evidence.py --claim security_review --require-pass --json
 ```
 
 ### `production_readiness`
