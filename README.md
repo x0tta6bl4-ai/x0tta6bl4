@@ -68,6 +68,19 @@ x0tta6bl4 is designed for:
 - **Enterprise forks** — white-label post-quantum VPN and private mesh for regulated industries.
 - **Research collaborations** — open-source eBPF dataplane and attestation tooling.
 
+## Support the project
+
+If x0tta6bl4 is useful to you, consider supporting its development:
+
+- **GitHub Sponsors** — [https://github.com/sponsors/x0tta6bl4-ai](https://github.com/sponsors/x0tta6bl4-ai)
+- **Custom donation** — [https://x0tta6bl4.com/sponsor](https://x0tta6bl4.com/sponsor)
+
+Your support helps maintain:
+- Post-quantum security research
+- eBPF dataplane development
+- Self-healing mesh infrastructure
+- Open-source tooling for the DePIN community
+
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).
