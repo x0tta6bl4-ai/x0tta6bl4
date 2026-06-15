@@ -1289,8 +1289,8 @@ class MAPEKLoop:
                     if mapek_spans:
                         with mapek_spans.plan_phase(node_id):
                             directives = self._plan(consciousness_metrics)
-                else:
-                    directives = self._plan(consciousness_metrics)
+                    else:
+                        directives = self._plan(consciousness_metrics)
                 except Exception as exc:
                     logger.error("MAPE-K planning failed; entering safe mode: %s", exc)
                     directives = self._safe_mode_directives(
