@@ -1,11 +1,11 @@
 {
   "artifacts": {
-    "proof_bundle_json": "docs/verification/ghost-pulse-proof-gate-20260615T055916Z/proof.json",
-    "proof_bundle_md": "docs/verification/ghost-pulse-proof-gate-20260615T055916Z/summary.md",
+    "proof_bundle_json": "docs/verification/ghost-pulse-proof-gate-20260615T061651Z/proof.json",
+    "proof_bundle_md": "docs/verification/ghost-pulse-proof-gate-20260615T061651Z/summary.md",
     "proof_latest_json": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json",
     "proof_latest_md": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-proof-gate-20260615T055916Z",
+  "bundle": "docs/verification/ghost-pulse-proof-gate-20260615T061651Z",
   "claim_boundary": {
     "current_runtime_attached": false,
     "kernel_attach_verified": true,
@@ -87,7 +87,7 @@
       "claim_id": "local_timing_replay",
       "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-      "sha256": "8dce604c596c2052c9ea1e0286735aad08bbea1350d9fde8f4eeba59f0d96243",
+      "sha256": "35d966cbe955ea6cb625b720c3ff2022ca056f78d7360f70eec546ab4b2d9d77",
       "status": "VERIFIED",
       "title": "Seeded local timing plan replay"
     },
@@ -95,7 +95,7 @@
       "claim_id": "false_claim_hygiene",
       "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-      "sha256": "8dce604c596c2052c9ea1e0286735aad08bbea1350d9fde8f4eeba59f0d96243",
+      "sha256": "35d966cbe955ea6cb625b720c3ff2022ca056f78d7360f70eec546ab4b2d9d77",
       "status": "VERIFIED",
       "title": "False-claim hygiene scan"
     },
@@ -103,7 +103,7 @@
       "claim_id": "artifact_chain",
       "errors": [],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-      "sha256": "8dce604c596c2052c9ea1e0286735aad08bbea1350d9fde8f4eeba59f0d96243",
+      "sha256": "35d966cbe955ea6cb625b720c3ff2022ca056f78d7360f70eec546ab4b2d9d77",
       "status": "VERIFIED",
       "title": "Latest artifact chain integrity"
     },
@@ -578,6 +578,6 @@
   ],
   "schema": "x0tta6bl4.ghost_pulse.proof_gate.v1",
   "suite": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
-  "suite_sha256": "8dce604c596c2052c9ea1e0286735aad08bbea1350d9fde8f4eeba59f0d96243",
-  "timestamp_utc": "2026-06-15T05:59:16.174046+00:00"
+  "suite_sha256": "35d966cbe955ea6cb625b720c3ff2022ca056f78d7360f70eec546ab4b2d9d77",
+  "timestamp_utc": "2026-06-15T06:16:51.285763+00:00"
 }

@@ -1,0 +1,167 @@
+# Integration Spine Completion Audit
+
+Generated: `2026-06-15T06:16:53Z`
+Status: `VERIFIED HERE`
+Completion decision: `NOT_COMPLETE`
+Goal can be marked complete: `False`
+
+## Objective
+
+Connect all x0tta6bl4 layers and components into one system through a single identity, event bus, policy engine, safe actuator, and settlement/reward loop, then bring that system to production.
+
+## Summary
+
+- `checklist_total`: `54`
+- `checklist_passed`: `43`
+- `checklist_blocking`: `11`
+- `checklist_status_counts`: `{'PASS': 43, 'BLOCKING': 1, 'OPERATOR_INPUT_REQUIRED': 8, 'OPERATOR_APPROVAL_REQUIRED': 1, 'AFTER_BLOCKERS': 1}`
+- `checklist_generic_blocking`: `1`
+- `checklist_operator_input_required`: `8`
+- `checklist_operator_approval_required`: `1`
+- `checklist_after_blockers`: `1`
+- `blocking_items_generic_blocking`: `1`
+- `blocking_items_operator_input_required`: `8`
+- `blocking_items_operator_approval_required`: `1`
+- `blocking_items_after_blockers`: `1`
+- `raw_operator_packet_readiness_decision`: `BLOCKED_ON_OPERATOR_PRODUCTION_EVIDENCE`
+- `raw_operator_packet_readiness_ready_for_collectors`: `False`
+- `raw_operator_packet_readiness_collectors_ready`: `0`
+- `raw_operator_packet_readiness_collectors_blocked`: `9`
+- `raw_operator_packet_readiness_collectors_total`: `9`
+- `raw_operator_packet_readiness_raw_files_ready`: `0`
+- `raw_operator_packet_readiness_raw_files_local_observation`: `63`
+- `raw_operator_packet_readiness_raw_files_total`: `63`
+- `raw_operator_packet_production_ready_blocked_by_raw_readiness`: `False`
+- `production_gap_raw_operator_packet_readiness_decision`: `BLOCKED_ON_OPERATOR_PRODUCTION_EVIDENCE`
+- `external_settlement_handoff_clear`: `True`
+- `external_settlement_handoff_decision`: `X0T_EXTERNAL_SETTLEMENT_HANDOFF_BLOCKED_ON_OPERATOR`
+- `external_settlement_handoff_ready_for_completion_rerun`: `False`
+- `external_settlement_capture_preflight_decision`: `CAPTURE_INPUTS_BLOCKED`
+- `external_settlement_handoff_operator_command_entrypoints_missing`: `0`
+- `external_settlement_handoff_operator_commands_with_shell_redirection_placeholders`: `0`
+- `external_settlement_handoff_operator_command_shell_surface_ready`: `True`
+- `x0t_governance_execute_decision`: `READY_TO_EXECUTE`
+- `x0t_governance_execute_ready_now`: `True`
+- `x0t_governance_execute_handoff_decision`: `X0T_GOVERNANCE_EXECUTE_HANDOFF_READY_FOR_OPERATOR_APPROVAL`
+- `x0t_governance_execute_handoff_actionable`: `True`
+- `x0t_governance_ready_for_operator_execute`: `True`
+- `x0t_governance_handoff_operator_actions_total`: `5`
+- `x0t_governance_handoff_operator_commands_total`: `5`
+- `x0t_governance_handoff_operator_command_entrypoints_missing`: `0`
+- `x0t_governance_handoff_operator_command_surface_ready`: `True`
+- `x0t_governance_handoff_operator_commands_with_shell_redirection_placeholders`: `0`
+- `x0t_governance_handoff_operator_command_shell_surface_ready`: `True`
+- `x0t_governance_handoff_operator_sequence_ready`: `True`
+- `x0t_governance_approval_value_required`: `execute-proposal-1-base-sepolia`
+- `x0t_governance_proposal_executed`: `False`
+- `x0t_governance_state_label`: `Ready`
+- `x0t_governance_next_executable_after_utc`: `2026-05-21T04:45:22Z`
+- `x0t_governance_seconds_until_earliest_execution_by_block_time`: `0`
+- `x0t_bridge_config_decision`: `X0T_BRIDGE_CONFIG_BLOCKED_ON_OPERATOR`
+- `x0t_bridge_config_ready`: `False`
+- `x0t_bridge_address_input_ready`: `False`
+- `x0t_bridge_configured_bridge_ready`: `False`
+- `x0t_contract_readiness_decision`: `CONTRACT_READINESS_CLEAR`
+- `x0t_contract_readiness_clear`: `True`
+- `x0t_contract_build_env_ready`: `True`
+- `x0t_contract_build_verification_ready`: `True`
+- `x0t_contract_bridge_source_ready`: `True`
+- `x0t_contract_operator_configs_ready`: `True`
+- `x0t_contract_missing_inputs_total`: `0`
+- `x0t_contract_deployment_ready`: `False`
+- `x0t_contract_handoff_available`: `True`
+- `x0t_contract_handoff_decision`: `X0T_CONTRACT_DEPLOYMENT_CONFIG_BLOCKED_ON_OPERATOR`
+- `x0t_contract_handoff_deployment_ready`: `False`
+- `x0t_contract_handoff_approval_value_required`: `apply-bridge-address-base-sepolia`
+- `x0t_contract_handoff_missing_inputs_total`: `1`
+- `x0t_contract_handoff_operator_actions_total`: `6`
+- `x0t_contract_handoff_operator_approval_required_actions_total`: `1`
+- `x0t_contract_handoff_operator_commands_total`: `5`
+- `x0t_contract_handoff_operator_command_entrypoints_missing`: `0`
+- `x0t_contract_handoff_operator_command_surface_ready`: `True`
+- `x0t_contract_handoff_operator_commands_with_shell_redirection_placeholders`: `0`
+- `x0t_contract_handoff_operator_command_shell_surface_ready`: `True`
+- `x0t_contract_handoff_operator_sequence_ready`: `True`
+- `live_rollout_handoff_available`: `True`
+- `live_rollout_handoff_decision`: `LIVE_ROLLOUT_IMAGE_DIGESTS_BLOCKED_ON_OPERATOR`
+- `live_rollout_handoff_ready_for_completion_rerun`: `False`
+- `live_rollout_handoff_can_close_image_digests_blocker`: `False`
+- `live_rollout_handoff_missing_inputs_total`: `1`
+- `live_rollout_handoff_operator_actions_total`: `5`
+- `live_rollout_handoff_operator_input_required_actions_total`: `2`
+- `live_rollout_handoff_operator_commands_total`: `4`
+- `live_rollout_handoff_operator_command_entrypoints_missing`: `0`
+- `live_rollout_handoff_operator_command_surface_ready`: `True`
+- `live_rollout_handoff_operator_commands_with_shell_redirection_placeholders`: `0`
+- `live_rollout_handoff_operator_command_shell_surface_ready`: `True`
+- `live_rollout_handoff_operator_sequence_ready`: `True`
+- `local_wiring_passed`: `False`
+- `production_readiness_passed`: `False`
+
+## Checklist
+
+- `local_spine_code_wiring`: `PASS` - Local spine code connects the required identity, event, policy, actuator, and settlement adapters.
+- `single_identity_contract`: `PASS` - Every spine request carries one canonical identity with node_id, SPIFFE ID, optional DID, and optional reward wallet.
+- `event_bus_contract`: `PASS` - The spine emits auditable events through the project EventBus.
+- `policy_engine_contract`: `PASS` - Policy evaluation happens before any actuator or settlement side effect and fails closed.
+- `safe_actuator_contract`: `PASS` - The actuator blocks missing, failed, exception, or simulated execution before settlement.
+- `settlement_reward_contract`: `PASS` - Reward settlement is called only after identity validation, policy allow, and successful non-simulated action.
+- `verify_entrypoint_includes_spine`: `BLOCKING` - The non-fast local verification entrypoint includes integration spine, current rollup, semantic queue, raw evidence inventory, source-candidate, operator-bundle-gate, operator-bundle-identity, operator-packet, completion-audit, production-evidence-intake, evidence-readiness, X0T token bridge, X0T settlement-gate, X0T governance execute-readiness/handoff, and rollout-provenance unit tests.
+  - gap: scripts/verify-v1.1.sh must include integration spine, current rollup, semantic queue, raw evidence inventory, source candidate, operator bundle gate, operator bundle identity, operator packet, completion audit, production evidence intake, evidence readiness, TokenBridge BridgeDeposit coverage, external settlement, X0T governance execute-readiness/handoff, rollout provenance, rollup approval contract, production input return acceptance, and production closeout review unit tests
+- `x0t_bridge_config_handoff_actionable`: `PASS` - X0T bridge contract address configuration has a repo-generated fail-closed operator path that rejects placeholders and governance/token addresses before config mutation.
+- `x0t_contract_readiness_reproducible`: `PASS` - X0T contract/deployment readiness is generated by repo code, includes Node 22 Hardhat compile/test evidence, and exposes bridge config commands without submitting transactions.
+- `x0t_governance_execute_readiness_reproducible`: `PASS` - X0T governance proposal execute-readiness is generated by a read-only local wrapper, covered by unit tests, and never submits transactions.
+- `x0t_governance_execute_handoff_actionable`: `PASS` - X0T governance proposal execution has a repo-generated read-only operator handoff with explicit approval and receipt boundaries.
+- `current_evidence_rollup_reproducible`: `PASS` - The current evidence rollup is generated by repo code, covered by unit tests, and composes external settlement, rollout provenance, and semantic readiness without mutating live state.
+- `semantic_production_blocker_queue_reproducible`: `PASS` - The semantic production blocker queue is generated by repo code, covered by unit tests, and exposes source-read errors separately from production blockers.
+- `raw_evidence_inventory_reproducible`: `PASS` - The raw evidence inventory is generated by repo code, covered by unit tests, and classifies retained raw files without upgrading local/component evidence.
+- `rollout_provenance_gate_reproducible`: `PASS` - The live-rollout image digest/provenance gate is generated by repo code, covered by unit tests, and fails closed on tag-based or missing provenance artifacts.
+- `rollout_image_provenance_scaffold_available`: `PASS` - The live-rollout image digest/provenance blocker has a template-only operator scaffold that is covered by tests and rejected as evidence.
+- `source_candidate_audit_reproducible`: `PASS` - The source-candidate audit is generated by repo code and covers all required production evidence keys before intake consumes it.
+- `operator_bundle_gates_fail_closed`: `PASS` - Raw production blocker bundle gates are generated by repo code, covered by unit tests, and either fail closed on partial bundles or declare READY_TO_INSTALL for real production bundles.
+- `operator_bundle_manifest_identity_audited`: `PASS` - Raw production blocker bundle gates expose manifest identity binding counters for collector_id, raw_id, and file_name.
+- `operator_bundle_identity_plan_available`: `PASS` - The raw operator bundle manifest identity gap has a generated read-only remediation plan covered by unit tests.
+- `operator_bundle_identity_patch_entrypoint_available`: `PASS` - The raw operator bundle manifest identity plan has a safe dry-run/apply entrypoint that only touches collector_id/raw_id/file_name.
+- `operator_evidence_packet_actionable`: `PASS` - The next production blocker has a generated operator evidence packet with existing verifier entrypoints and fail-closed instructions.
+- `operator_evidence_packet_index_complete`: `PASS` - Every current production evidence blocker has an actionable operator evidence packet with existing collector and verifier entrypoints.
+- `operator_packet_identity_suggestions_available`: `PASS` - Raw production blocker operator packets expose per-file manifest identity suggestions for collector_id, raw_id, and file_name.
+- `operator_packet_identity_patch_dry_run_command_available`: `PASS` - Raw production blocker operator packets expose an identity-only dry-run patch command before the guarded --apply command.
+- `operator_packet_replacement_passport_command_available`: `PASS` - Every current production blocker packet tells the operator to rerun the production evidence replacement passport before intake/completion.
+- `operator_packet_post_intake_commands_available`: `PASS` - Every current production blocker packet tells the operator to rerun return acceptance, input pipeline, and closeout review before final completion/gap gates.
+- `operator_packet_raw_template_pack_command_available`: `PASS` - Raw production blocker operator packets expose the template-only raw evidence template-pack command and an explicit fail-closed rule.
+- `operator_packet_raw_required_inputs_available`: `PASS` - Raw production blocker operator packets expose the required production inputs, required raw evidence fields, and an explicit operator JSON write step.
+- `operator_packet_external_settlement_wrapper_commands_available`: `PASS` - The external settlement operator packet includes both retained-evidence and live-RPC wrapper verifiers before source-candidate/intake promotion.
+- `operator_packet_external_settlement_operator_inputs_available`: `PASS` - The external settlement operator packet exposes the required operator inputs, required receipt fields, and X0T environment exports before any capture or verifier command.
+- `operator_packet_external_settlement_capture_commands_available`: `PASS` - The external settlement operator packet exposes fail-closed capture-input preflight and live read-only RPC capture commands, and the fast verifier proves the preflight blocks without operator inputs.
+- `operator_packet_external_settlement_scaffold_command_available`: `PASS` - The external settlement operator packet exposes the template-only settlement scaffold command and an explicit fail-closed rule.
+- `external_settlement_template_rejection_smoke_available`: `PASS` - The fast verification entrypoint proves that an external settlement template copied to the retained evidence path is rejected.
+- `raw_evidence_template_rejection_smoke_available`: `PASS` - The fast verification entrypoint proves that generated raw-evidence templates copied into an operator bundle are rejected.
+- `live_rollout_image_template_rejection_smoke_available`: `PASS` - The fast verification entrypoint proves that a live-rollout image provenance template copied into an operator bundle is rejected.
+- `operator_packet_rollout_image_scaffold_command_available`: `PASS` - The safe rollout operator packet exposes the template-only image digest/provenance scaffold command and an explicit fail-closed rule.
+- `replacement_passport_validation_commands_available`: `PASS` - Every validation command emitted by the production evidence replacement passport has a local fail-closed entrypoint covered by tests.
+- `replacement_passport_external_scaffold_command_available`: `PASS` - The production evidence replacement passport exposes an external settlement scaffold entrypoint that writes templates only and is covered by tests.
+- `production_evidence_replacement_passport_clear`: `OPERATOR_INPUT_REQUIRED` - Every scaffold, template, mock, or local-observation evidence input has a reproducible replacement passport and is backed by retained production evidence.
+  - gap: production evidence replacement passport is missing, stale, not covered by scripts/verify-v1.1.sh, or still blocked on scaffold/template/mock/local-observation replacement
+- `required_evidence_consistency_valid`: `PASS` - Passport, operator packet index, input manifest, return acceptance, pipeline, rollup, and closeout reports agree on the required evidence file set.
+- `rollup_approval_contract_reproducible`: `PASS` - The rollup approval contract is generated by repo code, covered by unit tests, and reports source-read errors separately from operator evidence blockers.
+- `production_input_return_acceptance_reproducible`: `PASS` - The production input return acceptance report is generated by repo code, covered by unit tests, and exposes stage blockers with a stable decision.
+- `production_input_pipeline_reproducible`: `PASS` - The production input pipeline report is repo-generated, covered by unit tests, and reports installed raw files from return-acceptance rather than stale local observations.
+- `production_closeout_review_reproducible`: `PASS` - The production closeout review is generated by repo code, covered by unit tests, and summarizes closeout blockers without closing the goal.
+- `production_evidence_intake_ready`: `OPERATOR_INPUT_REQUIRED` - Operator-supplied production evidence is ready to install for all required integration-spine evidence keys.
+  - gap: production evidence intake is not ready for install
+- `production_gap_index_sources_clear`: `OPERATOR_INPUT_REQUIRED` - The production gap index has no source-artifact, route, or import mismatch blockers for required evidence keys.
+  - gap: production gap index still has source-artifact, route, or import mismatch blockers
+- `semantic_production_blockers_closed`: `OPERATOR_INPUT_REQUIRED` - Semantic production blocker queue is empty and the integration objective can be marked complete.
+  - gap: semantic queue still has blockers or does not allow completion
+- `external_x0t_settlement_ready`: `OPERATOR_INPUT_REQUIRED` - A real external X0T settlement receipt is retained and verified against live Base RPC.
+  - gap: real settlement receipt and live RPC verification are not ready
+- `x0t_governance_proposal_executed`: `OPERATOR_APPROVAL_REQUIRED` - X0T governance proposal 1 has final executed-state evidence before production closeout.
+  - gap: governance proposal execution is not complete; rerun the read-only readiness check first and execute only with explicit operator approval when the contract state is Ready
+- `x0t_contract_deployment_ready`: `OPERATOR_INPUT_REQUIRED` - X0T contract package and operator deployment config are production-ready, including the deployed bridge contract address.
+  - gap: X0T contract/deployment config is not production-ready; a deployed bridge contract address is still missing or not applied
+- `live_rollout_digest_and_provenance_ready`: `OPERATOR_INPUT_REQUIRED` - Production rollout evidence has digest-pinned runtime images and retained provenance artifacts.
+  - gap: runtime image digests/provenance are not ready
+- `raw_evidence_is_production_grade`: `OPERATOR_INPUT_REQUIRED` - All retained raw evidence files are production-grade and usable for goal completion.
+  - gap: retained raw evidence is still component evidence or has semantic blockers
+- `current_rollup_complete`: `AFTER_BLOCKERS` - The current rollup agrees that production objective completion is ready.
+  - gap: current rollup still reports NOT_COMPLETE or false completion flag

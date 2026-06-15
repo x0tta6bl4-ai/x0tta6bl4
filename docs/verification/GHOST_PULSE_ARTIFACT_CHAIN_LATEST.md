@@ -12,8 +12,8 @@ Decision: `GHOST_PULSE_ARTIFACT_CHAIN_VERIFIED`
 
 ## Artifacts
 
-- chain_bundle_json: `docs/verification/ghost-pulse-artifact-chain-20260615T055913Z/chain.json`
-- chain_bundle_md: `docs/verification/ghost-pulse-artifact-chain-20260615T055913Z/summary.md`
+- chain_bundle_json: `docs/verification/ghost-pulse-artifact-chain-20260615T061653Z/chain.json`
+- chain_bundle_md: `docs/verification/ghost-pulse-artifact-chain-20260615T061653Z/summary.md`
 - chain_latest_json: `docs/verification/GHOST_PULSE_ARTIFACT_CHAIN_LATEST.json`
 - chain_latest_md: `docs/verification/GHOST_PULSE_ARTIFACT_CHAIN_LATEST.md`
 - external_evidence_intake: `docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json`
@@ -26,13 +26,13 @@ Decision: `GHOST_PULSE_ARTIFACT_CHAIN_VERIFIED`
 - profile_matrix_sha256: `34f05acbf1555cb638347fe7c140e51fd07e0e31e415daf29cc030b7f36ad053`
 - replacement_candidates: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`
 - replacement_candidates_sha256: `510f178d43ee398e4e8a88b55ac02f48371dc1be37cba196db5e41c973ee77d0`
-- suite_bundle: `docs/verification/ghost-pulse-verification-suite-20260615T055533Z`
-- suite_bundle_json: `docs/verification/ghost-pulse-verification-suite-20260615T055533Z/suite.json`
-- suite_bundle_md: `docs/verification/ghost-pulse-verification-suite-20260615T055533Z/summary.md`
+- suite_bundle: `docs/verification/ghost-pulse-verification-suite-20260615T061648Z`
+- suite_bundle_json: `docs/verification/ghost-pulse-verification-suite-20260615T061648Z/suite.json`
+- suite_bundle_md: `docs/verification/ghost-pulse-verification-suite-20260615T061648Z/summary.md`
 - suite_latest_json: `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json`
 - suite_latest_md: `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.md`
 - verification_suite: `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json`
-- verification_suite_sha256: `8dce604c596c2052c9ea1e0286735aad08bbea1350d9fde8f4eeba59f0d96243`
+- verification_suite_sha256: `35d966cbe955ea6cb625b720c3ff2022ca056f78d7360f70eec546ab4b2d9d77`
 
 ## Gates
 

@@ -4,12 +4,12 @@
     "local_evidence_sha256": "27012e7f09e24581aee066243cb4dd13ecbe9bf9fe5742f6e25d4926412c30b9",
     "profile_matrix": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
     "profile_matrix_sha256": "34f05acbf1555cb638347fe7c140e51fd07e0e31e415daf29cc030b7f36ad053",
-    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260615T055533Z/suite.json",
-    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260615T055533Z/summary.md",
+    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260615T061648Z/suite.json",
+    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260615T061648Z/summary.md",
     "suite_latest_json": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
     "suite_latest_md": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-verification-suite-20260615T055533Z",
+  "bundle": "docs/verification/ghost-pulse-verification-suite-20260615T061648Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "kernel_read_only_visible": false,
@@ -572,5 +572,5 @@
       "seed": 20260522
     }
   },
-  "timestamp_utc": "2026-06-15T05:55:33.604171+00:00"
+  "timestamp_utc": "2026-06-15T06:16:48.172871+00:00"
 }
