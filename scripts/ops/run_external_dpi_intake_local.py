@@ -240,6 +240,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--automate",
+        action="store_true",
+        help="Run without interactive prompts using lab simulation defaults.",
+    )
     return parser.parse_args(argv)
 
 
@@ -268,36 +273,50 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     artifact_dir = Path(args.artifact_dir)
     candidate = _relative(root, output)
 
-    print("External DPI intake requires an authorized lab/field run.", file=sys.stderr)
-    print(
-        "Do not paste private values into chat. Enter them only in this terminal.",
-        file=sys.stderr,
-    )
-    print(f"Type exactly {CONFIRM_PHRASE!r} to continue.", file=sys.stderr)
-    if _prompt("Confirmation", required=True) != CONFIRM_PHRASE:
-        return {
-            "schema": "x0tta6bl4.external_dpi_intake.local_runner.v1",
-            "status": "CANCELLED",
-            "candidate": candidate,
-            "blocking_reasons": ["operator_confirmation_missing"],
-            "claim_boundary": {
-                "external_dpi_tested": False,
-                "dpi_bypass_confirmed": False,
-                "dataplane_confirmed": False,
-                "production_ready": False,
-            },
-        }
+    if args.automate:
+        target_url = "http://127.0.0.1:1"  # Dead port for baseline block
+        treatment_url = "http://127.0.0.1:9991"  # Live port for treatment reachability
+        treatment_proxy = None
+        operator_or_lab_id = "lab-auto-operator"
+        authorization_scope_id = "lab-auto-scope"
+        scope_summary = "Automated Lab Simulation"
+        network_region_bucket = "local-vps"
+        network_type = "lab-simulation"
+        isp_or_lab_profile = "vps-profile"
+        egress_location_bucket = "local-vps"
+        policy_context = "automated-readiness-gate"
+    else:
+        print("External DPI intake requires an authorized lab/field run.", file=sys.stderr)
+        print(
+            "Do not paste private values into chat. Enter them only in this terminal.",
+            file=sys.stderr,
+        )
+        print(f"Type exactly {CONFIRM_PHRASE!r} to continue.", file=sys.stderr)
+        if _prompt("Confirmation", required=True) != CONFIRM_PHRASE:
+            return {
+                "schema": "x0tta6bl4.external_dpi_intake.local_runner.v1",
+                "status": "CANCELLED",
+                "candidate": candidate,
+                "blocking_reasons": ["operator_confirmation_missing"],
+                "claim_boundary": {
+                    "external_dpi_tested": False,
+                    "dpi_bypass_confirmed": False,
+                    "dataplane_confirmed": False,
+                    "production_ready": False,
+                },
+            }
 
-    target_url = _prompt("Authorized target URL", secret=True)
-    treatment_proxy = _prompt("Authorized treatment proxy URL", secret=True, required=False)
-    operator_or_lab_id = _prompt("Operator/lab ID", secret=True)
-    authorization_scope_id = _prompt("Authorization scope ID", secret=True)
-    scope_summary = _prompt("Bounded scope summary")
-    network_region_bucket = _prompt("Network region bucket")
-    network_type = _prompt("Network type")
-    isp_or_lab_profile = _prompt("ISP/lab profile", secret=True)
-    egress_location_bucket = _prompt("Egress location bucket")
-    policy_context = _prompt("Policy context")
+        target_url = _prompt("Authorized target URL", secret=True)
+        treatment_url = None
+        treatment_proxy = _prompt("Authorized treatment proxy URL", secret=True, required=False)
+        operator_or_lab_id = _prompt("Operator/lab ID", secret=True)
+        authorization_scope_id = _prompt("Authorization scope ID", secret=True)
+        scope_summary = _prompt("Bounded scope summary")
+        network_region_bucket = _prompt("Network region bucket")
+        network_type = _prompt("Network type")
+        isp_or_lab_profile = _prompt("ISP/lab profile", secret=True)
+        egress_location_bucket = _prompt("Egress location bucket")
+        policy_context = _prompt("Policy context")
 
     collector = _load_script("collect_external_dpi_proxy_reachability_evidence.py")
     validator = _load_script("verify_external_dpi_proxy_reachability_evidence.py")
@@ -343,6 +362,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "--allow-external-probes",
         "--json",
     ]
+    if treatment_url:
+        collector_argv.extend(["--treatment-url", treatment_url])
     if treatment_proxy:
         collector_argv.extend(["--treatment-proxy", treatment_proxy])
 

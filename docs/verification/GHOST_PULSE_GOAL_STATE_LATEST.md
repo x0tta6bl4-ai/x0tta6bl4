@@ -1,8 +1,8 @@
 # x0tta6bl4_pulse Goal State
 
-Status: `PASS`
+Status: `FAIL`
 
-Decision: `GHOST_PULSE_GOAL_STATE_GAPS_RECORDED_FAIL_CLOSED`
+Decision: `GHOST_PULSE_GOAL_STATE_INVALID`
 
 ## Starter Verified Claims
 - `packet_capture, baseline_timing_comparison`
@@ -24,12 +24,18 @@ Decision: `GHOST_PULSE_GOAL_STATE_GAPS_RECORDED_FAIL_CLOSED`
 - whitelist_verified: `False`
 
 ## Source Reports
-- artifact_chain: `docs/verification/GHOST_PULSE_ARTIFACT_CHAIN_LATEST.json`; sha256 `035a2ff8cec60879805268fe58b36ffef3bc40f1f98f912c48fcdb97d7375529`; decision `GHOST_PULSE_ARTIFACT_CHAIN_VERIFIED`
-- external_evidence_intake: `docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json`; sha256 `b7dce847f465d37b8c6b0ca2f4a3d30e80b30c6b540f76e918a6f35c58dad1c8`; decision `EXTERNAL_EVIDENCE_INTAKE_ACTION_REQUIRED`
-- external_evidence_inventory: `docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json`; sha256 `364684644a19df5af1097da62e92f4ca8c8ca103ffd927255ddeb4e815c1be90`; decision `EXTERNAL_EVIDENCE_INVENTORY_COMPLETE_WITH_GAPS`
+- artifact_chain: `docs/verification/GHOST_PULSE_ARTIFACT_CHAIN_LATEST.json`; sha256 `e99430906a0f90e90f0beb8cfb901e5421771b4c93a3bb5ea828095949e4258f`; decision `GHOST_PULSE_ARTIFACT_CHAIN_INCOMPLETE`
+- external_evidence_intake: `docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json`; sha256 `50117cb05189e64e458242ea215b0d1fb7d72ba1878afb378bd44692aaa30122`; decision `EXTERNAL_EVIDENCE_INTAKE_ACTION_REQUIRED`
+- external_evidence_inventory: `docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json`; sha256 `4fbaf324e44824f901a2c5959a4c5faa00ff10daaa8418bb5198635ab3c3a726`; decision `EXTERNAL_EVIDENCE_INVENTORY_INCOMPLETE`
 - incoming_examples_manifest: `docs/verification/incoming/examples/manifest.json`; sha256 `791beedf73034354b3beccf41a0adb1bf2a17bb2722588c8d46077ab77b1628f`; decision `None`
-- proof: `docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json`; sha256 `dd4224333a7809a3f836d64b89258b40116528b6cab80d86a3fcaabe999d6a07`; decision `GHOST_PULSE_PROOF_INCOMPLETE`
-- replacement_candidates: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`; sha256 `510f178d43ee398e4e8a88b55ac02f48371dc1be37cba196db5e41c973ee77d0`; decision `REPLACEMENT_CANDIDATES_NOT_READY`
+- proof: `docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json`; sha256 `8eea87c9783c4abeda4f22b15d7b8c2fe652052f57b76b415f031824d908460c`; decision `GHOST_PULSE_PROOF_INCOMPLETE`
+- replacement_candidates: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`; sha256 `75e8f5f8b782a7ff0380207b7315510c774bdb055abf99242c6e4de811a53cc6`; decision `REPLACEMENT_CANDIDATES_NOT_READY`
 
 ## Failures
-- None
+- artifact_chain: non-closure claim must not be pending
+- proof.not_verified_yet must match pending external/runtime claims
+- external_evidence_inventory.status must be PASS
+- external_evidence_inventory.failures must be empty
+- external_evidence_inventory.inventory_status must be EXTERNAL_EVIDENCE_INVENTORY_COMPLETE_WITH_GAPS
+- artifact_chain.decision must be GHOST_PULSE_ARTIFACT_CHAIN_VERIFIED
+- artifact_chain.failures must be empty

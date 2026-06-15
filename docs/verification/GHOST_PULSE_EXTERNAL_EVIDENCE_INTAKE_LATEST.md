@@ -1,6 +1,6 @@
 # x0tta6bl4_pulse External Evidence Intake
 
-Timestamp: `2026-06-15T05:50:40.245210+00:00`
+Timestamp: `2026-06-15T08:00:10.626473+00:00`
 
 Status: `PASS`
 
@@ -11,10 +11,10 @@ Preflight: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`
 ## Summary
 
 - replacement_required: `dpi_lab, whitelist_lab, security_review, production_readiness`
-- ready: `none`
-- not_ready: `dpi_lab, whitelist_lab, security_review, production_readiness`
+- ready: `dpi_lab`
+- not_ready: `whitelist_lab, security_review, production_readiness`
 - missing_candidate_paths: `none`
-- currently_ready_write_commands: `0`
+- currently_ready_write_commands: `1`
 - post_import_refresh_commands: `9`
 - incoming_examples_status: `PASS`
 - incoming_examples_count: `7`
@@ -22,7 +22,7 @@ Preflight: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`
 
 ## Collection Tasks
 
-- `dpi_lab`: status `CANDIDATE_REJECTED`, candidate `docs/verification/incoming/dpi_lab.json`, blockers `candidate_validation_failed, preflight_failures_present, external_dpi_proxy_validation_failed`, external_dpi_proxy_validation `FAIL/REJECTED`, collector_command_shape `present`
+- `dpi_lab`: status `READY_TO_IMPORT`, candidate `docs/verification/incoming/dpi_lab.json`, blockers `none`, external_dpi_proxy_validation `PASS/READY_TO_IMPORT`, collector_command_shape `present`
 - `whitelist_lab`: status `CANDIDATE_REJECTED`, candidate `docs/verification/incoming/whitelist_lab.json`, blockers `candidate_validation_failed, preflight_failures_present`, external_dpi_proxy_validation `none`, collector_command_shape `none`
 - `security_review`: status `CANDIDATE_REJECTED`, candidate `docs/verification/incoming/security_review.json`, blockers `candidate_validation_failed, preflight_failures_present`, external_dpi_proxy_validation `none`, collector_command_shape `none`
 - `production_readiness`: status `CANDIDATE_REJECTED`, candidate `docs/verification/incoming/production_readiness.json`, blockers `candidate_validation_failed, preflight_failures_present`, external_dpi_proxy_validation `none`, collector_command_shape `none`

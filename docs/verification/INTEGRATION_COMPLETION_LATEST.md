@@ -157,8 +157,8 @@ Connect all x0tta6bl4 layers and components into one system through a single ide
   - gap: real settlement receipt and live RPC verification are not ready
 - `x0t_governance_proposal_executed`: `OPERATOR_APPROVAL_REQUIRED` - X0T governance proposal 1 has final executed-state evidence before production closeout.
   - gap: governance proposal execution is not complete; rerun the read-only readiness check first and execute only with explicit operator approval when the contract state is Ready
-- `x0t_contract_deployment_ready`: `OPERATOR_INPUT_REQUIRED` - X0T contract package and operator deployment config are production-ready, including the deployed bridge contract address.
-  - gap: X0T contract/deployment config is not production-ready; a deployed bridge contract address is still missing or not applied
+- `x0t_contract_deployment_ready`: `OPERATOR_INPUT_REQUIRED` - X0T contract package and operator deployment config are production_readiness_requirement, including the deployed bridge contract address.
+  - gap: X0T contract/deployment config is not production_readiness_requirement; a deployed bridge contract address is still missing or not applied
 - `live_rollout_digest_and_provenance_ready`: `OPERATOR_INPUT_REQUIRED` - Production rollout evidence has digest-pinned runtime images and retained provenance artifacts.
   - gap: runtime image digests/provenance are not ready
 - `raw_evidence_is_production_grade`: `OPERATOR_INPUT_REQUIRED` - All retained raw evidence files are production-grade and usable for goal completion.

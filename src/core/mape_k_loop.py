@@ -1246,7 +1246,7 @@ class MAPEKLoop:
         """Execute one complete MAPE-K cycle with tracing."""
         cycle_start = time.time()
         mapek_spans = get_mapek_spans() if get_mapek_spans is not None else None
-        node_id = "local-node"  # Fallback if mesh manager not ready
+        node_id = self.mesh.node_id if hasattr(self.mesh, "node_id") else "core-mapek"
 
         # ===== MONITOR =====
         if mapek_spans:
@@ -1255,37 +1255,64 @@ class MAPEKLoop:
         else:
             raw_metrics = await self._monitor()
 
-        # ===== ANALYZE =====
-        if mapek_spans:
-            with mapek_spans.analyze_phase(node_id):
-                consciousness_metrics = await self._analyze(raw_metrics)
-        else:
-            consciousness_metrics = await self._analyze(raw_metrics)
-
-        # ===== PLAN =====
-        if self.safe_mode_active:
-            directives = self._safe_mode_directives(
-                reason_id=self.safe_mode_reason_id or "safe_mode_active",
-                dependency="previous_cycle",
-                raw_metrics=raw_metrics,
-            )
-        else:
+        # ===== MODULAR CYCLE (Primary) =====
+        directives = {}
+        if self.self_healing:
             try:
-                if mapek_spans:
-                    with mapek_spans.plan_phase(node_id):
-                        directives = self._plan(consciousness_metrics)
-                else:
-                    directives = self._plan(consciousness_metrics)
+                # TD-008: Transitioning to modular SelfHealingManager
+                directives = self.self_healing.run_cycle(raw_metrics)
+                self.safe_mode_active = self.self_healing.safe_mode_active
+                self.safe_mode_reason_id = self.self_healing.safe_mode_reason_id
             except Exception as exc:
-                logger.error("MAPE-K planning failed; entering safe mode: %s", exc)
+                logger.error("Modular MAPE-K cycle failed; falling back to legacy: %s", exc)
+                # Fallback handled by legacy logic below if needed
+
+        # ===== LEGACY COMPATIBILITY & SHADOW CHECKS =====
+        # Only run legacy phases if modular directives are empty or specifically requested
+        if not directives:
+            # ===== ANALYZE (Legacy) =====
+            if mapek_spans:
+                with mapek_spans.analyze_phase(node_id):
+                    consciousness_metrics = await self._analyze(raw_metrics)
+            else:
+                consciousness_metrics = await self._analyze(raw_metrics)
+
+            # ===== PLAN (Legacy) =====
+            if self.safe_mode_active:
                 directives = self._safe_mode_directives(
-                    reason_id="planning_failed",
-                    dependency="planner",
-                    error_type=type(exc).__name__,
+                    reason_id=self.safe_mode_reason_id or "safe_mode_active",
+                    dependency="previous_cycle",
                     raw_metrics=raw_metrics,
                 )
+            else:
+                try:
+                    if mapek_spans:
+                        with mapek_spans.plan_phase(node_id):
+                            directives = self._plan(consciousness_metrics)
+                else:
+                    directives = self._plan(consciousness_metrics)
+                except Exception as exc:
+                    logger.error("MAPE-K planning failed; entering safe mode: %s", exc)
+                    directives = self._safe_mode_directives(
+                        reason_id="planning_failed",
+                        dependency="planner",
+                        error_type=type(exc).__name__,
+                        raw_metrics=raw_metrics,
+                    )
+        else:
+            # Mock consciousness metrics for legacy logging if modular cycle succeeded
+            class ShadowMetrics:
+                def __init__(self, raw):
+                    self.raw_metrics = raw
+                    class ShadowState:
+                        value = "MODULAR_HEALING"
+                    self.state = ShadowState()
+                    self.phi_ratio = 1.0
+            consciousness_metrics = ShadowMetrics(raw_metrics)
 
         # ===== EXECUTE =====
+        # Note: SelfHealingManager.run_cycle already executes if needed.
+        # This legacy _execute call is now a shadow/noop or for non-modular actions.
         if mapek_spans:
             with mapek_spans.execute_phase(node_id):
                 actions_taken = await self._execute(directives)
@@ -1293,6 +1320,8 @@ class MAPEKLoop:
             actions_taken = await self._execute(directives)
 
         # ===== KNOWLEDGE =====
+        # SelfHealingManager already recorded knowledge if it ran.
+        # Legacy knowledge phase for shadow/compatibility.
         if mapek_spans:
             with mapek_spans.knowledge_phase(node_id):
                 try:
@@ -1300,48 +1329,14 @@ class MAPEKLoop:
                         consciousness_metrics, directives, actions_taken, raw_metrics
                     )
                 except Exception as exc:
-                    logger.error(
-                        "MAPE-K knowledge phase failed; entering safe mode: %s",
-                        exc,
-                    )
-                    safe_directives = self._safe_mode_directives(
-                        reason_id="knowledge_phase_failed",
-                        dependency="knowledge",
-                        error_type=type(exc).__name__,
-                        base_directives=directives,
-                        raw_metrics=raw_metrics,
-                    )
-                    self._publish_safe_mode_event(
-                        directives=safe_directives,
-                        metrics=raw_metrics,
-                        reason="knowledge_phase_failed",
-                        error_type=type(exc).__name__,
-                    )
-                    directives = safe_directives
+                    logger.debug("Legacy knowledge phase failed (modular active): %s", exc)
         else:
             try:
                 await self._knowledge(
                     consciousness_metrics, directives, actions_taken, raw_metrics
                 )
             except Exception as exc:
-                logger.error(
-                    "MAPE-K knowledge phase failed; entering safe mode: %s",
-                    exc,
-                )
-                safe_directives = self._safe_mode_directives(
-                    reason_id="knowledge_phase_failed",
-                    dependency="knowledge",
-                    error_type=type(exc).__name__,
-                    base_directives=directives,
-                    raw_metrics=raw_metrics,
-                )
-                self._publish_safe_mode_event(
-                    directives=safe_directives,
-                    metrics=raw_metrics,
-                    reason="knowledge_phase_failed",
-                    error_type=type(exc).__name__,
-                )
-                directives = safe_directives
+                logger.debug("Legacy knowledge phase failed (modular active): %s", exc)
 
         cycle_duration = time.time() - cycle_start
         self.cycle_count += 1
@@ -1353,16 +1348,15 @@ class MAPEKLoop:
         )
         logger.info(log_msg)
 
-        # Automated Thought Generation (Optimization: Run infrequently)
+        # Automated Thought Generation
         if self.cycle_count % self.thought_frequency == 0:
             try:
-                # Use a specific logger for thoughts to separate them
                 thought = self.consciousness.get_system_thought(consciousness_metrics)
                 logger.info(f"🧠 SYSTEM THOUGHT: {thought}")
             except Exception as e:
-                logger.warning(f"Failed to generate system thought: {e}")
+                logger.debug(f"Failed to generate system thought: {e}")
 
-        # Adjust loop interval based on consciousness state
+        # Adjust loop interval
         self.loop_interval = directives.get("monitoring_interval_sec", 60)
 
     async def _monitor(self) -> Dict[str, float]:

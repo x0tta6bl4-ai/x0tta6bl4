@@ -1,11 +1,11 @@
 {
   "artifacts": {
-    "incoming_gap_candidates_bundle_json": "docs/verification/ghost-pulse-incoming-gap-candidates-20260615T055104Z/gap_candidates.json",
-    "incoming_gap_candidates_bundle_md": "docs/verification/ghost-pulse-incoming-gap-candidates-20260615T055104Z/summary.md",
+    "incoming_gap_candidates_bundle_json": "docs/verification/ghost-pulse-incoming-gap-candidates-20260615T064016Z/gap_candidates.json",
+    "incoming_gap_candidates_bundle_md": "docs/verification/ghost-pulse-incoming-gap-candidates-20260615T064016Z/summary.md",
     "incoming_gap_candidates_latest_json": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.json",
     "incoming_gap_candidates_latest_md": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-incoming-gap-candidates-20260615T055104Z",
+  "bundle": "docs/verification/ghost-pulse-incoming-gap-candidates-20260615T064016Z",
   "checks": {
     "importer_rejects_gap_candidates": {
       "row_count": 4,
@@ -45,7 +45,7 @@
   "intake": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
   "intake_sha256": "b7dce847f465d37b8c6b0ca2f4a3d30e80b30c6b540f76e918a6f35c58dad1c8",
   "proof": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json",
-  "proof_sha256": "ca73639bc0a18367f6aac4c0a2d59ae410095ffdb413be2e2d52ce835e1a786d",
+  "proof_sha256": "d4cb9b2d9118ddb5d1bbd22a712431e6d0dcd408fd66dfc2d7792f7aa52df470",
   "replacement": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
   "replacement_sha256": "510f178d43ee398e4e8a88b55ac02f48371dc1be37cba196db5e41c973ee77d0",
   "rows": [
@@ -54,7 +54,7 @@
       "candidate_exists": true,
       "candidate_is_file": true,
       "candidate_is_symlink": false,
-      "candidate_sha256": "e97b006f6fad3150c7f501f14060ef76ef386a5b98d44d66408e7fece65a19a2",
+      "candidate_sha256": "41a40e3e82381eca7576628aa8da83170837e4a55ebae36e240c31be7f0bbe3a",
       "claim_id": "dpi_lab",
       "expected_import_decision": "REJECTED",
       "failures": [],
@@ -112,7 +112,7 @@
         "candidate_exists": true,
         "candidate_is_file": true,
         "candidate_is_symlink": false,
-        "candidate_sha256": "e97b006f6fad3150c7f501f14060ef76ef386a5b98d44d66408e7fece65a19a2",
+        "candidate_sha256": "41a40e3e82381eca7576628aa8da83170837e4a55ebae36e240c31be7f0bbe3a",
         "claim_boundary": {
           "kernel_attach_verified": false,
           "note": "Import validation/copy only; proof-gate claim boundaries are changed only by a later proof-gate run over real evidence.",
@@ -194,7 +194,7 @@
       "candidate_exists": true,
       "candidate_is_file": true,
       "candidate_is_symlink": false,
-      "candidate_sha256": "045f4707cb3eea229dd10e05bf30b3f7eae51425999a29974ca57c469f1f4737",
+      "candidate_sha256": "ea01dbf2821c41d4b7f8e20d34759814bbc2d1322a64ccaa7fef018738083a5a",
       "claim_id": "whitelist_lab",
       "expected_import_decision": "REJECTED",
       "failures": [],
@@ -224,7 +224,7 @@
         "candidate_exists": true,
         "candidate_is_file": true,
         "candidate_is_symlink": false,
-        "candidate_sha256": "045f4707cb3eea229dd10e05bf30b3f7eae51425999a29974ca57c469f1f4737",
+        "candidate_sha256": "ea01dbf2821c41d4b7f8e20d34759814bbc2d1322a64ccaa7fef018738083a5a",
         "claim_boundary": {
           "kernel_attach_verified": false,
           "note": "Import validation/copy only; proof-gate claim boundaries are changed only by a later proof-gate run over real evidence.",
@@ -278,7 +278,7 @@
       "candidate_exists": true,
       "candidate_is_file": true,
       "candidate_is_symlink": false,
-      "candidate_sha256": "279f0a5585bd76cf5e61b5e208811864f101dae7164e8e98aedbd8dd74a7d631",
+      "candidate_sha256": "022a648db5dc3f10529ddc689173e4dd958b1f294b00e7bf92bd613353a35e97",
       "claim_id": "security_review",
       "expected_import_decision": "REJECTED",
       "failures": [],
@@ -307,7 +307,7 @@
         "candidate_exists": true,
         "candidate_is_file": true,
         "candidate_is_symlink": false,
-        "candidate_sha256": "279f0a5585bd76cf5e61b5e208811864f101dae7164e8e98aedbd8dd74a7d631",
+        "candidate_sha256": "022a648db5dc3f10529ddc689173e4dd958b1f294b00e7bf92bd613353a35e97",
         "claim_boundary": {
           "kernel_attach_verified": false,
           "note": "Import validation/copy only; proof-gate claim boundaries are changed only by a later proof-gate run over real evidence.",
@@ -359,7 +359,7 @@
       "candidate_exists": true,
       "candidate_is_file": true,
       "candidate_is_symlink": false,
-      "candidate_sha256": "249267155bb6dc2f9791a8731d748a00636bca83b253216499c830813535b335",
+      "candidate_sha256": "27ce42679986fcecb7d226fbe548ce4ff4d2cb14ad7508ffb3a7dcf749dc30a0",
       "claim_id": "production_readiness",
       "expected_import_decision": "REJECTED",
       "failures": [],
@@ -391,7 +391,7 @@
         "candidate_exists": true,
         "candidate_is_file": true,
         "candidate_is_symlink": false,
-        "candidate_sha256": "249267155bb6dc2f9791a8731d748a00636bca83b253216499c830813535b335",
+        "candidate_sha256": "27ce42679986fcecb7d226fbe548ce4ff4d2cb14ad7508ffb3a7dcf749dc30a0",
         "claim_boundary": {
           "kernel_attach_verified": false,
           "note": "Import validation/copy only; proof-gate claim boundaries are changed only by a later proof-gate run over real evidence.",
@@ -447,6 +447,6 @@
   ],
   "schema": "x0tta6bl4.ghost_pulse.incoming_gap_candidate_verification.v1",
   "status": "PASS",
-  "timestamp_utc": "2026-06-15T05:51:04.394695+00:00",
+  "timestamp_utc": "2026-06-15T06:40:16.809902+00:00",
   "unexpected_gap_claims": []
 }

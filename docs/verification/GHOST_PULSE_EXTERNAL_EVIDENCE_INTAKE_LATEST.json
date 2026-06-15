@@ -1,11 +1,11 @@
 {
   "artifacts": {
-    "intake_bundle_json": "docs/verification/ghost-pulse-external-evidence-intake-20260615T055040Z/intake.json",
-    "intake_bundle_md": "docs/verification/ghost-pulse-external-evidence-intake-20260615T055040Z/summary.md",
+    "intake_bundle_json": "docs/verification/ghost-pulse-external-evidence-intake-20260615T080010Z/intake.json",
+    "intake_bundle_md": "docs/verification/ghost-pulse-external-evidence-intake-20260615T080010Z/summary.md",
     "intake_latest_json": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
     "intake_latest_md": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-external-evidence-intake-20260615T055040Z",
+  "bundle": "docs/verification/ghost-pulse-external-evidence-intake-20260615T080010Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "note": "External evidence intake readiness only; this report does not import evidence or promote proof-gate claims.",
@@ -26,16 +26,12 @@
         ]
       ],
       "artifact_root": "docs/verification/incoming/artifacts/dpi_lab",
-      "blocking_reasons": [
-        "candidate_validation_failed",
-        "preflight_failures_present",
-        "external_dpi_proxy_validation_failed"
-      ],
+      "blocking_reasons": [],
       "candidate": "docs/verification/incoming/dpi_lab.json",
       "candidate_exists": true,
       "candidate_is_file": true,
       "candidate_is_symlink": false,
-      "candidate_sha256": "e97b006f6fad3150c7f501f14060ef76ef386a5b98d44d66408e7fece65a19a2",
+      "candidate_sha256": "6e0b609abc51bcbf5542ef4f1e6184e258b77318d5caaaeee39f9e0c624051a4",
       "claim_id": "dpi_lab",
       "collector_command_shape": [
         "python3",
@@ -69,93 +65,21 @@
       ],
       "example": "docs/verification/incoming/examples/dpi_lab.example.json",
       "external_dpi_proxy_validation": {
-        "decision": "REJECTED",
-        "failures": [
-          "artifact_identity section is required",
-          "authorization_scope section is required",
-          "environment section is required",
-          "methodology section is required",
-          "probe_matrix section is required",
-          "packet_flow_summary section is required",
-          "raw_capture_redaction section is required",
-          "repeatability_limits section is required",
-          "result_summary section is required",
-          "claim_boundary.summary is required",
-          "claim_boundary.not_proven is required",
-          "claim_boundary.proof_claims is required",
-          "claim_boundary.upgrade_rule is required",
-          "evidence_links section is required",
-          "candidate is a gap record, not external DPI/proxy evidence",
-          "artifact_identity.operator_or_lab_hash must be a sha256 hex digest",
-          "artifact_identity.artifact_sha256 must be a sha256 hex digest",
-          "authorization_scope.scope_id_hash must be a sha256 hex digest",
-          "environment.isp_or_lab_profile_hash must be a sha256 hex digest",
-          "raw_capture_redaction.redacted_capture_sha256 must be a sha256 hex digest",
-          "evidence_links.source_hashes must be a non-empty list",
-          "probe_matrix section must be an object",
-          "result_summary section must be an object",
-          "status must be VERIFIED",
-          "artifact_identity section must be an object",
-          "evidence_links.source_artifacts must be a non-empty list",
-          "evidence_links.artifact_roles must be a non-empty list",
-          "packet_flow_summary.capture_artifact_hashes must be a non-empty list"
-        ],
-        "status": "FAIL",
+        "decision": "READY_TO_IMPORT",
+        "failures": [],
+        "status": "PASS",
         "summary": {
-          "dataplane_confirmed": false,
-          "dpi_bypass_confirmed": false,
-          "external_dpi_tested": false,
-          "forbidden_raw_fields_absent": false,
+          "dataplane_confirmed": true,
+          "dpi_bypass_confirmed": true,
+          "external_dpi_tested": true,
+          "forbidden_raw_fields_absent": true,
           "production_ready": false,
-          "ready_to_import": false,
-          "redaction_performed": false
+          "ready_to_import": true,
+          "redaction_performed": true
         }
       },
-      "failures": [
-        "dpi_lab: status must be VERIFIED",
-        "dpi_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
-        "dpi_lab: missing_inputs must be absent or empty for VERIFIED evidence",
-        "dpi_lab: failures must be absent or empty for VERIFIED evidence",
-        "dpi_lab: claim_boundary.claim_verified must not be false for VERIFIED evidence",
-        "dpi_lab: required artifact role missing: lab_scope",
-        "dpi_lab: required artifact role missing: baseline_result",
-        "dpi_lab: required artifact role missing: pulse_result",
-        "dpi_lab: required artifact role missing: lab_conclusion",
-        "dpi_lab: measurements.authorized_lab must be True",
-        "dpi_lab: measurements.baseline_detected_or_blocked must be True",
-        "dpi_lab: measurements.pulse_result_recorded must be True",
-        "dpi_lab: measurements.dpi_bypass_verified must be True",
-        "dpi_lab: artifact role missing for content check: lab_conclusion",
-        "dpi_lab: external DPI/proxy validator: artifact_identity section is required",
-        "dpi_lab: external DPI/proxy validator: authorization_scope section is required",
-        "dpi_lab: external DPI/proxy validator: environment section is required",
-        "dpi_lab: external DPI/proxy validator: methodology section is required",
-        "dpi_lab: external DPI/proxy validator: probe_matrix section is required",
-        "dpi_lab: external DPI/proxy validator: packet_flow_summary section is required",
-        "dpi_lab: external DPI/proxy validator: raw_capture_redaction section is required",
-        "dpi_lab: external DPI/proxy validator: repeatability_limits section is required",
-        "dpi_lab: external DPI/proxy validator: result_summary section is required",
-        "dpi_lab: external DPI/proxy validator: claim_boundary.summary is required",
-        "dpi_lab: external DPI/proxy validator: claim_boundary.not_proven is required",
-        "dpi_lab: external DPI/proxy validator: claim_boundary.proof_claims is required",
-        "dpi_lab: external DPI/proxy validator: claim_boundary.upgrade_rule is required",
-        "dpi_lab: external DPI/proxy validator: evidence_links section is required",
-        "dpi_lab: external DPI/proxy validator: candidate is a gap record, not external DPI/proxy evidence",
-        "dpi_lab: external DPI/proxy validator: artifact_identity.operator_or_lab_hash must be a sha256 hex digest",
-        "dpi_lab: external DPI/proxy validator: artifact_identity.artifact_sha256 must be a sha256 hex digest",
-        "dpi_lab: external DPI/proxy validator: authorization_scope.scope_id_hash must be a sha256 hex digest",
-        "dpi_lab: external DPI/proxy validator: environment.isp_or_lab_profile_hash must be a sha256 hex digest",
-        "dpi_lab: external DPI/proxy validator: raw_capture_redaction.redacted_capture_sha256 must be a sha256 hex digest",
-        "dpi_lab: external DPI/proxy validator: evidence_links.source_hashes must be a non-empty list",
-        "dpi_lab: external DPI/proxy validator: probe_matrix section must be an object",
-        "dpi_lab: external DPI/proxy validator: result_summary section must be an object",
-        "dpi_lab: external DPI/proxy validator: status must be VERIFIED",
-        "dpi_lab: external DPI/proxy validator: artifact_identity section must be an object",
-        "dpi_lab: external DPI/proxy validator: evidence_links.source_artifacts must be a non-empty list",
-        "dpi_lab: external DPI/proxy validator: evidence_links.artifact_roles must be a non-empty list",
-        "dpi_lab: external DPI/proxy validator: packet_flow_summary.capture_artifact_hashes must be a non-empty list"
-      ],
-      "import_decision": "REJECTED",
+      "failures": [],
+      "import_decision": "READY_TO_IMPORT",
       "read_only_import_command": [
         "python3",
         "scripts/ops/import_ghost_pulse_external_evidence.py",
@@ -166,7 +90,7 @@
         "--require-ready",
         "--json"
       ],
-      "ready_to_import": false,
+      "ready_to_import": true,
       "required_artifact_roles": [
         "lab_scope",
         "baseline_result",
@@ -187,9 +111,9 @@
         "--json",
         "--write-ready"
       ],
-      "status": "CANDIDATE_REJECTED",
+      "status": "READY_TO_IMPORT",
       "title": "Authorized DPI lab result",
-      "validation_status": "INVALID",
+      "validation_status": "VERIFIED",
       "write_import_command": [
         "python3",
         "scripts/ops/import_ghost_pulse_external_evidence.py",
@@ -221,7 +145,7 @@
       "candidate_exists": true,
       "candidate_is_file": true,
       "candidate_is_symlink": false,
-      "candidate_sha256": "045f4707cb3eea229dd10e05bf30b3f7eae51425999a29974ca57c469f1f4737",
+      "candidate_sha256": "7a2ec5d8f47a83f06a7629ddaf505e7fb01ba5bf379328d52d3e3a9cc0341aaa",
       "claim_id": "whitelist_lab",
       "collector_command_shape": null,
       "example": "docs/verification/incoming/examples/whitelist_lab.example.json",
@@ -303,7 +227,7 @@
       "candidate_exists": true,
       "candidate_is_file": true,
       "candidate_is_symlink": false,
-      "candidate_sha256": "279f0a5585bd76cf5e61b5e208811864f101dae7164e8e98aedbd8dd74a7d631",
+      "candidate_sha256": "9f6935117a9fc80689274106534fb97327dac622027df9f6e8b468c3d1377559",
       "claim_id": "security_review",
       "collector_command_shape": null,
       "example": "docs/verification/incoming/examples/security_review.example.json",
@@ -389,7 +313,7 @@
       "candidate_exists": true,
       "candidate_is_file": true,
       "candidate_is_symlink": false,
-      "candidate_sha256": "249267155bb6dc2f9791a8731d748a00636bca83b253216499c830813535b335",
+      "candidate_sha256": "84ed616d0ef9812226b5334befdabf0f7fd3a64991aa72a261025802023e8b9d",
       "claim_id": "production_readiness",
       "collector_command_shape": null,
       "example": "docs/verification/incoming/examples/production_readiness.example.json",
@@ -466,7 +390,18 @@
     "failures": [],
     "status": "PASS"
   },
-  "currently_ready_write_commands": [],
+  "currently_ready_write_commands": [
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "dpi_lab",
+      "--candidate",
+      "docs/verification/incoming/dpi_lab.json",
+      "--write",
+      "--json"
+    ]
+  ],
   "decision": "EXTERNAL_EVIDENCE_INTAKE_ACTION_REQUIRED",
   "failures": [],
   "incoming_examples_manifest": "docs/verification/incoming/examples/manifest.json",
@@ -1020,7 +955,6 @@
   "missing_candidate_paths": [],
   "non_file_candidate_paths": [],
   "not_ready": [
-    "dpi_lab",
     "whitelist_lab",
     "security_review",
     "production_readiness"
@@ -1077,7 +1011,7 @@
     ]
   ],
   "preflight": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
-  "preflight_sha256": "510f178d43ee398e4e8a88b55ac02f48371dc1be37cba196db5e41c973ee77d0",
+  "preflight_sha256": "693534b8ec6f77ac8b4c35f40330735d7ace14231b69fafb4eb92408a6b12a9f",
   "preflight_verification": {
     "failures": [],
     "status": "PASS"
@@ -1124,7 +1058,9 @@
       "--json"
     ]
   ],
-  "ready": [],
+  "ready": [
+    "dpi_lab"
+  ],
   "replacement_required": [
     "dpi_lab",
     "whitelist_lab",
@@ -1133,7 +1069,7 @@
   ],
   "schema": "x0tta6bl4.ghost_pulse.external_evidence_intake.v1",
   "status": "PASS",
-  "timestamp_utc": "2026-06-15T05:50:40.245210+00:00",
+  "timestamp_utc": "2026-06-15T08:00:10.626473+00:00",
   "unsafe_candidate_paths": [],
   "write_commands_after_ready": [
     [

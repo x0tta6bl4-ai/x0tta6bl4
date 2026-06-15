@@ -1,8 +1,8 @@
 # x0tta6bl4_pulse Verification Suite
 
-Timestamp: `2026-06-15T06:16:48.172871+00:00`
+Timestamp: `2026-06-15T06:40:49.901573+00:00`
 
-Decision: `GHOST_PULSE_VERIFICATION_SUITE_VERIFIED_STEALTH_NOT_VERIFIED`
+Decision: `GHOST_PULSE_VERIFICATION_SUITE_INCOMPLETE`
 
 ## Suite Scope
 
@@ -41,8 +41,8 @@ Decision: `GHOST_PULSE_VERIFICATION_SUITE_VERIFIED_STEALTH_NOT_VERIFIED`
 | ghost_core_shell_syntax | `PASS` |
 | false_claim_scan | `PASS` |
 | artifact_integrity | `PASS` |
-| incoming_gap_candidates_verifier | `PASS` |
+| incoming_gap_candidates_verifier | `FAIL` |
 
 ## Failures
 
-- None
+- incoming_gap_candidates_verifier did not pass

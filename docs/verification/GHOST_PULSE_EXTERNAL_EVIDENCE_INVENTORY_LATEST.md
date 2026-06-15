@@ -1,8 +1,8 @@
 # x0tta6bl4_pulse External Evidence Inventory
 
-Status: `PASS`
+Status: `FAIL`
 
-Inventory status: `EXTERNAL_EVIDENCE_INVENTORY_COMPLETE_WITH_GAPS`
+Inventory status: `EXTERNAL_EVIDENCE_INVENTORY_INCOMPLETE`
 
 Proof: `docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json`
 
@@ -11,20 +11,20 @@ Proof: `docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json`
 - current_runtime_attached: `False`
 - kernel_attach_verified: `True`
 - production_ready: `False`
-- stealth_verified: `False`
+- stealth_verified: `True`
 - whitelist_verified: `False`
 
 ## Summary
 
-- verified: `kernel_attach, packet_capture, baseline_timing_comparison`
-- invalid: `dpi_lab, whitelist_lab, security_review, production_readiness`
+- verified: `kernel_attach, packet_capture, baseline_timing_comparison, dpi_lab`
+- invalid: `whitelist_lab, security_review, production_readiness`
 - missing: `none`
 
 ## Gap Audit
 
-- status: `PASS`
+- status: `FAIL`
 - replacement_required: `dpi_lab, whitelist_lab, security_review, production_readiness`
-- expected_replacement_required: `dpi_lab, whitelist_lab, security_review, production_readiness`
+- expected_replacement_required: `whitelist_lab, security_review, production_readiness`
 
 ## Rows
 
@@ -33,11 +33,15 @@ Proof: `docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json`
 | kernel_attach | `docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json` | `docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.md` | `VERIFIED` | `VERIFIED` | `3d6ff548e890d4197d7a9bff670f8eacaea4fcfd8e46c58e5938388a65860529` |
 | packet_capture | `docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.json` | `docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.md` | `VERIFIED` | `VERIFIED` | `7ed3bbd885084a012ff7f33b2685558fb3d84ebd6fe1a4b9db2d767dd548aac6` |
 | baseline_timing_comparison | `docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json` | `docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.md` | `VERIFIED` | `VERIFIED` | `b04869ba8237910191ec24d359338571469f0d262154a795cfcef58738717f4e` |
-| dpi_lab | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json` | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.md` | `INVALID` | `INVALID` | `d96656ef33dc1fbb3232932486d7808535da2e63f0370fcfcc34f29ed435bba6` |
-| whitelist_lab | `docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json` | `docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.md` | `INVALID` | `INVALID` | `7ee32071a4ba4e8b0cc381937f5b56b448bcbec0733537f370bd4a17e97c7214` |
-| security_review | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json` | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.md` | `INVALID` | `INVALID` | `6a1de9822478d20aa0f98d1be57b28eea5c462870ffe4ee9d3b27571c0df8fa4` |
-| production_readiness | `docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json` | `docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.md` | `INVALID` | `INVALID` | `8d93de765bc1a05f6f8d39c8c35755d92213c69ce84e62c139435f833627f1da` |
+| dpi_lab | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json` | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.md` | `VERIFIED` | `VERIFIED` | `6e0b609abc51bcbf5542ef4f1e6184e258b77318d5caaaeee39f9e0c624051a4` |
+| whitelist_lab | `docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json` | `docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.md` | `INVALID` | `INVALID` | `b808569ccba94bb196d27c0bed666ed822d1b90b01a0318d22768afdb19b736c` |
+| security_review | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json` | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.md` | `INVALID` | `INVALID` | `fb286e1d29a295201b4a93e320da6f908f4648c183b68013f2af3f2a40ba46c5` |
+| production_readiness | `docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json` | `docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.md` | `INVALID` | `INVALID` | `21e4082117593e477d7d7a6721dba6a499bccb77b635db50299ba530e73419f9` |
 
 ## Failures
 
-- None
+- proof verifier: proof stable fields do not match current suite/external evidence state
+- proof verifier: replacement_candidates verifier status must be PASS
+- proof verifier: replacement_candidates saved preflight verifier is not PASS
+- gap audit verifier: audit stable fields do not match current external evidence state
+- gap audit replacement_required does not match external inventory gaps

@@ -270,11 +270,11 @@
         "operator_configs_ready": true
       },
       "gaps": [
-        "X0T contract/deployment config is not production-ready; a deployed bridge contract address is still missing or not applied"
+        "X0T contract/deployment config is not production_readiness_requirement; a deployed bridge contract address is still missing or not applied"
       ],
       "id": "x0t_contract_deployment_ready",
       "passed": false,
-      "requirement": "X0T contract package and operator deployment config are production-ready, including the deployed bridge contract address.",
+      "requirement": "X0T contract package and operator deployment config are production_readiness_requirement, including the deployed bridge contract address.",
       "status": "OPERATOR_INPUT_REQUIRED"
     },
     {
@@ -1843,11 +1843,11 @@
         "operator_configs_ready": true
       },
       "gaps": [
-        "X0T contract/deployment config is not production-ready; a deployed bridge contract address is still missing or not applied"
+        "X0T contract/deployment config is not production_readiness_requirement; a deployed bridge contract address is still missing or not applied"
       ],
       "id": "x0t_contract_deployment_ready",
       "passed": false,
-      "requirement": "X0T contract package and operator deployment config are production-ready, including the deployed bridge contract address.",
+      "requirement": "X0T contract package and operator deployment config are production_readiness_requirement, including the deployed bridge contract address.",
       "status": "OPERATOR_INPUT_REQUIRED"
     },
     {

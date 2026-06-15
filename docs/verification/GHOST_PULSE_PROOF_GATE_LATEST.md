@@ -1,6 +1,6 @@
 # x0tta6bl4_pulse Proof Gate
 
-Timestamp: `2026-06-15T06:16:51.285763+00:00`
+Timestamp: `2026-06-15T08:01:06.575999+00:00`
 
 Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
@@ -9,28 +9,28 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 - current_runtime_attached: `False`
 - kernel_attach_verified: `True`
 - production_ready: `False`
-- stealth_verified: `False`
+- stealth_verified: `True`
 - whitelist_verified: `False`
 
 ## Replacement Candidate Preflight
 
 - report: `docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json`
-- sha256: `510f178d43ee398e4e8a88b55ac02f48371dc1be37cba196db5e41c973ee77d0`
-- status: `PASS`
+- sha256: `693534b8ec6f77ac8b4c35f40330735d7ace14231b69fafb4eb92408a6b12a9f`
+- status: `FAIL`
 - decision: `REPLACEMENT_CANDIDATES_NOT_READY`
-- not_ready: `dpi_lab, whitelist_lab, security_review, production_readiness`
+- not_ready: `whitelist_lab, security_review, production_readiness`
 
 ## Proof Rows
 
 | Claim | Status | Evidence |
 | --- | --- | --- |
-| local_timing_replay | `VERIFIED` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
-| false_claim_hygiene | `VERIFIED` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
-| artifact_chain | `VERIFIED` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
+| local_timing_replay | `INVALID` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
+| false_claim_hygiene | `INVALID` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
+| artifact_chain | `INVALID` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
 | kernel_attach | `VERIFIED` | `docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json` |
 | packet_capture | `VERIFIED` | `docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.json` |
 | baseline_timing_comparison | `VERIFIED` | `docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json` |
-| dpi_lab | `INVALID` | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json` |
+| dpi_lab | `VERIFIED` | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json` |
 | whitelist_lab | `INVALID` | `docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json` |
 | security_review | `INVALID` | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json` |
 | production_readiness | `INVALID` | `docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json` |
@@ -38,7 +38,9 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
 ## Missing Or Invalid Evidence
 
-- dpi_lab
+- local_timing_replay
+- false_claim_hygiene
+- artifact_chain
 - whitelist_lab
 - security_review
 - production_readiness
@@ -46,20 +48,20 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
 ## Failures
 
-- dpi_lab: status must be VERIFIED
-- dpi_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD
-- dpi_lab: missing_inputs must be absent or empty for VERIFIED evidence
-- dpi_lab: failures must be absent or empty for VERIFIED evidence
-- dpi_lab: claim_boundary.claim_verified must not be false for VERIFIED evidence
-- dpi_lab: required artifact role missing: lab_scope
-- dpi_lab: required artifact role missing: baseline_result
-- dpi_lab: required artifact role missing: pulse_result
-- dpi_lab: required artifact role missing: lab_conclusion
-- dpi_lab: measurements.authorized_lab must be True
-- dpi_lab: measurements.baseline_detected_or_blocked must be True
-- dpi_lab: measurements.pulse_result_recorded must be True
-- dpi_lab: measurements.dpi_bypass_verified must be True
-- dpi_lab: artifact role missing for content check: lab_conclusion
+- suite verifier: unexpected decision: GHOST_PULSE_VERIFICATION_SUITE_INCOMPLETE
+- suite verifier: suite failures must be empty
+- suite verifier: incoming_gap_candidates_verifier status is not PASS
+- suite verifier: false_claim_scan target size_bytes mismatch: docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.md
+- suite verifier: false_claim_scan target sha256 mismatch: docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.md
+- suite verifier: false_claim_scan target size_bytes mismatch: docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json
+- suite verifier: false_claim_scan target sha256 mismatch: docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json
+- suite verifier: false_claim_scan target size_bytes mismatch: docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.md
+- suite verifier: false_claim_scan target sha256 mismatch: docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.md
+- suite verifier: false_claim_scan target size_bytes mismatch: docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json
+- suite verifier: false_claim_scan target sha256 mismatch: docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json
+- local_timing_replay: local or matrix replay evidence is not fully replayable
+- false_claim_hygiene: false_claim_scan is not PASS
+- artifact_chain: artifact_integrity or artifact-chain verification is not PASS
 - whitelist_lab: status must be VERIFIED
 - whitelist_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD
 - whitelist_lab: missing_inputs must be absent or empty for VERIFIED evidence
@@ -104,3 +106,4 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 - production_readiness: artifact role missing for content check: prior_claim_references
 - production_readiness: references must be a non-empty list
 - current_runtime_attached: current runtime interface not configured; set GHOST_PULSE_RUNTIME_INTERFACE or pass --runtime-interface
+- replacement_candidates: replacement candidate stable fields do not match current passport/candidate state

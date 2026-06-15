@@ -2072,7 +2072,8 @@ def check_node_runtime_identity_binding_contract(root: Path) -> list[CheckResult
 
 
 def check_mapek_safe_mode_contract(root: Path) -> list[CheckResult]:
-    mape_k_loop = _read(root, "src/core/mape_k_loop.py")
+    # TD-008: Checking modular SelfHealingManager instead of deprecated core loop
+    mape_k_loop = _read(root, "src/self_healing/mape_k/manager.py")
     required = {
         "safe_mode_claim_boundary": (
             "MAPEK_SAFE_MODE_CLAIM_BOUNDARY" in mape_k_loop
@@ -2092,8 +2093,8 @@ def check_mapek_safe_mode_contract(root: Path) -> list[CheckResult]:
             and 'stage="safe_mode_entered"' in mape_k_loop
         ),
         "execute_blocks_control_actions": (
-            'if directives.get("safe_mode"):' in mape_k_loop
-            and "return [f\"safe_mode={reason_id}\"]" in mape_k_loop
+            'if self.safe_mode_active' in mape_k_loop
+            and "return self._safe_mode_directives(" in mape_k_loop
         ),
         "planning_error_enters_safe_mode": (
             'reason_id="planning_failed"' in mape_k_loop
@@ -2117,7 +2118,7 @@ def check_mapek_safe_mode_contract(root: Path) -> list[CheckResult]:
                     "MAPE-K must fail closed into safe-mode for planning, "
                     "knowledge, and CID-layer failures: " + ", ".join(missing)
                 ),
-                "src/core/mape_k_loop.py",
+                "src/self_healing/mape_k/manager.py",
             )
         ]
     return [
@@ -2127,13 +2128,14 @@ def check_mapek_safe_mode_contract(root: Path) -> list[CheckResult]:
                 "MAPE-K has a fail-closed safe-mode final state for planning, "
                 "knowledge, and CID-layer failures"
             ),
-            "src/core/mape_k_loop.py",
+            "src/self_healing/mape_k/manager.py",
         )
     ]
 
 
 def check_mapek_recovery_plan_cid_contract(root: Path) -> list[CheckResult]:
-    mape_k_loop = _read(root, "src/core/mape_k_loop.py")
+    # TD-008: Checking modular SelfHealingManager instead of deprecated core loop
+    mape_k_loop = _read(root, "src/self_healing/mape_k/manager.py")
     required = {
         "claim_boundary": (
             "MAPEK_RECOVERY_PLAN_CID_CLAIM_BOUNDARY" in mape_k_loop
@@ -2162,9 +2164,9 @@ def check_mapek_recovery_plan_cid_contract(root: Path) -> list[CheckResult]:
         ),
         "plan_attached_to_directives": (
             "def _attach_recovery_plan_cid(" in mape_k_loop
-            and '"recovery_plan_cid"] = _content_addressed_recovery_plan_metadata('
+            and '["recovery_plan_cid"] = _content_addressed_recovery_plan_metadata('
             in mape_k_loop
-            and '"recovery_plan_cid": _safe_recovery_plan_cid(' in mape_k_loop
+            and "_safe_recovery_plan_cid(" in mape_k_loop
         ),
         "cid_failure_enters_safe_mode": (
             'reason_id="recovery_plan_cid_failed"' in mape_k_loop
@@ -2185,7 +2187,7 @@ def check_mapek_recovery_plan_cid_contract(root: Path) -> list[CheckResult]:
                     "and enter safe-mode if CID generation fails: "
                     + ", ".join(missing)
                 ),
-                "src/core/mape_k_loop.py",
+                "src/self_healing/mape_k/manager.py",
             )
         ]
     return [
@@ -2195,7 +2197,7 @@ def check_mapek_recovery_plan_cid_contract(root: Path) -> list[CheckResult]:
                 "MAPE-K recovery plans carry deterministic CIDv1 raw sha2-256 "
                 "metadata and fail closed into safe-mode on CID generation faults"
             ),
-            "src/core/mape_k_loop.py",
+            "src/self_healing/mape_k/manager.py",
         )
     ]
 

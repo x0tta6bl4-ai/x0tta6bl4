@@ -4,12 +4,12 @@
     "local_evidence_sha256": "27012e7f09e24581aee066243cb4dd13ecbe9bf9fe5742f6e25d4926412c30b9",
     "profile_matrix": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
     "profile_matrix_sha256": "34f05acbf1555cb638347fe7c140e51fd07e0e31e415daf29cc030b7f36ad053",
-    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260615T061648Z/suite.json",
-    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260615T061648Z/summary.md",
+    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260615T064049Z/suite.json",
+    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260615T064049Z/summary.md",
     "suite_latest_json": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
     "suite_latest_md": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-verification-suite-20260615T061648Z",
+  "bundle": "docs/verification/ghost-pulse-verification-suite-20260615T064049Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "kernel_read_only_visible": false,
@@ -18,8 +18,10 @@
     "whitelist_verified": false
   },
   "claim_boundary_note": "This suite verifies bounded local evidence consistency only. It does not prove DPI evasion, provider whitelist behavior, kernel attach, or production readiness.",
-  "decision": "GHOST_PULSE_VERIFICATION_SUITE_VERIFIED_STEALTH_NOT_VERIFIED",
-  "failures": [],
+  "decision": "GHOST_PULSE_VERIFICATION_SUITE_INCOMPLETE",
+  "failures": [
+    "incoming_gap_candidates_verifier did not pass"
+  ],
   "gates": {
     "artifact_integrity": {
       "checks": {
@@ -322,37 +324,37 @@
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
-          "sha256": "364684644a19df5af1097da62e92f4ca8c8ca103ffd927255ddeb4e815c1be90",
-          "size_bytes": 12984
+          "sha256": "4fbaf324e44824f901a2c5959a4c5faa00ff10daaa8418bb5198635ab3c3a726",
+          "size_bytes": 13323
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.md",
-          "sha256": "2a09a142920fd0130b341ba1dca79cba58fa2cd2658ddf26b0570378339811e6",
-          "size_bytes": 2550
+          "sha256": "096d884358fd4bf1ebe4b4c895451cecc18f0c4191a080927ea69bcc5f4458fc",
+          "size_bytes": 2860
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
-          "sha256": "b7dce847f465d37b8c6b0ca2f4a3d30e80b30c6b540f76e918a6f35c58dad1c8",
+          "sha256": "50117cb05189e64e458242ea215b0d1fb7d72ba1878afb378bd44692aaa30122",
           "size_bytes": 43009
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.md",
-          "sha256": "79605be0c49e531450a6e06d7324d9fb1825e8fcd66d4b8985da62af1a45a4ba",
+          "sha256": "c2449195f2a1ad0235f18a272541970ae803249a48638af4852747517f77c480",
           "size_bytes": 5630
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.json",
-          "sha256": "dcb5d3e961be469ef67c27b582ab110c64affe789f01784e2ab43f2661fb2b09",
+          "sha256": "95ddb03e0322dec85f6ce8c4cb8f89fcfda04766554dc26f4b9ec3ed73575838",
           "size_bytes": 26655
         },
         {
           "exists": true,
           "path": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.md",
-          "sha256": "056040d2ee76ce01cbfc98bc6de5f5b202433190e4ef5d90405f22c91419d66b",
+          "sha256": "51c417540e12769fa968d5774ee3cfef01ab959a745aea7f9885f4ed2e0963ac",
           "size_bytes": 1244
         }
       ],
@@ -423,11 +425,11 @@
           "--require-fail-closed"
         ],
         "available": true,
-        "returncode": 0,
+        "returncode": 1,
         "stderr": "",
-        "stdout": "PASS: x0tta6bl4_pulse incoming gap candidate report is current\nreport=docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.json\ndecision=INCOMING_GAP_CANDIDATES_FAIL_CLOSED\n"
+        "stdout": "FAIL: x0tta6bl4_pulse incoming gap candidate report is stale\n- incoming gap candidate stable fields do not match current proof/intake state\n"
       },
-      "status": "PASS"
+      "status": "FAIL"
     },
     "local_evidence_verifier": {
       "command": {
@@ -572,5 +574,5 @@
       "seed": 20260522
     }
   },
-  "timestamp_utc": "2026-06-15T06:16:48.172871+00:00"
+  "timestamp_utc": "2026-06-15T06:40:49.901573+00:00"
 }
