@@ -1,0 +1,10 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+COPY requirements-ghost.txt .
+RUN unset ALL_PROXY http_proxy https_proxy && pip install --no-cache-dir -r requirements-ghost.txt
+
+COPY . .
+
+ENTRYPOINT ["python3", "ghost_pulse_vpn.py"]
+CMD ["server"]
