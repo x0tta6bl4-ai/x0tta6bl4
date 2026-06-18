@@ -105,6 +105,7 @@ class WorkloadAPIClient:
         PRODUCTION_MODE = os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
         self._force_mock_spiffe = (
             os.getenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "false").lower() == "true"
+            or os.getenv("x0tta6bl4_FORCE_MOCK_SPIFFE", "false").lower() == "true"
         )
         self._spiffe_endpoint = socket_path or os.getenv("SPIFFE_ENDPOINT_SOCKET")
         self._spiffe_endpoint_path = self._endpoint_path(self._spiffe_endpoint)

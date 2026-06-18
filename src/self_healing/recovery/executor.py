@@ -36,7 +36,7 @@ from src.services.service_event_identity import service_event_identity
 logger = logging.getLogger(__name__)
 
 _SERVICE_AGENT = "recovery-action-executor"
-_POST_ACTION_PROBE_ENV_VAR = "X0TTA6BL4_RECOVERY_POST_ACTION_PROBE"
+_POST_ACTION_PROBE_ENV_VAR = "x0tta6bl4_RECOVERY_POST_ACTION_PROBE"
 _DATAPLANE_REVALIDATED_ACTION_TYPES = {
     "restart_service",
     "switch_route",
