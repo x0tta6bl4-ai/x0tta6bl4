@@ -312,7 +312,7 @@ def _plan_catalog() -> List[Dict[str, Any]]:
 
 # --- Modular Billing Implementation ---
 
-@router.get("/billing/plans", summary="List billing plans")
+@router.get("/plans", summary="List billing plans")
 async def list_plans(request: Request) -> List[Dict[str, Any]]:
     """Return the public modular billing plan catalog."""
     started = time.monotonic()
@@ -352,7 +352,7 @@ async def list_plans(request: Request) -> List[Dict[str, Any]]:
     return plans
 
 
-@router.get("/billing/estimate", summary="Estimate mesh cost")
+@router.get("/estimate", summary="Estimate mesh cost")
 async def estimate_cost(
     request: Request,
     node_count: int = Query(..., gt=0),
@@ -461,7 +461,7 @@ async def get_limits(
     return limits
 
 
-@router.post("/billing/pay", summary="Create payment intent")
+@router.post("/pay", summary="Create payment intent")
 async def create_payment(
     plan: str,
     request: Request,
@@ -753,7 +753,7 @@ async def create_checkout_session(
     
     return {"url": "http://mock-checkout.stripe.com/session_abc", "id": "sess_abc"}
 
-@router.post("/billing/webhook", include_in_schema=False)
+@router.post("/webhook_legacy", include_in_schema=False)
 @router.post("/webhook", include_in_schema=False)
 async def billing_webhook(
     request: Request,

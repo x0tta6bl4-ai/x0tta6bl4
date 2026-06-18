@@ -87,6 +87,7 @@ def get_combined_router(
             from .swarm_orchestration import router as swarm_orchestration_router
             from .vision import router as vision_router
             from .service_identity_status import router as service_identity_status_router
+            from .peaq_relay import router as peaq_relay_router
 
         if include_billing:
             router.include_router(billing_router, prefix=f"{p}/billing")
@@ -127,6 +128,7 @@ def get_combined_router(
         router.include_router(swarm_orchestration_router, prefix="/api/v1/swarm")
         router.include_router(vision_router, prefix="/api/v1/vision")
         router.include_router(service_identity_status_router, prefix="/api/v1/service-identity")
+        router.include_router(peaq_relay_router, prefix="/api/v1/peaq/relay")
 
     return router
 

@@ -133,7 +133,7 @@ const CORE_ENDPOINTS = [
   ['Product Pilot', '/api/v1/product/pilot-package'],
   ['Payment Intake', '/api/v1/product/payment-intake'],
   ['MaaS Marketplace', '/api/v1/maas/marketplace/status'],
-  ['Billing Plans', '/api/v1/maas/billing/billing/plans'],
+  ['Billing Plans', '/api/v1/maas/billing/plans'],
   ['Billing Usage', '/api/v1/maas/billing/usage'],
   ['Governance', '/api/v1/maas/governance/readiness'],
   ['VPN', '/api/v1/vpn/readiness'],
@@ -221,8 +221,8 @@ const fullCoreActionPaths = (actionId: string, parameters: CoreRecord): string[]
       const plan = queryValue(parameters.plan, 'pro');
       const region = queryValue(parameters.region, 'global');
       return [
-        '/api/v1/maas/billing/billing/plans',
-        `/api/v1/maas/billing/billing/estimate?node_count=${encodeURIComponent(nodeCount)}&node_type=${encodeURIComponent(nodeType)}&plan=${encodeURIComponent(plan)}&region=${encodeURIComponent(region)}`,
+        '/api/v1/maas/billing/plans',
+        `/api/v1/maas/billing/estimate?node_count=${encodeURIComponent(nodeCount)}&node_type=${encodeURIComponent(nodeType)}&plan=${encodeURIComponent(plan)}&region=${encodeURIComponent(region)}`,
       ];
     }
     case 'wallet.open_ledger_status':
@@ -1383,7 +1383,7 @@ const App: React.FC = () => {
       } else if (actionId === 'billing.create_payment_intent') {
         const plan = encodeURIComponent(queryValue(parameters.plan, 'pro'));
         const method = encodeURIComponent(queryValue(parameters.method, 'stripe'));
-        path = `/api/v1/maas/billing/billing/pay?plan=${plan}&method=${method}`;
+        path = `/api/v1/maas/billing/pay?plan=${plan}&method=${method}`;
         payload = {};
       } else if (actionId === 'ledger.index') {
         const force = queryValue(parameters.force, 'false');
@@ -1649,7 +1649,7 @@ const App: React.FC = () => {
       capture<unknown>('marketplace_search', '/api/v1/maas/marketplace/search', value => {
         setMarketplaceListings(asRecordArray(value));
       }),
-      capture<unknown>('billing_plans', '/api/v1/maas/billing/billing/plans', value => {
+      capture<unknown>('billing_plans', '/api/v1/maas/billing/plans', value => {
         setBillingPlans(asRecordArray(value));
       }),
       capture<CoreRecord>('billing_usage', '/api/v1/maas/billing/usage', value => {
@@ -1894,7 +1894,7 @@ const App: React.FC = () => {
       capabilityFromProbe('product_pilot_package', 'First Paid Pilot Package', byPath('/api/v1/product/pilot-package'), ['src/sales/pilot_package.py', 'src/core/app_desktop.py']),
       capabilityFromProbe('product_payment_intake', 'Wallet Payment Intake', byPath('/api/v1/product/payment-intake'), ['src/sales/wallet_payment_intake.py', 'src/core/app_desktop.py']),
       capabilityFromProbe('maas_marketplace', 'MaaS Marketplace', byPath('/api/v1/maas/marketplace/status'), ['src/api/maas/endpoints/marketplace.py']),
-      capabilityFromProbe('billing', 'Billing / Subscriptions', byPath('/api/v1/maas/billing/billing/plans'), ['src/api/maas/endpoints/billing.py']),
+      capabilityFromProbe('billing', 'Billing / Subscriptions', byPath('/api/v1/maas/billing/plans'), ['src/api/maas/endpoints/billing.py']),
       capabilityFromProbe('wallet_rewards', 'Wallet / Rewards', byPath('/api/v1/ledger/status'), ['src/services/reward_events.py', 'src/dao/token_rewards.py']),
       capabilityFromProbe('dao_governance', 'DAO Governance', byPath('/api/v1/maas/governance/readiness'), ['src/api/maas/endpoints/governance.py']),
       capabilityFromProbe('mapek', 'MAPE-K Self-Healing', byPath('/api/v1/maas/agents/health/status'), ['src/self_healing/mape_k_integrated.py']),
