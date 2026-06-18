@@ -474,6 +474,7 @@ async def vpn_readiness(
 
 class VPNConfigRequest(BaseModel):
     user_id: int
+    node_id: Optional[str] = "nl"
     email: Optional[str] = None  # Optional for backward compatibility
     username: Optional[str] = None
     server: Optional[str] = None
@@ -887,6 +888,7 @@ async def vpn_subscription_status(
 async def get_vpn_config(
     request: Request,
     user_id: int = Query(...),
+    node_id: Optional[str] = Query(default="nl"),
     email: Optional[str] = Query(default=None),
     username: Optional[str] = Query(default=None),
     server: Optional[str] = Query(default=None),
@@ -926,7 +928,7 @@ async def get_vpn_config(
             )
 
     try:
-        return await _build_vpn_config(user_id, email, username, server, port)
+        return await _build_vpn_config(user_id, email, username, server, port, node_id=node_id)
     except HTTPException:
         raise
     except Exception as e:
@@ -972,6 +974,7 @@ async def create_vpn_config(
         config_req.username,
         config_req.server,
         config_req.port,
+        node_id=config_req.node_id,
     )
 
 
