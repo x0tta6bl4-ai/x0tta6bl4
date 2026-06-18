@@ -384,9 +384,9 @@ def _json_mapping_from_file(path: Path) -> Mapping[str, object]:
 def check_required_files(root: Path) -> list[CheckResult]:
     files = (
         "Caddyfile.app",
-        "Dockerfile.vpn",
-        "docker-compose.app.yml",
-        "docker-compose.ghost-vpn.yml",
+        "docker/archive/Dockerfile.vpn",
+        "docker/archive/docker-compose.app.yml",
+        "docker/archive/docker-compose.ghost-vpn.yml",
         "x0tta6bl4-app/Dockerfile",
         "x0tta6bl4-app/server.cjs",
         "x0tta6bl4-app/src/App.tsx",
@@ -425,7 +425,7 @@ def check_required_files(root: Path) -> list[CheckResult]:
 
 def check_app_contract(root: Path) -> list[CheckResult]:
     checks: list[CheckResult] = []
-    compose = _read(root, "docker-compose.app.yml")
+    compose = _read(root, "docker/archive/docker-compose.app.yml")
     caddy = _read(root, "Caddyfile.app")
     dockerfile = _read(root, "x0tta6bl4-app/Dockerfile")
     server = _read(root, "x0tta6bl4-app/server.cjs")
@@ -549,8 +549,8 @@ def check_db_contract(root: Path) -> list[CheckResult]:
 
 def check_ghost_contract(root: Path) -> list[CheckResult]:
     checks: list[CheckResult] = []
-    compose = _read(root, "docker-compose.ghost-vpn.yml")
-    dockerfile = _read(root, "Dockerfile.vpn")
+    compose = _read(root, "docker/archive/docker-compose.ghost-vpn.yml")
+    dockerfile = _read(root, "docker/archive/Dockerfile.vpn")
     protocol = _read(root, "services/nl-server/ghost-vpn/ghost_vpn_protocol.py")
 
     required = {
@@ -596,7 +596,7 @@ def check_ghost_pulse_local_timing_evidence_contract(root: Path) -> list[CheckRe
         "whitelist_mimicry": "src/network/obfuscation/whitelist_mimicry.py",
         "pulse_ebpf_source": "src/network/ebpf/x0tta6bl4_pulse.bpf.c",
         "ghost_core_entrypoint": "ghost-core.sh",
-        "pulse_protocol_boundary_doc": "docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md",
+        "pulse_protocol_boundary_doc": "docs/architecture/x0tta6bl4_PULSE_PROTOCOL.md",
         "seed_replay_verifier": "scripts/ops/verify_ghost_pulse_rng_replay.py",
         "artifact_chain_verifier": "scripts/ops/verify_ghost_pulse_artifact_chain.py",
     }
@@ -738,7 +738,7 @@ def check_post_action_dataplane_gate_contract(root: Path) -> list[CheckResult]:
     )
 
     required = {
-        "post_action_probe_env": "X0TTA6BL4_MESH_ACTION_ENFORCER_POST_ACTION_PROBE" in action_enforcer,
+        "post_action_probe_env": "x0tta6bl4_MESH_ACTION_ENFORCER_POST_ACTION_PROBE" in action_enforcer,
         "post_action_summary": "def _post_action_dataplane_revalidation_summary" in action_enforcer,
         "restored_dataplane_gate": "restored_dataplane_claim_allowed" in action_enforcer,
         "post_action_claim_gate": '"claim_gate"' in action_enforcer,
@@ -767,7 +767,7 @@ def check_post_action_dataplane_gate_contract(root: Path) -> list[CheckResult]:
             and '"post_action_dataplane_claim_gate_not_allowed"' in service_trace
         ),
         "recovery_executor_post_action_gate": (
-            "X0TTA6BL4_RECOVERY_POST_ACTION_PROBE" in recovery_executor
+            "x0tta6bl4_RECOVERY_POST_ACTION_PROBE" in recovery_executor
             and "_DATAPLANE_REVALIDATED_ACTION_TYPES" in recovery_executor
             and "def _post_action_dataplane_claim_gate" in recovery_executor
             and "def _post_action_dataplane_revalidation_summary"
@@ -1301,7 +1301,7 @@ def check_spire_local_socket_boundary_contract(root: Path) -> list[CheckResult]:
     paths = {
         "start": "scripts/spire/start-spire.sh",
         "setup": "scripts/spire/SPIRE_SETUP.md",
-        "compose": "docker-compose.spire.yml",
+        "compose": "docker/archive/docker-compose.spire.yml",
         "integration": "src/security/spire_integration.py",
         "production": "src/security/spiffe/production_integration.py",
     }
@@ -1330,7 +1330,7 @@ def check_spire_local_socket_boundary_contract(root: Path) -> list[CheckResult]:
     required = {
         "start_script_private_socket_dir": (
             "SPIRE_AGENT_SOCKET_DIR=" in contents["start"]
-            and "X0TTA6BL4_SPIRE_AGENT_SOCKET_DIR" in contents["start"]
+            and "x0tta6bl4_SPIRE_AGENT_SOCKET_DIR" in contents["start"]
             and 'install -d -m 700 "$SPIRE_AGENT_SOCKET_DIR"'
             in contents["start"]
         ),
@@ -1380,7 +1380,7 @@ def check_spire_local_socket_boundary_contract(root: Path) -> list[CheckResult]:
                 "directory, compose propagates SPIFFE_ENDPOINT_SOCKET, and docs "
                 "avoid world-writable socket setup"
             ),
-            "scripts/spire; docker-compose.spire.yml; src/security/spire_integration.py",
+            "scripts/spire; docker/archive/docker-compose.spire.yml; src/security/spire_integration.py",
         )
     ]
 
@@ -1477,7 +1477,7 @@ def check_runtime_reality_boundary_contract(root: Path) -> list[CheckResult]:
     for name in ("spiffe_workload", "libx0t_spiffe_workload"):
         text = contents[name]
         spiffe_required[f"{name}_explicit_mock_env"] = (
-            "X0TTA6BL4_FORCE_MOCK_SPIFFE" in text
+            "x0tta6bl4_FORCE_MOCK_SPIFFE" in text
             and "_force_mock_spiffe" in text
         )
         spiffe_required[f"{name}_production_rejects_mock"] = (
@@ -2623,31 +2623,31 @@ def check_metrics_api_claim_boundary_contract(root: Path) -> list[CheckResult]:
         "core_metrics_endpoint_uses_headers": (
             "headers=_metrics_api_claim_boundary_headers()" in core_app
         ),
-        "core_metrics_schema_header": "X-X0TTA6BL4-Claim-Gate-Schema" in core_app,
+        "core_metrics_schema_header": "X-x0tta6bl4-Claim-Gate-Schema" in core_app,
         "core_metrics_local_observation_true": (
-            '"X-X0TTA6BL4-Local-Metrics-Observation-Claim-Allowed": "true"'
+            '"X-x0tta6bl4-Local-Metrics-Observation-Claim-Allowed": "true"'
             in core_app
         ),
         "core_metrics_production_false": (
-            '"X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false"' in core_app
+            '"X-x0tta6bl4-Production-Readiness-Claim-Allowed": "false"' in core_app
         ),
         "core_metrics_slo_false": (
-            '"X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false"' in core_app
+            '"X-x0tta6bl4-Production-SLO-Claim-Allowed": "false"' in core_app
         ),
         "core_metrics_dataplane_false": (
-            '"X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false"' in core_app
+            '"X-x0tta6bl4-Dataplane-Delivery-Claim-Allowed": "false"' in core_app
         ),
         "core_metrics_traffic_false": (
-            '"X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false"' in core_app
+            '"X-x0tta6bl4-Traffic-Delivery-Claim-Allowed": "false"' in core_app
         ),
         "core_metrics_customer_traffic_false": (
-            '"X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false"' in core_app
+            '"X-x0tta6bl4-Customer-Traffic-Claim-Allowed": "false"' in core_app
         ),
         "core_metrics_dpi_false": (
-            '"X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false"' in core_app
+            '"X-x0tta6bl4-External-DPI-Bypass-Claim-Allowed": "false"' in core_app
         ),
         "core_metrics_settlement_false": (
-            '"X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false"' in core_app
+            '"X-x0tta6bl4-Settlement-Finality-Claim-Allowed": "false"' in core_app
         ),
         "legacy_metrics_header_helper": (
             "def _metrics_api_claim_boundary_headers" in legacy_app
@@ -2655,33 +2655,33 @@ def check_metrics_api_claim_boundary_contract(root: Path) -> list[CheckResult]:
         "legacy_metrics_endpoint_uses_headers": (
             "headers=_metrics_api_claim_boundary_headers()" in legacy_app
         ),
-        "legacy_metrics_schema_header": "X-X0TTA6BL4-Claim-Gate-Schema" in legacy_app,
+        "legacy_metrics_schema_header": "X-x0tta6bl4-Claim-Gate-Schema" in legacy_app,
         "legacy_metrics_local_observation_true": (
-            '"X-X0TTA6BL4-Local-Metrics-Observation-Claim-Allowed": "true"'
+            '"X-x0tta6bl4-Local-Metrics-Observation-Claim-Allowed": "true"'
             in legacy_app
         ),
         "legacy_metrics_production_false": (
-            '"X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Production-Readiness-Claim-Allowed": "false"'
             in legacy_app
         ),
         "legacy_metrics_slo_false": (
-            '"X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false"' in legacy_app
+            '"X-x0tta6bl4-Production-SLO-Claim-Allowed": "false"' in legacy_app
         ),
         "legacy_metrics_dataplane_false": (
-            '"X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false"' in legacy_app
+            '"X-x0tta6bl4-Dataplane-Delivery-Claim-Allowed": "false"' in legacy_app
         ),
         "legacy_metrics_traffic_false": (
-            '"X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false"' in legacy_app
+            '"X-x0tta6bl4-Traffic-Delivery-Claim-Allowed": "false"' in legacy_app
         ),
         "legacy_metrics_customer_traffic_false": (
-            '"X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false"' in legacy_app
+            '"X-x0tta6bl4-Customer-Traffic-Claim-Allowed": "false"' in legacy_app
         ),
         "legacy_metrics_dpi_false": (
-            '"X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-External-DPI-Bypass-Claim-Allowed": "false"'
             in legacy_app
         ),
         "legacy_metrics_settlement_false": (
-            '"X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Settlement-Finality-Claim-Allowed": "false"'
             in legacy_app
         ),
     }
@@ -3157,59 +3157,59 @@ def check_maas_mesh_read_list_claim_boundary_contract(
             in mesh_endpoint
         ),
         "local_audit_true": (
-            '"X-X0TTA6BL4-Local-Audit-Log-Observation-Claim-Allowed": "true"'
+            '"X-x0tta6bl4-Local-Audit-Log-Observation-Claim-Allowed": "true"'
             in mesh_endpoint
         ),
         "local_mapek_true": (
-            '"X-X0TTA6BL4-Local-MAPE-K-Event-Observation-Claim-Allowed": "true"'
+            '"X-x0tta6bl4-Local-MAPE-K-Event-Observation-Claim-Allowed": "true"'
             in mesh_endpoint
         ),
         "autonomous_remediation_false": (
-            '"X-X0TTA6BL4-Autonomous-Remediation-Completion-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Autonomous-Remediation-Completion-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
         "external_infra_false": (
-            '"X-X0TTA6BL4-External-Infrastructure-Convergence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-External-Infrastructure-Convergence-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
         "restored_dataplane_false": (
-            '"X-X0TTA6BL4-Restored-Dataplane-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Restored-Dataplane-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
         "node_reachability_false": (
-            '"X-X0TTA6BL4-Node-Reachability-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Node-Reachability-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
         "routing_false": (
-            '"X-X0TTA6BL4-Routing-Convergence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Routing-Convergence-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
         "dataplane_false": (
-            '"X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Dataplane-Delivery-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
         "traffic_false": (
-            '"X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Traffic-Delivery-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
         "customer_traffic_false": (
-            '"X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Customer-Traffic-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
         "dpi_false": (
-            '"X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-External-DPI-Bypass-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
         "settlement_false": (
-            '"X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Settlement-Finality-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
         "slo_false": (
-            '"X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Production-SLO-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
         "production_false": (
-            '"X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Production-Readiness-Claim-Allowed": "false"'
             in mesh_endpoint
         ),
     }
@@ -3283,71 +3283,71 @@ def check_maas_compat_read_list_claim_boundary_contract(
             in maas_compat
         ),
         "local_audit_true": (
-            '"X-X0TTA6BL4-Local-Audit-Log-Observation-Claim-Allowed"'
+            '"X-x0tta6bl4-Local-Audit-Log-Observation-Claim-Allowed"'
             in maas_compat
         ),
         "local_mapek_true": (
-            '"X-X0TTA6BL4-Local-MAPE-K-Event-Observation-Claim-Allowed"'
+            '"X-x0tta6bl4-Local-MAPE-K-Event-Observation-Claim-Allowed"'
             in maas_compat
         ),
         "autonomous_remediation_false": (
-            '"X-X0TTA6BL4-Autonomous-Remediation-Completion-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Autonomous-Remediation-Completion-Claim-Allowed": "false"'
             in maas_compat
         ),
         "durable_audit_false": (
-            '"X-X0TTA6BL4-Durable-Audit-Persistence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Durable-Audit-Persistence-Claim-Allowed": "false"'
             in maas_compat
         ),
         "durable_event_false": (
-            '"X-X0TTA6BL4-Durable-Event-Persistence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Durable-Event-Persistence-Claim-Allowed": "false"'
             in maas_compat
         ),
         "historical_coverage_false": (
-            '"X-X0TTA6BL4-Complete-Historical-Coverage-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Complete-Historical-Coverage-Claim-Allowed": "false"'
             in maas_compat
         ),
         "external_infra_false": (
-            '"X-X0TTA6BL4-External-Infrastructure-Convergence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-External-Infrastructure-Convergence-Claim-Allowed": "false"'
             in maas_compat
         ),
         "restored_dataplane_false": (
-            '"X-X0TTA6BL4-Restored-Dataplane-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Restored-Dataplane-Claim-Allowed": "false"'
             in maas_compat
         ),
         "node_reachability_false": (
-            '"X-X0TTA6BL4-Node-Reachability-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Node-Reachability-Claim-Allowed": "false"'
             in maas_compat
         ),
         "routing_false": (
-            '"X-X0TTA6BL4-Routing-Convergence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Routing-Convergence-Claim-Allowed": "false"'
             in maas_compat
         ),
         "dataplane_false": (
-            '"X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Dataplane-Delivery-Claim-Allowed": "false"'
             in maas_compat
         ),
         "traffic_false": (
-            '"X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Traffic-Delivery-Claim-Allowed": "false"'
             in maas_compat
         ),
         "customer_traffic_false": (
-            '"X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Customer-Traffic-Claim-Allowed": "false"'
             in maas_compat
         ),
         "dpi_false": (
-            '"X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-External-DPI-Bypass-Claim-Allowed": "false"'
             in maas_compat
         ),
         "settlement_false": (
-            '"X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Settlement-Finality-Claim-Allowed": "false"'
             in maas_compat
         ),
         "slo_false": (
-            '"X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Production-SLO-Claim-Allowed": "false"'
             in maas_compat
         ),
         "production_false": (
-            '"X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Production-Readiness-Claim-Allowed": "false"'
             in maas_compat
         ),
     }
@@ -3444,63 +3444,63 @@ def check_maas_compat_lifecycle_read_claim_boundary_contract(
             '"cross_plane_claim_gate_present"' in maas_compat
         ),
         "local_lifecycle_header": (
-            '"X-X0TTA6BL4-Local-Lifecycle-State-Observation-Claim-Allowed"'
+            '"X-x0tta6bl4-Local-Lifecycle-State-Observation-Claim-Allowed"'
             in maas_compat
         ),
         "autonomous_remediation_false": (
-            '"X-X0TTA6BL4-Autonomous-Remediation-Completion-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Autonomous-Remediation-Completion-Claim-Allowed": "false"'
             in maas_compat
         ),
         "durable_lifecycle_false": (
-            '"X-X0TTA6BL4-Durable-Lifecycle-Persistence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Durable-Lifecycle-Persistence-Claim-Allowed": "false"'
             in maas_compat
         ),
         "external_infra_false": (
-            '"X-X0TTA6BL4-External-Infrastructure-Convergence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-External-Infrastructure-Convergence-Claim-Allowed": "false"'
             in maas_compat
         ),
         "fresh_dataplane_false": (
-            '"X-X0TTA6BL4-Fresh-Dataplane-Health-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Fresh-Dataplane-Health-Claim-Allowed": "false"'
             in maas_compat
         ),
         "restored_dataplane_false": (
-            '"X-X0TTA6BL4-Restored-Dataplane-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Restored-Dataplane-Claim-Allowed": "false"'
             in maas_compat
         ),
         "node_reachability_false": (
-            '"X-X0TTA6BL4-Node-Reachability-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Node-Reachability-Claim-Allowed": "false"'
             in maas_compat
         ),
         "routing_false": (
-            '"X-X0TTA6BL4-Routing-Convergence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Routing-Convergence-Claim-Allowed": "false"'
             in maas_compat
         ),
         "dataplane_false": (
-            '"X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Dataplane-Delivery-Claim-Allowed": "false"'
             in maas_compat
         ),
         "traffic_false": (
-            '"X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Traffic-Delivery-Claim-Allowed": "false"'
             in maas_compat
         ),
         "customer_traffic_false": (
-            '"X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Customer-Traffic-Claim-Allowed": "false"'
             in maas_compat
         ),
         "dpi_false": (
-            '"X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-External-DPI-Bypass-Claim-Allowed": "false"'
             in maas_compat
         ),
         "settlement_false": (
-            '"X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Settlement-Finality-Claim-Allowed": "false"'
             in maas_compat
         ),
         "slo_false": (
-            '"X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Production-SLO-Claim-Allowed": "false"'
             in maas_compat
         ),
         "production_false": (
-            '"X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Production-Readiness-Claim-Allowed": "false"'
             in maas_compat
         ),
     }
@@ -3623,79 +3623,79 @@ def check_maas_compat_lifecycle_control_claim_gate_contract(
             '"cross_plane_claim_gate_present"' in maas_compat
         ),
         "local_registry_header": (
-            '"X-X0TTA6BL4-Local-Registry-Mutation-Claim-Allowed"'
+            '"X-x0tta6bl4-Local-Registry-Mutation-Claim-Allowed"'
             in maas_compat
         ),
         "delegated_lifecycle_header": (
-            '"X-X0TTA6BL4-Delegated-Modular-Lifecycle-Claim-Allowed"'
+            '"X-x0tta6bl4-Delegated-Modular-Lifecycle-Claim-Allowed"'
             in maas_compat
         ),
         "local_audit_append_header": (
-            '"X-X0TTA6BL4-Local-Audit-Log-Append-Claim-Allowed"'
+            '"X-x0tta6bl4-Local-Audit-Log-Append-Claim-Allowed"'
             in maas_compat
         ),
         "local_mapek_append_header": (
-            '"X-X0TTA6BL4-Local-MAPE-K-Event-Append-Claim-Allowed"'
+            '"X-x0tta6bl4-Local-MAPE-K-Event-Append-Claim-Allowed"'
             in maas_compat
         ),
         "autonomous_remediation_false": (
-            '"X-X0TTA6BL4-Autonomous-Remediation-Completion-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Autonomous-Remediation-Completion-Claim-Allowed": "false"'
             in maas_compat
         ),
         "durable_lifecycle_false": (
-            '"X-X0TTA6BL4-Durable-Lifecycle-Persistence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Durable-Lifecycle-Persistence-Claim-Allowed": "false"'
             in maas_compat
         ),
         "external_infra_false": (
-            '"X-X0TTA6BL4-External-Infrastructure-Convergence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-External-Infrastructure-Convergence-Claim-Allowed": "false"'
             in maas_compat
         ),
         "external_deploy_false": (
-            '"X-X0TTA6BL4-External-Node-Deployment-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-External-Node-Deployment-Claim-Allowed": "false"'
             in maas_compat
         ),
         "external_shutdown_false": (
-            '"X-X0TTA6BL4-External-Node-Shutdown-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-External-Node-Shutdown-Claim-Allowed": "false"'
             in maas_compat
         ),
         "restored_dataplane_false": (
-            '"X-X0TTA6BL4-Restored-Dataplane-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Restored-Dataplane-Claim-Allowed": "false"'
             in maas_compat
         ),
         "node_reachability_false": (
-            '"X-X0TTA6BL4-Node-Reachability-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Node-Reachability-Claim-Allowed": "false"'
             in maas_compat
         ),
         "routing_false": (
-            '"X-X0TTA6BL4-Routing-Convergence-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Routing-Convergence-Claim-Allowed": "false"'
             in maas_compat
         ),
         "dataplane_false": (
-            '"X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Dataplane-Delivery-Claim-Allowed": "false"'
             in maas_compat
         ),
         "traffic_false": (
-            '"X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Traffic-Delivery-Claim-Allowed": "false"'
             in maas_compat
         ),
         "customer_traffic_false": (
-            '"X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Customer-Traffic-Claim-Allowed": "false"'
             in maas_compat
         ),
         "dpi_false": (
-            '"X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-External-DPI-Bypass-Claim-Allowed": "false"'
             in maas_compat
         ),
         "settlement_false": (
-            '"X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Settlement-Finality-Claim-Allowed": "false"'
             in maas_compat
         ),
         "slo_false": (
-            '"X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Production-SLO-Claim-Allowed": "false"'
             in maas_compat
         ),
         "production_false": (
-            '"X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false"'
+            '"X-x0tta6bl4-Production-Readiness-Claim-Allowed": "false"'
             in maas_compat
         ),
     }
@@ -8930,21 +8930,21 @@ def check_command_contracts(root: Path, runner: Runner) -> list[CheckResult]:
         "ADMIN_USER": "readiness-admin",
         "ADMIN_PASS": "readiness-placeholder-not-secret",
     }
-    app_config = runner(("docker", "compose", "-f", "docker-compose.app.yml", "config"), app_env, 60)
+    app_config = runner(("docker", "compose", "-f", "docker/archive/docker-compose.app.yml", "config"), app_env, 60)
     if app_config.returncode == 0:
-        checks.append(pass_check("compose_app_config", "docker compose app config renders with required env", "docker compose -f docker-compose.app.yml config"))
+        checks.append(pass_check("compose_app_config", "docker compose app config renders with required env", "docker compose -f docker/archive/docker-compose.app.yml config"))
     else:
-        checks.append(fail_check("compose_app_config", _format_command_failure(app_config), "docker compose -f docker-compose.app.yml config"))
+        checks.append(fail_check("compose_app_config", _format_command_failure(app_config), "docker compose -f docker/archive/docker-compose.app.yml config"))
 
     ghost_env = {
         "GHOST_VPN_AUTH_KEY": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
         "GRAFANA_PASSWORD": "readiness-placeholder-not-secret",
     }
-    ghost_config = runner(("docker", "compose", "-f", "docker-compose.ghost-vpn.yml", "config"), ghost_env, 60)
+    ghost_config = runner(("docker", "compose", "-f", "docker/archive/docker-compose.ghost-vpn.yml", "config"), ghost_env, 60)
     if ghost_config.returncode == 0:
-        checks.append(pass_check("compose_ghost_vpn_config", "docker compose Ghost VPN config renders with required env", "docker compose -f docker-compose.ghost-vpn.yml config"))
+        checks.append(pass_check("compose_ghost_vpn_config", "docker compose Ghost VPN config renders with required env", "docker compose -f docker/archive/docker-compose.ghost-vpn.yml config"))
     else:
-        checks.append(fail_check("compose_ghost_vpn_config", _format_command_failure(ghost_config), "docker compose -f docker-compose.ghost-vpn.yml config"))
+        checks.append(fail_check("compose_ghost_vpn_config", _format_command_failure(ghost_config), "docker compose -f docker/archive/docker-compose.ghost-vpn.yml config"))
 
     node_check = runner(("node", "--check", "x0tta6bl4-app/server.cjs"), None, 30)
     if node_check.returncode == 0:
