@@ -206,16 +206,16 @@ _METRICS_API_CLAIM_BOUNDARY = (
     "delivery, customer traffic, external DPI bypass, or settlement finality."
 )
 _METRICS_API_CLAIM_HEADERS = {
-    "X-X0TTA6BL4-Claim-Gate-Schema": "x0tta6bl4.metrics_api_claim_boundary_headers.v1",
-    "X-X0TTA6BL4-Claim-Boundary": _METRICS_API_CLAIM_BOUNDARY,
-    "X-X0TTA6BL4-Local-Metrics-Observation-Claim-Allowed": "true",
-    "X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false",
-    "X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false",
+    "X-x0tta6bl4-Claim-Gate-Schema": "x0tta6bl4.metrics_api_claim_boundary_headers.v1",
+    "X-x0tta6bl4-Claim-Boundary": _METRICS_API_CLAIM_BOUNDARY,
+    "X-x0tta6bl4-Local-Metrics-Observation-Claim-Allowed": "true",
+    "X-x0tta6bl4-Production-Readiness-Claim-Allowed": "false",
+    "X-x0tta6bl4-Production-SLO-Claim-Allowed": "false",
+    "X-x0tta6bl4-Dataplane-Delivery-Claim-Allowed": "false",
+    "X-x0tta6bl4-Traffic-Delivery-Claim-Allowed": "false",
+    "X-x0tta6bl4-Customer-Traffic-Claim-Allowed": "false",
+    "X-x0tta6bl4-External-DPI-Bypass-Claim-Allowed": "false",
+    "X-x0tta6bl4-Settlement-Finality-Claim-Allowed": "false",
 }
 
 

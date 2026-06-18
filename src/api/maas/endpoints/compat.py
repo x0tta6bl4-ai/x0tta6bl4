@@ -51,24 +51,26 @@ _COMPAT_AUDIT_READ_CLAIM_BOUNDARY = (
     "complete historical coverage, or dataplane enforcement."
 )
 _COMPAT_READ_LIST_CLAIM_HEADERS = {
-    "X-X0TTA6BL4-Claim-Gate-Schema": (
+    "X-x0tta6bl4-Claim-Gate-Schema": (
         "x0tta6bl4.maas_compat_read_list_claim_boundary_headers.v1"
     ),
-    "X-X0TTA6BL4-Autonomous-Remediation-Completion-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Durable-Audit-Persistence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Durable-Event-Persistence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Complete-Historical-Coverage-Claim-Allowed": "false",
-    "X-X0TTA6BL4-External-Infrastructure-Convergence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Restored-Dataplane-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Node-Reachability-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Routing-Convergence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false",
-    "X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false",
+    "X-x0tta6bl4-Local-Audit-Log-Observation-Claim-Allowed": "true",
+    "X-x0tta6bl4-Local-MAPE-K-Event-Observation-Claim-Allowed": "true",
+    "X-x0tta6bl4-Autonomous-Remediation-Completion-Claim-Allowed": "false",
+    "X-x0tta6bl4-Durable-Audit-Persistence-Claim-Allowed": "false",
+    "X-x0tta6bl4-Durable-Event-Persistence-Claim-Allowed": "false",
+    "X-x0tta6bl4-Complete-Historical-Coverage-Claim-Allowed": "false",
+    "X-x0tta6bl4-External-Infrastructure-Convergence-Claim-Allowed": "false",
+    "X-x0tta6bl4-Restored-Dataplane-Claim-Allowed": "false",
+    "X-x0tta6bl4-Node-Reachability-Claim-Allowed": "false",
+    "X-x0tta6bl4-Routing-Convergence-Claim-Allowed": "false",
+    "X-x0tta6bl4-Dataplane-Delivery-Claim-Allowed": "false",
+    "X-x0tta6bl4-Traffic-Delivery-Claim-Allowed": "false",
+    "X-x0tta6bl4-Customer-Traffic-Claim-Allowed": "false",
+    "X-x0tta6bl4-External-DPI-Bypass-Claim-Allowed": "false",
+    "X-x0tta6bl4-Settlement-Finality-Claim-Allowed": "false",
+    "X-x0tta6bl4-Production-SLO-Claim-Allowed": "false",
+    "X-x0tta6bl4-Production-Readiness-Claim-Allowed": "false",
 }
 _COMPAT_MAPEK_READ_SOURCE_AGENT = "maas-compat-mapek-read"
 _COMPAT_MAPEK_READ_LAYER = "api_compat_mapek_observed_state"
@@ -87,43 +89,48 @@ _COMPAT_LIFECYCLE_READ_CLAIM_BOUNDARY = (
     "node reachability, or durable lifecycle state."
 )
 _COMPAT_LIFECYCLE_READ_CLAIM_HEADERS = {
-    "X-X0TTA6BL4-Claim-Gate-Schema": (
+    "X-x0tta6bl4-Claim-Gate-Schema": (
         "x0tta6bl4.maas_compat_lifecycle_read_claim_boundary_headers.v1"
     ),
-    "X-X0TTA6BL4-Autonomous-Remediation-Completion-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Durable-Lifecycle-Persistence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-External-Infrastructure-Convergence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Fresh-Dataplane-Health-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Restored-Dataplane-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Node-Reachability-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Routing-Convergence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false",
-    "X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false",
+    "X-x0tta6bl4-Local-Lifecycle-State-Observation-Claim-Allowed": "true",
+    "X-x0tta6bl4-Autonomous-Remediation-Completion-Claim-Allowed": "false",
+    "X-x0tta6bl4-Durable-Lifecycle-Persistence-Claim-Allowed": "false",
+    "X-x0tta6bl4-External-Infrastructure-Convergence-Claim-Allowed": "false",
+    "X-x0tta6bl4-Fresh-Dataplane-Health-Claim-Allowed": "false",
+    "X-x0tta6bl4-Restored-Dataplane-Claim-Allowed": "false",
+    "X-x0tta6bl4-Node-Reachability-Claim-Allowed": "false",
+    "X-x0tta6bl4-Routing-Convergence-Claim-Allowed": "false",
+    "X-x0tta6bl4-Dataplane-Delivery-Claim-Allowed": "false",
+    "X-x0tta6bl4-Traffic-Delivery-Claim-Allowed": "false",
+    "X-x0tta6bl4-Customer-Traffic-Claim-Allowed": "false",
+    "X-x0tta6bl4-External-DPI-Bypass-Claim-Allowed": "false",
+    "X-x0tta6bl4-Settlement-Finality-Claim-Allowed": "false",
+    "X-x0tta6bl4-Production-SLO-Claim-Allowed": "false",
+    "X-x0tta6bl4-Production-Readiness-Claim-Allowed": "false",
 }
 _COMPAT_LIFECYCLE_CONTROL_CLAIM_HEADERS = {
-    "X-X0TTA6BL4-Claim-Gate-Schema": (
+    "X-x0tta6bl4-Claim-Gate-Schema": (
         "x0tta6bl4.maas_compat_lifecycle_control_claim_boundary_headers.v1"
     ),
-    "X-X0TTA6BL4-Autonomous-Remediation-Completion-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Durable-Lifecycle-Persistence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-External-Infrastructure-Convergence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-External-Node-Deployment-Claim-Allowed": "false",
-    "X-X0TTA6BL4-External-Node-Shutdown-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Restored-Dataplane-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Node-Reachability-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Routing-Convergence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false",
-    "X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false",
+    "X-x0tta6bl4-Local-Registry-Mutation-Claim-Allowed": "true",
+    "X-x0tta6bl4-Delegated-Modular-Lifecycle-Claim-Allowed": "true",
+    "X-x0tta6bl4-Local-Audit-Log-Append-Claim-Allowed": "true",
+    "X-x0tta6bl4-Local-MAPE-K-Event-Append-Claim-Allowed": "true",
+    "X-x0tta6bl4-Autonomous-Remediation-Completion-Claim-Allowed": "false",
+    "X-x0tta6bl4-Durable-Lifecycle-Persistence-Claim-Allowed": "false",
+    "X-x0tta6bl4-External-Infrastructure-Convergence-Claim-Allowed": "false",
+    "X-x0tta6bl4-External-Node-Deployment-Claim-Allowed": "false",
+    "X-x0tta6bl4-External-Node-Shutdown-Claim-Allowed": "false",
+    "X-x0tta6bl4-Restored-Dataplane-Claim-Allowed": "false",
+    "X-x0tta6bl4-Node-Reachability-Claim-Allowed": "false",
+    "X-x0tta6bl4-Routing-Convergence-Claim-Allowed": "false",
+    "X-x0tta6bl4-Dataplane-Delivery-Claim-Allowed": "false",
+    "X-x0tta6bl4-Traffic-Delivery-Claim-Allowed": "false",
+    "X-x0tta6bl4-Customer-Traffic-Claim-Allowed": "false",
+    "X-x0tta6bl4-External-DPI-Bypass-Claim-Allowed": "false",
+    "X-x0tta6bl4-Settlement-Finality-Claim-Allowed": "false",
+    "X-x0tta6bl4-Production-SLO-Claim-Allowed": "false",
+    "X-x0tta6bl4-Production-Readiness-Claim-Allowed": "false",
 }
 _COMPAT_SCALE_SOURCE_AGENT = "maas-compat-scale"
 _COMPAT_SCALE_LAYER = "api_compat_lifecycle_control_action"

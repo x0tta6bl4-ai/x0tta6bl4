@@ -97,24 +97,24 @@ _MESH_READ_LIST_CLAIM_BOUNDARY = (
     "finality, production SLOs, or production readiness."
 )
 _MESH_READ_LIST_CLAIM_HEADERS = {
-    "X-X0TTA6BL4-Claim-Gate-Schema": (
+    "X-x0tta6bl4-Claim-Gate-Schema": (
         "x0tta6bl4.maas_mesh_read_list_claim_boundary_headers.v1"
     ),
-    "X-X0TTA6BL4-Claim-Boundary": _MESH_READ_LIST_CLAIM_BOUNDARY,
-    "X-X0TTA6BL4-Local-Audit-Log-Observation-Claim-Allowed": "true",
-    "X-X0TTA6BL4-Local-MAPE-K-Event-Observation-Claim-Allowed": "true",
-    "X-X0TTA6BL4-Autonomous-Remediation-Completion-Claim-Allowed": "false",
-    "X-X0TTA6BL4-External-Infrastructure-Convergence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Restored-Dataplane-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Node-Reachability-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Routing-Convergence-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Traffic-Delivery-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Customer-Traffic-Claim-Allowed": "false",
-    "X-X0TTA6BL4-External-DPI-Bypass-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Settlement-Finality-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Production-SLO-Claim-Allowed": "false",
-    "X-X0TTA6BL4-Production-Readiness-Claim-Allowed": "false",
+    "X-x0tta6bl4-Claim-Boundary": _MESH_READ_LIST_CLAIM_BOUNDARY,
+    "X-x0tta6bl4-Local-Audit-Log-Observation-Claim-Allowed": "true",
+    "X-x0tta6bl4-Local-MAPE-K-Event-Observation-Claim-Allowed": "true",
+    "X-x0tta6bl4-Autonomous-Remediation-Completion-Claim-Allowed": "false",
+    "X-x0tta6bl4-External-Infrastructure-Convergence-Claim-Allowed": "false",
+    "X-x0tta6bl4-Restored-Dataplane-Claim-Allowed": "false",
+    "X-x0tta6bl4-Node-Reachability-Claim-Allowed": "false",
+    "X-x0tta6bl4-Routing-Convergence-Claim-Allowed": "false",
+    "X-x0tta6bl4-Dataplane-Delivery-Claim-Allowed": "false",
+    "X-x0tta6bl4-Traffic-Delivery-Claim-Allowed": "false",
+    "X-x0tta6bl4-Customer-Traffic-Claim-Allowed": "false",
+    "X-x0tta6bl4-External-DPI-Bypass-Claim-Allowed": "false",
+    "X-x0tta6bl4-Settlement-Finality-Claim-Allowed": "false",
+    "X-x0tta6bl4-Production-SLO-Claim-Allowed": "false",
+    "X-x0tta6bl4-Production-Readiness-Claim-Allowed": "false",
 }
 _MESH_METRICS_CROSS_PLANE_CLAIMS = (
     "production_readiness",
