@@ -4,6 +4,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -329,6 +330,46 @@ func (c *Client) SendHeartbeatWithJWTSVID(hb HeartbeatRequest, jwtSVID string) e
 		return fmt.Errorf("heartbeat failed (HTTP %d)", resp.StatusCode)
 	}
 
+	return nil
+}
+
+// SendHealingAlert posts a self-healing event to the control plane.
+func (c *Client) SendHealingAlert(ctx context.Context, nodeID, diagnosis, action string) error {
+	if c.meshID == "" {
+		return fmt.Errorf("healing alert requires registered mesh")
+	}
+	if nodeID == "" {
+		return fmt.Errorf("healing alert requires node_id")
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"node_id":   nodeID,
+		"diagnosis": diagnosis,
+		"action":    action,
+	})
+
+	url := fmt.Sprintf(
+		"%s/api/v1/maas/%s/nodes/%s/healing-alert",
+		c.baseURL,
+		url.PathEscape(c.meshID),
+		url.PathEscape(nodeID),
+	)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create healing alert request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("send healing alert: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("healing alert failed (HTTP %d)", resp.StatusCode)
+	}
 	return nil
 }
 

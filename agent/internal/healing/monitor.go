@@ -152,6 +152,12 @@ func (m *Monitor) loop() {
 	}
 }
 
+// Cycle runs one full MAPE-K cycle (Monitor → Analyze → Plan → Execute → Knowledge).
+// Exported for integration testing and manual triggers.
+func (m *Monitor) Cycle() {
+	m.cycle()
+}
+
 func (m *Monitor) cycle() {
 	// M — Monitor
 	obs := m.monitor()

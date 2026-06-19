@@ -153,9 +153,6 @@ func newAgent(cfg *config.Config, cfgPath string) (*agent, error) {
 	// Telemetry
 	telem := telemetry.NewReporter(node)
 
-	// Healing monitor
-	healer := healing.NewMonitor(node, nil) // no executor yet
-
 	// API client
 	var apiClient *api.Client
 	if cfg.JoinToken != "" {
@@ -168,6 +165,29 @@ func newAgent(cfg *config.Config, cfgPath string) (*agent, error) {
 			slog.Info("loaded persisted credentials", "mesh_id", cfg.MeshID, "expires_at", cfg.RuntimeCredentialExpiresAt)
 		}
 	}
+
+	// Healing monitor with executor
+	var alerter healing.ControlPlaneAlerter
+	if apiClient != nil {
+		alerter = apiClient
+	}
+	healer := healing.NewMonitor(node, healing.NewMeshHealingExecutor(
+		cfg.NodeID,
+		node,       // PeerRemover
+		node,       // DiscoveryRestarter
+		alerter,    // ControlPlaneAlerter (nil if no API client)
+		func() []healing.PeerEntry {
+			peers := node.GetPeers()
+			entries := make([]healing.PeerEntry, len(peers))
+			for i, p := range peers {
+				entries[i] = healing.PeerEntry{
+					NodeID:  p.NodeID,
+					Healthy: p.Healthy,
+				}
+			}
+			return entries
+		},
+	))
 
 	return &agent{
 		cfg:       cfg,
