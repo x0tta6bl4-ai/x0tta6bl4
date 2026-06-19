@@ -44,6 +44,8 @@ type Config struct {
 	// Security
 	PQCEnabled                                           bool   `yaml:"pqc_enabled"`                                                // default true
 	Obfuscation                                          string `yaml:"obfuscation"`                                                // none|xor|aes
+	TrustDomain                                          string `yaml:"trust_domain"`                                               // SPIFFE trust domain (default "x0tta6bl4.mesh")
+	JWKSURL                                              string `yaml:"jwks_url"`                                                   // JWKS endpoint for JWT-SVID validation
 	RuntimeIdentityBindingType                           string `yaml:"runtime_identity_binding_type"`                              // optional local_spiffe_hint|spiffe_svid_digest|verified_jwt_svid|measured_attestation
 	RuntimeIdentitySpiffeID                              string `yaml:"runtime_identity_spiffe_id"`                                 // optional SPIFFE ID hint for bound rotation
 	RuntimeIdentityAttestationDigest                     string `yaml:"runtime_identity_attestation_digest"`                        // optional SVID/attestation digest
@@ -85,6 +87,7 @@ func DefaultConfig() *Config {
 		MulticastPort:                  7777,
 		PQCEnabled:                     true,
 		Obfuscation:                    "none",
+		TrustDomain:                    "x0tta6bl4.mesh",
 		RuntimeIdentityJWTSVIDSource:   "auto",
 		RuntimeIdentityJWTSVIDAudience: "x0tta6bl4-maas",
 		RuntimeIdentityMeasuredAttestationProvider:           "sgx",
@@ -141,6 +144,12 @@ func (c *Config) ApplyEnvOverrides() {
 	}
 	if v := os.Getenv("X0T_PQC_ENABLED"); strings.ToLower(v) == "false" {
 		c.PQCEnabled = false
+	}
+	if v := os.Getenv("X0T_TRUST_DOMAIN"); v != "" {
+		c.TrustDomain = v
+	}
+	if v := os.Getenv("X0T_JWKS_URL"); v != "" {
+		c.JWKSURL = v
 	}
 	if v := os.Getenv("X0T_RUNTIME_IDENTITY_BINDING_TYPE"); v != "" {
 		c.RuntimeIdentityBindingType = v

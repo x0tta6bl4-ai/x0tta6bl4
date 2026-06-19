@@ -721,11 +721,3 @@ func (c *Client) GetMeshID() string {
 func (c *Client) IsRegistered() bool {
 	return c.apiKey != "" && c.meshID != ""
 }
-
-func fetchJWTSVIDFromFile(path string) string {
-    return ""
-}
-
-func fetchJWTSVIDFromWorkloadAPI(audience string) string {
-    return ""
-}
