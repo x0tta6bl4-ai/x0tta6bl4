@@ -125,6 +125,7 @@ type agent struct {
 	cfgPath   string
 	node      *mesh.Node
 	disc      *discovery.Discovery
+	mdns      *discovery.MdnsDiscovery
 	pqcMgr    *pqc.TunnelManager
 	healer    *healing.Monitor
 	apiClient *api.Client
@@ -143,6 +144,25 @@ func newAgent(cfg *config.Config, cfgPath string) (*agent, error) {
 
 	// Mesh node
 	node := mesh.NewNode(cfg.NodeID, cfg.ListenPort, disc)
+
+	// mDNS discovery (automatic peer discovery via DNS-SD)
+	mdnsDisc := discovery.NewMdnsDiscovery(discovery.MdnsConfig{
+		NodeID:     cfg.NodeID,
+		Port:       cfg.ListenPort,
+		Version:    "3.4.0",
+		PQCEnabled: cfg.PQCEnabled,
+		Services:   []string{"mesh", "pqc"},
+	})
+	// Wire mDNS callbacks to automatically add peers
+	mdnsDisc.OnPeerDiscovered = func(p discovery.MdnsPeerInfo) {
+		slog.Info("mDNS peer discovered, adding to mesh",
+			"node_id", p.NodeID, "addr", p.Addr, "port", p.Port)
+		node.InjectPeer(p.NodeID, p.Addr.String(), p.Port)
+	}
+	mdnsDisc.OnPeerLost = func(p discovery.MdnsPeerInfo) {
+		slog.Info("mDNS peer lost, removing from mesh", "node_id", p.NodeID)
+		node.RemovePeer(p.NodeID)
+	}
 
 	// PQC tunnel manager
 	pqcMgr, err := pqc.NewTunnelManager(cfg.NodeID)
@@ -194,6 +214,7 @@ func newAgent(cfg *config.Config, cfgPath string) (*agent, error) {
 		cfgPath:   cfgPath,
 		node:      node,
 		disc:      disc,
+		mdns:      mdnsDisc,
 		pqcMgr:    pqcMgr,
 		healer:    healer,
 		apiClient: apiClient,
@@ -202,9 +223,14 @@ func newAgent(cfg *config.Config, cfgPath string) (*agent, error) {
 }
 
 func (a *agent) start() error {
-	// Start mesh node (includes discovery)
+	// Start mesh node (includes UDP discovery)
 	if err := a.node.Start(); err != nil {
 		return fmt.Errorf("mesh node start: %w", err)
+	}
+
+	// Start mDNS discovery (automatic peer discovery via DNS-SD)
+	if err := a.mdns.Start(); err != nil {
+		slog.Warn("mDNS discovery failed to start, using UDP only", "error", err)
 	}
 
 	// Start self-healing
@@ -219,12 +245,14 @@ func (a *agent) start() error {
 		"node_id", a.cfg.NodeID,
 		"port", a.cfg.ListenPort,
 		"pqc", a.cfg.PQCEnabled,
+		"mdns", true,
 	)
 	return nil
 }
 
 func (a *agent) stop() {
 	a.healer.Stop()
+	a.mdns.Stop()
 	a.node.Stop()
 }
 
