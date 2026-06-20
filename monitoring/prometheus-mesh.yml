@@ -1,0 +1,52 @@
+# Prometheus configuration for 3-node mesh monitoring
+# Targets: NL (master), RU (entry), US (exit)
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Ghost VPN metrics (Prometheus endpoint on each node)
+  - job_name: 'ghost-vpn'
+    static_configs:
+      - targets: ['89.125.1.107:9091']  # NL (Master)
+        labels:
+          node: 'ghost-nl-01'
+          role: 'master'
+      - targets: ['TBD_RU_IP:9091']      # RU (Entry) - update after provisioning
+        labels:
+          node: 'ghost-ru-01'
+          role: 'entry'
+      - targets: ['TBD_US_IP:9091']      # US (Exit) - update after provisioning
+        labels:
+          node: 'ghost-us-01'
+          role: 'exit'
+
+  # Go agent metrics (metrics endpoint on each node)
+  - job_name: 'mesh-agent'
+    static_configs:
+      - targets: ['89.125.1.107:8080']   # NL
+        labels:
+          node: 'ghost-nl-01'
+          role: 'master'
+      - targets: ['TBD_RU_IP:8080']      # RU
+        labels:
+          node: 'ghost-ru-01'
+          role: 'entry'
+      - targets: ['TBD_US_IP:8080']      # US
+        labels:
+          node: 'ghost-us-01'
+          role: 'exit'
+
+  # Node exporter (system metrics)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['89.125.1.107:9100']
+        labels:
+          node: 'ghost-nl-01'
+      - targets: ['TBD_RU_IP:9100']
+        labels:
+          node: 'ghost-ru-01'
+      - targets: ['TBD_US_IP:9100']
+        labels:
+          node: 'ghost-us-01'

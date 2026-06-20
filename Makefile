@@ -705,3 +705,49 @@ cleanup-rc-check:
 	@echo "3) docs/runbooks/MAAS_PLATFORM_CLEANUP_RUNBOOK.md"
 	@make up
 	@make cleanup-gate
+
+# ============================================
+# Multi-Node Mesh Deployment Targets
+# ============================================
+
+mesh-build:
+	@echo "🔨 Building Go agent..."
+	cd agent && go build -o ../x0t-agent .
+	@echo "✅ Agent binary built: x0t-agent"
+
+mesh-deploy-entry:
+	@echo "🇷🇺 Deploying entry node (RU)..."
+	ssh root@$(ENTRY_IP) "bash -s" < scripts/deploy_multi_node.sh entry $(MASTER_IP)
+	@echo "✅ Entry node deployed"
+
+mesh-deploy-exit:
+	@echo "🇺🇸 Deploying exit node (US/SG)..."
+	ssh root@$(EXIT_IP) "bash -s" < scripts/deploy_multi_node.sh exit $(MASTER_IP)
+	@echo "✅ Exit node deployed"
+
+mesh-health:
+	@echo "🏥 Checking mesh health..."
+	@echo "--- NL (Master) ---"
+	@ssh root@$(MASTER_IP) "systemctl is-active x0tta-ghost-vpn yggdrasil x0t-agent" 2>/dev/null || echo "unreachable"
+	@echo "--- RU (Entry) ---"
+	@ssh root@$(ENTRY_IP) "systemctl is-active x0tta-ghost-vpn yggdrasil x0t-agent" 2>/dev/null || echo "unreachable"
+	@echo "--- US (Exit) ---"
+	@ssh root@$(EXIT_IP) "systemctl is-active x0tta-ghost-vpn yggdrasil x0t-agent" 2>/dev/null || echo "unreachable"
+
+mesh-ygg-status:
+	@echo "🔗 Yggdrasil mesh status..."
+	@ssh root@$(MASTER_IP) "yggdrasilctl getSelf 2>/dev/null | grep -E 'IPv6|Peers'"
+	@ssh root@$(ENTRY_IP) "yggdrasilctl getSelf 2>/dev/null | grep -E 'IPv6|Peers'" 2>/dev/null
+	@ssh root@$(EXIT_IP) "yggdrasilctl getSelf 2>/dev/null | grep -E 'IPv6|Peers'" 2>/dev/null
+
+mesh-vpn-test:
+	@echo "🔒 VPN connectivity test..."
+	@echo "Testing from RU → NL..."
+	@ssh root@$(ENTRY_IP) "curl -s http://$(MASTER_IP):8080/health" 2>/dev/null || echo "UNREACHABLE"
+	@echo "Testing from US → NL..."
+	@ssh root@$(EXIT_IP) "curl -s http://$(MASTER_IP):8080/health" 2>/dev/null || echo "UNREACHABLE"
+
+# Default values for mesh targets
+MASTER_IP ?= 89.125.1.107
+ENTRY_IP ?= TBD
+EXIT_IP ?= TBD
