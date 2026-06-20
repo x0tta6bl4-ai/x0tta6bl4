@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -94,14 +93,12 @@ func (d *MdnsDiscovery) Start() error {
 		"services=" + strings.Join(d.cfg.Services, ","),
 	}
 
-	hostname, _ := os.Hostname()
-	if hostname == "" {
-		hostname = d.cfg.NodeID
-	}
+	// Use nodeID as instance name to avoid self-discovery
+	instanceName := d.cfg.NodeID
 
 	var err error
 	d.server, err = zeroconf.Register(
-		hostname,
+		instanceName,
 		MdnsServiceType,
 		d.cfg.Domain,
 		d.cfg.Port,
@@ -115,7 +112,7 @@ func (d *MdnsDiscovery) Start() error {
 		return fmt.Errorf("mDNS register: %w", err)
 	}
 
-	d.logger.Info("mDNS service registered", "instance", hostname, "port", d.cfg.Port)
+	d.logger.Info("mDNS service registered", "instance", instanceName, "port", d.cfg.Port)
 
 	d.browseCtx, d.browseCancel = context.WithCancel(context.Background())
 	go d.browseLoop()

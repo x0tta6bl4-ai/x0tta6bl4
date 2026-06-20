@@ -12,8 +12,12 @@ require (
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
+	github.com/cilium/ebpf v0.21.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.2 // indirect
+	github.com/grandcat/zeroconf v1.0.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/miekg/dns v1.1.27 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
