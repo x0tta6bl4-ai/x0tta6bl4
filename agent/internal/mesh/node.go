@@ -431,26 +431,103 @@ func (n *Node) healthCheckLoop() {
 	}
 }
 
+// Health thresholds for peer lifecycle management.
+const (
+	peerWarnAfter     = 30 * time.Second  // mark as unhealthy
+	peerRemoveAfter   = 120 * time.Second // remove from peer table
+	peerCleanupEvery  = 15 * time.Second  // cleanup interval
+)
+
 func (n *Node) checkPeerHealth() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
 	now := time.Now()
 	degraded := false
-	for _, peer := range n.peers {
-		if now.Sub(peer.LastSeen) > 30*time.Second {
+	removed := make([]string, 0)
+
+	for peerID, peer := range n.peers {
+		age := now.Sub(peer.LastSeen)
+
+		switch {
+		case age > peerRemoveAfter:
+			// Peer inactive too long — remove
+			removed = append(removed, peerID)
+
+		case age > peerWarnAfter:
+			// Peer unhealthy but still tracked
 			peer.Healthy = false
 			degraded = true
-		} else {
+
+		default:
 			peer.Healthy = true
 		}
 	}
 
+	// Remove stale peers outside the map iteration
+	for _, peerID := range removed {
+		delete(n.peers, peerID)
+		n.resolver.RemovePeer(peerID)
+		if n.tunnelMgr != nil {
+			n.tunnelMgr.RemoveSession(peerID)
+		}
+		n.logger.Info("peer auto-removed (inactive)",
+			"node_id", peerID,
+			"inactive_for", peerRemoveAfter,
+		)
+	}
+
+	// Update node state
 	if degraded && n.State == StateActive {
 		n.State = StateDegraded
 	} else if !degraded && n.State == StateDegraded {
 		n.State = StateActive
 	}
+}
+
+// GetPeerHealthStats returns health statistics for all peers.
+func (n *Node) GetPeerHealthStats() map[string]PeerHealthStats {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	stats := make(map[string]PeerHealthStats, len(n.peers))
+	now := time.Now()
+	for id, p := range n.peers {
+		age := now.Sub(p.LastSeen)
+		var status string
+		switch {
+		case age > peerRemoveAfter:
+			status = "stale"
+		case age > peerWarnAfter:
+			status = "unhealthy"
+		default:
+			status = "healthy"
+		}
+
+		stats[id] = PeerHealthStats{
+			NodeID:     id,
+			Status:     status,
+			Healthy:    p.Healthy,
+			InactiveMs: age.Milliseconds(),
+			BytesSent:  p.BytesSent,
+			BytesRecv:  p.BytesRecv,
+			LastSeen:   p.LastSeen,
+			PQCSession: n.tunnelMgr != nil && n.tunnelMgr.HasSession(id),
+		}
+	}
+	return stats
+}
+
+// PeerHealthStats is the health status of a single peer.
+type PeerHealthStats struct {
+	NodeID     string    `json:"node_id"`
+	Status     string    `json:"status"`
+	Healthy    bool      `json:"healthy"`
+	InactiveMs int64     `json:"inactive_ms"`
+	BytesSent  int64     `json:"bytes_sent"`
+	BytesRecv  int64     `json:"bytes_recv"`
+	LastSeen   time.Time `json:"last_seen"`
+	PQCSession bool      `json:"pqc_session"`
 }
 
 func (n *Node) addPeerFromDiscovery(info discovery.PeerInfo) {
