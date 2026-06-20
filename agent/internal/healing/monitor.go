@@ -4,6 +4,8 @@
 package healing
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -78,6 +80,7 @@ type Monitor struct {
 
 	statsProvider  StatsProvider
 	executor       ActionExecutor
+	anomalyDetector *HybridAnomalyDetector
 
 	observations []Observation
 	events       []HealingEvent
@@ -94,14 +97,24 @@ type Monitor struct {
 // NewMonitor creates a new healing monitor.
 func NewMonitor(sp StatsProvider, exec ActionExecutor) *Monitor {
 	return &Monitor{
-		statsProvider: sp,
-		executor:      exec,
-		observations:  make([]Observation, 0, 100),
-		events:        make([]HealingEvent, 0, 50),
-		maxHistory:    100,
-		stopCh:        make(chan struct{}),
-		logger:        slog.Default().With("component", "healing"),
+		statsProvider:  sp,
+		executor:       exec,
+		anomalyDetector: NewHybridAnomalyDetector(nil),
+		observations:   make([]Observation, 0, 100),
+		events:         make([]HealingEvent, 0, 50),
+		maxHistory:     100,
+		stopCh:         make(chan struct{}),
+		logger:         slog.Default().With("component", "healing"),
 	}
+}
+
+// SetGraphSAGE configures ML-based anomaly detection via GraphSAGE.
+func (m *Monitor) SetGraphSAGE(cfg GraphSAGEConfig) {
+	detector := NewGraphSAGEDetector(cfg)
+	m.mu.Lock()
+	m.anomalyDetector = NewHybridAnomalyDetector(detector)
+	m.mu.Unlock()
+	m.logger.Info("GraphSAGE anomaly detector configured", "enabled", cfg.Enabled, "endpoint", cfg.Endpoint)
 }
 
 // Start begins the MAPE-K loop.
@@ -223,16 +236,29 @@ func (m *Monitor) monitor() Observation {
 }
 
 func (m *Monitor) analyze(obs Observation) (string, Action) {
-	// Rule 1: No peers at all — restart discovery
+	// Rule 1: No peers at all — restart discovery (always applied)
 	if obs.PeerCount == 0 {
 		return "no peers detected", ActionRestartDiscovery
 	}
 
-	// Rule 2: Significant peer loss — alert + reconnect
+	// Use hybrid anomaly detector for remaining rules
 	m.mu.RLock()
+	detector := m.anomalyDetector
 	baseline := m.baselinePeers
 	m.mu.RUnlock()
 
+	if detector != nil {
+		score, isAnomaly, method := detector.Analyze(context.Background(), obs)
+		if isAnomaly && score > 0.5 {
+			// Map anomaly score to action
+			if score > 0.8 {
+				return fmt.Sprintf("critical anomaly (score=%.2f, method=%s)", score, method), ActionReconnect
+			}
+			return fmt.Sprintf("anomaly detected (score=%.2f, method=%s)", score, method), ActionReroute
+		}
+	}
+
+	// Fallback: rule-based detection (always runs as baseline)
 	if baseline > 0 {
 		lossRatio := 1.0 - float64(obs.PeerCount)/float64(baseline)
 		if lossRatio > PeerLossThreshold {
@@ -240,7 +266,6 @@ func (m *Monitor) analyze(obs Observation) (string, Action) {
 		}
 	}
 
-	// Rule 3: Many unhealthy peers — reroute traffic
 	if obs.PeerCount > 0 {
 		unhealthyRatio := 1.0 - float64(obs.HealthyPeers)/float64(obs.PeerCount)
 		if unhealthyRatio > 0.5 {
@@ -248,12 +273,10 @@ func (m *Monitor) analyze(obs Observation) (string, Action) {
 		}
 	}
 
-	// Rule 4: High latency
 	if obs.AvgLatencyMs > LatencyThresholdMs {
 		return "high latency detected", ActionReroute
 	}
 
-	// Rule 5: High packet loss
 	if obs.PacketLoss > PacketLossThreshold {
 		return "high packet loss", ActionReroute
 	}
