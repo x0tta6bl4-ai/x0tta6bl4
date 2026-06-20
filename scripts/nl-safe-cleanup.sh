@@ -56,6 +56,11 @@ apt-get clean 2>/dev/null || true
 apt-get autoremove -y 2>/dev/null || true
 echo "  Apt cleaned"
 
+# 11. Clean /tmp
+echo "[11] Cleaning /tmp..."
+find /tmp -type f -mtime +7 -delete 2>/dev/null
+echo "  /tmp cleaned"
+
 # Summary
 echo ""
 echo "=== Cleanup Complete ==="
