@@ -157,7 +157,7 @@ func newAgent(cfg *config.Config, cfgPath string) (*agent, error) {
 	mdnsDisc.OnPeerDiscovered = func(p discovery.MdnsPeerInfo) {
 		slog.Info("mDNS peer discovered, adding to mesh",
 			"node_id", p.NodeID, "addr", p.Addr, "port", p.Port)
-		node.InjectPeer(p.NodeID, p.Addr.String(), p.Port)
+		node.InjectPeerWithSource(p.NodeID, p.Addr.String(), p.Port, "mdns")
 	}
 	mdnsDisc.OnPeerLost = func(p discovery.MdnsPeerInfo) {
 		slog.Info("mDNS peer lost, removing from mesh", "node_id", p.NodeID)

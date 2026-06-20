@@ -80,6 +80,7 @@ type Node struct {
 	discovery  *discovery.Discovery
 	handlers   []MessageHandler
 	tunnelMgr  *pqc.TunnelManager
+	resolver   *ConflictResolver
 
 	// Track which peers we've initiated PQC handshakes to.
 	// Only process responses from these peers.
@@ -102,6 +103,7 @@ func NewNode(nodeID string, listenPort int, disc *discovery.Discovery) *Node {
 		State:             StateInit,
 		peers:             make(map[string]*Peer),
 		discovery:         disc,
+		resolver:          NewConflictResolver(),
 		pendingHandshakes: make(map[string]bool),
 		stopCh:            make(chan struct{}),
 		logger:            slog.Default().With("component", "mesh-node", "node_id", nodeID),
@@ -589,16 +591,55 @@ func (n *Node) HandlePQCMessage(data []byte, senderID string, senderAddr *net.UD
 
 // InjectPeer directly adds a peer to the node (for testing or manual configuration).
 func (n *Node) InjectPeer(peerID, ip string, port int) {
+	n.InjectPeerWithSource(peerID, ip, port, "inject")
+}
+
+// InjectPeerWithSource adds a peer from a specific discovery source.
+// Automatically resolves conflicts when the same peer is reported
+// from multiple sources (mDNS, UDP, manual) with different addresses.
+func (n *Node) InjectPeerWithSource(peerID, ip string, port int, source string) {
 	addr := &net.UDPAddr{IP: net.ParseIP(ip), Port: port}
+
+	// Resolve conflicts (duplicate detection, address changes)
+	resolvedAddr, isUpdate, conflict := n.resolver.ResolvePeer(peerID, addr, source)
+
+	if conflict != "" {
+		n.logger.Warn("peer conflict resolved",
+			"node_id", peerID,
+			"conflict", conflict,
+			"resolved_addr", resolvedAddr,
+		)
+	}
+
 	n.mu.Lock()
+	existingPeer, exists := n.peers[peerID]
+	if exists {
+		// Update existing peer — preserve PQC session and stats
+		existingPeer.Addr = resolvedAddr
+		existingPeer.LastSeen = time.Now()
+		existingPeer.Healthy = true
+		n.mu.Unlock()
+
+		if isUpdate {
+			n.logger.Info("peer address updated",
+				"node_id", peerID,
+				"new_addr", resolvedAddr,
+				"source", source,
+			)
+		}
+		return
+	}
+
+	// New peer — add to table
 	n.peers[peerID] = &Peer{
 		NodeID:   peerID,
-		Addr:     addr,
+		Addr:     resolvedAddr,
 		LastSeen: time.Now(),
 		Healthy:  true,
 	}
 	n.mu.Unlock()
-	n.logger.Info("peer injected", "node_id", peerID, "addr", addr)
+
+	n.logger.Info("peer injected", "node_id", peerID, "addr", resolvedAddr, "source", source)
 
 	// Initiate PQC handshake if tunnel manager is available
 	if n.tunnelMgr != nil {
@@ -616,10 +657,11 @@ func (n *Node) removePeer(nodeID string) {
 
 // RemovePeer drops a peer from the node's peer table and from discovery.
 // Exposed for the healing executor to evict unhealthy peers.
-func (n *Node) RemovePeer(nodeID string) {
-	n.removePeer(nodeID)
+func (n *Node) RemovePeer(peerID string) {
+	n.removePeer(peerID)
+	n.resolver.RemovePeer(peerID)
 	if n.discovery != nil {
-		n.discovery.RemovePeer(nodeID)
+		n.discovery.RemovePeer(peerID)
 	}
 }
 
