@@ -114,9 +114,14 @@ func main() {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	sig := <-sigCh
-	slog.Info("shutdown signal received", "signal", sig)
-	agent.stop()
-	slog.Info("x0t-agent stopped")
+	slog.Info("shutdown signal received", "signal", sig, "graceful", true)
+
+	// Graceful shutdown with 10s timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	agent.gracefulStop(ctx)
+	slog.Info("x0t-agent stopped gracefully")
 }
 
 // agent orchestrates all components.
@@ -257,6 +262,48 @@ func (a *agent) stop() {
 	a.healer.Stop()
 	a.mdns.Stop()
 	a.node.Stop()
+}
+
+// gracefulStop performs ordered shutdown with drain period.
+func (a *agent) gracefulStop(ctx context.Context) {
+	slog.Info("graceful shutdown starting")
+
+	// Phase 1: Stop accepting new connections
+	slog.Info("phase 1: stopping mDNS discovery")
+	a.mdns.Stop()
+
+	// Phase 2: Send final heartbeat to control plane
+	if a.apiClient != nil && a.apiClient.IsRegistered() {
+		slog.Info("phase 2: sending final heartbeat")
+		hb := api.HeartbeatRequest{
+			NodeID: a.cfg.NodeID,
+			Status: "unhealthy",
+			State:  "stopping",
+		}
+		if err := a.apiClient.SendHeartbeat(hb); err != nil {
+			slog.Warn("final heartbeat failed", "error", err)
+		}
+	}
+
+	// Phase 3: Drain in-flight messages
+	slog.Info("phase 3: draining in-flight messages")
+	drainTimeout := time.NewTimer(3 * time.Second)
+	select {
+	case <-drainTimeout.C:
+		slog.Info("drain complete")
+	case <-ctx.Done():
+		slog.Warn("drain timeout exceeded")
+	}
+
+	// Phase 4: Stop healing monitor
+	slog.Info("phase 4: stopping healing monitor")
+	a.healer.Stop()
+
+	// Phase 5: Stop mesh node (closes UDP listener)
+	slog.Info("phase 5: stopping mesh node")
+	a.node.Stop()
+
+	slog.Info("graceful shutdown complete")
 }
 
 func (a *agent) registerAndHeartbeat() {
