@@ -86,9 +86,10 @@ type Monitor struct {
 	events       []HealingEvent
 	maxHistory   int
 
-	running bool
-	stopCh  chan struct{}
-	logger  *slog.Logger
+	running  bool
+	stopCh   chan struct{}
+	stopOnce sync.Once
+	logger   *slog.Logger
 
 	// Baseline (learned from first N observations)
 	baselinePeers int
@@ -126,9 +127,13 @@ func (m *Monitor) Start() {
 
 // Stop halts the MAPE-K loop.
 func (m *Monitor) Stop() {
-	m.running = false
-	close(m.stopCh)
-	m.logger.Info("MAPE-K healing loop stopped")
+	m.stopOnce.Do(func() {
+		m.mu.Lock()
+		m.running = false
+		m.mu.Unlock()
+		close(m.stopCh)
+		m.logger.Info("MAPE-K healing loop stopped")
+	})
 }
 
 // GetEvents returns the history of healing events.
