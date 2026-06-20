@@ -53,18 +53,31 @@ type RegistrationResponse struct {
 }
 
 // HeartbeatRequest is the periodic status push.
+// Fields are synced with Python API NodeHeartbeatRequest model.
 type HeartbeatRequest struct {
+	// Core fields (required by Python API)
 	NodeID               string         `json:"node_id"`
-	Status               string         `json:"status,omitempty"`
-	State                string         `json:"state"`
-	PeersTotal           int            `json:"peers_total"`
-	PeersHealthy         int            `json:"peers_healthy"`
-	HealthScore          float64        `json:"health_score"`
-	UptimeSec            float64        `json:"uptime_sec"`
-	MsgSent              int64          `json:"messages_sent"`
-	MsgRecv              int64          `json:"messages_recv"`
+	Status               string         `json:"status,omitempty"`            // healthy|degraded|unhealthy
+	CPUUsage             float64        `json:"cpu_usage,omitempty"`          // CPU usage percentage
+	MemoryUsage          float64        `json:"memory_usage,omitempty"`       // Memory usage percentage
+	NeighborsCount       int            `json:"neighbors_count,omitempty"`    // Connected peers count
+	RoutingTableSize     int            `json:"routing_table_size,omitempty"` // Routing table entries
+	Uptime               float64        `json:"uptime,omitempty"`             // Uptime in seconds
+	LatencyMs            float64        `json:"latency_ms,omitempty"`         // Average latency to control plane
+	TrafficMbps          float64        `json:"traffic_mbps,omitempty"`       // Traffic throughput
+	ActiveConnections    int            `json:"active_connections,omitempty"` // Active VPN connections
 	DataplaneProbeTarget string         `json:"dataplane_probe_target,omitempty"`
-	Metrics              map[string]any `json:"metrics,omitempty"`
+	CustomMetrics        map[string]any `json:"custom_metrics,omitempty"`
+
+	// Legacy fields (kept for backward compatibility)
+	State        string  `json:"state,omitempty"`
+	PeersTotal   int     `json:"peers_total,omitempty"`
+	PeersHealthy int     `json:"peers_healthy,omitempty"`
+	HealthScore  float64 `json:"health_score,omitempty"`
+	UptimeSec    float64 `json:"uptime_sec,omitempty"`
+	MsgSent      int64   `json:"messages_sent,omitempty"`
+	MsgRecv      int64   `json:"messages_recv,omitempty"`
+	Metrics      map[string]any `json:"metrics,omitempty"`
 }
 
 // NodeConfigResponse is returned by the MaaS node-config endpoint.

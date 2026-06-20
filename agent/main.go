@@ -170,6 +170,9 @@ func newAgent(cfg *config.Config, cfgPath string) (*agent, error) {
 		return nil, fmt.Errorf("pqc init: %w", err)
 	}
 
+	// Attach PQC tunnel manager to mesh node for encrypted datapath
+	node.SetTunnelManager(pqcMgr)
+
 	// Telemetry
 	telem := telemetry.NewReporter(node)
 
@@ -477,14 +480,19 @@ func (a *agent) registerAndHeartbeat() {
 		hb := api.HeartbeatRequest{
 			NodeID:               a.cfg.NodeID,
 			Status:               "healthy",
-			State:                a.node.State.String(),
-			PeersTotal:           metrics.PeersTotal,
-			PeersHealthy:         metrics.PeersHealthy,
-			HealthScore:          metrics.HealthScore,
-			UptimeSec:            metrics.UptimeSec,
-			MsgSent:              metrics.MsgSent,
-			MsgRecv:              metrics.MsgRecv,
+			NeighborsCount:       metrics.PeersTotal,
+			RoutingTableSize:     metrics.PeersTotal * 2, // rough estimate
+			Uptime:               metrics.UptimeSec,
+			ActiveConnections:    0, // will be populated by GhostVPN
 			DataplaneProbeTarget: a.cfg.DataplaneProbeTarget,
+			// Legacy fields for backward compatibility
+			State:        a.node.State.String(),
+			PeersTotal:   metrics.PeersTotal,
+			PeersHealthy: metrics.PeersHealthy,
+			HealthScore:  metrics.HealthScore,
+			UptimeSec:    metrics.UptimeSec,
+			MsgSent:      metrics.MsgSent,
+			MsgRecv:      metrics.MsgRecv,
 		}
 
 		if err := sendHeartbeat(hb); err != nil {
