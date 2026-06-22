@@ -89,17 +89,17 @@ def _local_memory_percent() -> float:
 
 def collect_local_mapek_metrics() -> Dict[str, float | str]:
     return {
-        "node_id": os.getenv("X0TTA6BL4_NODE_ID", "local-verifier"),
-        "cpu_percent": _env_float("X0TTA6BL4_VERIFY_CPU_PERCENT", _local_cpu_percent()),
+        "node_id": os.getenv("x0tta6bl4_NODE_ID", "local-verifier"),
+        "cpu_percent": _env_float("x0tta6bl4_VERIFY_CPU_PERCENT", _local_cpu_percent()),
         "memory_percent": _env_float(
-            "X0TTA6BL4_VERIFY_MEMORY_PERCENT",
+            "x0tta6bl4_VERIFY_MEMORY_PERCENT",
             _local_memory_percent(),
         ),
-        "packet_loss_percent": _env_float("X0TTA6BL4_VERIFY_PACKET_LOSS_PERCENT", 0.0),
+        "packet_loss_percent": _env_float("x0tta6bl4_VERIFY_PACKET_LOSS_PERCENT", 0.0),
     }
 
 def _allow_remediation_execution() -> bool:
-    return os.getenv("X0TTA6BL4_VERIFY_ALLOW_REMEDIATION", "").lower() in {
+    return os.getenv("x0tta6bl4_VERIFY_ALLOW_REMEDIATION", "").lower() in {
         "1",
         "true",
         "yes",
@@ -138,7 +138,7 @@ def check_mape_k():
         else:
             print(
                 "   [Execute] Remediation required but not executed. "
-                "Set X0TTA6BL4_VERIFY_ALLOW_REMEDIATION=true to opt in."
+                "Set x0tta6bl4_VERIFY_ALLOW_REMEDIATION=true to opt in."
             )
             return False
         if not result:

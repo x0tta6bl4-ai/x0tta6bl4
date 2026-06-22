@@ -8,7 +8,7 @@ SERVER_SPIFFE_ID="spiffe://x0tta6bl4.mesh/agent/local"
 WORKLOAD_SPIFFE_ID="spiffe://x0tta6bl4.mesh/workload/local-test"
 DOCKER_HOST="${DOCKER_HOST:-unix:///run/docker.sock}"
 DEFAULT_SOCKET_BASE="${XDG_RUNTIME_DIR:-/tmp}"
-SPIRE_AGENT_SOCKET_DIR="${X0TTA6BL4_SPIRE_AGENT_SOCKET_DIR:-${SPIRE_AGENT_SOCKET_DIR:-${DEFAULT_SOCKET_BASE}/x0tta6bl4-spire-agent}}"
+SPIRE_AGENT_SOCKET_DIR="${x0tta6bl4_SPIRE_AGENT_SOCKET_DIR:-${SPIRE_AGENT_SOCKET_DIR:-${DEFAULT_SOCKET_BASE}/x0tta6bl4-spire-agent}}"
 export SPIRE_AGENT_SOCKET_DIR
 
 echo "Starting SPIRE infrastructure..."

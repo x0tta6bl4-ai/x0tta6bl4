@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-X0TTA6BL4 Meta-Cognitive Agent Framework Orchestrator
+x0tta6bl4 Meta-Cognitive Agent Framework Orchestrator
 Integrates GTM Agent, MAPE-K, Security Audit, and Test-Coverage-Boost
 
 Usage:
@@ -21,7 +21,7 @@ import json
 from datetime import datetime
 
 
-class X0TTA6BL4Framework:
+class x0tta6bl4Framework:
     """Meta-cognitive orchestrator for x0tta6bl4 agents and skills."""
     
     def __init__(self):
@@ -559,7 +559,7 @@ ACTIONABLE NEXT STEPS:
         """Execute all agents and generate integrated report."""
         
         print("\n" + "="*80)
-        print("X0TTA6BL4 AUTONOMOUS META-COGNITIVE FRAMEWORK")
+        print("x0tta6bl4 AUTONOMOUS META-COGNITIVE FRAMEWORK")
         print("="*80 + "\n")
         
         self.log("🚀 Framework initialization", "STAGE")
@@ -680,7 +680,7 @@ Status: ✅ OPERATIONAL
 
 
 if __name__ == "__main__":
-    framework = X0TTA6BL4Framework()
+    framework = x0tta6bl4Framework()
     
     # Run all agents
     asyncio.run(framework.run_all_agents())

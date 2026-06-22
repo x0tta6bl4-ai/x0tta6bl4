@@ -218,9 +218,9 @@ class MeshNodeSPIFFEDeployer:
         env = os.environ.copy()
         env.update(
             {
-                "X0TTA6BL4_SPIFFE_NODE_ID": node_id,
-                "X0TTA6BL4_SPIFFE_TRUST_DOMAIN": self.trust_domain,
-                "X0TTA6BL4_SPIRE_SERVER_ADDRESS": self.spire_server_address,
+                "x0tta6bl4_SPIFFE_NODE_ID": node_id,
+                "x0tta6bl4_SPIFFE_TRUST_DOMAIN": self.trust_domain,
+                "x0tta6bl4_SPIRE_SERVER_ADDRESS": self.spire_server_address,
             }
         )
 
@@ -304,7 +304,7 @@ def resolve_node_ids(nodes: str, nodes_file: Optional[Path] = None) -> List[str]
         return _parse_node_ids(nodes)
 
     inventory_file = nodes_file
-    env_file = os.getenv("X0TTA6BL4_MESH_NODES_FILE")
+    env_file = os.getenv("x0tta6bl4_MESH_NODES_FILE")
     if inventory_file is None and env_file:
         inventory_file = Path(env_file)
     if inventory_file is not None:
@@ -312,14 +312,14 @@ def resolve_node_ids(nodes: str, nodes_file: Optional[Path] = None) -> List[str]
         if node_ids:
             return node_ids
 
-    env_node_ids = os.getenv("X0TTA6BL4_MESH_NODE_IDS", "")
+    env_node_ids = os.getenv("x0tta6bl4_MESH_NODE_IDS", "")
     node_ids = _parse_node_ids(env_node_ids)
     if node_ids:
         return node_ids
 
     raise ValueError(
         "--nodes all requires a real mesh inventory. Provide --nodes-file, "
-        "X0TTA6BL4_MESH_NODES_FILE, or X0TTA6BL4_MESH_NODE_IDS."
+        "x0tta6bl4_MESH_NODES_FILE, or x0tta6bl4_MESH_NODE_IDS."
     )
 
 
@@ -405,7 +405,7 @@ async def main():
         type=str,
         help=(
             "Local command that prints a join token. The command receives "
-            "X0TTA6BL4_SPIFFE_NODE_ID and X0TTA6BL4_SPIFFE_TRUST_DOMAIN."
+            "x0tta6bl4_SPIFFE_NODE_ID and x0tta6bl4_SPIFFE_TRUST_DOMAIN."
         ),
     )
     parser.add_argument(

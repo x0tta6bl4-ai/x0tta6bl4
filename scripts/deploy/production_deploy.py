@@ -194,7 +194,7 @@ class DeploymentConfig:
     canary_weight_final: int = 100
     canary_increment_interval: int = 60
     allow_live_deploy: bool = field(
-        default_factory=lambda: _env_flag("X0TTA6BL4_ALLOW_LIVE_DEPLOY")
+        default_factory=lambda: _env_flag("x0tta6bl4_ALLOW_LIVE_DEPLOY")
     )
     real_readiness_json: str = field(
         default_factory=lambda: str(PROJECT_ROOT / "REAL_READINESS_REPORT.json")
@@ -655,7 +655,7 @@ class DeploymentOrchestrator:
         if not self.config.allow_live_deploy:
             logger.error("LIVE DEPLOY AUTHORIZATION: BLOCKED")
             logger.error(
-                "Set X0TTA6BL4_ALLOW_LIVE_DEPLOY=yes only after reviewing current evidence."
+                "Set x0tta6bl4_ALLOW_LIVE_DEPLOY=yes only after reviewing current evidence."
             )
             logger.error("Claim boundary: %s", PRODUCTION_DEPLOY_CLAIM_BOUNDARY)
             return False
@@ -709,7 +709,7 @@ class DeploymentOrchestrator:
 
         if not self.config.allow_live_deploy:
             logger.error("LIVE ACTION AUTHORIZATION: BLOCKED")
-            logger.error("Set X0TTA6BL4_ALLOW_LIVE_DEPLOY=yes before live cluster actions.")
+            logger.error("Set x0tta6bl4_ALLOW_LIVE_DEPLOY=yes before live cluster actions.")
             logger.error("Claim boundary: %s", PRODUCTION_DEPLOY_CLAIM_BOUNDARY)
             return False
 

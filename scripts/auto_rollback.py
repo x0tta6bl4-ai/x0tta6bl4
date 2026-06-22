@@ -148,7 +148,7 @@ class AutoRollback:
     ):
         self.base_url = base_url
         self.allow_live_rollback = (
-            _env_flag("X0TTA6BL4_ALLOW_LIVE_ROLLBACK")
+            _env_flag("x0tta6bl4_ALLOW_LIVE_ROLLBACK")
             if allow_live_rollback is None
             else allow_live_rollback
         )
@@ -248,7 +248,7 @@ class AutoRollback:
         if not self.allow_live_rollback:
             print("LIVE ROLLBACK: BLOCKED")
             print(
-                "Set X0TTA6BL4_ALLOW_LIVE_ROLLBACK=yes only after reviewing "
+                "Set x0tta6bl4_ALLOW_LIVE_ROLLBACK=yes only after reviewing "
                 "current rollout evidence."
             )
             print("No live rollback command was executed.")
@@ -356,7 +356,7 @@ async def main():
     rollback = AutoRollback(
         base_url=args.url,
         allow_live_rollback=args.allow_live_rollback
-        or _env_flag("X0TTA6BL4_ALLOW_LIVE_ROLLBACK"),
+        or _env_flag("x0tta6bl4_ALLOW_LIVE_ROLLBACK"),
     )
     await rollback.monitor(check_interval=args.interval)
 

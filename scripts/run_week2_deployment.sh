@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REAL_READINESS_JSON=".tmp/validation-shards/real-readiness-current.json"
 REAL_READINESS_MD=".tmp/validation-shards/real-readiness-current.md"
-ALLOW_LIVE_ROLLOUT="${X0TTA6BL4_ALLOW_LIVE_ROLLOUT:-}"
+ALLOW_LIVE_ROLLOUT="${x0tta6bl4_ALLOW_LIVE_ROLLOUT:-}"
 cd "$ROOT_DIR"
 
 DEPLOYMENT_STAGE="${1:-all}"  # all, canary, rollout, full
@@ -33,7 +33,7 @@ require_live_rollout_preflight() {
 
     if [ "$ALLOW_LIVE_ROLLOUT" != "yes" ]; then
         echo "❌ LIVE ROLLOUT AUTHORIZATION: BLOCKED"
-        echo "Set X0TTA6BL4_ALLOW_LIVE_ROLLOUT=yes locally after approval."
+        echo "Set x0tta6bl4_ALLOW_LIVE_ROLLOUT=yes locally after approval."
         echo "Do not paste secrets or approvals into chat."
         exit 1
     fi

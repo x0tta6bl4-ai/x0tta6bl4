@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-ALLOW_LOCAL_SMOKE="${X0TTA6BL4_ALLOW_LOCAL_PRODUCTION_SMOKE:-}"
+ALLOW_LOCAL_SMOKE="${x0tta6bl4_ALLOW_LOCAL_PRODUCTION_SMOKE:-}"
 CLAIM_BOUNDARY="This local production-compose smoke test checks local containers and endpoints only. It does not prove live customer traffic, traffic shifting, external DPI bypass, settlement finality, production SLOs, or production readiness."
 
 bounded_output_metadata() {
@@ -19,7 +19,7 @@ bounded_output_metadata() {
 
 if [[ "$ALLOW_LOCAL_SMOKE" != "yes" ]]; then
     echo "LOCAL PRODUCTION-COMPOSE SMOKE: BLOCKED"
-    echo "Set X0TTA6BL4_ALLOW_LOCAL_PRODUCTION_SMOKE=yes to start local production-compose services."
+    echo "Set x0tta6bl4_ALLOW_LOCAL_PRODUCTION_SMOKE=yes to start local production-compose services."
     echo "Claim boundary: $CLAIM_BOUNDARY"
     exit 2
 fi

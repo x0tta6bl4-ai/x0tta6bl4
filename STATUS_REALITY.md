@@ -34,3 +34,29 @@ _Updated: June 1, 2026_
 ## 6) Минимальные правила для внешних заявлений
 - Не использовать формулировки "fully integrated", "production proven", "unblockable" без ссылок на тестовые артефакты и эксплуатационные метрики.
 - Все GTM/whitepaper документы должны ссылаться на этот файл как на baseline статуса.
+
+## 7) Production Evidence (2026-06-15)
+
+### Verified Production Artifacts
+- **VPS Health Check:** http://89.125.1.107:8000/health → HTTP 200, version 3.4.0
+- **x402 Paid API:** http://89.125.1.107:8120 → 8 services, payment enforced
+- **Open5GS Bridge:** http://89.125.1.107:18080/health → HTTP 200, bridge operational
+- **Session Creation:** http://89.125.1.107:18080/bridge/sessions → HTTP 200, 25ms latency
+- **Payment Enforcement:** HTTP 402 Payment Required on all paid endpoints
+- **Agent Earning:** AgentPact, x402 Directory, Income Watch agents running
+
+### What This Proves
+1. VPS deployment works on real infrastructure
+2. x402 payment protocol works with real USDC on Base mainnet
+3. Open5GS integration works with containerized backend
+4. Earning agents are operational
+
+### What This Does NOT Prove
+1. Real customer payments (wallet balance is 0 USDC)
+2. Production scale (single VPS)
+3. Security audit (no penetration testing)
+4. Compliance certifications
+5. Revenue generation
+
+### Evidence Artifact
+- `docs/verification/PRODUCTION_EVIDENCE_2026_06_15.md`

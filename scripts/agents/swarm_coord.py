@@ -29,7 +29,7 @@ else:
     GIT_COMMON_DIR = (REPO_ROOT / GIT_COMMON_DIR_RAW).resolve()
 
 SWARM_STATE_DIR = Path(
-    os.environ.get("X0TTA6BL4_SWARM_STATE_DIR", str(GIT_COMMON_DIR / "swarm"))
+    os.environ.get("x0tta6bl4_SWARM_STATE_DIR", str(GIT_COMMON_DIR / "swarm"))
 ).resolve()
 SWARM_STATE_FILE = SWARM_STATE_DIR / "coordination_state.json"
 SWARM_LOCK_FILE = SWARM_STATE_DIR / "coordination.lock"

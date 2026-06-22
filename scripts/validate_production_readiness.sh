@@ -67,7 +67,7 @@ else
 fi
 
 # 6. Security checks
-if grep -q "X0TTA6BL4_PRODUCTION" deployment/kubernetes/deployment.yaml; then
+if grep -q "x0tta6bl4_PRODUCTION" deployment/kubernetes/deployment.yaml; then
     echo "✅ Production mode configured"
 else
     echo "⚠️  Production mode not explicitly set"

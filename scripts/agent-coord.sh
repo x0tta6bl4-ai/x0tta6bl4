@@ -18,7 +18,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COORD_DIR="${X0TTA6BL4_AGENT_COORD_DIR:-${ROOT_DIR}/.agent-coord}"
+COORD_DIR="${x0tta6bl4_AGENT_COORD_DIR:-${ROOT_DIR}/.agent-coord}"
 STATE="${COORD_DIR}/state.json"
 LOG="${COORD_DIR}/log.jsonl"
 REQUEST_CHANNEL="${ROOT_DIR}/scripts/agents/request_channel.sh"

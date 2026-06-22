@@ -4,14 +4,14 @@
 
 set -euo pipefail
 
-TARGET_HOST="${1:-${X0TTA6BL4_MONITOR_HOST:-}}"
-VPS_USER="${2:-${X0TTA6BL4_MONITOR_USER:-root}}"
+TARGET_HOST="${1:-${x0tta6bl4_MONITOR_HOST:-}}"
+VPS_USER="${2:-${x0tta6bl4_MONITOR_USER:-root}}"
 VPS_PASS="${VPS_PASS:?Set VPS_PASS in environment}"
 CLAIM_BOUNDARY="Remote health, container, VPN, metrics, and resource observations do not prove live customer traffic, traffic shifting, external DPI bypass, settlement finality, production SLOs, or production readiness without separate current evidence."
 
 if [[ -z "$TARGET_HOST" ]]; then
     echo "Usage: VPS_PASS=... $0 <host> [user]"
-    echo "Or set X0TTA6BL4_MONITOR_HOST and optional X0TTA6BL4_MONITOR_USER."
+    echo "Or set x0tta6bl4_MONITOR_HOST and optional x0tta6bl4_MONITOR_USER."
     exit 2
 fi
 

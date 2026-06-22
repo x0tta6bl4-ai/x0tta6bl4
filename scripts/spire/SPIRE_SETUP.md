@@ -26,7 +26,7 @@ This will:
 
 By default, `scripts/spire/start-spire.sh` uses
 `${XDG_RUNTIME_DIR:-/tmp}/x0tta6bl4-spire-agent` and creates it with mode
-`0700`. Override it locally with `X0TTA6BL4_SPIRE_AGENT_SOCKET_DIR` if Docker
+`0700`. Override it locally with `x0tta6bl4_SPIRE_AGENT_SOCKET_DIR` if Docker
 needs a different bind-mount path.
 
 ### 2. Verify SPIRE is Running

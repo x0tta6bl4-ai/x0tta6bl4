@@ -30,7 +30,7 @@ def run_agent(script, args, desc):
 
 def main():
     print("="*60)
-    print("🤖 X0TTA6BL4 REAL TASK EXECUTION")
+    print("🤖 x0tta6bl4 REAL TASK EXECUTION")
     print("="*60)
     
     tasks = [

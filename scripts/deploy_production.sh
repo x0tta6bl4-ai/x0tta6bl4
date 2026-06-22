@@ -15,7 +15,7 @@ HELM_CHART="./helm/x0tta6bl4"
 VALUES_FILE="${VALUES_FILE:-./helm/x0tta6bl4/values-production.yaml}"
 IMAGE_TAG="${IMAGE_TAG:-3.4.0-fixed2}"
 DRY_RUN="${DRY_RUN:-false}"
-ALLOW_LIVE_DEPLOY="${X0TTA6BL4_ALLOW_LIVE_DEPLOY:-}"
+ALLOW_LIVE_DEPLOY="${x0tta6bl4_ALLOW_LIVE_DEPLOY:-}"
 REAL_READINESS_JSON="${REAL_READINESS_JSON:-$ROOT_DIR/REAL_READINESS_REPORT.json}"
 REAL_READINESS_MD="${REAL_READINESS_MD:-$ROOT_DIR/REAL_READINESS_REPORT.md}"
 CLAIM_BOUNDARY="This script can run a Kubernetes deployment command sequence. A successful rollout/health observation is not production readiness, live customer traffic, external DPI bypass, settlement finality, or production SLO proof without separate current evidence."
@@ -67,7 +67,7 @@ require_live_deploy_preflight() {
 
     if [ "$ALLOW_LIVE_DEPLOY" != "yes" ]; then
         error "LIVE DEPLOY AUTHORIZATION: BLOCKED"
-        error "Set X0TTA6BL4_ALLOW_LIVE_DEPLOY=yes only after reviewing the real-readiness report."
+        error "Set x0tta6bl4_ALLOW_LIVE_DEPLOY=yes only after reviewing the real-readiness report."
         claim_boundary
         exit 1
     fi
