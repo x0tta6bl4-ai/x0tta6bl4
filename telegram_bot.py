@@ -104,6 +104,7 @@ else:
 class SignupStates(StatesGroup):
     waiting_for_email = State()
     waiting_for_payment = State()
+    waiting_for_location = State()
 
 
 def generate_vpn_config(user_id: int) -> str:
@@ -119,23 +120,20 @@ def generate_vpn_config(user_id: int) -> str:
     
     # Generate config
     vpn_uuid = user.get('vpn_uuid')
+    node_id = user.get('entry_node', 'nl')
     
-    # ✅ SECURITY FIX: Ensure user has UUID (should always be set, but check for safety)
+    # ✅ SECURITY FIX: Ensure user has UUID
     if not vpn_uuid:
-        logger.error(f"🚨 CRITICAL: User {user_id} has no vpn_uuid! Generating new one...")
-        # Generate new UUID for user (should not happen, but handle gracefully)
         vpn_uuid = generate_uuid()
         update_user(user_id, vpn_uuid=vpn_uuid)
-        logger.warning(f"Generated new UUID for user {user_id}: {vpn_uuid}")
     
     try:
-        config_text = generate_config_text(user_id, vpn_uuid)
-    except ValueError as e:
-        logger.error(f"🚨 CRITICAL: Failed to generate config for user {user_id}: {e}")
-        return f"# Error generating config. Please contact support: @x0tta6bl4_support"
-    
-    # Update user's config in database
-    update_user(user_id, vpn_config=config_text)
+        from vpn_config_generator import generate_config_text
+        # Use node_id from DB
+        config_text = generate_config_text(user_id, vpn_uuid, node_id=node_id)
+    except Exception as e:
+        logger.error(f"Failed to generate config: {e}")
+        return f"# Error generating config. Please contact support."
     
     return config_text
 
@@ -558,6 +556,32 @@ async def cmd_status(message: types.Message):
                 await message.answer("❌ Подписка истекла. Используй /subscribe")
         else:
             await message.answer("❌ Подписка неактивна")
+
+
+@dp.message_handler(content_types=['web_app_data'])
+async def web_app_data_handler(message: types.Message):
+    """Handle data from WebApp (TMA)"""
+    user_id = message.from_user.id
+    try:
+        data = json.loads(message.web_app_data.data)
+        if data.get('action') == 'update_node':
+            new_node = data.get('node', 'nl')
+            if MODULES_AVAILABLE:
+                update_user(user_id, entry_node=new_node)
+                log_activity(user_id, f"tma_node_updated_{new_node}")
+            
+            # Generate new config for the selected node
+            config_text = generate_vpn_config(user_id)
+            
+            await message.answer(
+                f"✅ **[ x0tta6bl4_sys ] Конфигурация обновлена!**\n\n"
+                f"Локация изменена на: `{new_node.upper()}`\n\n"
+                f"{config_text}",
+                parse_mode="Markdown"
+            )
+    except Exception as e:
+        logger.error(f"Error processing web app data: {e}")
+        await message.answer("❌ Ошибка при обработке данных из терминала.")
 
 
 @dp.message_handler(commands=['help'])

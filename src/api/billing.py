@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -31,6 +32,7 @@ from src.core.reliability_policy import mark_degraded_dependency
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
 from src.database import BillingWebhookEvent, Invoice, License, Payment, User, get_db
+from src.repositories import InvoiceRepository, PaymentRepository, UserRepository
 from src.services.service_event_identity import service_event_identity_status
 from src.services.xray_manager import XrayManager
 
@@ -1964,13 +1966,15 @@ async def get_revenue_metrics(
     """Get revenue metrics for dashboard."""
     started = time.monotonic()
     try:
-        # Calculate total revenue from verified payments
-        total_payments = db.query(Payment).filter(Payment.status == "verified").all()
-        total_revenue = sum(payment.amount for payment in total_payments)
+        payment_repo = PaymentRepository(db)
+        invoice_repo = InvoiceRepository(db)
+        user_repo = UserRepository(db)
 
-        # Calculate paid invoices
-        paid_invoices = db.query(Invoice).filter(Invoice.status == "paid").all()
-        total_invoice_revenue = sum(invoice.total_amount for invoice in paid_invoices)
+        # Calculate total revenue from verified payments (SQL aggregate)
+        total_revenue = payment_repo.get_total_amount()
+
+        # Calculate paid invoices (SQL aggregate)
+        total_invoice_revenue = invoice_repo.get_total_paid_amount()
 
         # Simple MRR calculation (assuming monthly subscriptions)
         # This is a placeholder - in reality, calculate based on active subscriptions

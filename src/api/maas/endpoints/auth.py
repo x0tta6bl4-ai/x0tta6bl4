@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from src.database import User, get_db
+from src.repositories import UserRepository
 from src.services.maas_auth_service import MaaSAuthService
 from src.api.maas_security import ApiKeyManager
 from src.coordination.events import get_event_bus
@@ -101,13 +102,9 @@ async def register(
             message="User registered successfully",
         )
 
-    api_key = "x0t_register_secret_api_key"
-    return RegisterResponse(
-        user_id="u-1",
-        email=req.email,
-        api_key=api_key,
-        access_token=api_key,
-        message="User registered successfully",
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Registration unavailable: database not connected",
     )
 
 
@@ -120,17 +117,20 @@ async def login(
 ) -> LoginResponse:
     db_session = _extract_db(db)
     if db_session is not None:
+        user_repo = UserRepository(db_session)
         api_key = _db_auth_service.login(db_session, req)
         normalized_email = _db_auth_service._normalize_email(req.email)
-        user = db_session.query(User).filter(User.email == normalized_email).first()
+        user = user_repo.get_by_email(normalized_email)
         return LoginResponse(
             user_id=str(getattr(user, "id", "")),
             session_token=api_key,
             access_token=api_key,
         )
 
-    api_key = "x0t_login_secret_api_key"
-    return LoginResponse(user_id="u-1", session_token=api_key, access_token=api_key)
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Login unavailable: database not connected",
+    )
 
 
 @root_router.post("/api-key", response_model=ApiKeyRotateResponse)
@@ -143,7 +143,8 @@ async def rotate_api_key(
 ) -> ApiKeyRotateResponse:
     db_session = _extract_db(db)
     if db_session is not None:
-        db_user = db_session.query(User).filter(User.id == user.user_id).first()
+        user_repo = UserRepository(db_session)
+        db_user = user_repo.get_by_id(user.user_id)
         if db_user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -155,10 +156,9 @@ async def rotate_api_key(
             created_at=rotated_at.isoformat(),
             message="API key rotated successfully",
         )
-    return ApiKeyRotateResponse(
-        api_key="x0t_rotate_secret_api_key",
-        created_at=None,
-        message="API key rotated successfully",
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="API key rotation unavailable: database not connected",
     )
 
 
@@ -175,7 +175,8 @@ async def get_profile(
     db_session = _extract_db(db)
     db_user = None
     if db_session is not None and effective_user is not None:
-        db_user = db_session.query(User).filter(User.id == effective_user.user_id).first()
+        user_repo = UserRepository(db_session)
+        db_user = user_repo.get_by_id(effective_user.user_id)
     return {
         "user_id": getattr(effective_user, "user_id", "u-1"),
         "email": (

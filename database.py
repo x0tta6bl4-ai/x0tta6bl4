@@ -10,6 +10,7 @@ Optimizations:
 - 64MB cache for faster queries
 """
 
+import os
 import sqlite3
 import logging
 import threading
@@ -225,7 +226,8 @@ def update_user(
     expires_at: Optional[datetime] = None,
     vpn_uuid: Optional[str] = None,
     vpn_config: Optional[str] = None,
-    zkp_public_key: Optional[str] = None
+    zkp_public_key: Optional[str] = None,
+    entry_node: Optional[str] = None
 ) -> bool:
     """Update user data"""
     with get_db_connection() as conn:
@@ -253,6 +255,10 @@ def update_user(
         if zkp_public_key is not None:
             updates.append("zkp_public_key = ?")
             params.append(zkp_public_key)
+            
+        if entry_node is not None:
+            updates.append("entry_node = ?")
+            params.append(entry_node)
         
         if not updates:
             return False

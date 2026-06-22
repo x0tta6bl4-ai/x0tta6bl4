@@ -120,6 +120,30 @@ class ScaleResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# peaq Models
+# ---------------------------------------------------------------------------
+
+class PeaqRelayTunnelRequest(BaseModel):
+    """peaq Relay Tunnel Request."""
+    machine_did: str = Field(..., pattern="^did:peaq:0x[a-fA-F0-9]{40}$")
+    pqc_algorithm: str = Field(default="ML-KEM-768")
+    tunnel_type: str = Field(default="wireguard-pqc")
+    region: str = Field(default="eu-west")
+    telemetry_opt_in: bool = Field(default=True)
+
+
+class PeaqRelayTunnelResponse(BaseModel):
+    """peaq Relay Tunnel Response."""
+    tunnel_id: str
+    machine_did: str
+    endpoint: str
+    pqc_config: Dict[str, Any]
+    status: str  # initiating | active | failed
+    peaq_relay_claim_gate: Dict[str, Any] = Field(default_factory=dict)
+    cross_plane_claim_gate: Dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
 # Node Models
 # ---------------------------------------------------------------------------
 

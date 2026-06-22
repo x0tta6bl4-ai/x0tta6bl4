@@ -80,7 +80,9 @@ class EBPFOrchestrator:
 
         # Инициализация компонентов
         self.loader = EBPFLoader()
-        self.probes = MeshNetworkProbes(self.config.interface)
+        self.probes = MeshNetworkProbes(
+            self.config.interface, prometheus_port=self.config.metrics_port
+        )
         self.metrics = EBPFMetricsExporter(
             port=self.config.metrics_port, path=self.config.metrics_path
         )

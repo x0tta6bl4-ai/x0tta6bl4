@@ -1,7 +1,7 @@
 {
   "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
   "commercial_decision": "Sell one narrow self-hosted secure mesh MVP first; keep the other ideas as proof-bounded upsells.",
-  "generated_at_utc": "2026-06-02T20:47:46Z",
+  "generated_at_utc": "2026-06-16T15:51:04Z",
   "pilot_package": {
     "acceptance_criteria": [
       "Buyer can open the local controller without a SaaS control plane.",

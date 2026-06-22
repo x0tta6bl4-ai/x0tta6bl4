@@ -358,7 +358,7 @@ def run_verification(
                 "PYTHONPATH": str(ROOT),
                 "MAAS_LIGHT_MODE": "true",
                 "LOG_LEVEL": "WARNING",
-                "X0TTA6BL4_MESH_HEAL_POST_ACTION_PROBE": "1",
+                "x0tta6bl4_MESH_HEAL_POST_ACTION_PROBE": "1",
             }
         )
         server_proc = subprocess.Popen(

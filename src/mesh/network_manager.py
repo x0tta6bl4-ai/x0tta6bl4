@@ -31,12 +31,18 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
 from src.core.agent_thinking import AgentThinkingCoach
+from src.mesh.mesh_healer import MeshHealer
+from src.mesh.neighbor_scorer import NeighborScorer
+from src.mesh.node_verifier import NodeVerifier, VerificationMode
 from src.mesh.recovery_dataplane_probe import (
     build_recovery_dataplane_ping_probe,
     normalize_recovery_dataplane_probe_result,
 )
 from src.mesh.recovery_contracts import build_post_action_dataplane_claim_gate
 from src.services.service_event_identity import service_event_identity
+
+# Re-export for backward compatibility
+VerificationMode = VerificationMode
 
 logger = logging.getLogger(__name__)
 
@@ -899,29 +905,42 @@ class MeshNetworkManager:
         """
         self.node_id = node_id
         self._router = None  # lazy init
-        self._healing_log: List[Dict[str, Any]] = []
         self._route_preference: str = "balanced"
-        # ML Scoring components
-        self._neighbor_stats: Dict[str, Dict[str, float]] = {}
-        self._ml_enabled: bool = True
-        # Verification configuration
-        self.verification_timeout_seconds = verification_timeout_seconds
-        self.verification_retries = verification_retries
-        self.consensus_quorum = consensus_quorum
         self.event_bus = event_bus
         self.event_project_root = event_project_root
-        self._post_heal_probe_config_source = (
-            "env" if enable_post_heal_dataplane_probe is None else "constructor"
-        )
         self.enable_post_heal_dataplane_probe = (
             _env_bool(_POST_HEAL_PROBE_ENV_VAR, False)
             if enable_post_heal_dataplane_probe is None
             else bool(enable_post_heal_dataplane_probe)
         )
         self.post_heal_dataplane_probe_provider = post_heal_dataplane_probe_provider
+
+        # Backward-compatible attributes (delegated to focused components)
+        self.verification_timeout_seconds = verification_timeout_seconds
+        self.verification_retries = verification_retries
+        self.consensus_quorum = consensus_quorum
         self.enable_database_node_healing = bool(enable_database_node_healing)
-        # Cache for verification results
+        self._neighbor_stats: Dict[str, Dict[str, float]] = {}
+        self._ml_enabled: bool = True
+        self._healing_log: List[Dict[str, Any]] = []
         self._verification_cache: Dict[str, NodeVerificationResult] = {}
+
+        # Delegate to focused components
+        self._verifier = NodeVerifier(
+            node_id=node_id,
+            timeout_seconds=verification_timeout_seconds,
+            retries=verification_retries,
+            consensus_quorum=consensus_quorum,
+        )
+        self._scorer = NeighborScorer(node_id=node_id)
+        self._healer = MeshHealer(
+            node_id=node_id,
+            verifier=self._verifier,
+            enable_database_node_healing=enable_database_node_healing,
+            event_bus=event_bus,
+            event_project_root=event_project_root,
+            enable_post_heal_dataplane_probe=enable_post_heal_dataplane_probe,
+        )
 
     def get_thinking_status(self) -> Dict[str, Any]:
         """Expose thinking profile and latest redacted mesh decision context."""
@@ -931,9 +950,7 @@ class MeshNetworkManager:
         }
 
     def _post_heal_probe_enabled(self) -> bool:
-        if self._post_heal_probe_config_source == "env":
-            return _env_bool(_POST_HEAL_PROBE_ENV_VAR, False)
-        return bool(self.enable_post_heal_dataplane_probe)
+        return self.enable_post_heal_dataplane_probe
 
     async def _probe_post_heal_dataplane(self, target: Optional[str]) -> Dict[str, Any]:
         if not target:
@@ -979,89 +996,12 @@ class MeshNetworkManager:
     def ml_score_neighbor(
         self, neighbor_id: str, rssi: float, load: float, hops: int
     ) -> float:
-        """
-        Calculate reliability score for a neighbor using hybrid ML logic.
-
-        Uses a combination of delivery probability (based on signal strength),
-        load factor, and hop count to determine the best next-hop neighbor.
-
-        Formula:
-            score = delivery_prob * delay_factor
-            where:
-                delivery_prob = 0.95 if rssi > -70 else 0.70
-                delivery_prob *= 0.5 if load > 0.8
-                delay_factor = 1.0 / (hops * 15.0 + 1.0)
-
-        Args:
-            neighbor_id: Unique identifier for the neighbor node
-            rssi: Received Signal Strength Indicator in dBm (typically -30 to -100)
-            load: Current load on the neighbor (0.0 to 1.0)
-            hops: Number of hops to reach this neighbor
-
-        Returns:
-            Reliability score between 0.0 and 1.0, higher is better
-
-        Example:
-            >>> score = manager.ml_score_neighbor("node-002", rssi=-65, load=0.3, hops=1)
-            >>> print(f"Neighbor score: {score:.3f}")
-        """
-        # Baseline metrics (simulating model predictions)
-        # In production, these would come from self.classifier.predict()
-        delivery_prob = 0.95 if rssi > -70 else 0.70
-        if load > 0.8:
-            delivery_prob *= 0.5
-
-        delay_factor = 1.0 / (hops * 15.0 + 1.0)
-
-        score = delivery_prob * delay_factor
-
-        # Update local stats for analysis
-        self._neighbor_stats[neighbor_id] = {
-            "score": score,
-            "last_rssi": rssi,
-            "last_load": load,
-            "timestamp": time.time(),
-        }
-
-        return score
+        """Calculate reliability score for a neighbor using hybrid ML logic."""
+        return self._scorer.ml_score_neighbor(neighbor_id, rssi, load, hops)
 
     def select_best_neighbor(self, neighbors: List[Dict[str, Any]]) -> Optional[str]:
-        """
-        Select the best next hop based on ML scores.
-
-        Evaluates all candidate neighbors and returns the one with
-        the highest reliability score calculated by ml_score_neighbor().
-
-        Args:
-            neighbors: List of neighbor dictionaries, each containing:
-                - id: Neighbor identifier
-                - rssi: Signal strength (optional, default -100)
-                - load: Current load (optional, default 0.0)
-                - hops: Hop count (optional, default 1)
-
-        Returns:
-            Node ID of the best neighbor, or None if neighbors list is empty
-
-        Example:
-            >>> neighbors = [
-            ...     {"id": "node-002", "rssi": -65, "load": 0.3, "hops": 1},
-            ...     {"id": "node-003", "rssi": -80, "load": 0.1, "hops": 2},
-            ... ]
-            >>> best = manager.select_best_neighbor(neighbors)
-            >>> print(f"Best neighbor: {best}")
-        """
-        if not neighbors:
-            return None
-
-        scored_neighbors: List[Tuple[str, float]] = []
-        for n in neighbors:
-            score = self.ml_score_neighbor(
-                n["id"], n.get("rssi", -100), n.get("load", 0.0), n.get("hops", 1)
-            )
-            scored_neighbors.append((n["id"], score))
-
-        # Return ID with highest score
-        return max(scored_neighbors, key=lambda x: x[1])[0]
+        """Select the best next hop based on ML scores."""
+        return self._scorer.select_best_neighbor(neighbors)
 
     async def verify_node_state(
         self,
@@ -1070,173 +1010,13 @@ class MeshNetworkManager:
         expected_last_seen: Optional[datetime] = None,
         expected_config_hash: Optional[str] = None,
     ) -> NodeVerificationResult:
-        """
-        Verify the state integrity of a node before restoring it.
-
-        Performs verification based on the specified mode:
-        - NONE: Always returns healthy (dangerous, use with caution)
-        - PING: Basic TCP/ICMP connectivity check
-        - FULL: Comprehensive check including last_seen, config hash, peer connectivity
-        - CONSENSUS: Multi-node verification requiring quorum agreement
-
-        Args:
-            node_id: Unique identifier of the node to verify
-            mode: Verification mode (default: FULL)
-            expected_last_seen: Expected last_seen timestamp for FULL mode
-            expected_config_hash: Expected configuration hash for FULL mode
-
-        Returns:
-            NodeVerificationResult with verification outcome
-
-        Raises:
-            NodeVerificationError: If verification fails critically
-
-        Example:
-            >>> result = await manager.verify_node_state(
-            ...     "node-002",
-            ...     mode=VerificationMode.FULL,
-            ...     expected_last_seen=datetime.utcnow() - timedelta(minutes=5)
-            ... )
-            >>> if result.is_healthy:
-            ...     print(f"Node verified in {result.latency_ms:.1f}ms")
-        """
-        started = time.monotonic()
-        if mode == VerificationMode.NONE:
-            # Bypass verification - only allowed with explicit environment variable
-            if not os.getenv(self.UNVERIFIED_RESTORE_ENV_VAR):
-                result = NodeVerificationResult(
-                    node_id=node_id,
-                    is_healthy=False,
-                    verification_mode=mode,
-                    error_message=(
-                        "VerificationMode.NONE requires explicit environment guard"
-                    ),
-                )
-                result.evidence_event_id = _publish_mesh_manager_verification(
-                    event_bus=self.event_bus,
-                    event_project_root=self.event_project_root,
-                    event_type=EventType.TASK_FAILED,
-                    status="blocked",
-                    duration_ms=(time.monotonic() - started) * 1000,
-                    node_id=node_id,
-                    mode=mode,
-                    expected_last_seen=expected_last_seen,
-                    expected_config_hash=expected_config_hash,
-                    result=result,
-                    attempts_used=0,
-                    attempts_configured=self.verification_retries,
-                    cache_written=False,
-                    bypassed=True,
-                    error_types=["NodeVerificationError"],
-                )
-                raise NodeVerificationError(
-                    f"VerificationMode.NONE requires {self.UNVERIFIED_RESTORE_ENV_VAR}=1"
-                )
-            logger.warning(f"⚠️ Bypassing verification for node {node_id}")
-            result = NodeVerificationResult(
-                node_id=node_id,
-                is_healthy=True,
-                verification_mode=mode,
-            )
-            result.evidence_event_id = _publish_mesh_manager_verification(
-                event_bus=self.event_bus,
-                event_project_root=self.event_project_root,
-                event_type=EventType.PIPELINE_STAGE_END,
-                status="bypassed",
-                duration_ms=(time.monotonic() - started) * 1000,
-                node_id=node_id,
-                mode=mode,
-                expected_last_seen=expected_last_seen,
-                expected_config_hash=expected_config_hash,
-                result=result,
-                attempts_used=0,
-                attempts_configured=self.verification_retries,
-                cache_written=False,
-                bypassed=True,
-            )
-            return result
-
-        # Perform verification with retries
-        last_error: Optional[str] = None
-        last_error_type: Optional[str] = None
-        attempts_used = 0
-        for attempt in range(self.verification_retries):
-            attempts_used = attempt + 1
-            try:
-                if mode == VerificationMode.PING:
-                    result = await self._verify_ping(node_id)
-                elif mode == VerificationMode.FULL:
-                    result = await self._verify_full(
-                        node_id, expected_last_seen, expected_config_hash
-                    )
-                elif mode == VerificationMode.CONSENSUS:
-                    result = await self._verify_consensus(node_id)
-                else:
-                    raise NodeVerificationError(f"Unknown verification mode: {mode}")
-
-                # Cache successful result
-                cache_written = False
-                if result.is_healthy:
-                    self._verification_cache[node_id] = result
-                    cache_written = True
-
-                result.evidence_event_id = _publish_mesh_manager_verification(
-                    event_bus=self.event_bus,
-                    event_project_root=self.event_project_root,
-                    event_type=EventType.PIPELINE_STAGE_END,
-                    status="success" if result.is_healthy else "unhealthy",
-                    duration_ms=(time.monotonic() - started) * 1000,
-                    node_id=node_id,
-                    mode=mode,
-                    expected_last_seen=expected_last_seen,
-                    expected_config_hash=expected_config_hash,
-                    result=result,
-                    attempts_used=attempts_used,
-                    attempts_configured=self.verification_retries,
-                    cache_written=cache_written,
-                    bypassed=False,
-                    error_types=(
-                        ["NodeVerificationUnhealthy"] if not result.is_healthy else None
-                    ),
-                )
-
-                return result
-
-            except Exception as e:
-                last_error = str(e)
-                last_error_type = type(e).__name__
-                logger.warning(
-                    f"Verification attempt {attempt + 1}/{self.verification_retries} "
-                    f"failed for node {node_id}: {e}"
-                )
-                if attempt < self.verification_retries - 1:
-                    await asyncio.sleep(2**attempt)  # Exponential backoff
-
-        # All retries exhausted
-        result = NodeVerificationResult(
-            node_id=node_id,
-            is_healthy=False,
-            verification_mode=mode,
-            error_message=f"Verification failed after {self.verification_retries} attempts: {last_error}",
-        )
-        result.evidence_event_id = _publish_mesh_manager_verification(
-            event_bus=self.event_bus,
-            event_project_root=self.event_project_root,
-            event_type=EventType.PIPELINE_STAGE_END,
-            status="unhealthy",
-            duration_ms=(time.monotonic() - started) * 1000,
-            node_id=node_id,
+        """Verify the state integrity of a node before restoring it."""
+        return await self._verifier.verify_node_state(
+            target_node_id=node_id,
             mode=mode,
             expected_last_seen=expected_last_seen,
             expected_config_hash=expected_config_hash,
-            result=result,
-            attempts_used=attempts_used,
-            attempts_configured=self.verification_retries,
-            cache_written=False,
-            bypassed=False,
-            error_types=[last_error_type or "NodeVerificationUnhealthy"],
         )
-        return result
 
     async def _verify_ping(self, node_id: str) -> NodeVerificationResult:
         """
@@ -1743,49 +1523,14 @@ class MeshNetworkManager:
         require_verification: bool = True,
         post_action_dataplane_probe_target: Optional[str] = None,
     ) -> int:
-        """
-        Force route rediscovery and optionally restore offline nodes in DB.
-
-        This method performs two types of healing:
-        1. Mesh routing healing - rediscovers stale routes
-        2. Database node healing - restores offline nodes with verification
-
-        Args:
-            auto_restore_nodes: If True, attempt to restore offline nodes.
-                               If False (default), only log and count them.
-            node_recovery_callback: Optional async callback for custom verification.
-                                   If provided, used instead of built-in verification.
-            verification_mode: Mode for state integrity verification (default: FULL).
-                              Options: NONE, PING, FULL, CONSENSUS.
-            require_verification: If True (default), nodes must pass verification.
-                                 If False, allows unverified restore with warning.
-
-        Returns:
-            Number of components healed (routes + nodes).
-
-        Raises:
-            NodeVerificationError: If verification_mode=NONE without env var.
-
-        Security Notes:
-            - By default, nodes are NOT restored without passing verification
-            - VerificationMode.NONE requires X0TTA6BL4_ALLOW_UNVERIFIED_RESTORE=1
-            - Use require_verification=False with caution (logs warning)
-
-        Example:
-            >>> # Safe: Full verification (recommended)
-            >>> healed = await manager.trigger_aggressive_healing(
-            ...     auto_restore_nodes=True,
-            ...     verification_mode=VerificationMode.FULL
-            ... )
-
-            >>> # Custom verification callback
-            >>> async def my_verify(node_id: str) -> bool:
-            ...     return await custom_health_check(node_id)
-            >>> healed = await manager.trigger_aggressive_healing(
-            ...     auto_restore_nodes=True,
-            ...     node_recovery_callback=my_verify
-            ... )
-        """
+        """Force route rediscovery and optionally restore offline nodes in DB."""
+        return await self._healer.trigger_aggressive_healing(
+            auto_restore_nodes=auto_restore_nodes,
+            node_recovery_callback=node_recovery_callback,
+            verification_mode=verification_mode,
+            require_verification=require_verification,
+            post_action_dataplane_probe_target=post_action_dataplane_probe_target,
+        )
         healed = 0
         start_time = time.time()
         started = time.monotonic()
@@ -1971,9 +1716,8 @@ class MeshNetworkManager:
         return healed
 
     async def trigger_preemptive_checks(self):
-        """
-        Proactively check route freshness for all known destinations.
-        """
+        """Proactively check route freshness for all known destinations."""
+        return await self._healer.trigger_preemptive_checks()
         started = time.monotonic()
         route_count = 0
         discovery_attempts = 0

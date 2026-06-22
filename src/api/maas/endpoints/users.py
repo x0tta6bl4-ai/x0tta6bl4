@@ -21,6 +21,7 @@ from src.core.reliability_policy import mark_degraded_dependency
 from src.database import Session as DB_Session
 from src.database import User, get_db
 from src.api.maas_security import ApiKeyManager
+from src.repositories import SessionRepository, UserRepository
 from src.services.maas_auth_service import find_user_by_api_key
 
 router = APIRouter( tags=["users"])
@@ -92,8 +93,9 @@ async def register(
     request: Request, user_data: UserCreate, db: Session = Depends(get_db)
 ):
     """Register a new user"""
+    user_repo = UserRepository(db)
     # Check if user already exists
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    existing_user = user_repo.get_by_email(user_data.email)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -117,9 +119,7 @@ async def register(
         requests_limit=10000,  # Free tier limit
     )
 
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    user = user_repo.create(user)
 
     return UserResponse(
         id=user.id,
@@ -137,7 +137,8 @@ async def login(
     request: Request, credentials: UserLogin, db: Session = Depends(get_db)
 ):
     """Login user and create session"""
-    user = db.query(User).filter(User.email == credentials.email).first()
+    user_repo = UserRepository(db)
+    user = user_repo.get_by_email(credentials.email)
 
     if not user or not bcrypt.checkpw(
         credentials.password.encode(), user.password_hash.encode()
@@ -147,6 +148,7 @@ async def login(
         )
 
     # Create session
+    session_repo = SessionRepository(db)
     token = generate_session_token()
     expires_at = datetime.utcnow() + timedelta(hours=24)
 
@@ -154,9 +156,7 @@ async def login(
         token=token, user_id=user.id, email=user.email, expires_at=expires_at
     )
 
-    db.add(session)
-    db.commit()
-    db.refresh(session)
+    session = session_repo.create(session)
 
     return SessionResponse(
         token=token,
@@ -176,6 +176,8 @@ async def login(
 @limiter.limit("60/minute")
 async def get_current_user(request: Request, db: Session = Depends(get_db)):
     """Get current user profile based on API Key or Session"""
+    user_repo = UserRepository(db)
+    session_repo = SessionRepository(db)
     api_key = request.headers.get("X-API-Key")
     auth_header = request.headers.get("Authorization")
 
@@ -193,7 +195,7 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)):
         )
 
         if session_entry:
-            user = db.query(User).filter(User.id == session_entry.user_id).first()
+            user = user_repo.get_by_id(session_entry.user_id)
 
     # If not authenticated by session, try API key
     if not user and api_key:
@@ -221,8 +223,10 @@ async def logout(request: Request, db: Session = Depends(get_db)):
     token = request.headers.get("Authorization")
     if token and token.startswith("Bearer "):
         token = token[7:]
-        db.query(DB_Session).filter(DB_Session.token == token).delete()
-        db.commit()
+        session_repo = SessionRepository(db)
+        sessions = db.query(DB_Session).filter(DB_Session.token == token).all()
+        for s in sessions:
+            session_repo.delete(s.id)
     return {"message": "Logged out successfully"}
 
 
@@ -399,7 +403,8 @@ async def get_user_stats(
     request: Request, admin=Depends(verify_admin_token), db: Session = Depends(get_db)
 ):
     """Get user statistics (admin only)"""
-    total_users = db.query(User).count()
+    user_repo = UserRepository(db)
+    total_users = user_repo.count()
     active_sessions = (
         db.query(DB_Session).filter(DB_Session.expires_at > datetime.utcnow()).count()
     )
@@ -423,7 +428,8 @@ async def get_users(
     request: Request, admin=Depends(verify_admin_token), db: Session = Depends(get_db)
 ):
     """Get all users (admin only)"""
-    users = db.query(User).all()
+    user_repo = UserRepository(db)
+    users = user_repo.get_all(limit=200)
     return [
         UserResponse(
             id=user.id,

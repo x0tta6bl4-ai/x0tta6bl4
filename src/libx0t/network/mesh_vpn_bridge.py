@@ -408,7 +408,7 @@ class MeshVPNBridge:
             try:
                 writer.close()
                 await writer.wait_closed()
-            except:
+            except Exception:
                 pass
 
     def _select_exit_node(self):
@@ -462,17 +462,17 @@ class MeshVPNBridge:
                         # Decrypt data received from peer
                         try:
                             data = self.router.pqc.decrypt_from_peer(data, peer_id)
-                        except:
+                        except Exception:
                             pass  # Fallback to unencrypted if decryption fails
 
                 writer.write(data)
                 await writer.drain()
-        except:
+        except Exception:
             pass
         finally:
             try:
                 writer.close()
-            except:
+            except Exception:
                 pass
     
     def get_batman_status(self) -> Dict[str, Any]:

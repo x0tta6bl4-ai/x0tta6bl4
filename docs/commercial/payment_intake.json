@@ -1,6 +1,6 @@
 {
   "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment. This payment intake proves only that a wallet-based checkout package exists. It does not prove funds were received.",
-  "generated_at_utc": "2026-06-03T03:37:11Z",
+  "generated_at_utc": "2026-06-16T09:05:55Z",
   "payment_intake": {
     "buyer_steps": [
       "Pick one pricing item.",

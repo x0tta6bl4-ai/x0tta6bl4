@@ -1402,7 +1402,7 @@ def _run_mesh_action_enforcer_case(root: Path) -> dict[str, Any]:
     )
     with patch.dict(
         "os.environ",
-        {"X0TTA6BL4_MESH_ACTION_ENFORCER_APPLY": "1"},
+        {"x0tta6bl4_MESH_ACTION_ENFORCER_APPLY": "1"},
         clear=False,
     ), patch(
         "src.mesh.action_enforcer._find_yggdrasilctl",

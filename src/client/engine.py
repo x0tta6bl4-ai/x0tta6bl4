@@ -26,7 +26,7 @@ def get_project_root():
     try:
         this_file = os.path.abspath(__file__)
         return os.path.dirname(os.path.dirname(os.path.dirname(this_file)))
-    except:
+    except Exception:
         pass
     return "/mnt/projects"
 
@@ -174,7 +174,8 @@ class QuantumShieldEngine:
                 subprocess.run(["sudo", "-n", "ip", "link", "delete", TUN_INTERFACE_NAME], capture_output=True)
                 # Re-enable IPv6
                 subprocess.run(["sudo", "-n", "sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=0"], capture_output=True)
-            except: pass
+            except Exception:
+                pass
             self.tun_fd = None
         self._report_status("Disconnected")
 

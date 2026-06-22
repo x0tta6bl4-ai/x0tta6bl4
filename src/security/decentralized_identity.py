@@ -60,6 +60,7 @@ class DIDMethod(Enum):
     MESH = "mesh"  # Our native method
     KEY = "key"  # did:key (simple, self-certifying)
     WEB = "web"  # did:web (DNS-based)
+    PEAQ = "peaq"  # did:peaq (peaq network machine ID)
 
 
 class KeyPurpose(Enum):

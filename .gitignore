@@ -233,8 +233,9 @@ data-16bbdde1-92ce-4f6f-ac13-c7217d4cd06a-*/
 
 # Secrets
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
 **/*.secret
 **/*.key
 **/secrets/
@@ -345,3 +346,59 @@ diagnose.sh
 demo_provisioning.py
 current_config.json
 correct-config.json
+
+# Agent/IDE workspace
+.mimocode/
+.tmp_readiness_launch.json
+
+# AI tooling (local hooks, not part of product)
+claude-hook.py
+claude-hook-README.md
+claude-review.py
+claude-review.sh
+
+# Bounty fixes (separate projects, not main repo)
+cilium-identity-cache-fix/
+citadel_bridge/
+cockroachdb-bounty-fix/
+gofiber-bounty-fix/
+traefik-bounty-fix/
+
+# CTF / educational
+ethernaut-ctf/
+ethernaut-solutions/
+
+# eBPF kernel headers (large, build-time)
+ebpf/kernel/
+
+# Temp / scratch
+test.json
+tma_mockup.html
+weekly-summary.json
+local_mesh/
+agent/x0t-agent
+
+# Bounty/gas scripts (not production)
+scripts/ops/mine_testnet_gas.py
+scripts/ops/autonomous_gas_claim.py
+scripts/ops/automate_wormhole_bounty.py
+scripts/ops/estimate_gas_calc.py
+scripts/ops/stress_test_gas.py
+scripts/ops/smart_submitter.py
+scripts/ops/browser_submitter.py
+scripts/ops/browser_submitter_v2.py
+scripts/ops/browser_diagnostic.py
+scripts/ops/generate_battle_plan.py
+scripts/ops/monitor_agentpact_deals.py
+scripts/ops/run_miner.sh
+scripts/ops/publish_habr_article.py
+scripts/ops/tmp_fix_api_access.py
+
+# Marketing (separate concern)
+marketing/
+
+# NL diagnostics incident packets (diagnostic artifacts)
+nl-diagnostics/provider-incident-packets/
+
+# Bounty scripts in dao contracts
+src/dao/contracts/scripts/stress_test_gas.js

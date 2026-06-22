@@ -174,7 +174,7 @@ class EBPFLoader:
                                 sections[section_name]["text"] = (
                                     section.data().decode("utf-8").strip("\x00")
                                 )
-                            except:
+                            except Exception:
                                 pass
 
                 logger.debug(
