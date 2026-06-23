@@ -10,12 +10,56 @@ Optimizes the MAPE-K loop for faster recovery from failures with:
 
 import asyncio
 import logging
+import hashlib
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _duration_band(seconds: float) -> str:
+    if seconds <= 0:
+        return "none"
+    if seconds < 1:
+        return "subsecond"
+    if seconds < 5:
+        return "fast"
+    if seconds < 30:
+        return "moderate"
+    return "slow"
+
+
+def _action_summary(actions: List["ActionPriority"]) -> Dict[str, Any]:
+    by_type: Dict[str, int] = {}
+    for action in actions:
+        by_type[action.action_type] = by_type.get(action.action_type, 0) + 1
+    return {
+        "count": len(actions),
+        "count_bucket": _safe_count_bucket(len(actions)),
+        "by_type": by_type,
+        "action_hashes": [_safe_hash(action.action_id) for action in actions[:10]],
+        "dependency_count": sum(len(action.dependencies) for action in actions),
+    }
 
 
 class RecoveryPhase(Enum):
@@ -62,6 +106,51 @@ class ParallelMAPEKExecutor:
         self.max_parallel_tasks = max_parallel_tasks
         self.active_tasks: Dict[str, asyncio.Task] = {}
         self.completed_tasks: List[Tuple[str, float]] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"parallel-mapek-executor:{_safe_hash(id(self))}",
+            role="healing",
+            capabilities=("mape_k", "ops", "coordinator"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "parallel_mapek_executor_init",
+                "goal": "Initialize parallel MAPE-K execution decisions",
+                "signals": {"max_parallel_tasks": max_parallel_tasks},
+                "safety_boundary": (
+                    "Do not expose raw phase payloads or action ids in execution "
+                    "thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_phase_payloads": True,
+                    "redact_action_ids": True,
+                    "preserve_parallel_execution_contract": True,
+                },
+                "safety_boundary": (
+                    "Use recovery flags, action summaries, counts, and duration bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def execute_parallel(
         self, monitor_task, analyze_task, plan_task, execute_task, knowledge_task
@@ -109,7 +198,7 @@ class ParallelMAPEKExecutor:
                 analyze_result, plan_result, execute_result
             )
 
-            return {
+            result = {
                 "monitor": monitor_result,
                 "analyze": analyze_result,
                 "plan": plan_result,
@@ -121,8 +210,34 @@ class ParallelMAPEKExecutor:
                     "total": time.time() - start_time,
                 },
             }
+            self._record_thinking(
+                "parallel_mapek_executed",
+                "Execute MAPE-K phases with recovery-aware parallelism",
+                {
+                    "recovery_state": self._is_recovery_state(analyze_result),
+                    "analyze_flags": {
+                        "is_degraded": bool(analyze_result.get("is_degraded")),
+                        "is_critical": bool(analyze_result.get("is_critical")),
+                        "recovery_in_progress": bool(
+                            analyze_result.get("recovery_in_progress")
+                        ),
+                    },
+                    "emergency_actions": _action_summary(
+                        await self._prepare_emergency_actions(analyze_result)
+                    ),
+                    "monitor_duration_band": _duration_band(monitor_duration),
+                    "analyze_duration_band": _duration_band(analyze_duration),
+                    "total_duration_band": _duration_band(result["timings"]["total"]),
+                },
+            )
+            return result
         except Exception as e:
             logger.error(f"Error in parallel MAPE-K execution: {e}")
+            self._record_thinking(
+                "parallel_mapek_failed",
+                "Handle parallel MAPE-K execution failure",
+                {"error_type": type(e).__name__},
+            )
             raise
 
     async def _prepare_emergency_actions(
@@ -161,6 +276,14 @@ class ParallelMAPEKExecutor:
                 )
             )
 
+        self._record_thinking(
+            "parallel_mapek_emergency_actions_prepared",
+            "Prepare emergency actions for recovery state",
+            {
+                "is_critical": bool(analyze_result.get("is_critical")),
+                "actions": _action_summary(emergency_actions),
+            },
+        )
         return emergency_actions
 
     def _is_recovery_state(self, analyze_result: Dict[str, Any]) -> bool:
@@ -190,6 +313,55 @@ class MTTROptimizer:
             "network_issue": 10.0,
             "resource_exhaustion": 20.0,
         }
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"mttr-optimizer:{_safe_hash(id(self))}",
+            role="healing",
+            capabilities=("mape_k", "ops", "chaos_driven_design"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mttr_optimizer_init",
+                "goal": "Initialize MTTR optimization decisions",
+                "signals": {
+                    "target_count": len(self.mttr_targets),
+                    "max_history": self.max_history,
+                },
+                "safety_boundary": (
+                    "Do not expose raw issue types, action ids, or phase payloads in "
+                    "MTTR thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_issue_types": True,
+                    "redact_action_ids": True,
+                    "preserve_mttr_contract": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, phases, counts, success flags, and duration bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "executor": self.executor.get_thinking_status(),
+        }
 
     def start_recovery_tracking(self, issue_type: str) -> None:
         """Start tracking recovery metrics for an issue"""
@@ -202,6 +374,15 @@ class MTTROptimizer:
             recovery_success_rate=0.0,
         )
         logger.info(f"Recovery tracking started for issue type: {issue_type}")
+        self._record_thinking(
+            "mttr_recovery_started",
+            "Start MTTR recovery tracking",
+            {
+                "issue_hash": _safe_hash(issue_type),
+                "phase": RecoveryPhase.DETECTION.value,
+                "history_count_bucket": _safe_count_bucket(len(self.recovery_history)),
+            },
+        )
 
     def record_diagnosis_complete(self) -> None:
         """Record completion of diagnosis phase"""
@@ -213,6 +394,14 @@ class MTTROptimizer:
                 - self.current_recovery.detection_time
             )
             logger.info(f"Diagnosis complete in {diagnosis_duration:.2f}s")
+            self._record_thinking(
+                "mttr_diagnosis_completed",
+                "Record diagnosis phase completion",
+                {
+                    "phase": self.current_recovery.phase.value,
+                    "diagnosis_duration_band": _duration_band(diagnosis_duration),
+                },
+            )
 
     def record_first_action(self) -> None:
         """Record execution of first corrective action"""
@@ -224,6 +413,14 @@ class MTTROptimizer:
                 - self.current_recovery.detection_time
             )
             logger.info(f"First action executed in {ttf:.2f}s")
+            self._record_thinking(
+                "mttr_first_action_recorded",
+                "Record first corrective action timing",
+                {
+                    "phase": self.current_recovery.phase.value,
+                    "time_to_first_action_band": _duration_band(ttf),
+                },
+            )
 
     def record_recovery_complete(self, success: bool) -> None:
         """Record recovery completion"""
@@ -243,6 +440,17 @@ class MTTROptimizer:
                 self.recovery_history.pop(0)
 
             self.current_recovery = None
+            self._record_thinking(
+                "mttr_recovery_completed",
+                "Record recovery completion and update history",
+                {
+                    "success": success,
+                    "total_mttr_band": _duration_band(total_mttr),
+                    "history_count_bucket": _safe_count_bucket(
+                        len(self.recovery_history)
+                    ),
+                },
+            )
 
     def execute_action_priority_queue(
         self, actions: List[ActionPriority]
@@ -280,11 +488,26 @@ class MTTROptimizer:
                     self.current_recovery.actions_executed += 1
 
         total_time = time.time() - execution_time
+        self._record_thinking(
+            "mttr_priority_queue_executed",
+            "Execute recovery actions by priority and dependency readiness",
+            {
+                "input_actions": _action_summary(actions),
+                "executed_actions": _action_summary(executed),
+                "total_execution_band": _duration_band(total_time),
+                "current_recovery_present": self.current_recovery is not None,
+            },
+        )
         return executed, total_time
 
     def get_mttr_statistics(self) -> Dict[str, Any]:
         """Get MTTR optimization statistics"""
         if not self.recovery_history:
+            self._record_thinking(
+                "mttr_statistics_empty",
+                "Return empty MTTR statistics",
+                {"history_count": 0},
+            )
             return {"total_recoveries": 0}
 
         # Calculate statistics
@@ -298,7 +521,7 @@ class MTTROptimizer:
             1 for r in self.recovery_history if r.recovery_success_rate == 1.0
         )
 
-        return {
+        stats = {
             "total_recoveries": len(self.recovery_history),
             "average_mttr": sum(recovery_times) / len(recovery_times),
             "min_mttr": min(recovery_times),
@@ -315,6 +538,20 @@ class MTTROptimizer:
                 for r in self.recovery_history[-10:]
             ],
         }
+        self._record_thinking(
+            "mttr_statistics_collected",
+            "Collect MTTR recovery statistics",
+            {
+                "total_recoveries_bucket": _safe_count_bucket(
+                    stats["total_recoveries"]
+                ),
+                "average_mttr_band": _duration_band(stats["average_mttr"]),
+                "min_mttr_band": _duration_band(stats["min_mttr"]),
+                "max_mttr_band": _duration_band(stats["max_mttr"]),
+                "success_rate": stats["success_rate"],
+            },
+        )
+        return stats
 
 
 class AdaptiveMonitoringIntervals:
@@ -331,6 +568,53 @@ class AdaptiveMonitoringIntervals:
         }
         self.current_state = "healthy"
         self.next_interval = self.intervals[self.current_state]
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"adaptive-monitoring-intervals:{_safe_hash(id(self))}",
+            role="monitoring",
+            capabilities=("mape_k", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "adaptive_monitoring_intervals_init",
+                "goal": "Initialize adaptive monitoring interval policy",
+                "signals": {
+                    "state": self.current_state,
+                    "interval_count": len(self.intervals),
+                    "current_interval_band": _duration_band(self.next_interval),
+                },
+                "safety_boundary": (
+                    "Do not expose caller payloads in interval thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "preserve_interval_contract": True,
+                    "redact_unknown_state_names": True,
+                },
+                "safety_boundary": (
+                    "Use known states, state hashes, interval bands, and booleans."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def update_state(self, new_state: str) -> float:
         """
@@ -345,6 +629,26 @@ class AdaptiveMonitoringIntervals:
             logger.info(
                 f"Monitoring interval updated: {new_state} = " f"{self.next_interval}s"
             )
+            self._record_thinking(
+                "adaptive_monitoring_interval_updated",
+                "Update monitoring interval for known state",
+                {
+                    "state": new_state,
+                    "known_state": True,
+                    "interval_band": _duration_band(self.next_interval),
+                },
+            )
+        else:
+            self._record_thinking(
+                "adaptive_monitoring_interval_unchanged",
+                "Keep monitoring interval for unknown state",
+                {
+                    "state_hash": _safe_hash(new_state),
+                    "known_state": False,
+                    "current_state": self.current_state,
+                    "interval_band": _duration_band(self.next_interval),
+                },
+            )
 
         return self.next_interval
 
@@ -354,11 +658,21 @@ class AdaptiveMonitoringIntervals:
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get monitoring interval statistics"""
-        return {
+        stats = {
             "current_state": self.current_state,
             "current_interval": self.next_interval,
             "configured_intervals": self.intervals,
         }
+        self._record_thinking(
+            "adaptive_monitoring_interval_stats",
+            "Collect adaptive monitoring interval statistics",
+            {
+                "current_state": self.current_state,
+                "current_interval_band": _duration_band(self.next_interval),
+                "interval_count": len(self.intervals),
+            },
+        )
+        return stats
 
 
 def calculate_mttr_improvement(

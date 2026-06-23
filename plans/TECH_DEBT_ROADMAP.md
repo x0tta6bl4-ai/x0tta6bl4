@@ -216,7 +216,7 @@ src/network/ebpf/telemetry/
 | Test coverage | **71.15%** ✅ | 30% | 50% | 70% ✅ |
 | Test count | **10127** ✅ | 500 | 2000 | 5000 ✅ |
 | `pass` statements | 219 | 50 | 10 | 0 |
-| Type hints coverage | <5% | 20% | 50% | 80% |
+| Type hints coverage | **~7%** (nodes.py done) | 20% | 50% | 80% |
 | God Objects (>800 LOC) | **4** (было 6) | 6 | 4 | 0 |
 | CVE | 0 ✅ | 0 | 0 | 0 |
 | SPIRE Deployment | ✅ Готово | - | - | - |

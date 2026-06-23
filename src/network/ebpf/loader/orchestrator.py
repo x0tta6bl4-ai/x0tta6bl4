@@ -7,15 +7,24 @@ coordinating ProgramLoader, AttachManager, and MapManager.
 This is the main entry point for eBPF operations.
 """
 
+import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 from .program_loader import EBPFProgramLoader, EBPFProgramType, EBPFLoadError
 from .attach_manager import EBPFAttachManager, EBPFAttachMode, EBPFAttachError
 from .map_manager import EBPFMapManager
 
 logger = logging.getLogger(__name__)
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8", errors="replace")).hexdigest()
 
 # Monitoring metrics
 try:
@@ -61,8 +70,52 @@ class EBPFLoaderOrchestrator:
         # Backward compatibility aliases
         self.loaded_programs = self.program_loader.loaded_programs
         self.attached_interfaces = self.attach_manager.attached_interfaces
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="ebpf-loader-orchestrator",
+            role="coordinator",
+            capabilities=("security", "zero-trust", "monitoring"),
+            extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
         
         logger.info("EBPFLoaderOrchestrator initialized")
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_loader_orchestration",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Coordinate only local eBPF loader actions with redacted "
+                "selectors; do not expose program paths, interface names, route "
+                "selectors, stdout, stderr, or raw program IDs."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose orchestration thinking state without task secrets."""
+
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+            "components": {
+                "program_loader": self.program_loader.get_thinking_status(),
+                "attach_manager": self.attach_manager.get_thinking_status(),
+                "map_manager": self.map_manager.get_thinking_status(),
+            },
+        }
     
     def load_program(
         self, 
@@ -82,6 +135,15 @@ class EBPFLoaderOrchestrator:
         Raises:
             EBPFLoadError: If loading fails
         """
+        self._record_thinking_context(
+            operation="load_program",
+            goal="load local eBPF program through program loader",
+            constraints={
+                "program_path_hash": _hash_value(program_path),
+                "program_path_redacted": True,
+                "program_type": program_type.value,
+            },
+        )
         program_id, metadata = self.program_loader.load(program_path, program_type)
         
         # Record metrics
@@ -111,6 +173,17 @@ class EBPFLoaderOrchestrator:
         Raises:
             EBPFAttachError: If attachment fails
         """
+        self._record_thinking_context(
+            operation="attach_to_interface",
+            goal="attach loaded eBPF program to local interface",
+            constraints={
+                "program_id_hash": _hash_value(program_id),
+                "interface_hash": _hash_value(interface),
+                "program_id_redacted": True,
+                "interface_redacted": True,
+                "mode": mode.value,
+            },
+        )
         metadata = self.program_loader.get_program(program_id)
         if not metadata:
             raise EBPFAttachError(f"Program not loaded: {program_id}")
@@ -149,6 +222,16 @@ class EBPFLoaderOrchestrator:
         Returns:
             True if detachment successful
         """
+        self._record_thinking_context(
+            operation="detach_from_interface",
+            goal="detach loaded eBPF program from local interface",
+            constraints={
+                "program_id_hash": _hash_value(program_id),
+                "interface_hash": _hash_value(interface),
+                "program_id_redacted": True,
+                "interface_redacted": True,
+            },
+        )
         metadata = self.program_loader.get_program(program_id)
         if not metadata:
             logger.warning(f"Program {program_id} not found")
@@ -193,6 +276,15 @@ class EBPFLoaderOrchestrator:
         Returns:
             True if unload successful
         """
+        self._record_thinking_context(
+            operation="unload_program",
+            goal="unload local eBPF program and clear resources",
+            constraints={
+                "program_id_hash": _hash_value(program_id),
+                "program_id_redacted": True,
+                "attached_interface_count": len(self.attach_manager.attached_interfaces),
+            },
+        )
         # Check if program is still attached
         for interface, attachments in self.attach_manager.attached_interfaces.items():
             for att in attachments:
@@ -230,6 +322,11 @@ class EBPFLoaderOrchestrator:
         Returns:
             Dict with keys: total_packets, passed_packets, dropped_packets, forwarded_packets
         """
+        self._record_thinking_context(
+            operation="get_stats",
+            goal="read aggregate packet statistics from eBPF maps",
+            constraints={"read_only": True},
+        )
         return self.map_manager.get_stats()
     
     def update_routes(self, routes: Dict[str, str]) -> bool:
@@ -242,12 +339,29 @@ class EBPFLoaderOrchestrator:
         Returns:
             True if update successful
         """
+        self._record_thinking_context(
+            operation="update_routes",
+            goal="update mesh route selectors in local eBPF map",
+            constraints={
+                "route_count": len(routes),
+                "route_selectors_redacted": True,
+            },
+        )
         return self.map_manager.update_routes(routes)
     
     def cleanup(self) -> None:
         """
         Clean up all loaded eBPF programs and detach from interfaces.
         """
+        self._record_thinking_context(
+            operation="cleanup",
+            goal="detach and unload all tracked local eBPF programs",
+            constraints={
+                "loaded_program_count": len(self.program_loader.loaded_programs),
+                "interface_count": len(self.attach_manager.attached_interfaces),
+                "selectors_redacted": True,
+            },
+        )
         logger.info("Cleaning up eBPF programs...")
         
         # Detach from all interfaces
@@ -280,6 +394,15 @@ class EBPFLoaderOrchestrator:
         loaded_ids = []
         
         programs_dir = self.program_loader.programs_dir
+        self._record_thinking_context(
+            operation="load_programs",
+            goal="discover and load local eBPF object files",
+            constraints={
+                "programs_dir_exists": programs_dir.exists(),
+                "programs_dir_hash": _hash_value(programs_dir),
+                "programs_dir_redacted": True,
+            },
+        )
         if not programs_dir.exists():
             logger.warning(f"Programs directory does not exist: {programs_dir}")
             return loaded_ids

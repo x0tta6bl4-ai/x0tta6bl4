@@ -227,6 +227,8 @@ class IntegratedMAPEKCycle:
                             "confidence": event.confidence,
                             "mode": event.mode.value,
                             "action_taken": event.action_taken,
+                            "claim_gate": getattr(event, "claim_gate", None),
+                            "claim_gate_present": hasattr(event, "claim_gate"),
                         }
 
                         # Добавить объяснение

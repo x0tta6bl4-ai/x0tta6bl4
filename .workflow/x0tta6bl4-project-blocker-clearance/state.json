@@ -1,0 +1,118 @@
+{
+    "title": "Finish first-party VPN goal",
+    "slug": "finish-first-party-vpn-goal",
+    "created_at": "2026-06-06T12:12:28+00:00",
+    "status": "in_progress",
+    "approval": {
+        "required": true,
+        "granted": false,
+        "notes": "NL/server writes, user messaging, and profile distribution require a separate explicit apply phrase."
+    },
+    "packets": [
+        {
+            "id": "packet-01-evidence-refresh",
+            "status": "completed"
+        },
+        {
+            "id": "packet-02-goal-gate-fix",
+            "status": "completed"
+        },
+        {
+            "id": "packet-03-firstparty-core-verify",
+            "status": "completed"
+        },
+        {
+            "id": "packet-04-nl-runtime-readonly",
+            "status": "completed"
+        },
+        {
+            "id": "packet-05-integration",
+            "status": "completed"
+        },
+        {
+            "id": "packet-06-client-reply-readiness",
+            "status": "completed"
+        }
+    ],
+    "verification": {
+        "status": "blocked_external_or_approval_gated",
+        "checks": [
+            {
+                "command": "python3 nl-diagnostics/build_vpn_goal_status.py --json",
+                "status": "passed_not_complete",
+                "result": "VPN_PRODUCTION_CANDIDATE_GOAL_NOT_COMPLETE; requirements_passed=3/6"
+            },
+            {
+                "command": "python3 scripts/ops/check_real_readiness.py --skip-command-checks --skip-git-check --json",
+                "status": "passed",
+                "result": "REAL_READINESS_READY; 70/70 checks pass"
+            },
+            {
+                "command": "TMPDIR=/mnt/projects/.tmp python3 -m pytest tests/unit/network/test_firstparty_vpn_protocol_unit.py -q --no-cov",
+                "status": "passed",
+                "result": "306 passed"
+            },
+            {
+                "command": "python3 -m pytest nl-diagnostics/test_build_vpn_monitor_restore_readiness.py nl-diagnostics/test_classify_vpn_snapshot.py nl-diagnostics/test_build_vpn_decision_report.py nl-diagnostics/test_build_vpn_goal_status.py tests/unit/scripts/test_restore_nl_vpn_monitor_canary_timer_unit.py -q --no-cov",
+                "status": "passed",
+                "result": "42 passed"
+            },
+            {
+                "command": "python3 nl-diagnostics/build_vpn_monitor_restore_readiness.py",
+                "status": "passed_approval_gated",
+                "result": "MONITOR_RESTORE_READY_FOR_APPROVAL; apply_allowed_now=false"
+            },
+            {
+                "command": "python3 nl-diagnostics/build_remote_client_reply_readiness.py",
+                "status": "passed_external_reply_gated",
+                "result": "REMOTE_CLIENT_REPLIES_READY_FOR_SAFE_INTAKE; reply_recording_performed=false"
+            },
+            {
+                "command": "python3 -m pytest nl-diagnostics/test_build_remote_client_reply_readiness.py -q --no-cov",
+                "status": "passed",
+                "result": "5 passed"
+            }
+        ]
+    },
+    "latest_evidence": {
+        "updated_at": "2026-06-06T17:13:33Z",
+        "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260606T125103Z",
+        "decision": "restore_transport_canary_monitor",
+        "monitor_restore_readiness": "/mnt/projects/nl-diagnostics/vpn-monitor-restore-readiness-2026-06-06.json",
+        "monitor_restore_readiness_decision": "MONITOR_RESTORE_READY_FOR_APPROVAL",
+        "monitor_restore_apply_allowed_now": false,
+        "remote_client_reply_readiness": "/mnt/projects/nl-diagnostics/nl-anti-block-remote-client-reply-readiness-2026-06-06.json",
+        "remote_client_reply_readiness_decision": "REMOTE_CLIENT_REPLIES_READY_FOR_SAFE_INTAKE",
+        "remote_client_reply_request_packet_sha256": "da1cda1c0817d5563a2c5322080b74197758d5d31a2dae8b2ce235669e409277",
+        "remote_client_reply_recording_performed": false,
+        "goal_decision": "VPN_PRODUCTION_CANDIDATE_GOAL_NOT_COMPLETE",
+        "goal_requirements_passed": "3/6",
+        "local_vpn_status": "PASS",
+        "nl_core_listeners": "443/2083/39829 present",
+        "nl_key_services": "active",
+        "preflight": "ok; 389 checks; deploy_status=local_ready_but_deploy_blocked",
+        "monitor_precheck": "ghost-access-vpn-monitor.timer disabled/inactive; latest canary evidence generated_at=2026-06-06T06:39:50Z; canary not-configured"
+    },
+    "blockers": [
+        "CORE-REALITY-01 is missing because current NL runtime-state reads stale/degraded vpn-service-access-agent evidence with reality canary not configured.",
+        "ghost-access-vpn-monitor.timer is loaded but disabled/inactive; last observed stop was 2026-06-06T01:52:14Z.",
+        "ANTIBLOCK-CLIENTS-01 needs two privacy-safe external client replies; local reply intake is ready and hash-bound, but no real replies were recorded.",
+        "NL-GATE-01 remains closed because nl_write_allowed=false and server mutations require a separate explicit apply phrase."
+    ],
+    "server_apply_needed": {
+        "approval_phrase": "APPLY_RESTORE_NL_VPN_MONITOR_CANARY_TIMER",
+        "local_dry_run": "bash scripts/ops/restore_nl_vpn_monitor_canary_timer.sh --dry-run --precheck --host nl",
+        "apply_command": "RESTORE_NL_VPN_MONITOR_CONFIRM=APPLY_RESTORE_NL_VPN_MONITOR_CANARY_TIMER bash scripts/ops/restore_nl_vpn_monitor_canary_timer.sh --apply --host nl",
+        "scope": "Enable/start ghost-access-vpn-monitor.timer, run ghost-access-vpn-monitor.service once, then run x0tta6bl4-runtime-state.service and collect a fresh read-only snapshot.",
+        "risk": "ghost-access-vpn-monitor.service may write canary/runtime evidence and can touch x-ui canary client state; do not run without explicit approval while other agents are on the server."
+    },
+    "latest_verification": {
+        "updated_at": "2026-06-06T17:20:14Z",
+        "focused_tests": "47 passed: remote client reply readiness, monitor restore readiness, classify snapshot, decision report, goal status, restore monitor script tests",
+        "py_compile": "passed: remote client reply readiness, monitor restore readiness, classifier, decision report, goal status",
+        "monitor_restore_readiness": "MONITOR_RESTORE_READY_FOR_APPROVAL; apply_allowed_now=false; no NL writes performed",
+        "remote_client_reply_readiness": "REMOTE_CLIENT_REPLIES_READY_FOR_SAFE_INTAKE; two dry-run reply validations passed; recorded=false",
+        "dry_run_precheck": "passed; no NL writes performed",
+        "goal_status": "VPN_PRODUCTION_CANDIDATE_GOAL_NOT_COMPLETE; requirements_passed=3/6"
+    }
+}

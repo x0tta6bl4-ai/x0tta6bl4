@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
+
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
@@ -53,6 +55,24 @@ def _make_request(*, query=None, match_info=None, payload=None):
         match_info=match_info or {},
         json=_json,
     )
+
+
+def _clear_proxy_control_plane_identity(monkeypatch):
+    for name in (
+        "PROXY_CONTROL_PLANE_SPIFFE_ID",
+        "PROXY_CONTROL_PLANE_DID",
+        "PROXY_CONTROL_PLANE_WALLET_ADDRESS",
+        "X0TTA6BL4_SERVICE_SPIFFE_ID",
+        "X0TTA6BL4_SERVICE_DID",
+        "X0TTA6BL4_SERVICE_WALLET_ADDRESS",
+        "SERVICE_SPIFFE_ID",
+        "SERVICE_DID",
+        "SERVICE_WALLET_ADDRESS",
+        "SPIFFE_ID",
+        "DID",
+        "GHOST_WALLET_ADDRESS",
+    ):
+        monkeypatch.delenv(name, raising=False)
 
 
 class _FakeRunner:
@@ -160,6 +180,77 @@ async def test_list_and_get_proxy_endpoints_filters_and_404():
 
 
 @pytest.mark.asyncio
+async def test_health_and_list_publish_redacted_control_plane_evidence(
+    tmp_path,
+    monkeypatch,
+):
+    _clear_proxy_control_plane_identity(monkeypatch)
+    _install_aiohttp_cors_stub()
+    mod = importlib.import_module("src.network.proxy_control_plane")
+    bus = EventBus(project_root=str(tmp_path))
+    healthy_us = _make_proxy(mod, "proxy-secret-1", region="us")
+    banned_de = _make_proxy(
+        mod,
+        "proxy-secret-2",
+        region="de",
+        status=mod.ProxyStatus.BANNED,
+    )
+    manager = SimpleNamespace(
+        proxies=[healthy_us, banned_de],
+        domain_reputations={},
+        get_domain_reputation=lambda domain: SimpleNamespace(
+            domain=domain,
+            score=1.0,
+            block_count=0,
+            success_count=1,
+            last_access=0.0,
+        ),
+        _check_proxy_health=lambda _p: None,
+    )
+    plane = mod.ProxyControlPlane(manager, event_bus=bus)
+
+    health = await plane.health_check(_make_request())
+    list_resp = await plane.list_proxies(
+        _make_request(query={"status": "banned", "region": "de"})
+    )
+
+    assert json.loads(health.text)["evidence"]["event_id"]
+    assert json.loads(list_resp.text)["evidence"]["event_id"]
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="proxy-control-plane",
+    )
+    assert [event.data["operation"] for event in events] == [
+        "health_check",
+        "list_proxies",
+    ]
+    health_payload = events[0].data
+    list_payload = events[1].data
+    assert health_payload["component"] == "network.proxy_control_plane"
+    assert health_payload["service_name"] == "proxy-control-plane"
+    assert health_payload["layer"] == "network_proxy_control_plane_observed_state"
+    assert health_payload["proxy_counts"] == {
+        "total": 2,
+        "healthy": 1,
+        "degraded": 0,
+        "unhealthy": 0,
+        "banned": 1,
+    }
+    assert health_payload["service_identity_present"] == {
+        "spiffe_id": False,
+        "did": False,
+        "wallet_address": False,
+    }
+    assert list_payload["status_filter"] == "banned"
+    assert list_payload["region_filter_hash"].startswith("sha256:")
+    assert list_payload["returned_count"] == 1
+    assert "customer traffic delivery" in list_payload["claim_boundary"]
+    text = str(events)
+    assert "proxy-secret" not in text
+    assert "127.0.0.1" not in text
+
+
+@pytest.mark.asyncio
 async def test_proxy_request_requires_url_and_success_path():
     _install_aiohttp_cors_stub()
     mod = importlib.import_module("src.network.proxy_control_plane")
@@ -207,6 +298,92 @@ async def test_proxy_request_requires_url_and_success_path():
     assert ok_body["status"] == 200
     assert ok_body["proxy_used"] == "p1"
     assert ok_body["body"] == "payload"
+
+
+@pytest.mark.asyncio
+async def test_proxy_request_publishes_redacted_control_plane_evidence(
+    tmp_path,
+    monkeypatch,
+):
+    _clear_proxy_control_plane_identity(monkeypatch)
+    _install_aiohttp_cors_stub()
+    mod = importlib.import_module("src.network.proxy_control_plane")
+    bus = EventBus(project_root=str(tmp_path))
+    proxy = _make_proxy(mod, "proxy-secret-1")
+
+    class _FakeResponse:
+        status = 200
+        headers = {"Authorization": "secret-response-header"}
+        proxy_id = "proxy-secret-1"
+
+        async def text(self):
+            return "response-body-secret"
+
+    class _Manager:
+        def __init__(self):
+            self.proxies = [proxy]
+            self.domain_reputations = {}
+
+        def get_domain_reputation(self, domain):
+            return SimpleNamespace(
+                domain=domain,
+                score=1.0,
+                block_count=0,
+                success_count=1,
+                last_access=0.0,
+            )
+
+        async def _check_proxy_health(self, _proxy):
+            return None
+
+        async def request(self, **_kwargs):
+            return _FakeResponse()
+
+    plane = mod.ProxyControlPlane(_Manager(), event_bus=bus)
+
+    response = await plane.proxy_request(
+        _make_request(
+            payload={
+                "url": "https://secret.example/path",
+                "method": "POST",
+                "headers": {"Authorization": "secret-request-header"},
+                "body": "request-body-secret",
+                "target_domain": "secret.example",
+                "preferred_region": "de",
+            }
+        )
+    )
+
+    body = json.loads(response.text)
+    assert body["evidence"]["event_id"]
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="proxy-control-plane",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["operation"] == "proxy_request"
+    assert payload["success"] is True
+    assert payload["url_hash"].startswith("sha256:")
+    assert payload["target_domain_hash"].startswith("sha256:")
+    assert payload["preferred_region_hash"].startswith("sha256:")
+    assert payload["method"] == "POST"
+    assert payload["headers_present"] is True
+    assert payload["body_present"] is True
+    assert payload["response"] == {
+        "status_code": 200,
+        "headers_count": 1,
+        "body_truncated_to": 10000,
+        "body_returned_chars": len("response-body-secret"),
+    }
+    assert payload["proxy_used_hash"].startswith("sha256:")
+    text = str(payload)
+    assert "secret.example" not in text
+    assert "secret-request-header" not in text
+    assert "request-body-secret" not in text
+    assert "secret-response-header" not in text
+    assert "response-body-secret" not in text
+    assert "proxy-secret-1" not in text
 
 
 @pytest.mark.asyncio
@@ -263,6 +440,77 @@ async def test_add_proxy_pool_validation_and_success(monkeypatch):
     assert ok.status == 200
     assert ok_body["added"] == 2
     assert set(manager.added) == {"p-us", "p-de"}
+
+
+@pytest.mark.asyncio
+async def test_add_proxy_pool_publishes_redacted_control_action_evidence(
+    tmp_path,
+    monkeypatch,
+):
+    _clear_proxy_control_plane_identity(monkeypatch)
+    _install_aiohttp_cors_stub()
+    mod = importlib.import_module("src.network.proxy_control_plane")
+    bus = EventBus(project_root=str(tmp_path))
+
+    class _Manager:
+        def __init__(self):
+            self.proxies = []
+            self.domain_reputations = {}
+
+        def add_proxy(self, proxy):
+            self.proxies.append(proxy)
+
+        def get_domain_reputation(self, domain):
+            return SimpleNamespace(
+                domain=domain,
+                score=1.0,
+                block_count=0,
+                success_count=1,
+                last_access=0.0,
+            )
+
+        async def _check_proxy_health(self, _proxy):
+            return None
+
+    fake_pool = [
+        _make_proxy(mod, "proxy-secret-us", region="us"),
+        _make_proxy(mod, "proxy-secret-de", region="de"),
+    ]
+    monkeypatch.setattr(mod, "create_proxy_pool_from_provider", lambda **_kwargs: fake_pool)
+    plane = mod.ProxyControlPlane(_Manager(), event_bus=bus)
+
+    response = await plane.add_proxy_pool(
+        _make_request(
+            payload={
+                "provider": "secret-provider",
+                "username": "secret-user",
+                "password": "secret-pass",
+                "regions": ["us", "de"],
+            }
+        )
+    )
+
+    body = json.loads(response.text)
+    assert body["evidence"]["event_id"]
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="proxy-control-plane",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["operation"] == "add_proxy_pool"
+    assert payload["success"] is True
+    assert payload["provider_hash"].startswith("sha256:")
+    assert payload["username_present"] is True
+    assert payload["password_present"] is True
+    assert payload["regions_count"] == 2
+    assert payload["added_count"] == 2
+    assert all(item.startswith("sha256:") for item in payload["added_proxy_id_hashes"])
+    text = str(payload)
+    assert "secret-provider" not in text
+    assert "secret-user" not in text
+    assert "secret-pass" not in text
+    assert "proxy-secret" not in text
 
 
 @pytest.mark.asyncio
@@ -469,7 +717,8 @@ async def test_start_stop_and_main(monkeypatch):
     state = {"manager_start": 0, "manager_stop": 0, "cp_start": 0, "cp_stop": 0}
 
     class _MainManager:
-        def __init__(self):
+        def __init__(self, **kwargs):
+            assert kwargs == {"event_project_root": "."}
             self.proxies = []
             self.domain_reputations = {}
 

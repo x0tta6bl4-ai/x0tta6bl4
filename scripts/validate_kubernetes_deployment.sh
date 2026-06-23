@@ -1,14 +1,20 @@
 #!/bin/bash
-# Validate Kubernetes deployment for x0tta6bl4
-# Tests deployment manifests, health checks, and production readiness
+# Local Kubernetes manifest validation for x0tta6bl4.
+# This is not production readiness proof.
 
-set -e
+set -euo pipefail
 
-echo "🔍 Validating Kubernetes Deployment..."
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+echo "🔍 Validating local Kubernetes manifests..."
+echo "Claim boundary: this checks manifest syntax and local required fields only."
+echo "It does not prove live cluster rollout, customer traffic, external DPI bypass,"
+echo "settlement finality, production SLOs, or production readiness."
 
 # Check if kubectl is available
 if ! command -v kubectl &> /dev/null; then
-    echo "❌ kubectl not found. Install kubectl to validate deployment."
+    echo "❌ kubectl not found. Install kubectl to validate local manifests."
     exit 1
 fi
 
@@ -49,5 +55,6 @@ if ! grep -q "resources:" deployment/kubernetes/deployment.yaml; then
     echo "⚠️  Deployment missing resource limits"
 fi
 
-echo "✅ Kubernetes deployment validation complete"
-
+echo "✅ Local Kubernetes manifest validation complete"
+echo "For a production claim, use the fail-closed real-readiness gate:"
+echo "python3 scripts/ops/check_real_readiness.py"

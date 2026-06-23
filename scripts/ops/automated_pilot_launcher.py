@@ -27,7 +27,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ROOT = Path(os.getenv("X0TTA6BL4_ROOT", "/mnt/projects"))
+ROOT = Path(os.getenv("x0tta6bl4_ROOT", "/mnt/projects"))
 CONTRACTS_DIR = ROOT / "src/dao/contracts"
 CONFIRM_TOKEN = "LIVE_PILOT_MUTATION"
 PILOT_HOSTS = ("nl", "sb")

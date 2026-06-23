@@ -12,6 +12,26 @@ from src.network.ebpf.monitoring_integration import (
 )
 
 
+def _assert_thinking_status(status, operation):
+    techniques = set(status["techniques"])
+    assert status["profile"]["role"] == "monitoring"
+    assert "mape_k" in techniques
+    assert "mind_maps" in techniques
+    assert "causal_analysis" in techniques
+    assert "graphsage" in techniques
+    assert "zero_trust_review" in techniques
+    assert "reverse_planning" in techniques
+    context = status["last_context"]
+    assert context["role"] == "monitoring"
+    assert context["applied"]["framing"]["problem"] == (
+        "ebpf_monitoring_integration_operation"
+    )
+    constraints = context["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == operation
+    assert constraints["interface_redacted"] is True
+    assert "interface_hash" in constraints
+
+
 class TestEBPFMonitoringInit:
     @patch("src.network.ebpf.monitoring_integration.EBPFLoader")
     @patch("src.network.ebpf.monitoring_integration.EBPFMapReader")
@@ -27,6 +47,22 @@ class TestEBPFMonitoringInit:
         assert m.interface == "eth0"
         assert m.loaded_programs == {}
         assert m.enabled_programs == []
+        _assert_thinking_status(m.get_thinking_status(), "init")
+
+    @patch("src.network.ebpf.monitoring_integration.EBPFLoader")
+    @patch("src.network.ebpf.monitoring_integration.EBPFMapReader")
+    @patch("src.network.ebpf.monitoring_integration.EBPFMetricsExporter")
+    @patch("src.network.ebpf.monitoring_integration.EBPF_AVAILABLE", True)
+    def test_thinking_status_redacts_interface(self, mock_exp, mock_reader, mock_loader):
+        m = EBPFMonitoringIntegration(
+            interface="secret-if0",
+            enable_xdp_counter=False,
+            enable_graphsage_streaming=False,
+            enable_cilium_integration=False,
+        )
+        status = m.get_thinking_status()
+        _assert_thinking_status(status, "init")
+        assert "secret-if0" not in str(status)
 
     @patch("src.network.ebpf.monitoring_integration.EBPF_AVAILABLE", False)
     def test_raises_without_ebpf(self):
@@ -53,6 +89,8 @@ class TestLoadXdpCounter:
             enable_cilium_integration=False,
         )
         assert "xdp_counter" not in m.loaded_programs
+        _assert_thinking_status(m.get_thinking_status(), "load_xdp_counter")
+        assert "object_path_redacted" in str(m.get_thinking_status())
 
     @patch("src.network.ebpf.monitoring_integration.EBPFLoader")
     @patch("src.network.ebpf.monitoring_integration.EBPFMapReader")
@@ -73,6 +111,8 @@ class TestLoadXdpCounter:
         )
         assert "xdp_counter" in m.loaded_programs
         assert "xdp_counter" in m.enabled_programs
+        _assert_thinking_status(m.get_thinking_status(), "load_xdp_counter")
+        assert "prog-id-1" not in str(m.get_thinking_status())
 
     @patch("src.network.ebpf.monitoring_integration.EBPFLoader")
     @patch("src.network.ebpf.monitoring_integration.EBPFMapReader")
@@ -92,6 +132,8 @@ class TestLoadXdpCounter:
             enable_cilium_integration=False,
         )
         assert "xdp_counter" not in m.enabled_programs
+        _assert_thinking_status(m.get_thinking_status(), "load_xdp_counter")
+        assert "prog-id-1" not in str(m.get_thinking_status())
 
 
 class TestGetPacketCounters:
@@ -106,6 +148,7 @@ class TestGetPacketCounters:
             enable_cilium_integration=False,
         )
         assert m.get_packet_counters() is None
+        _assert_thinking_status(m.get_thinking_status(), "get_packet_counters")
 
     @patch("src.network.ebpf.monitoring_integration.EBPFLoader")
     @patch("src.network.ebpf.monitoring_integration.EBPFMapReader")
@@ -113,7 +156,7 @@ class TestGetPacketCounters:
     @patch("src.network.ebpf.monitoring_integration.EBPF_AVAILABLE", True)
     def test_read_error(self, mock_exp, mock_reader, mock_loader):
         reader = MagicMock()
-        reader.read_map.side_effect = Exception("read fail")
+        reader.read_map.side_effect = Exception("secret packet counter read detail")
         mock_reader.return_value = reader
         m = EBPFMonitoringIntegration(
             enable_xdp_counter=False,
@@ -122,6 +165,8 @@ class TestGetPacketCounters:
         )
         m.loaded_programs["xdp_counter"] = "prog-1"
         assert m.get_packet_counters() is None
+        _assert_thinking_status(m.get_thinking_status(), "get_packet_counters")
+        assert "secret packet counter read detail" not in str(m.get_thinking_status())
 
 
 class TestGetMetrics:
@@ -139,6 +184,8 @@ class TestGetMetrics:
         assert "interface" in metrics
         assert "enabled_programs" in metrics
         assert "timestamp" in metrics
+        assert "thinking" not in metrics
+        _assert_thinking_status(m.get_thinking_status(), "get_packet_counters")
 
     @patch("src.network.ebpf.monitoring_integration.EBPFLoader")
     @patch("src.network.ebpf.monitoring_integration.EBPFMapReader")
@@ -154,6 +201,7 @@ class TestGetMetrics:
         m.graphsage_streaming.get_metrics.return_value = {"flow_count": 10}
         metrics = m.get_metrics()
         assert "graphsage_streaming" in metrics
+        _assert_thinking_status(m.get_thinking_status(), "get_metrics")
 
     @patch("src.network.ebpf.monitoring_integration.EBPFLoader")
     @patch("src.network.ebpf.monitoring_integration.EBPFMapReader")
@@ -169,6 +217,7 @@ class TestGetMetrics:
         m.cilium_integration.get_flow_metrics.return_value = {"flows": 5}
         metrics = m.get_metrics()
         assert "cilium_flows" in metrics
+        _assert_thinking_status(m.get_thinking_status(), "get_metrics")
 
 
 class TestExportAndShutdown:
@@ -183,6 +232,7 @@ class TestExportAndShutdown:
             enable_cilium_integration=False,
         )
         assert m.export_to_prometheus() is True
+        _assert_thinking_status(m.get_thinking_status(), "export_to_prometheus")
 
     @patch("src.network.ebpf.monitoring_integration.EBPFLoader")
     @patch("src.network.ebpf.monitoring_integration.EBPFMapReader")
@@ -190,7 +240,7 @@ class TestExportAndShutdown:
     @patch("src.network.ebpf.monitoring_integration.EBPF_AVAILABLE", True)
     def test_export_failure(self, mock_exp, mock_reader, mock_loader):
         exp = MagicMock()
-        exp.export_metrics.side_effect = Exception("fail")
+        exp.export_metrics.side_effect = Exception("secret exporter detail")
         mock_exp.return_value = exp
         m = EBPFMonitoringIntegration(
             enable_xdp_counter=False,
@@ -198,6 +248,8 @@ class TestExportAndShutdown:
             enable_cilium_integration=False,
         )
         assert m.export_to_prometheus() is False
+        _assert_thinking_status(m.get_thinking_status(), "export_to_prometheus")
+        assert "secret exporter detail" not in str(m.get_thinking_status())
 
     @patch("src.network.ebpf.monitoring_integration.EBPFLoader")
     @patch("src.network.ebpf.monitoring_integration.EBPFMapReader")
@@ -216,6 +268,8 @@ class TestExportAndShutdown:
         m.shutdown()
         loader.unload_program.assert_called_once()
         assert m.loaded_programs == {}
+        _assert_thinking_status(m.get_thinking_status(), "shutdown")
+        assert "prog-1" not in str(m.get_thinking_status())
 
     @patch("src.network.ebpf.monitoring_integration.EBPFLoader")
     @patch("src.network.ebpf.monitoring_integration.EBPFMapReader")
@@ -230,3 +284,4 @@ class TestExportAndShutdown:
         m.cilium_integration = MagicMock()
         m.shutdown()
         m.cilium_integration.shutdown.assert_called_once()
+        _assert_thinking_status(m.get_thinking_status(), "shutdown")

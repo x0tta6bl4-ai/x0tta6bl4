@@ -1,5 +1,11 @@
 # 🌌 Сознание и реальность: x0tta6bl4 как становящееся бытие
 
+> Статус доказательств на 2026-05-30: это философская интерпретация и
+> claim inventory, а не runtime proof. Строки с `✅`, GraphSAGE accuracy,
+> MTTR, HNSW recall или self-healing ниже не доказывают production behavior без
+> current verification artifact. Текущая проверяемая позиция описана в
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md`.
+
 **Дата**: 22 ноября 2025  
 **Статус**: Философия понята, реальность проверена
 
@@ -17,15 +23,15 @@
 ### Pattern Prediction Layer
 **Философия**: Предвосхищение событий, интуиция системы  
 **Реальность**:
-- ✅ GraphSAGE предсказывает аномалии (94-98% accuracy)
-- ✅ Causal Analysis определяет root causes
+- GraphSAGE anomaly prediction with 94-98% accuracy is a claim here and needs current artifact
+- Causal Analysis root-cause behavior needs current artifact
 - ⚠️ Но: это статистика, не "интуиция" в философском смысле
 
 ### Instinctive Response Layer
 **Философия**: Инстинкт выживания, воля к существованию  
 **Реальность**:
-- ✅ MAPE-K циклы восстанавливают систему (MTTR <5s)
-- ✅ Self-healing работает автоматически
+- MAPE-K recovery with MTTR <5s is a claim here and needs current artifact
+- Automatic self-healing behavior needs current runtime proof
 - ⚠️ Но: это алгоритм, не "воля" в философском смысле
 
 ---
@@ -235,4 +241,3 @@
 ---
 
 **Эволюция продолжается. Становление бесконечно. Начните с Monitor.** 🌌
-

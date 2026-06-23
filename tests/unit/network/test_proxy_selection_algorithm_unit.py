@@ -8,6 +8,7 @@ os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
+from src.coordination.events import EventBus, EventType
 import src.network.proxy_selection_algorithm as mod
 from src.network.residential_proxy_manager import ProxyEndpoint, ProxyStatus
 
@@ -27,6 +28,24 @@ def _proxy(
         country_code=cc,
         status=status,
     )
+
+
+def _clear_proxy_selection_identity(monkeypatch):
+    for name in (
+        "PROXY_SELECTION_ALGORITHM_SPIFFE_ID",
+        "PROXY_SELECTION_ALGORITHM_DID",
+        "PROXY_SELECTION_ALGORITHM_WALLET_ADDRESS",
+        "X0TTA6BL4_SERVICE_SPIFFE_ID",
+        "X0TTA6BL4_SERVICE_DID",
+        "X0TTA6BL4_SERVICE_WALLET_ADDRESS",
+        "SERVICE_SPIFFE_ID",
+        "SERVICE_DID",
+        "SERVICE_WALLET_ADDRESS",
+        "SPIFFE_ID",
+        "DID",
+        "GHOST_WALLET_ADDRESS",
+    ):
+        monkeypatch.delenv(name, raising=False)
 
 
 def test_proxy_metrics_defaults_and_statistics():
@@ -156,6 +175,102 @@ async def test_select_proxy_guard_clauses_and_strategy_fallback(caplog):
         [_proxy("px")], strategy="unknown", require_healthy=False
     )
     assert chosen is not None
+
+
+@pytest.mark.asyncio
+async def test_select_proxy_publishes_redacted_selection_evidence(
+    tmp_path,
+    monkeypatch,
+):
+    _clear_proxy_selection_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    alg = mod.ProxySelectionAlgorithm(event_bus=bus)
+    p1 = _proxy("proxy-secret-1", region="us-east", cc="US")
+    p2 = _proxy("proxy-secret-2", region="de-west", cc="DE")
+    p1.is_rate_limited = lambda: False
+    p2.is_rate_limited = lambda: False
+    alg._get_metrics(p1).latency_history = deque([50.0] * 20, maxlen=100)
+    alg._get_metrics(p1).success_history = deque([1.0] * 20, maxlen=100)
+    alg._get_metrics(p2).latency_history = deque([900.0] * 20, maxlen=100)
+    alg._get_metrics(p2).success_history = deque([0.5] * 20, maxlen=100)
+    monkeypatch.setattr(mod.random, "uniform", lambda _a, _b: 0.0)
+
+    selected = await alg.select_proxy(
+        [p1, p2],
+        domain="secret.example",
+        preferred_region="us-east",
+        strategy=mod.SelectionStrategy.WEIGHTED_SCORE,
+    )
+
+    assert selected is p1
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="proxy-selection-algorithm",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["component"] == "network.proxy_selection_algorithm"
+    assert payload["operation"] == "select_proxy"
+    assert payload["service_name"] == "proxy-selection-algorithm"
+    assert payload["layer"] == "network_proxy_selection_observed_state"
+    assert payload["status"] == "proxy_selected"
+    assert payload["success"] is True
+    assert payload["strategy"] == "weighted_score"
+    assert payload["domain_hash"].startswith("sha256:")
+    assert payload["preferred_region_hash"].startswith("sha256:")
+    assert payload["candidate_counts"] == {
+        "pool_total": 2,
+        "after_health_filter": 2,
+        "rate_limited": 0,
+        "after_rate_limit_filter": 2,
+    }
+    assert payload["score_summary"]["candidate_scores_count"] == 2
+    assert payload["score_summary"]["positive_scores_count"] == 2
+    assert payload["score_summary"]["selected_score"] is not None
+    assert payload["selected_proxy"]["proxy_id_hash"].startswith("sha256:")
+    assert payload["service_identity_present"] == {
+        "spiffe_id": False,
+        "did": False,
+        "wallet_address": False,
+    }
+    assert "customer traffic delivery" in payload["claim_boundary"]
+    text = str(payload)
+    assert "secret.example" not in text
+    assert "proxy-secret" not in text
+    assert "127.0.0.1" not in text
+
+
+@pytest.mark.asyncio
+async def test_select_proxy_publishes_redacted_failure_evidence(tmp_path, monkeypatch):
+    _clear_proxy_selection_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    alg = mod.ProxySelectionAlgorithm(event_bus=bus)
+    p1 = _proxy("proxy-secret-1", status=ProxyStatus.UNHEALTHY)
+
+    selected = await alg.select_proxy(
+        [p1],
+        domain="secret.example",
+        require_healthy=True,
+    )
+
+    assert selected is None
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="proxy-selection-algorithm",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["status"] == "no_candidate_after_health_filter"
+    assert payload["success"] is False
+    assert payload["candidate_counts"] == {
+        "pool_total": 1,
+        "after_health_filter": 0,
+        "rate_limited": 0,
+        "after_rate_limit_filter": 0,
+    }
+    assert payload["selected_proxy"] == {"present": False}
+    assert "secret.example" not in str(payload)
+    assert "proxy-secret-1" not in str(payload)
 
 
 @pytest.mark.asyncio

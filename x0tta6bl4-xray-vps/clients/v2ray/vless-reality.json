@@ -70,7 +70,7 @@
         "realitySettings": {
           "show": false,
           "fingerprint": "chrome",
-          "serverName": "www.microsoft.com",
+          "serverName": "REPLACE_REALITY_SERVER_NAME",
           "publicKey": "REPLACE_PUBLIC_KEY",
           "shortId": "REPLACE_SHORT_ID",
           "spiderX": ""

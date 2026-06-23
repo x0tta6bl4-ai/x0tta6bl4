@@ -251,11 +251,19 @@ class TestEnableBpfStats:
             mock_run.assert_not_called()
         exporter.STUB_MODE = original_stub
 
+    def test_explicit_stub_argument_overrides_global_live_mode(self, exporter):
+        original_stub = exporter.STUB_MODE
+        exporter.STUB_MODE = False
+        with mock.patch("subprocess.run") as mock_run:
+            exporter._enable_bpf_stats(stub=True)
+            mock_run.assert_not_called()
+        exporter.STUB_MODE = original_stub
+
     def test_calls_sysctl_in_live_mode(self, exporter):
         original_stub = exporter.STUB_MODE
         exporter.STUB_MODE = False
         with mock.patch("subprocess.run") as mock_run:
-            exporter._enable_bpf_stats()
+            exporter._enable_bpf_stats(stub=False)
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             assert "sysctl" in args
@@ -266,7 +274,7 @@ class TestEnableBpfStats:
         exporter.STUB_MODE = False
         with mock.patch("subprocess.run", side_effect=PermissionError("no root")):
             # should not raise
-            exporter._enable_bpf_stats()
+            exporter._enable_bpf_stats(stub=False)
         exporter.STUB_MODE = original_stub
 
 

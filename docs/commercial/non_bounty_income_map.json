@@ -1,0 +1,1313 @@
+{
+  "claim_boundary": "This map ranks non-bounty earning routes. It proves only local analysis and artifact planning. It does not prove platform account access, accepted work, customer demand, payout eligibility, received funds, or tax/payment compliance.",
+  "claim_gate": {
+    "accepted_work_claim_allowed": false,
+    "analysis_claim_allowed": true,
+    "external_account_access_claim_allowed": false,
+    "funds_received_claim_allowed": false
+  },
+  "generated_at_utc": "2026-06-05T14:41:22Z",
+  "ranked": [
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/x402_paid_api.py"
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/gate402_import_service.py"
+        }
+      ],
+      "channel": "x402 service registry",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 7,
+        "market_validation": 7,
+        "payout_clarity": 9,
+        "token_efficiency": 9,
+        "zero_budget_fit": 9
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/gate402_import_status.json",
+      "gates": [
+        "public_https_endpoint",
+        "manifest_validation",
+        "search_indexing",
+        "buyer_call"
+      ],
+      "next_machine_step": "Keep the public x402 API online and poll Gate402 search until the active service is indexed.",
+      "opportunity_id": "gate402_x402_catalog",
+      "repo_assets": [
+        "src/sales/x402_paid_api.py",
+        "scripts/ops/gate402_import_service.py"
+      ],
+      "revenue_model": "Import the existing x402 manifest; buyers discover the service and pay USDC per call.",
+      "risks": [
+        "new_marketplace",
+        "search_indexing_delay",
+        "unverified_first_sale_to_this_wallet"
+      ],
+      "score": 83.2,
+      "source_urls": [
+        "https://gate402.net/for-agents.md",
+        "https://gate402.net/openapi.json"
+      ],
+      "title": "Gate402 x402 catalog import",
+      "why_agent_fits": "x0tta6bl4 already exposes a public x402 manifest with eight small paid JSON tools.",
+      "zero_budget_note": "No gas, deposit, KYC, or private user wallet is needed for message-signing registration."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/paid_task_selector.py"
+        },
+        {
+          "exists": true,
+          "path": "src/api/maas/endpoints/marketplace.py"
+        }
+      ],
+      "channel": "pay-per-request API",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 7,
+        "market_validation": 8,
+        "payout_clarity": 9,
+        "token_efficiency": 9,
+        "zero_budget_fit": 8
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/x402_service_catalog.json",
+      "gates": [
+        "deployment",
+        "wallet",
+        "payment_facilitator",
+        "customer_discovery"
+      ],
+      "next_machine_step": "Define one paid endpoint: repo-risk-score, bounty-filter, or scraper-result API.",
+      "opportunity_id": "x402_paid_micro_api",
+      "repo_assets": [
+        "src/sales/paid_task_selector.py",
+        "src/api/maas/endpoints/marketplace.py"
+      ],
+      "revenue_model": "Agents or programs pay per HTTP request for data, reports, or MCP tools.",
+      "risks": [
+        "no_existing_traffic",
+        "payment_flow_can_move_real_money",
+        "needs_abuse_limits"
+      ],
+      "score": 82.4,
+      "source_urls": [
+        "https://developers.cloudflare.com/agents/tools/payments/x402/",
+        "https://www.coinbase.com/developer-platform/products/x402"
+      ],
+      "title": "x402 paid micro API",
+      "why_agent_fits": "x402 lets HTTP resources request payment and lets agents pay automatically.",
+      "zero_budget_note": "Local prototype is free; live route needs deployment, wallet, and customers."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/x402_paid_api.py"
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/agoragentic_seller_watcher.py"
+        }
+      ],
+      "channel": "x402 agent registry",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 6,
+        "market_validation": 6,
+        "payout_clarity": 8,
+        "token_efficiency": 9,
+        "zero_budget_fit": 9
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/agoragentic_seller_watch_status.json",
+      "gates": [
+        "public_https_endpoint",
+        "registry_visibility",
+        "buyer_call",
+        "x402_payment"
+      ],
+      "next_machine_step": "Keep the verified public listing online and poll invocations, earned balance, webhooks, and wallet balance.",
+      "opportunity_id": "agora402_native_registry",
+      "repo_assets": [
+        "src/sales/x402_paid_api.py",
+        "scripts/ops/agoragentic_seller_watcher.py"
+      ],
+      "revenue_model": "Register a native x402 endpoint; buyers discover the agent by category and pay per call.",
+      "risks": [
+        "buyer_demand_unknown",
+        "new_marketplace",
+        "unverified_first_sale_to_this_wallet"
+      ],
+      "score": 78.2,
+      "source_urls": [
+        "https://agora402.io/"
+      ],
+      "title": "Agora402 native x402 registry",
+      "why_agent_fits": "Agora402 is built for machine-readable discovery and direct per-call x402 payment to agent endpoints.",
+      "zero_budget_note": "Existing public endpoint can be reused; no proposal spend is needed, but a buyer call is still required."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/paid_task_selector.py"
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/run_paid_task_watch_loop.py"
+        }
+      ],
+      "channel": "agent marketplace",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 7,
+        "market_validation": 6,
+        "payout_clarity": 7,
+        "token_efficiency": 8,
+        "zero_budget_fit": 9
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/agentpact_offer.json",
+      "gates": [
+        "external_account_or_api_key",
+        "deal_acceptance",
+        "wallet_or_payout_setup"
+      ],
+      "next_machine_step": "Generate an agent offer for data extraction, repo triage, and structured reports.",
+      "opportunity_id": "agentpact_offer_pack",
+      "repo_assets": [
+        "src/sales/paid_task_selector.py",
+        "scripts/ops/run_paid_task_watch_loop.py"
+      ],
+      "revenue_model": "USDC escrow-backed agent-to-agent deals on Base.",
+      "risks": [
+        "new_marketplace",
+        "unverified_real_payout_to_this_wallet",
+        "needs_reputation"
+      ],
+      "score": 77.6,
+      "source_urls": [
+        "https://agentpact.xyz/"
+      ],
+      "title": "AgentPact service offer",
+      "why_agent_fits": "AgentPact exposes MCP/API flows for register, offer, matches, deals, and delivery.",
+      "zero_budget_note": "Free tier claims no wallet required to start; payout still needs settlement setup later."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/x402_paid_api.py"
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/run_x402_paid_api.py"
+        }
+      ],
+      "channel": "agent API marketplace",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 6,
+        "market_validation": 7,
+        "payout_clarity": 8,
+        "token_efficiency": 9,
+        "zero_budget_fit": 7
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/agent402_listing.json",
+      "gates": [
+        "seller_registration",
+        "service_review_or_indexing",
+        "buyer_call",
+        "onchain_payment"
+      ],
+      "next_machine_step": "Point Agent402 at the current x402 paid API discovery URL and list repo triage plus API docs.",
+      "opportunity_id": "agent402_api_listing",
+      "repo_assets": [
+        "src/sales/x402_paid_api.py",
+        "scripts/ops/run_x402_paid_api.py"
+      ],
+      "revenue_model": "Register an existing x402 endpoint; buyers discover it by intent and pay per request.",
+      "risks": [
+        "new_marketplace",
+        "registration_gate",
+        "unverified_first_sale_to_this_wallet"
+      ],
+      "score": 75.6,
+      "source_urls": [
+        "https://marketplace.agent402.app/"
+      ],
+      "title": "Agent402 API listing",
+      "why_agent_fits": "x0tta6bl4 already has HTTPS, x402 402 responses, discovery JSON, and MCP manifest.",
+      "zero_budget_note": "The paid endpoint is already local/ngrok; account or sign-in gate may still block registration."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/x402_paid_api.py"
+        },
+        {
+          "exists": true,
+          "path": ".tmp/non-bounty/x402_paid_api_public_discovery_current.json"
+        }
+      ],
+      "channel": "agent skill marketplace",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 5,
+        "market_validation": 7,
+        "payout_clarity": 8,
+        "token_efficiency": 9,
+        "zero_budget_fit": 8
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/agent_bazaar_skill_submission.json",
+      "gates": [
+        "skill_submission",
+        "review_within_platform_window",
+        "buyer_call",
+        "x402_payment"
+      ],
+      "next_machine_step": "Prepare a skill listing for domain-health, URL snapshot, or CI/CD pipeline generator endpoints.",
+      "opportunity_id": "agent_bazaar_skill_listing",
+      "repo_assets": [
+        "src/sales/x402_paid_api.py",
+        ".tmp/non-bounty/x402_paid_api_public_discovery_current.json"
+      ],
+      "revenue_model": "List one narrow x402 API skill and earn per paid call.",
+      "risks": [
+        "manual_form_or_account_gate",
+        "review_delay",
+        "unverified_first_sale_to_this_wallet"
+      ],
+      "score": 75.0,
+      "source_urls": [
+        "https://agent-bazaar.com/dev",
+        "https://agent-bazaar.com/marketplace"
+      ],
+      "title": "Agent Bazaar x402 skill listing",
+      "why_agent_fits": "The current x0tta6bl4 public API already exposes machine-readable paid endpoints that match Agent Bazaar skill categories.",
+      "zero_budget_note": "No new model or cloud spend is needed; marketplace review and buyer traffic are external gates."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "scripts/ops/run_paid_task_watch_loop.py"
+        },
+        {
+          "exists": true,
+          "path": "src/sales/product_ideas.py"
+        }
+      ],
+      "channel": "automation marketplace",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 4,
+        "market_validation": 9,
+        "payout_clarity": 9,
+        "token_efficiency": 8,
+        "zero_budget_fit": 8
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/apify_actor_backlog.json",
+      "gates": [
+        "apify_account",
+        "actor_publication",
+        "usage_or_referrals",
+        "payout_method"
+      ],
+      "next_machine_step": "Package one useful scraper/checker as an Apify Actor with JSON input and output.",
+      "opportunity_id": "apify_actor_factory",
+      "repo_assets": [
+        "scripts/ops/run_paid_task_watch_loop.py",
+        "src/sales/product_ideas.py"
+      ],
+      "revenue_model": "Pay-per-event Actor monetization plus affiliate commission from Actor pages.",
+      "risks": [
+        "needs_distribution",
+        "not_instant_cash",
+        "platform_payout_may_need_paypal_or_bank"
+      ],
+      "score": 74.8,
+      "source_urls": [
+        "https://apify.com/partners/open-source-fair-share",
+        "https://apify.com/partners/affiliate"
+      ],
+      "title": "Apify Actor factory",
+      "why_agent_fits": "Actors are Docker-packaged tools with JSON input/output; x0tta6bl4 already has scanners and reports.",
+      "zero_budget_note": "Can build locally first; publishing and payout need an Apify account and payout method."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/x402_paid_api.py"
+        },
+        {
+          "exists": true,
+          "path": ".tmp/non-bounty/x402_paid_api_public_discovery_current.json"
+        }
+      ],
+      "channel": "x402 API marketplace",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 5,
+        "market_validation": 7,
+        "payout_clarity": 8,
+        "token_efficiency": 8,
+        "zero_budget_fit": 8
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/402_rest_publish_plan.json",
+      "gates": [
+        "publisher_onboarding",
+        "service_review_or_indexing",
+        "buyer_call",
+        "x402_payment"
+      ],
+      "next_machine_step": "Mirror the current x402 discovery data into a 402.rest publisher-ready service description.",
+      "opportunity_id": "four_o_two_rest_api_publish",
+      "repo_assets": [
+        "src/sales/x402_paid_api.py",
+        ".tmp/non-bounty/x402_paid_api_public_discovery_current.json"
+      ],
+      "revenue_model": "Publish a paid x402-ready API endpoint and earn per request from marketplace traffic.",
+      "risks": [
+        "registration_gate",
+        "buyer_demand_unknown",
+        "unverified_first_sale_to_this_wallet"
+      ],
+      "score": 73.6,
+      "source_urls": [
+        "https://www.402.rest/"
+      ],
+      "title": "402.rest API publisher",
+      "why_agent_fits": "x0tta6bl4 already has small JSON tools with public endpoints and clear per-call prices.",
+      "zero_budget_note": "No new model spend is needed for the product; publisher onboarding and traffic remain external gates."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "scripts/ops/run_paid_task_hunter.py"
+        },
+        {
+          "exists": true,
+          "path": "src/sales/paid_task_selector.py"
+        }
+      ],
+      "channel": "agent task marketplace",
+      "components": {
+        "automation_fit": 8,
+        "cash_speed": 8,
+        "market_validation": 6,
+        "payout_clarity": 6,
+        "token_efficiency": 7,
+        "zero_budget_fit": 8
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/sporeagent_worker_profile.json",
+      "gates": [
+        "platform_account",
+        "accepted_bid",
+        "deliverable_approval",
+        "payout_setup"
+      ],
+      "next_machine_step": "Create a worker profile and poll tasks for web scraping, tests, translation, and reports.",
+      "opportunity_id": "sporeagent_task_runner",
+      "repo_assets": [
+        "scripts/ops/run_paid_task_hunter.py",
+        "src/sales/paid_task_selector.py"
+      ],
+      "revenue_model": "Small paid tasks with proof-of-work verification.",
+      "risks": [
+        "limited_current_task_depth",
+        "unknown_payout_history_for_our_agent",
+        "competition"
+      ],
+      "score": 73.4,
+      "source_urls": [
+        "https://sporeagent.com/"
+      ],
+      "title": "SporeAgent task runner",
+      "why_agent_fits": "The site advertises MCP-native tasks, agent bidding, accepted delivery, and verification.",
+      "zero_budget_note": "No infrastructure cost for task search; account and payout setup are still external gates."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/x402_paid_api.py"
+        },
+        {
+          "exists": true,
+          "path": "docs/commercial/agentmart_products/domain_health_lite_workflow.md"
+        }
+      ],
+      "channel": "x402 service marketplace",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 5,
+        "market_validation": 5,
+        "payout_clarity": 8,
+        "token_efficiency": 8,
+        "zero_budget_fit": 8
+      },
+      "decision": "manual_review",
+      "first_artifact": ".tmp/non-bounty/the402_provider_listing_plan.json",
+      "gates": [
+        "provider_account",
+        "service_listing",
+        "catalog_visibility",
+        "buyer_call_or_order"
+      ],
+      "next_machine_step": "Prepare a provider listing for the current domain-health, URL snapshot, and API-docs endpoints.",
+      "opportunity_id": "the402_provider_listing",
+      "repo_assets": [
+        "src/sales/x402_paid_api.py",
+        "docs/commercial/agentmart_products/domain_health_lite_workflow.md"
+      ],
+      "revenue_model": "List a data/API/automated service and receive USDC through x402 or escrowed marketplace flow.",
+      "risks": [
+        "external_account_gate",
+        "catalog_currently_sparse",
+        "unverified_first_sale_to_this_wallet"
+      ],
+      "score": 71.6,
+      "source_urls": [
+        "https://the402.ai/"
+      ],
+      "title": "the402 provider listing",
+      "why_agent_fits": "the402 supports data APIs, automated services, human services, digital products, subscriptions, and MCP discovery.",
+      "zero_budget_note": "Can reuse the current public x402 API; provider onboarding and catalog acceptance are external gates."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/x402_paid_api.py"
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/non_bounty_market_matrix.py"
+        }
+      ],
+      "channel": "machine-first bot marketplace",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 5,
+        "market_validation": 6,
+        "payout_clarity": 8,
+        "token_efficiency": 8,
+        "zero_budget_fit": 7
+      },
+      "decision": "manual_review",
+      "first_artifact": ".tmp/non-bounty/bothire_bot_profile.json",
+      "gates": [
+        "registration",
+        "machine_readable_docs",
+        "buyer_call",
+        "onchain_payment"
+      ],
+      "next_machine_step": "Expose the current repo-triage and API-docs endpoints as machine-readable bot skills.",
+      "opportunity_id": "bothire_x402_bot",
+      "repo_assets": [
+        "src/sales/x402_paid_api.py",
+        "scripts/ops/non_bounty_market_matrix.py"
+      ],
+      "revenue_model": "Register a bot skill and receive USDC on Base through x402 calls.",
+      "risks": [
+        "public_registration_unverified",
+        "new_marketplace",
+        "needs_discovery"
+      ],
+      "score": 70.8,
+      "source_urls": [
+        "https://www.bothire.io/"
+      ],
+      "title": "BotHire x402 bot",
+      "why_agent_fits": "The product pitch is bot-to-bot negotiation and payment; x0tta6bl4 already exposes paid tools.",
+      "zero_budget_note": "No new compute path is needed, but live registration/API path still needs verification."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "scripts/ops/run_paid_task_watch_loop.py"
+        },
+        {
+          "exists": true,
+          "path": "src/sales/product_ideas.py"
+        }
+      ],
+      "channel": "agent freelance marketplace",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 5,
+        "market_validation": 2,
+        "payout_clarity": 8,
+        "token_efficiency": 7,
+        "zero_budget_fit": 8
+      },
+      "decision": "manual_review",
+      "first_artifact": ".tmp/non-bounty/clawgig_agent_profile.json",
+      "gates": [
+        "agent_registration",
+        "api_key",
+        "accepted_proposal",
+        "escrow_release"
+      ],
+      "next_machine_step": "Prepare a low-risk agent profile and skill list for research, data, Python, and code review gigs.",
+      "opportunity_id": "clawgig_agent_freelancer",
+      "repo_assets": [
+        "scripts/ops/run_paid_task_watch_loop.py",
+        "src/sales/product_ideas.py"
+      ],
+      "revenue_model": "USDC escrow; platform page says agent keeps 90 percent.",
+      "risks": [
+        "market_appears_empty",
+        "unproven_demand",
+        "external_account_gate"
+      ],
+      "score": 67.2,
+      "source_urls": [
+        "https://clawgig.ai/"
+      ],
+      "title": "ClawGig agent freelancer",
+      "why_agent_fits": "The site describes REST/MCP flows for browsing gigs, proposals, delivery, and payout.",
+      "zero_budget_note": "Registration may be free, but the current public page showed zero users and zero earnings."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "scripts/ops/run_non_bounty_scout.py"
+        },
+        {
+          "exists": true,
+          "path": "src/sales/non_bounty_task_scout.py"
+        }
+      ],
+      "channel": "agent task marketplace",
+      "components": {
+        "automation_fit": 8,
+        "cash_speed": 4,
+        "market_validation": 6,
+        "payout_clarity": 8,
+        "token_efficiency": 7,
+        "zero_budget_fit": 7
+      },
+      "decision": "manual_review",
+      "first_artifact": ".tmp/non-bounty/molted_worker_probe.json",
+      "gates": [
+        "agent_registration",
+        "open_job_visibility",
+        "accepted_bid",
+        "completion_approval"
+      ],
+      "next_machine_step": "Probe Molted job discovery daily; register only if open jobs are visible through API or CLI.",
+      "opportunity_id": "molted_work_agent",
+      "repo_assets": [
+        "scripts/ops/run_non_bounty_scout.py",
+        "src/sales/non_bounty_task_scout.py"
+      ],
+      "revenue_model": "Bid on jobs and receive USDC on Base after accepted completion.",
+      "risks": [
+        "api_probe_currently_404",
+        "buyer_acceptance_required",
+        "unverified_first_sale_to_this_wallet"
+      ],
+      "score": 65.2,
+      "source_urls": [
+        "https://molted.work/"
+      ],
+      "title": "Molted worker agent",
+      "why_agent_fits": "x0tta6bl4 can deliver small public-input data, docs, API, and code artifacts.",
+      "zero_budget_note": "Registration is advertised as CLI/API-driven, but live job API currently needs verification before spending tokens."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/x402_paid_api.py"
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/non_bounty_market_matrix.py"
+        }
+      ],
+      "channel": "agent gig marketplace",
+      "components": {
+        "automation_fit": 8,
+        "cash_speed": 4,
+        "market_validation": 6,
+        "payout_clarity": 7,
+        "token_efficiency": 8,
+        "zero_budget_fit": 7
+      },
+      "decision": "manual_review",
+      "first_artifact": ".tmp/non-bounty/clawdgigs_fixed_gig.json",
+      "gates": [
+        "agent_registration",
+        "gig_publication",
+        "buyer_acceptance",
+        "escrow_release"
+      ],
+      "next_machine_step": "Create a fixed 3 USDC gig: API docs from endpoint JSON, delivered as Markdown.",
+      "opportunity_id": "clawdgigs_fixed_gig",
+      "repo_assets": [
+        "src/sales/x402_paid_api.py",
+        "scripts/ops/non_bounty_market_matrix.py"
+      ],
+      "revenue_model": "Fixed-scope gig with x402 escrow; deliver one artifact, wait for release.",
+      "risks": [
+        "external_account_gate",
+        "buyer_demand_unknown",
+        "dispute_or_acceptance_delay"
+      ],
+      "score": 65.0,
+      "source_urls": [
+        "https://www.clawdgigs.com/"
+      ],
+      "title": "ClawdGigs fixed x402 gig",
+      "why_agent_fits": "Fixed deliverables reduce ambiguity and token waste; x0tta6bl4 already has the generator.",
+      "zero_budget_note": "Offer creation may be free; escrow release and buyer demand are external gates."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "docs/commercial/PRODUCT_IDEA_PORTFOLIO.md"
+        },
+        {
+          "exists": true,
+          "path": "src/sales/product_ideas.py"
+        }
+      ],
+      "channel": "affiliate",
+      "components": {
+        "automation_fit": 7,
+        "cash_speed": 2,
+        "market_validation": 8,
+        "payout_clarity": 8,
+        "token_efficiency": 6,
+        "zero_budget_fit": 8
+      },
+      "decision": "manual_review",
+      "first_artifact": ".tmp/non-bounty/apify_affiliate_content_plan.json",
+      "gates": [
+        "affiliate_approval",
+        "audience_or_seo_traffic",
+        "minimum_payout",
+        "payout_method"
+      ],
+      "next_machine_step": "Generate search-targeted pages/tutorials around scraping workflows and x0tta6bl4 actors.",
+      "opportunity_id": "apify_affiliate_content_engine",
+      "repo_assets": [
+        "docs/commercial/PRODUCT_IDEA_PORTFOLIO.md",
+        "src/sales/product_ideas.py"
+      ],
+      "revenue_model": "Recurring commission from referred Apify customers.",
+      "risks": [
+        "slow_cash",
+        "needs_distribution",
+        "paid_ads_forbidden_by_program"
+      ],
+      "score": 61.0,
+      "source_urls": [
+        "https://apify.com/partners/affiliate"
+      ],
+      "title": "Apify affiliate content engine",
+      "why_agent_fits": "Agent can create tutorials, examples, comparison pages, and update them automatically.",
+      "zero_budget_note": "Content can be generated locally; payout needs affiliate approval and PayPal/bank details."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/x402_paid_api.py"
+        },
+        {
+          "exists": true,
+          "path": "docs/commercial/NON_BOUNTY_INCOME_MAP.md"
+        }
+      ],
+      "channel": "agent skill marketplace",
+      "components": {
+        "automation_fit": 8,
+        "cash_speed": 4,
+        "market_validation": 6,
+        "payout_clarity": 6,
+        "token_efficiency": 7,
+        "zero_budget_fit": 6
+      },
+      "decision": "manual_review",
+      "first_artifact": ".tmp/non-bounty/clawmart_skill_listing.json",
+      "gates": [
+        "seller_onboarding",
+        "skill_review",
+        "buyer_subscription_or_call",
+        "payout_setup"
+      ],
+      "next_machine_step": "Turn the API-docs endpoint into a fixed role: 'API docs in Markdown from JSON specs'.",
+      "opportunity_id": "clawmart_skill_listing",
+      "repo_assets": [
+        "src/sales/x402_paid_api.py",
+        "docs/commercial/NON_BOUNTY_INCOME_MAP.md"
+      ],
+      "revenue_model": "Package a narrow paid developer-assistant role as a reusable agent skill.",
+      "risks": [
+        "not_verified_as_open_self_serve",
+        "less_direct_than_x402",
+        "needs_positioning"
+      ],
+      "score": 60.2,
+      "source_urls": [
+        "https://clawmart.co/"
+      ],
+      "title": "ClawMart skill listing",
+      "why_agent_fits": "ClawMart sells scoped agent roles; x0tta6bl4 can expose a bounded skill with clear output.",
+      "zero_budget_note": "Reuse the current endpoint; onboarding and marketplace demand are external gates."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/telegram_bot.py"
+        },
+        {
+          "exists": true,
+          "path": "src/sales/telegram_bot_v2.py"
+        }
+      ],
+      "channel": "consumer bot",
+      "components": {
+        "automation_fit": 7,
+        "cash_speed": 3,
+        "market_validation": 5,
+        "payout_clarity": 7,
+        "token_efficiency": 5,
+        "zero_budget_fit": 8
+      },
+      "decision": "park",
+      "first_artifact": ".tmp/non-bounty/telegram_microtool_menu.json",
+      "gates": [
+        "bot_token",
+        "telegram_stars_setup",
+        "users",
+        "withdrawal_eligibility"
+      ],
+      "next_machine_step": "Package one narrow tool: voice summary, document draft, or public-page digest.",
+      "opportunity_id": "telegram_stars_microtools",
+      "repo_assets": [
+        "src/sales/telegram_bot.py",
+        "src/sales/telegram_bot_v2.py"
+      ],
+      "revenue_model": "Small paid Telegram Stars actions.",
+      "risks": [
+        "user_acquisition",
+        "support_load",
+        "user_already_rejected_as_uninteresting"
+      ],
+      "score": 57.4,
+      "source_urls": [
+        "https://core.telegram.org/bots/payments-stars"
+      ],
+      "title": "Telegram Stars microtools",
+      "why_agent_fits": "Agent can process user input and return a finished result after payment.",
+      "zero_budget_note": "Bot can run locally; demand acquisition is the hard part."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "scripts/ops/run_non_bounty_scout.py"
+        }
+      ],
+      "channel": "agent task marketplace",
+      "components": {
+        "automation_fit": 7,
+        "cash_speed": 3,
+        "market_validation": 5,
+        "payout_clarity": 6,
+        "token_efficiency": 7,
+        "zero_budget_fit": 7
+      },
+      "decision": "park",
+      "first_artifact": ".tmp/non-bounty/stackstasker_task_probe.json",
+      "gates": [
+        "stx_wallet",
+        "agent_registration",
+        "accepted_bid",
+        "stx_settlement"
+      ],
+      "next_machine_step": "Watch only; use it if Base-USDC routes dry up and STX payout handling is added.",
+      "opportunity_id": "stackstasker_stx_tasks",
+      "repo_assets": [
+        "scripts/ops/run_non_bounty_scout.py"
+      ],
+      "revenue_model": "Bid on public tasks and receive STX through an x402-style flow.",
+      "risks": [
+        "not_base_wallet_direct",
+        "public_api_currently_404",
+        "new_marketplace"
+      ],
+      "score": 56.8,
+      "source_urls": [
+        "https://stackstasker.com/"
+      ],
+      "title": "StacksTasker STX tasks",
+      "why_agent_fits": "The visible tasks include research, data pipeline, scraping, monitoring, and API integration work.",
+      "zero_budget_note": "No upfront money is visible for browsing, but payout is not to the current Base wallet."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/monitoring/production_monitoring.py"
+        }
+      ],
+      "channel": "DePIN compute",
+      "components": {
+        "automation_fit": 7,
+        "cash_speed": 2,
+        "market_validation": 8,
+        "payout_clarity": 7,
+        "token_efficiency": 6,
+        "zero_budget_fit": 6
+      },
+      "decision": "park",
+      "first_artifact": ".tmp/non-bounty/io_net_worker_probe.json",
+      "gates": [
+        "supported_hardware",
+        "account_wallet_link",
+        "worker_eligibility",
+        "withdrawal"
+      ],
+      "next_machine_step": "Check local hardware eligibility only; do not install worker software until payout and staking requirements are verified.",
+      "opportunity_id": "io_net_worker_rewards",
+      "repo_assets": [
+        "src/monitoring/production_monitoring.py"
+      ],
+      "revenue_model": "Supply CPU/GPU compute and receive IO Coin earnings or rewards if the worker is eligible.",
+      "risks": [
+        "hardware_required",
+        "staking_or_account_gate",
+        "not_target_base_wallet_direct"
+      ],
+      "score": 55.8,
+      "source_urls": [
+        "https://io.net/docs/guides/workers/rewards-wallets"
+      ],
+      "title": "io.net worker rewards",
+      "why_agent_fits": "x0tta6bl4 can monitor uptime, utilization, and job health, but the earning unit is hardware, not prompts.",
+      "zero_budget_note": "Potentially zero cash if idle hardware qualifies; staking, wallet, and account gates may still block earnings."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/services/share_to_earn_service.py"
+        },
+        {
+          "exists": true,
+          "path": "src/monitoring/production_monitoring.py"
+        }
+      ],
+      "channel": "DePIN compute",
+      "components": {
+        "automation_fit": 7,
+        "cash_speed": 2,
+        "market_validation": 5,
+        "payout_clarity": 4,
+        "token_efficiency": 7,
+        "zero_budget_fit": 7
+      },
+      "decision": "park",
+      "first_artifact": ".tmp/non-bounty/bless_node_probe.json",
+      "gates": [
+        "node_install",
+        "eligibility",
+        "uptime",
+        "reward_conversion_or_withdrawal"
+      ],
+      "next_machine_step": "Treat as passive watchlist; verify eligibility and payout terms before installing node software.",
+      "opportunity_id": "bless_edge_node",
+      "repo_assets": [
+        "src/services/share_to_earn_service.py",
+        "src/monitoring/production_monitoring.py"
+      ],
+      "revenue_model": "Contribute idle CPU/GPU or browser node resources and earn network rewards if eligible.",
+      "risks": [
+        "unclear_immediate_cash",
+        "hardware_and_bandwidth_cost",
+        "jurisdiction_or_account_gate"
+      ],
+      "score": 51.2,
+      "source_urls": [
+        "https://docs.bless.network/"
+      ],
+      "title": "Bless edge compute node",
+      "why_agent_fits": "x0tta6bl4 can monitor uptime and resource health, but this is infrastructure contribution, not task execution.",
+      "zero_budget_note": "Potentially uses idle hardware, but rewards and withdrawal terms must be verified before counting money."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/monitoring/production_monitoring.py"
+        },
+        {
+          "exists": true,
+          "path": "src/swarm/agents/pricing_agent.py"
+        }
+      ],
+      "channel": "DePIN compute",
+      "components": {
+        "automation_fit": 7,
+        "cash_speed": 2,
+        "market_validation": 8,
+        "payout_clarity": 6,
+        "token_efficiency": 5,
+        "zero_budget_fit": 5
+      },
+      "decision": "park",
+      "first_artifact": ".tmp/non-bounty/akash_homenode_probe.json",
+      "gates": [
+        "supported_gpu",
+        "provider_onboarding",
+        "workload_demand",
+        "settlement"
+      ],
+      "next_machine_step": "Park unless a supported GPU is present; this is a hardware route, not a token-only route.",
+      "opportunity_id": "akash_homenode_provider",
+      "repo_assets": [
+        "src/monitoring/production_monitoring.py",
+        "src/swarm/agents/pricing_agent.py"
+      ],
+      "revenue_model": "Offer GPU compute to Akash demand and earn from hosted inference workloads if hardware is accepted.",
+      "risks": [
+        "hardware_required",
+        "beta_or_waitlist_gate",
+        "not_instant_cash"
+      ],
+      "score": 51.0,
+      "source_urls": [
+        "https://akash.network/blog/akash-network-q1-2026-report/",
+        "https://akash.network/docs/providers/getting-started/should-i-run-a-provider/"
+      ],
+      "title": "Akash Homenode provider",
+      "why_agent_fits": "x0tta6bl4 can wrap provider health, uptime, and pricing telemetry around an accepted node.",
+      "zero_budget_note": "No point spending tokens if there is no supported GPU or provider onboarding path."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "scripts/ops/run_non_bounty_scout.py"
+        },
+        {
+          "exists": true,
+          "path": "src/sales/non_bounty_task_scout.py"
+        }
+      ],
+      "channel": "crypto freelance marketplace",
+      "components": {
+        "automation_fit": 6,
+        "cash_speed": 2,
+        "market_validation": 5,
+        "payout_clarity": 7,
+        "token_efficiency": 4,
+        "zero_budget_fit": 2
+      },
+      "decision": "park",
+      "first_artifact": ".tmp/non-bounty/workusdc_market_probe.json",
+      "gates": [
+        "account_registration",
+        "proposal_credit_2_usdc",
+        "client_hire",
+        "escrow_release"
+      ],
+      "next_machine_step": "Watch only until the wallet has seed USDC; proposal submission itself costs 2 USDC.",
+      "opportunity_id": "workusdc_micro_contracts",
+      "repo_assets": [
+        "scripts/ops/run_non_bounty_scout.py",
+        "src/sales/non_bounty_task_scout.py"
+      ],
+      "revenue_model": "Submit proposals to USDC-funded work and receive payouts through Base USDC escrow.",
+      "risks": [
+        "requires_upfront_usdc",
+        "cyber_work_compliance_gate",
+        "buyer_acceptance_required"
+      ],
+      "score": 41.0,
+      "source_urls": [
+        "https://workusdc.com/"
+      ],
+      "title": "WorkUSDC micro contracts",
+      "why_agent_fits": "The best-fit tasks are small public-input Python, API docs, data, and QA deliverables.",
+      "zero_budget_note": "Bad first-money route because freelancer proposals require upfront USDC credit."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "scripts/ops/non_bounty_market_matrix.py"
+        }
+      ],
+      "channel": "data contribution rewards",
+      "components": {
+        "automation_fit": 3,
+        "cash_speed": 1,
+        "market_validation": 5,
+        "payout_clarity": 3,
+        "token_efficiency": 3,
+        "zero_budget_fit": 6
+      },
+      "decision": "park",
+      "first_artifact": ".tmp/non-bounty/nodepay_signal_probe.json",
+      "gates": [
+        "account_registration",
+        "eligible_contribution",
+        "reward_rules",
+        "withdrawal"
+      ],
+      "next_machine_step": "Do not prioritize for autonomous earning; monitor only if a legitimate agent-safe API/workflow appears.",
+      "opportunity_id": "nodepay_signal_rewards",
+      "repo_assets": [
+        "scripts/ops/non_bounty_market_matrix.py"
+      ],
+      "revenue_model": "Contribute human/input signals or network data to earn platform rewards.",
+      "risks": [
+        "not_agent_direct",
+        "points_or_rewards_not_cash",
+        "account_gate"
+      ],
+      "score": 32.6,
+      "source_urls": [
+        "https://docs.nodepay.ai/"
+      ],
+      "title": "Nodepay signal rewards",
+      "why_agent_fits": "The platform rewards contributors, but the official description is human-signal oriented, not autonomous agent work.",
+      "zero_budget_note": "May not need upfront money, but reward-to-wallet path is not verified for this agent."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/monitoring/production_monitoring.py"
+        }
+      ],
+      "channel": "DePIN compute",
+      "components": {
+        "automation_fit": 6,
+        "cash_speed": 0,
+        "market_validation": 4,
+        "payout_clarity": 1,
+        "token_efficiency": 2,
+        "zero_budget_fit": 6
+      },
+      "decision": "park",
+      "first_artifact": ".tmp/non-bounty/gradient_sentry_probe.json",
+      "gates": [
+        "future_season",
+        "node_eligibility",
+        "reward_rules",
+        "withdrawal"
+      ],
+      "next_machine_step": "Park this route; official docs say Sentry Node rewards do not currently pay.",
+      "opportunity_id": "gradient_sentry_rewards",
+      "repo_assets": [
+        "src/monitoring/production_monitoring.py"
+      ],
+      "revenue_model": "Legacy uptime/tap/referral rewards for Sentry Nodes.",
+      "risks": [
+        "official_rewards_concluded",
+        "no_current_cash",
+        "sybil_policy"
+      ],
+      "score": 30.0,
+      "source_urls": [
+        "https://docs.gradient.network/rewards"
+      ],
+      "title": "Gradient Sentry rewards",
+      "why_agent_fits": "x0tta6bl4 can run uptime infrastructure, but there is no current reward to harvest here.",
+      "zero_budget_note": "Zero-budget does not help if the official reward window is concluded."
+    }
+  ],
+  "root": "/mnt/projects",
+  "schema": "x0tta6bl4.non_bounty_income_map.v1",
+  "selected_first": [
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/x402_paid_api.py"
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/gate402_import_service.py"
+        }
+      ],
+      "channel": "x402 service registry",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 7,
+        "market_validation": 7,
+        "payout_clarity": 9,
+        "token_efficiency": 9,
+        "zero_budget_fit": 9
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/gate402_import_status.json",
+      "gates": [
+        "public_https_endpoint",
+        "manifest_validation",
+        "search_indexing",
+        "buyer_call"
+      ],
+      "next_machine_step": "Keep the public x402 API online and poll Gate402 search until the active service is indexed.",
+      "opportunity_id": "gate402_x402_catalog",
+      "repo_assets": [
+        "src/sales/x402_paid_api.py",
+        "scripts/ops/gate402_import_service.py"
+      ],
+      "revenue_model": "Import the existing x402 manifest; buyers discover the service and pay USDC per call.",
+      "risks": [
+        "new_marketplace",
+        "search_indexing_delay",
+        "unverified_first_sale_to_this_wallet"
+      ],
+      "score": 83.2,
+      "source_urls": [
+        "https://gate402.net/for-agents.md",
+        "https://gate402.net/openapi.json"
+      ],
+      "title": "Gate402 x402 catalog import",
+      "why_agent_fits": "x0tta6bl4 already exposes a public x402 manifest with eight small paid JSON tools.",
+      "zero_budget_note": "No gas, deposit, KYC, or private user wallet is needed for message-signing registration."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/paid_task_selector.py"
+        },
+        {
+          "exists": true,
+          "path": "src/api/maas/endpoints/marketplace.py"
+        }
+      ],
+      "channel": "pay-per-request API",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 7,
+        "market_validation": 8,
+        "payout_clarity": 9,
+        "token_efficiency": 9,
+        "zero_budget_fit": 8
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/x402_service_catalog.json",
+      "gates": [
+        "deployment",
+        "wallet",
+        "payment_facilitator",
+        "customer_discovery"
+      ],
+      "next_machine_step": "Define one paid endpoint: repo-risk-score, bounty-filter, or scraper-result API.",
+      "opportunity_id": "x402_paid_micro_api",
+      "repo_assets": [
+        "src/sales/paid_task_selector.py",
+        "src/api/maas/endpoints/marketplace.py"
+      ],
+      "revenue_model": "Agents or programs pay per HTTP request for data, reports, or MCP tools.",
+      "risks": [
+        "no_existing_traffic",
+        "payment_flow_can_move_real_money",
+        "needs_abuse_limits"
+      ],
+      "score": 82.4,
+      "source_urls": [
+        "https://developers.cloudflare.com/agents/tools/payments/x402/",
+        "https://www.coinbase.com/developer-platform/products/x402"
+      ],
+      "title": "x402 paid micro API",
+      "why_agent_fits": "x402 lets HTTP resources request payment and lets agents pay automatically.",
+      "zero_budget_note": "Local prototype is free; live route needs deployment, wallet, and customers."
+    },
+    {
+      "asset_status": [
+        {
+          "exists": true,
+          "path": "src/sales/x402_paid_api.py"
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/agoragentic_seller_watcher.py"
+        }
+      ],
+      "channel": "x402 agent registry",
+      "components": {
+        "automation_fit": 9,
+        "cash_speed": 6,
+        "market_validation": 6,
+        "payout_clarity": 8,
+        "token_efficiency": 9,
+        "zero_budget_fit": 9
+      },
+      "decision": "take_first",
+      "first_artifact": ".tmp/non-bounty/agoragentic_seller_watch_status.json",
+      "gates": [
+        "public_https_endpoint",
+        "registry_visibility",
+        "buyer_call",
+        "x402_payment"
+      ],
+      "next_machine_step": "Keep the verified public listing online and poll invocations, earned balance, webhooks, and wallet balance.",
+      "opportunity_id": "agora402_native_registry",
+      "repo_assets": [
+        "src/sales/x402_paid_api.py",
+        "scripts/ops/agoragentic_seller_watcher.py"
+      ],
+      "revenue_model": "Register a native x402 endpoint; buyers discover the agent by category and pay per call.",
+      "risks": [
+        "buyer_demand_unknown",
+        "new_marketplace",
+        "unverified_first_sale_to_this_wallet"
+      ],
+      "score": 78.2,
+      "source_urls": [
+        "https://agora402.io/"
+      ],
+      "title": "Agora402 native x402 registry",
+      "why_agent_fits": "Agora402 is built for machine-readable discovery and direct per-call x402 payment to agent endpoints.",
+      "zero_budget_note": "Existing public endpoint can be reused; no proposal spend is needed, but a buyer call is still required."
+    }
+  ],
+  "status": "map_ready",
+  "thinking_contract": {
+    "first_principles": "Real money requires buyer, deliverable, acceptance rule, settlement path, and proof.",
+    "mapek": "Monitor sources, analyze clean opportunities, plan one artifact, execute only one route, record outcomes.",
+    "reverse_planning": "Start from confirmed payout, work backward to accepted delivery, accepted offer, account gate, and first artifact.",
+    "scamper": "Reuse bounty filters as paid APIs, adapt product ideas into Actors, combine reports with agent marketplaces.",
+    "weighted_matrix": {
+      "automation_fit": 0.18,
+      "cash_speed": 0.24,
+      "market_validation": 0.1,
+      "payout_clarity": 0.16,
+      "token_efficiency": 0.14,
+      "zero_budget_fit": 0.18
+    }
+  }
+}

@@ -356,3 +356,38 @@ def test_provider_proxy_generation_export_env_and_default_config(tmp_path: Path)
     assert default_cfg.environment == mod.Environment.DEVELOPMENT
     assert default_cfg.providers
     assert default_cfg.selection.strategy == "weighted_score"
+
+
+def test_proxy_config_manager_thinking_redacts_secrets(tmp_path: Path):
+    cfg_path = tmp_path / "secret-config.yaml"
+    mgr = mod.ProxyConfigManager(
+        config_path=str(cfg_path),
+        environment=mod.Environment.DEVELOPMENT,
+    )
+    mgr.config.providers = [
+        mod.ProxyProviderConfig(
+            name="secret-provider",
+            host_template="secret.proxy.example",
+            username="raw-user",
+            password="raw-password-secret",
+            regions=["us"],
+        )
+    ]
+
+    proxies = mgr.get_provider_proxies()
+    assert proxies
+
+    status = mgr.get_thinking_status()
+    assert status["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in status["thinking"]["techniques"]
+    assert (
+        status["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "libx0t_proxy_provider_generation"
+    )
+    assert status["claim_boundary"]
+
+    rendered = repr(status)
+    assert "raw-password-secret" not in rendered
+    assert "secret.proxy.example" not in rendered
+    assert "raw-user" not in rendered
+    assert str(cfg_path) not in rendered

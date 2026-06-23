@@ -15,13 +15,16 @@ Features:
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +36,45 @@ try:
 except ImportError:
     HTTPX_AVAILABLE = False
     logger.warning("⚠️ httpx not available. Alerting will be limited.")
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_mapping_summary(mapping: Optional[Dict[str, str]]) -> Dict[str, Any]:
+    values = mapping or {}
+    return {
+        "count_bucket": _safe_count_bucket(len(values)),
+        "key_hashes": sorted(_safe_hash(key) for key in values.keys()),
+        "non_empty_values": sum(1 for value in values.values() if value),
+    }
+
+
+def _safe_alert_summary(
+    alert_name: str,
+    severity: Any,
+    labels: Optional[Dict[str, str]] = None,
+    annotations: Optional[Dict[str, str]] = None,
+) -> Dict[str, Any]:
+    return {
+        "alert_hash": _safe_hash(alert_name),
+        "severity": severity.value,
+        "label_summary": _safe_mapping_summary(labels),
+        "annotation_summary": _safe_mapping_summary(annotations),
+    }
 
 
 class AlertSeverity(Enum):
@@ -122,7 +164,67 @@ class AlertManager:
         if HTTPX_AVAILABLE:
             self._http_client = httpx.AsyncClient(timeout=10.0)
 
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="alert-manager",
+            role="monitoring",
+            capabilities=("ops", "security", "zero-trust"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "alert_manager_init",
+                "goal": "Initialize alert routing without exposing notifier secrets",
+                "signals": {
+                    "channels_configured": self._configured_channel_summary(),
+                    "max_retries": self.max_retries,
+                    "retry_delay_configured": self.retry_delay > 0,
+                    "rate_limit_per_minute": self.rate_limit_per_minute,
+                    "http_client_available": self._http_client is not None,
+                },
+                "safety_boundary": (
+                    "Keep Alertmanager URLs, Telegram tokens, chat ids, PagerDuty "
+                    "keys, alert messages, and label values out of thinking context."
+                ),
+            }
+        )
+
         logger.info("AlertManager initialized")
+
+    def _configured_channel_summary(self) -> Dict[str, bool]:
+        return {
+            "alertmanager": bool(self.alertmanager_url),
+            "telegram": bool(self.telegram_bot_token and self.telegram_chat_id),
+            "pagerduty": bool(self.pagerduty_integration_key),
+        }
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_notifier_credentials": True,
+                    "redact_urls": True,
+                    "redact_alert_messages": True,
+                    "redact_label_values": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, booleans, counts, severity, and channel names only."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def _check_rate_limit(self, alert_name: str) -> bool:
         """
@@ -146,10 +248,34 @@ class AlertManager:
 
         # Check limit
         if len(self._rate_limit_tracker[alert_name]) >= self.rate_limit_per_minute:
+            self._record_thinking(
+                "alert_rate_limit_check",
+                "Decide whether to suppress an alert storm",
+                {
+                    "alert_hash": _safe_hash(alert_name),
+                    "recent_alert_count_bucket": _safe_count_bucket(
+                        len(self._rate_limit_tracker[alert_name])
+                    ),
+                    "rate_limit_per_minute": self.rate_limit_per_minute,
+                    "allowed": False,
+                },
+            )
             return False
 
         # Record this alert
         self._rate_limit_tracker[alert_name].append(now)
+        self._record_thinking(
+            "alert_rate_limit_check",
+            "Decide whether to allow alert dispatch",
+            {
+                "alert_hash": _safe_hash(alert_name),
+                "recent_alert_count_bucket": _safe_count_bucket(
+                    len(self._rate_limit_tracker[alert_name])
+                ),
+                "rate_limit_per_minute": self.rate_limit_per_minute,
+                "allowed": True,
+            },
+        )
         return True
 
     async def send_alert(
@@ -206,9 +332,42 @@ class AlertManager:
         ):
             tasks.append(self._send_to_pagerduty_with_retry(alert))
 
+        self._record_thinking(
+            "alert_dispatch_plan",
+            "Select alert channels that are configured and healthy",
+            {
+                "alert": _safe_alert_summary(
+                    alert_name,
+                    severity,
+                    labels=labels,
+                    annotations=annotations,
+                ),
+                "skip_rate_limit": skip_rate_limit,
+                "configured_channels": self._configured_channel_summary(),
+                "healthy_channels": self._channel_health.copy(),
+                "dispatch_task_count_bucket": _safe_count_bucket(len(tasks)),
+            },
+        )
+
         # Execute all tasks
         if tasks:
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            failure_count = sum(1 for result in results if isinstance(result, Exception))
+            self._record_thinking(
+                "alert_dispatch_result",
+                "Review alert dispatch outcome",
+                {
+                    "alert": _safe_alert_summary(
+                        alert_name,
+                        severity,
+                        labels=labels,
+                        annotations=annotations,
+                    ),
+                    "attempted_channel_count_bucket": _safe_count_bucket(len(tasks)),
+                    "failure_count_bucket": _safe_count_bucket(failure_count),
+                    "healthy_channels": self._channel_health.copy(),
+                },
+            )
             for result in results:
                 if isinstance(result, Exception):
                     logger.error(f"Alert sending failed: {result}")
@@ -219,6 +378,21 @@ class AlertManager:
             try:
                 await self._send_to_alertmanager(alert)
                 self._channel_health["alertmanager"] = True
+                self._record_thinking(
+                    "alert_channel_retry_result",
+                    "Confirm Alertmanager channel result",
+                    {
+                        "channel": "alertmanager",
+                        "alert": _safe_alert_summary(
+                            alert.name,
+                            alert.severity,
+                            labels=alert.labels,
+                            annotations=alert.annotations,
+                        ),
+                        "attempt": attempt + 1,
+                        "success": True,
+                    },
+                )
                 return
             except Exception as e:
                 if attempt < self.max_retries - 1:
@@ -232,6 +406,22 @@ class AlertManager:
                         f"❌ Alertmanager send failed after {self.max_retries} attempts: {e}"
                     )
                     self._channel_health["alertmanager"] = False
+                    self._record_thinking(
+                        "alert_channel_retry_result",
+                        "Mark Alertmanager channel unhealthy after retry exhaustion",
+                        {
+                            "channel": "alertmanager",
+                            "alert": _safe_alert_summary(
+                                alert.name,
+                                alert.severity,
+                                labels=alert.labels,
+                                annotations=alert.annotations,
+                            ),
+                            "attempt": attempt + 1,
+                            "success": False,
+                            "error_type": type(e).__name__,
+                        },
+                    )
                     raise
 
     async def _send_to_telegram_with_retry(self, alert: Alert):
@@ -240,6 +430,21 @@ class AlertManager:
             try:
                 await self._send_to_telegram(alert)
                 self._channel_health["telegram"] = True
+                self._record_thinking(
+                    "alert_channel_retry_result",
+                    "Confirm Telegram channel result",
+                    {
+                        "channel": "telegram",
+                        "alert": _safe_alert_summary(
+                            alert.name,
+                            alert.severity,
+                            labels=alert.labels,
+                            annotations=alert.annotations,
+                        ),
+                        "attempt": attempt + 1,
+                        "success": True,
+                    },
+                )
                 return
             except Exception as e:
                 if attempt < self.max_retries - 1:
@@ -253,6 +458,22 @@ class AlertManager:
                         f"❌ Telegram send failed after {self.max_retries} attempts: {e}"
                     )
                     self._channel_health["telegram"] = False
+                    self._record_thinking(
+                        "alert_channel_retry_result",
+                        "Mark Telegram channel unhealthy after retry exhaustion",
+                        {
+                            "channel": "telegram",
+                            "alert": _safe_alert_summary(
+                                alert.name,
+                                alert.severity,
+                                labels=alert.labels,
+                                annotations=alert.annotations,
+                            ),
+                            "attempt": attempt + 1,
+                            "success": False,
+                            "error_type": type(e).__name__,
+                        },
+                    )
                     raise
 
     async def _send_to_pagerduty_with_retry(self, alert: Alert):
@@ -261,6 +482,21 @@ class AlertManager:
             try:
                 await self._send_to_pagerduty(alert)
                 self._channel_health["pagerduty"] = True
+                self._record_thinking(
+                    "alert_channel_retry_result",
+                    "Confirm PagerDuty channel result",
+                    {
+                        "channel": "pagerduty",
+                        "alert": _safe_alert_summary(
+                            alert.name,
+                            alert.severity,
+                            labels=alert.labels,
+                            annotations=alert.annotations,
+                        ),
+                        "attempt": attempt + 1,
+                        "success": True,
+                    },
+                )
                 return
             except Exception as e:
                 if attempt < self.max_retries - 1:
@@ -274,6 +510,22 @@ class AlertManager:
                         f"❌ PagerDuty send failed after {self.max_retries} attempts: {e}"
                     )
                     self._channel_health["pagerduty"] = False
+                    self._record_thinking(
+                        "alert_channel_retry_result",
+                        "Mark PagerDuty channel unhealthy after retry exhaustion",
+                        {
+                            "channel": "pagerduty",
+                            "alert": _safe_alert_summary(
+                                alert.name,
+                                alert.severity,
+                                labels=alert.labels,
+                                annotations=alert.annotations,
+                            ),
+                            "attempt": attempt + 1,
+                            "success": False,
+                            "error_type": type(e).__name__,
+                        },
+                    )
                     raise
 
     async def _send_to_alertmanager(self, alert: Alert):
@@ -451,6 +703,16 @@ class AlertManager:
         for channel, status in health.items():
             if status is not None:
                 self._channel_health[channel] = status
+
+        self._record_thinking(
+            "alert_channel_health_check",
+            "Review configured alert channel health",
+            {
+                "configured_channels": self._configured_channel_summary(),
+                "health": health,
+                "healthy_channels": self._channel_health.copy(),
+            },
+        )
 
         return health
 

@@ -23,6 +23,16 @@ NODE_ADDR = "0x" + "b" * 40
 FAKE_PRIVATE_KEY = "0x" + "c" * 64
 
 
+class _ViableGasGuard:
+    def is_viable(self, amount):
+        return True, "test gas ok"
+
+
+class _HighGasGuard:
+    def is_viable(self, amount):
+        return False, "gas too high in test"
+
+
 def _make_rewards(private_key=None, rpc_url=None):
     """Create a TokenRewards instance without blockchain connection."""
     return TokenRewards(CONTRACT_ADDR, private_key=private_key, rpc_url=rpc_url)

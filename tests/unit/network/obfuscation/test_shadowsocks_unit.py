@@ -12,6 +12,7 @@ os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 
 from cryptography.exceptions import InvalidTag
 
+from src.coordination.events import EventBus, EventType
 from src.network.obfuscation.shadowsocks import (ShadowsocksSocket,
                                                  ShadowsocksTransport)
 
@@ -188,6 +189,56 @@ class TestObfuscateDeobfuscateRoundTrip:
         assert ct1 != ct2  # Different salt+nonce
         assert t.deobfuscate(ct1) == data
         assert t.deobfuscate(ct2) == data
+
+
+def test_shadowsocks_event_evidence_redacts_password_and_payload(tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    transport = ShadowsocksTransport(
+        password="raw-password-secret",
+        event_bus=bus,
+    )
+
+    packet = transport.obfuscate(b"raw-shadow-payload-secret")
+    assert transport.deobfuscate(packet) == b"raw-shadow-payload-secret"
+
+    events = bus.get_event_history(source_agent="shadowsocks-transport")
+    assert [event.data["operation"] for event in events] == [
+        "obfuscate",
+        "deobfuscate",
+    ]
+
+    for event in events:
+        payload = event.data
+        assert event.event_type == EventType.PIPELINE_STAGE_END
+        assert payload["payloads_redacted"] is True
+        assert payload["raw_keys_redacted"] is True
+        assert payload["crypto_material_redacted"] is True
+        assert payload["dataplane_confirmed"] is False
+        assert payload["dpi_bypass_confirmed"] is False
+        assert payload["bypass_confirmed"] is False
+        assert payload["claim_boundary"]
+
+        rendered = repr(payload)
+        assert "raw-password-secret" not in rendered
+        assert "raw-shadow-payload-secret" not in rendered
+
+
+def test_shadowsocks_failed_decrypt_event_redacts_crypto_material(tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    transport = ShadowsocksTransport(password="raw-password-secret", event_bus=bus)
+
+    with pytest.raises(ValueError):
+        transport.deobfuscate(b"raw-short-secret")
+
+    event = bus.get_event_history(source_agent="shadowsocks-transport")[-1]
+    payload = event.data
+    assert event.event_type == EventType.TASK_FAILED
+    assert payload["status"] == "failed"
+    assert payload["error"]["type"] == "ValueError"
+    assert payload["error"]["message_redacted"] is True
+    assert payload["dpi_bypass_confirmed"] is False
+    assert "raw-short-secret" not in repr(payload)
+    assert "raw-password-secret" not in repr(payload)
 
 
 # ===========================================================================

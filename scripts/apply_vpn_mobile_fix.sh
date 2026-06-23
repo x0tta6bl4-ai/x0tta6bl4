@@ -5,9 +5,18 @@ SERVER_IP="${1:-89.125.1.107}"
 SSH_USER="${2:-root}"
 SSH_PORT="${SSH_PORT:-22}"
 CONNECT_TIMEOUT="${CONNECT_TIMEOUT:-20}"
+VPN_MOBILE_FIX_CONFIRM="${VPN_MOBILE_FIX_CONFIRM:-}"
 
 log() { printf "[vpn-mobile-fix] %s\n" "$*"; }
 err() { printf "[vpn-mobile-fix] ERROR: %s\n" "$*" >&2; }
+
+if [[ "$VPN_MOBILE_FIX_CONFIRM" != "APPLY_AND_RESTART_XRAY" ]]; then
+  err "Refusing to run: this legacy script mutates remote Xray config and restarts x-ui/xray."
+  err "Current production distribution uses /root/xray-clients/vless-reality*.json on TCP 443."
+  err "Use x0tta6bl4-xray-vps/scripts/generate-live-client-profiles.sh for profile regeneration without restart."
+  err "To intentionally run this legacy fixer, set VPN_MOBILE_FIX_CONFIRM=APPLY_AND_RESTART_XRAY."
+  exit 2
+fi
 
 if [[ -n "${SSH_PASS:-}" ]]; then
   SSH_CMD=(sshpass -p "$SSH_PASS" ssh -T -o RequestTTY=no -o StrictHostKeyChecking=no -o ConnectTimeout="$CONNECT_TIMEOUT" -p "$SSH_PORT")

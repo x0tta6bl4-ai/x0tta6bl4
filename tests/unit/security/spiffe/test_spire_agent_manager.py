@@ -1,4 +1,5 @@
 import os
+import socket
 import subprocess
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +11,15 @@ from src.security.spiffe.agent.manager import (AttestationStrategy,
 
 MOCK_AGENT_BIN = "/usr/local/bin/spire-agent"  # Match conftest.py
 MOCK_SERVER_BIN = "/usr/local/bin/spire-server"  # Match conftest.py
+
+
+def _bind_unix_socket(socket_path):
+    if socket_path.exists():
+        socket_path.unlink()
+    socket_path.parent.mkdir(parents=True, exist_ok=True)
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(str(socket_path))
+    return sock
 
 
 @pytest.fixture
@@ -85,16 +95,22 @@ def test_start_agent_success(mock_spire_env, tmp_path):
     """Test the successful start of the SPIRE agent."""
     socket_path = tmp_path / "agent.sock"
 
+    bound_socket = None
+
     # Simulate the socket appearing after the process starts
     def touch_socket(*args, **kwargs):
-        socket_path.parent.mkdir(parents=True, exist_ok=True)
-        socket_path.touch()
+        nonlocal bound_socket
+        bound_socket = _bind_unix_socket(socket_path)
         return mock_spire_env["process"]
 
     mock_spire_env["popen"].side_effect = touch_socket
 
     mgr = SPIREAgentManager(socket_path=socket_path)
-    assert mgr.start() is True
+    try:
+        assert mgr.start() is True
+    finally:
+        if bound_socket is not None:
+            bound_socket.close()
 
     # Use ANY for the binary path since conftest returns /usr/local/bin/spire-agent
     mock_spire_env["popen"].assert_called_once()
@@ -123,6 +139,26 @@ def test_start_agent_timeout(mock_spire_env, tmp_path):
 
     mock_spire_env["popen"].assert_called_once()
     # Assert that stop is called, which in turn calls killpg
+    mock_spire_env["killpg"].assert_called()
+
+
+def test_start_agent_rejects_regular_file_socket(mock_spire_env, tmp_path):
+    """A regular file at agent.sock must not count as a real SPIRE socket."""
+    socket_path = tmp_path / "agent.sock"
+
+    def touch_regular_file(*args, **kwargs):
+        socket_path.parent.mkdir(parents=True, exist_ok=True)
+        socket_path.write_text("", encoding="utf-8")
+        return mock_spire_env["process"]
+
+    mock_spire_env["popen"].side_effect = touch_regular_file
+    mgr = SPIREAgentManager(socket_path=socket_path)
+
+    with patch("time.sleep"):
+        assert mgr.start() is False
+
+    assert socket_path.exists()
+    assert not socket_path.is_socket()
     mock_spire_env["killpg"].assert_called()
 
 
@@ -215,16 +251,22 @@ def test_attest_node_restarts_running_agent(mock_spire_env, tmp_path):
     # Make start() successful
     socket_path = tmp_path / "agent.sock"
 
+    bound_socket = None
+
     def touch_socket(*args, **kwargs):
-        socket_path.parent.mkdir(parents=True, exist_ok=True)
-        socket_path.touch()
+        nonlocal bound_socket
+        bound_socket = _bind_unix_socket(socket_path)
         return mock_spire_env["process"]
 
     mock_spire_env["popen"].side_effect = touch_socket
 
     token = "test_token_456"
-    with patch("time.sleep"):
-        result = mgr.attest_node(AttestationStrategy.JOIN_TOKEN, token=token)
+    try:
+        with patch("time.sleep"):
+            result = mgr.attest_node(AttestationStrategy.JOIN_TOKEN, token=token)
+    finally:
+        if bound_socket is not None:
+            bound_socket.close()
 
     assert result is True
     assert mgr._join_token == token
@@ -244,15 +286,21 @@ def test_start_uses_attest_token(mock_spire_env, tmp_path):
     mgr.attest_node(AttestationStrategy.JOIN_TOKEN, token=token)
 
     # 2. Simulate socket appearing on start
+    bound_socket = None
+
     def touch_socket(*args, **kwargs):
-        socket_path.parent.mkdir(parents=True, exist_ok=True)
-        socket_path.touch()
+        nonlocal bound_socket
+        bound_socket = _bind_unix_socket(socket_path)
         return mock_spire_env["process"]
 
     mock_spire_env["popen"].side_effect = touch_socket
 
     # 3. Start the agent (agent_process is None so it won't early-return)
-    mgr.start()
+    try:
+        mgr.start()
+    finally:
+        if bound_socket is not None:
+            bound_socket.close()
 
     # 4. Check the environment passed to Popen
     mock_spire_env["popen"].assert_called_once()

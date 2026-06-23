@@ -224,7 +224,7 @@ class MaaSAnalyticsService:
                 timestamp = self._parse_telemetry_timestamp(
                     sample.get("timestamp") or sample.get("last_seen")
                 )
-                if timestamp is None or timestamp < since or timestamp > now:
+                if timestamp is None or timestamp < since or timestamp > (now + timedelta(seconds=5)):
                     continue
                 hour_key = timestamp.replace(minute=0, second=0, microsecond=0).strftime(
                     "%Y-%m-%dT%H:00:00"

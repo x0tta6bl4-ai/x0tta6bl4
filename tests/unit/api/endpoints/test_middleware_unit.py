@@ -195,7 +195,7 @@ class TestCreateErrorResponse:
 
 class TestMaaSExceptionHandler:
     def _run(self, coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
+        return asyncio.run(coro)
 
     def _fake_request(self, request_id: str = "") -> MagicMock:
         req = MagicMock(spec=Request)

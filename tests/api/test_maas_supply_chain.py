@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, get_db, User, SBOMEntry, NodeBinaryAttestation
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_supply_{uuid.uuid4().hex}.db"
 engine = create_engine(f"sqlite:///{_TEST_DB_PATH}", connect_args={"check_same_thread": False})
@@ -46,7 +47,7 @@ def admin_token(client):
     r = client.post("/api/v1/maas/auth/register", json={"email": email, "password": "password123"})
     token = r.json()["access_token"]
     db = TestingSessionLocal()
-    u = db.query(User).filter(User.api_key == token).first()
+    u = find_user_by_api_key(db, token)
     u.role = "admin"
     db.commit()
     db.close()

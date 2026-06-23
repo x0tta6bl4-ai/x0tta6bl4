@@ -9,6 +9,7 @@ Implements:
 """
 
 import asyncio
+import hashlib
 import logging
 import random
 import secrets
@@ -19,9 +20,31 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
+from src.coordination.events import EventBus, EventType, get_event_bus
 from src.network.residential_proxy_manager import ProxyEndpoint, ProxyStatus
+from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "proxy-selection-algorithm"
+_SERVICE_LAYER = "network_proxy_selection_observed_state"
+PROXY_SELECTION_CLAIM_BOUNDARY = (
+    "Local proxy selection decision evidence only. It records redacted candidate "
+    "filter counts, strategy metadata, score summaries, and hashed proxy/domain "
+    "selectors. It does not copy proxy hosts, credentials, target domains, request "
+    "payloads, or response payloads, and it does not prove external provider "
+    "reachability, customer traffic delivery, or end-to-end dataplane quality."
+)
+
+
+def _hash_value(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return None
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
 
 
 class SelectionStrategy(Enum):
@@ -139,12 +162,16 @@ class ProxySelectionAlgorithm:
         success_weight: float = 0.4,
         stability_weight: float = 0.2,
         geographic_weight: float = 0.1,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: Optional[str] = None,
     ):
         self.default_strategy = default_strategy
         self.latency_weight = latency_weight
         self.success_weight = success_weight
         self.stability_weight = stability_weight
         self.geographic_weight = geographic_weight
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
 
         # Metrics storage
         self.proxy_metrics: Dict[str, ProxyMetrics] = {}
@@ -157,6 +184,107 @@ class ProxySelectionAlgorithm:
         # Pattern detection
         self._selection_history: deque = deque(maxlen=1000)
         self._pattern_weights: Dict[str, float] = {}
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        if self.event_project_root is None:
+            return None
+        try:
+            self.event_bus = get_event_bus(self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize proxy-selection EventBus: %s", exc)
+            return None
+
+    def _service_identity_presence(self) -> Dict[str, bool]:
+        identity = service_event_identity(service_name=_SERVICE_AGENT)
+        return {field: bool(value) for field, value in identity.items()}
+
+    def _proxy_identity_metadata(self, proxy: Optional[ProxyEndpoint]) -> Dict[str, Any]:
+        if proxy is None:
+            return {"present": False}
+        return {
+            "present": True,
+            "proxy_id_hash": _hash_value(proxy.id),
+            "status": proxy.status.value,
+            "region_hash": _hash_value(proxy.region),
+            "country_code": proxy.country_code,
+            "has_auth": bool(proxy.username or proxy.password),
+        }
+
+    def _strategy_value(self, strategy: Any) -> str:
+        return strategy.value if isinstance(strategy, SelectionStrategy) else str(strategy)
+
+    def _score_summary(
+        self,
+        candidates: List[ProxyEndpoint],
+        *,
+        selected: Optional[ProxyEndpoint],
+        domain: Optional[str],
+        preferred_region: Optional[str],
+    ) -> Dict[str, Any]:
+        scored = [
+            self.calculate_proxy_score(proxy, domain, preferred_region)
+            for proxy in candidates
+        ]
+        selected_score = (
+            self.calculate_proxy_score(selected, domain, preferred_region)
+            if selected is not None
+            else None
+        )
+        positive_scores = [score for score in scored if score > 0]
+        return {
+            "candidate_scores_count": len(scored),
+            "positive_scores_count": len(positive_scores),
+            "min_score": round(float(min(scored)), 6) if scored else None,
+            "max_score": round(float(max(scored)), 6) if scored else None,
+            "selected_score": (
+                round(float(selected_score), 6) if selected_score is not None else None
+            ),
+            "weights": {
+                "latency": float(self.latency_weight),
+                "success": float(self.success_weight),
+                "stability": float(self.stability_weight),
+                "geographic": float(self.geographic_weight),
+            },
+        }
+
+    def _publish_selection_evidence(
+        self,
+        *,
+        status: str,
+        success: bool,
+        duration_ms: float,
+        payload: Dict[str, Any],
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+        event_payload = {
+            "component": "network.proxy_selection_algorithm",
+            "operation": "select_proxy",
+            "service_name": _SERVICE_AGENT,
+            "layer": _SERVICE_LAYER,
+            "status": status,
+            "success": bool(success),
+            "duration_ms": round(float(duration_ms), 3),
+            "service_identity_present": self._service_identity_presence(),
+            "raw_identifiers_redacted": True,
+            "claim_boundary": PROXY_SELECTION_CLAIM_BOUNDARY,
+            **payload,
+        }
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                _SERVICE_AGENT,
+                event_payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish proxy-selection evidence: %s", exc)
+            return None
 
     def _get_metrics(self, proxy: ProxyEndpoint) -> ProxyMetrics:
         """Get or create metrics for a proxy."""
@@ -244,7 +372,33 @@ class ProxySelectionAlgorithm:
         """
         Select optimal proxy using specified strategy.
         """
+        started = time.perf_counter()
+        candidate_counts: Dict[str, int] = {
+            "pool_total": len(proxies),
+            "after_health_filter": len(proxies),
+            "rate_limited": 0,
+            "after_rate_limit_filter": len(proxies),
+        }
         if not proxies:
+            self._publish_selection_evidence(
+                status="no_proxy_pool",
+                success=False,
+                duration_ms=(time.perf_counter() - started) * 1000,
+                payload={
+                    "strategy": self._strategy_value(strategy or self.default_strategy),
+                    "domain_hash": _hash_value(domain),
+                    "preferred_region_hash": _hash_value(preferred_region),
+                    "require_healthy": bool(require_healthy),
+                    "candidate_counts": candidate_counts,
+                    "score_summary": self._score_summary(
+                        [],
+                        selected=None,
+                        domain=domain,
+                        preferred_region=preferred_region,
+                    ),
+                    "selected_proxy": self._proxy_identity_metadata(None),
+                },
+            )
             return None
 
         strategy = strategy or self.default_strategy
@@ -253,33 +407,97 @@ class ProxySelectionAlgorithm:
         candidates = proxies
         if require_healthy:
             candidates = [p for p in proxies if p.status == ProxyStatus.HEALTHY]
+            candidate_counts["after_health_filter"] = len(candidates)
 
         if not candidates:
             logger.warning("No healthy proxies available")
+            candidate_counts["after_rate_limit_filter"] = len(candidates)
+            self._publish_selection_evidence(
+                status="no_candidate_after_health_filter",
+                success=False,
+                duration_ms=(time.perf_counter() - started) * 1000,
+                payload={
+                    "strategy": self._strategy_value(strategy),
+                    "domain_hash": _hash_value(domain),
+                    "preferred_region_hash": _hash_value(preferred_region),
+                    "require_healthy": bool(require_healthy),
+                    "candidate_counts": candidate_counts,
+                    "score_summary": self._score_summary(
+                        candidates,
+                        selected=None,
+                        domain=domain,
+                        preferred_region=preferred_region,
+                    ),
+                    "selected_proxy": self._proxy_identity_metadata(None),
+                },
+            )
             return None
 
         # Filter by rate limit
+        before_rate_limit = len(candidates)
         candidates = [p for p in candidates if not p.is_rate_limited()]
+        candidate_counts["rate_limited"] = before_rate_limit - len(candidates)
+        candidate_counts["after_rate_limit_filter"] = len(candidates)
 
         if not candidates:
             logger.warning("All proxies rate limited")
+            self._publish_selection_evidence(
+                status="no_candidate_after_rate_limit_filter",
+                success=False,
+                duration_ms=(time.perf_counter() - started) * 1000,
+                payload={
+                    "strategy": self._strategy_value(strategy),
+                    "domain_hash": _hash_value(domain),
+                    "preferred_region_hash": _hash_value(preferred_region),
+                    "require_healthy": bool(require_healthy),
+                    "candidate_counts": candidate_counts,
+                    "score_summary": self._score_summary(
+                        candidates,
+                        selected=None,
+                        domain=domain,
+                        preferred_region=preferred_region,
+                    ),
+                    "selected_proxy": self._proxy_identity_metadata(None),
+                },
+            )
             return None
 
         # Apply selection strategy
         if strategy == SelectionStrategy.WEIGHTED_SCORE:
-            return await self._select_weighted(candidates, domain, preferred_region)
+            selected = await self._select_weighted(candidates, domain, preferred_region)
         elif strategy == SelectionStrategy.LOWEST_LATENCY:
-            return await self._select_lowest_latency(candidates)
+            selected = await self._select_lowest_latency(candidates)
         elif strategy == SelectionStrategy.ROUND_ROBIN:
-            return await self._select_round_robin(candidates)
+            selected = await self._select_round_robin(candidates)
         elif strategy == SelectionStrategy.RANDOM:
-            return await self._select_random(candidates)
+            selected = await self._select_random(candidates)
         elif strategy == SelectionStrategy.PREDICTIVE:
-            return await self._select_predictive(candidates, domain, preferred_region)
+            selected = await self._select_predictive(candidates, domain, preferred_region)
         elif strategy == SelectionStrategy.GEOGRAPHIC:
-            return await self._select_geographic(candidates, preferred_region)
+            selected = await self._select_geographic(candidates, preferred_region)
         else:
-            return await self._select_weighted(candidates, domain, preferred_region)
+            selected = await self._select_weighted(candidates, domain, preferred_region)
+
+        self._publish_selection_evidence(
+            status="proxy_selected" if selected is not None else "no_positive_score",
+            success=selected is not None,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            payload={
+                "strategy": self._strategy_value(strategy),
+                "domain_hash": _hash_value(domain),
+                "preferred_region_hash": _hash_value(preferred_region),
+                "require_healthy": bool(require_healthy),
+                "candidate_counts": candidate_counts,
+                "score_summary": self._score_summary(
+                    candidates,
+                    selected=selected,
+                    domain=domain,
+                    preferred_region=preferred_region,
+                ),
+                "selected_proxy": self._proxy_identity_metadata(selected),
+            },
+        )
+        return selected
 
     async def _select_weighted(
         self,

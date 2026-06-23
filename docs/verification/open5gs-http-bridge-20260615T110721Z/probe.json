@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-15T11:07:27Z",
+  "http_base_url": "http://89.125.1.107:18080",
+  "health_endpoint": "/health",
+  "session_endpoint": "/bridge/sessions",
+  "health_response": {"ok": true, "path": "/bridge/sessions", "amf_endpoint": "89.125.1.107:38412", "upf_endpoint": "89.125.1.107:8805", "bridge": "open5gs-local-http"},
+  "session_http_code": 200,
+  "session_response_body": "{"accepted": true, "latency_ms": 25, "cause": ""}",
+  "ue_id": "ue-fresh-probe-20260615T110721Z",
+  "slice_id": "premium",
+  "bridge_type": "open5gs-local-http"
+}

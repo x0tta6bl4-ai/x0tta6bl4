@@ -6,6 +6,7 @@ Contains FastAPI routers for different API domains:
 - nodes: Node registration and management
 - billing: Billing and invoicing
 - auth: Authentication endpoints
+- pilot: Pilot onboarding endpoints
 """
 
 from typing import Any
@@ -16,6 +17,7 @@ __all__ = [
     "nodes_router",
     "billing_router",
     "auth_router",
+    "pilot_router",
     "get_combined_router",
 ]
 
@@ -34,6 +36,9 @@ def __getattr__(name: str) -> Any:
     if name == "auth_router":
         from .auth import router as auth_router
         return auth_router
+    if name == "pilot_router":
+        from .pilot import router as pilot_router
+        return pilot_router
     if name == "get_combined_router":
         from . import combined
         return combined.get_combined_router

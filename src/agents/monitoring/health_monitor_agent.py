@@ -12,6 +12,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,7 +71,13 @@ class HealthMonitorAgent:
             config: Конфигурация агента
         """
         self.config = config or self._default_config()
-        
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="health-monitor",
+            role="monitoring",
+            capabilities=("monitoring", "mape_k", "alerting"),
+        )
+        self.last_thinking_context: Optional[dict] = None
+
         # Services для мониторинга
         self.services: dict[str, str] = self.config.get("services", {})
         
@@ -128,6 +136,17 @@ class HealthMonitorAgent:
     async def _monitoring_cycle(self) -> None:
         """Один цикл мониторинга всех сервисов."""
         self.last_check_time = datetime.utcnow()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "health_monitoring",
+                "goal": "check services and raise actionable alerts",
+                "services": list(self.services.keys()),
+                "constraints": {
+                    "response_time_threshold_ms": self.response_time_threshold_ms,
+                    "unhealthy_threshold": self.unhealthy_threshold,
+                },
+            }
+        )
         
         # Параллельная проверка всех сервисов
         tasks = [
@@ -353,6 +372,7 @@ class HealthMonitorAgent:
                 }
                 for a in self.active_alerts[-10:]
             ],
+            "thinking": self.thinking_coach.status(),
         }
     
     async def resolve_alert(self, alert_id: str) -> bool:

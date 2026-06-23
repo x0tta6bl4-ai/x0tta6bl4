@@ -17,6 +17,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -105,6 +107,7 @@ class TaskResult:
     error: Optional[str] = None
     execution_time_ms: float = 0.0
     agent_id: str = ""
+    thinking_context: Dict[str, Any] = field(default_factory=dict)
 
 
 class Agent:
@@ -141,6 +144,12 @@ class Agent:
         normalized_capabilities = self._normalize_capabilities(capabilities)
         self.capabilities = {cap.name: cap for cap in normalized_capabilities}
         self.parl_controller = parl_controller
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=agent_id,
+            role=self.role,
+            capabilities=self.capabilities.keys(),
+        )
+        self.last_thinking_context: Optional[Dict[str, Any]] = None
 
         self.state = AgentState.INITIALIZING
         self.created_at = time.time()
@@ -260,6 +269,14 @@ class Agent:
         self.state = AgentState.ACTIVE
         self.current_task = task_id
         self.last_activity = time.time()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                **task_data,
+                "agent_id": self.agent_id,
+                "role": self.role,
+                "capabilities": list(self.capabilities.keys()),
+            }
+        )
 
         try:
             # Check capability
@@ -285,6 +302,7 @@ class Agent:
                 result=result,
                 execution_time_ms=execution_time,
                 agent_id=self.agent_id,
+                thinking_context=self.last_thinking_context or {},
             )
 
         except Exception as e:
@@ -292,6 +310,8 @@ class Agent:
             self.failed_tasks += 1
             self.state = AgentState.ERROR
             self._update_metrics()
+            if isinstance(e, PermissionError):
+                raise
 
             return TaskResult(
                 task_id=task_id,
@@ -299,6 +319,7 @@ class Agent:
                 error=str(e),
                 execution_time_ms=(time.time() - start_time) * 1000,
                 agent_id=self.agent_id,
+                thinking_context=self.last_thinking_context or {},
             )
 
     async def _execute_task_internal(self, task: Dict[str, Any]) -> Any:
@@ -416,6 +437,7 @@ class Agent:
             "capabilities": list(self.capabilities.keys()),
             "current_task": self.current_task,
             "metrics": self.metrics,
+            "thinking": self.thinking_coach.status(),
             "created_at": self.created_at,
             "last_activity": self.last_activity,
         }

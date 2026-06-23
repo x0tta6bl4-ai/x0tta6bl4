@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 # Import PARL components
@@ -124,6 +126,12 @@ class PARLMAPEKExecutor:
         self.max_parallel_steps = max_parallel_steps
         self.parl_controller: Optional[Any] = None
         self._initialized = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="parl_mapek_executor",
+            role="healing",
+            capabilities=("mape_k", "coordinator"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Metrics
         self.metrics = {
@@ -174,6 +182,17 @@ class PARLMAPEKExecutor:
 
         cycle_start = time.time()
         results = {}
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "parl_mapek_cycle",
+                "goal": "run a bounded MAPE-K healing cycle",
+                "constraints": {
+                    "cycle_id_present": bool(context.cycle_id),
+                    "mesh_node_count": len(context.mesh_nodes),
+                    "parl_enabled": self.parl_controller is not None,
+                },
+            }
+        )
 
         try:
             # Phase 1: Monitor (parallel across nodes)
@@ -215,6 +234,7 @@ class PARLMAPEKExecutor:
                 "plans_generated": len(plan_results),
                 "actions_executed": len(execute_results),
             }
+            results["thinking"] = self.last_thinking_context
 
             # Update global metrics
             self.metrics["total_cycles"] += 1
@@ -237,6 +257,7 @@ class PARLMAPEKExecutor:
             logger.error(f"MAPE-K cycle {context.cycle_id} failed: {e}")
             results["error"] = str(e)
             results["success"] = False
+            results["thinking"] = self.last_thinking_context
             return results
 
         results["success"] = True
@@ -256,6 +277,17 @@ class PARLMAPEKExecutor:
             }
             for node_id in context.mesh_nodes
         ]
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "parl_mapek_monitor_phase",
+                "goal": "collect health signals across mesh nodes",
+                "constraints": {
+                    "cycle_id_present": bool(context.cycle_id),
+                    "node_count": len(context.mesh_nodes),
+                    "task_count": len(tasks),
+                },
+            }
+        )
 
         if self.parl_controller:
             results = await self.parl_controller.execute_parallel(tasks)
@@ -290,6 +322,17 @@ class PARLMAPEKExecutor:
             return []
 
         logger.debug(f"Analyze phase: {len(anomalies)} anomalies")
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "parl_mapek_analyze_phase",
+                "goal": "identify likely causes for detected anomalies",
+                "constraints": {
+                    "cycle_id_present": bool(context.cycle_id),
+                    "monitor_result_count": len(monitor_results),
+                    "anomaly_count": len(anomalies),
+                },
+            }
+        )
 
         tasks = [
             {
@@ -315,6 +358,16 @@ class PARLMAPEKExecutor:
             return []
 
         logger.debug(f"Plan phase: {len(analysis_results)} analyses")
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "parl_mapek_plan_phase",
+                "goal": "generate candidate recovery plans",
+                "constraints": {
+                    "cycle_id_present": bool(context.cycle_id),
+                    "analysis_count": len(analysis_results),
+                },
+            }
+        )
 
         tasks = [
             {
@@ -350,6 +403,17 @@ class PARLMAPEKExecutor:
             return []
 
         logger.debug(f"Execute phase: {len(actions)} actions")
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "parl_mapek_execute_phase",
+                "goal": "execute independent recovery actions",
+                "constraints": {
+                    "cycle_id_present": bool(context.cycle_id),
+                    "plan_count": len(plan_results),
+                    "action_count": len(actions),
+                },
+            }
+        )
 
         tasks = [
             {
@@ -435,6 +499,17 @@ class PARLMAPEKExecutor:
                 {"type": "rebalance_load", "target": "cluster"},
             ]
             strategy = "auto_recovery"
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "parl_mapek_recovery_plan",
+                "goal": "select a recovery strategy for the analyzed anomaly",
+                "constraints": {
+                    "strategy": strategy,
+                    "action_count": len(actions),
+                    "has_llm_actions": strategy == "llm_healing",
+                },
+            }
+        )
             
         return {
             "task_id": task["task_id"],
@@ -498,6 +573,8 @@ class PARLMAPEKExecutor:
             **self.metrics,
             "parl_enabled": self.parl_controller is not None,
             "knowledge_base_size": len(self.knowledge_base["historical_anomalies"]),
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
 
     async def terminate(self) -> None:

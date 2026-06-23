@@ -9,6 +9,7 @@ This module builds upon the existing EBPFMetricsExporter to provide:
 5. Detailed error reporting for debugging
 """
 
+import hashlib
 import json
 import logging
 import subprocess
@@ -17,9 +18,65 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
 from src.network.ebpf.metrics_exporter import EBPFMetricsExporter
+from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
+
+EBPF_METRICS_EXPORTER_ENHANCED_SERVICE_NAME = "ebpf-metrics-exporter-enhanced"
+EBPF_METRICS_EXPORTER_ENHANCED_LAYER = "network_ebpf_metrics_enhanced_observed_state"
+EBPF_METRICS_EXPORTER_ENHANCED_CLAIM_BOUNDARY = (
+    "Local enhanced eBPF metrics wrapper evidence only. Events record timeout/retry "
+    "wrapper outcomes, duration, result shape, and redacted map selectors; they do "
+    "not prove production traffic, Prometheus delivery, or attached kernel program "
+    "correctness."
+)
+
+
+def _sha256_text(value: str) -> Optional[str]:
+    if not value:
+        return None
+    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return _sha256_text(str(value))
+
+
+def _identity_metadata() -> Dict[str, Any]:
+    identity = service_event_identity(
+        service_name=EBPF_METRICS_EXPORTER_ENHANCED_SERVICE_NAME
+    )
+    return {
+        "service_name": EBPF_METRICS_EXPORTER_ENHANCED_SERVICE_NAME,
+        "layer": EBPF_METRICS_EXPORTER_ENHANCED_LAYER,
+        "spiffe_id_configured": bool(identity.get("spiffe_id")),
+        "did_configured": bool(identity.get("did")),
+        "wallet_address_configured": bool(identity.get("wallet_address")),
+        "redacted": True,
+    }
+
+
+def _result_shape(value: Any) -> Dict[str, Any]:
+    if value is None:
+        return {"type": "none", "count": 0}
+    if isinstance(value, dict):
+        return {
+            "type": "dict",
+            "count": len(value),
+            "key_hashes": [
+                _hash_value(key)
+                for key in sorted(value.keys(), key=lambda item: str(item))
+            ],
+            "keys_redacted": True,
+        }
+    if hasattr(value, "__len__"):
+        return {"type": type(value).__name__, "count": len(value)}
+    return {"type": type(value).__name__, "count": 1}
 
 
 class MetricValidationStatus(Enum):
@@ -172,7 +229,11 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
         stale_metric_ttl_seconds: float = 300.0,
     ):
         """Initialize enhanced metrics exporter."""
-        super().__init__(prometheus_port)
+        super().__init__(
+            prometheus_port,
+            event_bus=event_bus,
+            event_project_root=event_project_root,
+        )
         self.sanitizer = MetricSanitizer(validation_rules)
         self.error_count = ErrorCount()
         self.max_queue_size = max_queue_size
@@ -182,6 +243,128 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
         self.performance_stats = {"export_time": [], "parse_time": [], "read_time": []}
 
         logger.info("Enhanced eBPF Metrics Exporter initialized")
+
+    def _enhanced_event_bus_or_none(self) -> Optional[EventBus]:
+        if not hasattr(self, "event_bus"):
+            return None
+        if self.event_bus is not None:
+            return self.event_bus
+        try:
+            return EventBus(project_root=getattr(self, "event_project_root", "."))
+        except Exception as exc:
+            logger.error("Failed to initialize enhanced eBPF metrics EventBus: %s", exc)
+            return None
+
+    def _record_enhanced_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_metrics_export_enhanced",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only enhanced eBPF metrics wrapper evidence, redacted "
+                "map selectors, result shapes, hashes, and bounded metadata; do "
+                "not expose map names, result payloads, stdout, or stderr."
+            ),
+        }
+        self._last_enhanced_thinking_context = (
+            self.enhanced_thinking_coach.prepare_task(safe_task)
+        )
+        return self._last_enhanced_thinking_context
+
+    def get_enhanced_thinking_status(self) -> Dict[str, Any]:
+        """Expose enhanced exporter thinking state without task secrets."""
+
+        return {
+            **self.enhanced_thinking_coach.status(),
+            "last_context": self._last_enhanced_thinking_context,
+        }
+
+    def _publish_enhanced_read_observation(
+        self,
+        *,
+        stage: str,
+        status: str,
+        map_name: str,
+        start: float,
+        reason: str = "",
+        result: Any = None,
+        error: Optional[BaseException] = None,
+    ) -> Optional[str]:
+        bus = self._enhanced_event_bus_or_none()
+        if bus is None:
+            return None
+
+        thinking = self._record_enhanced_thinking_context(
+            operation="read_map_via_bpftool_with_timeout",
+            goal=f"read_map_via_bpftool_with_timeout:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "reason": reason,
+                "backend": "bpftool",
+                "map_name_hash": _hash_value(map_name),
+                "map_name_redacted": True,
+                "result_shape": _result_shape(result),
+                "result_payload_redacted": True,
+                "error_type": type(error).__name__ if error is not None else None,
+            },
+        )
+        payload: Dict[str, Any] = {
+            "component": "network.ebpf.metrics_exporter_enhanced",
+            "stage": stage,
+            "operation": "read_map_via_bpftool_with_timeout",
+            "operation_resource": "ebpf_metrics_enhanced_bpftool_read",
+            "resource": "network:ebpf:metrics_exporter_enhanced",
+            "service_name": EBPF_METRICS_EXPORTER_ENHANCED_SERVICE_NAME,
+            "layer": EBPF_METRICS_EXPORTER_ENHANCED_LAYER,
+            "identity": _identity_metadata(),
+            "status": status,
+            "reason": reason,
+            "backend": "bpftool",
+            "duration_ms": round((time.monotonic() - start) * 1000, 3),
+            "map_name_hash": _hash_value(map_name),
+            "map_name_redacted": True,
+            "result_shape": _result_shape(result),
+            "result_payload_redacted": True,
+            "payloads_redacted": True,
+            "read_only": True,
+            "observed_state": True,
+            "safe_observation": True,
+            "thinking": thinking,
+            "claim_boundary": EBPF_METRICS_EXPORTER_ENHANCED_CLAIM_BOUNDARY,
+        }
+        if error is not None:
+            payload.update(
+                {
+                    "error_type": type(error).__name__,
+                    "error_message_hash": _hash_value(str(error)),
+                    "error_message_redacted": True,
+                }
+            )
+
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                EBPF_METRICS_EXPORTER_ENHANCED_SERVICE_NAME,
+                payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error(
+                "Failed to publish enhanced eBPF metrics observation: %s", exc
+            )
+            return None
 
     def _track_performance(self, metric: str, duration: float):
         """Track performance metrics."""
@@ -373,15 +556,51 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
         Returns:
             Dict with map data or None if failed
         """
+        start = time.monotonic()
         read_start = time.time()
         try:
-            return self._read_map_via_bpftool(map_name)
-        except subprocess.TimeoutExpired:
+            result = self._read_map_via_bpftool(map_name)
+            if result is None:
+                self._publish_enhanced_read_observation(
+                    stage="enhanced_metrics_map_read_empty",
+                    status="empty",
+                    map_name=map_name,
+                    start=start,
+                    reason="bpftool_read_returned_none",
+                    result=result,
+                )
+            else:
+                self._publish_enhanced_read_observation(
+                    stage="enhanced_metrics_map_read_succeeded",
+                    status="success",
+                    map_name=map_name,
+                    start=start,
+                    reason="bpftool_read_succeeded",
+                    result=result,
+                )
+            return result
+        except subprocess.TimeoutExpired as exc:
             logger.warning(f"bpftool timeout reading map {map_name}")
             self._update_error_count("timeout")
+            self._publish_enhanced_read_observation(
+                stage="enhanced_metrics_map_read_timeout",
+                status="failure",
+                map_name=map_name,
+                start=start,
+                reason="bpftool_timeout",
+                error=exc,
+            )
         except Exception as e:
             logger.error(f"Error reading map {map_name}: {e}")
             self._update_error_count("map_read")
+            self._publish_enhanced_read_observation(
+                stage="enhanced_metrics_map_read_failed",
+                status="failure",
+                map_name=map_name,
+                start=start,
+                reason="exception",
+                error=e,
+            )
         finally:
             self._track_performance("read_time", time.time() - read_start)
 

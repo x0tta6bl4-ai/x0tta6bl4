@@ -1,37 +1,12 @@
-"""
-MaaS Node Management (Production) — x0tta6bl4
-============================================
+"""Compatibility module for the DB-backed MaaS node API.
 
-SQLAlchemy-backed node registration and admission control with granular RBAC.
-
-Features:
-    - Node registration with enrollment tokens
-    - Heartbeat processing with telemetry export
-    - ACL-based access control
-    - Granular RBAC permissions for mesh operators
-
-RBAC Permission Model:
-    - mesh:read: View mesh and node information
-    - mesh:write: Modify mesh configuration
-    - node:read: View node details and telemetry
-    - node:write: Modify node configuration
-    - node:approve: Approve pending nodes
-    - node:revoke: Revoke node access
-    - node:delete: Permanently delete nodes
-    - acl:read: View ACL policies
-    - acl:write: Modify ACL policies
-
-Example:
-    >>> # Check if user has permission to approve nodes
-    >>> if _check_permission(current_user, mesh_id, "node:approve", db):
-    ...     node.status = "approved"
+The split MaaS node implementation is being prepared under
+``src.api.maas.nodes`` and ``src.api.maas.endpoints.nodes``.  This public module
+keeps the existing DB-backed API surface stable for callers, tests, and
+monkeypatches that import ``src.api.maas_nodes`` directly.
 """
 
-import logging
-import hmac
-import uuid
-from datetime import datetime
-from typing import List, Optional, Dict, Any, Set
+from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
@@ -45,7 +20,9 @@ from src.api.maas_security import token_signer
 from src.core.reliability_policy import mark_degraded_dependency
 from src.utils.audit import record_audit_log
 
-logger = logging.getLogger(__name__)
+_parent = sys.modules.get(__name__.rsplit(".", 1)[0])
+if _parent is not None:
+    setattr(_parent, "maas_nodes", _legacy)
 
 router = APIRouter(prefix="/api/v1/maas", tags=["MaaS Nodes"])
 

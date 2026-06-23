@@ -6,16 +6,46 @@ session management, and stats reporting.
 """
 
 import asyncio
+import json
 import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 try:
+    import src.network.dns_over_https as mod
     from src.network.dns_over_https import (DOH_SERVERS, DoHResolver,
                                             get_doh_resolver)
 except ImportError:
     pytest.skip("dns_over_https module not available", allow_module_level=True)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_event_bus(monkeypatch, tmp_path):
+    buses = {}
+
+    def _get_event_bus(project_root="."):
+        if project_root not in buses:
+            buses[project_root] = mod.EventBus(str(tmp_path))
+        return buses[project_root]
+
+    monkeypatch.setattr(mod, "get_event_bus", _get_event_bus)
+
+
+def _event_payloads(bus):
+    return [
+        event.to_dict()
+        for event in bus.get_event_history(source_agent="doh-resolver", limit=100)
+    ]
+
+
+def _assert_event_log_redacted(tmp_path, bus, raw_values):
+    serialized = json.dumps(_event_payloads(bus), sort_keys=True)
+    log_path = tmp_path / mod.EventBus.EVENT_LOG
+    log_text = log_path.read_text() if log_path.exists() else ""
+    for raw_value in raw_values:
+        assert raw_value not in serialized
+        assert raw_value not in log_text
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +248,37 @@ class TestResolve:
         assert result == ["142.250.80.46"]
 
     @pytest.mark.asyncio
+    async def test_system_dns_fallback_event_redacts_domain_and_answers(self, tmp_path):
+        """System-DNS fallback should leave redacted local evidence only."""
+        event_bus = mod.EventBus(str(tmp_path))
+        resolver = DoHResolver(event_bus=event_bus)
+        with patch.object(
+            resolver,
+            "_system_dns_resolve",
+            new_callable=AsyncMock,
+            return_value=["142.250.80.46"],
+        ):
+            result = await resolver.resolve("apis.googleapis.com", "A")
+
+        assert result == ["142.250.80.46"]
+        event = _event_payloads(event_bus)[-1]
+        data = event["data"]
+        assert event["event_type"] == mod.EventType.PIPELINE_STAGE_END.value
+        assert data["operation"] == "resolve"
+        assert data["resolver_mode"] == "system_dns_fallback"
+        assert data["domain_hash"] == mod._redacted_sha256_prefix(
+            "apis.googleapis.com"
+        )
+        assert data["answer_count"] == 1
+        assert data["observed_state"] is True
+        assert "does not prove upstream DNS privacy" in data["claim_boundary"]
+        _assert_event_log_redacted(
+            tmp_path,
+            event_bus,
+            ["apis.googleapis.com", "142.250.80.46"],
+        )
+
+    @pytest.mark.asyncio
     async def test_successful_a_record(self):
         """Successful A record resolution via DoH."""
         resolver = DoHResolver()
@@ -234,6 +295,66 @@ class TestResolve:
             result = await resolver.resolve("example.com", "A")
 
         assert result == ["93.184.216.34"]
+
+    @pytest.mark.asyncio
+    async def test_successful_doh_event_redacts_query_url_domain_and_answers(
+        self,
+        tmp_path,
+    ):
+        """Successful DoH resolution should record counts/hashes, not raw DNS data."""
+        event_bus = mod.EventBus(str(tmp_path))
+        resolver = DoHResolver(
+            servers=[
+                {
+                    "name": "SecretResolver",
+                    "url": "https://secret-dns.example/query",
+                    "params": {"ct": "application/dns-json"},
+                }
+            ],
+            event_bus=event_bus,
+        )
+        json_data = {
+            "Status": 0,
+            "Answer": [
+                {"name": "secret.example", "type": 1, "data": "203.0.113.77"},
+            ],
+        }
+        mock_session, _ = _make_mock_session(status=200, json_data=json_data)
+        resolver.session = mock_session
+
+        with patch.object(resolver, "_init_session", new_callable=AsyncMock):
+            result = await resolver.resolve("secret.example", "A")
+
+        assert result == ["203.0.113.77"]
+        event = _event_payloads(event_bus)[-1]
+        data = event["data"]
+        evidence = resolver.get_last_resolution_evidence()
+        assert evidence["event_id"] == event["event_id"]
+        assert evidence["source_agent"] == "doh-resolver"
+        assert evidence["layer"] == "network_dns_over_https_observed_state"
+        assert evidence["domain_hash"] == data["domain_hash"]
+        assert evidence["payloads_redacted"] is True
+        assert data["resolver_mode"] == "doh"
+        assert data["record_type"] == "A"
+        assert data["answer_count"] == 1
+        assert data["attempt_count"] == 1
+        assert data["attempts"][0]["outcome"] == "success"
+        assert data["attempts"][0]["http_status"] == 200
+        assert data["attempts"][0]["dns_status"] == 0
+        assert data["attempts"][0]["server"]["name_hash"] == mod._redacted_sha256_prefix(
+            "SecretResolver"
+        )
+        _assert_event_log_redacted(
+            tmp_path,
+            event_bus,
+            [
+                "secret.example",
+                "203.0.113.77",
+                "SecretResolver",
+                "https://secret-dns.example/query",
+                "name=secret.example",
+            ],
+        )
 
     @pytest.mark.asyncio
     async def test_successful_aaaa_record(self):
@@ -391,6 +512,48 @@ class TestResolve:
             result = await resolver.resolve("example.com", "A")
 
         assert result == []
+
+    @pytest.mark.asyncio
+    async def test_all_servers_fail_event_redacts_errors_and_server_urls(self, tmp_path):
+        """Failure evidence should expose outcome classes without raw query data."""
+        event_bus = mod.EventBus(str(tmp_path))
+        servers = [
+            {"name": "SlowSecret", "url": "https://slow-secret.example/q", "params": {}},
+            {"name": "StillSecret", "url": "https://still-secret.example/q", "params": {}},
+        ]
+        resolver = DoHResolver(servers=servers, event_bus=event_bus)
+
+        timeout_cm = MagicMock()
+        timeout_cm.__aenter__ = AsyncMock(side_effect=asyncio.TimeoutError())
+        timeout_cm.__aexit__ = AsyncMock(return_value=False)
+
+        mock_session = AsyncMock()
+        mock_session.get = MagicMock(return_value=timeout_cm)
+        mock_session.closed = False
+        resolver.session = mock_session
+
+        with patch.object(resolver, "_init_session", new_callable=AsyncMock):
+            result = await resolver.resolve("timeout.secret", "A")
+
+        assert result == []
+        event = _event_payloads(event_bus)[-1]
+        data = event["data"]
+        assert event["event_type"] == mod.EventType.TASK_BLOCKED.value
+        assert data["status"] == "failed"
+        assert data["reason"] == "all_servers_failed"
+        assert data["attempt_count"] == 2
+        assert {attempt["outcome"] for attempt in data["attempts"]} == {"timeout"}
+        _assert_event_log_redacted(
+            tmp_path,
+            event_bus,
+            [
+                "timeout.secret",
+                "SlowSecret",
+                "StillSecret",
+                "https://slow-secret.example/q",
+                "https://still-secret.example/q",
+            ],
+        )
 
 
 # ===========================================================================

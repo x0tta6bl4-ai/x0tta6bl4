@@ -99,10 +99,25 @@ class FLAppIntegration:
 
         try:
             logger.info("Starting Federated Learning coordinator...")
-            # Coordinator is ready after initialization
+            import asyncio
+            self._fl_task = asyncio.create_task(self._fl_loop())
             logger.info("✅ Federated Learning coordinator started")
         except Exception as e:
             logger.error(f"Failed to start FL coordinator: {e}")
+
+    async def _fl_loop(self) -> None:
+        """Background loop to trigger FL consensus rounds periodically."""
+        import asyncio
+        while True:
+            await asyncio.sleep(300) # Every 5 minutes
+            try:
+                logger.info("🔄 Initiating Mesh-FL Swarm Consensus Round...")
+                if hasattr(self.coordinator, "start_training_round"):
+                    result = self.coordinator.start_training_round()
+                    if result:
+                        logger.info(f"✅ Mesh-FL Round {result.get('round_number', 'unknown')} completed successfully.")
+            except Exception as e:
+                logger.error(f"FL Consensus round failed: {e}")
 
     async def shutdown(self) -> None:
         """Shutdown FL components."""
@@ -111,6 +126,8 @@ class FLAppIntegration:
 
         try:
             logger.info("Shutting down Federated Learning coordinator...")
+            if hasattr(self, '_fl_task') and self._fl_task:
+                self._fl_task.cancel()
             # Cleanup if needed
             logger.info("✅ Federated Learning coordinator shut down")
         except Exception as e:

@@ -1,11 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Production Toolkit - All-in-one script for production operations
+# Operations toolkit. Delegates production claims to explicit evidence gates.
 
 set -euo pipefail
 
-PROJECT_ROOT="/mnt/AC74CC2974CBF3DC"
-cd "$PROJECT_ROOT"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+CLAIM_BOUNDARY="Toolkit commands are operator conveniences. Local health, monitor, audit, baseline, rollback, or deploy helper output is not production readiness proof without the real-readiness gate and separate live traffic/SLO/DPI/settlement evidence."
 
 TOOL="${1:-help}"
 
@@ -16,7 +17,8 @@ case "$TOOL" in
         ;;
     
     monitor)
-        echo "📊 Production Monitoring"
+        echo "📊 Monitoring Observation"
+        echo "Claim boundary: $CLAIM_BOUNDARY"
         python3 scripts/production_monitor.py "${@:2}"
         ;;
     
@@ -36,7 +38,8 @@ case "$TOOL" in
         ;;
     
     deploy)
-        echo "🚀 Deployment"
+        echo "🚀 Gated Deployment Orchestration"
+        echo "Claim boundary: $CLAIM_BOUNDARY"
         bash scripts/run_week2_deployment.sh "${@:2}"
         ;;
     
@@ -53,19 +56,21 @@ case "$TOOL" in
     help|*)
         echo "╔══════════════════════════════════════════════════════════════╗"
         echo "║                                                              ║"
-        echo "║     🛠️  PRODUCTION TOOLKIT                                   ║"
+        echo "║     🛠️  OPERATIONS TOOLKIT                                    ║"
         echo "║                                                              ║"
         echo "╚══════════════════════════════════════════════════════════════╝"
+        echo ""
+        echo "Claim boundary: $CLAIM_BOUNDARY"
         echo ""
         echo "Usage: $0 {tool} [options]"
         echo ""
         echo "Tools:"
         echo "  health    - Health check dashboard"
-        echo "  monitor   - Production monitoring"
+        echo "  monitor   - Monitoring observation"
         echo "  collect   - Metrics collection"
         echo "  compare   - Compare against baseline"
         echo "  rollback  - Auto-rollback monitor"
-        echo "  deploy    - Deployment orchestration"
+        echo "  deploy    - Gated deployment orchestration"
         echo "  audit     - Security audit"
         echo "  baseline  - Performance baseline"
         echo ""
@@ -79,4 +84,3 @@ case "$TOOL" in
         echo ""
         ;;
 esac
-

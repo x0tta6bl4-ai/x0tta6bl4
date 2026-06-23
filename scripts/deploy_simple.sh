@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Simple Production Deployment Script
+# Simple deployment preparation script
 # Deploys x0tta6bl4 without Docker (direct Python)
 
 set -euo pipefail
@@ -10,7 +10,7 @@ cd "$PROJECT_ROOT"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║                                                              ║"
-echo "║     🚀 x0tta6bl4 PRODUCTION DEPLOYMENT (Simple)               ║"
+echo "║     🚀 x0tta6bl4 DEPLOYMENT PREPARATION (Simple)              ║"
 echo "║     Version: 3.1 (Q1 2026 Components)                        ║"
 echo "║                                                              ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
@@ -119,7 +119,7 @@ if [ -f "src/core/app.py" ]; then
     echo "To start the service, run:"
     echo "  python3 -m uvicorn src.core.app:app --host 0.0.0.0 --port 8080"
     echo ""
-    echo "Or use the production script:"
+    echo "Or use the service startup script:"
     echo "  python3 scripts/start_production.py"
     echo ""
 else
@@ -147,5 +147,6 @@ echo "   2. Check health: curl http://localhost:8080/health"
 echo "   3. Check metrics: curl http://localhost:8080/metrics"
 echo "   4. Run utilities: bash scripts/production_toolkit.sh help"
 echo ""
-echo "🎯 Deployment Status: ✅ READY"
-
+echo "This preparation output is not production readiness proof."
+echo "Run scripts/ops/check_real_readiness.py before making any production claim."
+echo "🎯 Deployment Status: PREPARED - REAL READINESS GATE REQUIRED"

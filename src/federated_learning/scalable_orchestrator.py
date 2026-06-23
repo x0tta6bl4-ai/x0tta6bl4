@@ -36,6 +36,8 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -220,6 +222,13 @@ class ScalableFLOrchestrator:
         self.aggregator_count = aggregator_count if aggregator_count > 0 else num_coordinators
         self.num_coordinators = self.aggregator_count
         self.max_nodes_per_coordinator = self.max_clients
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.orchestrator_id,
+            role="fl",
+            capabilities=("coordinator", "ops"),
+            extra_techniques=("reverse_planning", "mape_k"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Client tracking (flat dict for register_client API)
         self.clients: Dict[str, Any] = {}
@@ -307,6 +316,19 @@ class ScalableFLOrchestrator:
             BulkAggregationTask tracking this round
         """
         start_time = time.time()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "scalable_fl_training_round",
+                "goal": "Select participants and start a scalable federated-learning round.",
+                "round_number": round_number,
+                "target_participants": target_participants,
+                "registered_nodes": len(self.registry.nodes),
+                "constraints": {
+                    "coordinators": self.num_coordinators,
+                    "max_nodes_per_coordinator": self.max_nodes_per_coordinator,
+                },
+            }
+        )
 
         # Create aggregation task
         task = BulkAggregationTask(
@@ -349,6 +371,18 @@ class ScalableFLOrchestrator:
         - Resource load (cpu_load, memory_load)
         - Recent performance (trust score)
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "adaptive_fl_node_selection",
+                "goal": "Pick eligible FL participants without overloading weak nodes.",
+                "target_count": target_count,
+                "candidate_count": len(self.registry.nodes),
+                "constraints": {
+                    "max_cpu_load": 0.8,
+                    "max_memory_load": 0.8,
+                },
+            }
+        )
         candidates = []
 
         for node_id, metadata in self.registry.nodes.items():
@@ -451,6 +485,19 @@ class ScalableFLOrchestrator:
             return False
 
         task = self.active_tasks[task_id]
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "scalable_fl_round_aggregation",
+                "goal": "Aggregate one distributed FL round across coordinators.",
+                "round_number": task.round_number,
+                "assigned_nodes": len(task.assigned_nodes),
+                "received_nodes": len(task.received_nodes),
+                "constraints": {
+                    "preserve_boolean_return": True,
+                    "coordinators": len(self.coordinators),
+                },
+            }
+        )
 
         try:
             # Distribute aggregation work across coordinators
@@ -486,6 +533,8 @@ class ScalableFLOrchestrator:
             "active_tasks": len(self.active_tasks),
             "completed_tasks": len(self.completed_tasks),
             "metrics": self.metrics,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
             "coordinators": {
                 cid: coordinator.get_status()
                 for cid, coordinator in self.coordinators.items()

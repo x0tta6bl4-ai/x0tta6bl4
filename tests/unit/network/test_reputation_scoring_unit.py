@@ -6,7 +6,26 @@ os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
+from src.coordination.events import EventBus, EventType
 import src.network.reputation_scoring as mod
+
+
+def _clear_reputation_scoring_identity(monkeypatch):
+    for name in (
+        "REPUTATION_SCORING_SYSTEM_SPIFFE_ID",
+        "REPUTATION_SCORING_SYSTEM_DID",
+        "REPUTATION_SCORING_SYSTEM_WALLET_ADDRESS",
+        "X0TTA6BL4_SERVICE_SPIFFE_ID",
+        "X0TTA6BL4_SERVICE_DID",
+        "X0TTA6BL4_SERVICE_WALLET_ADDRESS",
+        "SERVICE_SPIFFE_ID",
+        "SERVICE_DID",
+        "SERVICE_WALLET_ADDRESS",
+        "SPIFFE_ID",
+        "DID",
+        "GHOST_WALLET_ADDRESS",
+    ):
+        monkeypatch.delenv(name, raising=False)
 
 
 def test_reputation_level_from_score_boundaries():
@@ -131,6 +150,143 @@ async def test_reputation_system_record_and_queries():
 
     trusted = system.get_trusted_proxies(min_trust=0.0)
     assert any(t.proxy_id == "p1" for t in trusted)
+
+
+@pytest.mark.asyncio
+async def test_record_domain_event_publishes_redacted_evidence(
+    tmp_path, monkeypatch
+):
+    _clear_reputation_scoring_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    system = mod.ReputationScoringSystem(event_bus=bus)
+
+    await system.record_domain_event(
+        "secret.example",
+        success=False,
+        latency_ms=555.5,
+        proxy_id="proxy-secret-1",
+        error_type="blocked-secret",
+    )
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="reputation-scoring-system",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["component"] == "network.reputation_scoring"
+    assert payload["operation"] == "record_domain_event"
+    assert payload["service_name"] == "reputation-scoring-system"
+    assert payload["layer"] == "network_reputation_scoring_observed_state"
+    assert payload["status"] == "domain_reputation_recorded"
+    assert payload["success"] is True
+    assert payload["domain_hash"].startswith("sha256:")
+    assert payload["proxy_id_hash"].startswith("sha256:")
+    assert payload["event_success"] is False
+    assert payload["latency_ms"] == 555.5
+    assert payload["error_type_present"] is True
+    assert payload["error_type_hash"].startswith("sha256:")
+    assert payload["domain_created"] is True
+    assert payload["score_after"] <= payload["score_before"]
+    assert payload["block_events_after"] == 0
+    assert payload["service_identity_present"] == {
+        "spiffe_id": False,
+        "did": False,
+        "wallet_address": False,
+    }
+    assert "customer traffic delivery" in payload["claim_boundary"]
+    text = str(payload)
+    assert "secret.example" not in text
+    assert "proxy-secret-1" not in text
+    assert "blocked-secret" not in text
+
+
+@pytest.mark.asyncio
+async def test_record_proxy_result_publishes_redacted_evidence(
+    tmp_path, monkeypatch
+):
+    _clear_reputation_scoring_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    system = mod.ReputationScoringSystem(event_bus=bus)
+
+    await system.record_proxy_result(
+        "proxy-secret-2",
+        success=False,
+        latency_ms=1500.25,
+        error_type="banned",
+    )
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="reputation-scoring-system",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["operation"] == "record_proxy_result"
+    assert payload["status"] == "proxy_trust_recorded"
+    assert payload["proxy_id_hash"].startswith("sha256:")
+    assert payload["proxy_created"] is True
+    assert payload["result_success"] is False
+    assert payload["latency_ms"] == 1500.25
+    assert payload["error_type_hash"].startswith("sha256:")
+    assert payload["scores_before"]["trust"] == 0.5
+    assert 0.0 <= payload["scores_after"]["trust"] <= 1.0
+    assert payload["request_counts_after"] == {
+        "total": 1,
+        "successful": 0,
+        "failed": 1,
+        "blocked": 1,
+    }
+    text = str(payload)
+    assert "proxy-secret-2" not in text
+    assert '"banned"' not in text
+
+
+@pytest.mark.asyncio
+async def test_export_stats_publishes_redacted_aggregate_evidence(
+    tmp_path, monkeypatch
+):
+    _clear_reputation_scoring_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    system = mod.ReputationScoringSystem(event_bus=bus)
+
+    for _ in range(5):
+        await system.record_domain_event(
+            "risk-secret.example",
+            success=False,
+            latency_ms=1000.0,
+            proxy_id="proxy-secret-3",
+            error_type="blocked-secret",
+        )
+    for _ in range(12):
+        await system.record_proxy_result(
+            "bad-proxy-secret",
+            success=False,
+            latency_ms=1500.0,
+            error_type="blocked-secret",
+        )
+
+    stats = system.export_stats()
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="reputation-scoring-system",
+    )
+    payload = events[-1].data
+    assert stats["domains"]["total"] == 1
+    assert payload["operation"] == "export_stats"
+    assert payload["status"] == "reputation_stats_exported"
+    assert payload["domains_total"] == 1
+    assert payload["proxies_total"] == 1
+    assert payload["recommendations"]["total"] >= 1
+    assert payload["recommendations"]["selector_hashes"][0]["domain_hash"].startswith(
+        "sha256:"
+    )
+    text = str(payload)
+    assert "risk-secret.example" not in text
+    assert "bad-proxy-secret" not in text
+    assert "proxy-secret-3" not in text
+    assert "blocked-secret" not in text
 
 
 @pytest.mark.asyncio

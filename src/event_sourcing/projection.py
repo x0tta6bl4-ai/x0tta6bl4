@@ -6,6 +6,7 @@ from event streams.
 """
 
 import asyncio
+import hashlib
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from .event_store import Event, EventStore
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +244,65 @@ class ProjectionManager:
         self._event_store = event_store or EventStore()
         self._projections: Dict[str, Projection] = {}
         self._running = False
+        self.source_agent = "event-sourcing-projection-manager"
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="coordination",
+            capabilities=("mape_k", "event-sourcing", "zero-trust"),
+            extra_techniques=("reverse_planning",),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
+        self._record_thinking(
+            operation="init",
+            goal="initialize projection manager without exposing projection names",
+            constraints={"projection_count": 0, "running": self._running},
+        )
+
+    @staticmethod
+    def _hash_value(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            return hashlib.sha256(value).hexdigest()
+        return hashlib.sha256(
+            str(value).encode("utf-8", errors="replace")
+        ).hexdigest()
+
+    def _record_thinking(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "projection_manager_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                "raw_projection_names_redacted": True,
+                "raw_event_payloads_redacted": True,
+                "projection_state_is_eventually_consistent": True,
+                "local_projection_is_not_source_of_truth_finality": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local projection lifecycle metadata, counts, hashes, "
+                "and status. Do not expose raw projection names, event payloads, "
+                "handler data, or exception text. Projection read models are "
+                "eventually consistent local views, not external finality."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose projection manager thinking state without raw event payloads."""
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
 
     @staticmethod
     def _schedule_or_run(coro: Any) -> None:
@@ -255,11 +316,29 @@ class ProjectionManager:
     def register(self, projection: Projection) -> None:
         """Register a projection."""
         self._projections[projection.name] = projection
+        self._record_thinking(
+            operation="register",
+            goal="register projection without exposing projection name",
+            constraints={
+                "projection_name_hash": self._hash_value(projection.name),
+                "handler_count": len(getattr(projection, "_handlers", {})),
+                "projection_count": len(self._projections),
+            },
+        )
         logger.info(f"Registered projection: {projection.name}")
     
     def unregister(self, name: str) -> None:
         """Unregister a projection."""
         projection = self._projections.pop(name, None)
+        self._record_thinking(
+            operation="unregister",
+            goal="unregister projection without exposing projection name",
+            constraints={
+                "projection_name_hash": self._hash_value(name),
+                "projection_found": projection is not None,
+                "projection_count": len(self._projections),
+            },
+        )
         if projection and projection.state.is_running:
             asyncio.create_task(projection.stop())
     
@@ -278,6 +357,11 @@ class ProjectionManager:
     async def start_all(self) -> None:
         """Start all projections."""
         self._running = True
+        self._record_thinking(
+            operation="start_all",
+            goal="start all registered projections",
+            constraints={"projection_count": len(self._projections)},
+        )
         
         for projection in self._projections.values():
             await projection.start()
@@ -287,24 +371,61 @@ class ProjectionManager:
     async def stop_all(self) -> None:
         """Stop all projections."""
         self._running = False
+        self._record_thinking(
+            operation="stop_all",
+            goal="stop all registered projections",
+            constraints={"projection_count": len(self._projections)},
+        )
         
         for projection in self._projections.values():
             await projection.stop()
+        self._record_thinking(
+            operation="stop_all",
+            goal="record all projections stopped",
+            constraints={
+                "projection_count": len(self._projections),
+                "running_projection_count": sum(
+                    1 for projection in self._projections.values()
+                    if projection.state.is_running
+                ),
+            },
+        )
         
         logger.info("Stopped all projections")
     
     async def catch_up_all(self, from_position: int = 0) -> Dict[str, int]:
         """Catch up all projections."""
+        self._record_thinking(
+            operation="catch_up_all",
+            goal="catch up all projections from a local event-store position",
+            constraints={
+                "projection_count": len(self._projections),
+                "from_position": from_position,
+            },
+        )
         results = {}
         
         for name, projection in self._projections.items():
             processed = await projection.catch_up(from_position)
             results[name] = processed
+        self._record_thinking(
+            operation="catch_up_all",
+            goal="record projection catch-up result without projection names",
+            constraints={
+                "projection_count": len(self._projections),
+                "total_events_processed": sum(results.values()),
+            },
+        )
         
         return results
     
     async def reset_all(self) -> None:
         """Reset all projections."""
+        self._record_thinking(
+            operation="reset_all",
+            goal="reset all registered projections",
+            constraints={"projection_count": len(self._projections)},
+        )
         for projection in self._projections.values():
             await projection.reset()
         
@@ -314,7 +435,23 @@ class ProjectionManager:
         """Rebuild a specific projection from scratch."""
         projection = self._projections.get(name)
         if not projection:
+            self._record_thinking(
+                operation="rebuild_projection",
+                goal="reject rebuild because projection is missing",
+                constraints={
+                    "projection_name_hash": self._hash_value(name),
+                    "projection_found": False,
+                },
+            )
             raise ValueError(f"Projection not found: {name}")
+        self._record_thinking(
+            operation="rebuild_projection",
+            goal="rebuild projection from local event history",
+            constraints={
+                "projection_name_hash": self._hash_value(name),
+                "was_running": projection.state.is_running,
+            },
+        )
         
         was_running = projection.state.is_running
         if was_running:
@@ -325,6 +462,15 @@ class ProjectionManager:
         
         if was_running:
             await projection.start()
+        self._record_thinking(
+            operation="rebuild_projection",
+            goal="record projection rebuild result",
+            constraints={
+                "projection_name_hash": self._hash_value(name),
+                "events_processed": processed,
+                "was_running": was_running,
+            },
+        )
         
         logger.info(f"Rebuilt projection {name}, processed {processed} events")
         return processed
@@ -350,22 +496,61 @@ class ProjectionManager:
         """Reset projection asynchronously."""
         projection = self._projections.get(name)
         if not projection:
+            self._record_thinking(
+                operation="reset_projection",
+                goal="reject reset because projection is missing",
+                constraints={
+                    "projection_name_hash": self._hash_value(name),
+                    "projection_found": False,
+                },
+            )
             raise ValueError(f"Projection not found: {name}")
+        self._record_thinking(
+            operation="reset_projection",
+            goal="reset one projection without exposing projection name",
+            constraints={"projection_name_hash": self._hash_value(name)},
+        )
         self._schedule_or_run(projection.reset())
 
     def pause_projection(self, name: str) -> None:
         """Pause projection processing."""
         projection = self._projections.get(name)
         if not projection:
+            self._record_thinking(
+                operation="pause_projection",
+                goal="reject pause because projection is missing",
+                constraints={
+                    "projection_name_hash": self._hash_value(name),
+                    "projection_found": False,
+                },
+            )
             raise ValueError(f"Projection not found: {name}")
         projection.pause()
+        self._record_thinking(
+            operation="pause_projection",
+            goal="pause projection event processing",
+            constraints={"projection_name_hash": self._hash_value(name)},
+        )
 
     def resume_projection(self, name: str) -> None:
         """Resume projection processing."""
         projection = self._projections.get(name)
         if not projection:
+            self._record_thinking(
+                operation="resume_projection",
+                goal="reject resume because projection is missing",
+                constraints={
+                    "projection_name_hash": self._hash_value(name),
+                    "projection_found": False,
+                },
+            )
             raise ValueError(f"Projection not found: {name}")
         projection.resume()
+        self._record_thinking(
+            operation="resume_projection",
+            goal="resume projection event processing",
+            constraints={"projection_name_hash": self._hash_value(name)},
+        )
     
     def get_status(self) -> Dict[str, Any]:
         """Get status of all projections."""

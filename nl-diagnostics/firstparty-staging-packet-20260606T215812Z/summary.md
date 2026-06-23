@@ -1,0 +1,32 @@
+# First-party VPN Staging Packet
+
+- ok: `true`
+- evidence_dir: `/mnt/projects/nl-diagnostics/firstparty-staging-packet-20260606T215812Z`
+- deployment_epoch: `local-firstparty-staging-packet-20260606T215812Z`
+- server_service_name: `x0tta-firstparty-vpn.service`
+- client_service_name: `x0tta-firstparty-vpn-client.service`
+- client_kit_count: `2`
+- verified_kit_count: `2`
+- server_secrets_included: `False`
+- raw_secret_material_stored_in_evidence: `False`
+- checks:
+  - generate_ok: `true`
+  - server_ok: `true`
+  - server_service_plan_ok: `true`
+  - client_service_plan_ok: `true`
+  - apply_server_dry_run_ok: `true`
+  - apply_client_dry_run_ok: `true`
+  - export_client_kits_ok: `true`
+  - verify_client_kits_ok: `true`
+  - export_server_secrets_excluded: `true`
+  - verify_signature_required: `true`
+  - verify_archives_checked: `true`
+  - client_kit_count_matches: `true`
+  - client_readiness_required: `true`
+  - all_verified_kits_ok: `true`
+  - all_verified_archives_present: `true`
+  - all_verified_signatures_present: `true`
+  - all_verified_readiness_ok: `true`
+  - all_verified_server_secrets_excluded: `true`
+  - no_os_mutation: `true`
+- scope: local loopback staging packet only; no NL/SPB writes; no OS mutation; temporary kit material deleted

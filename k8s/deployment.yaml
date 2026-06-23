@@ -16,6 +16,7 @@ spec:
         app: x0tta6bl4
         version: "2.0.0"
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
       - name: x0tta6bl4
         image: x0tta6bl4:2.0.0
@@ -52,13 +53,13 @@ spec:
             cpu: "2000m"
         livenessProbe:
           httpGet:
-            path: /api/v1/health
+            path: /health
             port: 8080
           initialDelaySeconds: 40
           periodSeconds: 30
         readinessProbe:
           httpGet:
-            path: /api/v1/health
+            path: /health
             port: 8080
           initialDelaySeconds: 10
           periodSeconds: 10

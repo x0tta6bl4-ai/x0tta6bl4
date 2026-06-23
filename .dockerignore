@@ -47,6 +47,7 @@ test_*.py
 *.swo
 *~
 .DS_Store
+.gemini
 
 # Documentation
 docs/
@@ -68,6 +69,7 @@ docs/
 
 # Data
 data/
+datasets/
 *.db
 *.sqlite
 *.sqlite3
@@ -94,7 +96,9 @@ dist/
 local/
 staging/
 backups/
+backup-*/
 archive/
+nl-diagnostics/snapshots/
 
 # Large files
 *.model

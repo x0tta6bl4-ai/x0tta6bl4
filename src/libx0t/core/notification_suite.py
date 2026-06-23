@@ -21,6 +21,7 @@ Exit codes:
 """
 import argparse
 import json
+import re
 import socket
 import ssl
 import subprocess
@@ -29,6 +30,22 @@ import time
 import urllib.request
 from email.mime.text import MIMEText
 from typing import List
+
+_MASK = "[REDACTED]"
+_SLACK_WEBHOOK_RE = re.compile(r"https://hooks\.slack\.com/services/[^\s'\"<>]+")
+_SECRET_TEXT_RE = re.compile(
+    r"(?i)\b([a-z0-9_.-]*(?:password|passwd|token|secret|api[_-]?key|"
+    r"webhook)[a-z0-9_.-]*)(=|:)[^\s,]+"
+)
+
+
+def _redact_sensitive_text(value: object) -> str:
+    text = str(value)
+    text = _SLACK_WEBHOOK_RE.sub("https://hooks.slack.com/services/[REDACTED]", text)
+    return _SECRET_TEXT_RE.sub(
+        lambda match: f"{match.group(1)}{match.group(2)}{_MASK}",
+        text,
+    )
 
 
 def send_email(
@@ -76,7 +93,7 @@ def send_email(
         print(f"[email] Sent to {len(to)} recipients")
         return 0
     except Exception as e:
-        print(f"[email][error] {e}")
+        print(f"[email][error] {_redact_sensitive_text(e)}")
         return 1
 
 
@@ -91,7 +108,7 @@ def send_slack(webhook: str, message: str):
             print(f"[slack] Response: {resp.status} {data.decode('utf-8', 'ignore')}")
             return 0
     except Exception as e:
-        print(f"[slack][error] {e}")
+        print(f"[slack][error] {_redact_sensitive_text(e)}")
         return 1
 
 
@@ -103,11 +120,11 @@ def kubectl_get_pods(namespace: str, label_selector: str = None):
     try:
         result = subprocess.run(base_cmd, capture_output=True, text=True, timeout=10)
         if result.returncode != 0:
-            print(f"[watch][kubectl-error] {result.stderr.strip()}")
+            print(f"[watch][kubectl-error] {_redact_sensitive_text(result.stderr.strip())}")
             return None
         return json.loads(result.stdout)
     except Exception as e:
-        print(f"[watch][exception] {e}")
+        print(f"[watch][exception] {_redact_sensitive_text(e)}")
         return None
 
 

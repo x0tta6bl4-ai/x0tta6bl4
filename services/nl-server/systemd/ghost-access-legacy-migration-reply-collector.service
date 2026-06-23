@@ -1,0 +1,8 @@
+[Unit]
+Description=Ghost Access legacy migration reply collector
+After=telegram-bot-simple.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/ghost-access-bot/current/scripts/collect_legacy_migration_replies_from_bot_journal.py --packet /var/lib/ghost-access/legacy-migration/latest.json --json-out /var/lib/ghost-access/legacy-migration/replies.json --markdown-out /var/lib/ghost-access/legacy-migration/replies.md --confirm-current-packet COLLECT_CURRENT_LEGACY_REPLIES --write --json
+Nice=10

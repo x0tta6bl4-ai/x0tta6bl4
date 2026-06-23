@@ -313,6 +313,11 @@ class TestFederatedTrainingOrchestrator:
         assert summary["total_rounds"] == 1
         assert summary["num_agents"] == 4
         assert "metrics" in summary
+        assert summary["thinking"]["profile"]["role"] == "fl"
+        assert (
+            summary["last_thinking_context"]["applied"]["framing"]["problem"]
+            == "digital_twin_fl_training_round"
+        )
 
     def test_chaos_injection(self, medium_twin):
         config = TrainingConfig(min_participants=2)
@@ -322,6 +327,10 @@ class TestFederatedTrainingOrchestrator:
 
         assert result["success"]
         assert medium_twin.nodes["node-1"].state == NodeState.FAILED
+        assert (
+            orchestrator.last_thinking_context["applied"]["framing"]["problem"]
+            == "digital_twin_fl_chaos_injection"
+        )
 
     def test_training_with_failed_node(self, medium_twin):
         config = TrainingConfig(

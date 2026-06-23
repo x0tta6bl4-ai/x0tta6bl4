@@ -13,6 +13,7 @@ Triggers self-healing actions when anomalies detected.
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import shutil
@@ -42,6 +43,65 @@ EBPF_CLAIM_BOUNDARY = (
     "eBPF self-healing recovery event only. It records local policy and safe "
     "actuator state; it is not production rollout evidence or live throughput evidence."
 )
+
+
+def _safe_hash(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+
+_SERVICE_AGENT = "ebpf-self-healing"
+EBPF_CLAIM_BOUNDARY = (
+    "eBPF self-healing recovery event only. It records local policy and safe "
+    "actuator state; it is not restored dataplane, route convergence, kernel "
+    "forwarding correctness, production rollout, live traffic, or live "
+    "throughput evidence."
+)
+EBPF_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "eBPF SafeActuator metadata proves only a local, policy-gated recovery "
+    "action attempt for one interface. It is not restored dataplane, route "
+    "convergence, kernel forwarding correctness, live customer traffic, "
+    "external DPI bypass, settlement finality, or production readiness proof."
+)
+EBPF_RECOVERY_CLAIM_GATE_SCHEMA = "x0tta6bl4.self_healing.ebpf_recovery_claim_gate.v1"
+
+
+def _ebpf_recovery_claim_gate(result: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    local_action_recorded = result is not None
+    local_action_succeeded = bool(
+        result and result.get("success") is True and result.get("simulated") is not True
+    )
+    return {
+        "schema": EBPF_RECOVERY_CLAIM_GATE_SCHEMA,
+        "local_ebpf_recovery_action_recorded": local_action_recorded,
+        "local_ebpf_recovery_action_succeeded": local_action_succeeded,
+        "local_policy_decision_recorded": True,
+        "safe_actuator_result_recorded": local_action_recorded,
+        "restored_dataplane_claim_allowed": False,
+        "route_convergence_claim_allowed": False,
+        "kernel_forwarding_correctness_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "live_customer_traffic_confirmed": False,
+        "external_dpi_bypass_confirmed": False,
+        "settlement_finality_confirmed": False,
+        "production_readiness_claim_allowed": False,
+        "claim_allowed": {
+            "local_ebpf_recovery_lifecycle": local_action_recorded,
+            "local_safe_actuator_success": local_action_succeeded,
+            "restored_dataplane": False,
+            "route_convergence": False,
+            "kernel_forwarding_correctness": False,
+            "dataplane_delivery": False,
+            "traffic_delivery": False,
+            "live_customer_traffic": False,
+            "external_dpi_bypass": False,
+            "settlement_finality": False,
+            "production_readiness": False,
+        },
+        "claim_boundary": EBPF_CLAIM_BOUNDARY,
+        "payloads_redacted": True,
+    }
 
 
 class EBPFAnomalyType(Enum):
@@ -81,6 +141,47 @@ class EBPFAnalyzer(MAPEKAnalyzer):
             "queue_congestion": 50,  # 50% full
             "throughput_mbps": 100.0,
         }
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="ebpf-self-healing-analyzer",
+            role="analysis",
+            capabilities=("mape_k", "zero-trust", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "anomaly_history_count": len(self.anomaly_history),
+            "baseline_keys": sorted(self.baseline_metrics),
+            "constraints": {
+                "redact_interface_names": True,
+                "redact_raw_metric_payloads": True,
+                "analysis_is_not_recovery_proof": True,
+                "does_not_prove_dataplane_delivery": True,
+            },
+            "safety_boundary": (
+                "eBPF anomaly analysis is local diagnosis only; it does not "
+                "prove recovery, route convergence, kernel forwarding, or "
+                "dataplane delivery."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose analyzer thinking state without raw metrics."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def analyze(self, metrics: Dict[str, Any]) -> Optional[EBPFAnomaly]:
         """
@@ -92,10 +193,27 @@ class EBPFAnalyzer(MAPEKAnalyzer):
         Returns:
             Anomaly if detected, None otherwise
         """
+        self._record_thinking(
+            "ebpf_self_healing_analyze",
+            "analyze local eBPF metrics for anomaly candidates",
+            {
+                "metric_keys": sorted(str(key) for key in metrics),
+                "interface_hash": _safe_hash(metrics.get("interface")),
+            },
+        )
         # Check packet drops
         drop_rate = self._calculate_drop_rate(metrics)
         if drop_rate > self.baseline_metrics["packet_drop_rate"] * 5:  # 5% threshold
             severity = "HIGH" if drop_rate > 0.1 else "MEDIUM"
+            self._record_thinking(
+                "ebpf_self_healing_analyze",
+                "detect high packet-drop anomaly candidate",
+                {
+                    "anomaly_type": EBPFAnomalyType.HIGH_PACKET_DROPS.value,
+                    "severity": severity,
+                    "interface_hash": _safe_hash(metrics.get("interface")),
+                },
+            )
             return EBPFAnomaly(
                 anomaly_type=EBPFAnomalyType.HIGH_PACKET_DROPS,
                 severity=severity,
@@ -109,6 +227,15 @@ class EBPFAnalyzer(MAPEKAnalyzer):
         # Check latency
         avg_latency = metrics.get("avg_latency_ns", 0) / 1e6  # Convert to ms
         if avg_latency > self.baseline_metrics["avg_latency_ms"] * 3:  # 3x baseline
+            self._record_thinking(
+                "ebpf_self_healing_analyze",
+                "detect latency spike anomaly candidate",
+                {
+                    "anomaly_type": EBPFAnomalyType.LATENCY_SPIKE.value,
+                    "severity": "HIGH",
+                    "interface_hash": _safe_hash(metrics.get("interface")),
+                },
+            )
             return EBPFAnomaly(
                 anomaly_type=EBPFAnomalyType.LATENCY_SPIKE,
                 severity="HIGH",
@@ -123,6 +250,15 @@ class EBPFAnalyzer(MAPEKAnalyzer):
         queue_cong = metrics.get("queue_congestion", 0)
         if queue_cong > self.baseline_metrics["queue_congestion"]:
             severity = "CRITICAL" if queue_cong > 90 else "HIGH"
+            self._record_thinking(
+                "ebpf_self_healing_analyze",
+                "detect queue congestion anomaly candidate",
+                {
+                    "anomaly_type": EBPFAnomalyType.QUEUE_CONGESTION.value,
+                    "severity": severity,
+                    "interface_hash": _safe_hash(metrics.get("interface")),
+                },
+            )
             return EBPFAnomaly(
                 anomaly_type=EBPFAnomalyType.QUEUE_CONGESTION,
                 severity=severity,
@@ -133,6 +269,11 @@ class EBPFAnalyzer(MAPEKAnalyzer):
                 description=f"Queue congestion: {queue_cong:.1f}%",
             )
 
+        self._record_thinking(
+            "ebpf_self_healing_analyze",
+            "record healthy local eBPF metric analysis result",
+            {"anomaly_detected": False},
+        )
         return None
 
     def _calculate_drop_rate(self, metrics: Dict[str, Any]) -> float:
@@ -151,6 +292,47 @@ class EBPFPlanner(MAPEKPlanner):
     Plans recovery actions for eBPF anomalies.
     """
 
+    def __init__(self):
+        super().__init__()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="ebpf-self-healing-planner",
+            role="planning",
+            capabilities=("mape_k", "zero-trust", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "constraints": {
+                "redact_interface_names": True,
+                "redact_action_descriptions": True,
+                "plan_is_not_execution_proof": True,
+                "does_not_prove_dataplane_delivery": True,
+            },
+            "safety_boundary": (
+                "eBPF recovery planning creates local candidate actions only; "
+                "it does not prove execution, route convergence, or dataplane delivery."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose planner thinking state without raw anomaly details."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
+
     def plan(self, anomaly: EBPFAnomaly) -> List[Dict[str, Any]]:
         """
         Generate recovery plan for anomaly.
@@ -159,6 +341,15 @@ class EBPFPlanner(MAPEKPlanner):
             List of recovery actions
         """
         actions = []
+        self._record_thinking(
+            "ebpf_self_healing_plan",
+            "plan local eBPF recovery candidates without execution overclaiming",
+            {
+                "anomaly_type": anomaly.anomaly_type.value,
+                "severity": anomaly.severity,
+                "interface_hash": _safe_hash(anomaly.interface),
+            },
+        )
 
         if anomaly.anomaly_type == EBPFAnomalyType.HIGH_PACKET_DROPS:
             actions.extend(
@@ -214,6 +405,17 @@ class EBPFPlanner(MAPEKPlanner):
                 ]
             )
 
+        self._record_thinking(
+            "ebpf_self_healing_plan",
+            "record local eBPF recovery candidate count",
+            {
+                "anomaly_type": anomaly.anomaly_type.value,
+                "severity": anomaly.severity,
+                "interface_hash": _safe_hash(anomaly.interface),
+                "action_count": len(actions),
+                "action_names": [str(action.get("action")) for action in actions],
+            },
+        )
         return actions
 
 
@@ -696,11 +898,59 @@ class EBPFSelfHealingController:
         self.monitor.register_detector(self._detect_anomalies)
 
         self.running = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"{source_agent}:controller",
+            role="healing",
+            capabilities=("mape_k", "zero-trust", "network"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "running": self.running,
+            "interface_hash": _safe_hash(self.interface),
+            "constraints": {
+                "redact_interface_names": True,
+                "redact_raw_metrics": True,
+                "monitoring_state_is_not_dataplane_proof": True,
+            },
+            "safety_boundary": EBPF_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose controller thinking state without raw interface or metrics."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "analyzer": self.analyzer.get_thinking_status(),
+            "planner": self.planner.get_thinking_status(),
+            "executor": self.executor.get_thinking_status(),
+        }
 
     def _detect_anomalies(self, metrics: Dict[str, Any]) -> bool:
         """Custom anomaly detector for eBPF metrics"""
         anomaly = self.analyzer.analyze(metrics)
         if anomaly:
+            self._record_thinking(
+                "ebpf_self_healing_detect_anomaly",
+                "record local anomaly detection before asynchronous handling",
+                {
+                    "anomaly_type": anomaly.anomaly_type.value,
+                    "severity": anomaly.severity,
+                    "interface_hash": _safe_hash(anomaly.interface),
+                },
+            )
             logger.warning(f"eBPF anomaly detected: {anomaly.description}")
             # Trigger MAPE-K loop
             asyncio.create_task(self._handle_anomaly(anomaly))
@@ -711,6 +961,16 @@ class EBPFSelfHealingController:
         """Handle detected anomaly through MAPE-K loop"""
         # Plan recovery
         actions = self.planner.plan(anomaly)
+        self._record_thinking(
+            "ebpf_self_healing_handle_anomaly",
+            "handle local anomaly through planned recovery actions",
+            {
+                "anomaly_type": anomaly.anomaly_type.value,
+                "severity": anomaly.severity,
+                "interface_hash": _safe_hash(anomaly.interface),
+                "action_count": len(actions),
+            },
+        )
 
         # Execute actions
         for action in actions:
@@ -723,6 +983,10 @@ class EBPFSelfHealingController:
     async def start_monitoring(self):
         """Start self-healing monitoring loop"""
         self.running = True
+        self._record_thinking(
+            "ebpf_self_healing_start_monitoring",
+            "start local eBPF self-healing monitoring loop",
+        )
         logger.info("Starting eBPF self-healing monitoring...")
 
         while self.running:
@@ -750,6 +1014,10 @@ class EBPFSelfHealingController:
     async def stop_monitoring(self):
         """Stop monitoring and cleanup"""
         self.running = False
+        self._record_thinking(
+            "ebpf_self_healing_stop_monitoring",
+            "stop local eBPF self-healing monitoring loop and cleanup components",
+        )
         self.loader.cleanup()
         self.probes.cleanup()
         logger.info("Stopped eBPF self-healing monitoring")

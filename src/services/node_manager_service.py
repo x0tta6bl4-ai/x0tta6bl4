@@ -10,15 +10,51 @@ Node Manager Service
 """
 
 import logging
+import hashlib
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.network.batman.topology import MeshTopology
 from src.network.mesh_node_complete import CompleteMeshNode, MeshConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    if value <= 1000:
+        return "100-1000"
+    return "1000+"
 
 
 @dataclass
@@ -50,12 +86,72 @@ class NodeManagerService:
         self.connections: Dict[str, Dict] = {}  # connection_id -> connection info
         self._port_counter = base_port
         self._topology: Optional[MeshTopology] = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"node-manager-service:{_safe_hash(base_port)}",
+            role="coordinator",
+            capabilities=("ops", "monitoring", "zero-trust"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "node_manager_service_init",
+                "goal": "Initialize user node orchestration safely",
+                "signals": {
+                    "base_port_band": _safe_number_band(base_port),
+                    "user_node_count_bucket": "0",
+                    "connection_count_bucket": "0",
+                },
+                "safety_boundary": (
+                    "Keep user ids, node ids, connection ids, peers, routes, "
+                    "and bootstrap endpoints out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_user_ids": True,
+                    "redact_node_ids": True,
+                    "redact_connection_ids": True,
+                    "redact_peer_ids": True,
+                    "redact_routes": True,
+                    "redact_bootstrap_endpoints": True,
+                    "preserve_orchestration_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, and port bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def initialize(self):
         """Инициализация сервиса."""
         # Создаём локальную топологию для отслеживания
         self._topology = MeshTopology(
             mesh_id="x0tta6bl4-mesh", local_node_id="coordinator"
+        )
+        self._record_thinking(
+            "node_manager_service_initialized",
+            "Initialize mesh topology coordinator safely",
+            {
+                "topology_initialized": True,
+                "mesh_hash": _safe_hash("x0tta6bl4-mesh"),
+                "local_node_hash": _safe_hash("coordinator"),
+            },
         )
         logger.info("NodeManagerService initialized")
 
@@ -76,6 +172,19 @@ class NodeManagerService:
         if user_id in self.user_nodes:
             existing = self.user_nodes[user_id]
             if existing.is_active:
+                self._record_thinking(
+                    "node_launch_rejected",
+                    "Reject duplicate active user node launch safely",
+                    {
+                        "user_hash": _safe_hash(user_id),
+                        "node_hash": _safe_hash(existing.node_id),
+                        "port_band": _safe_number_band(existing.mesh_node.config.port),
+                        "bootstrap_count_bucket": _safe_count_bucket(
+                            len(bootstrap_nodes or [])
+                        ),
+                        "active": True,
+                    },
+                )
                 return {
                     "success": False,
                     "error": "Узел уже запущен",
@@ -84,6 +193,18 @@ class NodeManagerService:
                 }
             else:
                 # Перезапускаем существующий
+                self._record_thinking(
+                    "node_launch_restart_prepared",
+                    "Prepare inactive user node restart safely",
+                    {
+                        "user_hash": _safe_hash(user_id),
+                        "node_hash": _safe_hash(existing.node_id),
+                        "bootstrap_count_bucket": _safe_count_bucket(
+                            len(bootstrap_nodes or [])
+                        ),
+                        "active": False,
+                    },
+                )
                 await existing.mesh_node.stop()
                 del self.user_nodes[user_id]
 
@@ -117,6 +238,22 @@ class NodeManagerService:
                 f"✅ Node launched for user {user_id}: {node_id} on port {port}"
             )
 
+            self._record_thinking(
+                "node_launched",
+                "Launch user mesh node safely",
+                {
+                    "user_hash": _safe_hash(user_id),
+                    "node_hash": _safe_hash(node_id),
+                    "port_band": _safe_number_band(port),
+                    "bootstrap_count_bucket": _safe_count_bucket(
+                        len(bootstrap_nodes or [])
+                    ),
+                    "peers_count_bucket": _safe_count_bucket(len(mesh_node.get_peers())),
+                    "active_node_count_bucket": _safe_count_bucket(
+                        len(self.user_nodes)
+                    ),
+                },
+            )
             return {
                 "success": True,
                 "node_id": node_id,
@@ -126,6 +263,19 @@ class NodeManagerService:
             }
         except Exception as e:
             logger.error(f"❌ Failed to launch node for user {user_id}: {e}")
+            self._record_thinking(
+                "node_launch_failed",
+                "Report user mesh node launch failure safely",
+                {
+                    "user_hash": _safe_hash(user_id),
+                    "node_hash": _safe_hash(node_id),
+                    "port_band": _safe_number_band(port),
+                    "bootstrap_count_bucket": _safe_count_bucket(
+                        len(bootstrap_nodes or [])
+                    ),
+                    "error_type": type(e).__name__,
+                },
+            )
             return {"success": False, "error": str(e)}
 
     async def get_network_status(self, user_id: int) -> Dict:
@@ -136,6 +286,11 @@ class NodeManagerService:
             Dict с информацией о сети
         """
         if user_id not in self.user_nodes:
+            self._record_thinking(
+                "network_status_missing_node",
+                "Report missing user node status safely",
+                {"user_hash": _safe_hash(user_id), "node_present": False},
+            )
             return {"success": False, "error": "Узел не запущен. Используйте /launch"}
 
         user_node = self.user_nodes[user_id]
@@ -179,6 +334,22 @@ class NodeManagerService:
                 "routes_cached": stats["routing"].get("routes_cached", 0),
             }
 
+        self._record_thinking(
+            "network_status_reported",
+            "Report user network status safely",
+            {
+                "user_hash": _safe_hash(user_id),
+                "node_hash": _safe_hash(user_node.node_id),
+                "port_band": _safe_number_band(mesh_node.config.port),
+                "running": bool(stats.get("running", False)),
+                "peer_count_bucket": _safe_count_bucket(len(peers)),
+                "route_count_bucket": _safe_count_bucket(len(routes)),
+                "connection_count_bucket": _safe_count_bucket(
+                    status["connections"]["active"]
+                ),
+                "has_routing_stats": bool(stats.get("routing")),
+            },
+        )
         return status
 
     async def close_connection(
@@ -195,6 +366,11 @@ class NodeManagerService:
             Dict с результатом
         """
         if user_id not in self.user_nodes:
+            self._record_thinking(
+                "connection_close_missing_node",
+                "Reject connection close without user node safely",
+                {"user_hash": _safe_hash(user_id), "node_present": False},
+            )
             return {"success": False, "error": "Узел не запущен"}
 
         self.user_nodes[user_id]
@@ -207,6 +383,17 @@ class NodeManagerService:
         ]
 
         if not user_connections:
+            self._record_thinking(
+                "connection_close_no_connections",
+                "Report missing active user connections safely",
+                {
+                    "user_hash": _safe_hash(user_id),
+                    "requested_connection_hash": (
+                        _safe_hash(connection_id) if connection_id else None
+                    ),
+                    "connection_count_bucket": "0",
+                },
+            )
             return {"success": False, "error": "Нет активных соединений"}
 
         # Закрываем указанное соединение или все
@@ -226,11 +413,31 @@ class NodeManagerService:
 
         logger.info(f"✅ Closed {len(closed)} connection(s) for user {user_id}")
 
+        self._record_thinking(
+            "connection_closed",
+            "Close user connection safely",
+            {
+                "user_hash": _safe_hash(user_id),
+                "requested_connection_hash": (
+                    _safe_hash(connection_id) if connection_id else None
+                ),
+                "requested_specific_connection": connection_id is not None,
+                "closed_count_bucket": _safe_count_bucket(len(closed)),
+                "remaining_connection_count_bucket": _safe_count_bucket(
+                    len(self.connections)
+                ),
+            },
+        )
         return {"success": True, "closed": closed, "count": len(closed)}
 
     async def stop_node(self, user_id: int) -> Dict:
         """Остановить узел пользователя."""
         if user_id not in self.user_nodes:
+            self._record_thinking(
+                "node_stop_missing_node",
+                "Report missing user node stop safely",
+                {"user_hash": _safe_hash(user_id), "node_present": False},
+            )
             return {"success": False, "error": "Узел не запущен"}
 
         user_node = self.user_nodes[user_id]
@@ -251,9 +458,32 @@ class NodeManagerService:
 
             logger.info(f"✅ Stopped node for user {user_id}")
 
+            self._record_thinking(
+                "node_stopped",
+                "Stop user mesh node safely",
+                {
+                    "user_hash": _safe_hash(user_id),
+                    "node_hash": _safe_hash(user_node.node_id),
+                    "closed_connection_count_bucket": _safe_count_bucket(
+                        len(user_connections)
+                    ),
+                    "active_node_count_bucket": _safe_count_bucket(
+                        len(self.user_nodes)
+                    ),
+                },
+            )
             return {"success": True, "message": "Узел остановлен"}
         except Exception as e:
             logger.error(f"❌ Failed to stop node for user {user_id}: {e}")
+            self._record_thinking(
+                "node_stop_failed",
+                "Report user mesh node stop failure safely",
+                {
+                    "user_hash": _safe_hash(user_id),
+                    "node_hash": _safe_hash(user_node.node_id),
+                    "error_type": type(e).__name__,
+                },
+            )
             return {"success": False, "error": str(e)}
 
     def _get_next_port(self) -> int:
@@ -269,6 +499,15 @@ class NodeManagerService:
         active_nodes = sum(1 for n in self.user_nodes.values() if n.is_active)
         total_connections = len(self.connections)
 
+        self._record_thinking(
+            "global_network_status_reported",
+            "Report global network status safely",
+            {
+                "total_nodes_bucket": _safe_count_bucket(total_nodes),
+                "active_nodes_bucket": _safe_count_bucket(active_nodes),
+                "total_connections_bucket": _safe_count_bucket(total_connections),
+            },
+        )
         return {
             "total_nodes": total_nodes,
             "active_nodes": active_nodes,

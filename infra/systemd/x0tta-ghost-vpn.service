@@ -1,0 +1,35 @@
+[Unit]
+Description=x0tta6bl4 Ghost VPN Server
+After=network-online.target chrony.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/x0tta6bl4
+ExecStart=/usr/bin/python3 -m ghost_vpn_server
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=x0tta-ghost-vpn
+
+# Environment
+Environment=VPN_PORT=9999
+Environment=VPN_SUBNET=10.88.0.0/24
+Environment=PULSE_MODE=adaptive
+Environment=LOG_LEVEL=info
+
+# Security
+NoNewPrivileges=false
+ProtectSystem=strict
+ReadWritePaths=/opt/x0tta6bl4 /tmp
+ProtectHome=yes
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target

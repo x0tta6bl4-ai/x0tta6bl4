@@ -20,6 +20,7 @@ os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
+from src.coordination.events import EventBus, EventType
 from src.core.safe_subprocess import SafeCommandResult
 from src.deployment.multi_cloud_deployment import (CloudProvider,
                                                    DeploymentConfig,
@@ -35,6 +36,7 @@ from src.deployment.multi_cloud_deployment import (CloudProvider,
 def _make_config(
     provider=CloudProvider.AWS, region="us-east-1", cluster="test-cluster", **kwargs
 ):
+    kwargs.setdefault("allow_live_actions", True)
     return DeploymentConfig(
         provider=provider, region=region, cluster_name=cluster, **kwargs
     )
@@ -89,6 +91,12 @@ class TestDeploymentConfig:
         assert cfg.wait_timeout == 600
         assert cfg.health_check_timeout == 300
 
+    def test_live_actions_default_to_env_gate(self):
+        cfg = DeploymentConfig(
+            provider=CloudProvider.AWS, region="us-east-1", cluster_name="c"
+        )
+        assert cfg.allow_live_actions is None
+
     def test_custom(self):
         cfg = _make_config(namespace="prod", image_tag="v1.0", values_file="vals.yaml")
         assert cfg.namespace == "prod"
@@ -107,6 +115,26 @@ class TestDeploymentResult:
         assert r.image_url is None
         assert r.error is None
         assert r.deployment_time == 0.0
+        assert r.production_readiness_claim_allowed is False
+        assert r.production_slo_claim_allowed is False
+        assert r.live_customer_traffic_proven is False
+        assert "does not prove live customer traffic" in r.claim_boundary
+        metadata = r.safe_actuator_evidence_metadata
+        claim_gate = metadata["claim_gate"]
+        assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+        assert (
+            claim_gate["schema"]
+            == "x0tta6bl4.deployment.multi_cloud.safe_actuator_claim_gate.v1"
+        )
+        assert claim_gate["safe_actuator_result_recorded"] is True
+        assert claim_gate["local_deployment_command_attempt_claim_allowed"] is False
+        assert claim_gate["traffic_shift_claim_allowed"] is False
+        assert claim_gate["live_customer_traffic_claim_allowed"] is False
+        assert claim_gate["production_slo_claim_allowed"] is False
+        assert claim_gate["production_readiness_claim_allowed"] is False
+        assert metadata["evidence"]["resource"] == "deployment:multi_cloud:deployment_result"
+        assert metadata["evidence"]["raw_context_values_redacted"] is True
+        assert metadata["evidence"]["raw_command_output_redacted"] is True
 
     def test_full(self):
         r = DeploymentResult(
@@ -133,6 +161,14 @@ class TestInit:
         d = MultiCloudDeployment(cfg)
         assert d.config is cfg
         assert isinstance(d.start_time, float)
+
+    def test_live_actions_blocked_by_default_without_env(self, monkeypatch):
+        monkeypatch.delenv("X0TTA6BL4_ALLOW_MULTI_CLOUD_LIVE_ACTIONS", raising=False)
+        cfg = DeploymentConfig(
+            provider=CloudProvider.AWS, region="us-east-1", cluster_name="c"
+        )
+        d = MultiCloudDeployment(cfg)
+        assert d.allow_live_actions is False
 
 
 # ---------------------------------------------------------------------------
@@ -876,6 +912,29 @@ class TestDeployToCluster:
 
 
 class TestDeploy:
+    @patch("src.deployment.multi_cloud_deployment.SafeSubprocess")
+    def test_deploy_blocked_without_live_authorization(self, mock_sp, monkeypatch):
+        monkeypatch.delenv("X0TTA6BL4_ALLOW_MULTI_CLOUD_LIVE_ACTIONS", raising=False)
+        cfg = DeploymentConfig(
+            provider=CloudProvider.AWS, region="us-east-1", cluster_name="c"
+        )
+        d = MultiCloudDeployment(cfg)
+
+        result = d.deploy()
+
+        assert result.success is False
+        assert result.error == "live_multi_cloud_deploy_blocked"
+        assert result.live_action_authorized is False
+        assert result.live_action_executed is False
+        assert result.production_readiness_claim_allowed is False
+        claim_gate = result.safe_actuator_evidence_metadata["claim_gate"]
+        assert claim_gate["action"] == "deployment_result"
+        assert claim_gate["local_deployment_command_attempt_claim_allowed"] is False
+        assert claim_gate["traffic_shift_claim_allowed"] is False
+        assert claim_gate["production_slo_claim_allowed"] is False
+        assert claim_gate["production_readiness_claim_allowed"] is False
+        assert mock_sp.run.call_count == 0
+
     def test_deploy_image_build_fails(self):
         d = MultiCloudDeployment(_make_config())
         with patch.object(d, "_build_and_push_image", return_value=None):
@@ -906,6 +965,48 @@ class TestDeploy:
             assert result.image_url == "img:v1"
             assert result.deployment_time > 0
 
+    def test_deploy_success_publishes_eventbus_safe_actuator_metadata(self, tmp_path):
+        bus = EventBus(str(tmp_path))
+        d = MultiCloudDeployment(
+            _make_config(provider=CloudProvider.AWS),
+            event_bus=bus,
+            node_id="node-multi-cloud-test",
+        )
+        with (
+            patch.object(d, "_build_and_push_image", return_value="private/img:v1"),
+            patch.object(d, "_deploy_to_cluster", return_value=True),
+            patch.object(d, "_health_check", return_value=True),
+        ):
+            result = d.deploy()
+
+        events = bus.get_event_history(
+            event_type=EventType.PIPELINE_STAGE_END,
+            source_agent="multi-cloud-deployment",
+            limit=10,
+        )
+        payload = events[-1].data
+        metadata = payload["safe_actuator_evidence_metadata"]
+        claim_gate = metadata["claim_gate"]
+
+        assert result.success is True
+        assert payload["stage"] == "actuator_completed"
+        assert payload["resource"] == "deployment:multi_cloud:deploy"
+        assert payload["safe_actuator"] is True
+        assert payload["node_id"] == "node-multi-cloud-test"
+        assert payload["context"]["provider"] == "aws"
+        assert payload["context"]["image_url_present"] is True
+        assert claim_gate["safe_actuator_result_recorded"] is True
+        assert claim_gate["local_deployment_command_attempt_claim_allowed"] is True
+        assert claim_gate["local_deployment_command_succeeded"] is True
+        assert claim_gate["traffic_shift_claim_allowed"] is False
+        assert claim_gate["live_customer_traffic_claim_allowed"] is False
+        assert claim_gate["production_slo_claim_allowed"] is False
+        assert claim_gate["production_readiness_claim_allowed"] is False
+        assert metadata["evidence"]["resource"] == "deployment:multi_cloud:deploy"
+        assert metadata["evidence"]["raw_context_values_redacted"] is True
+        assert metadata["evidence"]["raw_command_output_redacted"] is True
+        assert "private/img:v1" not in str(payload)
+
     def test_deploy_success_health_fails(self):
         """Deployment succeeds even if health check fails (just a warning)."""
         d = MultiCloudDeployment(_make_config())
@@ -932,7 +1033,8 @@ class TestDeploy:
         with patch.object(d, "_build_and_push_image", side_effect=RuntimeError("boom")):
             result = d.deploy()
             assert result.success is False
-            assert "boom" in result.error
+            assert result.error == "RuntimeError"
+            assert "boom" not in str(result)
             assert result.deployment_time >= 0
 
     def test_deploy_result_fields(self):

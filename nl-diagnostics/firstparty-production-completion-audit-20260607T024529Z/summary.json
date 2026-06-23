@@ -1,0 +1,68 @@
+{
+  "approval_phrase_required": "APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT",
+  "checks": {
+    "audit_does_not_execute_commands": true,
+    "client_doctor_evidence_present": false,
+    "client_doctor_ok": false,
+    "client_doctor_requires_installed_health": false,
+    "client_health_evidence_present": false,
+    "client_health_ok": false,
+    "completion_evidence_present": false,
+    "endpoint_matches_runbook": false,
+    "no_nl_or_spb_writes_performed": true,
+    "post_apply_evidence_no_os_mutation": true,
+    "runbook_approval_guarded": true,
+    "runbook_no_legacy_commands": true,
+    "runbook_required_checks_ok": true,
+    "runbook_required_commands_present": true,
+    "runbook_summary_ok": true,
+    "server_health_evidence_present": false,
+    "server_health_ok": false,
+    "service_names_match": false
+  },
+  "client_doctor_failed_required_checks": [],
+  "client_failed_required_checks": [],
+  "completion_decision": "FIRSTPARTY_VPN_PRODUCTION_NOT_PROVEN",
+  "evidence_dir": "/mnt/projects/nl-diagnostics/firstparty-production-completion-audit-20260607T024529Z",
+  "evidence_hashes": {
+    "client_doctor_sha256": "missing",
+    "client_health_sha256": "missing",
+    "runbook_summary_sha256": "5ecafef942f87120969f376523183d3f720dbc01116d3824c8e3c5069cdcc123",
+    "server_health_sha256": "missing"
+  },
+  "evidence_paths": {
+    "client_doctor_path": "missing",
+    "client_health_path": "missing",
+    "runbook_summary_path": "/mnt/projects/nl-diagnostics/firstparty-production-apply-runbook-20260607T021219Z/summary.json",
+    "server_health_path": "missing"
+  },
+  "failed_checks": [
+    "client_doctor_evidence_present",
+    "client_doctor_ok",
+    "client_doctor_requires_installed_health",
+    "client_health_evidence_present",
+    "client_health_ok",
+    "completion_evidence_present",
+    "endpoint_matches_runbook",
+    "server_health_evidence_present",
+    "server_health_ok",
+    "service_names_match"
+  ],
+  "generated_at": "2026-06-07T02:45:29Z",
+  "goal_completion_claim_allowed": false,
+  "mode": "firstparty-production-completion-audit-summary",
+  "no_nl_or_spb_writes_performed": true,
+  "ok": false,
+  "os_mutation_performed": false,
+  "production_apply_still_required": true,
+  "required_operator_evidence_commands": {
+    "client_doctor_post_apply": "sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py client-doctor --config /etc/x0tta-firstparty-vpn-client/client.json --service-name x0tta-firstparty-vpn-client.service --require-installed-health",
+    "client_health_post_apply": "sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py client-health --config /etc/x0tta-firstparty-vpn-client/client.json --service-name x0tta-firstparty-vpn-client.service",
+    "server_health_post_apply": "sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py server-health --config /etc/x0tta-firstparty-vpn-server/server.json --service-name x0tta-firstparty-vpn.service --uplink-interface eth0"
+  },
+  "rollback_commands": {
+    "client": "APPROVAL=\"${APPROVAL:-}\"; test \"$APPROVAL\" = APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT && sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py client-policy-rollback --config /etc/x0tta-firstparty-vpn-client/client.json --allow-os-mutation --enable-kill-switch && sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py uninstall-client-service --service-name x0tta-firstparty-vpn-client.service --allow-os-mutation",
+    "server": "APPROVAL=\"${APPROVAL:-}\"; test \"$APPROVAL\" = APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT && sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py uninstall-server-service --service-name x0tta-firstparty-vpn.service --allow-os-mutation"
+  },
+  "server_failed_required_checks": []
+}

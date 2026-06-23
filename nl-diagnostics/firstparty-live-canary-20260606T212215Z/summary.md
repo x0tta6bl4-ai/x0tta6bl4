@@ -1,0 +1,21 @@
+# First-party VPN Local Canary
+
+- ok: `true`
+- evidence_dir: `/mnt/projects/nl-diagnostics/firstparty-live-canary-20260606T212215Z`
+- transport: `tcp`
+- bind: `['127.0.0.1', 38425]`
+- deployment_epoch: `local-firstparty-canary-20260606T212215Z`
+- source_tree_hash: `74ae83244208bd720e3d8dd967b5630a5571aab968a878a919da22d6df31aa26`
+- scanned_files: `37`
+- checks:
+  - generate_ok: `true`
+  - server_ok: `true`
+  - probe_ok: `true`
+  - admission_ok: `true`
+  - dataplane_readiness_ok: `true`
+  - dataplane_validation_passed: `true`
+  - tun_dataplane_validation_passed: `true`
+  - mtu_validation_passed: `true`
+  - source_audit_ok: `true`
+  - source_audit_allowed: `true`
+- scope: local loopback only; no NL VPN service mutation

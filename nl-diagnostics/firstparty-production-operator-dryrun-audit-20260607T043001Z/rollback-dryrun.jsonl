@@ -1,0 +1,5 @@
+{"ts":"2026-06-07T04:30:01Z","event":"meta","script_role":"rollback","execute":false,"dry_run":true,"approval_ok":false,"runbook_sha256":"ab47f541ddfbaa0b094057dc3736be2e42e591a9be337f1e52f4bb7a6245bf4a","script_sha256":"3dd4fcd21c8f39480ce24a32c3206abcbb13b8dde8627f4638f1adddc732d964"}
+{"ts":"2026-06-07T04:30:01Z","event":"start","step_id":"rollback_client_policy_and_service_after_approval","rc":0}
+{"ts":"2026-06-07T04:30:01Z","event":"dry_run","step_id":"rollback_client_policy_and_service_after_approval","rc":0}
+{"ts":"2026-06-07T04:30:01Z","event":"start","step_id":"rollback_server_service_after_approval","rc":0}
+{"ts":"2026-06-07T04:30:01Z","event":"dry_run","step_id":"rollback_server_service_after_approval","rc":0}

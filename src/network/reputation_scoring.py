@@ -9,6 +9,7 @@ Implements:
 """
 
 import asyncio
+import hashlib
 import logging
 import statistics
 import time
@@ -17,7 +18,31 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.services.service_event_identity import service_event_identity
+
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "reputation-scoring-system"
+_SERVICE_LAYER = "network_reputation_scoring_observed_state"
+REPUTATION_SCORING_CLAIM_BOUNDARY = (
+    "Local reputation scoring observed-state evidence only. It records redacted "
+    "domain reputation, proxy trust, and aggregate recommendation metadata with "
+    "domain, proxy, and error identifiers hashed. It does not copy proxy hosts, "
+    "credentials, target domains, URLs, headers, request bodies, response "
+    "payloads, or raw metric labels, and it does not prove external provider "
+    "reputation, customer traffic delivery, or end-to-end dataplane quality."
+)
+
+
+def _hash_value(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return None
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
 
 
 class ReputationLevel(Enum):
@@ -292,10 +317,99 @@ class ReputationScoringSystem:
     Centralized reputation scoring system.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: Optional[str] = None,
+    ):
         self.domain_reputations: Dict[str, DomainReputation] = {}
         self.proxy_trust_scores: Dict[str, ProxyTrustScore] = {}
         self._lock = asyncio.Lock()
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        if self.event_project_root is None:
+            return None
+        try:
+            self.event_bus = get_event_bus(self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize reputation-scoring EventBus: %s", exc)
+            return None
+
+    def _service_identity_presence(self) -> Dict[str, bool]:
+        identity = service_event_identity(service_name=_SERVICE_AGENT)
+        return {field: bool(value) for field, value in identity.items()}
+
+    def _publish_observed_state(
+        self,
+        *,
+        operation: str,
+        status: str,
+        success: bool,
+        duration_ms: float,
+        payload: Dict[str, Any],
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+        event_payload = {
+            "component": "network.reputation_scoring",
+            "operation": operation,
+            "service_name": _SERVICE_AGENT,
+            "layer": _SERVICE_LAYER,
+            "status": status,
+            "success": bool(success),
+            "duration_ms": round(float(duration_ms), 3),
+            "service_identity_present": self._service_identity_presence(),
+            "raw_identifiers_redacted": True,
+            "claim_boundary": REPUTATION_SCORING_CLAIM_BOUNDARY,
+            **payload,
+        }
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                _SERVICE_AGENT,
+                event_payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish reputation scoring evidence: %s", exc)
+            return None
+
+    def _recommendation_evidence_summary(
+        self,
+        recommendations: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        by_type: Dict[str, int] = defaultdict(int)
+        by_severity: Dict[str, int] = defaultdict(int)
+        selector_hashes: List[Dict[str, Any]] = []
+
+        for item in recommendations:
+            rec_type = str(item.get("type") or "unknown")
+            severity = str(item.get("severity") or "unknown")
+            by_type[rec_type] += 1
+            by_severity[severity] += 1
+            if len(selector_hashes) < 5:
+                selector_hashes.append(
+                    {
+                        "type": rec_type,
+                        "severity": severity,
+                        "domain_hash": _hash_value(item.get("domain")),
+                        "proxy_id_hash": _hash_value(item.get("proxy_id")),
+                    }
+                )
+
+        return {
+            "total": len(recommendations),
+            "by_type": dict(by_type),
+            "by_severity": dict(by_severity),
+            "selector_hashes": selector_hashes,
+        }
 
     async def record_domain_event(
         self,
@@ -306,9 +420,13 @@ class ReputationScoringSystem:
         error_type: Optional[str] = None,
     ):
         """Record an event for a domain."""
+        started = time.perf_counter()
         async with self._lock:
+            created = domain not in self.domain_reputations
             if domain not in self.domain_reputations:
                 self.domain_reputations[domain] = DomainReputation(domain=domain)
+            reputation = self.domain_reputations[domain]
+            score_before = reputation.score
 
             event = ReputationEvent(
                 timestamp=time.time(),
@@ -318,7 +436,34 @@ class ReputationScoringSystem:
                 error_type=error_type,
             )
 
-            self.domain_reputations[domain].record_event(event)
+            reputation.record_event(event)
+            evidence_payload = {
+                "domain_hash": _hash_value(domain),
+                "proxy_id_hash": _hash_value(proxy_id),
+                "domain_created": created,
+                "event_success": bool(success),
+                "latency_ms": round(float(latency_ms), 3),
+                "error_type_present": bool(error_type),
+                "error_type_hash": _hash_value(error_type),
+                "score_before": round(float(score_before), 6),
+                "score_after": round(float(reputation.score), 6),
+                "level_after": reputation.get_level().name,
+                "risk_score_after": round(float(reputation.get_risk_score()), 6),
+                "success_rate_after": round(float(reputation.get_success_rate()), 6),
+                "block_events_after": int(reputation.block_events),
+                "total_events_after": len(reputation.events),
+                "streaks_after": {
+                    "success": int(reputation.success_streak),
+                    "failure": int(reputation.failure_streak),
+                },
+            }
+        self._publish_observed_state(
+            operation="record_domain_event",
+            status="domain_reputation_recorded",
+            success=True,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            payload=evidence_payload,
+        )
 
     async def record_proxy_result(
         self,
@@ -328,13 +473,53 @@ class ReputationScoringSystem:
         error_type: Optional[str] = None,
     ):
         """Record a result for a proxy."""
+        started = time.perf_counter()
         async with self._lock:
+            created = proxy_id not in self.proxy_trust_scores
             if proxy_id not in self.proxy_trust_scores:
                 self.proxy_trust_scores[proxy_id] = ProxyTrustScore(proxy_id=proxy_id)
+            trust = self.proxy_trust_scores[proxy_id]
+            scores_before = {
+                "trust": trust.trust_score,
+                "reliability": trust.reliability_score,
+                "performance": trust.performance_score,
+            }
 
-            self.proxy_trust_scores[proxy_id].record_result(
+            trust.record_result(
                 success=success, latency_ms=latency_ms, error_type=error_type
             )
+            evidence_payload = {
+                "proxy_id_hash": _hash_value(proxy_id),
+                "proxy_created": created,
+                "result_success": bool(success),
+                "latency_ms": round(float(latency_ms), 3),
+                "error_type_present": bool(error_type),
+                "error_type_hash": _hash_value(error_type),
+                "scores_before": {
+                    key: round(float(value), 6)
+                    for key, value in scores_before.items()
+                },
+                "scores_after": {
+                    "trust": round(float(trust.trust_score), 6),
+                    "reliability": round(float(trust.reliability_score), 6),
+                    "performance": round(float(trust.performance_score), 6),
+                },
+                "request_counts_after": {
+                    "total": int(trust.total_requests),
+                    "successful": int(trust.successful_requests),
+                    "failed": int(trust.failed_requests),
+                    "blocked": int(trust.blocked_requests),
+                },
+                "error_types_count": len(trust.error_types),
+                "latency_samples_count": len(trust.latency_history),
+            }
+        self._publish_observed_state(
+            operation="record_proxy_result",
+            status="proxy_trust_recorded",
+            success=True,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            payload=evidence_payload,
+        )
 
     def get_domain_reputation(self, domain: str) -> Optional[DomainReputation]:
         """Get reputation for a domain."""
@@ -398,32 +583,58 @@ class ReputationScoringSystem:
 
     def export_stats(self) -> Dict[str, Any]:
         """Export comprehensive statistics."""
-        return {
+        started = time.perf_counter()
+        recommendations = self.get_recommendations()
+        by_level = {
+            level.name: sum(
+                1
+                for d in self.domain_reputations.values()
+                if d.get_level() == level
+            )
+            for level in ReputationLevel
+        }
+        high_risk_count = len(self.get_high_risk_domains())
+        trusted_count = len(self.get_trusted_proxies())
+        avg_trust_score = (
+            round(
+                statistics.mean(s.trust_score for s in self.proxy_trust_scores.values()),
+                3,
+            )
+            if self.proxy_trust_scores
+            else 0
+        )
+        payload = {
             "domains": {
                 "total": len(self.domain_reputations),
-                "by_level": {
-                    level.name: sum(
-                        1
-                        for d in self.domain_reputations.values()
-                        if d.get_level() == level
-                    )
-                    for level in ReputationLevel
-                },
-                "high_risk": len(self.get_high_risk_domains()),
+                "by_level": by_level,
+                "high_risk": high_risk_count,
             },
             "proxies": {
                 "total": len(self.proxy_trust_scores),
-                "trusted": len(self.get_trusted_proxies()),
-                "avg_trust_score": (
-                    round(
-                        statistics.mean(
-                            s.trust_score for s in self.proxy_trust_scores.values()
-                        ),
-                        3,
-                    )
-                    if self.proxy_trust_scores
-                    else 0
+                "trusted": trusted_count,
+                "avg_trust_score": avg_trust_score,
+            },
+            "recommendations": recommendations,
+        }
+        self._publish_observed_state(
+            operation="export_stats",
+            status="reputation_stats_exported",
+            success=True,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            payload={
+                "domains_total": payload["domains"]["total"],
+                "domains_by_level": by_level,
+                "high_risk_domains": high_risk_count,
+                "proxies_total": payload["proxies"]["total"],
+                "trusted_proxies": trusted_count,
+                "avg_trust_score": avg_trust_score,
+                "recommendations": self._recommendation_evidence_summary(
+                    recommendations
                 ),
             },
-            "recommendations": self.get_recommendations(),
+        )
+        return {
+            "domains": payload["domains"],
+            "proxies": payload["proxies"],
+            "recommendations": payload["recommendations"],
         }

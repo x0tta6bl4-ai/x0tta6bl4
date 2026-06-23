@@ -149,7 +149,7 @@ async def test_dispatch_swallows_update_exceptions(monkeypatch):
 def test_update_usage_increments_and_commits_with_override_object_provider():
     app = FastAPI()
     middleware = MeteringMiddleware(app=app)
-    user = SimpleNamespace(requests_count=10)
+    user = SimpleNamespace(id="user-1", requests_count=10)
     db = _DummyDB(user)
     app.dependency_overrides[mod.get_db] = lambda: db
     request = _make_request(app, "/api/v1/maas/meshes", {"X-API-Key": "k"})
@@ -158,7 +158,7 @@ def test_update_usage_increments_and_commits_with_override_object_provider():
 
     assert user.requests_count == 11
     assert db.update_calls == 1
-    assert db.first_calls == 0
+    assert db.first_calls == 1
     assert db.committed is True
     assert db.closed is True
 
@@ -166,7 +166,7 @@ def test_update_usage_increments_and_commits_with_override_object_provider():
 def test_update_usage_with_generator_provider_closes_generator():
     app = FastAPI()
     middleware = MeteringMiddleware(app=app)
-    user = SimpleNamespace(requests_count=1)
+    user = SimpleNamespace(id="user-1", requests_count=1)
     db = _DummyDB(user)
     finalized = {"closed": False}
 
@@ -183,7 +183,7 @@ def test_update_usage_with_generator_provider_closes_generator():
 
     assert user.requests_count == 2
     assert db.update_calls == 1
-    assert db.first_calls == 0
+    assert db.first_calls == 1
     assert db.committed is True
     assert finalized["closed"] is True
 
@@ -197,8 +197,8 @@ def test_update_usage_no_user_does_not_commit():
 
     middleware._update_usage(request, "k")
 
-    assert db.update_calls == 1
-    assert db.first_calls == 0
+    assert db.update_calls == 0
+    assert db.first_calls == 1
     assert db.committed is False
     assert db.closed is True
 
@@ -206,7 +206,7 @@ def test_update_usage_no_user_does_not_commit():
 def test_update_usage_handles_null_requests_count():
     app = FastAPI()
     middleware = MeteringMiddleware(app=app)
-    user = SimpleNamespace(requests_count=None)
+    user = SimpleNamespace(id="user-1", requests_count=None)
     db = _DummyDB(user)
     app.dependency_overrides[mod.get_db] = lambda: db
     request = _make_request(app, "/api/v1/maas/meshes", {"X-API-Key": "k"})
@@ -215,7 +215,7 @@ def test_update_usage_handles_null_requests_count():
 
     assert user.requests_count == 1
     assert db.update_calls == 1
-    assert db.first_calls == 0
+    assert db.first_calls == 1
     assert db.committed is True
     assert db.rolled_back is False
     assert db.closed is True
@@ -224,7 +224,7 @@ def test_update_usage_handles_null_requests_count():
 def test_update_usage_rolls_back_and_reraises_on_commit_error():
     app = FastAPI()
     middleware = MeteringMiddleware(app=app)
-    user = SimpleNamespace(requests_count=4)
+    user = SimpleNamespace(id="user-1", requests_count=4)
     db = _DummyDB(user, commit_error=RuntimeError("commit failed"))
     app.dependency_overrides[mod.get_db] = lambda: db
     request = _make_request(app, "/api/v1/maas/meshes", {"X-API-Key": "k"})
@@ -234,7 +234,7 @@ def test_update_usage_rolls_back_and_reraises_on_commit_error():
 
     assert user.requests_count == 5
     assert db.update_calls == 1
-    assert db.first_calls == 0
+    assert db.first_calls == 1
     assert db.committed is False
     assert db.rolled_back is True
     assert db.closed is True

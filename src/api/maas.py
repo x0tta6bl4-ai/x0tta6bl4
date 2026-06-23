@@ -25,9 +25,12 @@ _get_mesh_or_404 = _legacy._get_mesh_or_404  # noqa: F401  — used by maas_bill
 usage_metering_service = _legacy.usage_metering_service  # noqa: F401  — used by maas_billing, maas_analytics
 
 
-# Combined router – legacy first to ensure route precedence.
+# Combined router – modular endpoints first.
+from .maas.endpoints.combined import get_combined_router
+_combined_router = get_combined_router()
+
 router = APIRouter()
-router.include_router(_legacy.router)
+router.include_router(_combined_router)
 router.include_router(_core_router)
 
 

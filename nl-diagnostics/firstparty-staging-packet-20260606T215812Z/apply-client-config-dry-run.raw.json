@@ -1,0 +1,18 @@
+{
+  "backup_path": "/var/backups/x0tta-firstparty-vpn-client/client.json.20260606T215907Z.bak",
+  "candidate_config": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client.promoted.json",
+  "candidate_hash": "41aae47840dd7c0e834915e3e030d2f2d574a4e0de00ea17d7cfe764d18c9043",
+  "dry_run": true,
+  "file_mutation_performed": false,
+  "health_check_planned": false,
+  "installed_config": "/etc/x0tta-firstparty-vpn-client/client.json",
+  "installed_hash": null,
+  "mode": "apply-client-config",
+  "ok": true,
+  "os_mutation_performed": false,
+  "restart_required": true,
+  "rollback_on_failure": true,
+  "rollback_performed": false,
+  "service_name": "x0tta-firstparty-vpn-client.service",
+  "service_restart_performed": false
+}

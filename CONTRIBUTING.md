@@ -433,6 +433,18 @@ make agent-cycle-dry
 
 ---
 
+## Architectural Mandates (v4.0)
+
+To maintain the stability and auditability of the x0tta6bl4 circuit, all contributions must adhere to these mandates:
+
+1. **No God Objects**: Logic must be decomposed into specialized modules. Avoid files exceeding 1000 lines.
+2. **Proven Autonomy**: Every self-healing action must include a verification phase and emit a `healing.verified` (or `TASK_FAILED`) event with a bounded claim.
+3. **Bounded Claims**: Never overclaim success. Use `claim_boundary` metadata to specify exactly what was verified locally vs what requires external proof.
+4. **Flat API Structure**: Use modular routers in `src/api/maas/endpoints/` and combine them in `combined.py`. Use absolute paths in decorators or precise prefixes.
+5. **Zero Trust Metadata**: Every EventBus write must include cryptographic identity markers (DID/SPIFFE) and redact sensitive raw data.
+
+---
+
 ## Security Issues
 
 **Do not open public issues for security vulnerabilities.**

@@ -32,12 +32,33 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 logger = logging.getLogger(__name__)
 
 
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_ref(value: object) -> Dict[str, Any]:
+    return {"hash": _safe_hash(value), "present": value is not None}
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
 class DIDMethod(Enum):
     """Supported DID methods."""
 
     MESH = "mesh"  # Our native method
     KEY = "key"  # did:key (simple, self-certifying)
     WEB = "web"  # did:web (DNS-based)
+    PEAQ = "peaq"  # did:peaq (peaq network machine ID)
 
 
 class KeyPurpose(Enum):
@@ -238,8 +259,61 @@ class DIDManager:
         self.document = self._create_initial_document()
         self.credentials: Dict[str, VerifiableCredential] = {}
         self.key_history: List[VerificationMethod] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"did-manager:{_safe_hash(self.did)}",
+            role="security",
+            capabilities=("zero-trust", "governance"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "did_manager_init",
+                "goal": "Initialize decentralized identity manager",
+                "signals": {
+                    "node": _safe_ref(node_id),
+                    "did": _safe_ref(self.did),
+                    "verification_method_count": len(
+                        self.document.verification_method
+                    ),
+                },
+                "safety_boundary": (
+                    "Do not expose raw node ids, DIDs, public keys, service endpoints, "
+                    "credential subjects, or signatures in thinking context."
+                ),
+            }
+        )
 
         logger.info(f"Created DID for node {node_id}: {self.did}")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_node_identifiers": True,
+                    "redact_dids": True,
+                    "redact_keys": True,
+                    "redact_credentials": True,
+                    "preserve_identity_contract": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, counts, credential types, proof types, and booleans."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def _create_initial_document(self) -> DIDDocument:
         """Create initial DID Document."""
@@ -316,6 +390,18 @@ class DIDManager:
         self.public_key = new_public
 
         logger.info(f"Rotated key for {self.did}, new key: {key_id}")
+        self._record_thinking(
+            "did_key_rotated",
+            "Rotate DID verification key",
+            {
+                "did": _safe_ref(self.did),
+                "new_key": _safe_ref(key_id),
+                "revoked_key_count": len(self.key_history),
+                "active_key_count": len(
+                    [vm for vm in self.document.verification_method if not vm.revoked]
+                ),
+            },
+        )
         return new_vm
 
     def sign(self, data: bytes) -> bytes:
@@ -382,6 +468,18 @@ class DIDManager:
 
         self.credentials[cred_id] = vc
         logger.info(f"Issued credential {cred_id} to {subject_did}")
+        self._record_thinking(
+            "did_credential_issued",
+            "Issue verifiable credential",
+            {
+                "credential": _safe_ref(cred_id),
+                "subject": _safe_ref(subject_did),
+                "credential_type": credential_type,
+                "claim_key_count": len(claims or {}),
+                "expiration_configured": expiration_days is not None,
+                "credential_count_bucket": _safe_count_bucket(len(self.credentials)),
+            },
+        )
 
         return vc
 
@@ -399,14 +497,32 @@ class DIDManager:
                     vc_dict["expirationDate"].replace("Z", "+00:00")
                 )
                 if exp_date < datetime.now(exp_date.tzinfo):
+                    self._record_thinking(
+                        "did_credential_verify_failed",
+                        "Reject expired credential",
+                        {"reason": "expired"},
+                    )
                     return False, "Credential expired"
 
             # Check proof exists
             if "proof" not in vc_dict:
+                self._record_thinking(
+                    "did_credential_verify_failed",
+                    "Reject credential without proof",
+                    {"reason": "missing_proof"},
+                )
                 return False, "No proof found"
 
             proof = vc_dict["proof"]
             if proof.get("type") != "Ed25519Signature2020":
+                self._record_thinking(
+                    "did_credential_verify_failed",
+                    "Reject credential with unsupported proof type",
+                    {
+                        "reason": "unknown_proof_type",
+                        "proof_type_hash": _safe_hash(proof.get("type")),
+                    },
+                )
                 return False, f"Unknown proof type: {proof.get('type')}"
 
             if vc_dict.get("issuer") != self.did:
@@ -434,6 +550,11 @@ class DIDManager:
             return True, "Credential valid"
 
         except Exception as e:
+            self._record_thinking(
+                "did_credential_verify_error",
+                "Handle credential verification error",
+                {"error_type": type(e).__name__},
+            )
             return False, f"Verification error: {e}"
 
     def create_presentation(
@@ -468,11 +589,31 @@ class DIDManager:
             "proofValue": DIDGenerator.multibase_encode(signature),
             "challenge": challenge,
         }
+        self._record_thinking(
+            "did_presentation_created",
+            "Create verifiable presentation",
+            {
+                "holder": _safe_ref(self.did),
+                "credential_count": len(credentials),
+                "challenge_present": challenge is not None,
+                "challenge_hash": _safe_hash(challenge) if challenge else None,
+            },
+        )
 
         return presentation
 
     def get_document(self) -> Dict[str, Any]:
         """Get DID Document as dict."""
+        self._record_thinking(
+            "did_document_requested",
+            "Return DID document",
+            {
+                "did": _safe_ref(self.did),
+                "verification_method_count": len(self.document.verification_method),
+                "service_count": len(self.document.service),
+                "deactivated": self.document.deactivated,
+            },
+        )
         return self.document.to_dict()
 
     def deactivate(self) -> None:
@@ -481,6 +622,14 @@ class DIDManager:
         self.document.updated = time.time()
         for vm in self.document.verification_method:
             vm.revoked = True
+        self._record_thinking(
+            "did_deactivated",
+            "Deactivate DID and revoke verification methods",
+            {
+                "did": _safe_ref(self.did),
+                "revoked_key_count": len(self.document.verification_method),
+            },
+        )
         logger.warning(f"Deactivated DID: {self.did}")
 
 
@@ -494,6 +643,52 @@ class DIDResolver:
         self.cache: Dict[str, Tuple[DIDDocument, float]] = {}
         self.cache_ttl = 3600  # 1 hour
         self.peer_resolvers: List[str] = []  # Mesh peers for resolution
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="did-resolver",
+            role="security",
+            capabilities=("zero-trust", "monitoring"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "did_resolver_init",
+                "goal": "Initialize DID resolution policy",
+                "signals": {"cache_ttl": self.cache_ttl, "peer_resolver_count": 0},
+                "safety_boundary": (
+                    "Do not expose raw DIDs, peer endpoints, or DID documents in "
+                    "resolver thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_dids": True,
+                    "redact_peer_endpoints": True,
+                    "redact_documents": True,
+                    "preserve_resolution_contract": True,
+                },
+                "safety_boundary": (
+                    "Use methods, hashes, counts, cache flags, and booleans only."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def resolve(self, did: str) -> Optional[Dict[str, Any]]:
         """
@@ -509,15 +704,34 @@ class DIDResolver:
         if did in self.cache:
             doc, cached_at = self.cache[did]
             if time.time() - cached_at < self.cache_ttl:
+                self._record_thinking(
+                    "did_resolver_cache_hit",
+                    "Resolve DID from local cache",
+                    {"did": _safe_ref(did), "cache_size_bucket": _safe_count_bucket(len(self.cache))},
+                )
                 return doc.to_dict()
 
         # Parse DID method
         parts = did.split(":")
         if len(parts) < 3:
+            self._record_thinking(
+                "did_resolver_invalid_did",
+                "Reject DID with invalid format",
+                {"did": _safe_ref(did), "part_count": len(parts)},
+            )
             logger.error(f"Invalid DID format: {did}")
             return None
 
         method = parts[1]
+        self._record_thinking(
+            "did_resolver_method_selected",
+            "Select DID resolution method",
+            {
+                "did": _safe_ref(did),
+                "method": method,
+                "cache_size_bucket": _safe_count_bucket(len(self.cache)),
+            },
+        )
 
         if method == "mesh":
             return self._resolve_mesh(did)
@@ -526,6 +740,11 @@ class DIDResolver:
         elif method == "web":
             return self._resolve_web(did)
         else:
+            self._record_thinking(
+                "did_resolver_unsupported_method",
+                "Reject unsupported DID method",
+                {"did": _safe_ref(did), "method_hash": _safe_hash(method)},
+            )
             logger.error(f"Unsupported DID method: {method}")
             return None
 
@@ -533,6 +752,14 @@ class DIDResolver:
         """Resolve did:mesh using mesh network."""
         # In production, query mesh peers for DID Document
         # For now, return None (would need peer lookup)
+        self._record_thinking(
+            "did_resolver_mesh_unavailable",
+            "Defer mesh DID resolution to future peer lookup",
+            {
+                "did": _safe_ref(did),
+                "peer_resolver_count": len(self.peer_resolvers),
+            },
+        )
         logger.debug(f"Mesh resolution for {did} - would query peers")
         return None
 
@@ -544,9 +771,19 @@ class DIDResolver:
         # did:key:z... - extract public key from multibase
         parts = did.split(":")
         if len(parts) != 3:
+            self._record_thinking(
+                "did_resolver_key_invalid",
+                "Reject malformed did:key",
+                {"did": _safe_ref(did), "part_count": len(parts)},
+            )
             return None
 
         multibase_key = parts[2]
+        self._record_thinking(
+            "did_resolver_key_resolved",
+            "Resolve self-certifying did:key",
+            {"did": _safe_ref(did), "key_hash": _safe_hash(multibase_key)},
+        )
 
         # Create minimal DID Document
         return {
@@ -568,6 +805,11 @@ class DIDResolver:
         """Resolve did:web via HTTPS."""
         # did:web:example.com -> https://example.com/.well-known/did.json
         # Not implemented for mesh (no DNS dependency)
+        self._record_thinking(
+            "did_resolver_web_unsupported",
+            "Reject did:web resolution in mesh context",
+            {"did": _safe_ref(did)},
+        )
         logger.warning(f"did:web resolution not supported in mesh: {did}")
         return None
 
@@ -575,10 +817,27 @@ class DIDResolver:
         """Register a mesh peer for distributed resolution."""
         if peer_endpoint not in self.peer_resolvers:
             self.peer_resolvers.append(peer_endpoint)
+            self._record_thinking(
+                "did_resolver_peer_registered",
+                "Register peer DID resolver endpoint",
+                {
+                    "peer_endpoint": _safe_ref(peer_endpoint),
+                    "peer_resolver_count": len(self.peer_resolvers),
+                },
+            )
 
     def cache_document(self, did: str, document: DIDDocument) -> None:
         """Cache a DID Document."""
         self.cache[did] = (document, time.time())
+        self._record_thinking(
+            "did_resolver_document_cached",
+            "Cache DID document",
+            {
+                "did": _safe_ref(did),
+                "document_id": _safe_ref(document.id),
+                "cache_size_bucket": _safe_count_bucket(len(self.cache)),
+            },
+        )
 
 
 def hmac_compare(a: bytes, b: bytes) -> bool:

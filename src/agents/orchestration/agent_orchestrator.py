@@ -31,6 +31,7 @@ from src.agents.development import (
     get_spec_to_code_agent,
     get_documentation_agent,
 )
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,13 @@ class AgentOrchestrator:
             config: Конфигурация
         """
         self.config = config or self._default_config()
-        
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="agent-orchestrator",
+            role="coordinator",
+            capabilities=("coordination", "rate_limit", "agent_dispatch"),
+        )
+        self.last_thinking_context: Optional[dict] = None
+
         # Agents
         self.health_monitor: Optional[HealthMonitorAgent] = None
         self.log_analyzer: Optional[LogAnalyzerAgent] = None
@@ -80,8 +87,8 @@ class AgentOrchestrator:
         
         # Rate limiting for agent actions
         self._action_timestamps: dict[str, list[float]] = {}
-        self._rate_limit_actions_per_minute = config.get("rate_limit_per_minute", 60)
-        self._rate_limit_window_seconds = config.get("rate_limit_window", 60)
+        self._rate_limit_actions_per_minute = self.config.get("rate_limit_per_minute", 60)
+        self._rate_limit_window_seconds = self.config.get("rate_limit_window", 60)
         
         logger.info("Agent Orchestrator initialized")
     
@@ -145,8 +152,18 @@ class AgentOrchestrator:
         if not self._check_rate_limit(action_type):
             logger.warning(f"Action {action_type} rate limited, skipping")
             return None
-        
+
         try:
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "type": "agent_action_dispatch",
+                    "goal": f"execute {action_type} within coordination limits",
+                    "constraints": {
+                        "rate_limit_per_minute": self._rate_limit_actions_per_minute,
+                        "rate_limit_window_seconds": self._rate_limit_window_seconds,
+                    },
+                }
+            )
             return await action_fn(*args, **kwargs)
         except Exception as e:
             logger.error(f"Action {action_type} failed: {e}")
@@ -306,7 +323,9 @@ class AgentOrchestrator:
         
         if self.log_analyzer:
             status["log_analyzer_status"] = await self.log_analyzer.get_current_status()
-        
+
+        status["thinking"] = self.thinking_coach.status()
+
         return status
 
 

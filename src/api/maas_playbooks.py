@@ -1,16 +1,8 @@
-"""
-MaaS Signed Playbooks (Production) — x0tta6bl4
-============================================
+"""Compatibility exports for the MaaS signed playbooks endpoint module."""
 
-PQC-signed commands for agents with in-memory delivery queues and optional
-SQLAlchemy persistence for audit/history.
-"""
+import sys
 
-import json
-import logging
-import uuid
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Set
+from .maas.endpoints import playbooks as _playbooks
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field

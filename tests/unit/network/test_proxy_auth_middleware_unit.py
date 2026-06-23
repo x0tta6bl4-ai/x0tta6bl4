@@ -437,6 +437,70 @@ def test_request_signer_rejects_missing_timestamp():
     )
 
 
+def test_jwt_manager_thinking_redacts_token_secret_and_client():
+    manager = JWTAuthManager(secret="raw-jwt-secret", expiry_hours=1)
+    token = manager.create_token(
+        "raw-client-id",
+        Role.ADMIN,
+        {"tenant": "raw-tenant-secret"},
+    )
+    identity = manager.validate_token(token)
+    assert identity is not None
+
+    status = manager.get_thinking_status()
+    assert status["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in status["thinking"]["techniques"]
+    assert (
+        status["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "proxy_jwt_validated"
+    )
+
+    rendered = repr(status)
+    assert token not in rendered
+    assert "raw-jwt-secret" not in rendered
+    assert "raw-client-id" not in rendered
+    assert "raw-tenant-secret" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_auth_middleware_thinking_redacts_api_key_remote_and_identity():
+    identity = ClientIdentity(
+        client_id="raw-client-id",
+        role=Role.OPERATOR,
+        permissions=Role.OPERATOR.value,
+        api_key_id="raw-api-key-id",
+    )
+    middleware = ProxyAuthMiddleware(
+        api_key_store=_APIKeyStore(identity=identity),
+        jwt_manager=_JWTManager(identity=None),
+        rate_limiter=_PassRateLimiter(),
+        require_auth=True,
+    )
+    request = _FakeRequest(
+        path="/private/secret-path",
+        remote="203.0.113.99",
+        headers={"X-API-Key": "raw-api-key-secret"},
+    )
+
+    response = await middleware.authenticate(request, _ok_handler)
+    assert response.status == 200
+
+    status = middleware.get_thinking_status()
+    assert status["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in status["thinking"]["techniques"]
+    assert (
+        status["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "proxy_auth_identity_accepted"
+    )
+
+    rendered = repr(status)
+    assert "raw-api-key-secret" not in rendered
+    assert "203.0.113.99" not in rendered
+    assert "raw-client-id" not in rendered
+    assert "raw-api-key-id" not in rendered
+    assert "/private/secret-path" not in rendered
+
+
 def test_create_auth_middleware_factory_uses_explicit_config():
     middleware = create_auth_middleware(
         require_auth=False,

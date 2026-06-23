@@ -43,7 +43,7 @@ services:
       - x0tta6bl4_mesh_network
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.51.0
     ports:
       - "9090:9090" # Prometheus UI
     volumes:
@@ -60,7 +60,7 @@ services:
       - x0tta6bl4_mesh_network
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.4.0
     ports:
       - "3000:3000" # Grafana UI
     volumes:
@@ -72,7 +72,7 @@ services:
     environment:
       # Default Grafana admin user/password if not set in .env
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: changeme
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://grafana:3000/api/health"]
       interval: 30s

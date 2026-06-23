@@ -46,6 +46,11 @@ class TestGraphSAGEFLCoordinator:
         if coordinator.graphsage:
             assert round_info is not None
             assert "round_number" in round_info
+            thinking = coordinator.get_thinking_status()
+            assert thinking["thinking"]["profile"]["role"] == "fl"
+            assert thinking["last_thinking_context"]["applied"]["framing"]["problem"] == (
+                "graphsage_fl_round_start"
+            )
 
     def test_train_local(self):
         """Test local training"""
@@ -81,6 +86,10 @@ class TestGraphSAGEFLCoordinator:
         # Should succeed
         assert global_model is not None
         assert global_model.version > 0
+        thinking = coordinator.get_thinking_status()
+        assert thinking["last_thinking_context"]["applied"]["framing"]["problem"] == (
+            "graphsage_update_aggregation"
+        )
 
     def test_distribute_global_model(self):
         """Test distributing global model"""
@@ -125,6 +134,10 @@ class TestGraphSAGEDistributedTrainer:
         assert results["total_rounds"] == 3
         assert results["completed_rounds"] > 0
         assert len(results["history"]) > 0
+        assert results["thinking"]["profile"]["role"] == "fl"
+        assert results["last_thinking_context"]["applied"]["framing"]["problem"] == (
+            "graphsage_distributed_training"
+        )
 
     def test_training_with_privacy(self):
         """Test training with privacy-preserving"""

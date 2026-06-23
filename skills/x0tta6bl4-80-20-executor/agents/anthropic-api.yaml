@@ -5,6 +5,11 @@ interface:
   model: "claude-sonnet-4-6"
   provider: "anthropic"
 
+thinking_contract:
+  source: "docs/ai_agents/THINKING_TECHNIQUES_FOR_AGENTS.md"
+  runtime_source: "src/core/agent_thinking.py"
+  required_for_all_agents: true
+
 cycle:
   mode: "full"
   parallel: true

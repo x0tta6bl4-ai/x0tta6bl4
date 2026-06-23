@@ -9,6 +9,7 @@ Tests cover:
 - QuarantineZone: add/remove nodes, communication rules, operation allowance
 """
 
+import json
 import time
 from unittest.mock import patch
 
@@ -332,6 +333,22 @@ class TestAutoIsolationManager:
         mgr = self._make_manager()
         assert mgr.node_id == "manager-node"
         assert len(mgr.isolated_nodes) == 0
+
+    def test_thinking_status_redacts_manager_and_target_nodes(self):
+        mgr = self._make_manager(node_id="manager-secret")
+        mgr.isolate(
+            "target-secret",
+            IsolationReason.THREAT_DETECTED,
+            details="credential leak from private node",
+        )
+
+        status = json.dumps(mgr.get_thinking_status(), sort_keys=True)
+
+        assert "auto_isolation_node_isolated" in status
+        assert "hash" in status
+        assert "manager-secret" not in status
+        assert "target-secret" not in status
+        assert "credential leak from private node" not in status
 
     def test_isolate_creates_record(self):
         mgr = self._make_manager()
@@ -781,6 +798,19 @@ class TestQuarantineZone:
         assert len(qz.nodes) == 0
         assert qz.max_bandwidth == 1024
         assert qz.allowed_operations == {"health", "metrics"}
+
+    def test_thinking_status_redacts_zone_and_nodes(self):
+        qz = QuarantineZone("zone-secret")
+        qz.add_node("node-secret")
+        qz.can_communicate("node-secret", "peer-secret")
+
+        status = json.dumps(qz.get_thinking_status(), sort_keys=True)
+
+        assert "quarantine_zone_communication_checked" in status
+        assert "hash" in status
+        assert "zone-secret" not in status
+        assert "node-secret" not in status
+        assert "peer-secret" not in status
 
     def test_add_node(self):
         qz = QuarantineZone("zone-1")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import time
 from collections import OrderedDict
 from types import SimpleNamespace
@@ -66,12 +67,41 @@ _idempotency_compose_key = _mod._idempotency_compose_key
 _normalize_idempotency_key = _mod._normalize_idempotency_key
 _idempotency_get = _mod._idempotency_get
 _idempotency_set = _mod._idempotency_set
+_redacted_sha256_prefix = _mod._redacted_sha256_prefix
+_marketplace_request_evidence = _mod._marketplace_request_evidence
+_marketplace_api_settlement_evidence = _mod._marketplace_api_settlement_evidence
 _db_session_available = _mod._db_session_available
 _is_dependency_placeholder = _mod._is_dependency_placeholder
 _marketplace_readiness_status = _mod._marketplace_readiness_status
 _to_cents = _mod._to_cents
 _to_dollars = _mod._to_dollars
 _row_to_listing = _mod._row_to_listing
+
+
+def _marketplace_test_request(tmp_path):
+    bus = _mod.EventBus(str(tmp_path))
+    return SimpleNamespace(state=SimpleNamespace(event_bus=bus)), bus
+
+
+def _marketplace_events(bus):
+    return bus.get_event_history(
+        source_agent=_mod._MARKETPLACE_API_SOURCE_AGENT,
+        limit=100,
+    )
+
+
+def _assert_event_log_redacted(tmp_path, bus, raw_values):
+    serialized = json.dumps(
+        [event.to_dict() for event in _marketplace_events(bus)],
+        sort_keys=True,
+    )
+    log_path = tmp_path / _mod.EventBus.EVENT_LOG
+    log_text = log_path.read_text() if log_path.exists() else ""
+    for raw_value in raw_values:
+        if not raw_value:
+            continue
+        assert raw_value not in serialized
+        assert raw_value not in log_text
 
 
 # ===========================================================================
@@ -175,6 +205,53 @@ class TestIdsEqual:
 
     def test_both_none_returns_false(self):
         assert _ids_equal(None, None) is False
+
+
+def _assert_api_settlement_evidence(
+    evidence,
+    *,
+    action: str,
+    decision_basis: str,
+    source_quality: str,
+    bridge_attempted: bool,
+    bridge_status: str,
+    db_write_attempted: bool,
+    db_committed: bool,
+    escrow_status_after: str | None,
+    listing_status_after: str | None,
+):
+    assert evidence["decision_basis"] == decision_basis
+    assert evidence["source_quality"] == source_quality
+    assert evidence["settlement_action"] == action
+    assert evidence["duration_ms"] >= 0
+    assert evidence["dataplane_confirmed"] is False
+    assert evidence["threshold_met"] is True
+    assert evidence["telemetry_evidence"] == {
+        "source_agents": [],
+        "event_ids": [],
+        "events_total": 0,
+        "payloads_redacted": True,
+    }
+    assert evidence["bridge_evidence"] == {
+        "attempted": bridge_attempted,
+        "status": bridge_status,
+        "source_agent": "token-bridge" if bridge_attempted else None,
+        "payloads_redacted": True,
+    }
+    assert evidence["db_write_evidence"] == {
+        "storage_backend": "sqlalchemy",
+        "attempted": db_write_attempted,
+        "committed": db_committed,
+        "payloads_redacted": True,
+    }
+    assert evidence["output_summary"] == {
+        "escrow_status_after": escrow_status_after,
+        "listing_status_after": listing_status_after,
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+    }
+    assert evidence["raw_identifiers_redacted"] is True
+    assert evidence["payloads_redacted"] is True
 
     def test_left_none_returns_false(self):
         assert _ids_equal(None, "abc") is False

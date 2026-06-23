@@ -116,9 +116,9 @@ def _live_get_iface(prog_name: str = PROG_NAME) -> str:
     return "unknown"
 
 
-def _enable_bpf_stats() -> None:
+def _enable_bpf_stats(stub: bool = STUB_MODE) -> None:
     """Enable kernel BPF stats (requires root). No-op in stub mode."""
-    if STUB_MODE:
+    if stub:
         return
     try:
         subprocess.run(
@@ -175,7 +175,7 @@ def run_exporter(
     mode_tag = "[STUB]" if stub else "[LIVE]"
     log.info("%s Starting eBPF Prometheus Exporter on port %d", mode_tag, port)
 
-    _enable_bpf_stats()
+    _enable_bpf_stats(stub=stub)
     _start_http(port)
 
     last_run_cnt: int = 0

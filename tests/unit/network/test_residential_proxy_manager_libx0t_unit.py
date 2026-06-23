@@ -429,3 +429,41 @@ def test_create_proxy_pool_from_provider():
 
     with pytest.raises(ValueError, match="Unknown provider"):
         mod.create_proxy_pool_from_provider("nope", username="u", password="p")
+
+
+@pytest.mark.asyncio
+async def test_residential_proxy_manager_thinking_redacts_proxy_and_target():
+    manager = mod.ResidentialProxyManager()
+    proxy = mod.ProxyEndpoint(
+        id="proxy-secret-id",
+        host="secret.proxy.example",
+        port=8080,
+        username="raw-user",
+        password="raw-password-secret",
+        region="us",
+        country_code="US",
+    )
+    manager.add_proxy(proxy)
+
+    selected = await manager.get_proxy(
+        target_domain="secret-target.example",
+        preferred_region="us",
+        require_healthy=True,
+    )
+    assert selected is proxy
+
+    status = manager.get_thinking_status()
+    assert status["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in status["thinking"]["techniques"]
+    assert (
+        status["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "libx0t_residential_proxy_selected"
+    )
+    assert status["claim_boundary"]
+
+    rendered = repr(status)
+    assert "proxy-secret-id" not in rendered
+    assert "secret.proxy.example" not in rendered
+    assert "raw-password-secret" not in rendered
+    assert "raw-user" not in rendered
+    assert "secret-target.example" not in rendered

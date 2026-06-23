@@ -6,11 +6,13 @@ Auto-Healer Agent - автоматическое восстановление с
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.self_healing.mape_k import SelfHealingManager
 from src.self_healing.recovery_actions import (
     CircuitBreaker,
@@ -86,7 +88,21 @@ class AutoHealerAgent:
             config: Конфигурация агента
         """
         self.config = config or self._default_config()
-        
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="auto-healer",
+            role="healing",
+            capabilities=("mape_k", "recovery", "planning"),
+            extra_techniques=(
+                "mape_k",
+                "mind_maps",
+                "causal_analysis",
+                "graphsage",
+                "zero_trust_review",
+                "reverse_planning",
+            ),
+        )
+        self.last_thinking_context: Optional[dict] = None
+
         # MAPE-K self-healing manager
         self.mape_k = SelfHealingManager()
         
@@ -178,16 +194,92 @@ class AutoHealerAgent:
     
     async def _collect_metrics(self) -> dict:
         """Сбор метрик системы."""
-        # В реальной реализации здесь был бы сбор метрик из разных источников
-        # Для демонстрации возвращаем mock данные
-        
+        metric_source = "stdlib"
+        cpu_percent = 0.0
+        memory_percent = 0.0
+        cpu_observed = False
+        memory_observed = False
+
+        try:
+            import psutil
+
+            metric_source = "psutil"
+            cpu_percent = float(psutil.cpu_percent(interval=0.1))
+            memory_percent = float(psutil.virtual_memory().percent)
+            cpu_observed = True
+            memory_observed = True
+        except Exception:
+            try:
+                load_1m = os.getloadavg()[0]
+                cpu_count = os.cpu_count() or 1
+                cpu_percent = min(100.0, max(0.0, (load_1m / cpu_count) * 100.0))
+                cpu_observed = True
+            except (AttributeError, OSError):
+                cpu_percent = 0.0
+
+            try:
+                with open("/proc/meminfo", "r", encoding="utf-8") as meminfo:
+                    values = {}
+                    for line in meminfo:
+                        key, raw_value = line.split(":", 1)
+                        values[key] = float(raw_value.strip().split()[0])
+                total = values.get("MemTotal", 0.0)
+                available = values.get("MemAvailable", 0.0)
+                if total > 0:
+                    memory_percent = max(
+                        0.0,
+                        min(100.0, ((total - available) / total) * 100.0),
+                    )
+                    memory_observed = True
+            except (OSError, ValueError, KeyError):
+                memory_percent = 0.0
+
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "auto_healer_metric_collection",
+                "goal": "collect local host metrics without presenting unavailable telemetry as real",
+                "constraints": {
+                    "metric_source": metric_source,
+                    "cpu_observed": cpu_observed,
+                    "memory_observed": memory_observed,
+                    "packet_loss_observed": False,
+                    "latency_observed": False,
+                    "error_rate_observed": False,
+                    "mock_metrics": False,
+                    "synthetic_metrics": False,
+                    "packet_loss_requires_external_telemetry": True,
+                    "latency_requires_external_telemetry": True,
+                    "error_rate_requires_external_telemetry": True,
+                },
+                "safety_boundary": (
+                    "CPU and memory are local host observations when available. "
+                    "Packet loss, latency, and error rate are reported as unavailable "
+                    "unless a real telemetry source is wired in; zero placeholders are "
+                    "not evidence of network health."
+                ),
+            }
+        )
+
         return {
-            "cpu_percent": 0.0,  # Will be populated from real system
-            "memory_percent": 0.0,
+            "cpu_percent": cpu_percent,
+            "memory_percent": memory_percent,
             "packet_loss_percent": 0.0,
             "latency_ms": 0.0,
             "error_rate": 0.0,
             "node_id": "auto-healer",
+            "metric_source": metric_source,
+            "cpu_observed": cpu_observed,
+            "memory_observed": memory_observed,
+            "packet_loss_observed": False,
+            "latency_observed": False,
+            "error_rate_observed": False,
+            "mock_metrics": False,
+            "synthetic_metrics": False,
+            "metric_claim_boundary": (
+                "packet_loss_percent, latency_ms, and error_rate are unavailable "
+                "without external telemetry; zero values are placeholders, not "
+                "network-health proof."
+            ),
         }
     
     def _needs_healing(self, metrics: dict) -> bool:
@@ -214,10 +306,22 @@ class AutoHealerAgent:
             status=HealingStatus.HEALING,
         )
         self.current_incident = incident
-        
+
         # Determine action based on issue
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "healing",
+                "issue": incident.issue,
+                "goal": "recover service with the smallest safe action",
+                "metrics": metrics,
+                "constraints": {
+                    "circuit_breaker": self.circuit_breaker.state.state,
+                    "rate_limited": False,
+                },
+            }
+        )
         action = self._determine_action(incident.issue)
-        
+
         try:
             # Execute recovery action
             result = await self._execute_recovery_action(action, metrics)
@@ -230,6 +334,7 @@ class AutoHealerAgent:
             incident.details = {
                 "action": action,
                 "result": result.__dict__,
+                "thinking": self.last_thinking_context,
             }
             
             # Update circuit breaker
@@ -340,6 +445,14 @@ class AutoHealerAgent:
         logger.info(f"Manual healing triggered for: {issue}")
         
         context = context or {}
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "manual_healing",
+                "issue": issue,
+                "goal": "recover service after manual trigger",
+                "context": context,
+            }
+        )
         action = self._determine_action(issue)
         
         if action == "No action needed":
@@ -381,6 +494,7 @@ class AutoHealerAgent:
                 "successful_heals": sum(1 for i in self.incident_history if i.success),
                 "failed_heals": sum(1 for i in self.incident_history if i.success is False),
             },
+            "thinking": self.thinking_coach.status(),
         }
     
     def update_thresholds(

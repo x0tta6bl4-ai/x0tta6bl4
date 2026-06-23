@@ -164,6 +164,14 @@ class TestEBPFLoaderOrchestrator:
         assert orchestrator.program_loader is not None
         assert orchestrator.attach_manager is not None
         assert orchestrator.map_manager is not None
+        thinking_status = orchestrator.get_thinking_status()
+        techniques = set(thinking_status["techniques"])
+        assert thinking_status["profile"]["role"] == "coordinator"
+        assert "reverse_planning" in techniques
+        assert "weighted_decision_matrix" in techniques
+        assert "zero_trust_review" in techniques
+        assert "mape_k" in techniques
+        assert "program_loader" in thinking_status["components"]
     
     def test_list_loaded_programs_empty(self, orchestrator):
         """Test listing programs when none loaded."""
@@ -192,6 +200,26 @@ class TestEBPFLoaderOrchestrator:
         """Test detaching program that was never attached."""
         result = orchestrator.detach_from_interface("nonexistent_id", "eth0")
         assert result is False
+
+    def test_thinking_context_redacts_orchestration_selectors(self, orchestrator):
+        """Test thinking context does not expose raw selectors."""
+        program_id = "secret-program-id"
+        interface = "secret-iface"
+
+        result = orchestrator.detach_from_interface(program_id, interface)
+
+        assert result is False
+        thinking_status = orchestrator.get_thinking_status()
+        last_context = thinking_status["last_context"]
+        assert last_context["applied"]["framing"]["problem"] == (
+            "ebpf_loader_orchestration"
+        )
+        constraints = last_context["applied"]["framing"]["constraints"]
+        assert constraints["operation"] == "detach_from_interface"
+        assert constraints["program_id_redacted"] is True
+        assert constraints["interface_redacted"] is True
+        assert program_id not in str(thinking_status)
+        assert interface not in str(thinking_status)
     
     def test_cleanup_empty(self, orchestrator):
         """Test cleanup when nothing loaded."""

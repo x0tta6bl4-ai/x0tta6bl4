@@ -176,6 +176,10 @@ class TestLoRAWeightAggregator:
         assert result.updates_accepted == 1
         assert "q_proj" in aggregated
         assert "v_proj" in aggregated
+        assert aggregator.last_thinking_context["role"] == "fl"
+        assert aggregator.last_thinking_context["applied"]["framing"]["problem"] == (
+            "lora_weight_aggregation"
+        )
 
     def test_aggregate_multiple_updates(self, sample_lora_weights):
         """Test aggregating multiple updates with FedAvg."""
@@ -426,6 +430,11 @@ class TestFederatedLoRATrainer:
         assert round_obj is not None
         assert round_obj.status == LoRAFLRoundStatus.DISTRIBUTING
         assert len(round_obj.selected_nodes) >= fl_lora_config.min_participants
+        metrics = trainer.get_metrics()
+        assert metrics["thinking"]["profile"]["role"] == "fl"
+        assert metrics["last_thinking_context"]["applied"]["framing"]["problem"] == (
+            "lora_fl_round_start"
+        )
 
         trainer.stop()
 
@@ -452,6 +461,9 @@ class TestFederatedLoRATrainer:
 
         assert result is True
         assert round_obj.selected_nodes[0] in round_obj.lora_updates
+        assert trainer.last_thinking_context["applied"]["framing"]["problem"] == (
+            "lora_update_submission"
+        )
 
         trainer.stop()
 
@@ -487,6 +499,7 @@ class TestFederatedLoRATrainer:
         assert "rounds_completed" in metrics
         assert "total_updates_received" in metrics
         assert "registered_nodes" in metrics
+        assert metrics["thinking"]["profile"]["role"] == "fl"
 
     def test_get_global_lora_weights(self, fl_lora_config, sample_lora_weights):
         """Test getting global LoRA weights after aggregation."""
@@ -585,6 +598,7 @@ class TestAsyncFederatedTraining:
         assert results["rounds_completed"] > 0
         assert results["final_adapter_id"] is not None
         assert "metrics" in results
+        assert results["metrics"]["thinking"]["profile"]["role"] == "fl"
 
     @pytest.mark.asyncio
     async def test_run_federated_lora_training_method(self, fl_lora_config, sample_lora_weights):

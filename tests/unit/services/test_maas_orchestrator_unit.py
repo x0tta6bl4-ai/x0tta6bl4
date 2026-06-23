@@ -74,11 +74,16 @@ def _make_mesh(join_token: str = "join_abc123"):
 class TestMaaSOrchestratorProvisionRentedNode:
     @pytest.mark.asyncio
     async def test_returns_false_when_unpaid_invoices_exist(self):
+        from src.services import maas_orchestrator as mod
+
         db = _make_db(unpaid_invoice_count=2)
         orch = MaaSOrchestrator()
 
         result = await orch.provision_rented_node(db, "listing-1", "renter-1", "mesh-1")
         assert result is False
+        assert mod.last_maas_thinking_context["applied"]["framing"]["problem"] == (
+            "maas_rented_node_provisioning"
+        )
 
     @pytest.mark.asyncio
     async def test_returns_false_when_listing_not_found(self):
@@ -207,3 +212,4 @@ def test_module_exposes_singleton_instance():
     from src.services import maas_orchestrator as mod
     assert hasattr(mod, "maas_orchestrator")
     assert isinstance(mod.maas_orchestrator, MaaSOrchestrator)
+    assert mod.maas_thinking_coach.status()["profile"]["role"] == "maas-dev"

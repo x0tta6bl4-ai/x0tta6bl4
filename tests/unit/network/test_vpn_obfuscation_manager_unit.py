@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
 import src.network.vpn_obfuscation_manager as mod
 
 
@@ -189,7 +190,7 @@ def test_profiles_parameters_effectiveness_and_optimization(monkeypatch):
         "_hybrid_obfuscate",
         lambda _data: (_ for _ in ()).throw(RuntimeError("hybrid fail")),
     )
-    metrics = manager.test_obfuscation_effectiveness(b"payload")
+    metrics = manager.test_obfuscation_effectiveness(b"raw-metric-secret")
     assert metrics["faketls"]["success"] is True
     assert metrics["hybrid"]["success"] is False
 
@@ -197,8 +198,16 @@ def test_profiles_parameters_effectiveness_and_optimization(monkeypatch):
         manager,
         "test_obfuscation_effectiveness",
         lambda _data: {
-            "faketls": {"success": True, "entropy_change": 1.0, "compression_ratio": 1.1},
-            "shadowsocks": {"success": True, "entropy_change": 2.0, "compression_ratio": 1.0},
+            "faketls": {
+                "success": True,
+                "entropy_change": 1.0,
+                "compression_ratio": 1.1,
+            },
+            "shadowsocks": {
+                "success": True,
+                "entropy_change": 2.0,
+                "compression_ratio": 1.0,
+            },
             "domain_fronting": {"success": False},
         },
     )
@@ -218,7 +227,9 @@ def test_global_getter_and_demo_test_function(monkeypatch):
     class _DemoManager:
         def __init__(self):
             self.sni = "a"
-            self.traffic_shaper = SimpleNamespace(shape_packet=lambda data: b"TS:" + data)
+            self.traffic_shaper = SimpleNamespace(
+                shape_packet=lambda data: b"TS:" + data
+            )
 
         def get_current_parameters(self):
             return {"sni": self.sni}
@@ -250,3 +261,82 @@ def test_global_getter_and_demo_test_function(monkeypatch):
 
     monkeypatch.setattr(mod, "VPNObfuscationManager", _DemoManager)
     mod.test_obfuscation()
+
+
+def test_manager_obfuscation_events_redact_payload_and_parameters(
+    monkeypatch, tmp_path
+):
+    _patch_transports(monkeypatch, stego_available=True)
+    bus = EventBus(project_root=str(tmp_path))
+
+    manager = mod.VPNObfuscationManager(master_key=b"raw-master-key", event_bus=bus)
+    manager.current_sni = "secret-sni.example"
+    manager.current_spiderx = "secret-spiderx-path"
+    manager.current_method = mod.ObfuscationMethod.FAKETLS
+
+    obfuscated = manager.obfuscate(b"raw-payload-secret")
+    assert manager.deobfuscate(obfuscated) == b"raw-payload-secret"
+
+    events = bus.get_event_history(source_agent="vpn-obfuscation-manager")
+    operations = [event.data["operation"] for event in events]
+    assert "obfuscate" in operations
+    assert "deobfuscate" in operations
+
+    for event in events:
+        payload = event.data
+        assert event.event_type == EventType.PIPELINE_STAGE_END
+        assert payload["thinking"]["profile"]["role"] == "security"
+        assert "zero_trust_review" in payload["thinking"]["techniques"]
+        assert payload["last_thinking_context"]["applied"]["framing"]["problem"] in {
+            "vpn_obfuscation_encode",
+            "vpn_obfuscation_decode",
+        }
+        assert payload["dataplane_confirmed"] is False
+        assert payload["dpi_bypass_confirmed"] is False
+        assert payload["bypass_confirmed"] is False
+        assert payload["payloads_redacted"] is True
+        assert payload["raw_parameters_redacted"] is True
+        assert payload["master_key_redacted"] is True
+        assert payload["claim_boundary"]
+
+        rendered = repr(payload)
+        assert "raw-payload-secret" not in rendered
+        assert "raw-master-key" not in rendered
+        assert "secret-sni.example" not in rendered
+        assert "secret-spiderx-path" not in rendered
+
+
+def test_manager_metric_and_optimization_events_are_not_dpi_proof(
+    monkeypatch, tmp_path
+):
+    _patch_transports(monkeypatch, stego_available=True)
+    bus = EventBus(project_root=str(tmp_path))
+
+    manager = mod.VPNObfuscationManager(master_key=b"k", event_bus=bus)
+    metrics = manager.test_obfuscation_effectiveness(b"raw-metric-secret")
+    assert metrics
+
+    manager.optimize_parameters_for_dpi_evasion()
+
+    events = bus.get_event_history(source_agent="vpn-obfuscation-manager")
+    by_operation = {event.data["operation"]: event.data for event in events}
+
+    effectiveness = by_operation["test_obfuscation_effectiveness"]
+    assert (
+        effectiveness["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "vpn_obfuscation_metric_test"
+    )
+    assert effectiveness["local_metric_only"] is True
+    assert effectiveness["metrics_scope"] == "local_entropy_and_size_only"
+    assert effectiveness["dpi_bypass_confirmed"] is False
+    assert "raw-metric-secret" not in repr(effectiveness)
+
+    optimization = by_operation["optimize_parameters_for_dpi_evasion"]
+    assert (
+        optimization["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "vpn_obfuscation_parameter_optimization"
+    )
+    assert optimization["control_action"] is True
+    assert optimization["local_metric_only"] is True
+    assert optimization["selection_basis"] == "local_entropy_minus_size_ratio_only"
+    assert optimization["dpi_bypass_confirmed"] is False

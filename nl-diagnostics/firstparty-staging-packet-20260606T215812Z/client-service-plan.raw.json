@@ -1,0 +1,67 @@
+{
+  "config_dir": "/etc/x0tta-firstparty-vpn-client",
+  "config_path": "/etc/x0tta-firstparty-vpn-client/client.json",
+  "config_sync_installed": true,
+  "config_sync_plan": {
+    "client_service_name": "x0tta-firstparty-vpn-client.service",
+    "config_path": "/etc/x0tta-firstparty-vpn-client/client.json",
+    "install_actions": [
+      "write client config sync systemd service unit mode 0644",
+      "write client config sync systemd timer unit mode 0644"
+    ],
+    "install_dir": "/opt/x0tta-firstparty-vpn-client",
+    "interval_seconds": 300,
+    "post_install_commands": [
+      "systemctl daemon-reload",
+      "systemctl enable --now x0tta-firstparty-vpn-client-config-sync.timer"
+    ],
+    "python": "/usr/bin/python3",
+    "script_path": "/opt/x0tta-firstparty-vpn-client/x0vpn_node.py",
+    "sync_service_content": "[Unit]\nDescription=x0tta6bl4 first-party VPN client config sync\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nWorkingDirectory=/opt/x0tta-firstparty-vpn-client\nEnvironment=PYTHONUNBUFFERED=1\nEnvironment=PYTHONPATH=/opt/x0tta-firstparty-vpn-client\nExecStart=/usr/bin/python3 /opt/x0tta-firstparty-vpn-client/x0vpn_node.py client-config-sync --config /etc/x0tta-firstparty-vpn-client/client.json --update-config --timeout 3.0 --restart-service --service-name x0tta-firstparty-vpn-client.service --allow-os-mutation\n",
+    "sync_service_name": "x0tta-firstparty-vpn-client-config-sync.service",
+    "sync_service_path": "/etc/systemd/system/x0tta-firstparty-vpn-client-config-sync.service",
+    "timeout_seconds": 3.0,
+    "timer_content": "[Unit]\nDescription=x0tta6bl4 first-party VPN client config sync timer\n\n[Timer]\nOnBootSec=300s\nOnUnitActiveSec=300s\nUnit=x0tta-firstparty-vpn-client-config-sync.service\nAccuracySec=30s\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n",
+    "timer_name": "x0tta-firstparty-vpn-client-config-sync.timer",
+    "timer_path": "/etc/systemd/system/x0tta-firstparty-vpn-client-config-sync.timer"
+  },
+  "deployment_epoch": "local-firstparty-staging-packet-20260606T215812Z",
+  "host": "127.0.0.1",
+  "install_actions": [
+    "copy wrapper",
+    "copy src/network/firstparty_vpn package",
+    "write private client config mode 0600",
+    "write systemd service unit mode 0644",
+    "write client config sync systemd service unit mode 0644",
+    "write client config sync systemd timer unit mode 0644"
+  ],
+  "install_dir": "/opt/x0tta-firstparty-vpn-client",
+  "kill_switch_enabled": true,
+  "mode": "client-service-plan",
+  "ok": true,
+  "os_mutation_performed": false,
+  "package_path": "/opt/x0tta-firstparty-vpn-client/src/network/firstparty_vpn",
+  "port": 39979,
+  "post_install_commands": [
+    "systemctl daemon-reload",
+    "systemctl enable --now x0tta-firstparty-vpn-client.service",
+    "systemctl enable --now x0tta-firstparty-vpn-client-config-sync.timer"
+  ],
+  "python": "/usr/bin/python3",
+  "readiness_checks": [
+    "public_client_config",
+    "identity_policy_valid",
+    "identity_validity_window",
+    "server_tcp_port_open",
+    "admission_handshake",
+    "protected_config_sync",
+    "managed_install_plan"
+  ],
+  "readiness_required": true,
+  "script_path": "/opt/x0tta-firstparty-vpn-client/x0vpn_node.py",
+  "service_name": "x0tta-firstparty-vpn-client.service",
+  "source_config_path": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client.promoted.json",
+  "transport": "tcp",
+  "unit_content": "[Unit]\nDescription=x0tta6bl4 first-party VPN client\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nWorkingDirectory=/opt/x0tta-firstparty-vpn-client\nEnvironment=PYTHONUNBUFFERED=1\nEnvironment=PYTHONPATH=/opt/x0tta-firstparty-vpn-client\nExecStart=/usr/bin/python3 /opt/x0tta-firstparty-vpn-client/x0vpn_node.py client-tun --config /etc/x0tta-firstparty-vpn-client/client.json --allow-os-mutation --apply-client-policy --enable-kill-switch\nExecStopPost=-/usr/bin/python3 /opt/x0tta-firstparty-vpn-client/x0vpn_node.py client-policy-rollback --config /etc/x0tta-firstparty-vpn-client/client.json --allow-os-mutation --enable-kill-switch\nRestart=always\nRestartSec=3\nKillSignal=SIGTERM\nTimeoutStopSec=15\n\n[Install]\nWantedBy=multi-user.target\n",
+  "unit_path": "/etc/systemd/system/x0tta-firstparty-vpn-client.service"
+}

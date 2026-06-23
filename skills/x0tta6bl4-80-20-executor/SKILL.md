@@ -14,6 +14,10 @@ Execute a high-leverage cycle that focuses on the small set of checks giving mos
 
 Use this skill for automation-first execution when breadth should be traded for fast actionable signal.
 
+All agent profiles in this skill must apply the shared thinking contract in
+`docs/ai_agents/THINKING_TECHNIQUES_FOR_AGENTS.md` before selecting commands,
+triaging failures, or reporting completion.
+
 ## Workflow
 
 1. Choose mode:

@@ -48,13 +48,20 @@ def test_send_email_failure(monkeypatch):
     assert rc == 1
 
 
-def test_send_slack_error(monkeypatch):
+def test_send_slack_error_redacts_webhook(monkeypatch, capsys):
     class FakeRequest:
         pass
 
     def fake_urlopen(req, timeout=5):
-        raise RuntimeError("boom")
+        raise RuntimeError(
+            "boom https://hooks.slack.com/services/T000/B000/raw-secret token=raw-token"
+        )
 
     monkeypatch.setattr(notif.urllib.request, "urlopen", fake_urlopen)
     rc = notif.send_slack("https://hooks.slack.test/AAA", "Hello")
     assert rc == 1
+    output = capsys.readouterr().out
+    assert "raw-secret" not in output
+    assert "raw-token" not in output
+    assert "https://hooks.slack.com/services/[REDACTED]" in output
+    assert "token=[REDACTED]" in output

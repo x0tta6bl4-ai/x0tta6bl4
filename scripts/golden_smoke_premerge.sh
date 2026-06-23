@@ -78,6 +78,11 @@ run_step \
   python3 scripts/check_env_security_defaults.py
 
 run_step \
+  "Telegram control boundary audit (mesh/control/billing isolation)" \
+  timeout "60s" \
+  python3 scripts/ops/check_telegram_control_boundary.py
+
+run_step \
   "Migration policy audit (idempotent style + nullable transitions)" \
   timeout "120s" \
   python3 scripts/check_migration_policy.py --depth 3

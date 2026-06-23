@@ -15,11 +15,15 @@ Tests are split accordingly: legacy-flow tests use the full API, heartbeat and
 check-access tests create nodes directly in DB.
 """
 
+import json
 import os
+import time
 import uuid
 from datetime import datetime, timedelta
 
+import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -29,12 +33,96 @@ from src.database import (
     ACLPolicy, Base, MarketplaceEscrow, MarketplaceListing,
     MeshInstance, MeshNode, User, get_db,
 )
+from src.api.maas.nodes import hash_node_runtime_credential
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_nodes_{uuid.uuid4().hex}.db"
 engine = create_engine(
     f"sqlite:///{_TEST_DB_PATH}", connect_args={"check_same_thread": False}
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def _runtime_credential_for_node(node_id: str) -> str:
+    return f"x0tn_test_{node_id}"
+
+
+def _runtime_headers_for_node(node_id: str) -> dict[str, str]:
+    return {"X-API-Key": _runtime_credential_for_node(node_id)}
+
+
+def _runtime_identity_proof_for_node(node_id: str, *, nonce: str = "stable") -> dict[str, str]:
+    return {
+        "binding_type": "local_spiffe_hint",
+        "spiffe_id": f"spiffe://x0tta6bl4.mesh/node/{node_id}",
+        "nonce": nonce,
+    }
+
+
+def _verified_runtime_identity_headers_for_node(
+    node_id: str,
+    *,
+    digest: str | None = None,
+) -> dict[str, str]:
+    return {
+        "X-API-Key": _runtime_credential_for_node(node_id),
+        "X-Verified-Spiffe-ID": f"spiffe://x0tta6bl4.mesh/node/{node_id}",
+        "X-Verified-SVID-SHA256": digest or f"sha256:{node_id}:trusted-svid",
+        "X-Verified-Identity-Source": "envoy-mtls",
+    }
+
+
+def _jwt_svid_material_for_node(
+    node_id: str,
+    *,
+    audience: str = "x0tta6bl4-maas",
+    issuer: str = "spiffe://x0tta6bl4.mesh",
+) -> tuple[str, str, object, str]:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key()))
+    public_jwk["kid"] = f"test-{node_id}"
+    token = _jwt_svid_token_for_node(
+        node_id,
+        private_key,
+        public_jwk["kid"],
+        audience=audience,
+        issuer=issuer,
+    )
+    return token, json.dumps({"keys": [public_jwk]}), private_key, public_jwk["kid"]
+
+
+def _jwt_svid_token_for_node(
+    node_id: str,
+    private_key: object,
+    kid: str,
+    *,
+    audience: str = "x0tta6bl4-maas",
+    issuer: str = "spiffe://x0tta6bl4.mesh",
+) -> str:
+    now = int(time.time())
+    return jwt.encode(
+        {
+            "sub": f"spiffe://x0tta6bl4.mesh/node/{node_id}",
+            "aud": audience,
+            "iss": issuer,
+            "iat": now,
+            "exp": now + 600,
+        },
+        private_key,
+        algorithm="RS256",
+        headers={"kid": kid},
+    )
+
+
+def _jwt_svid_headers_for_node(node_id: str, token: str) -> dict[str, str]:
+    return {
+        "X-API-Key": _runtime_credential_for_node(node_id),
+        "X-SPIFFE-JWT-SVID": token,
+    }
+
+
+def _runtime_expires_at() -> datetime:
+    return datetime.utcnow() + timedelta(hours=1)
 
 
 def override_get_db():
@@ -82,7 +170,7 @@ def node_data(client):
 
     # Elevate admin directly in DB
     db = TestingSessionLocal()
-    admin = db.query(User).filter(User.api_key == admin_token).first()
+    admin = find_user_by_api_key(db, admin_token)
     admin.role = "admin"
     db.commit()
     db.close()
@@ -93,7 +181,7 @@ def node_data(client):
         json={"name": "Node Test Mesh", "nodes": 1},
         headers={"X-API-Key": admin_token},
     )
-    assert r.status_code == 200, f"Deploy failed: {r.text}"
+    assert r.status_code in [200, 201], f"Deploy failed: {r.text}"
     deploy_data = r.json()
     mesh_id = deploy_data["mesh_id"]
     join_token = deploy_data["join_config"]["token"]
@@ -154,7 +242,7 @@ class TestNodeRegistration:
 
 
 # ---------------------------------------------------------------------------
-# List Pending (legacy flow — requires operator role + mesh ownership)
+# List Pending (legacy flow — same in-memory pending store as register/approve)
 # ---------------------------------------------------------------------------
 
 class TestListPending:
@@ -263,14 +351,14 @@ class TestRevoke:
         return nid
 
     def test_revoke_requires_permission(self, client, node_data):
-        """user role lacks node:revoke → 403"""
+        """Foreign users get anti-enumeration 404 from the legacy owner check."""
         nid = self._registered_and_approved(client, node_data)
         r = client.post(
             f"/api/v1/maas/{node_data['mesh_id']}/nodes/{nid}/revoke",
             json={},
             headers={"X-API-Key": node_data["usr_token"]},
         )
-        assert r.status_code == 403
+        assert r.status_code == 404
 
     def test_revoke_success(self, client, node_data):
         nid = self._registered_and_approved(client, node_data)
@@ -294,7 +382,7 @@ class TestRevoke:
 
 
 # ---------------------------------------------------------------------------
-# List All Nodes (legacy flow — operator + ownership)
+# List All Nodes (DB-backed maas_nodes route — operator + ownership)
 # ---------------------------------------------------------------------------
 
 class TestListAllNodes:
@@ -325,12 +413,37 @@ class TestListAllNodes:
 # ---------------------------------------------------------------------------
 
 class TestHeartbeat:
-    def _db_node(self, mesh_id="mesh-hb-test", status="approved"):
+    def _db_node(
+        self,
+        mesh_id="mesh-hb-test",
+        status="approved",
+        with_mesh=False,
+        enclave_enabled=False,
+        runtime_identity_binding_type=None,
+        runtime_identity_binding_hash=None,
+        runtime_identity_last_verified_at=None,
+    ):
         db = TestingSessionLocal()
         nid = f"hb-{uuid.uuid4().hex[:8]}"
+        if with_mesh and not db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first():
+            db.add(MeshInstance(
+                id=mesh_id,
+                name="Runtime Action Identity Test Mesh",
+                owner_id="runtime-action-owner",
+                status="active",
+            ))
         db.add(MeshNode(
             id=nid, mesh_id=mesh_id,
             device_class="edge", status=status,
+            enclave_enabled=enclave_enabled,
+            runtime_credential_hash=hash_node_runtime_credential(
+                _runtime_credential_for_node(nid)
+            ),
+            runtime_credential_expires_at=_runtime_expires_at(),
+            runtime_identity_binding_type=runtime_identity_binding_type,
+            runtime_identity_binding_hash=runtime_identity_binding_hash,
+            runtime_identity_bound_at=runtime_identity_last_verified_at,
+            runtime_identity_last_verified_at=runtime_identity_last_verified_at,
         ))
         db.commit()
         db.close()
@@ -341,6 +454,7 @@ class TestHeartbeat:
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
             json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
         )
         assert r.status_code == 200, r.text
         data = r.json()
@@ -353,6 +467,7 @@ class TestHeartbeat:
         client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
             json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
         )
         db = TestingSessionLocal()
         node = db.query(MeshNode).filter(MeshNode.id == nid).first()
@@ -364,6 +479,7 @@ class TestHeartbeat:
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
             json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
         )
         assert r.json()["node_status"] == "approved"
 
@@ -372,6 +488,7 @@ class TestHeartbeat:
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
             json={"status": "unhealthy"},
+            headers=_runtime_headers_for_node(nid),
         )
         assert r.json()["node_status"] == "degraded"
 
@@ -380,6 +497,7 @@ class TestHeartbeat:
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
             json={"status": "degraded"},
+            headers=_runtime_headers_for_node(nid),
         )
         assert r.status_code == 200, r.text
         assert r.json()["node_status"] == "degraded"
@@ -396,18 +514,486 @@ class TestHeartbeat:
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
             json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
         )
         assert r.status_code == 403
-        assert r.json()["detail"] == "Node is not approved for heartbeat"
+        assert r.json()["detail"] == "Node must be approved before runtime access"
 
     def test_heartbeat_rejects_revoked_node(self, client):
         nid, mesh_id = self._db_node(status="revoked")
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
             json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
         )
         assert r.status_code == 403
-        assert r.json()["detail"] == "Node is not approved for heartbeat"
+        assert r.json()["detail"] == "Node must be approved before runtime access"
+
+    def test_heartbeat_rejects_expired_runtime_credential(self, client):
+        nid, mesh_id = self._db_node()
+        db = TestingSessionLocal()
+        node = db.query(MeshNode).filter(MeshNode.id == nid).first()
+        node.runtime_credential_expires_at = datetime.utcnow() - timedelta(seconds=1)
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+
+        assert r.status_code == 401
+        assert r.json()["detail"] == "Node runtime credential expired"
+
+    def test_runtime_credential_rotation_invalidates_old_credential(self, client):
+        nid, mesh_id = self._db_node()
+        old_credential = _runtime_credential_for_node(nid)
+
+        rotate = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers={"X-API-Key": old_credential},
+        )
+        assert rotate.status_code == 200, rotate.text
+        rotated = rotate.json()
+        new_credential = rotated["node_runtime_credential"]
+        assert new_credential != old_credential
+        assert rotated["raw_runtime_credential_returned_once"] is True
+        assert rotated["node_runtime_credential_expires_at"]
+
+        old_hb = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers={"X-API-Key": old_credential},
+        )
+        assert old_hb.status_code == 401
+
+        new_hb = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers={"X-API-Key": new_credential},
+        )
+        assert new_hb.status_code == 200, new_hb.text
+
+    def test_operator_can_rotate_expired_runtime_credential(self, client, node_data):
+        nid, mesh_id = self._db_node()
+        db = TestingSessionLocal()
+        node = db.query(MeshNode).filter(MeshNode.id == nid).first()
+        node.runtime_credential_expires_at = datetime.utcnow() - timedelta(seconds=1)
+        db.commit()
+        db.close()
+
+        rotate = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert rotate.status_code == 200, rotate.text
+        new_credential = rotate.json()["node_runtime_credential"]
+
+        hb = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers={"X-API-Key": new_credential},
+        )
+        assert hb.status_code == 200, hb.text
+
+    def test_operator_binds_runtime_identity_without_raw_storage(self, client, node_data):
+        nid, mesh_id = self._db_node()
+        proof = _runtime_identity_proof_for_node(nid)
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind",
+            json=proof,
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+
+        assert bind.status_code == 200, bind.text
+        body = bind.json()
+        assert body["status"] == "bound"
+        assert body["runtime_identity_binding_type"] == "local_spiffe_hint"
+        assert len(body["runtime_identity_binding_hash_prefix"]) == 12
+        assert body["raw_runtime_identity_proof_redacted"] is True
+        assert body["live_spiffe_svid_claim_allowed"] is False
+        assert "spiffe://" not in bind.text
+
+        db = TestingSessionLocal()
+        node = db.query(MeshNode).filter(MeshNode.id == nid).first()
+        assert node.runtime_identity_binding_type == "local_spiffe_hint"
+        assert isinstance(node.runtime_identity_binding_hash, str)
+        assert len(node.runtime_identity_binding_hash) == 64
+        assert node.runtime_identity_bound_at is not None
+        assert node.runtime_identity_last_verified_at is not None
+        db.close()
+
+    def test_bound_node_rotation_requires_matching_identity_proof(self, client, node_data):
+        nid, mesh_id = self._db_node()
+        old_credential = _runtime_credential_for_node(nid)
+        proof = _runtime_identity_proof_for_node(nid)
+        wrong_proof = _runtime_identity_proof_for_node(
+            f"{nid}-other",
+            nonce="wrong",
+        )
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind",
+            json=proof,
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert bind.status_code == 200, bind.text
+
+        missing = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers={"X-API-Key": old_credential},
+        )
+        assert missing.status_code == 401
+        assert missing.json()["detail"] == "Valid runtime identity proof required"
+
+        wrong = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600, "identity_proof": wrong_proof},
+            headers={"X-API-Key": old_credential},
+        )
+        assert wrong.status_code == 401
+
+        matched = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600, "identity_proof": proof},
+            headers={"X-API-Key": old_credential},
+        )
+        assert matched.status_code == 200, matched.text
+        assert matched.json()["node_runtime_credential"] != old_credential
+
+    def test_manual_bind_rejects_verified_spiffe_svid_type(self, client, node_data):
+        nid, mesh_id = self._db_node()
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind",
+            json={
+                "binding_type": "verified_spiffe_svid",
+                "spiffe_id": f"spiffe://x0tta6bl4.mesh/node/{nid}",
+                "attestation_digest": "sha256:manual",
+            },
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+
+        assert bind.status_code == 400
+        assert "verified runtime identity bind endpoint" in bind.json()["detail"]
+
+    def test_bind_verified_runtime_identity_requires_trusted_proxy(
+        self,
+        client,
+        monkeypatch,
+    ):
+        nid, mesh_id = self._db_node()
+        monkeypatch.delenv("MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ENABLED", raising=False)
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-verified",
+            headers=_verified_runtime_identity_headers_for_node(nid),
+        )
+
+        assert bind.status_code == 401
+        assert "untrusted_runtime_identity_proxy" in bind.json()["detail"]
+
+    def test_verified_spiffe_svid_binding_requires_trusted_headers_for_rotation(
+        self,
+        client,
+        monkeypatch,
+    ):
+        nid, mesh_id = self._db_node()
+        old_credential = _runtime_credential_for_node(nid)
+        monkeypatch.setenv("MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ENABLED", "true")
+        monkeypatch.setenv("MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ALLOW_TESTCLIENT", "true")
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-verified",
+            headers=_verified_runtime_identity_headers_for_node(nid),
+        )
+        assert bind.status_code == 200, bind.text
+        body = bind.json()
+        assert body["runtime_identity_binding_type"] == "verified_spiffe_svid"
+        assert body["live_spiffe_svid_claim_allowed"] is True
+        assert body["trusted_runtime_identity_proxy_claim_allowed"] is True
+        assert body["production_trust_finality_claim_allowed"] is False
+        assert "spiffe://" not in bind.text
+
+        self_reported = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={
+                "ttl_seconds": 3600,
+                "identity_proof": {
+                    "binding_type": "verified_spiffe_svid",
+                    "spiffe_id": f"spiffe://x0tta6bl4.mesh/node/{nid}",
+                    "attestation_digest": f"sha256:{nid}:trusted-svid",
+                },
+            },
+            headers={"X-API-Key": old_credential},
+        )
+        assert self_reported.status_code == 401
+        assert "Trusted verified runtime identity required" in self_reported.json()["detail"]
+
+        rotated = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers=_verified_runtime_identity_headers_for_node(nid),
+        )
+        assert rotated.status_code == 200, rotated.text
+        assert rotated.json()["node_runtime_credential"] != old_credential
+
+    def test_verified_spiffe_svid_binding_gates_heartbeat(
+        self,
+        client,
+        monkeypatch,
+    ):
+        nid, mesh_id = self._db_node()
+        monkeypatch.setenv("MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ENABLED", "true")
+        monkeypatch.setenv("MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ALLOW_TESTCLIENT", "true")
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-verified",
+            headers=_verified_runtime_identity_headers_for_node(nid),
+        )
+        assert bind.status_code == 200, bind.text
+
+        missing = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert missing.status_code == 401
+        assert "Trusted verified runtime identity required" in missing.json()["detail"]
+
+        heartbeat = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_verified_runtime_identity_headers_for_node(nid),
+        )
+        assert heartbeat.status_code == 200, heartbeat.text
+
+    def test_bind_jwt_svid_runtime_identity_requires_enabled_verifier(
+        self,
+        client,
+        monkeypatch,
+    ):
+        nid, mesh_id = self._db_node()
+        token, jwks, _, _ = _jwt_svid_material_for_node(nid)
+        monkeypatch.delenv("MAAS_JWT_SVID_VERIFIER_ENABLED", raising=False)
+        monkeypatch.setenv("MAAS_JWT_SVID_JWKS_JSON", jwks)
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-jwt-svid",
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+
+        assert bind.status_code == 401
+        assert "jwt_svid_verifier_disabled" in bind.json()["detail"]
+
+    def test_verified_jwt_svid_binding_requires_signed_token_for_rotation(
+        self,
+        client,
+        monkeypatch,
+    ):
+        nid, mesh_id = self._db_node()
+        old_credential = _runtime_credential_for_node(nid)
+        token, jwks, private_key, kid = _jwt_svid_material_for_node(nid)
+        wrong_audience_token = _jwt_svid_token_for_node(
+            nid,
+            private_key,
+            kid,
+            audience="wrong-audience",
+        )
+        monkeypatch.setenv("MAAS_JWT_SVID_VERIFIER_ENABLED", "true")
+        monkeypatch.setenv("MAAS_JWT_SVID_JWKS_JSON", jwks)
+        monkeypatch.setenv("MAAS_JWT_SVID_TRUST_DOMAIN", "x0tta6bl4.mesh")
+        monkeypatch.setenv("MAAS_JWT_SVID_ISSUER", "spiffe://x0tta6bl4.mesh")
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-jwt-svid",
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+        assert bind.status_code == 200, bind.text
+        body = bind.json()
+        assert body["runtime_identity_binding_type"] == "verified_jwt_svid"
+        assert body["live_spiffe_svid_claim_allowed"] is True
+        assert body["trusted_runtime_identity_proxy_claim_allowed"] is False
+        assert body["api_side_jwt_svid_verification_claim_allowed"] is True
+        assert body["production_trust_finality_claim_allowed"] is False
+        assert "spiffe://" not in bind.text
+        assert token not in bind.text
+
+        self_reported = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={
+                "ttl_seconds": 3600,
+                "identity_proof": {
+                    "binding_type": "verified_jwt_svid",
+                    "spiffe_id": f"spiffe://x0tta6bl4.mesh/node/{nid}",
+                    "attestation_digest": "jwt-svid:self-reported",
+                },
+            },
+            headers={"X-API-Key": old_credential},
+        )
+        assert self_reported.status_code == 401
+        assert "Verified JWT-SVID runtime identity required" in self_reported.json()["detail"]
+
+        wrong_audience = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers=_jwt_svid_headers_for_node(nid, wrong_audience_token),
+        )
+        assert wrong_audience.status_code == 401
+        assert "jwt_svid_invalid_audience" in wrong_audience.json()["detail"]
+
+        rotated = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+        assert rotated.status_code == 200, rotated.text
+        assert rotated.json()["node_runtime_credential"] != old_credential
+
+    def test_verified_jwt_svid_binding_gates_heartbeat_and_node_config(
+        self,
+        client,
+        monkeypatch,
+    ):
+        mesh_id = f"mesh-runtime-action-{uuid.uuid4().hex[:8]}"
+        nid, mesh_id = self._db_node(mesh_id=mesh_id, with_mesh=True)
+        token, jwks, private_key, kid = _jwt_svid_material_for_node(nid)
+        wrong_audience_token = _jwt_svid_token_for_node(
+            nid,
+            private_key,
+            kid,
+            audience="wrong-audience",
+        )
+        monkeypatch.setenv("MAAS_JWT_SVID_VERIFIER_ENABLED", "true")
+        monkeypatch.setenv("MAAS_JWT_SVID_JWKS_JSON", jwks)
+        monkeypatch.setenv("MAAS_JWT_SVID_TRUST_DOMAIN", "x0tta6bl4.mesh")
+        monkeypatch.setenv("MAAS_JWT_SVID_ISSUER", "spiffe://x0tta6bl4.mesh")
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-jwt-svid",
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+        assert bind.status_code == 200, bind.text
+
+        heartbeat_missing_svid = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert heartbeat_missing_svid.status_code == 401
+        assert "Verified JWT-SVID runtime identity required" in (
+            heartbeat_missing_svid.json()["detail"]
+        )
+
+        config_missing_svid = client.get(
+            f"/api/v1/maas/{mesh_id}/node-config/{nid}",
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert config_missing_svid.status_code == 401
+        assert "Verified JWT-SVID runtime identity required" in (
+            config_missing_svid.json()["detail"]
+        )
+
+        heartbeat_wrong_audience = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_jwt_svid_headers_for_node(nid, wrong_audience_token),
+        )
+        assert heartbeat_wrong_audience.status_code == 401
+        assert "jwt_svid_invalid_audience" in heartbeat_wrong_audience.json()["detail"]
+
+        config_valid = client.get(
+            f"/api/v1/maas/{mesh_id}/node-config/{nid}",
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+        assert config_valid.status_code == 200, config_valid.text
+        assert config_valid.json()["node_id"] == nid
+
+        heartbeat_valid = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+        assert heartbeat_valid.status_code == 200, heartbeat_valid.text
+
+    def test_measured_attestation_binding_requires_fresh_runtime_refresh(
+        self,
+        client,
+        monkeypatch,
+    ):
+        from src.api.maas.nodes import (
+            hash_node_runtime_identity_binding,
+            hash_verified_measured_attestation,
+        )
+
+        mesh_id = f"mesh-measured-runtime-{uuid.uuid4().hex[:8]}"
+        attestation_data = {
+            "provider": "mock",
+            "report_data": f"TRUSTED_X0T:{uuid.uuid4().hex}:runtime",
+        }
+        attestation_digest = hash_verified_measured_attestation(attestation_data)
+        binding_hash = hash_node_runtime_identity_binding(
+            {
+                "binding_type": "measured_attestation",
+                "attestation_digest": attestation_digest,
+            }
+        )
+        nid, mesh_id = self._db_node(
+            mesh_id=mesh_id,
+            with_mesh=True,
+            enclave_enabled=True,
+            runtime_identity_binding_type="measured_attestation",
+            runtime_identity_binding_hash=binding_hash,
+            runtime_identity_last_verified_at=datetime.utcnow() - timedelta(days=2),
+        )
+
+        stale_heartbeat = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert stale_heartbeat.status_code == 401
+        assert stale_heartbeat.json()["detail"] == "Fresh measured attestation required"
+
+        stale_config = client.get(
+            f"/api/v1/maas/{mesh_id}/node-config/{nid}",
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert stale_config.status_code == 401
+        assert stale_config.json()["detail"] == "Fresh measured attestation required"
+
+        monkeypatch.setenv("MAAS_ALLOW_MOCK_TEE_ATTESTATION", "true")
+        refresh = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/refresh-measured-attestation",
+            json={"attestation_data": attestation_data},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert refresh.status_code == 200, refresh.text
+        body = refresh.json()
+        assert body["runtime_identity_binding_type"] == "measured_attestation"
+        assert body["raw_runtime_identity_proof_redacted"] is True
+        assert body["attestation_verifier_backend"] == "mock_local_allowlist"
+        assert body["attestation_verifier_provenance"]["raw_attestation_redacted"] is True
+        assert body["production_attestation_verifier_claim_allowed"] is False
+        assert attestation_data["report_data"] not in refresh.text
+
+        fresh_config = client.get(
+            f"/api/v1/maas/{mesh_id}/node-config/{nid}",
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert fresh_config.status_code == 200, fresh_config.text
+        assert fresh_config.json()["node_id"] == nid
+
+        fresh_heartbeat = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert fresh_heartbeat.status_code == 200, fresh_heartbeat.text
 
     def test_heartbeat_exports_telemetry_for_analytics(self, client, monkeypatch):
         nid, mesh_id = self._db_node()
@@ -428,6 +1014,7 @@ class TestHeartbeat:
                 "traffic_mbps": 88.9,
                 "active_connections": 15,
             },
+            headers=_runtime_headers_for_node(nid),
         )
         assert r.status_code == 200, r.text
         data = r.json()
@@ -453,6 +1040,7 @@ class TestHeartbeat:
                 "status": "healthy",
                 "custom_metrics": {"latency_ms": "33.3", "traffic_mbps": "120.2"},
             },
+            headers=_runtime_headers_for_node(nid),
         )
         assert r.status_code == 200, r.text
         assert r.json()["telemetry_exported"] is True
@@ -469,6 +1057,7 @@ class TestHeartbeat:
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
             json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
         )
         assert r.status_code == 200, r.text
         assert r.json()["telemetry_exported"] is False
@@ -521,6 +1110,7 @@ class TestHeartbeat:
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
             json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
         )
         assert r.status_code == 200, r.text
         assert r.json()["escrow_released"] == escrow_id
@@ -543,6 +1133,10 @@ class TestNodeTelemetryReadback:
         db.add(MeshNode(
             id=nid, mesh_id=mesh_id,
             device_class="edge", status="approved",
+            runtime_credential_hash=hash_node_runtime_credential(
+                _runtime_credential_for_node(nid)
+            ),
+            runtime_credential_expires_at=_runtime_expires_at(),
         ))
         db.commit()
         db.close()
@@ -557,7 +1151,7 @@ class TestNodeTelemetryReadback:
         assert r.status_code == 200, r.text
         token = r.json()["access_token"]
         db = TestingSessionLocal()
-        user = db.query(User).filter(User.api_key == token).first()
+        user = find_user_by_api_key(db, token)
         user.role = "operator"
         user_id = user.id
         db.commit()
@@ -579,6 +1173,10 @@ class TestNodeTelemetryReadback:
             mesh_id=mesh_id,
             device_class="edge",
             status="approved",
+            runtime_credential_hash=hash_node_runtime_credential(
+                _runtime_credential_for_node(node_id)
+            ),
+            runtime_credential_expires_at=_runtime_expires_at(),
         ))
         db.commit()
         db.close()
@@ -614,6 +1212,7 @@ class TestNodeTelemetryReadback:
                 "traffic_mbps": 77.7,
                 "custom_metrics": {"source": "integration-test"},
             },
+            headers=_runtime_headers_for_node(nid),
         )
         assert hb.status_code == 200, hb.text
 
@@ -644,6 +1243,7 @@ class TestNodeTelemetryReadback:
                     "latency_ms": 10.0 + idx,
                     "traffic_mbps": 50.0 + idx,
                 },
+                headers=_runtime_headers_for_node(nid),
             )
             assert hb.status_code == 200, hb.text
 
@@ -661,6 +1261,7 @@ class TestNodeTelemetryReadback:
         hb = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
             json={"status": "healthy", "latency_ms": 21.0, "traffic_mbps": 101.0},
+            headers=_runtime_headers_for_node(nid),
         )
         assert hb.status_code == 200, hb.text
 
@@ -674,7 +1275,7 @@ class TestNodeTelemetryReadback:
     def test_operator_cannot_read_foreign_mesh_telemetry(self, client, node_data):
         op_token, _ = self._create_operator(client)
         db = TestingSessionLocal()
-        admin = db.query(User).filter(User.api_key == node_data["admin_token"]).first()
+        admin = find_user_by_api_key(db, node_data["admin_token"])
         admin_id = admin.id
         db.close()
         nid, mesh_id = self._db_node_with_owner(admin_id)
@@ -954,6 +1555,214 @@ class TestApproveNodeSafety:
 
         node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
         assert node.status == "revoked"
+        db.close()
+
+
+class TestDBBackedAdmissionMeasuredAttestation:
+    """Direct checks for the DB-backed node admission core."""
+
+    def _db(self):
+        engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+        )
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        return Session()
+
+    def _admin_mesh_node(
+        self,
+        db,
+        *,
+        enclave_enabled=True,
+        status="pending",
+    ):
+        admin = User(
+            id=f"adm-{uuid.uuid4().hex[:8]}",
+            email=f"admission-admin-{uuid.uuid4().hex[:8]}@test.local",
+            password_hash="test-hash",
+            api_key=f"admission-admin-{uuid.uuid4().hex}",
+            role="admin",
+        )
+        mesh_id = f"mesh-att-{uuid.uuid4().hex[:8]}"
+        node_id = f"node-att-{uuid.uuid4().hex[:8]}"
+        db.add(admin)
+        db.add(
+            MeshInstance(
+                id=mesh_id,
+                name="Measured Attestation Mesh",
+                owner_id=admin.id,
+                join_token="valid-token-for-attestation",
+                join_token_expires_at=datetime.utcnow() + timedelta(days=1),
+                status="active",
+            )
+        )
+        db.add(
+            MeshNode(
+                id=node_id,
+                mesh_id=mesh_id,
+                device_class="edge",
+                status=status,
+                hardware_id=f"hw-{node_id}",
+                enclave_enabled=enclave_enabled,
+            )
+        )
+        db.commit()
+        return admin, mesh_id, node_id
+
+    def test_register_node_preserves_enclave_enabled_intent(self):
+        from src.api.maas.nodes.admission import register_node
+
+        db = self._db()
+        mesh_id = f"mesh-reg-att-{uuid.uuid4().hex[:8]}"
+        db.add(
+            MeshInstance(
+                id=mesh_id,
+                name="Register Attestation Mesh",
+                owner_id="owner",
+                join_token="register-token-for-attestation",
+                join_token_expires_at=datetime.utcnow() + timedelta(days=1),
+                status="active",
+            )
+        )
+        db.commit()
+
+        result = register_node(
+            mesh_id,
+            "register-token-for-attestation",
+            db,
+            node_id=f"node-reg-att-{uuid.uuid4().hex[:8]}",
+            hardware_id="hw-register-attestation",
+            enclave_enabled=True,
+        )
+
+        node = db.query(MeshNode).filter(MeshNode.id == result["node_id"]).first()
+        assert node.enclave_enabled is True
+        assert node.hardware_id == "hw-register-attestation"
+        db.close()
+
+    def test_enclave_approval_requires_attestation_data(self):
+        from fastapi import HTTPException
+        from src.api.maas.nodes.admission import approve_node
+
+        db = self._db()
+        admin, mesh_id, node_id = self._admin_mesh_node(db, enclave_enabled=True)
+
+        with pytest.raises(HTTPException) as exc:
+            approve_node(mesh_id, node_id, db, admin)
+
+        assert exc.value.status_code == 400
+        assert exc.value.detail == "Hardware attestation required for this node"
+        node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
+        assert node.status == "pending"
+        assert node.runtime_identity_binding_hash is None
+        db.close()
+
+    def test_mock_attestation_is_rejected_unless_explicitly_enabled(self, monkeypatch):
+        from fastapi import HTTPException
+        from src.api.maas.nodes.admission import approve_node
+
+        monkeypatch.delenv("MAAS_ALLOW_MOCK_TEE_ATTESTATION", raising=False)
+        db = self._db()
+        admin, mesh_id, node_id = self._admin_mesh_node(db, enclave_enabled=True)
+
+        with pytest.raises(HTTPException) as exc:
+            approve_node(
+                mesh_id,
+                node_id,
+                db,
+                admin,
+                attestation_data={
+                    "provider": "mock",
+                    "report_data": f"TRUSTED_X0T:{node_id}",
+                },
+            )
+
+        assert exc.value.status_code == 403
+        assert exc.value.detail == "Invalid hardware attestation report"
+        node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
+        assert node.status == "pending"
+        assert node.runtime_identity_binding_hash is None
+        db.close()
+
+    def test_valid_measured_attestation_approves_and_binds_hash_only(self, monkeypatch):
+        from src.api.maas.nodes.admission import approve_node
+
+        monkeypatch.setenv("MAAS_ALLOW_MOCK_TEE_ATTESTATION", "true")
+        db = self._db()
+        admin, mesh_id, node_id = self._admin_mesh_node(db, enclave_enabled=True)
+        report_data = f"TRUSTED_X0T:{node_id}:measurement"
+
+        response = approve_node(
+            mesh_id,
+            node_id,
+            db,
+            admin,
+            attestation_data={"provider": "mock", "report_data": report_data},
+        )
+
+        assert response["status"] == "approved"
+        assert response["hardware_attestation_verified"] is True
+        assert response["raw_hardware_attestation_redacted"] is True
+        assert response["attestation_verifier_backend"] == "mock_local_allowlist"
+        assert response["attestation_verifier_provenance"]["raw_attestation_redacted"] is True
+        assert response["production_attestation_verifier_claim_allowed"] is False
+        assert report_data not in json.dumps(response)
+
+        node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
+        assert node.status == "approved"
+        assert node.runtime_identity_binding_type == "measured_attestation"
+        assert isinstance(node.runtime_identity_binding_hash, str)
+        assert len(node.runtime_identity_binding_hash) == 64
+        assert node.runtime_identity_bound_at is not None
+        assert node.runtime_identity_last_verified_at is not None
+        db.close()
+
+    def test_sgx_command_attestation_records_verifier_provenance(self, monkeypatch):
+        from src.api.maas.nodes.admission import approve_node
+
+        class _Result:
+            returncode = 0
+            stdout = json.dumps(
+                {
+                    "valid": True,
+                    "verifier_id": "dcap-local",
+                    "policy_id": "sgx-prod-policy",
+                    "production_verifier_claim_allowed": True,
+                }
+            )
+            stderr = ""
+
+        monkeypatch.setenv("X0TTA6BL4_SGX_VERIFIER_CMD", "/opt/x0t/sgx-verify --json")
+        monkeypatch.setattr(
+            "src.security.tee_attestation.subprocess.run",
+            lambda *args, **kwargs: _Result(),
+        )
+        db = self._db()
+        admin, mesh_id, node_id = self._admin_mesh_node(db, enclave_enabled=True)
+
+        response = approve_node(
+            mesh_id,
+            node_id,
+            db,
+            admin,
+            attestation_data={
+                "provider": "sgx",
+                "report_data": f"measurement:{node_id}",
+                "quote": "quote-bytes",
+                "signature": "signature-bytes",
+            },
+        )
+
+        assert response["status"] == "approved"
+        assert response["attestation_verifier_backend"] == "sgx_command"
+        provenance = response["attestation_verifier_provenance"]
+        assert provenance["backend_kind"] == "local_command"
+        assert provenance["executable_name"] == "sgx-verify"
+        assert provenance["raw_command_redacted"] is True
+        assert provenance["verifier_id"] == "dcap-local"
+        assert response["production_attestation_verifier_claim_allowed"] is True
+        assert "/opt/x0t/sgx-verify" not in json.dumps(response)
         db.close()
 
 

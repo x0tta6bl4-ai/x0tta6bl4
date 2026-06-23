@@ -1,0 +1,111 @@
+DRY_RUN=1
+target=nl
+required_confirm=APPLY_RESTORE_NL_VPN_MONITOR_CANARY_TIMER
+
+No NL writes were performed.
+
+Apply command, only after explicit operator approval:
+
+  RESTORE_NL_VPN_MONITOR_CONFIRM=APPLY_RESTORE_NL_VPN_MONITOR_CANARY_TIMER \
+    bash scripts/ops/restore_nl_vpn_monitor_canary_timer.sh --apply --host nl
+
+Remote write scope when applied:
+
+  1. Save unit-state and latest monitor evidence under /root/nl-vpn-monitor-restore-<timestamp>/
+  2. sudo systemctl enable --now ghost-access-vpn-monitor.timer
+  3. sudo systemctl start ghost-access-vpn-monitor.service
+  4. sudo systemctl start x0tta6bl4-runtime-state.service
+  5. Print redacted status and latest canary summary
+
+Rollback command if the maintenance owner wants the previous timer-off state:
+
+  ssh nl 'sudo systemctl disable --now ghost-access-vpn-monitor.timer'
+PRECHECK generated_at=2026-06-07T05:06:00Z host=01164.com
+
+## ghost-access-vpn-monitor.service
+Result=success
+ExecMainStatus=0
+LoadState=loaded
+ActiveState=inactive
+FragmentPath=/etc/systemd/system/ghost-access-vpn-monitor.service
+UnitFileState=static
+
+## ghost-access-vpn-monitor.timer
+Result=success
+LoadState=loaded
+ActiveState=inactive
+FragmentPath=/etc/systemd/system/ghost-access-vpn-monitor.timer
+UnitFileState=disabled
+
+## x0tta6bl4-runtime-state.service
+Result=success
+ExecMainStatus=0
+LoadState=loaded
+ActiveState=inactive
+FragmentPath=/etc/systemd/system/x0tta6bl4-runtime-state.service
+UnitFileState=static
+
+## x0tta6bl4-runtime-state.timer
+Result=success
+LoadState=loaded
+ActiveState=active
+FragmentPath=/etc/systemd/system/x0tta6bl4-runtime-state.timer
+UnitFileState=enabled
+
+## verify
+
+## latest vpn-service-access-agent summary
+{
+  "generated_at": "2026-06-06T06:39:50Z",
+  "overall_status": "degraded",
+  "transport_summary": {
+    "status": "degraded",
+    "best_path": null,
+    "paths": {
+      "main": {
+        "canary_ok": false,
+        "endpoint": "127.0.0.1:443",
+        "errors": [
+          "not-configured"
+        ],
+        "host": "127.0.0.1",
+        "latency_s": null,
+        "path_id": "main",
+        "port": 443,
+        "role": "primary",
+        "status": "degraded",
+        "tcp_ok": true,
+        "xui_ok": true,
+        "xui_required": true
+      },
+      "secondary": {
+        "canary_ok": false,
+        "endpoint": "127.0.0.1:2083",
+        "errors": [
+          "not-configured"
+        ],
+        "host": "127.0.0.1",
+        "latency_s": null,
+        "path_id": "secondary",
+        "port": 2083,
+        "role": "reserve",
+        "status": "degraded",
+        "tcp_ok": true,
+        "xui_ok": true,
+        "xui_required": true
+      }
+    }
+  },
+  "vpn_delivery": {
+    "reality_canary": {
+      "error": "not-configured",
+      "ok": null
+    },
+    "secondary_reality_canary": {
+      "error": "not-configured",
+      "ok": null
+    }
+  }
+}
+
+## no writes were performed by precheck

@@ -9,18 +9,14 @@ Manages SPIRE Agent lifecycle:
 
 Interacts with SPIRE Server for identity provisioning.
 
-The implementation supports two operational modes:
-
-* **Real SPIRE mode** – when the ``spire-agent`` binary is available
-  and not explicitly disabled; a subprocess is spawned and the agent
-  socket is monitored.
-* **Mock mode** – used in local development and tests when the binary
-  is not present or ``FORCE_MOCK_SPIRE=1`` is set; the Workload API
-  socket is simulated by creating a regular file on disk.
+The implementation starts a real ``spire-agent`` process. Tests may mock
+subprocess calls, but a regular file must never count as a ready SPIRE
+Workload API socket.
 """
 
 import logging
 import os
+import hashlib
 import shutil
 import signal
 import subprocess
@@ -29,9 +25,17 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
 
 
 class AttestationStrategy(Enum):
@@ -90,15 +94,70 @@ class SPIREAgentManager:
         self.agent_process: Optional[subprocess.Popen] = None
         self._generated_config_path: Optional[Path] = None
         self._join_token: Optional[str] = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="libx0t-spire-agent-manager",
+            role="security",
+            capabilities=("zero-trust", "ops"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         self._spire_agent_bin = self._find_spire_binary("spire-agent")
         self._spire_server_bin = self._find_spire_binary("spire-server")
+        self._record_thinking(
+            "libx0t_spire_agent_manager_initialized",
+            "track real SPIRE agent lifecycle without treating mocks as proof",
+            {
+                "agent_binary_configured": bool(self._spire_agent_bin),
+                "server_binary_configured": bool(self._spire_server_bin),
+            },
+        )
 
         logger.info(
             "SPIRE Agent manager initialized: config=%s, socket=%s",
             config_path,
             socket_path,
         )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "agent_running": (
+                self.agent_process is not None
+                and self.agent_process.poll() is None
+            ),
+            "join_token_configured": bool(self._join_token),
+            "config_path_hash": _safe_hash(self.config_path),
+            "socket_path_hash": _safe_hash(self.socket_path),
+            "constraints": {
+                "require_real_unix_socket": True,
+                "mock_is_not_spire_evidence": True,
+                "redact_join_tokens": True,
+                "redact_raw_spiffe_ids": True,
+                "redact_raw_paths": True,
+            },
+            "safety_boundary": (
+                "Local SPIRE agent lifecycle state is not proof of workload SVID "
+                "possession, mTLS dataplane delivery, customer traffic, or "
+                "production readiness."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose thinking profile and latest redacted SPIRE agent context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def start(self) -> bool:
         """
@@ -108,10 +167,23 @@ class SPIREAgentManager:
             True if the agent was started successfully.
         """
         if self.agent_process and self.agent_process.poll() is None:
+            self._record_thinking(
+                "libx0t_spire_agent_start",
+                "avoid starting duplicate SPIRE agent process",
+                {"status": "already_running"},
+            )
             logger.warning("SPIRE Agent already running")
             return True
 
         try:
+            self._record_thinking(
+                "libx0t_spire_agent_start",
+                "start real SPIRE agent and wait for a verified Unix socket",
+                {
+                    "status": "start_requested",
+                    "config_exists": self.config_path.exists(),
+                },
+            )
             config_to_use = self.config_path
             if not config_to_use.exists():
                 self._generated_config_path = self._generate_config()
@@ -139,15 +211,34 @@ class SPIREAgentManager:
             logger.info("Started SPIRE Agent (PID=%s)", self.agent_process.pid)
 
             for _ in range(20):
-                if self.socket_path.exists():
+                if self._socket_ready():
+                    self._record_thinking(
+                        "libx0t_spire_agent_start",
+                        "record verified SPIRE Unix socket readiness",
+                        {
+                            "status": "socket_ready",
+                            "real_unix_socket": True,
+                            "pid_present": self.agent_process.pid is not None,
+                        },
+                    )
                     logger.info("SPIRE Agent socket is ready at %s", self.socket_path)
                     return True
                 time.sleep(0.5)
 
+            self._record_thinking(
+                "libx0t_spire_agent_start",
+                "reject SPIRE readiness when verified Unix socket does not appear",
+                {"status": "socket_timeout", "real_unix_socket": False},
+            )
             logger.error("SPIRE Agent socket did not appear within timeout")
             self.stop()
             return False
         except Exception:
+            self._record_thinking(
+                "libx0t_spire_agent_start",
+                "record SPIRE agent start failure without exposing raw paths",
+                {"status": "start_failed"},
+            )
             logger.exception("Failed to start SPIRE Agent")
             return False
 
@@ -159,15 +250,34 @@ class SPIREAgentManager:
             True if agent stopped successfully.
         """
         if not self.agent_process or self.agent_process.poll() is not None:
+            self._record_thinking(
+                "libx0t_spire_agent_stop",
+                "avoid stopping when no real SPIRE agent process is running",
+                {"status": "not_running"},
+            )
             logger.info("No running SPIRE Agent process to stop")
             return True
 
         try:
+            self._record_thinking(
+                "libx0t_spire_agent_stop",
+                "stop real SPIRE agent process gracefully",
+                {
+                    "status": "stop_requested",
+                    "pid_present": getattr(self.agent_process, "pid", None)
+                    is not None,
+                },
+            )
             logger.info("Stopping SPIRE Agent (PID=%s)", self.agent_process.pid)
             os.killpg(os.getpgid(self.agent_process.pid), signal.SIGTERM)
 
             for _ in range(20):
                 if self.agent_process.poll() is not None:
+                    self._record_thinking(
+                        "libx0t_spire_agent_stop",
+                        "record graceful SPIRE agent stop",
+                        {"status": "stopped_gracefully"},
+                    )
                     logger.info("SPIRE Agent stopped gracefully")
                     self._cleanup()
                     return True
@@ -177,8 +287,18 @@ class SPIREAgentManager:
             os.killpg(os.getpgid(self.agent_process.pid), signal.SIGKILL)
             self.agent_process.wait(timeout=5)
             self._cleanup()
+            self._record_thinking(
+                "libx0t_spire_agent_stop",
+                "record forced SPIRE agent stop after graceful timeout",
+                {"status": "stopped_forcefully"},
+            )
             return True
         except Exception:
+            self._record_thinking(
+                "libx0t_spire_agent_stop",
+                "record SPIRE agent stop failure without exposing process details",
+                {"status": "stop_failed"},
+            )
             logger.exception("Failed to stop SPIRE Agent")
             return False
 
@@ -199,10 +319,23 @@ class SPIREAgentManager:
             True if the attestation action was successful or is pending.
         """
         logger.info(f"Received request to attest node with strategy: {strategy.value}")
+        self._record_thinking(
+            "libx0t_spire_agent_attest_node",
+            "handle node attestation request without exposing join token material",
+            {
+                "strategy": strategy.value,
+                "token_present": "token" in attestation_data,
+            },
+        )
 
         if strategy == AttestationStrategy.JOIN_TOKEN:
             token = attestation_data.get("token")
             if not token:
+                self._record_thinking(
+                    "libx0t_spire_agent_attest_node",
+                    "reject join-token attestation when token is absent",
+                    {"strategy": strategy.value, "status": "missing_token"},
+                )
                 raise ValueError("join_token strategy requires 'token' parameter")
 
             self._join_token = token
@@ -213,11 +346,26 @@ class SPIREAgentManager:
             # If agent is already running, restart it to apply the new token
             if self.agent_process and self.agent_process.poll() is None:
                 logger.info("Restarting agent to apply new join token.")
+                self._record_thinking(
+                    "libx0t_spire_agent_attest_node",
+                    "restart SPIRE agent so explicit join token can be applied",
+                    {"strategy": strategy.value, "status": "restart_required"},
+                )
                 self.stop()
                 return self.start()
 
+            self._record_thinking(
+                "libx0t_spire_agent_attest_node",
+                "store explicit join token for next real SPIRE agent start",
+                {"strategy": strategy.value, "status": "pending_next_start"},
+            )
             return True
 
+        self._record_thinking(
+            "libx0t_spire_agent_attest_node",
+            "reject unsupported attestation strategy until implemented",
+            {"strategy": strategy.value, "status": "unsupported_strategy"},
+        )
         logger.warning(
             "Attestation strategy %s is not fully implemented", strategy.value
         )
@@ -236,6 +384,16 @@ class SPIREAgentManager:
                    True if the registration command executes successfully.
         """
         logger.info(f"Registering workload: {entry.spiffe_id}")
+        self._record_thinking(
+            "libx0t_spire_agent_register_workload",
+            "register workload through real spire-server CLI without raw IDs in status",
+            {
+                "spiffe_id_hash": _safe_hash(entry.spiffe_id),
+                "parent_id_hash": _safe_hash(entry.parent_id),
+                "selector_count": len(entry.selectors),
+                "ttl_seconds": int(entry.ttl),
+            },
+        )
 
         cmd = [
             self._spire_server_bin,
@@ -258,11 +416,26 @@ class SPIREAgentManager:
             logger.info(
                 "Successfully registered workload entry: %s", result.stdout.strip()
             )
+            self._record_thinking(
+                "libx0t_spire_agent_register_workload",
+                "record successful workload registration command",
+                {"status": "registered", "selector_count": len(entry.selectors)},
+            )
             return True
         except FileNotFoundError:
+            self._record_thinking(
+                "libx0t_spire_agent_register_workload",
+                "record missing spire-server binary for workload registration",
+                {"status": "server_binary_missing"},
+            )
             logger.error("`spire-server` binary not found, cannot register workload.")
             return False
         except subprocess.CalledProcessError as e:
+            self._record_thinking(
+                "libx0t_spire_agent_register_workload",
+                "record failed workload registration command with redacted stderr",
+                {"status": "command_failed", "error_type": type(e).__name__},
+            )
             logger.error(
                 "Failed to register workload %s. Error: %s",
                 entry.spiffe_id,
@@ -270,6 +443,11 @@ class SPIREAgentManager:
             )
             return False
         except Exception:
+            self._record_thinking(
+                "libx0t_spire_agent_register_workload",
+                "record unexpected workload registration failure",
+                {"status": "unexpected_failure"},
+            )
             logger.exception(
                 "An unexpected error occurred during workload registration."
             )
@@ -285,15 +463,30 @@ class SPIREAgentManager:
             List of workload entries.
         """
         if not self._spire_server_bin:
+            self._record_thinking(
+                "libx0t_spire_agent_list_workloads",
+                "reject workload listing when spire-server binary is absent",
+                {"status": "server_binary_missing"},
+            )
             logger.warning("spire-server binary not found, cannot list workloads")
             return []
 
         try:
+            self._record_thinking(
+                "libx0t_spire_agent_list_workloads",
+                "list workloads through real spire-server CLI with redacted output",
+                {"status": "list_requested"},
+            )
             # Execute: spire-server entry show
             cmd = [self._spire_server_bin, "entry", "show"]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
             if result.returncode != 0:
+                self._record_thinking(
+                    "libx0t_spire_agent_list_workloads",
+                    "record failed workload listing command",
+                    {"status": "command_failed"},
+                )
                 logger.warning(f"Failed to list workloads: {result.stderr.strip()}")
                 return []
 
@@ -369,15 +562,35 @@ class SPIREAgentManager:
                 )
 
             logger.info(f"Listed {len(workloads)} registered workloads")
+            self._record_thinking(
+                "libx0t_spire_agent_list_workloads",
+                "record workload listing count without raw SPIFFE IDs",
+                {"status": "listed", "workload_count": len(workloads)},
+            )
             return workloads
 
         except FileNotFoundError:
+            self._record_thinking(
+                "libx0t_spire_agent_list_workloads",
+                "record missing spire-server binary while listing workloads",
+                {"status": "server_binary_missing"},
+            )
             logger.warning("spire-server binary not found, cannot list workloads")
             return []
         except subprocess.TimeoutExpired:
+            self._record_thinking(
+                "libx0t_spire_agent_list_workloads",
+                "record workload listing timeout",
+                {"status": "timeout"},
+            )
             logger.error("Timeout while listing workloads")
             return []
         except Exception as e:
+            self._record_thinking(
+                "libx0t_spire_agent_list_workloads",
+                "record unexpected workload listing failure",
+                {"status": "unexpected_failure", "error_type": type(e).__name__},
+            )
             logger.exception(f"Error listing workloads: {e}")
             return []
 
@@ -389,28 +602,19 @@ class SPIREAgentManager:
             True if the agent is healthy.
         """
         if not self.agent_process or self.agent_process.poll() is not None:
+            self._record_thinking(
+                "libx0t_spire_agent_health_check",
+                "report unhealthy when no real SPIRE agent process is running",
+                {"status": "process_not_running"},
+            )
             return False
 
-        exists_fn = self.socket_path.exists
-        try:
-            # Some tests use a MagicMock Path.exists with side_effect from startup logic.
-            # If a test explicitly sets return_value, we should respect it.
-            if hasattr(exists_fn, "side_effect") and exists_fn.side_effect is not None:
-                if hasattr(exists_fn, "return_value") and isinstance(
-                    exists_fn.return_value, bool
-                ):
-                    _saved = exists_fn.side_effect
-                    exists_fn.side_effect = None
-                    socket_exists = bool(exists_fn())
-                    exists_fn.side_effect = _saved
-                else:
-                    socket_exists = bool(exists_fn())
-            else:
-                socket_exists = bool(exists_fn())
-        except Exception:
-            socket_exists = False
-
-        if not socket_exists:
+        if not self._socket_ready():
+            self._record_thinking(
+                "libx0t_spire_agent_health_check",
+                "report unhealthy when SPIRE endpoint is not a verified Unix socket",
+                {"status": "socket_not_ready", "real_unix_socket": False},
+            )
             return False
 
         try:
@@ -425,15 +629,35 @@ class SPIREAgentManager:
                 capture_output=True,
                 timeout=5,
             )
-            return result.returncode == 0
+            healthy = result.returncode == 0
+            self._record_thinking(
+                "libx0t_spire_agent_health_check",
+                "record real spire-agent healthcheck command result",
+                {
+                    "status": "healthy" if healthy else "unhealthy",
+                    "real_unix_socket": True,
+                },
+            )
+            return healthy
         except Exception:
+            self._record_thinking(
+                "libx0t_spire_agent_health_check",
+                "record failed spire-agent healthcheck command as unhealthy",
+                {"status": "healthcheck_failed", "real_unix_socket": True},
+            )
             logger.exception("SPIRE Agent healthcheck command failed")
-            # Fallback: if process is running and socket exists, treat as healthy.
-            return True
+            return False
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _socket_ready(self) -> bool:
+        """Return True only when the SPIRE endpoint is a real Unix socket."""
+        try:
+            return bool(self.socket_path.exists()) and bool(self.socket_path.is_socket())
+        except Exception:
+            return False
 
     def _find_spire_binary(self, binary_name: str) -> str:
         """Locate a SPIRE binary or raise FileNotFoundError."""

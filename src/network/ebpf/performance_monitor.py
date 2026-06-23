@@ -14,6 +14,7 @@ Integrates with Prometheus for metrics export and alerting.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -23,6 +24,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 try:
     from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
@@ -34,6 +37,12 @@ except ImportError:
     Counter = Gauge = Histogram = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8", errors="replace")).hexdigest()
 
 
 class AlertSeverity(Enum):
@@ -183,6 +192,13 @@ class EBPFPerformanceMonitor:
         self.performance_history: Dict[str, List[float]] = {}
         self.monitoring_active = False
         self.monitor_task: Optional[asyncio.Task] = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="ebpf-performance-monitor",
+            role="monitoring",
+            capabilities=("security", "zero-trust"),
+            extra_techniques=("mape_k", "causal_analysis", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
         # Initialize standard metrics
         self._init_standard_metrics()
@@ -192,6 +208,38 @@ class EBPFPerformanceMonitor:
 
         # Initialize thresholds
         self._init_standard_thresholds()
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_performance_monitoring",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Monitor local eBPF performance with bounded metadata; do not "
+                "expose raw alert messages, sensitive labels, paths, or operator "
+                "annotations in thinking context."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose performance-monitor thinking state without task secrets."""
+
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
 
     def _init_standard_metrics(self):
         """Initialize standard eBPF performance metrics"""
@@ -342,6 +390,15 @@ class EBPFPerformanceMonitor:
         if self.monitoring_active:
             return
 
+        self._record_thinking_context(
+            operation="start_monitoring",
+            goal="start local eBPF performance monitoring loop",
+            constraints={
+                "prometheus_port_hash": _hash_value(self.prometheus_port),
+                "metrics_registered": len(self.metrics),
+                "threshold_count": len(self.thresholds),
+            },
+        )
         self.monitoring_active = True
         self.monitor_task = asyncio.create_task(self._monitoring_loop())
 
@@ -352,6 +409,14 @@ class EBPFPerformanceMonitor:
         if not self.monitoring_active:
             return
 
+        self._record_thinking_context(
+            operation="stop_monitoring",
+            goal="stop local eBPF performance monitoring loop",
+            constraints={
+                "metrics_registered": len(self.metrics),
+                "history_keys": sorted(self.performance_history.keys()),
+            },
+        )
         self.monitoring_active = False
         if self.monitor_task:
             self.monitor_task.cancel()
@@ -419,6 +484,16 @@ class EBPFPerformanceMonitor:
 
     async def _check_thresholds(self):
         """Check performance thresholds and generate alerts"""
+        self._record_thinking_context(
+            operation="check_thresholds",
+            goal="evaluate eBPF performance thresholds",
+            constraints={
+                "threshold_count": len(self.thresholds),
+                "threshold_metrics": sorted(
+                    {threshold.metric for threshold in self.thresholds}
+                ),
+            },
+        )
         for threshold in self.thresholds:
             current_value = self._get_current_metric_value(threshold.metric)
 
@@ -437,6 +512,16 @@ class EBPFPerformanceMonitor:
 
     async def _generate_alert(self, title: str, message: str, severity: AlertSeverity):
         """Generate an alert"""
+        self._record_thinking_context(
+            operation="generate_alert",
+            goal="generate bounded eBPF performance alert",
+            constraints={
+                "severity": severity.value,
+                "title_hash": _hash_value(title),
+                "message_hash": _hash_value(message),
+                "alert_text_redacted": True,
+            },
+        )
         alert = {
             "title": title,
             "message": message,
@@ -466,6 +551,16 @@ class EBPFPerformanceMonitor:
 
     def get_performance_report(self) -> Dict[str, Any]:
         """Generate comprehensive performance report"""
+        self._record_thinking_context(
+            operation="get_performance_report",
+            goal="build local eBPF performance report",
+            constraints={
+                "read_only": True,
+                "metrics_registered": len(self.metrics),
+                "alert_rule_count": len(self.alert_rules),
+                "history_keys": sorted(self.performance_history.keys()),
+            },
+        )
         report = {
             "timestamp": time.time(),
             "metrics": {},

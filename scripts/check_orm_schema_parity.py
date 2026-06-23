@@ -7,14 +7,14 @@ import os
 import sys
 from pathlib import Path
 
-from sqlalchemy import UniqueConstraint, inspect
+from sqlalchemy import UniqueConstraint
 
 # Ensure repository root is importable when script is executed directly.
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.database import Base, engine
+from src.database import get_schema_parity_report
 
 
 DEFAULT_ALLOWED_EXTRA_TABLES = {"alembic_version", "es_events", "es_streams", "es_snapshots"}
@@ -113,71 +113,14 @@ def _actual_index_sets(db_inspector, table_name: str) -> set[tuple[str, ...]]:
 
 
 def main() -> int:
-    inspector = inspect(engine)
-    actual_tables = set(inspector.get_table_names())
-    expected_tables = set(Base.metadata.tables.keys())
-    allowed_extra = _allowed_extra_tables()
-
-    missing_tables = expected_tables - actual_tables
-    extra_tables = actual_tables - expected_tables - allowed_extra
-
-    missing_columns: dict[str, list[str]] = {}
-    extra_columns: dict[str, list[str]] = {}
-    missing_unique_constraints: dict[str, list[list[str]]] = {}
-    missing_indexes: dict[str, list[list[str]]] = {}
-
-    for table_name in _sorted(expected_tables & actual_tables):
-        db_cols = {col["name"] for col in inspector.get_columns(table_name)}
-        orm_cols = set(Base.metadata.tables[table_name].columns.keys())
-        if orm_cols - db_cols:
-            missing_columns[table_name] = _sorted(orm_cols - db_cols)
-        if db_cols - orm_cols:
-            extra_columns[table_name] = _sorted(db_cols - orm_cols)
-
-        expected_unique = _expected_unique_sets(Base.metadata.tables[table_name])
-        actual_unique = _actual_unique_sets(inspector, table_name)
-        missing_unique = sorted(list(cols) for cols in (expected_unique - actual_unique))
-        if missing_unique:
-            missing_unique_constraints[table_name] = missing_unique
-
-        expected_indexes = _expected_index_sets(Base.metadata.tables[table_name])
-        actual_indexes = _actual_index_sets(inspector, table_name)
-        missing_index = sorted(list(cols) for cols in (expected_indexes - actual_indexes))
-        if missing_index:
-            missing_indexes[table_name] = missing_index
-
-    if (
-        not missing_tables
-        and not extra_tables
-        and not missing_columns
-        and not extra_columns
-        and not missing_unique_constraints
-        and not missing_indexes
-    ):
+    report = get_schema_parity_report()
+    if not report["gaps"]:
         print("Schema parity OK: ORM metadata matches migrated DB schema.")
         return 0
 
     print("Schema parity FAILED:")
-    if missing_tables:
-        print(f"  missing tables: {_sorted(missing_tables)}")
-    if extra_tables:
-        print(f"  extra tables (not allowed): {_sorted(extra_tables)}")
-    if missing_columns:
-        print("  missing columns:")
-        for table_name in _sorted(set(missing_columns.keys())):
-            print(f"    - {table_name}: {missing_columns[table_name]}")
-    if extra_columns:
-        print("  extra columns:")
-        for table_name in _sorted(set(extra_columns.keys())):
-            print(f"    - {table_name}: {extra_columns[table_name]}")
-    if missing_unique_constraints:
-        print("  missing unique constraints/indexes:")
-        for table_name in _sorted(set(missing_unique_constraints.keys())):
-            print(f"    - {table_name}: {missing_unique_constraints[table_name]}")
-    if missing_indexes:
-        print("  missing indexes:")
-        for table_name in _sorted(set(missing_indexes.keys())):
-            print(f"    - {table_name}: {missing_indexes[table_name]}")
+    for gap in report["gaps"]:
+        print(f"  - {gap}")
 
     print("Hint: run `alembic upgrade head` and create idempotent migrations for drift.")
     return 1

@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.dao.fl_governance import Proposal, VoteType
 from src.llm.local_llm import LocalLLM
 
@@ -18,6 +19,12 @@ class AgentVoter:
         self.llm = llm
         # Default persona if LLM is missing
         self.persona = "a cautious guardian of the mesh network"
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=agent_name,
+            role="governance",
+            capabilities=("delphi_consensus", "weighted_decision_matrix", "security"),
+        )
+        self.last_thinking_context = {}
 
     def decide_vote(self, proposal: Proposal) -> VoteType:
         """
@@ -26,9 +33,22 @@ class AgentVoter:
         if not self.llm or not self.llm.is_ready():
             logger.warning(f"{self.agent_name} has no LLM, abstaining.")
             return VoteType.ABSTAIN
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "dao_vote",
+                "goal": "decide a governance vote from proposal evidence",
+                "proposal": {
+                    "id": proposal.id,
+                    "title": proposal.title,
+                    "description": proposal.description,
+                    "model_version": proposal.model_version,
+                },
+            }
+        )
 
         prompt = (
             f"You are {self.agent_name}, {self.persona}.\n"
+            f"{self.thinking_coach.prompt_guidance()}\n"
             f"Proposal ID: {proposal.id}\n"
             f"Title: {proposal.title}\n"
             f"Description: {proposal.description}\n"

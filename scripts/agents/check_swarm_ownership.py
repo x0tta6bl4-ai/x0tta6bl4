@@ -28,9 +28,13 @@ def load_ownership() -> dict:
 
 def list_staged_files() -> list[str]:
     out = subprocess.check_output(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"], text=True
+        ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR"]
     )
-    return [line.strip() for line in out.splitlines() if line.strip()]
+    return [
+        item.decode("utf-8", errors="surrogateescape")
+        for item in out.split(b"\0")
+        if item
+    ]
 
 
 def match_rule(path: str, rule: str) -> bool:

@@ -1,26 +1,6 @@
 """
-Swarm Intelligence Module
-=========================
-
-Provides distributed decision-making capabilities for swarm coordination.
-Integrates with existing consensus algorithms (Raft, Paxos, PBFT) and
-supports optional LLM-based decisions via Kimi K2.5 model.
-
-Features:
-- Distributed decision making with < 100ms latency
-- Integration with Raft, Paxos, and PBFT consensus
-- Optional Kimi K2.5 LLM-based decisions
-- MAPE-K integration for autonomous decisions
-- Action proposal and consensus tracking
-
-Example:
-    >>> from src.swarm.intelligence import SwarmIntelligence, DecisionContext
-    >>> swarm = SwarmIntelligence(node_id="agent-1")
-    >>> await swarm.initialize()
-    >>> 
-    >>> context = DecisionContext(topic="routing", data={"path": "A->B"})
-    >>> result = await swarm.make_decision(context, timeout_ms=100)
-    >>> print(result.approved)
+Compatibility shim for Swarm Intelligence.
+Moved to src.swarm.intelligence package.
 """
 
 import asyncio

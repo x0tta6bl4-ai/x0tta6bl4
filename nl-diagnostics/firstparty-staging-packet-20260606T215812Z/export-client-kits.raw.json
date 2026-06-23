@@ -1,0 +1,284 @@
+{
+  "archive_dir": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kit-archives",
+  "archive_enabled": true,
+  "client_count": 2,
+  "exports": [
+    {
+      "archive": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kit-archives/local-firstparty-nl-production-client-1.tar.gz",
+      "check_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-1/check-linux.sh",
+      "client_config": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/configs/client.json",
+      "client_identity_serial": "ea463f1b0240891a05a74f5deaf1f2e01c3b59e28bb10cb3f144ced11977c2fe",
+      "client_tun_address": "10.90.0.2/32",
+      "deployment_epoch": "local-firstparty-staging-packet-20260606T215812Z",
+      "device_id": "nl-production-client-1",
+      "doctor_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-1/doctor-linux.sh",
+      "host": "127.0.0.1",
+      "install_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-1/install-linux.sh",
+      "kit_dir": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-1",
+      "manifest": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-1/KIT-MANIFEST.json",
+      "manifest_signature": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-1/KIT-MANIFEST-SIGNATURE.json",
+      "manifest_signed": true,
+      "mode": "export-client-kit",
+      "ok": true,
+      "os_mutation_performed": false,
+      "port": 39979,
+      "readme": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-1/README.md",
+      "release_info": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-1/CLIENT-RELEASE.json",
+      "server_identity_serial": "ef8f101d584149f3078c1e129e21064291945f616a26876cf0d68c7ec5b81e90",
+      "server_secrets_included": false,
+      "status_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-1/status-linux.sh",
+      "uninstall_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-1/uninstall-linux.sh",
+      "verify_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-1/verify-linux.sh"
+    },
+    {
+      "archive": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kit-archives/local-firstparty-nl-production-client-2.tar.gz",
+      "check_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-2/check-linux.sh",
+      "client_config": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/configs/client-2.json",
+      "client_identity_serial": "5d21e4328dc7963c26f7e1e9fd2490d8188bd6ec3d21eb03352da256f5a76078",
+      "client_tun_address": "10.90.0.3/32",
+      "deployment_epoch": "local-firstparty-staging-packet-20260606T215812Z",
+      "device_id": "nl-production-client-2",
+      "doctor_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-2/doctor-linux.sh",
+      "host": "127.0.0.1",
+      "install_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-2/install-linux.sh",
+      "kit_dir": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-2",
+      "manifest": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-2/KIT-MANIFEST.json",
+      "manifest_signature": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-2/KIT-MANIFEST-SIGNATURE.json",
+      "manifest_signed": true,
+      "mode": "export-client-kit",
+      "ok": true,
+      "os_mutation_performed": false,
+      "port": 39979,
+      "readme": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-2/README.md",
+      "release_info": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-2/CLIENT-RELEASE.json",
+      "server_identity_serial": "ef8f101d584149f3078c1e129e21064291945f616a26876cf0d68c7ec5b81e90",
+      "server_secrets_included": false,
+      "status_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-2/status-linux.sh",
+      "uninstall_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-2/uninstall-linux.sh",
+      "verify_script": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits/local-firstparty-nl-production-client-2/verify-linux.sh"
+    }
+  ],
+  "file_mutation_performed": true,
+  "kit_prefix": "local-firstparty",
+  "mode": "export-client-kits",
+  "ok": true,
+  "os_mutation_performed": false,
+  "out_dir": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/client-kits",
+  "readiness": [
+    {
+      "checks": [
+        {
+          "details": {
+            "config": "/tmp/x0vpn-export-readiness-d12b0ob8/client.json",
+            "error": null,
+            "forbidden_markers": []
+          },
+          "name": "public_client_config",
+          "ok": true,
+          "required": true
+        },
+        {
+          "details": {
+            "client_identity_hash": "6d6a73cda96de49369f7c1ddf829038af48bf277e3afd2c0c1dea677fa50765d",
+            "client_reasons": [],
+            "server_identity_hash": "d6fe3c2c275a4517e202e8cd9b5e3b46a84a520d07009146372422a640487481",
+            "server_reasons": []
+          },
+          "name": "identity_policy_valid",
+          "ok": true,
+          "required": true
+        },
+        {
+          "details": {
+            "client_seconds_until_expiry": 3542,
+            "min_identity_valid_seconds": 900,
+            "server_seconds_until_expiry": 3542
+          },
+          "name": "identity_validity_window",
+          "ok": true,
+          "required": true
+        },
+        {
+          "details": {
+            "endpoints": [
+              {
+                "error": null,
+                "ok": true,
+                "path_label": "nl-production-tcp",
+                "port": 39979,
+                "priority": 0,
+                "transport": "tcp"
+              }
+            ],
+            "host": "127.0.0.1",
+            "port": 39979,
+            "timeout": 10.0,
+            "transport": "tcp"
+          },
+          "name": "server_tcp_port_open",
+          "ok": true,
+          "required": true
+        },
+        {
+          "details": {
+            "selected_endpoint": {
+              "candidate_hash": "41b13d298804ca2cd9397afd953f4be0f3143fa074a72f46aa24bb46a94c8fc1",
+              "path_label": "nl-production-tcp",
+              "priority": 0,
+              "remote_hash": "a270aba4cff4e56cb287deb188c9a55e040d3451ac11c84f4a6e97e825933205",
+              "timeout_millis": 10000,
+              "transport": "tcp"
+            },
+            "session_id": 11233129410780470989,
+            "transport": "tcp"
+          },
+          "name": "admission_handshake",
+          "ok": true,
+          "required": true
+        },
+        {
+          "details": {
+            "skipped": true
+          },
+          "name": "protected_config_sync",
+          "ok": true,
+          "required": false
+        },
+        {
+          "details": {
+            "config_path": "/etc/x0tta-firstparty-vpn-client/client.json",
+            "config_sync_service_name": "x0tta-firstparty-vpn-client-config-sync.service",
+            "config_sync_timer_name": "x0tta-firstparty-vpn-client-config-sync.timer",
+            "post_install_commands": [
+              "systemctl daemon-reload",
+              "systemctl enable --now x0tta-firstparty-vpn-client.service",
+              "systemctl enable --now x0tta-firstparty-vpn-client-config-sync.timer"
+            ],
+            "service_name": "x0tta-firstparty-vpn-client.service"
+          },
+          "name": "managed_install_plan",
+          "ok": true,
+          "required": true
+        }
+      ],
+      "config": "/tmp/x0vpn-export-readiness-d12b0ob8/client.json",
+      "deployment_epoch": "local-firstparty-staging-packet-20260606T215812Z",
+      "device_id": "nl-production-client-1",
+      "host": "127.0.0.1",
+      "mode": "client-readiness",
+      "ok": true,
+      "os_mutation_performed": false,
+      "port": 39979,
+      "transport": "tcp"
+    },
+    {
+      "checks": [
+        {
+          "details": {
+            "config": "/tmp/x0vpn-export-readiness-d12b0ob8/client-2.json",
+            "error": null,
+            "forbidden_markers": []
+          },
+          "name": "public_client_config",
+          "ok": true,
+          "required": true
+        },
+        {
+          "details": {
+            "client_identity_hash": "9809c294b5dd98855b7bfc8f0b52d1c624522f688bf70a25773004bbbd55b744",
+            "client_reasons": [],
+            "server_identity_hash": "d6fe3c2c275a4517e202e8cd9b5e3b46a84a520d07009146372422a640487481",
+            "server_reasons": []
+          },
+          "name": "identity_policy_valid",
+          "ok": true,
+          "required": true
+        },
+        {
+          "details": {
+            "client_seconds_until_expiry": 3535,
+            "min_identity_valid_seconds": 900,
+            "server_seconds_until_expiry": 3535
+          },
+          "name": "identity_validity_window",
+          "ok": true,
+          "required": true
+        },
+        {
+          "details": {
+            "endpoints": [
+              {
+                "error": null,
+                "ok": true,
+                "path_label": "nl-production-tcp",
+                "port": 39979,
+                "priority": 0,
+                "transport": "tcp"
+              }
+            ],
+            "host": "127.0.0.1",
+            "port": 39979,
+            "timeout": 10.0,
+            "transport": "tcp"
+          },
+          "name": "server_tcp_port_open",
+          "ok": true,
+          "required": true
+        },
+        {
+          "details": {
+            "selected_endpoint": {
+              "candidate_hash": "41b13d298804ca2cd9397afd953f4be0f3143fa074a72f46aa24bb46a94c8fc1",
+              "path_label": "nl-production-tcp",
+              "priority": 0,
+              "remote_hash": "a270aba4cff4e56cb287deb188c9a55e040d3451ac11c84f4a6e97e825933205",
+              "timeout_millis": 10000,
+              "transport": "tcp"
+            },
+            "session_id": 855422609683256258,
+            "transport": "tcp"
+          },
+          "name": "admission_handshake",
+          "ok": true,
+          "required": true
+        },
+        {
+          "details": {
+            "skipped": true
+          },
+          "name": "protected_config_sync",
+          "ok": true,
+          "required": false
+        },
+        {
+          "details": {
+            "config_path": "/etc/x0tta-firstparty-vpn-client/client.json",
+            "config_sync_service_name": "x0tta-firstparty-vpn-client-config-sync.service",
+            "config_sync_timer_name": "x0tta-firstparty-vpn-client-config-sync.timer",
+            "post_install_commands": [
+              "systemctl daemon-reload",
+              "systemctl enable --now x0tta-firstparty-vpn-client.service",
+              "systemctl enable --now x0tta-firstparty-vpn-client-config-sync.timer"
+            ],
+            "service_name": "x0tta-firstparty-vpn-client.service"
+          },
+          "name": "managed_install_plan",
+          "ok": true,
+          "required": true
+        }
+      ],
+      "config": "/tmp/x0vpn-export-readiness-d12b0ob8/client-2.json",
+      "deployment_epoch": "local-firstparty-staging-packet-20260606T215812Z",
+      "device_id": "nl-production-client-2",
+      "host": "127.0.0.1",
+      "mode": "client-readiness",
+      "ok": true,
+      "os_mutation_performed": false,
+      "port": 39979,
+      "transport": "tcp"
+    }
+  ],
+  "readiness_required": true,
+  "server_config": "/tmp/x0vpn-firstparty-staging-packet-20260606T215812Z.XsiLGj/server.promoted.json",
+  "server_secrets_included": false
+}

@@ -13,6 +13,58 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from src.core.agent_thinking import AgentThinkingCoach
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    if value <= 1000:
+        return "100-1000"
+    return "1000+"
+
+
+def _safe_mapping_summary(values: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    mapping = values or {}
+    return {
+        "key_count_bucket": _safe_count_bucket(len(mapping)),
+        "key_hashes": sorted(_safe_hash(key) for key in mapping.keys()),
+        "value_type_counts": {
+            type(value).__name__: sum(
+                1
+                for item in mapping.values()
+                if type(item).__name__ == type(value).__name__
+            )
+            for value in mapping.values()
+        },
+    }
+
 
 @dataclass
 class ModelMetadata:
@@ -69,6 +121,54 @@ class ModelRegistry:
         self.models: Dict[str, Dict[str, Any]] = {}  # {name: {versions}}
         self.model_history: List[ModelMetadata] = []
         self.performance_log: List[ModelPerformance] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="ml-model-registry",
+            role="development",
+            capabilities=("quality", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "ml_model_registry_init",
+                "goal": "Initialize model registry without raw model metadata",
+                "signals": {
+                    "model_count_bucket": "0",
+                    "performance_record_count_bucket": "0",
+                },
+                "safety_boundary": (
+                    "Keep model names, versions, descriptions, tags, and model "
+                    "object representations out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_model_names": True,
+                    "redact_versions": True,
+                    "redact_model_objects": True,
+                    "redact_descriptions": True,
+                    "preserve_registry_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, model types, and metric bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def register_model(self, metadata: ModelMetadata, model_obj: Any = None) -> None:
         """
@@ -90,6 +190,22 @@ class ModelRegistry:
 
         self.models[metadata.name][metadata.version] = model_entry
         self.model_history.append(metadata)
+        self._record_thinking(
+            "ml_model_registered",
+            "Register model version safely",
+            {
+                "model_hash": _safe_hash(metadata.name),
+                "version_hash": _safe_hash(metadata.version),
+                "model_type": metadata.model_type,
+                "framework_hash": _safe_hash(metadata.framework),
+                "tag_count_bucket": _safe_count_bucket(len(metadata.tags)),
+                "has_description": bool(metadata.description),
+                "model_count_bucket": _safe_count_bucket(len(self.models)),
+                "version_count_bucket": _safe_count_bucket(
+                    len(self.models[metadata.name])
+                ),
+            },
+        )
 
     def _compute_hash(self, obj: Any) -> str:
         """Compute model hash for integrity"""
@@ -111,6 +227,15 @@ class ModelRegistry:
             Model object or None
         """
         if name not in self.models:
+            self._record_thinking(
+                "ml_model_lookup",
+                "Report missing model lookup",
+                {
+                    "model_hash": _safe_hash(name),
+                    "version_hash": _safe_hash(version) if version else None,
+                    "found": False,
+                },
+            )
             return None
 
         versions = self.models[name]
@@ -123,13 +248,47 @@ class ModelRegistry:
             version = latest_version
 
         if version in versions:
+            self._record_thinking(
+                "ml_model_lookup",
+                "Resolve model lookup",
+                {
+                    "model_hash": _safe_hash(name),
+                    "version_hash": _safe_hash(version),
+                    "found": True,
+                    "version_count_bucket": _safe_count_bucket(len(versions)),
+                },
+            )
             return versions[version]["object"]
 
+        self._record_thinking(
+            "ml_model_lookup",
+            "Report missing model version lookup",
+            {
+                "model_hash": _safe_hash(name),
+                "version_hash": _safe_hash(version),
+                "found": False,
+                "version_count_bucket": _safe_count_bucket(len(versions)),
+            },
+        )
         return None
 
     async def log_performance(self, perf: ModelPerformance) -> None:
         """Log model performance metrics"""
         self.performance_log.append(perf)
+        self._record_thinking(
+            "ml_model_performance_logged",
+            "Log model performance safely",
+            {
+                "model_version_hash": _safe_hash(perf.model_version),
+                "accuracy_band": _safe_number_band(perf.accuracy),
+                "latency_band": _safe_number_band(perf.latency_ms),
+                "error_count_bucket": _safe_count_bucket(perf.error_count),
+                "inference_count_bucket": _safe_count_bucket(perf.inference_count),
+                "custom_metric_count_bucket": _safe_count_bucket(
+                    len(perf.custom_metrics)
+                ),
+            },
+        )
 
     def get_model_versions(self, name: str) -> List[str]:
         """Get all versions of a model"""
@@ -157,13 +316,25 @@ class ModelRegistry:
         """Get registry statistics"""
         total_versions = sum(len(v) for v in self.models.values())
 
-        return {
+        stats = {
             "models_count": len(self.models),
             "total_versions": total_versions,
             "performance_records": len(self.performance_log),
             "registered_models": list(self.models.keys()),
             "timestamp": datetime.now().isoformat(),
         }
+        self._record_thinking(
+            "ml_model_registry_stats",
+            "Summarize model registry safely",
+            {
+                "model_count_bucket": _safe_count_bucket(len(self.models)),
+                "version_count_bucket": _safe_count_bucket(total_versions),
+                "performance_record_count_bucket": _safe_count_bucket(
+                    len(self.performance_log)
+                ),
+            },
+        )
+        return stats
 
     def get_all_models(self) -> List[ModelMetadata]:
         """Backward-compatible accessor for all registered model metadata."""
@@ -187,6 +358,53 @@ class PerformanceMonitor:
             "error_rate": 0.1,
         }
         self.alerts: List[Dict[str, Any]] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="ml-performance-monitor",
+            role="monitoring",
+            capabilities=("quality", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "ml_performance_monitor_init",
+                "goal": "Initialize model performance monitoring safely",
+                "signals": {
+                    "threshold_count_bucket": _safe_count_bucket(len(self.thresholds)),
+                    "alert_count_bucket": "0",
+                },
+                "safety_boundary": (
+                    "Keep model names, versions, prediction payloads, and raw "
+                    "custom metrics out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_model_names": True,
+                    "redact_versions": True,
+                    "redact_prediction_payloads": True,
+                    "preserve_alert_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, metric bands, and severities.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def update_metrics(
         self, model_name: str, version: str, predictions: List[Dict[str, float]]
@@ -203,6 +421,15 @@ class PerformanceMonitor:
             Alert if threshold exceeded
         """
         if not predictions:
+            self._record_thinking(
+                "ml_performance_update",
+                "Skip performance update without predictions",
+                {
+                    "model_hash": _safe_hash(model_name),
+                    "version_hash": _safe_hash(version),
+                    "prediction_count_bucket": "0",
+                },
+            )
             return None
 
         scores = [p.get("score", 0.0) for p in predictions]
@@ -248,11 +475,34 @@ class PerformanceMonitor:
             }
             self.alerts.append(alert)
 
+        self._record_thinking(
+            "ml_performance_update",
+            "Update model metrics and evaluate thresholds",
+            {
+                "model_hash": _safe_hash(model_name),
+                "version_hash": _safe_hash(version),
+                "prediction_count_bucket": _safe_count_bucket(len(predictions)),
+                "accuracy_band": _safe_number_band(accuracy),
+                "error_rate_band": _safe_number_band(error_rate),
+                "alert_created": alert is not None,
+                "alert_type_hash": _safe_hash(alert["type"]) if alert else None,
+                "alert_severity": alert["severity"] if alert else None,
+            },
+        )
         return alert
 
     def set_threshold(self, metric: str, value: float) -> None:
         """Set performance threshold"""
         self.thresholds[metric] = value
+        self._record_thinking(
+            "ml_performance_threshold_set",
+            "Set model performance threshold",
+            {
+                "metric_hash": _safe_hash(metric),
+                "value_band": _safe_number_band(value),
+                "threshold_count_bucket": _safe_count_bucket(len(self.thresholds)),
+            },
+        )
 
     def get_recent_alerts(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get recent alerts"""
@@ -260,7 +510,7 @@ class PerformanceMonitor:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get monitoring statistics"""
-        return {
+        stats = {
             "thresholds": self.thresholds,
             "total_alerts": len(self.alerts),
             "recent_alerts": len(
@@ -268,6 +518,16 @@ class PerformanceMonitor:
             ),
             "timestamp": datetime.now().isoformat(),
         }
+        self._record_thinking(
+            "ml_performance_monitor_stats",
+            "Summarize model performance monitor safely",
+            {
+                "threshold_count_bucket": _safe_count_bucket(len(self.thresholds)),
+                "total_alerts_bucket": _safe_count_bucket(len(self.alerts)),
+                "high_alerts_bucket": _safe_count_bucket(stats["recent_alerts"]),
+            },
+        )
+        return stats
 
 
 class RetrainingOrchestrator:
@@ -285,6 +545,51 @@ class RetrainingOrchestrator:
         self.monitor = monitor
         self.jobs: Dict[str, RetrainingJob] = {}
         self.completed_jobs: List[RetrainingJob] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="ml-retraining-orchestrator",
+            role="coordinator",
+            capabilities=("quality", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "ml_retraining_orchestrator_init",
+                "goal": "Initialize retraining orchestration safely",
+                "signals": {"job_count_bucket": "0", "completed_job_count_bucket": "0"},
+                "safety_boundary": (
+                    "Keep model names, job ids, training configs, and error messages "
+                    "out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_model_names": True,
+                    "redact_job_ids": True,
+                    "redact_training_config": True,
+                    "redact_error_messages": True,
+                    "preserve_job_state": True,
+                },
+                "safety_boundary": "Use hashes, counts, statuses, and metric bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def trigger_retraining(
         self, model_name: str, trigger_reason: str, training_config: Dict[str, Any]
@@ -312,6 +617,18 @@ class RetrainingOrchestrator:
 
         self.jobs[job_id] = job
 
+        self._record_thinking(
+            "ml_retraining_triggered",
+            "Create retraining job safely",
+            {
+                "model_hash": _safe_hash(model_name),
+                "job_hash": _safe_hash(job_id),
+                "trigger_reason_hash": _safe_hash(trigger_reason),
+                "training_config": _safe_mapping_summary(training_config),
+                "active_job_count_bucket": _safe_count_bucket(len(self.jobs)),
+            },
+        )
+
         # Start job asynchronously
         asyncio.create_task(self._execute_retraining(job))
 
@@ -335,10 +652,30 @@ class RetrainingOrchestrator:
             }
 
             job.status = "completed"
+            self._record_thinking(
+                "ml_retraining_completed",
+                "Complete retraining job safely",
+                {
+                    "model_hash": _safe_hash(job.model_name),
+                    "job_hash": _safe_hash(job.job_id),
+                    "status": job.status,
+                    "metrics": _safe_mapping_summary(job.metrics),
+                },
+            )
 
         except Exception as e:
             job.status = "failed"
             job.metrics["error"] = str(e)
+            self._record_thinking(
+                "ml_retraining_failed",
+                "Record retraining job failure",
+                {
+                    "model_hash": _safe_hash(job.model_name),
+                    "job_hash": _safe_hash(job.job_id),
+                    "status": job.status,
+                    "error_type": type(e).__name__,
+                },
+            )
 
         finally:
             job.end_time = datetime.now().isoformat()
@@ -348,7 +685,7 @@ class RetrainingOrchestrator:
         """Get job status"""
         if job_id in self.jobs:
             job = self.jobs[job_id]
-            return {
+            status = {
                 "job_id": job.job_id,
                 "model": job.model_name,
                 "status": job.status,
@@ -357,17 +694,44 @@ class RetrainingOrchestrator:
                 "end_time": job.end_time,
                 "metrics": job.metrics,
             }
+            self._record_thinking(
+                "ml_retraining_job_status",
+                "Read retraining job status safely",
+                {
+                    "job_hash": _safe_hash(job_id),
+                    "model_hash": _safe_hash(job.model_name),
+                    "status": job.status,
+                    "metrics": _safe_mapping_summary(job.metrics),
+                },
+            )
+            return status
+        self._record_thinking(
+            "ml_retraining_job_status",
+            "Report missing retraining job status",
+            {"job_hash": _safe_hash(job_id), "found": False},
+        )
         return None
 
     def get_stats(self) -> Dict[str, Any]:
         """Get orchestrator statistics"""
-        return {
+        stats = {
             "active_jobs": sum(1 for j in self.jobs.values() if j.status == "running"),
             "completed_jobs": len(self.completed_jobs),
             "failed_jobs": sum(1 for j in self.completed_jobs if j.status == "failed"),
             "total_jobs": len(self.jobs) + len(self.completed_jobs),
             "timestamp": datetime.now().isoformat(),
         }
+        self._record_thinking(
+            "ml_retraining_orchestrator_stats",
+            "Summarize retraining orchestrator safely",
+            {
+                "active_jobs_bucket": _safe_count_bucket(stats["active_jobs"]),
+                "completed_jobs_bucket": _safe_count_bucket(stats["completed_jobs"]),
+                "failed_jobs_bucket": _safe_count_bucket(stats["failed_jobs"]),
+                "total_jobs_bucket": _safe_count_bucket(stats["total_jobs"]),
+            },
+        )
+        return stats
 
 
 class MLOpsManager:
@@ -378,6 +742,58 @@ class MLOpsManager:
         self.registry = ModelRegistry()
         self.monitor = PerformanceMonitor(self.registry)
         self.orchestrator = RetrainingOrchestrator(self.registry, self.monitor)
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="mlops-manager",
+            role="coordinator",
+            capabilities=("quality", "ops", "monitoring"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mlops_manager_init",
+                "goal": "Initialize MLOps lifecycle decisions safely",
+                "signals": {
+                    "registry_ready": True,
+                    "monitor_ready": True,
+                    "orchestrator_ready": True,
+                },
+                "safety_boundary": (
+                    "Keep model names, versions, metadata, training configs, and "
+                    "model objects out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_model_names": True,
+                    "redact_versions": True,
+                    "redact_metadata": True,
+                    "redact_model_objects": True,
+                    "preserve_lifecycle_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, model types, and health bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "registry": self.registry.get_thinking_status(),
+            "monitor": self.monitor.get_thinking_status(),
+            "orchestrator": self.orchestrator.get_thinking_status(),
+        }
 
     async def register_trained_model(
         self,
@@ -398,23 +814,47 @@ class MLOpsManager:
         )
 
         self.registry.register_model(meta, model_obj)
+        self._record_thinking(
+            "mlops_model_registered",
+            "Register trained model through MLOps manager",
+            {
+                "model_hash": _safe_hash(name),
+                "version_hash": _safe_hash(version),
+                "model_type": model_type,
+                "metadata": _safe_mapping_summary(metadata),
+            },
+        )
 
     async def check_model_health(self, model_name: str) -> Dict[str, Any]:
         """Check model health"""
         versions = self.registry.get_model_versions(model_name)
 
         if not versions:
+            self._record_thinking(
+                "mlops_model_health",
+                "Report missing model health target",
+                {"model_hash": _safe_hash(model_name), "found": False},
+            )
             return {"error": f"Model {model_name} not found"}
 
         latest_version = max(versions)
         history = self.registry.get_performance_history(model_name, limit=50)
 
         if not history:
+            self._record_thinking(
+                "mlops_model_health",
+                "Report model health without performance data",
+                {
+                    "model_hash": _safe_hash(model_name),
+                    "latest_version_hash": _safe_hash(latest_version),
+                    "history_count_bucket": "0",
+                },
+            )
             return {"status": "no_data", "model": model_name}
 
         accuracies = [h["value"] for h in history if h["value"] is not None]
 
-        return {
+        health = {
             "model": model_name,
             "latest_version": latest_version,
             "status": "healthy" if accuracies and min(accuracies) > 0.7 else "warning",
@@ -427,15 +867,44 @@ class MLOpsManager:
                 else "stable"
             ),
         }
+        self._record_thinking(
+            "mlops_model_health",
+            "Evaluate model health from performance history",
+            {
+                "model_hash": _safe_hash(model_name),
+                "latest_version_hash": _safe_hash(latest_version),
+                "history_count_bucket": _safe_count_bucket(len(history)),
+                "accuracy_count_bucket": _safe_count_bucket(len(accuracies)),
+                "status": health["status"],
+                "current_accuracy_band": _safe_number_band(health["current_accuracy"]),
+            },
+        )
+        return health
 
     def get_system_stats(self) -> Dict[str, Any]:
         """Get overall MLOps statistics"""
-        return {
+        stats = {
             "registry": self.registry.get_stats(),
             "monitor": self.monitor.get_stats(),
             "orchestrator": self.orchestrator.get_stats(),
             "timestamp": datetime.now().isoformat(),
         }
+        self._record_thinking(
+            "mlops_system_stats",
+            "Summarize MLOps system safely",
+            {
+                "registry_model_count_bucket": _safe_count_bucket(
+                    stats["registry"]["models_count"]
+                ),
+                "monitor_alert_count_bucket": _safe_count_bucket(
+                    stats["monitor"]["total_alerts"]
+                ),
+                "orchestrator_job_count_bucket": _safe_count_bucket(
+                    stats["orchestrator"]["total_jobs"]
+                ),
+            },
+        )
+        return stats
 
 
 # Example usage

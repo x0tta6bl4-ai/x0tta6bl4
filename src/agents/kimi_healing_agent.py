@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, List
 
 from src.api.maas_playbooks import PlaybookAction
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -13,12 +14,19 @@ class KimiHealingAgent:
     """
     def __init__(self, mode="thinking"):
         self.mode = mode
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="kimi-healing",
+            role="healing",
+            capabilities=("playbook_generation", "recovery", "safety"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
         self.system_prompt = """
         You are Kimi K2.5, an autonomous self-healing agent for the x0tta6bl4 mesh network.
         Your goal is to analyze node metrics and topology, and output ONLY a valid JSON 
         representing a PlaybookAction array to fix the detected issue.
         Do not explain. Only output JSON.
         """
+        self.system_prompt += "\n\n" + self.thinking_coach.prompt_guidance()
 
     def _build_action(self, action: str, params: Dict[str, Any]) -> PlaybookAction:
         """
@@ -42,6 +50,14 @@ class KimiHealingAgent:
         In a real scenario, this calls the LLM API. Here it simulates the logic based on context.
         """
         logger.info("Kimi agent analyzing anomaly on %s in %s mode", target_node, self.mode)
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "kimi_healing",
+                "goal": "choose safe playbook actions for anomaly",
+                "target_node": target_node,
+                "anomaly": anomaly_data,
+            }
+        )
         
         # Simulate LLM reasoning
         actions = []

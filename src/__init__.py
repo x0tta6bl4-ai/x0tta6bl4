@@ -3,20 +3,23 @@
 Decentralized self-healing mesh network with Zero Trust security.
 """
 
+from importlib import import_module
+from typing import Any
+
 __author__ = "x0tta6bl4 Team"
 
 from .version import __version__
 
-# Import core modules immediately
-from . import core, monitoring, network, security
+_LAZY_SUBMODULES = {"core", "monitoring", "network", "security", "ml"}
 
 
-# Lazy import ml module (heavy dependencies: torch, transformers, PEFT)
-def __getattr__(name):
-    if name == "ml":
-        from . import ml
-
-        return ml
+def __getattr__(name: str) -> Any:
+    if name in _LAZY_SUBMODULES:
+        if name in globals():
+            return globals()[name]
+        module = import_module(f"{__name__}.{name}")
+        globals()[name] = module
+        return module
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

@@ -19,7 +19,7 @@ try:
     HELM_AVAILABLE = True
 except ImportError:
     try:
-        from libx0t.core.safe_subprocess import safe_helm_upgrade
+        from src.libx0t.core.safe_subprocess import safe_helm_upgrade
         HELM_AVAILABLE = True
     except ImportError:
         HELM_AVAILABLE = False

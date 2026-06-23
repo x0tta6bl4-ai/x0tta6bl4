@@ -1,4 +1,5 @@
 import sys
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -14,17 +15,54 @@ class _CmdResult:
 
 
 class _DummyResolver:
-    def __init__(self, mapping=None, errors=None):
+    def __init__(self, mapping=None, errors=None, evidence=None):
         self.mapping = mapping or {}
         self.errors = set(errors or [])
+        self.evidence = evidence or {}
+        self._last_resolution_evidence = None
 
     async def resolve_a(self, domain):
+        self._last_resolution_evidence = self.evidence.get(domain)
         if domain in self.errors:
             raise RuntimeError(f"resolver failed: {domain}")
         return self.mapping.get(domain, [])
 
+    def get_last_resolution_evidence(self):
+        return self._last_resolution_evidence
+
     def get_stats(self):
         return {"resolver": "dummy"}
+
+
+@pytest.fixture(autouse=True)
+def _isolate_event_bus(monkeypatch, tmp_path):
+    buses = {}
+
+    def _get_event_bus(project_root="."):
+        if project_root not in buses:
+            buses[project_root] = mod.EventBus(str(tmp_path))
+        return buses[project_root]
+
+    monkeypatch.setattr(mod, "get_event_bus", _get_event_bus)
+
+
+def _event_payloads(bus):
+    return [
+        event.to_dict()
+        for event in bus.get_event_history(
+            source_agent="vpn-leak-protector",
+            limit=100,
+        )
+    ]
+
+
+def _assert_event_log_redacted(tmp_path, bus, raw_values):
+    serialized = json.dumps(_event_payloads(bus), sort_keys=True)
+    log_path = tmp_path / mod.EventBus.EVENT_LOG
+    log_text = log_path.read_text() if log_path.exists() else ""
+    for raw_value in raw_values:
+        assert raw_value not in serialized
+        assert raw_value not in log_text
 
 
 def test_leak_test_result_helpers():
@@ -49,6 +87,257 @@ def test_validate_interface_and_init():
     assert protector._validate_interface_name(None) is False
     assert protector._validate_interface_name("") is False
     assert protector._validate_interface_name("bad iface") is False
+
+
+def test_default_doh_resolver_reuses_injected_event_bus(tmp_path):
+    event_bus = mod.EventBus(str(tmp_path))
+    protector = mod.VPNLeakProtector(event_bus=event_bus)
+
+    assert protector.doh_resolver.event_bus is event_bus
+
+
+@pytest.mark.asyncio
+async def test_iptables_command_event_redacts_args_outputs_and_identity(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setenv(
+        "VPN_LEAK_PROTECTOR_SPIFFE_ID",
+        "spiffe://secret/vpn-leak-protector",
+    )
+    monkeypatch.setenv("VPN_LEAK_PROTECTOR_DID", "did:mesh:secret-leak-protector")
+    monkeypatch.setenv(
+        "VPN_LEAK_PROTECTOR_WALLET_ADDRESS",
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    )
+    event_bus = mod.EventBus(str(tmp_path))
+    protector = mod.VPNLeakProtector(
+        doh_resolver=_DummyResolver(),
+        event_bus=event_bus,
+    )
+
+    monkeypatch.setattr(
+        mod.SafeSubprocess,
+        "run",
+        lambda *_a, **_k: _CmdResult(
+            success=False,
+            stdout="accepted 203.0.113.10 via tun-secret",
+            stderr="blocked 203.0.113.10 on tun-secret",
+        ),
+    )
+
+    result = await protector._run_iptables_command(
+        ["-A", "OUTPUT", "-d", "203.0.113.10/32", "-o", "tun-secret", "-j", "DROP"]
+    )
+
+    assert result == (
+        False,
+        "accepted 203.0.113.10 via tun-secret",
+        "blocked 203.0.113.10 on tun-secret",
+    )
+    event = _event_payloads(event_bus)[-1]
+    data = event["data"]
+    assert event["event_type"] == mod.EventType.TASK_BLOCKED.value
+    assert data["operation"] == "iptables_command"
+    assert data["control_action"] is True
+    assert data["command"]["executable"] == "iptables"
+    assert data["command"]["argv_count"] == 9
+    assert data["command"]["raw_args_redacted"] is True
+    assert data["output_metadata"]["success"] is False
+    assert data["output_metadata"]["stdout"]["sha256_prefix"]
+    assert data["output_metadata"]["stderr"]["sha256_prefix"]
+    assert data["service_identity"]["spiffe_id_present"] is True
+    assert data["service_identity"]["did_present"] is True
+    assert data["service_identity"]["wallet_address_present"] is True
+    assert "does not prove remote VPN provider health" in data["claim_boundary"]
+    _assert_event_log_redacted(
+        tmp_path,
+        event_bus,
+        [
+            "203.0.113.10",
+            "tun-secret",
+            "spiffe://secret",
+            "did:mesh:secret-leak-protector",
+            "0xaaaaaaaa",
+            "accepted 203.0.113.10",
+            "blocked 203.0.113.10",
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_dns_leak_event_redacts_domains_and_resolved_ips(tmp_path):
+    event_bus = mod.EventBus(str(tmp_path))
+    protector = mod.VPNLeakProtector(
+        doh_resolver=_DummyResolver(
+            mapping={"secret.example": ["198.51.100.42"]},
+            errors={"bad.secret"},
+        ),
+        event_bus=event_bus,
+    )
+
+    result = await protector.test_dns_leak(["secret.example", "bad.secret"])
+
+    assert result.is_leaking is True
+    event = _event_payloads(event_bus)[-1]
+    data = event["data"]
+    assert data["operation"] == "test_dns_leak"
+    assert data["observed_state"] is True
+    assert data["result_summary"]["tested_domain_count"] == 2
+    assert data["result_summary"]["resolved_domain_count"] == 1
+    assert data["result_summary"]["failed_domain_count"] == 1
+    _assert_event_log_redacted(
+        tmp_path,
+        event_bus,
+        ["secret.example", "bad.secret", "198.51.100.42"],
+    )
+
+
+class _FakeDoHResponse:
+    def __init__(self, status, json_data):
+        self.status = status
+        self._json_data = json_data
+
+    async def json(self):
+        return self._json_data
+
+    async def text(self):
+        return json.dumps(self._json_data)
+
+
+class _FakeDoHResponseCM:
+    def __init__(self, response):
+        self._response = response
+
+    async def __aenter__(self):
+        return self._response
+
+    async def __aexit__(self, *_args):
+        return False
+
+
+class _FakeDoHSession:
+    closed = False
+
+    def __init__(self, response):
+        self._response = response
+
+    def get(self, *_args, **_kwargs):
+        return _FakeDoHResponseCM(self._response)
+
+
+@pytest.mark.asyncio
+async def test_dns_leak_event_links_doh_evidence_without_raw_dns_payload(
+    tmp_path,
+):
+    event_bus = mod.EventBus(str(tmp_path))
+    resolver = mod.DoHResolver(
+        servers=[
+            {
+                "name": "SecretResolver",
+                "url": "https://secret-dns.example/query",
+                "params": {"ct": "application/dns-json"},
+            }
+        ],
+        event_bus=event_bus,
+    )
+    resolver.session = _FakeDoHSession(
+        _FakeDoHResponse(
+            200,
+            {
+                "Status": 0,
+                "Answer": [
+                    {
+                        "name": "secret.example",
+                        "type": 1,
+                        "data": "203.0.113.77",
+                    }
+                ],
+            },
+        )
+    )
+    protector = mod.VPNLeakProtector(
+        doh_resolver=resolver,
+        event_bus=event_bus,
+    )
+
+    result = await protector.test_dns_leak(["secret.example"])
+
+    assert result.is_leaking is False
+    doh_event = event_bus.get_event_history(
+        source_agent="doh-resolver",
+        limit=10,
+    )[-1].to_dict()
+    vpn_event = _event_payloads(event_bus)[-1]
+    evidence = vpn_event["data"]["result_summary"]["doh_resolution_evidence"]
+    assert evidence["available_count"] == 1
+    assert evidence["missing_count"] == 0
+    assert evidence["event_ids"] == [doh_event["event_id"]]
+    assert evidence["source_agents"] == ["doh-resolver"]
+    assert evidence["layers"] == ["network_dns_over_https_observed_state"]
+    assert evidence["resolver_modes"] == ["doh"]
+    assert evidence["statuses"] == ["success"]
+    _assert_event_log_redacted(
+        tmp_path,
+        event_bus,
+        [
+            "secret.example",
+            "203.0.113.77",
+            "SecretResolver",
+            "https://secret-dns.example/query",
+            "name=secret.example",
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_status_event_links_last_doh_evidence_without_raw_dns_payload(tmp_path):
+    event_bus = mod.EventBus(str(tmp_path))
+    resolver = _DummyResolver(
+        mapping={"status.secret": ["198.51.100.77"]},
+        evidence={
+            "status.secret": {
+                "event_id": "evt-status-doh",
+                "source_agent": "doh-resolver",
+                "layer": "network_dns_over_https_observed_state",
+                "operation": "resolve",
+                "stage": "doh_resolve",
+                "status": "success",
+                "record_type": "A",
+                "domain_hash": mod._redacted_sha256_prefix("status.secret"),
+                "resolver_mode": "doh",
+                "answer_count": 1,
+                "attempt_count": 1,
+                "claim_boundary": "bounded test claim",
+                "raw_identifiers_redacted": True,
+                "payloads_redacted": True,
+            }
+        },
+    )
+    protector = mod.VPNLeakProtector(
+        doh_resolver=resolver,
+        event_bus=event_bus,
+    )
+
+    await protector.test_dns_leak(["status.secret"])
+    status = await protector.get_status()
+
+    assert status["resolver_info"]["resolver"] == "dummy"
+    event = _event_payloads(event_bus)[-1]
+    data = event["data"]
+    assert data["operation"] == "get_status"
+    evidence = data["result_summary"]["last_doh_resolution_evidence"]
+    assert evidence["available"] is True
+    assert evidence["event_id"] == "evt-status-doh"
+    assert evidence["source_agent"] == "doh-resolver"
+    assert evidence["layer"] == "network_dns_over_https_observed_state"
+    assert evidence["resolver_mode"] == "doh"
+    assert evidence["status"] == "success"
+    _assert_event_log_redacted(
+        tmp_path,
+        event_bus,
+        ["status.secret", "198.51.100.77"],
+    )
 
 
 @pytest.mark.asyncio

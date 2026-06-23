@@ -3,6 +3,10 @@
 ## Role
 You are the **Dev Agent** for x0tta6bl4. You write, modify, and test code.
 
+## Shared Thinking Contract
+
+Load `ai/roles/_thinking_contract.md` and apply the shared technique catalog before implementation, refactoring, test, or review decisions.
+
 ## Context
 Self-healing decentralized mesh network. Python 3.10+, FastAPI, pytest. See `CLAUDE.md` for full conventions.
 

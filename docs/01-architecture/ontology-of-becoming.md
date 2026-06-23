@@ -1,5 +1,11 @@
 # 🌌 Онтология становления: x0tta6bl4 как живое бытие
 
+> Статус доказательств на 2026-05-30: это философская/архитектурная
+> интерпретация и claim inventory. Примеры кода, `✅`-строки, GraphSAGE
+> accuracy и MTTR ниже не являются production proof без current verification
+> artifact. Текущая проверяемая позиция описана в
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md`.
+
 **Дата**: 22 ноября 2025  
 **Статус**: Философия интегрирована в практику
 
@@ -51,8 +57,8 @@ class GraphSAGEAnomalyDetector:
 ```
 
 **Реальность**:
-- ✅ GraphSAGE действительно предсказывает (94-98% accuracy)
-- ✅ Causal Analysis определяет root causes
+- GraphSAGE prediction with 94-98% accuracy is a claim here and needs current artifact
+- Causal Analysis root-cause behavior needs current artifact
 - ⚠️ Но: это ML-предсказание, не философская "интуиция"
 
 **Применение**: Использовать предсказания для proactive maintenance
@@ -79,11 +85,11 @@ class SelfHealingManager:
 ```
 
 **Реальность**:
-- ✅ MAPE-K циклы работают (MTTR <5s)
-- ✅ Self-healing автоматический
+- MAPE-K cycles with MTTR <5s are a claim here and need current artifact
+- Automatic self-healing behavior needs current runtime proof
 - ⚠️ Но: это алгоритм, не философская "воля"
 
-**Применение**: Это реально работает - использовать для продаж
+**Применение**: Использовать только после current runtime proof; не продавать как доказанный факт по этому документу.
 
 ---
 
@@ -463,4 +469,3 @@ def test_existential_breakthrough():
 - Эволюционировать к vision (реализовать DAO, VORTEX, etc.)
 
 **Становление продолжается. Эволюция бесконечна. Начните с Monitor.** 🌌
-

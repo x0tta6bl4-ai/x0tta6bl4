@@ -28,9 +28,10 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         fsGroup: 1000
+      terminationGracePeriodSeconds: 30
       containers:
       - name: x0tta6bl4
-        image: x0tta6bl4:latest
+        image: x0tta6bl4:3.4.0
         imagePullPolicy: IfNotPresent
         ports:
         - name: http

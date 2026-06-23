@@ -22,12 +22,26 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, get_db, User, MeshInstance, MeshNode, MarketplaceListing
+from src.api.maas.nodes import hash_node_runtime_credential
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_analytics_{uuid.uuid4().hex}.db"
 engine = create_engine(
     f"sqlite:///{_TEST_DB_PATH}", connect_args={"check_same_thread": False}
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def _runtime_credential_for_node(node_id: str) -> str:
+    return f"x0tn_test_{node_id}"
+
+
+def _runtime_headers_for_node(node_id: str) -> dict[str, str]:
+    return {"X-API-Key": _runtime_credential_for_node(node_id)}
+
+
+def _runtime_expires_at() -> datetime:
+    return datetime.utcnow() + timedelta(hours=1)
 
 
 def override_get_db():
@@ -60,19 +74,26 @@ def analytics_data(client):
         "/api/v1/maas/auth/register",
         json={"email": email_user, "password": "password123"},
     )
-    assert r.status_code == 200, r.text
-    user_token = r.json()["access_token"]
+    assert r.status_code in {200, 201}, r.text
+    user_payload = r.json()
+    user_token = user_payload.get("api_key") or user_payload["access_token"]
 
     r = client.post(
         "/api/v1/maas/auth/register",
         json={"email": email_op, "password": "password123"},
     )
-    assert r.status_code == 200, r.text
-    op_token = r.json()["access_token"]
+    assert r.status_code in {200, 201}, r.text
+    op_payload = r.json()
+    op_token = op_payload.get("api_key") or op_payload["access_token"]
 
     db = TestingSessionLocal()
-    user = db.query(User).filter(User.api_key == user_token).first()
-    operator = db.query(User).filter(User.api_key == op_token).first()
+    all_users = db.query(User).all()
+    print(f"DEBUG: All users in DB: {[u.email for u in all_users]}")
+    print(f"DEBUG: Searching for user_token: [{user_token}]")
+    user = find_user_by_api_key(db, user_token)
+    print(f"DEBUG: User found: {user}")
+
+    operator = find_user_by_api_key(db, op_token)
     user_id = user.id
     op_id = operator.id
 
@@ -92,25 +113,35 @@ def analytics_data(client):
 
     # 2 healthy nodes (recently seen)
     for _ in range(2):
+        node_id = f"nd-{uuid.uuid4().hex[:8]}"
         db.add(MeshNode(
-            id=f"nd-{uuid.uuid4().hex[:8]}",
+            id=node_id,
             mesh_id=mesh_id,
             status="approved",
             device_class="gateway",
             hardware_id=f"tpm-{uuid.uuid4().hex[:6]}",
             enclave_enabled=True,
             last_seen=datetime.utcnow() - timedelta(minutes=1),
+            runtime_credential_hash=hash_node_runtime_credential(
+                _runtime_credential_for_node(node_id)
+            ),
+            runtime_credential_expires_at=_runtime_expires_at(),
         ))
 
     # 1 stale node
+    stale_node_id = f"nd-{uuid.uuid4().hex[:8]}"
     db.add(MeshNode(
-        id=f"nd-{uuid.uuid4().hex[:8]}",
+        id=stale_node_id,
         mesh_id=mesh_id,
         status="approved",
         device_class="edge",
         hardware_id=None,
         enclave_enabled=False,
         last_seen=datetime.utcnow() - timedelta(minutes=20),
+        runtime_credential_hash=hash_node_runtime_credential(
+            _runtime_credential_for_node(stale_node_id)
+        ),
+        runtime_credential_expires_at=_runtime_expires_at(),
     ))
 
     # Marketplace listings
@@ -246,10 +277,12 @@ class TestAnalyticsSummary:
             "/api/v1/maas/auth/register",
             json={"email": f"other-{uuid.uuid4().hex[:8]}@test.com", "password": "pw123456"},
         )
-        other_token = r2.json()["access_token"]
+        assert r2.status_code in {200, 201}, r2.text
+        other_payload = r2.json()
+        other_token = other_payload.get("api_key") or other_payload["access_token"]
         # elevate to operator so RBAC passes
         db = TestingSessionLocal()
-        other = db.query(User).filter(User.api_key == other_token).first()
+        other = find_user_by_api_key(db, other_token)
         other.role = "operator"
         db.commit()
         db.close()
@@ -344,8 +377,8 @@ class TestAnalyticsTimeseries:
         assert r.status_code == 404
 
     def test_timeseries_uses_heartbeat_telemetry_from_store(self, client, analytics_data, monkeypatch):
-        import src.api.maas_analytics as analytics_mod
-        import src.api.maas_telemetry as telemetry_mod
+        import src.api.maas.endpoints.analytics as analytics_mod
+        import src.api.maas.endpoints.telemetry as telemetry_mod
 
         mesh_id = f"mesh-ts-{uuid.uuid4().hex[:6]}"
         node_id = f"nd-ts-{uuid.uuid4().hex[:8]}"
@@ -364,6 +397,10 @@ class TestAnalyticsTimeseries:
             status="approved",
             device_class="edge",
             last_seen=datetime.utcnow(),
+            runtime_credential_hash=hash_node_runtime_credential(
+                _runtime_credential_for_node(node_id)
+            ),
+            runtime_credential_expires_at=_runtime_expires_at(),
         ))
         db.commit()
         db.close()
@@ -431,12 +468,19 @@ class TestAnalyticsTimeseries:
                 self.ops.append(("expire", key, ttl))
                 return self
 
+            def lrange(self, key, start, end):
+                self.ops.append(("lrange", key, start, end))
+                return self
+
             def execute(self):
+                results = []
                 for op in self.ops:
                     method = getattr(self.adapter, op[0])
-                    method(*op[1:])
+                    result = method(*op[1:])
+                    if op[0] == "lrange":
+                        results.append(result)
                 self.ops.clear()
-                return True
+                return results or True
 
         redis_adapter = _InMemoryRedisAdapter(local_store)
         monkeypatch.setattr(telemetry_mod, "REDIS_AVAILABLE", True)
@@ -446,10 +490,12 @@ class TestAnalyticsTimeseries:
         hb = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat",
             json={
+                "node_id": node_id,
                 "status": "healthy",
                 "latency_ms": 19.5,
                 "traffic_mbps": 123.4,
             },
+            headers=_runtime_headers_for_node(node_id),
         )
         assert hb.status_code == 200, hb.text
         assert hb.json()["telemetry_exported"] is True

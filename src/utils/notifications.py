@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -45,6 +46,10 @@ class Notifier:
             response.raise_for_status()
         except Exception as e:
             logger.error(f"Failed to send notification: {e}")
+
+    async def send_async(self, title: str, message: str, color: str = "#36a64f"):
+        """Send notification without blocking the event loop."""
+        await asyncio.to_thread(self.send, title, message, color)
 
 
 # Global instance

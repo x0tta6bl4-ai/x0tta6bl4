@@ -1,9 +1,6 @@
-"""Compatibility shim for moved src.core modules."""
+"""Core libx0t components."""
 from __future__ import annotations
 
-from pathlib import Path
+from .node import Node
 
-# Extend package search path to libx0t/core so imports like src.core.app keep working.
-_ALT = Path(__file__).resolve().parents[2] / 'libx0t' / 'core'
-if _ALT.exists():
-    __path__.append(str(_ALT))
+__all__ = ["Node"]

@@ -373,7 +373,9 @@ def test_list_workloads_timeout(manager, mock_subprocess):
 def test_health_check_healthy(manager, mock_subprocess):  # Removed mocker for this test
     """Test health check when agent is healthy."""
     manager.agent_process = mock_subprocess["popen_instance"]
+    manager.socket_path.exists.side_effect = None
     manager.socket_path.exists.return_value = True
+    manager.socket_path.is_socket.return_value = True
     result = manager.health_check()
     mock_subprocess["run"].assert_called_once_with(
         [
@@ -398,7 +400,9 @@ def test_health_check_no_process(manager):
 def test_health_check_no_socket(manager, mock_subprocess):
     """Test health check when agent socket does not exist."""
     manager.agent_process = mock_subprocess["popen_instance"]
+    manager.socket_path.exists.side_effect = None
     manager.socket_path.exists.return_value = False
+    manager.socket_path.is_socket.return_value = False
     result = manager.health_check()
     assert result is False
 
@@ -408,7 +412,9 @@ def test_health_check_command_fails(
 ):  # Removed mocker for this test
     """Test health check when healthcheck command fails."""
     manager.agent_process = mock_subprocess["popen_instance"]
+    manager.socket_path.exists.side_effect = None
     manager.socket_path.exists.return_value = True
+    manager.socket_path.is_socket.return_value = True
     mock_subprocess["run"].side_effect = subprocess.CalledProcessError(
         1, "cmd", stderr="Healthcheck failed"
     )  # Apply side_effect to the patched function
@@ -425,7 +431,7 @@ def test_health_check_command_fails(
             timeout=5,
         )
         assert "SPIRE Agent healthcheck command failed" in caplog.text
-        assert result is True
+        assert result is False
 
 
 # --- SPIREAgentManager._cleanup() Tests ---

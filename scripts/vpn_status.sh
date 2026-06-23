@@ -1,7 +1,7 @@
 #!/bin/bash
 # VPN status dashboard: connections, proxy health, packet loss
 VPN_SERVER="${VPN_SERVER:-89.125.1.107}"
-VPN_PORT="${VPN_PORT:-39829}"
+VPN_PORT="${VPN_PORT:-443}"
 SOCKS_HOST="${VPN_SOCKS_HOST:-127.0.0.1}"
 SOCKS_PORT_SOURCE="env"
 BOOT_VALIDATION_RESULT="${VPN_BOOT_VALIDATE_RESULT_FILE:-/var/log/x0tta6bl4/vpn_boot_validation.last}"

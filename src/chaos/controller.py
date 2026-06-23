@@ -4,6 +4,7 @@ Chaos Engineering Controller
 """
 
 import asyncio
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -12,8 +13,52 @@ from typing import Any, Dict, List, Optional
 
 from src.monitoring.metrics import (record_mttr,
                                     record_self_healing_event)
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    return "100+"
+
+
+def _safe_experiment_summary(experiment: Any) -> Dict[str, Any]:
+    return {
+        "experiment_type": experiment.experiment_type.value,
+        "duration_bucket": _safe_count_bucket(experiment.duration),
+        "target_count_bucket": _safe_count_bucket(len(experiment.target_nodes)),
+        "target_hashes": [_safe_hash(node) for node in experiment.target_nodes[:5]],
+        "parameter_key_hashes": sorted(_safe_hash(key) for key in experiment.parameters),
+        "status": experiment.status,
+    }
 
 
 class ExperimentType(Enum):
@@ -63,8 +108,58 @@ class ChaosController:
         self.experiments: List[ChaosExperiment] = []
         self.recovery_metrics: List[RecoveryMetrics] = []
         self.is_running = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="chaos-controller",
+            role="healing",
+            capabilities=("ops", "quality", "monitoring"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "chaos_controller_init",
+                "goal": "Initialize chaos experiment control safely",
+                "signals": {
+                    "experiment_count_bucket": "0",
+                    "recovery_metric_count_bucket": "0",
+                },
+                "safety_boundary": (
+                    "Keep target node ids, experiment parameter values, recovery "
+                    "action text, and exception messages out of thinking context."
+                ),
+            }
+        )
 
         logger.info("Chaos Controller initialized")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_target_nodes": True,
+                    "redact_parameter_values": True,
+                    "redact_recovery_actions": True,
+                    "redact_error_messages": True,
+                    "preserve_experiment_decision": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, counts, experiment types, statuses, and metric bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def run_experiment(self, experiment: ChaosExperiment) -> RecoveryMetrics:
         """
@@ -76,6 +171,14 @@ class ChaosController:
         experiment.start_time = datetime.now()
         experiment.status = "running"
         self.experiments.append(experiment)
+        self._record_thinking(
+            "chaos_experiment_started",
+            "Start chaos experiment safely",
+            {
+                "experiment": _safe_experiment_summary(experiment),
+                "experiment_count_bucket": _safe_count_bucket(len(self.experiments)),
+            },
+        )
 
         logger.info(f"Starting chaos experiment: {experiment.experiment_type.value}")
 
@@ -112,6 +215,23 @@ class ChaosController:
 
         self.recovery_metrics.append(metrics)
 
+        self._record_thinking(
+            "chaos_experiment_completed",
+            "Complete chaos experiment and record recovery metrics",
+            {
+                "experiment": _safe_experiment_summary(experiment),
+                "mttr_band": _safe_number_band(metrics.mttr),
+                "recovery_success": metrics.recovery_success,
+                "path_availability_band": _safe_number_band(metrics.path_availability),
+                "service_degradation_band": _safe_number_band(
+                    metrics.service_degradation
+                ),
+                "nodes_affected_bucket": _safe_count_bucket(metrics.nodes_affected),
+                "recovery_action_count_bucket": _safe_count_bucket(
+                    len(metrics.recovery_actions)
+                ),
+            },
+        )
         logger.info(
             f"Chaos experiment completed: {experiment.experiment_type.value}, "
             f"MTTR: {metrics.mttr:.2f}s, Success: {metrics.recovery_success}"
@@ -290,11 +410,22 @@ class ChaosController:
             recovery_actions=["route_switch", "node_restart"],  # Пример
         )
 
+        self._record_thinking(
+            "chaos_recovery_metrics_collected",
+            "Collect chaos recovery metrics safely",
+            {
+                "experiment": _safe_experiment_summary(experiment),
+                "recovery_time_band": _safe_number_band(recovery_time),
+                "recovery_success": recovery_success,
+                "path_availability_band": _safe_number_band(path_availability),
+                "service_degradation_band": _safe_number_band(service_degradation),
+            },
+        )
         return metrics
 
     def get_experiment_history(self) -> List[Dict[str, Any]]:
         """Получить историю experiments"""
-        return [
+        history = [
             {
                 "type": exp.experiment_type.value,
                 "status": exp.status,
@@ -304,10 +435,21 @@ class ChaosController:
             }
             for exp in self.experiments
         ]
+        self._record_thinking(
+            "chaos_experiment_history",
+            "Summarize chaos experiment history safely",
+            {"experiment_count_bucket": _safe_count_bucket(len(history))},
+        )
+        return history
 
     def get_recovery_stats(self) -> Dict[str, Any]:
         """Получить статистику recovery"""
         if not self.recovery_metrics:
+            self._record_thinking(
+                "chaos_recovery_stats",
+                "Report empty chaos recovery stats",
+                {"recovery_metric_count_bucket": "0"},
+            )
             return {
                 "total_experiments": 0,
                 "success_rate": 0.0,
@@ -319,13 +461,25 @@ class ChaosController:
             self.recovery_metrics
         )
 
-        return {
+        stats = {
             "total_experiments": len(self.recovery_metrics),
             "success_rate": successful / len(self.recovery_metrics),
             "avg_mttr": avg_mttr,
             "min_mttr": min(m.mttr for m in self.recovery_metrics),
             "max_mttr": max(m.mttr for m in self.recovery_metrics),
         }
+        self._record_thinking(
+            "chaos_recovery_stats",
+            "Summarize chaos recovery stats safely",
+            {
+                "total_experiments_bucket": _safe_count_bucket(
+                    len(self.recovery_metrics)
+                ),
+                "success_rate_band": _safe_number_band(stats["success_rate"]),
+                "avg_mttr_band": _safe_number_band(stats["avg_mttr"]),
+            },
+        )
+        return stats
 
     def generate_report(self) -> str:
         """Сгенерировать отчет о chaos experiments"""

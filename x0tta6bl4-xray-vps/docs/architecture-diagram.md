@@ -18,10 +18,10 @@ flowchart TB
         subgraph XRAY["Xray Core v25.1.30"]
             subgraph INBOUNDS["Inbound Protocols"]
                 VLESS_R["VLESS-XTLS-Reality-Vision<br/>Port 443 (Primary)"]
-                TROJAN["Trojan-XTLS-Reality<br/>Port 9443 (Fallback #1)"]
-                VLESS_X["VLESS-splitHTTP<br/>Port 8443 (Fallback #2)"]
-                SS["Shadowsocks 2022<br/>Port 8388 (Fallback #3)"]
-                SHADOWTLS["ShadowTLS<br/>Port 8080 (Fallback #4)"]
+                TROJAN["Trojan-XTLS-Reality<br/>Port 9443 (validate first)"]
+                VLESS_X["VLESS-splitHTTP/xHTTP<br/>Port 8443 (validate first)"]
+                SS["Shadowsocks 2022<br/>Port 8388 (validate first)"]
+                SHADOWTLS["ShadowTLS/VMess<br/>Port 8080 (validate first)"]
             end
 
             subgraph ROUTING["Traffic Routing"]

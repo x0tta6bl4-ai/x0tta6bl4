@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -39,7 +40,9 @@ def test_infrastructure_validate_production_and_missing_host_template(caplog):
     cfg = mod.ProxyInfrastructureConfig(
         environment=mod.Environment.PRODUCTION,
         providers=[
-            mod.ProxyProviderConfig(name="broken", enabled=True, host_template="", regions=["us"])
+            mod.ProxyProviderConfig(
+                name="broken", enabled=True, host_template="", regions=["us"]
+            )
         ],
     )
     cfg.security.api_key_required = False
@@ -80,6 +83,14 @@ async def test_load_with_encrypted_password_decrypts(tmp_path: Path, monkeypatch
 
     assert cfg.providers[0].password == "plain-secret"
     assert mgr.credential_store is not None
+    thinking_status = mgr.get_thinking_status()
+    thinking_context = thinking_status["last_thinking_context"]
+    assert thinking_status["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in thinking_status["thinking"]["techniques"]
+    assert thinking_context["applied"]["framing"]["problem"] == "proxy_config_parse"
+    thinking_text = json.dumps(thinking_context, sort_keys=True)
+    assert "plain-secret" not in thinking_text
+    assert encrypted not in thinking_text
 
 
 @pytest.mark.asyncio
@@ -133,6 +144,12 @@ async def test_save_writes_encrypted_password(tmp_path: Path):
     saved = cfg_path.read_text()
     assert "ENC:" in saved
     assert "plain-pass" not in saved
+    thinking_text = json.dumps(mgr.last_thinking_context, sort_keys=True)
+    assert "plain-pass" not in thinking_text
+    assert (
+        mgr.last_thinking_context["applied"]["framing"]["problem"]
+        == "proxy_config_save"
+    )
 
 
 @pytest.mark.asyncio
@@ -146,7 +163,9 @@ async def test_save_restore_backup_on_error(tmp_path: Path, monkeypatch):
     )
     mgr.config = mod.ProxyInfrastructureConfig(
         environment=mod.Environment.DEVELOPMENT,
-        providers=[mod.ProxyProviderConfig(name="prov", host_template="proxy", regions=["us"])],
+        providers=[
+            mod.ProxyProviderConfig(name="prov", host_template="proxy", regions=["us"])
+        ],
     )
 
     def _raise_dump(*args, **kwargs):
@@ -169,13 +188,17 @@ def test_secure_credential_store_cache_hit(monkeypatch):
     monkeypatch.setattr(
         store._cipher,
         "decrypt",
-        lambda _payload: (_ for _ in ()).throw(RuntimeError("should not decrypt again")),
+        lambda _payload: (_ for _ in ()).throw(
+            RuntimeError("should not decrypt again")
+        ),
     )
     assert store.decrypt(encrypted) == "secret"
 
 
 @pytest.mark.asyncio
-async def test_watch_config_reload_and_handler_error(tmp_path: Path, monkeypatch, caplog):
+async def test_watch_config_reload_and_handler_error(
+    tmp_path: Path, monkeypatch, caplog
+):
     cfg_path = tmp_path / "config.yaml"
     cfg_path.write_text(yaml.dump(_valid_config_dict()))
 
@@ -192,7 +215,9 @@ async def test_watch_config_reload_and_handler_error(tmp_path: Path, monkeypatch
         state["loaded"] += 1
         mgr.config = mod.ProxyInfrastructureConfig(
             environment=mod.Environment.DEVELOPMENT,
-            providers=[mod.ProxyProviderConfig(name="p", host_template="h", regions=["us"])],
+            providers=[
+                mod.ProxyProviderConfig(name="p", host_template="h", regions=["us"])
+            ],
         )
         return mgr.config
 
@@ -221,7 +246,9 @@ async def test_watch_config_reload_and_handler_error(tmp_path: Path, monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_watch_config_handles_cancelled_sleep_via_error_branch(tmp_path: Path, monkeypatch):
+async def test_watch_config_handles_cancelled_sleep_via_error_branch(
+    tmp_path: Path, monkeypatch
+):
     cfg_path = tmp_path / "config.yaml"
     cfg_path.write_text(yaml.dump(_valid_config_dict()))
 
@@ -240,7 +267,9 @@ async def test_watch_config_handles_cancelled_sleep_via_error_branch(tmp_path: P
 
 
 @pytest.mark.asyncio
-async def test_watch_config_handles_cancelled_sleep_via_main_loop(tmp_path: Path, monkeypatch):
+async def test_watch_config_handles_cancelled_sleep_via_main_loop(
+    tmp_path: Path, monkeypatch
+):
     cfg_path = tmp_path / "config.yaml"
     cfg_path.write_text(yaml.dump(_valid_config_dict(password="plain")))
 
@@ -301,13 +330,20 @@ async def test_start_stop_and_cache_clear(monkeypatch):
 
 
 def test_decrypt_credentials_no_store_and_error_branch(caplog):
-    mgr = mod.ProxyConfigManager(config_path="/tmp/config.yaml", environment=mod.Environment.DEVELOPMENT)
+    mgr = mod.ProxyConfigManager(
+        config_path="/tmp/config.yaml", environment=mod.Environment.DEVELOPMENT
+    )
 
     # No credential store branch should no-op.
     mgr._decrypt_credentials()
 
     mgr.config.providers = [
-        mod.ProxyProviderConfig(name="prov", host_template="proxy.example", password="ENC:bad", regions=["us"])
+        mod.ProxyProviderConfig(
+            name="prov",
+            host_template="proxy.example",
+            password="ENC:bad",
+            regions=["us"],
+        )
     ]
     mgr.credential_store = SimpleNamespace(
         decrypt=lambda _payload: (_ for _ in ()).throw(RuntimeError("bad decrypt"))
@@ -329,7 +365,7 @@ def test_provider_proxy_generation_export_env_and_default_config(tmp_path: Path)
             host_template="proxy.example",
             port=8888,
             username="u",
-            password="p",
+            password="super-secret-proxy-pass",
             regions=["us", "de", "abc"],
         ),
         mod.ProxyProviderConfig(
@@ -344,6 +380,9 @@ def test_provider_proxy_generation_export_env_and_default_config(tmp_path: Path)
     assert len(proxies) == 3
     assert {p.id for p in proxies} == {"enabled-us", "enabled-de", "enabled-abc"}
     assert any(p.country_code == "US" for p in proxies if p.region == "abc")
+    assert "super-secret-proxy-pass" not in json.dumps(
+        mgr.last_thinking_context, sort_keys=True
+    )
 
     env_path = tmp_path / ".env.proxy"
     mgr.export_env_file(str(env_path))

@@ -1,0 +1,701 @@
+name: Native App Builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      require_complete_release:
+        description: "Fail the release audit unless Android, iOS, Windows, and Ubuntu release artifacts are complete."
+        required: false
+        type: boolean
+        default: false
+  push:
+    branches: [ main, develop, "sync-main-*" ]
+    paths:
+      - ".github/workflows/native-app-builds.yml"
+      - "scripts/ops/check_native_signing_readiness.py"
+      - "scripts/ops/verify_native_release_artifacts.py"
+      - "scripts/ops/verify_ios_signing_material.py"
+      - "scripts/ops/run_ios_signed_release_setup.py"
+      - "scripts/ops/check_native_release_goal_status.py"
+      - "scripts/ops/run_native_release_closeout.py"
+      - "scripts/ops/prepare_ios_apple_portal_packet.py"
+      - "src-tauri/**"
+      - "x0tta6bl4-app/**"
+  pull_request:
+    branches: [ main, develop, "sync-main-*" ]
+    paths:
+      - ".github/workflows/native-app-builds.yml"
+      - "scripts/ops/check_native_signing_readiness.py"
+      - "scripts/ops/verify_native_release_artifacts.py"
+      - "scripts/ops/verify_ios_signing_material.py"
+      - "scripts/ops/run_ios_signed_release_setup.py"
+      - "scripts/ops/check_native_release_goal_status.py"
+      - "scripts/ops/run_native_release_closeout.py"
+      - "scripts/ops/prepare_ios_apple_portal_packet.py"
+      - "src-tauri/**"
+      - "x0tta6bl4-app/**"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  signing-readiness:
+    name: Native Signing Readiness
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.X0T_ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.X0T_ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.X0T_ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.X0T_ANDROID_KEY_PASSWORD }}
+      X0T_IOS_CERTIFICATE_P12_BASE64: ${{ secrets.X0T_IOS_CERTIFICATE_P12_BASE64 }}
+      X0T_IOS_CERTIFICATE_PASSWORD: ${{ secrets.X0T_IOS_CERTIFICATE_PASSWORD }}
+      X0T_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.X0T_IOS_PROVISIONING_PROFILE_BASE64 }}
+      X0T_IOS_TEAM_ID: ${{ secrets.X0T_IOS_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check native signing readiness
+        run: |
+          python3 scripts/ops/check_native_signing_readiness.py \
+            --source env-ci \
+            --json \
+            --output .tmp/native-signing-readiness/native-signing-readiness.json
+
+      - name: Upload native signing readiness report
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-native-signing-readiness
+          path: .tmp/native-signing-readiness/native-signing-readiness.json
+
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.X0T_ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.X0T_ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.X0T_ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.X0T_ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: x0tta6bl4-app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install web dependencies
+        working-directory: x0tta6bl4-app
+        run: npm ci
+
+      - name: Build Android debug APK
+        working-directory: x0tta6bl4-app
+        run: |
+          chmod +x android/gradlew
+          npm run android:build
+
+      - name: Build unsigned Android release APK
+        working-directory: x0tta6bl4-app
+        run: |
+          chmod +x android/gradlew
+          npm run android:release:unsigned
+
+      - name: Decode Android release keystore
+        id: android_signing
+        working-directory: x0tta6bl4-app
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && \
+             [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && \
+             [ -n "$ANDROID_KEY_ALIAS" ] && \
+             [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            mkdir -p android/app/signing
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/signing/release.keystore
+            echo "ANDROID_KEYSTORE_PATH=$PWD/android/app/signing/release.keystore" >> "$GITHUB_ENV"
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Android release signing secrets are not configured; signed release build skipped."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build signed Android release APK and AAB
+        if: steps.android_signing.outputs.enabled == 'true'
+        working-directory: x0tta6bl4-app
+        run: |
+          chmod +x android/gradlew
+          npm run android:release:signed
+
+      - name: Generate Android artifact manifest
+        working-directory: x0tta6bl4-app
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          output_dir = Path("android/app/build/outputs/native-manifest")
+          output_dir.mkdir(parents=True, exist_ok=True)
+
+          artifacts = []
+          for pattern, kind in (
+              ("android/app/build/outputs/apk/debug/*.apk", "debug_apk"),
+              ("android/app/build/outputs/apk/release/*.apk", "release_apk"),
+              ("android/app/build/outputs/bundle/release/*.aab", "release_aab"),
+          ):
+              for path in sorted(Path(".").glob(pattern)):
+                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                  artifacts.append(
+                      {
+                          "path": path.as_posix(),
+                          "kind": kind,
+                          "sha256": digest,
+                          "size_bytes": path.stat().st_size,
+                      }
+                  )
+
+          if not artifacts:
+              raise SystemExit("no Android artifacts found for native manifest")
+
+          lines = [f"{item['sha256']}  {item['path']}" for item in artifacts]
+          (output_dir / "SHA256SUMS").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+          manifest = {
+              "schema": "x0tta6bl4.native_build_manifest.v1",
+              "platform": "android",
+              "app_id": "net.x0tta6bl4.mesh",
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "commit": os.environ["GITHUB_SHA"],
+              "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "signing": {
+                  "release_signing_requested": "${{ steps.android_signing.outputs.enabled }}" == "true",
+                  "signed_release_present": any(item["kind"] == "release_aab" for item in artifacts),
+              },
+              "artifacts": artifacts,
+          }
+          (output_dir / "native-build-manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload Android APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-android-apks
+          path: |
+            x0tta6bl4-app/android/app/build/outputs/apk/debug/*.apk
+            x0tta6bl4-app/android/app/build/outputs/apk/release/*.apk
+
+      - name: Upload Android artifact manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-android-manifest
+          path: x0tta6bl4-app/android/app/build/outputs/native-manifest/*
+
+      - name: Upload signed Android release bundle
+        if: steps.android_signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-android-release-aab
+          path: x0tta6bl4-app/android/app/build/outputs/bundle/release/*.aab
+
+  ubuntu-desktop:
+    name: Ubuntu Desktop
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: x0tta6bl4-app/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install web dependencies
+        working-directory: x0tta6bl4-app
+        run: npm ci
+
+      - name: Build Ubuntu desktop bundles
+        working-directory: x0tta6bl4-app
+        run: npm run desktop:build:linux
+
+      - name: Generate Ubuntu artifact manifest
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          output_dir = Path(".tmp/native-manifest/ubuntu")
+          output_dir.mkdir(parents=True, exist_ok=True)
+
+          artifacts = []
+          for pattern, kind in (
+              ("src-tauri/target/release/bundle/deb/*.deb", "deb"),
+              ("src-tauri/target/release/bundle/appimage/*.AppImage", "appimage"),
+          ):
+              for path in sorted(Path(".").glob(pattern)):
+                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                  artifacts.append(
+                      {
+                          "path": path.as_posix(),
+                          "kind": kind,
+                          "sha256": digest,
+                          "size_bytes": path.stat().st_size,
+                      }
+                  )
+
+          if not artifacts:
+              raise SystemExit("no Ubuntu artifacts found for native manifest")
+
+          lines = [f"{item['sha256']}  {item['path']}" for item in artifacts]
+          (output_dir / "SHA256SUMS").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+          manifest = {
+              "schema": "x0tta6bl4.native_build_manifest.v1",
+              "platform": "ubuntu",
+              "app_id": "net.x0tta6bl4.mesh",
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "commit": os.environ["GITHUB_SHA"],
+              "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "artifacts": artifacts,
+          }
+          (output_dir / "native-build-manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload Ubuntu bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-ubuntu-desktop
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+
+      - name: Upload Ubuntu artifact manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-ubuntu-manifest
+          path: .tmp/native-manifest/ubuntu/*
+
+  windows-desktop:
+    name: Windows Desktop MSI
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: x0tta6bl4-app/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install web dependencies
+        working-directory: x0tta6bl4-app
+        run: npm ci
+
+      - name: Build Windows MSI
+        working-directory: x0tta6bl4-app
+        run: npm run desktop:build:windows
+
+      - name: Generate Windows artifact manifest
+        shell: pwsh
+        run: |
+          $manifestDir = ".tmp/native-manifest/windows"
+          New-Item -ItemType Directory -Force -Path $manifestDir | Out-Null
+
+          $artifacts = @()
+          $lines = @()
+          $files = Get-ChildItem -Path "src-tauri/target/release/bundle/msi" -Filter "*.msi" -File -ErrorAction SilentlyContinue
+          foreach ($file in $files) {
+            $hash = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $relativePath = (Resolve-Path -Path $file.FullName -Relative).Replace("\", "/")
+            $artifacts += [pscustomobject]@{
+              path = $relativePath
+              kind = "msi"
+              sha256 = $hash
+              size_bytes = $file.Length
+            }
+            $lines += "$hash  $relativePath"
+          }
+
+          if ($artifacts.Count -eq 0) {
+            throw "no Windows MSI artifacts found for native manifest"
+          }
+
+          $manifest = [ordered]@{
+            schema = "x0tta6bl4.native_build_manifest.v1"
+            platform = "windows"
+            app_id = "net.x0tta6bl4.mesh"
+            run_id = "${{ github.run_id }}"
+            commit = "${{ github.sha }}"
+            generated_at_utc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            artifacts = $artifacts
+          }
+
+          $lines | Set-Content -Path "$manifestDir/SHA256SUMS" -Encoding utf8
+          $manifest | ConvertTo-Json -Depth 8 | Set-Content -Path "$manifestDir/native-build-manifest.json" -Encoding utf8
+
+      - name: Upload Windows MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-windows-msi
+          path: src-tauri/target/release/bundle/msi/*.msi
+
+      - name: Upload Windows artifact manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-windows-manifest
+          path: .tmp/native-manifest/windows/*
+
+  ios-simulator:
+    name: iOS Simulator Build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: x0tta6bl4-app/package-lock.json
+
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods
+
+      - name: Install web dependencies
+        working-directory: x0tta6bl4-app
+        run: npm ci
+
+      - name: Sync iOS native project
+        working-directory: x0tta6bl4-app
+        run: npm run ios:sync
+
+      - name: Build unsigned iOS simulator app
+        working-directory: x0tta6bl4-app/ios/App
+        run: |
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Build unsigned iOS device app
+        working-directory: x0tta6bl4-app/ios/App
+        run: |
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build-device \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Upload iOS simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-ios-simulator-app
+          path: x0tta6bl4-app/ios/App/build/Build/Products/Debug-iphonesimulator/App.app
+
+      - name: Upload unsigned iOS device app
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-ios-device-unsigned-app
+          path: x0tta6bl4-app/ios/App/build-device/Build/Products/Release-iphoneos/App.app
+
+      - name: Check iOS device signing inputs
+        id: ios_signing
+        env:
+          X0T_IOS_CERTIFICATE_P12_BASE64: ${{ secrets.X0T_IOS_CERTIFICATE_P12_BASE64 }}
+          X0T_IOS_CERTIFICATE_PASSWORD: ${{ secrets.X0T_IOS_CERTIFICATE_PASSWORD }}
+          X0T_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.X0T_IOS_PROVISIONING_PROFILE_BASE64 }}
+          X0T_IOS_TEAM_ID: ${{ secrets.X0T_IOS_TEAM_ID }}
+        run: |
+          if [ -n "$X0T_IOS_CERTIFICATE_P12_BASE64" ] && \
+             [ -n "$X0T_IOS_CERTIFICATE_PASSWORD" ] && \
+             [ -n "$X0T_IOS_PROVISIONING_PROFILE_BASE64" ] && \
+             [ -n "$X0T_IOS_TEAM_ID" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "iOS device signing secrets are not configured; signed IPA build skipped."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify iOS signing material
+        if: steps.ios_signing.outputs.enabled == 'true'
+        env:
+          X0T_IOS_CERTIFICATE_P12_BASE64: ${{ secrets.X0T_IOS_CERTIFICATE_P12_BASE64 }}
+          X0T_IOS_CERTIFICATE_PASSWORD: ${{ secrets.X0T_IOS_CERTIFICATE_PASSWORD }}
+          X0T_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.X0T_IOS_PROVISIONING_PROFILE_BASE64 }}
+          X0T_IOS_TEAM_ID: ${{ secrets.X0T_IOS_TEAM_ID }}
+          X0T_IOS_BUNDLE_ID: ${{ secrets.X0T_IOS_BUNDLE_ID || 'net.x0tta6bl4.mesh' }}
+        run: |
+          CERTIFICATE_PATH="$RUNNER_TEMP/x0tta6bl4-ios-signing.p12"
+          PROFILE_PATH="$RUNNER_TEMP/x0tta6bl4.mobileprovision"
+          REPORT_DIR=".tmp/native-signing/ios"
+
+          mkdir -p "$REPORT_DIR"
+          echo "$X0T_IOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          echo "$X0T_IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+
+          python3 scripts/ops/verify_ios_signing_material.py \
+            --verify \
+            --certificate-p12 "$CERTIFICATE_PATH" \
+            --certificate-password "$X0T_IOS_CERTIFICATE_PASSWORD" \
+            --provisioning-profile "$PROFILE_PATH" \
+            --team-id "$X0T_IOS_TEAM_ID" \
+            --bundle-id "$X0T_IOS_BUNDLE_ID" \
+            --require-valid \
+            --json \
+            --output "$REPORT_DIR/ios-signing-material-verification.json"
+
+      - name: Upload iOS signing material verification report
+        if: always() && steps.ios_signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-ios-signing-material-verification
+          path: .tmp/native-signing/ios/ios-signing-material-verification.json
+          if-no-files-found: ignore
+
+      - name: Import iOS signing material
+        if: steps.ios_signing.outputs.enabled == 'true'
+        env:
+          X0T_IOS_CERTIFICATE_P12_BASE64: ${{ secrets.X0T_IOS_CERTIFICATE_P12_BASE64 }}
+          X0T_IOS_CERTIFICATE_PASSWORD: ${{ secrets.X0T_IOS_CERTIFICATE_PASSWORD }}
+          X0T_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.X0T_IOS_PROVISIONING_PROFILE_BASE64 }}
+        working-directory: x0tta6bl4-app/ios/App
+        run: |
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          CERTIFICATE_PATH="$RUNNER_TEMP/x0tta6bl4-ios-signing.p12"
+          PROFILE_PATH="$RUNNER_TEMP/x0tta6bl4.mobileprovision"
+          PROFILE_PLIST="$RUNNER_TEMP/x0tta6bl4.mobileprovision.plist"
+          KEYCHAIN_PATH="$RUNNER_TEMP/x0tta6bl4-signing.keychain-db"
+
+          echo "$X0T_IOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          echo "$X0T_IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$X0T_IOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "X0T_IOS_PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "X0T_IOS_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+
+      - name: Build signed iOS device archive
+        if: steps.ios_signing.outputs.enabled == 'true'
+        env:
+          X0T_IOS_TEAM_ID: ${{ secrets.X0T_IOS_TEAM_ID }}
+          X0T_IOS_BUNDLE_ID: ${{ secrets.X0T_IOS_BUNDLE_ID || 'net.x0tta6bl4.mesh' }}
+        working-directory: x0tta6bl4-app/ios/App
+        run: |
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/x0tta6bl4.xcarchive \
+            DEVELOPMENT_TEAM="$X0T_IOS_TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$X0T_IOS_BUNDLE_ID" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="$X0T_IOS_PROFILE_NAME" \
+            archive
+
+      - name: Export signed iOS IPA
+        if: steps.ios_signing.outputs.enabled == 'true'
+        env:
+          X0T_IOS_TEAM_ID: ${{ secrets.X0T_IOS_TEAM_ID }}
+          X0T_IOS_BUNDLE_ID: ${{ secrets.X0T_IOS_BUNDLE_ID || 'net.x0tta6bl4.mesh' }}
+          X0T_IOS_EXPORT_METHOD: ${{ secrets.X0T_IOS_EXPORT_METHOD || 'ad-hoc' }}
+        working-directory: x0tta6bl4-app/ios/App
+        run: |
+          cat > ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>$X0T_IOS_EXPORT_METHOD</string>
+            <key>teamID</key>
+            <string>$X0T_IOS_TEAM_ID</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$X0T_IOS_BUNDLE_ID</key>
+              <string>$X0T_IOS_PROFILE_NAME</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/x0tta6bl4.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist ExportOptions.plist
+
+      - name: Generate iOS artifact manifest
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          output_dir = Path(".tmp/native-manifest/ios")
+          output_dir.mkdir(parents=True, exist_ok=True)
+
+          artifacts = []
+          app_dir = Path("x0tta6bl4-app/ios/App/build/Build/Products/Debug-iphonesimulator/App.app")
+          if app_dir.exists():
+              for path in sorted(app_dir.rglob("*")):
+                  if path.is_file():
+                      digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                      artifacts.append(
+                          {
+                              "path": path.as_posix(),
+                              "kind": "simulator_app_file",
+                              "sha256": digest,
+                              "size_bytes": path.stat().st_size,
+                          }
+                      )
+
+          device_app_dir = Path("x0tta6bl4-app/ios/App/build-device/Build/Products/Release-iphoneos/App.app")
+          if device_app_dir.exists():
+              for path in sorted(device_app_dir.rglob("*")):
+                  if path.is_file():
+                      digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                      artifacts.append(
+                          {
+                              "path": path.as_posix(),
+                              "kind": "unsigned_device_app_file",
+                              "sha256": digest,
+                              "size_bytes": path.stat().st_size,
+                          }
+                      )
+
+          for path in sorted(Path("x0tta6bl4-app/ios/App/build/ipa").glob("*.ipa")):
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              artifacts.append(
+                  {
+                      "path": path.as_posix(),
+                      "kind": "signed_ipa",
+                      "sha256": digest,
+                      "size_bytes": path.stat().st_size,
+                  }
+              )
+
+          if not artifacts:
+              raise SystemExit("no iOS artifacts found for native manifest")
+
+          lines = [f"{item['sha256']}  {item['path']}" for item in artifacts]
+          (output_dir / "SHA256SUMS").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+          manifest = {
+              "schema": "x0tta6bl4.native_build_manifest.v1",
+              "platform": "ios",
+              "app_id": "net.x0tta6bl4.mesh",
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "commit": os.environ["GITHUB_SHA"],
+              "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "signing": {
+                  "device_signing_requested": "${{ steps.ios_signing.outputs.enabled }}" == "true",
+                  "unsigned_device_build_present": any(item["kind"] == "unsigned_device_app_file" for item in artifacts),
+                  "signed_ipa_present": any(item["kind"] == "signed_ipa" for item in artifacts),
+              },
+              "artifacts": artifacts,
+          }
+          (output_dir / "native-build-manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload signed iOS IPA
+        if: steps.ios_signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-ios-signed-ipa
+          path: x0tta6bl4-app/ios/App/build/ipa/*.ipa
+
+      - name: Upload iOS artifact manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-ios-manifest
+          path: .tmp/native-manifest/ios/*
+
+  native-release-audit:
+    name: Native Release Artifact Audit
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - signing-readiness
+      - android
+      - ubuntu-desktop
+      - windows-desktop
+      - ios-simulator
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download native build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: .tmp/native-release-artifacts
+
+      - name: Verify native release artifacts
+        run: |
+          REQUIRE_COMPLETE=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && \
+             [ "${{ inputs.require_complete_release }}" = "true" ]; then
+            REQUIRE_COMPLETE="--require-complete"
+          fi
+
+          python3 scripts/ops/verify_native_release_artifacts.py \
+            --artifact-root .tmp/native-release-artifacts \
+            --output .tmp/native-release-audit/native-release-artifact-audit.json \
+            --json \
+            $REQUIRE_COMPLETE
+
+      - name: Upload native release artifact audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-native-release-artifact-audit
+          path: .tmp/native-release-audit/native-release-artifact-audit.json
+          if-no-files-found: ignore

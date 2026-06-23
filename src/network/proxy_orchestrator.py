@@ -16,10 +16,13 @@ Provides unified lifecycle management and graceful operations.
 import asyncio
 import logging
 import signal
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+from src.coordination.events import EventBus, EventType, get_event_bus
 from src.network.proxy_auth_middleware import (ProxyAuthMiddleware,
                                                create_auth_middleware)
 from src.network.proxy_config_manager import (Environment, ProxyConfigManager,
@@ -31,8 +34,18 @@ from src.network.proxy_selection_algorithm import (ProxySelectionAlgorithm,
                                                    SelectionStrategy)
 from src.network.reputation_scoring import ReputationScoringSystem
 from src.network.residential_proxy_manager import ResidentialProxyManager
+from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "proxy-orchestrator"
+_SERVICE_LAYER = "network_proxy_orchestrator_observed_state"
+PROXY_ORCHESTRATOR_CLAIM_BOUNDARY = (
+    "Local proxy orchestrator observed-state evidence only. It records component "
+    "readiness and aggregate proxy/request counts without copying proxy IDs, "
+    "provider configuration, credentials, targets, or traffic payloads. It does "
+    "not prove external proxy reachability or customer traffic delivery."
+)
 
 
 @dataclass
@@ -72,7 +85,11 @@ class ProxyOrchestrator:
     """
 
     def __init__(
-        self, config_path: Optional[str] = None, environment: Optional[str] = None
+        self,
+        config_path: Optional[str] = None,
+        environment: Optional[str] = None,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: Optional[str] = None,
     ):
         self.config_manager: Optional[ProxyConfigManager] = None
         self.proxy_manager: Optional[ResidentialProxyManager] = None
@@ -84,14 +101,130 @@ class ProxyOrchestrator:
 
         self.config_path = config_path
         self.environment = environment
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
         self.status = OrchestratorStatus(state="initializing")
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=_SERVICE_AGENT,
+            role="ops",
+            capabilities=("monitoring", "zero-trust"),
+            extra_techniques=("mape_k", "weighted_decision_matrix"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         self._shutdown_event = asyncio.Event()
         self._tasks: List[asyncio.Task] = []
 
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        if self.event_project_root is None:
+            return None
+        try:
+            self.event_bus = get_event_bus(self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize proxy-orchestrator EventBus: %s", exc)
+            return None
+
+    def _component_readiness_summary(self) -> Dict[str, int]:
+        ready_values = [
+            value
+            for value in self.status.components_ready.values()
+            if isinstance(value, bool)
+        ]
+        ready = sum(1 for value in ready_values if value)
+        total = len(ready_values)
+        return {
+            "total": total,
+            "ready": ready,
+            "not_ready": total - ready,
+        }
+
+    def _service_identity_presence(self) -> Dict[str, bool]:
+        identity = service_event_identity(service_name=_SERVICE_AGENT)
+        return {field: bool(value) for field, value in identity.items()}
+
+    def _refresh_proxy_status_counts(self) -> None:
+        if not self.proxy_manager:
+            return
+
+        self.status.active_proxies = len(self.proxy_manager.proxies)
+        from src.network.residential_proxy_manager import ProxyStatus
+
+        self.status.healthy_proxies = sum(
+            1 for p in self.proxy_manager.proxies if p.status == ProxyStatus.HEALTHY
+        )
+
+    def _status_evidence_payload(
+        self,
+        *,
+        operation: str,
+        duration_ms: float,
+    ) -> Dict[str, Any]:
+        return {
+            "component": "network.proxy_orchestrator",
+            "operation": operation,
+            "service_name": _SERVICE_AGENT,
+            "layer": _SERVICE_LAYER,
+            "status": self.status.state,
+            "success": self.status.state not in {"failed"},
+            "duration_ms": round(float(duration_ms), 3),
+            "service_identity_present": self._service_identity_presence(),
+            "components": self._component_readiness_summary(),
+            "proxies": {
+                "active": int(self.status.active_proxies),
+                "healthy": int(self.status.healthy_proxies),
+            },
+            "requests": {
+                "total": int(self.status.total_requests),
+                "errors": int(self.status.error_count),
+            },
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "raw_identifiers_redacted": True,
+            "claim_boundary": PROXY_ORCHESTRATOR_CLAIM_BOUNDARY,
+        }
+
+    def _publish_status_evidence(
+        self,
+        *,
+        operation: str,
+        duration_ms: float,
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+        payload = self._status_evidence_payload(
+            operation=operation,
+            duration_ms=duration_ms,
+        )
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                _SERVICE_AGENT,
+                payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish proxy-orchestrator evidence: %s", exc)
+            return None
+
     async def initialize(self):
         """Initialize all components in dependency order."""
         logger.info("Initializing proxy orchestrator...")
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "proxy_orchestrator_initialize",
+                "goal": "Initialize proxy infrastructure components in dependency order.",
+                "constraints": {
+                    "environment": self.environment,
+                    "event_project_root_configured": self.event_project_root is not None,
+                    "preserve_component_order": True,
+                },
+            }
+        )
 
         try:
             # 1. Configuration Manager (foundation)
@@ -106,14 +239,20 @@ class ProxyOrchestrator:
 
             # 2. Metrics Collector (needed by other components)
             logger.info("Initializing metrics collector...")
-            self.metrics_collector = create_default_collector()
+            self.metrics_collector = create_default_collector(
+                event_bus=self.event_bus,
+                event_project_root=self.event_project_root,
+            )
             if config.metrics.enabled:
                 await self.metrics_collector.start()
             self.status.components_ready["metrics"] = True
 
             # 3. Reputation Scoring System
             logger.info("Initializing reputation system...")
-            self.reputation_system = ReputationScoringSystem()
+            self.reputation_system = ReputationScoringSystem(
+                event_bus=self.event_bus,
+                event_project_root=self.event_project_root,
+            )
             self.status.components_ready["reputation"] = True
 
             # 4. Selection Algorithm
@@ -132,6 +271,8 @@ class ProxyOrchestrator:
             self.proxy_manager = ResidentialProxyManager(
                 health_check_interval=config.health_check.interval_seconds,
                 max_failures=config.health_check.unhealthy_threshold,
+                event_bus=self.event_bus,
+                event_project_root=self.event_project_root,
             )
 
             # Load proxies from config
@@ -181,6 +322,18 @@ class ProxyOrchestrator:
     async def _on_config_change(self, config: ProxyInfrastructureConfig):
         """Handle configuration changes."""
         logger.info("Configuration changed, applying updates...")
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "proxy_orchestrator_config_change",
+                "goal": "Apply proxy configuration changes without leaking provider details.",
+                "constraints": {
+                    "selection_strategy": str(
+                        getattr(config.selection, "strategy", "unchanged")
+                    ),
+                    "raw_provider_ids_redacted": True,
+                },
+            }
+        )
 
         # Update selection algorithm weights
         if self.selection_algorithm:
@@ -242,18 +395,17 @@ class ProxyOrchestrator:
 
     async def _update_status(self):
         """Update orchestrator status."""
+        started = time.perf_counter()
         if self.status.started_at:
             self.status.uptime_seconds = (
                 datetime.utcnow() - self.status.started_at
             ).total_seconds()
 
-        if self.proxy_manager:
-            self.status.active_proxies = len(self.proxy_manager.proxies)
-            from src.network.residential_proxy_manager import ProxyStatus
-
-            self.status.healthy_proxies = sum(
-                1 for p in self.proxy_manager.proxies if p.status == ProxyStatus.HEALTHY
-            )
+        self._refresh_proxy_status_counts()
+        self._publish_status_evidence(
+            operation="update_status",
+            duration_ms=(time.perf_counter() - started) * 1000,
+        )
 
     async def shutdown(self):
         """Graceful shutdown of all components."""
@@ -293,6 +445,21 @@ class ProxyOrchestrator:
 
     async def get_health_report(self) -> Dict[str, Any]:
         """Get comprehensive health report."""
+        started = time.perf_counter()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "proxy_orchestrator_health_report",
+                "goal": "Build a redacted observed-state proxy health report.",
+                "constraints": {
+                    "payload_redacted": True,
+                    "claim_boundary": PROXY_ORCHESTRATOR_CLAIM_BOUNDARY,
+                },
+            }
+        )
+
+        if self.proxy_manager:
+            self._refresh_proxy_status_counts()
+
         report = {"orchestrator": self.status.to_dict(), "components": {}}
 
         if self.proxy_manager:
@@ -309,6 +476,17 @@ class ProxyOrchestrator:
         if self.reputation_system:
             report["reputation"] = self.reputation_system.export_stats()
 
+        evidence_event_id = self._publish_status_evidence(
+            operation="get_health_report",
+            duration_ms=(time.perf_counter() - started) * 1000,
+        )
+        report["evidence"] = {
+            "event_id": evidence_event_id,
+            "source_agent": _SERVICE_AGENT if evidence_event_id else None,
+            "layer": _SERVICE_LAYER if evidence_event_id else None,
+            "payload_redacted": True,
+            "claim_boundary": PROXY_ORCHESTRATOR_CLAIM_BOUNDARY,
+        }
         return report
 
 
@@ -319,7 +497,7 @@ async def main():
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    orchestrator = ProxyOrchestrator()
+    orchestrator = ProxyOrchestrator(event_project_root=".")
 
     try:
         await orchestrator.initialize()

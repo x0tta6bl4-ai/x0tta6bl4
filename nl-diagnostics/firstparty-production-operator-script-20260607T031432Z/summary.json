@@ -1,0 +1,79 @@
+{
+  "apply_command_count": 13,
+  "apply_command_ids": [
+    "verify_authorization_summary_hash",
+    "verify_apply_packet_hash",
+    "verify_handoff_summary_hash",
+    "verify_handoff_archive_hash_and_mode",
+    "verify_handoff_manifest_hash_and_mode",
+    "verify_nl_port_still_free_readonly",
+    "copy_handoff_to_nl_after_approval",
+    "install_server_service_after_approval",
+    "server_health_post_apply",
+    "apply_client_config_after_approval",
+    "client_health_post_apply",
+    "client_doctor_post_apply",
+    "build_completion_audit_after_post_apply"
+  ],
+  "approval_phrase_required": "APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT",
+  "approval_present": false,
+  "checks": {
+    "apply_script_excludes_rollback": true,
+    "apply_script_syntax_ok": true,
+    "commands_syntax_ok": true,
+    "mutating_commands_guarded": true,
+    "no_legacy_commands": true,
+    "no_nl_or_spb_writes_performed": true,
+    "operator_builder_does_not_execute_commands": true,
+    "required_apply_commands_present": true,
+    "required_rollback_commands_present": true,
+    "rollback_script_contains_only_rollback": true,
+    "rollback_script_syntax_ok": true,
+    "runbook_approval_guarded": true,
+    "runbook_hash_present": true,
+    "runbook_no_mutation": true,
+    "runbook_summary_ok": true,
+    "script_file_hashes_match_preview": true,
+    "script_files_written_executable_private": false,
+    "scripts_default_dry_run": true,
+    "scripts_hash_bound_to_runbook": true,
+    "scripts_require_approval_to_execute": true
+  },
+  "evidence_dir": "/mnt/projects/nl-diagnostics/firstparty-production-operator-script-20260607T031432Z",
+  "failed_checks": [
+    "script_files_written_executable_private"
+  ],
+  "generated_at": "2026-06-07T03:14:32Z",
+  "legacy_command_findings": [],
+  "manual_approval_still_required": true,
+  "mode": "firstparty-production-operator-script-summary",
+  "mutating_command_count": 5,
+  "no_nl_or_spb_writes_performed": true,
+  "ok": false,
+  "os_mutation_performed": false,
+  "production_mutation_allowed": false,
+  "rollback_command_count": 2,
+  "rollback_command_ids": [
+    "rollback_client_policy_and_service_after_approval",
+    "rollback_server_service_after_approval"
+  ],
+  "runbook_summary_path": "/mnt/projects/nl-diagnostics/firstparty-production-apply-runbook-20260607T025858Z/summary.json",
+  "runbook_summary_sha256": "ab47f541ddfbaa0b094057dc3736be2e42e591a9be337f1e52f4bb7a6245bf4a",
+  "script_file_hashes": {
+    "apply_script_sha256": "91cd837cdc08c8e56fecc377f395541fcb2294a738c2553c39eea86b8476a5c7",
+    "rollback_script_sha256": "e6d388cb68fa33c8ed0c81feaf8ccd8397abcfd054783628e65ff91a7909d5ac"
+  },
+  "script_file_modes": {
+    "apply": "0755",
+    "rollback": "0755"
+  },
+  "script_hashes": {
+    "apply_script_sha256": "91cd837cdc08c8e56fecc377f395541fcb2294a738c2553c39eea86b8476a5c7",
+    "rollback_script_sha256": "e6d388cb68fa33c8ed0c81feaf8ccd8397abcfd054783628e65ff91a7909d5ac"
+  },
+  "script_paths": {
+    "apply": "/mnt/projects/nl-diagnostics/firstparty-production-operator-script-20260607T031432Z/apply-firstparty-production.sh",
+    "rollback": "/mnt/projects/nl-diagnostics/firstparty-production-operator-script-20260607T031432Z/rollback-firstparty-production.sh"
+  },
+  "transcript_dir": "/mnt/projects/nl-diagnostics/firstparty-production-operator-transcripts/20260607T031432Z"
+}

@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Set
@@ -430,6 +431,7 @@ class DAOExecutor:
         """Execute the release script after identity, policy, and safe actuator gates."""
         if not os.path.exists(script_path):
             logger.error("Release script not found: %s", script_path)
+            self._last_release_return_code = None
             return False
 
         logger.info("Executing %s for proposal '%s' (%d)", script_path, title, proposal_id)
@@ -446,6 +448,7 @@ class DAOExecutor:
                 env=env,
             )
             stdout, stderr = process.communicate()
+            self._last_release_return_code = int(process.returncode)
 
             if process.returncode == 0:
                 logger.info("Upgrade successful for proposal %d", proposal_id)
@@ -456,6 +459,7 @@ class DAOExecutor:
             return False
         except Exception as exc:
             logger.error("Exception during script execution: %s", exc)
+            self._last_release_return_code = None
             return False
 
     def _load_processed_ids(self) -> Set[int]:

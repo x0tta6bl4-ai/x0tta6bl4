@@ -303,6 +303,50 @@ class EBPFTelemetryCollector:
             "maps": self.program_maps,
         }
 
+    def get_health_status(self) -> Dict[str, Any]:
+        """Return fail-closed telemetry health and claim boundaries."""
+        perf_loss = self.perf_reader.get_loss_health()
+        collection_failed = int(self.stats.failed_collections) > 0
+        degraded = {
+            "perf_reader_event_loss": perf_loss,
+            "collection_failed": collection_failed,
+        }
+        unhealthy = perf_loss["status"] != "healthy" or collection_failed
+        blockers = list(perf_loss.get("blockers") or [])
+        if collection_failed:
+            blockers.append("telemetry_collection_failed")
+
+        return {
+            "overall": "unhealthy" if unhealthy else "healthy",
+            "degradation": degraded,
+            "errors": {
+                "failed_collections": int(self.stats.failed_collections),
+                "perf_parse_errors": int(perf_loss.get("parse_errors") or 0),
+            },
+            "performance": {
+                "average_collection_time": self.stats.average_collection_time,
+                "total_metrics_collected": self.stats.total_metrics_collected,
+            },
+            "claim_gate": {
+                "schema": "x0tta6bl4.ebpf.telemetry_loss_claim_gate.v1",
+                "decision": (
+                    "EBPF_TELEMETRY_UNHEALTHY_FAIL_CLOSED"
+                    if unhealthy
+                    else "EBPF_TELEMETRY_HEALTHY_LOCAL_OBSERVATION"
+                ),
+                "local_telemetry_stream_observed": True,
+                "observability_integrity_claim_allowed": (
+                    perf_loss["observability_integrity_claim_allowed"]
+                    and not collection_failed
+                ),
+                "complete_attack_absence_claim_allowed": False,
+                "production_security_coverage_claim_allowed": False,
+                "fail_closed": True,
+                "blockers": blockers,
+                "claim_boundary": perf_loss["claim_boundary"],
+            },
+        }
+
     def __enter__(self):
         """Context manager entry."""
         self.start()

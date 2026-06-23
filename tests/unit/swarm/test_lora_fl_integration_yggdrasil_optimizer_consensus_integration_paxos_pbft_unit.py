@@ -178,23 +178,46 @@ async def test_paxos_pbft_and_consensus_integration_basics(monkeypatch):
 
     # Consensus integration simple/weighted decisions.
     manager = consensus_integration.SwarmConsensusManager(
-        node_id="a1",
+        node_id="SECRET_AGENT_A1",
         default_mode=consensus_integration.ConsensusMode.SIMPLE,
     )
-    manager.add_agent(consensus_integration.AgentInfo(agent_id="a1", name="A1", capabilities={"routing"}, weight=1.0))
-    manager.add_agent(consensus_integration.AgentInfo(agent_id="a2", name="A2", capabilities={"routing"}, weight=2.0))
+    manager.add_agent(consensus_integration.AgentInfo(agent_id="SECRET_AGENT_A1", name="A1", capabilities={"routing"}, weight=1.0))
+    manager.add_agent(consensus_integration.AgentInfo(agent_id="SECRET_AGENT_A2", name="A2", capabilities={"routing"}, weight=2.0))
 
     captured = []
     manager.set_callbacks(on_decision=lambda d: captured.append(d.decision_id))
 
+    monkeypatch.setattr("random.randrange", lambda _: 0)
     monkeypatch.setattr("random.choice", lambda seq: seq[0])
-    d1 = await manager.decide("routing", ["p1", "p2"], mode=consensus_integration.ConsensusMode.SIMPLE)
-    d2 = await manager.decide("routing", ["p1", "p2"], mode=consensus_integration.ConsensusMode.WEIGHTED)
+    proposals = ["SECRET_PROPOSAL_ONE", "SECRET_PROPOSAL_TWO"]
+    d1 = await manager.decide("SECRET_ROUTING_TOPIC", proposals, mode=consensus_integration.ConsensusMode.SIMPLE)
+    d2 = await manager.decide("SECRET_ROUTING_TOPIC", proposals, mode=consensus_integration.ConsensusMode.WEIGHTED)
 
-    assert d1.success is True and d1.winner == "p1"
-    assert d2.success is True and d2.winner == "p1"
+    assert d1.success is True and d1.winner == "SECRET_PROPOSAL_ONE"
+    assert d2.success is True and d2.winner == "SECRET_PROPOSAL_ONE"
     assert len(captured) == 2
+    status = manager.get_thinking_status()
+    techniques = set(status["techniques"])
+    assert status["profile"]["role"] == "coordination"
+    assert "zero_trust_review" in techniques
+    assert "reverse_planning" in techniques
+    context = status["last_context"]
+    assert context["applied"]["framing"]["problem"] == "swarm_consensus_operation"
+    constraints = context["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == "decide"
+    assert constraints["mode"] == consensus_integration.ConsensusMode.WEIGHTED.value
+    assert constraints["proposal_count"] == 2
+    assert constraints["consensus_result_is_local_observation"] is True
+    assert constraints["raw_node_ids_redacted"] is True
+    assert constraints["raw_topic_redacted"] is True
+    assert constraints["raw_proposals_redacted"] is True
+    rendered_status = str(status)
+    assert "SECRET_ROUTING_TOPIC" not in rendered_status
+    assert "SECRET_PROPOSAL_ONE" not in rendered_status
+    assert "SECRET_PROPOSAL_TWO" not in rendered_status
+    assert "SECRET_AGENT_A1" not in rendered_status
+    assert "SECRET_AGENT_A2" not in rendered_status
 
-    weighted_vote = consensus_integration.WeightedVote(voter_id="a1", choice="p1", weight=1.5)
+    weighted_vote = consensus_integration.WeightedVote(voter_id="SECRET_AGENT_A1", choice="SECRET_PROPOSAL_ONE", weight=1.5)
     assert weighted_vote.to_dict()["weight"] == 1.5
     assert manager.get_stats()["total_decisions"] == 2
