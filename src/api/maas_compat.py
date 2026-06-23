@@ -196,10 +196,6 @@ async def billing_pay_alias(
         current_user=current_user,
         db=db,
     )
-except Exception:
-    _default_create_subscription_session = None
-
-create_subscription_session = _default_create_subscription_session
 
 _redacted_sha256_prefix = modular._redacted_sha256_prefix
 _compat_auth_alias_available = modular._compat_auth_alias_available
