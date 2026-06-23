@@ -39,7 +39,7 @@
 | `core/meta_cognitive_mape_k.py` | 1153 | ✅ **Archived** (dead code, not imported) |
 | `self_healing/mape_k.py` | 1145 | ✅ **Split** → 9 files (6 classes) |
 | `core/mape_k_loop/` (package) | 1084 | ✅ **Split** during earlier session |
-| `network/ebpf/orchestrator.py` | 1120 | 🟡 Related to loader |
+| `network/ebpf/orchestrator.py` | 1120 | ✅ **Split** → 7 files |
 | `ledger/drift_detector.py` | 922 | 🟡 Borderline |
 | `swarm/vision_coding.py` | 887 | 🟡 Borderline |
 
