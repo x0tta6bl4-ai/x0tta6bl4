@@ -18,60 +18,34 @@
 
 ---
 
-## Current State (As Of 2026-02-27)
+## Current State (As Of 2026-06-23)
 
-- `quick` smoke gate: **PASS (11/11)**
-- `full` smoke gate: **PASS (22/22)**
-- Nightly lanes split: `full-core` + `full-heavy`
-- Nightly duration guardrails: enabled (`PASS/WARN/FAIL` status in summary)
-- Product capability: broad feature set implemented
-- Primary risk: open P0/P1 readiness backlog before production go-live
+- **PQC core**: ML-KEM-768/1024 + ML-DSA-65/87 — NIST FIPS 203/204 verified
+- **Side-channel**: 8/8 vulnerabilities closed (variable-time encode, secret branches)
+- **CI**: Green Baseline ✅ | CodeQL ✅ | Dependabot: 50→4 alerts
+- **Requirements**: 342→72 dependencies (cleaned)
+- **Tech debt split**: 20 large files → 66 package files (metrics_exporter split today)
+- **Self-healing**: MAPE-K fully packaged, chaos tests active
+- **VPN**: 4 inbounds active (3 VLESS Reality + 1 Shadowsocks), 7+ TB traffic
+- **Hermes**: 9 MCP servers, 70+ tools, local AI model
+- **Bounty**: 5 PRs submitted ($575 total, under review)
 
----
+## Remaining Tech Debt
 
-## Live Initiative Table
+| God Object | Lines | Status |
+|:-----------|:-----:|:-------|
+| `core/mape_k_loop.py` | 1941 | ✅ **Archived** (dead code, not imported) |
+| `network/ebpf/metrics_exporter.py` | 1451 | ✅ **Split** → 7 files |
+| `core/meta_cognitive_mape_k.py` | 1153 | ✅ **Archived** (dead code, not imported) |
+| `self_healing/mape_k.py` | 1145 | ✅ **Split** → 9 files (6 classes) |
+| `core/mape_k_loop/` (package) | 1084 | ✅ **Split** during earlier session |
+| `network/ebpf/orchestrator.py` | 1120 | 🟡 Related to loader |
+| `ledger/drift_detector.py` | 922 | 🟡 Borderline |
+| `swarm/vision_coding.py` | 887 | 🟡 Borderline |
 
-| Initiative | Status | Next Milestone | Target Date | Main Blocker |
-|---|---|---|---|---|
-| Release readiness (P0/P1) | In Progress | Close top P0 items | 2026-03-08 | Open API/DB/security hardening tasks |
-| Golden smoke pre-merge | Operational | Keep green on all merges | Ongoing | None |
-| Nightly smoke + guardrails | Operational | Build 2-week runtime baseline | 2026-03-13 | No trend baseline yet |
-| MaaS pivot feature scope | Complete | Pilot hardening + onboarding | 2026-03-15 | Go-to-market execution |
-| MaaS W10-W12 sprint | In Progress | Finish multi-arch + dependabot | 2026-03-15 | CI/container backlog |
-| CI security governance | In Progress | Enforce required checks on `main` | 2026-03-01 | Branch protection finalization |
-| SPIFFE/SPIRE integration | Complete | Scheduled staging re-validation | 2026-03-10 | Evidence cadence |
-| Mesh-FL + consensus quality | In Progress | Close remaining P1 quality/perf items | 2026-03-15 | Technical debt |
-| Tech debt program | In Progress | Close open TD-006/007/008 | 2026-03-31 | Capacity vs priorities |
-| Revenue readiness | In Progress | Convert to paid pilots | 2026-04-25 | Sales pipeline and contracts |
+## Next Milestones
 
----
-
-## Milestones
-
-| Milestone | Date | Exit Criteria |
-|---|---|---|
-| Readiness stabilization checkpoint | 2026-03-08 | Top P0 readiness items closed + smoke stable |
-| W12 engineering completion | 2026-03-15 | Multi-arch/dependabot + P1 hardening done |
-| Pilot launch window (paid) | 2026-03-25 to 2026-04-25 | Customer onboarding + billing + SLA runbooks |
-| MRR stabilization window | 2026-05-01 to 2026-06-30 | Repeatable conversion from pilot to subscription |
-
----
-
-## Related Documents
-
-| Document | Role |
-|---|---|
-| [`plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md`](plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md) | Canonical live status table |
-| [`plans/MASTER_100_READINESS_TODOS_2026-02-26.md`](plans/MASTER_100_READINESS_TODOS_2026-02-26.md) | Release gating checklist |
-| [`plans/EXECUTION_BACKLOG_Q1_2026_W7_W8.md`](plans/EXECUTION_BACKLOG_Q1_2026_W7_W8.md) | Current execution sequencing |
-| [`plans/MAAS_DEVELOPMENT_PLAN_W10_W12.md`](plans/MAAS_DEVELOPMENT_PLAN_W10_W12.md) | Current MaaS sprint roadmap |
-| [`plans/MAAS_PIVOT_EXECUTION_TODO.md`](plans/MAAS_PIVOT_EXECUTION_TODO.md) | Product pivot completion map |
-| [`docs/roadmap.md`](docs/roadmap.md) | Documentation entrypoint redirect |
-
----
-
-## Update Cadence
-
-- Weekly: live status sync in canonical table file
-- Bi-weekly: milestone and blocker review
-- Monthly: roadmap version bump and priority reset
+1. Close remaining tech debt (6 god objects)
+2. Bounty PRs merge → $575
+3. Review me-hub PRs (14 open, 0 merged)
+4. Re-evaluate roadmap for Q3 2026

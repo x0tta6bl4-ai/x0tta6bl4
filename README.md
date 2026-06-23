@@ -32,8 +32,15 @@ Our first B2C product is a post-quantum VPN built on the x0tta6bl4 core.
 ```bash
 git clone https://github.com/x0tta6bl4-ai/x0tta6bl4.git
 cd x0tta6bl4
-python3 scripts/ops/check_real_readiness.py --json
+uv sync  # или: pip install -r requirements.txt (72 deps вместо 342)
+python3 -m pytest tests/unit/security/test_dependency_security_pins_unit.py -q
 ```
+
+## Docs
+
+- **CODEX** — `/mnt/projects/CODEX.md` — рабочая инструкция для AI агентов (v2.1)
+- **AGENTS.md** — правила работы AI с монрепо
+- **Green Baseline** — CI пайплайн с security аудитом
 
 ## Horizon-2 (Road to v4.0)
 We are currently scaling to **1,000,000+ PPS** using `AF_XDP` and Intel-native offloading. Join us in the research track for the next-gen high-performance mesh.
