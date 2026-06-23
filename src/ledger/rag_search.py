@@ -37,6 +37,392 @@ class LedgerSearchResult:
     metadata: Dict[str, Any] = None
 
 
+def _evidence_source(relative_path: str) -> str:
+    if relative_path.startswith("docs/architecture/"):
+        return "docs/architecture"
+    if relative_path.startswith("docs/01-architecture/"):
+        return "docs/01-architecture"
+    if relative_path.startswith("docs/05-operations/"):
+        return "docs/05-operations"
+    if relative_path.startswith("docs/verification/"):
+        return "docs/verification"
+    return "runtime_evidence"
+
+
+def _is_historical_claim_inventory(relative_path: str) -> bool:
+    return (
+        relative_path.startswith("docs/01-architecture/")
+        or relative_path in HISTORICAL_OPERATIONS_CLAIM_INVENTORY
+    )
+
+
+def _claim_status_metadata(
+    relative_path: str,
+    *,
+    latest_alias: bool,
+) -> Dict[str, Any]:
+    if relative_path == "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md":
+        return {
+            "claim_status": CLAIM_STATUS_CURRENT_ACTIVE_AUDIT,
+            "source_class": "architecture_current_audit",
+            "claim_scope": "current_working_audit_not_production_proof",
+            "current_evidence": True,
+            "historical_claim_inventory": False,
+            "requires_current_evidence_context": False,
+            "runtime_memory_priority": 100,
+        }
+    if relative_path.startswith("docs/architecture/CURRENT_"):
+        return {
+            "claim_status": CLAIM_STATUS_CURRENT_EVIDENCE_MAP,
+            "source_class": "architecture_current_evidence_map",
+            "claim_scope": "current_working_map_not_production_proof",
+            "current_evidence": True,
+            "historical_claim_inventory": False,
+            "requires_current_evidence_context": False,
+            "runtime_memory_priority": 95,
+        }
+    if _is_historical_claim_inventory(relative_path):
+        source_class = (
+            "historical_operations_claim_inventory"
+            if relative_path.startswith("docs/05-operations/")
+            else "historical_architecture_claim_inventory"
+        )
+        return {
+            "claim_status": CLAIM_STATUS_HISTORICAL_CLAIM_INVENTORY,
+            "source_class": source_class,
+            "claim_scope": "historical_or_claim_material_requires_current_evidence",
+            "current_evidence": False,
+            "historical_claim_inventory": True,
+            "requires_current_evidence_context": True,
+            "runtime_memory_priority": 20,
+        }
+    if relative_path.startswith("docs/architecture/"):
+        return {
+            "claim_status": CLAIM_STATUS_ARCHITECTURE_CONTEXT,
+            "source_class": "architecture_context",
+            "claim_scope": "architecture_context_requires_current_evidence",
+            "current_evidence": False,
+            "historical_claim_inventory": False,
+            "requires_current_evidence_context": True,
+            "runtime_memory_priority": 45,
+        }
+    if relative_path.startswith("docs/verification/incoming/"):
+        return {
+            "claim_status": CLAIM_STATUS_EXTERNAL_EVIDENCE_INTAKE_CANDIDATE,
+            "source_class": "external_evidence_intake_candidate",
+            "claim_scope": "staged_external_candidate_not_production_proof",
+            "current_evidence": False,
+            "historical_claim_inventory": False,
+            "requires_current_evidence_context": True,
+            "runtime_memory_priority": 35,
+        }
+    if relative_path.startswith("docs/verification/"):
+        return {
+            "claim_status": (
+                CLAIM_STATUS_LATEST_VERIFICATION_ALIAS
+                if latest_alias
+                else CLAIM_STATUS_VERIFICATION_ARTIFACT
+            ),
+            "source_class": "verification_evidence",
+            "claim_scope": "verification_artifact_not_automatic_truth",
+            "current_evidence": latest_alias,
+            "historical_claim_inventory": False,
+            "requires_current_evidence_context": False,
+            "runtime_memory_priority": 85 if latest_alias else 75,
+        }
+    return {
+        "claim_status": CLAIM_STATUS_UNCLASSIFIED,
+        "source_class": "runtime_evidence",
+        "claim_scope": "unclassified_requires_manual_review",
+        "current_evidence": False,
+        "historical_claim_inventory": False,
+        "requires_current_evidence_context": True,
+        "runtime_memory_priority": 30,
+    }
+
+
+def _safe_priority(metadata: Any) -> int:
+    if not isinstance(metadata, dict):
+        return 0
+    value = metadata.get("runtime_memory_priority", 0)
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, (int, float)):
+        return max(0, min(int(value), 100))
+    return 0
+
+
+def _safe_metadata_text(value: Any) -> Optional[str]:
+    if value is None or isinstance(value, (dict, list, tuple, set)):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return text[:EVENT_TRACE_CLAIM_BOUNDARY_TEXT_LIMIT]
+
+
+def _safe_metadata_int(value: Any) -> Optional[int]:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return max(0, value)
+    return None
+
+
+def _safe_metadata_bool(value: Any) -> Optional[bool]:
+    return value if isinstance(value, bool) else None
+
+
+def _event_trace_claim_boundary_summary(
+    evidence_summary: Any,
+) -> Optional[Dict[str, Any]]:
+    if not isinstance(evidence_summary, dict):
+        return None
+
+    summary = evidence_summary.get("claim_boundary_summary")
+    if isinstance(summary, dict):
+        configured_limit = (
+            _safe_metadata_int(summary.get("claim_boundaries_limit"))
+            or EVENT_TRACE_CLAIM_BOUNDARY_LIMIT
+        )
+        limit = min(configured_limit, EVENT_TRACE_CLAIM_BOUNDARY_LIMIT)
+        raw_boundaries = summary.get("claim_boundaries")
+        claim_boundaries = []
+        if isinstance(raw_boundaries, list):
+            for item in raw_boundaries[:limit]:
+                boundary = _safe_metadata_text(item)
+                if boundary:
+                    claim_boundaries.append(boundary)
+
+        total = _safe_metadata_int(summary.get("claim_boundaries_total"))
+        if total is None:
+            total = len(claim_boundaries)
+
+        truncated = _safe_metadata_bool(summary.get("claim_boundaries_truncated"))
+        if truncated is None:
+            truncated = len(claim_boundaries) < total
+
+        return {
+            "present": summary.get("present") is True or bool(claim_boundaries),
+            "claim_boundaries": claim_boundaries,
+            "claim_boundaries_total": max(total, len(claim_boundaries)),
+            "claim_boundaries_limit": limit,
+            "claim_boundaries_truncated": truncated,
+            "redacted": summary.get("redacted") is True,
+        }
+
+    boundary = _safe_metadata_text(evidence_summary.get("claim_boundary"))
+    if not boundary:
+        return None
+    return {
+        "present": True,
+        "claim_boundaries": [boundary],
+        "claim_boundaries_total": 1,
+        "claim_boundaries_limit": EVENT_TRACE_CLAIM_BOUNDARY_LIMIT,
+        "claim_boundaries_truncated": False,
+        "redacted": True,
+    }
+
+
+def _safe_metadata_text_list(value: Any, limit: int = EVENT_TRACE_CLAIM_BOUNDARY_LIMIT) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items: list[str] = []
+    for item in value[:limit]:
+        text = _safe_metadata_text(item)
+        if text:
+            items.append(text)
+    return items
+
+
+def _json_metadata_payload(path: Path, content: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    if path.suffix.lower() != ".json":
+        return None
+    try:
+        payload = json.loads(
+            content if content is not None else path.read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError, TypeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _external_dpi_intake_claim_gate_summary(
+    relative_path: str,
+    payload: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    if relative_path != EXTERNAL_DPI_INTAKE_RELATIVE_PATH and not (
+        isinstance(payload, dict) and payload.get("claim_id") == "dpi_lab"
+    ):
+        return None
+
+    payload = payload if isinstance(payload, dict) else {}
+    mode = _safe_metadata_text(payload.get("mode"))
+    status = _safe_metadata_text(payload.get("status"))
+    claim_id = _safe_metadata_text(payload.get("claim_id")) or "dpi_lab"
+    gap_record = (
+        mode == EXTERNAL_EVIDENCE_GAP_RECORD_MODE
+        or payload.get("gap_artifact_role") == "evidence_gap_record"
+    )
+    failures = _safe_metadata_text_list(payload.get("failures"))
+    missing_inputs = _safe_metadata_text_list(payload.get("missing_inputs"))
+
+    blockers = []
+    if gap_record:
+        blockers.append("external_evidence_gap_record_not_proof")
+    if status != "VERIFIED":
+        blockers.append("external_dpi_candidate_not_verified")
+    if failures:
+        blockers.append("external_dpi_candidate_has_failures")
+    if missing_inputs:
+        blockers.append("external_dpi_candidate_missing_inputs")
+
+    return {
+        "present": True,
+        "schema": "x0tta6bl4.external_dpi_intake.ledger_citation_claim_gate.v1",
+        "surface": "ledger_rag.docs_verification_incoming.dpi_lab",
+        "candidate_relative_path": relative_path,
+        "claim_id": claim_id,
+        "status": status,
+        "mode": mode,
+        "external_evidence_gap_record": gap_record,
+        "local_intake_file_observation_claim_allowed": True,
+        "candidate_file_observed_claim_allowed": True,
+        "bounded_external_dpi_candidate_ready_to_import_claim_allowed": False,
+        "bounded_external_dpi_bypass_observation_claim_allowed": False,
+        "bounded_dataplane_probe_observation_claim_allowed": False,
+        "validation_failures_present": bool(failures),
+        "missing_inputs_present": bool(missing_inputs),
+        "latest_evidence_updated_claim_allowed": False,
+        "proof_gate_dpi_bypass_claim_allowed": False,
+        "durable_censorship_bypass_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "anonymity_claim_allowed": False,
+        "provider_health_claim_allowed": False,
+        "payment_or_token_settlement_finality_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "validator_ready_to_import_required": True,
+        "import_preflight_required": True,
+        "proof_gate_required": True,
+        "this_citation_is_proof": False,
+        "blockers": blockers,
+        "failures": failures,
+        "missing_inputs": missing_inputs,
+        "redacted": True,
+        "claim_boundary": (
+            "Ledger/RAG can observe the staged external DPI intake file, but "
+            "this citation is not external DPI proof. READY_TO_IMPORT must come "
+            "from the bounded validator/importer path, and DPI bypass promotion "
+            "must still pass the Ghost Pulse proof gate."
+        ),
+    }
+
+
+def _external_dpi_intake_metadata(
+    relative_path: str,
+    payload: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    summary = _external_dpi_intake_claim_gate_summary(relative_path, payload)
+    if summary is None:
+        return {}
+
+    gap_record = summary["external_evidence_gap_record"] is True
+    return {
+        "claim_status": (
+            CLAIM_STATUS_EXTERNAL_DPI_GAP_RECORD
+            if gap_record
+            else CLAIM_STATUS_EXTERNAL_DPI_INTAKE_CANDIDATE
+        ),
+        "source_class": (
+            "external_dpi_gap_record"
+            if gap_record
+            else "external_dpi_intake_candidate"
+        ),
+        "claim_scope": (
+            "external_dpi_gap_record_not_proof"
+            if gap_record
+            else "external_dpi_intake_candidate_requires_validator_and_proof_gate"
+        ),
+        "current_evidence": False,
+        "historical_claim_inventory": False,
+        "requires_current_evidence_context": True,
+        "runtime_memory_priority": 10 if gap_record else 35,
+        "external_evidence_gap_record": gap_record,
+        "external_dpi_intake_claim_gate_summary": summary,
+    }
+
+
+def _event_trace_upstream_claim_gate_summary(
+    evidence_summary: Any,
+) -> Optional[Dict[str, Any]]:
+    if not isinstance(evidence_summary, dict):
+        return None
+    upstream = evidence_summary.get("upstream_evidence")
+    if not isinstance(upstream, dict):
+        return None
+    summary = upstream.get("claim_gate_summary")
+    if not isinstance(summary, dict) or summary.get("present") is not True:
+        return None
+    return {
+        "present": True,
+        "surface": _safe_metadata_text(summary.get("surface")),
+        "status": _safe_metadata_text(summary.get("status")),
+        "local_actuator_execution_claim_allowed": _safe_metadata_bool(
+            summary.get("local_actuator_execution_claim_allowed")
+        ),
+        "local_reward_adapter_record_claim_allowed": _safe_metadata_bool(
+            summary.get("local_reward_adapter_record_claim_allowed")
+        ),
+        "external_settlement_finality_claim_allowed": _safe_metadata_bool(
+            summary.get("external_settlement_finality_claim_allowed")
+        ),
+        "production_readiness_claim_allowed": _safe_metadata_bool(
+            summary.get("production_readiness_claim_allowed")
+        ),
+        "blocked_claim_ids": _safe_metadata_text_list(
+            summary.get("blocked_claim_ids")
+        ),
+        "payloads_redacted": summary.get("payloads_redacted") is True,
+    }
+
+
+def _event_trace_upstream_cross_plane_claim_gate_summary(
+    evidence_summary: Any,
+) -> Optional[Dict[str, Any]]:
+    if not isinstance(evidence_summary, dict):
+        return None
+    upstream = evidence_summary.get("upstream_evidence")
+    if not isinstance(upstream, dict):
+        return None
+    summary = upstream.get("cross_plane_claim_gate_summary")
+    if not isinstance(summary, dict) or summary.get("present") is not True:
+        return None
+    return {
+        "present": True,
+        "surface": _safe_metadata_text(summary.get("surface")),
+        "decision": _safe_metadata_text(summary.get("decision")),
+        "allowed": _safe_metadata_bool(summary.get("allowed")),
+        "requested_claim_ids": _safe_metadata_text_list(
+            summary.get("requested_claim_ids")
+        ),
+        "blockers": _safe_metadata_text_list(summary.get("blockers")),
+        "payloads_redacted": summary.get("payloads_redacted") is True,
+    }
+
+
+def _claim_adjusted_score(score: float, metadata: Any) -> float:
+    priority = _safe_priority(metadata)
+    penalty = (
+        0.01
+        if isinstance(metadata, dict)
+        and metadata.get("historical_claim_inventory") is True
+        else 0.0
+    )
+    if isinstance(metadata, dict) and metadata.get("external_evidence_gap_record") is True:
+        penalty += 0.03
+    return float(score) + (priority / 2000.0) - penalty
+
+
 class LedgerRAGSearch:
     """
     Semantic search в Continuity Ledger через существующий RAG pipeline.
@@ -497,22 +883,29 @@ class LedgerRAGSearch:
             results = []
             for i, chunk in enumerate(rag_result.retrieved_chunks):
                 # Получаем score из списка scores
-                score = rag_result.scores[i] if i < len(rag_result.scores) else 0.0
+                score = float(rag_result.scores[i]) if i < len(rag_result.scores) else 0.0
+                metadata = chunk.metadata if hasattr(chunk, "metadata") else {}
 
                 results.append(
                     {
                         "text": chunk.text,
                         "score": score,
-                        "metadata": (
-                            chunk.metadata if hasattr(chunk, "metadata") else {}
+                        "claim_adjusted_score": _claim_adjusted_score(
+                            score,
+                            metadata,
                         ),
+                        "metadata": metadata,
                         "section": (
-                            chunk.metadata.get("title", "Unknown")
-                            if hasattr(chunk, "metadata") and chunk.metadata
+                            metadata.get("title", "Unknown")
+                            if isinstance(metadata, dict) and metadata
                             else "Unknown"
                         ),
                     }
                 )
+            results.sort(
+                key=lambda item: item.get("claim_adjusted_score", item["score"]),
+                reverse=True,
+            )
 
             search_time_ms = (time.time() - start_time) * 1000
 
@@ -522,8 +915,8 @@ class LedgerRAGSearch:
                 total_results=len(results),
                 search_time_ms=search_time_ms,
                 metadata={
-                    "retrieval_time_ms": rag_result.retrieval_time_ms,
-                    "rerank_time_ms": rag_result.rerank_time_ms,
+                    "retrieval_time_ms": float(rag_result.retrieval_time_ms),
+                    "rerank_time_ms": float(rag_result.rerank_time_ms),
                 },
             )
 

@@ -1,5 +1,5 @@
 # Recovery Actions Configuration
-# Production-ready configuration for recovery actions
+# Tuned example for recovery actions; not production readiness evidence.
 
 recovery_actions:
   # Node configuration
@@ -88,4 +88,3 @@ recovery_actions:
     
     # Log all actions
     log_all_actions: true
-

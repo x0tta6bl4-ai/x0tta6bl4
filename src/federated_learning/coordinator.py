@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 from .aggregators import Aggregator, get_aggregator
 from .protocol import (AggregationResult, GlobalModel, ModelUpdate, ModelWeights)
 
@@ -181,6 +183,12 @@ class FederatedCoordinator:
         self.current_round: Optional[TrainingRound] = None
         self.round_history: List[TrainingRound] = []
         self.global_model: Optional[GlobalModel] = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=coordinator_id,
+            role="fl",
+            capabilities=("coordinator",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Aggregator - use enhanced if available
         try:
@@ -241,6 +249,18 @@ class FederatedCoordinator:
             if node_id in self.nodes:
                 logger.warning(f"Node {node_id} already registered")
                 return False
+
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "type": "fl_node_registration",
+                    "goal": "decide whether a node can join FL participation",
+                    "constraints": {
+                        "registered_nodes": len(self.nodes),
+                        "capability_keys": sorted((capabilities or {}).keys()),
+                        "min_trust_score": self.config.min_trust_score,
+                    },
+                }
+            )
 
             self.nodes[node_id] = NodeInfo(
                 node_id=node_id,
@@ -350,6 +370,19 @@ class FederatedCoordinator:
 
             # Select participants
             eligible = self.get_eligible_nodes()
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "type": "fl_round_participant_selection",
+                    "goal": "select eligible FL nodes for the next training round",
+                    "constraints": {
+                        "eligible_nodes": len(eligible),
+                        "min_participants": self.config.min_participants,
+                        "target_participants": self.config.target_participants,
+                        "max_participants": self.config.max_participants,
+                        "aggregation_method": self.config.aggregation_method,
+                    },
+                }
+            )
 
             if len(eligible) < self.config.min_participants:
                 logger.error(
@@ -479,6 +512,19 @@ class FederatedCoordinator:
             return
 
         self.current_round.status = RoundStatus.AGGREGATING
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_aggregation_decision",
+                "goal": "aggregate FL updates while preserving trust constraints",
+                "constraints": {
+                    "round_number": self.current_round.round_number,
+                    "updates_received": len(self.current_round.received_updates),
+                    "min_participants": self.current_round.min_participants,
+                    "aggregation_method": self.config.aggregation_method,
+                    "byzantine_tolerance": self.config.byzantine_tolerance,
+                },
+            }
+        )
 
         try:
             updates = list(self.current_round.received_updates.values())
@@ -559,6 +605,19 @@ class FederatedCoordinator:
         with self._lock:
             if not self.current_round:
                 return False
+
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "type": "fl_round_timeout_check",
+                    "goal": "decide whether the active FL round should finish or fail",
+                    "constraints": {
+                        "round_number": self.current_round.round_number,
+                        "status": self.current_round.status.value,
+                        "updates_received": len(self.current_round.received_updates),
+                        "min_participants": self.current_round.min_participants,
+                    },
+                }
+            )
 
             if self.current_round.status != RoundStatus.STARTED:
                 return False
@@ -652,6 +711,8 @@ class FederatedCoordinator:
                 "global_model_version": (
                     self.global_model.version if self.global_model else 0
                 ),
+                "thinking": self.thinking_coach.status(),
+                "last_thinking_context": self.last_thinking_context,
             }
 
     def get_node_stats(self) -> Dict[str, Dict[str, Any]]:

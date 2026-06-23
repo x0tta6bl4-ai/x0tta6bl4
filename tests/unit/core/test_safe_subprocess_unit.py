@@ -5,6 +5,7 @@ os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 
 """Unit tests for src/core/safe_subprocess.py"""
 
+import logging
 import subprocess
 from unittest.mock import MagicMock, patch
 
@@ -14,6 +15,10 @@ from src.core.safe_subprocess import (SafeCommandResult, SafeSubprocess,
                                       SecurityError, ValidationError,
                                       safe_docker_push, safe_docker_tag,
                                       safe_helm_upgrade, safe_kubectl_wait)
+from src.libx0t.core.safe_subprocess import (
+    SafeSubprocess as LibX0TSafeSubprocess,
+    SecurityError as LibX0TSecurityError,
+)
 
 # ============================================================================
 # SafeCommandResult tests
@@ -107,6 +112,10 @@ class TestValidateSafeString:
     def test_docker_image_tag(self):
         assert SafeSubprocess.validate_safe_string("myrepo/myimage:v1.2.3") is True
 
+    def test_cli_format_strings_used_by_project_are_allowed(self):
+        assert SafeSubprocess.validate_safe_string("--format=value(account)") is True
+        assert SafeSubprocess.validate_safe_string("~.") is True
+
     def test_empty_string_raises(self):
         with pytest.raises(ValidationError, match="cannot be empty"):
             SafeSubprocess.validate_safe_string("")
@@ -193,8 +202,23 @@ class TestValidateCommand:
         SafeSubprocess.validate_command(["python3", "--version"])
 
     def test_allowed_command_with_path(self):
-        """Command with full path: base name extracted."""
+        """Full paths are allowed only from trusted system command directories."""
         SafeSubprocess.validate_command(["/usr/bin/docker", "ps"])
+
+    def test_allowed_command_with_untrusted_path_rejected(self):
+        with pytest.raises(SecurityError, match="path is not trusted"):
+            SafeSubprocess.validate_command(["/tmp/git", "status"])
+
+    def test_allowed_command_with_relative_path_rejected(self):
+        with pytest.raises(SecurityError, match="path is not trusted"):
+            SafeSubprocess.validate_command(["./git", "status"])
+
+    def test_vpn_platform_commands_are_allowed(self):
+        SafeSubprocess.validate_command(["systemctl", "is-active", "systemd-resolved"])
+        SafeSubprocess.validate_command(["resolvectl", "domain", "tun0", "~."])
+        SafeSubprocess.validate_command(["iptables", "-L"])
+        SafeSubprocess.validate_command(["ipconfig", "/all"])
+        SafeSubprocess.validate_command(["scutil", "--dns"])
 
     def test_disallowed_command_bash(self):
         with pytest.raises(SecurityError, match="not in allowed list"):
@@ -246,9 +270,14 @@ class TestValidateCommand:
             "where",
             "echo",
             "cat",
+            "ipconfig",
+            "iptables",
             "ls",
             "pwd",
+            "resolvectl",
+            "scutil",
             "sleep",
+            "systemctl",
             "false",
             "true",
             "test",
@@ -376,6 +405,68 @@ class TestSafeSubprocessRun:
         mock_run.side_effect = OSError("permission denied")
         with pytest.raises(OSError, match="permission denied"):
             SafeSubprocess.run(["echo", "test"])
+
+
+class TestSafeSubprocessLogSanitization:
+    def test_sanitize_command_redacts_secret_arguments(self):
+        sanitized = SafeSubprocess.sanitize_command_for_log(
+            [
+                "docker",
+                "login",
+                "--password",
+                "raw-password",
+                "--token=raw-token",
+                "api_key=raw-api-key",
+                "registry.example",
+            ]
+        )
+
+        assert "raw-password" not in sanitized
+        assert "raw-token" not in sanitized
+        assert "raw-api-key" not in sanitized
+        assert "--password [REDACTED]" in sanitized
+        assert "--token=[REDACTED]" in sanitized
+        assert "api_key=[REDACTED]" in sanitized
+
+    def test_password_stdin_does_not_redact_registry_argument(self):
+        sanitized = SafeSubprocess.sanitize_command_for_log(
+            ["docker", "login", "--password-stdin", "registry.example"]
+        )
+
+        assert "--password-stdin registry.example" in sanitized
+
+    def test_redact_sensitive_text_handles_bytes(self):
+        sanitized = SafeSubprocess.redact_sensitive_text(b"token=raw-token")
+
+        assert sanitized == "token=[REDACTED]"
+
+    @patch("src.core.safe_subprocess.subprocess.run")
+    def test_failed_run_logs_redacted_command_and_stderr(self, mock_run, caplog):
+        mock_run.return_value = MagicMock(
+            returncode=1,
+            stdout="",
+            stderr="failed with token=raw-token and api_key:raw-api-key",
+        )
+
+        with caplog.at_level(logging.WARNING, logger="src.core.safe_subprocess"):
+            SafeSubprocess.run(["echo", "token=raw-command-token"])
+
+        messages = "\n".join(record.getMessage() for record in caplog.records)
+        assert "raw-command-token" not in messages
+        assert "raw-token" not in messages
+        assert "raw-api-key" not in messages
+        assert "token=[REDACTED]" in messages
+        assert "api_key:[REDACTED]" in messages
+
+    def test_libx0t_mirror_has_same_command_path_and_redaction_guards(self):
+        with pytest.raises(LibX0TSecurityError, match="path is not trusted"):
+            LibX0TSafeSubprocess.validate_command(["/tmp/git", "status"])
+
+        sanitized = LibX0TSafeSubprocess.sanitize_command_for_log(
+            ["echo", "secret=raw-secret"]
+        )
+        assert "raw-secret" not in sanitized
+        assert "secret=[REDACTED]" in sanitized
 
 
 # ============================================================================

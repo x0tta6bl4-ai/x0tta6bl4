@@ -6,8 +6,10 @@ Supports local testing with Docker and production deployment with SPIRE agent.
 """
 
 import logging
+import os
 import socket
 import time
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -28,16 +30,42 @@ except ImportError:
     WorkloadApiClient = None
 
 
+def default_spire_agent_socket_path() -> str:
+    """Return the local SPIRE Workload API socket path.
+
+    The default intentionally lives in a project-specific private directory,
+    not a shared world-writable temp directory.
+    """
+
+    explicit = (
+        os.getenv("SPIRE_WORKLOAD_SOCKET")
+        or os.getenv("X0TTA6BL4_SPIRE_AGENT_SOCKET")
+    )
+    if explicit:
+        return explicit.removeprefix("unix://")
+
+    socket_dir = (
+        os.getenv("SPIRE_AGENT_SOCKET_DIR")
+        or os.getenv("X0TTA6BL4_SPIRE_AGENT_SOCKET_DIR")
+        or str(Path(os.getenv("XDG_RUNTIME_DIR") or "/tmp") / "x0tta6bl4-spire-agent")
+    )
+    return str(Path(socket_dir) / "api.sock")
+
+
+def default_spire_agent_address() -> str:
+    return f"unix://{default_spire_agent_socket_path()}"
+
+
 class SPIREConfig:
     """Configuration for SPIRE integration"""
 
     def __init__(
         self,
-        agent_address: str = "unix:///tmp/spire-agent/public/api.sock",
+        agent_address: Optional[str] = None,
         trust_domain: str = "example.com",
         enabled: bool = True,
     ):
-        self.agent_address = agent_address
+        self.agent_address = agent_address or default_spire_agent_address()
         self.trust_domain = trust_domain
         # Effective enablement must follow runtime SPIRE availability.
         self.enabled = bool(enabled and SPIRE_AGENT_AVAILABLE)
@@ -197,7 +225,7 @@ def is_spire_available() -> bool:
         return False
 
     # Check if socket exists
-    socket_path = "/tmp/spire-agent/public/api.sock"  # nosec B108
+    socket_path = default_spire_agent_socket_path()
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(1)

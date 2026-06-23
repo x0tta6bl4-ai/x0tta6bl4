@@ -11,6 +11,7 @@ Handles:
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import ssl
@@ -21,8 +22,48 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import httpx
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 60:
+        return "1-60"
+    if value <= 3600:
+        return "61-3600"
+    return "3600+"
+
+
+def default_spire_workload_socket() -> str:
+    socket_dir = (
+        os.getenv("SPIRE_AGENT_SOCKET_DIR")
+        or os.getenv("X0TTA6BL4_SPIRE_AGENT_SOCKET_DIR")
+        or str(Path(os.getenv("XDG_RUNTIME_DIR") or "/tmp") / "x0tta6bl4-spire-agent")
+    )
+    return str(Path(socket_dir) / "api.sock")
 
 
 @dataclass
@@ -33,8 +74,8 @@ class SPIREConfig:
     server_address: str = os.getenv("SPIRE_SERVER_ADDRESS", "127.0.0.1:8081")
     agent_address: str = os.getenv("SPIRE_AGENT_ADDRESS", "127.0.0.1:8082")
     workload_socket: str = os.getenv(
-        "SPIRE_WORKLOAD_SOCKET", "/tmp/spire-agent/public/api.sock"
-    )  # nosec B108
+        "SPIRE_WORKLOAD_SOCKET", default_spire_workload_socket()
+    )
 
     # Trust domain
     trust_domain: str = os.getenv("SPIRE_TRUST_DOMAIN", "x0tta6bl4.mesh")
@@ -235,6 +276,61 @@ class MTLSContextManager:
         self.current_context: Optional[ssl.SSLContext] = None
         self._context_lock = asyncio.Lock()
         self._update_task: Optional[asyncio.Task] = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"spire-mtls-context-manager:{_safe_hash(config.trust_domain)}",
+            role="security",
+            capabilities=("zero-trust", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "spire_mtls_context_manager_init",
+                "goal": "Initialize SPIRE mTLS context manager safely",
+                "signals": {
+                    "trust_domain_hash": _safe_hash(config.trust_domain),
+                    "workload_socket_hash": _safe_hash(config.workload_socket),
+                    "rotation_interval_band": _safe_number_band(
+                        config.rotation_interval
+                    ),
+                    "context_present": False,
+                },
+                "safety_boundary": (
+                    "Keep raw trust domains, workload sockets, SVID certificate "
+                    "bytes, private keys, temp paths, and exception text out of "
+                    "thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_trust_domains": True,
+                    "redact_workload_sockets": True,
+                    "redact_svid_certificates": True,
+                    "redact_private_keys": True,
+                    "redact_temp_paths": True,
+                    "redact_exception_text": True,
+                    "preserve_mtls_context_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, TLS labels, and size bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def initialize(self) -> ssl.SSLContext:
         """Initialize mTLS context"""
@@ -242,12 +338,30 @@ class MTLSContextManager:
             self.current_context = await self._build_context()
             self._update_task = asyncio.create_task(self._context_update_loop())
             logger.info("✅ mTLS context initialized")
+            self._record_thinking(
+                "spire_mtls_context_initialized",
+                "Initialize SPIRE mTLS context safely",
+                {
+                    "context_present": self.current_context is not None,
+                    "update_task_present": self._update_task is not None,
+                },
+            )
             return self.current_context
 
     async def get_context(self) -> ssl.SSLContext:
         """Get current mTLS context"""
         if not self.current_context:
+            self._record_thinking(
+                "spire_mtls_context_missing",
+                "Initialize missing SPIRE mTLS context on demand",
+                {"context_present": False},
+            )
             return await self.initialize()
+        self._record_thinking(
+            "spire_mtls_context_returned",
+            "Return existing SPIRE mTLS context safely",
+            {"context_present": True},
+        )
         return self.current_context
 
     async def _build_context(self) -> ssl.SSLContext:
@@ -284,10 +398,28 @@ class MTLSContextManager:
             Path(key_path).unlink()
 
             logger.debug("✅ mTLS context built")
+            self._record_thinking(
+                "spire_mtls_context_built",
+                "Build SPIRE mTLS SSL context safely",
+                {
+                    "cert_length_band": _safe_number_band(len(svid.cert)),
+                    "private_key_length_band": _safe_number_band(
+                        len(svid.private_key)
+                    ),
+                    "cert_path_hash": _safe_hash(cert_path),
+                    "key_path_hash": _safe_hash(key_path),
+                    "min_tls_version": str(self.config.min_tls_version),
+                },
+            )
             return context
 
         except Exception as e:
             logger.error(f"❌ Failed to build mTLS context: {e}")
+            self._record_thinking(
+                "spire_mtls_context_build_failed",
+                "Record SPIRE mTLS context build failure safely",
+                {"error_type": type(e).__name__},
+            )
             raise
 
     async def _context_update_loop(self):
@@ -300,6 +432,11 @@ class MTLSContextManager:
                     logger.debug("🔄 mTLS context updated")
             except Exception as e:
                 logger.error(f"❌ Context update error: {e}")
+                self._record_thinking(
+                    "spire_mtls_context_update_failed",
+                    "Record SPIRE mTLS context update failure safely",
+                    {"error_type": type(e).__name__},
+                )
                 await asyncio.sleep(10)
 
 
@@ -321,6 +458,63 @@ class ProductionSPIREIntegration:
         self.mtls_manager: Optional[MTLSContextManager] = None
         self.workload_api = None
         self._started = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"production-spire-integration:{_safe_hash(self.config.trust_domain)}",
+            role="security",
+            capabilities=("zero-trust", "ops", "monitoring"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "production_spire_integration_init",
+                "goal": "Initialize production SPIRE integration safely",
+                "signals": {
+                    "server_address_hash": _safe_hash(self.config.server_address),
+                    "agent_address_hash": _safe_hash(self.config.agent_address),
+                    "workload_socket_hash": _safe_hash(self.config.workload_socket),
+                    "trust_domain_hash": _safe_hash(self.config.trust_domain),
+                    "node_name_hash": _safe_hash(self.config.node_name),
+                    "cert_ttl_band": _safe_number_band(self.config.cert_ttl),
+                    "started": False,
+                },
+                "safety_boundary": (
+                    "Keep raw SPIRE endpoints, workload sockets, trust domains, "
+                    "node names, namespace values, certificates, and exception text "
+                    "out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_spire_endpoints": True,
+                    "redact_workload_sockets": True,
+                    "redact_trust_domains": True,
+                    "redact_node_names": True,
+                    "redact_namespaces": True,
+                    "redact_certificates": True,
+                    "redact_exception_text": True,
+                    "preserve_spire_lifecycle_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, component status, and time bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def initialize(self, workload_api_client=None):
         """Initialize SPIRE integration"""
@@ -335,6 +529,11 @@ class ProductionSPIREIntegration:
                     self.workload_api = WorkloadAPIClient()
                 except ImportError:
                     logger.warning("⚠️ WorkloadAPIClient not available")
+                    self._record_thinking(
+                        "production_spire_initialize_skipped",
+                        "Skip SPIRE integration initialize without workload API",
+                        {"workload_api_available": False},
+                    )
                     return
 
             # Initialize components
@@ -353,9 +552,25 @@ class ProductionSPIREIntegration:
 
             self._started = True
             logger.info("✅ Production SPIRE integration initialized")
+            self._record_thinking(
+                "production_spire_initialized",
+                "Initialize production SPIRE integration safely",
+                {
+                    "workload_api_present": self.workload_api is not None,
+                    "health_checker_present": self.health_checker is not None,
+                    "rotation_policy_present": self.rotation_policy is not None,
+                    "mtls_manager_present": self.mtls_manager is not None,
+                    "started": self._started,
+                },
+            )
 
         except Exception as e:
             logger.error(f"❌ Failed to initialize SPIRE integration: {e}")
+            self._record_thinking(
+                "production_spire_initialize_failed",
+                "Record production SPIRE integration failure safely",
+                {"error_type": type(e).__name__, "started": self._started},
+            )
             raise
 
     async def shutdown(self):
@@ -367,26 +582,66 @@ class ProductionSPIREIntegration:
                 await self.rotation_policy.stop()
             self._started = False
             logger.info("✅ SPIRE integration shutdown")
+            self._record_thinking(
+                "production_spire_shutdown",
+                "Shutdown production SPIRE integration safely",
+                {
+                    "health_checker_present": self.health_checker is not None,
+                    "rotation_policy_present": self.rotation_policy is not None,
+                    "started": self._started,
+                },
+            )
         except Exception as e:
             logger.error(f"❌ Shutdown error: {e}")
+            self._record_thinking(
+                "production_spire_shutdown_failed",
+                "Record production SPIRE shutdown failure safely",
+                {"error_type": type(e).__name__, "started": self._started},
+            )
 
     async def get_mtls_client(self) -> httpx.AsyncClient:
         """Get mTLS HTTP client"""
         if not self.mtls_manager:
+            self._record_thinking(
+                "production_spire_mtls_client_missing",
+                "Reject mTLS client request before SPIRE initialization",
+                {"mtls_manager_present": False},
+            )
             raise RuntimeError("SPIRE integration not initialized")
 
         context = await self.mtls_manager.get_context()
+        self._record_thinking(
+            "production_spire_mtls_client_created",
+            "Create production SPIRE mTLS HTTP client safely",
+            {"mtls_manager_present": True, "context_present": context is not None},
+        )
         return httpx.AsyncClient(verify=context, timeout=30.0)
 
     def is_healthy(self) -> bool:
         """Check if SPIRE integration is healthy"""
         if not self.health_checker:
+            self._record_thinking(
+                "production_spire_health_checked",
+                "Report missing production SPIRE health checker safely",
+                {"health_checker_present": False, "healthy": False},
+            )
             return False
-        return self.health_checker.server_healthy and self.health_checker.agent_healthy
+        healthy = self.health_checker.server_healthy and self.health_checker.agent_healthy
+        self._record_thinking(
+            "production_spire_health_checked",
+            "Check production SPIRE integration health safely",
+            {
+                "health_checker_present": True,
+                "server_healthy": self.health_checker.server_healthy,
+                "agent_healthy": self.health_checker.agent_healthy,
+                "healthy": healthy,
+            },
+        )
+        return healthy
 
     def get_status(self) -> Dict[str, Any]:
         """Get integration status"""
-        return {
+        status = {
             "initialized": self._started,
             "server_healthy": (
                 self.health_checker.server_healthy if self.health_checker else False
@@ -403,6 +658,18 @@ class ProductionSPIREIntegration:
                 else None
             ),
         }
+        self._record_thinking(
+            "production_spire_status_reported",
+            "Report production SPIRE integration status safely",
+            {
+                "initialized": status["initialized"],
+                "server_healthy": status["server_healthy"],
+                "agent_healthy": status["agent_healthy"],
+                "rotation_count_bucket": _safe_count_bucket(status["rotations"]),
+                "last_rotation_present": status["last_rotation"] is not None,
+            },
+        )
+        return status
 
 
 # Singleton instance

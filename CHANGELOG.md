@@ -8,6 +8,9 @@
 ## [Unreleased]
 
 ### Added
+- Локальное событие `healing.verified` для MAPE-K: фиксирует post-action проверку следующего heartbeat как bounded evidence, без claims про customer traffic, external reachability или production readiness.
+- Предохранитель от повторного self-healing действия в cooldown-окне после одной попытки восстановления.
+- Строгие trust-finality proof-контракты, отклоняющие скрытые поля с production/customer overclaims.
 - Подготовка репозитория к публичной публикации
 - Стандартизация структуры директорий
 - GitHub шаблоны для Issues и Pull Requests

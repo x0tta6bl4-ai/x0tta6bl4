@@ -1,5 +1,10 @@
 # 📄 WHITEPAPER V2.0 OUTLINE - x0tta6bl4
 
+> Current gate note: Production-ready wording in this commercial draft is not
+> current production proof unless `docs/05-operations/REAL_READINESS_GATE.md`,
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json` pass.
+
 **Версия:** 2.0 (Commercial Focus)  
 **Дата:** 27 декабря 2025  
 **Статус:** 📝 **OUTLINE - READY FOR WRITING**
@@ -243,4 +248,3 @@
 
 **Дата:** 27 декабря 2025  
 **Статус:** 📝 **OUTLINE READY - START WRITING Q1 2026**
-

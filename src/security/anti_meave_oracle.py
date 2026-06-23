@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -179,6 +181,12 @@ class AntiMeaveOracle:
             "actions_rejected": 0,
             "threats_detected": 0,
         }
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="anti_meave_oracle",
+            role="security",
+            capabilities=("zero-trust", "coordinator"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
         
         logger.info(f"AntiMeaveOracle initialized for network of {network_size} nodes")
     
@@ -200,6 +208,19 @@ class AntiMeaveOracle:
             True if registration successful
         """
         async with self._lock:
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "type": "anti_meave_agent_registration",
+                    "goal": "validate least-privilege agent registration",
+                    "constraints": {
+                        "registered_agents": len(self._agents),
+                        "capability_count": len(capabilities),
+                        "network_size": self.network_size,
+                        "auto_suspend": self.auto_suspend,
+                    },
+                }
+            )
+
             if agent_id in self._agents:
                 logger.warning(f"Agent {agent_id} already registered")
                 return False
@@ -264,6 +285,23 @@ class AntiMeaveOracle:
             True if action is allowed
         """
         async with self._lock:
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "type": "anti_meave_action_validation",
+                    "goal": "validate agent action against capability and blast radius",
+                    "constraints": {
+                        "action_type": action_type,
+                        "target_node_count": len(target_nodes),
+                        "capability_name_present": bool(capability_name),
+                        "network_size": self.network_size,
+                        "max_nodes_per_agent": self.max_nodes_per_agent,
+                    },
+                    "safety_boundary": (
+                        "Do not include raw target node IDs or grant broader access."
+                    ),
+                }
+            )
+
             # Check if agent exists
             profile = self._agents.get(agent_id)
             if not profile:
@@ -381,6 +419,17 @@ class AntiMeaveOracle:
         """
         threats = []
         agents_to_suspend: List[str] = []
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "anti_meave_threat_detection",
+                "goal": "detect takeover or abuse patterns in registered agents",
+                "constraints": {
+                    "active_agents": len(self._agents),
+                    "anomaly_threshold": self.anomaly_threshold,
+                    "auto_suspend": self.auto_suspend,
+                },
+            }
+        )
 
         async with self._lock:
             for agent_id, profile in self._agents.items():
@@ -417,6 +466,18 @@ class AntiMeaveOracle:
         - Time since registration
         """
         score = 0.0
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "anti_meave_threat_score",
+                "goal": "score agent behavior for takeover risk",
+                "constraints": {
+                    "actions_taken": profile.actions_taken,
+                    "nodes_affected_count": len(profile.nodes_affected),
+                    "network_size": self.network_size,
+                    "max_actions_per_minute": self.max_actions_per_minute,
+                },
+            }
+        )
         
         # Factor 1: Action rate
         action_rate = profile.actions_taken / max(1, time.time() - profile.registered_at) * 60
@@ -535,6 +596,8 @@ class AntiMeaveOracle:
             "active_agents": len(self._agents),
             "suspended_agents": len(self._suspended_agents),
             "unresolved_alerts": len([a for a in self._alerts if not a.resolved]),
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
     
     def _log_audit(self, event: str, data: Dict[str, Any]) -> None:

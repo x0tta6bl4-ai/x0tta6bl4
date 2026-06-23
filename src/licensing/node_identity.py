@@ -255,14 +255,85 @@ class NodeLicenseManager:
         self.activation_client = activation_client
         self.fingerprint = HardwareFingerprinter.generate()
         self.certificate: Optional[IdentityCertificate] = None
+        self.source_agent = "node-license-manager"
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "licensing", "identity"),
+            extra_techniques=("reverse_planning",),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
+        self._record_thinking(
+            operation="init",
+            goal="initialize node license manager without exposing hardware fingerprint",
+            constraints={
+                "auth_server_configured": bool(self.auth_server_url),
+                "activation_client_configured": self.activation_client is not None,
+                "fingerprint_hash": self._hash_value(self.fingerprint.to_hash()),
+            },
+        )
 
         # Try to load existing certificate
         self._load_certificate()
+
+    @staticmethod
+    def _hash_value(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            return hashlib.sha256(value).hexdigest()
+        return hashlib.sha256(
+            str(value).encode("utf-8", errors="replace")
+        ).hexdigest()
+
+    def _record_thinking(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "node_license_manager_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                "raw_activation_token_redacted": True,
+                "raw_fingerprint_redacted": True,
+                "raw_certificate_redacted": True,
+                "license_check_is_not_hardware_attestation": True,
+                "license_check_is_not_external_identity_finality": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local license activation and verification metadata, "
+                "hashes, booleans, and status. Do not expose activation tokens, "
+                "hardware identifiers, certificate signatures, or server payloads. "
+                "A local license check is not hardware attestation or external "
+                "identity finality."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose license manager thinking state without raw license secrets."""
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+            "certificate_loaded": self.certificate is not None,
+        }
 
     def _load_certificate(self):
         """Load certificate from disk."""
         if self.CERT_PATH.exists():
             self.certificate = IdentityCertificate.load(str(self.CERT_PATH))
+            self._record_thinking(
+                operation="load_certificate",
+                goal="load local license certificate from disk",
+                constraints={"certificate_loaded": self.certificate is not None},
+            )
 
     def _save_certificate(self):
         """Save certificate to disk."""
@@ -283,6 +354,11 @@ class NodeLicenseManager:
         # Verify fingerprint matches certificate (if exists)
         if self.certificate:
             if self.certificate.fingerprint_hash != self.fingerprint.to_hash():
+                self._record_thinking(
+                    operation="activate",
+                    goal="reject activation because loaded certificate is bound elsewhere",
+                    constraints={"fingerprint_match": False},
+                )
                 return (
                     False,
                     "Hardware fingerprint mismatch! License bound to different machine.",
@@ -358,26 +434,64 @@ class NodeLicenseManager:
     def verify(self) -> Tuple[bool, str]:
         """Verify current license is valid."""
         if not self.certificate:
+            self._record_thinking(
+                operation="verify",
+                goal="reject license verification because no certificate is loaded",
+                constraints={"certificate_loaded": False},
+            )
             return False, "No license found. Please activate."
 
         # Check fingerprint binding
         if self.certificate.fingerprint_hash != self.fingerprint.to_hash():
+            self._record_thinking(
+                operation="verify",
+                goal="reject license verification because fingerprint differs",
+                constraints={"fingerprint_match": False},
+            )
             return False, "SECURITY ALERT: License bound to different hardware!"
 
         # Check expiry
         if not self.certificate.is_valid():
+            self._record_thinking(
+                operation="verify",
+                goal="reject license verification because certificate expired",
+                constraints={"certificate_valid": False},
+            )
             return False, "License expired. Please renew."
 
+        self._record_thinking(
+            operation="verify",
+            goal="record valid local license verification",
+            constraints={
+                "fingerprint_match": True,
+                "certificate_valid": True,
+                "license_tier": self.certificate.license_tier,
+            },
+        )
         return True, f"Valid license. Tier: {self.certificate.license_tier}"
 
     def get_node_identity(self) -> Optional[str]:
         """Get node identity for mesh network authentication."""
         if not self.certificate:
+            self._record_thinking(
+                operation="get_node_identity",
+                goal="skip node identity because no certificate is loaded",
+                constraints={"certificate_loaded": False},
+            )
             return None
 
         # Identity = hash of (fingerprint + certificate)
         identity_data = f"{self.fingerprint.to_hash()}:{self.certificate.signature}"
-        return hashlib.sha256(identity_data.encode()).hexdigest()[:32]
+        identity = hashlib.sha256(identity_data.encode()).hexdigest()[:32]
+        self._record_thinking(
+            operation="get_node_identity",
+            goal="derive local node identity hash from license material",
+            constraints={
+                "certificate_loaded": True,
+                "node_identity_hash": self._hash_value(identity),
+            },
+        )
+        return identity
 
 
 class MeshNetworkValidator:

@@ -31,7 +31,8 @@
 ### 2. Network Requirements
 
 - [ ] Clean IP (not blacklisted)
-- [ ] Ports 443, 8443, 8388, 9443, 8080 available
+- [ ] Port 443 available and externally reachable
+- [ ] Fallback ports 8443, 8388, 9443, 8080 validated externally before use
 - [ ] Outbound internet access
 - [ ] DNS resolution working
 - [ ] NTP time synchronization enabled
@@ -251,33 +252,36 @@ echo "=== Phase 5: Firewall Configuration ==="
 # 5.1 Configure UFW (if available)
 if command -v ufw &> /dev/null; then
     ufw allow 443/tcp
-    ufw allow 8443/tcp
-    ufw allow 8388/tcp
-    ufw allow 8388/udp
-    ufw allow 9443/tcp
-    ufw allow 8080/tcp
+    # Open fallback ports only after confirming the public path reaches this host.
+    # ufw allow 8443/tcp
+    # ufw allow 8388/tcp
+    # ufw allow 8388/udp
+    # ufw allow 9443/tcp
+    # ufw allow 8080/tcp
     echo "✓ UFW configured"
 fi
 
 # 5.2 Configure FirewallD (if available)
 if command -v firewall-cmd &> /dev/null; then
     firewall-cmd --permanent --add-port=443/tcp
-    firewall-cmd --permanent --add-port=8443/tcp
-    firewall-cmd --permanent --add-port=8388/tcp
-    firewall-cmd --permanent --add-port=8388/udp
-    firewall-cmd --permanent --add-port=9443/tcp
-    firewall-cmd --permanent --add-port=8080/tcp
+    # Add fallback ports only after external validation.
+    # firewall-cmd --permanent --add-port=8443/tcp
+    # firewall-cmd --permanent --add-port=8388/tcp
+    # firewall-cmd --permanent --add-port=8388/udp
+    # firewall-cmd --permanent --add-port=9443/tcp
+    # firewall-cmd --permanent --add-port=8080/tcp
     firewall-cmd --reload
     echo "✓ FirewallD configured"
 fi
 
 # 5.3 Configure iptables
 iptables -A INPUT -p tcp --dport 443 -j ACCEPT
-iptables -A INPUT -p tcp --dport 8443 -j ACCEPT
-iptables -A INPUT -p tcp --dport 8388 -j ACCEPT
-iptables -A INPUT -p udp --dport 8388 -j ACCEPT
-iptables -A INPUT -p tcp --dport 9443 -j ACCEPT
-iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
+# Add fallback ports only after external validation:
+# iptables -A INPUT -p tcp --dport 8443 -j ACCEPT
+# iptables -A INPUT -p tcp --dport 8388 -j ACCEPT
+# iptables -A INPUT -p udp --dport 8388 -j ACCEPT
+# iptables -A INPUT -p tcp --dport 9443 -j ACCEPT
+# iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
 ```
 
 ### Phase 6: System Optimization (2 minutes)
@@ -353,7 +357,7 @@ check_config() {
 
 # Check 3: Port Listening
 check_ports() {
-    local ports=(443 8443 8388 9443 8080)
+    local ports=(443)
     local any_listening=false
     
     for port in "${ports[@]}"; do
@@ -657,7 +661,7 @@ else
 fi
 
 # 2. Port verification
-for port in 443 8443 8388 9443 8080; do
+for port in 443; do
     if ss -tlnp | grep -q ":$port "; then
         echo "✓ Port $port is listening"
     else
@@ -740,13 +744,10 @@ echo "1. VLESS Reality:"
 echo "   Import /root/xray-clients/vless-reality.json to your client"
 echo "   Server: $SERVER_IP:443"
 echo ""
-echo "2. Trojan:"
-echo "   Import /root/xray-clients/trojan.json to your client"
-echo "   Server: $SERVER_IP:9443"
-echo ""
-echo "3. Shadowsocks:"
-echo "   Import /root/xray-clients/shadowsocks.txt to your client"
-echo "   Server: $SERVER_IP:8388"
+echo "2. Fallback profiles:"
+echo "   Do not import or distribute fallback profiles until"
+echo "   scripts/validate-installation.sh proves external reachability"
+echo "   for the exact public port."
 echo ""
 
 # Generate connection URLs

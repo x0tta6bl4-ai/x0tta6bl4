@@ -9,6 +9,7 @@ Implements:
 """
 
 import asyncio
+import hashlib
 import logging
 import statistics
 import time
@@ -18,7 +19,32 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.services.service_event_identity import service_event_identity
+
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "proxy-metrics-collector"
+_SERVICE_LAYER = "network_proxy_metrics_observed_state"
+PROXY_METRICS_COLLECTOR_CLAIM_BOUNDARY = (
+    "Local proxy metrics collector observed-state evidence only. It records "
+    "redacted proxy request, health, domain-request, and alert aggregation "
+    "metadata with proxy, domain, and error identifiers hashed. It does not "
+    "copy proxy hosts, credentials, target domains, URLs, headers, request "
+    "bodies, response payloads, or raw metric labels, and it does not prove "
+    "provider reachability, customer traffic delivery, or end-to-end dataplane "
+    "quality."
+)
+
+
+def _hash_value(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return None
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
 
 
 class MetricType(Enum):
@@ -159,7 +185,12 @@ class ProxyMetricsCollector:
     Centralized metrics collector for proxy infrastructure.
     """
 
-    def __init__(self, retention_hours: int = 24):
+    def __init__(
+        self,
+        retention_hours: int = 24,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: Optional[str] = None,
+    ):
         self.retention_hours = retention_hours
         self.metrics: Dict[str, MetricSeries] = {}
         self.proxy_snapshots: Dict[str, List[ProxyMetricsSnapshot]] = defaultdict(list)
@@ -167,6 +198,64 @@ class ProxyMetricsCollector:
         self._lock = asyncio.Lock()
         self._running = False
         self._aggregation_task: Optional[asyncio.Task] = None
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        if self.event_project_root is None:
+            return None
+        try:
+            self.event_bus = get_event_bus(self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize proxy-metrics EventBus: %s", exc)
+            return None
+
+    def _service_identity_presence(self) -> Dict[str, bool]:
+        identity = service_event_identity(service_name=_SERVICE_AGENT)
+        return {field: bool(value) for field, value in identity.items()}
+
+    def _configured_metrics(self, names: List[str]) -> Dict[str, bool]:
+        return {name: name in self.metrics for name in names}
+
+    def _publish_observed_state(
+        self,
+        *,
+        operation: str,
+        status: str,
+        success: bool,
+        duration_ms: float,
+        payload: Dict[str, Any],
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+        event_payload = {
+            "component": "network.proxy_metrics_collector",
+            "operation": operation,
+            "service_name": _SERVICE_AGENT,
+            "layer": _SERVICE_LAYER,
+            "status": status,
+            "success": bool(success),
+            "duration_ms": round(float(duration_ms), 3),
+            "service_identity_present": self._service_identity_presence(),
+            "raw_identifiers_redacted": True,
+            "claim_boundary": PROXY_METRICS_COLLECTOR_CLAIM_BOUNDARY,
+            **payload,
+        }
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                _SERVICE_AGENT,
+                event_payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish proxy metrics evidence: %s", exc)
+            return None
 
     def register_metric(
         self,
@@ -203,46 +292,96 @@ class ProxyMetricsCollector:
         error_type: Optional[str] = None,
     ):
         """Record a proxy request result."""
+        started = time.perf_counter()
         await self.record("proxy_requests_total", 1, {"proxy_id": proxy_id})
 
+        metric_names = ["proxy_requests_total", "proxy_latency_ms"]
         if success:
             await self.record("proxy_requests_success", 1, {"proxy_id": proxy_id})
+            metric_names.append("proxy_requests_success")
         else:
             await self.record(
                 "proxy_requests_failed",
                 1,
                 {"proxy_id": proxy_id, "error_type": error_type or "unknown"},
             )
+            metric_names.append("proxy_requests_failed")
 
         await self.record("proxy_latency_ms", latency_ms, {"proxy_id": proxy_id})
+        self._publish_observed_state(
+            operation="record_proxy_request",
+            status="proxy_request_metric_recorded",
+            success=True,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            payload={
+                "proxy_id_hash": _hash_value(proxy_id),
+                "request_success": bool(success),
+                "latency_ms": round(float(latency_ms), 3),
+                "error_type_present": bool(error_type),
+                "error_type_hash": _hash_value(error_type),
+                "metrics_configured": self._configured_metrics(metric_names),
+            },
+        )
 
     async def record_proxy_health(
         self, proxy_id: str, is_healthy: bool, response_time_ms: float
     ):
         """Record proxy health check result."""
+        started = time.perf_counter()
         await self.record(
             "proxy_health_check", 1 if is_healthy else 0, {"proxy_id": proxy_id}
         )
         await self.record(
             "proxy_health_response_time_ms", response_time_ms, {"proxy_id": proxy_id}
         )
+        metric_names = ["proxy_health_check", "proxy_health_response_time_ms"]
+        self._publish_observed_state(
+            operation="record_proxy_health",
+            status="proxy_health_metric_recorded",
+            success=True,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            payload={
+                "proxy_id_hash": _hash_value(proxy_id),
+                "is_healthy": bool(is_healthy),
+                "response_time_ms": round(float(response_time_ms), 3),
+                "health_value": 1 if is_healthy else 0,
+                "metrics_configured": self._configured_metrics(metric_names),
+            },
+        )
 
     async def record_domain_request(
         self, domain: str, proxy_id: str, success: bool, latency_ms: float
     ):
         """Record a domain request."""
+        started = time.perf_counter()
         await self.record(
             "domain_requests_total", 1, {"domain": domain, "proxy_id": proxy_id}
         )
 
+        metric_names = ["domain_requests_total"]
         if success:
             await self.record(
                 "domain_requests_success", 1, {"domain": domain, "proxy_id": proxy_id}
             )
+            metric_names.append("domain_requests_success")
         else:
             await self.record(
                 "domain_requests_failed", 1, {"domain": domain, "proxy_id": proxy_id}
             )
+            metric_names.append("domain_requests_failed")
+        self._publish_observed_state(
+            operation="record_domain_request",
+            status="domain_request_metric_recorded",
+            success=True,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            payload={
+                "domain_hash": _hash_value(domain),
+                "proxy_id_hash": _hash_value(proxy_id),
+                "request_success": bool(success),
+                "latency_ms": round(float(latency_ms), 3),
+                "metrics_configured": self._configured_metrics(metric_names),
+            },
+        )
 
     def get_metric(self, name: str) -> Optional[MetricSeries]:
         """Get a metric series."""
@@ -304,7 +443,11 @@ class ProxyMetricsCollector:
 
     async def _check_alerts(self):
         """Check for alert conditions."""
+        started = time.perf_counter()
         alerts = []
+        failure_rate = None
+        p95_latency = None
+        handler_errors = 0
 
         # Check for high failure rate
         failure_series = self.metrics.get("proxy_requests_failed")
@@ -323,14 +466,14 @@ class ProxyMetricsCollector:
         # Check for high latency
         latency_series = self.metrics.get("proxy_latency_ms")
         if latency_series:
-            p95 = latency_series.get_percentile(95, window_seconds=300)
-            if p95 and p95 > 2000:  # > 2s p95 latency
+            p95_latency = latency_series.get_percentile(95, window_seconds=300)
+            if p95_latency and p95_latency > 2000:  # > 2s p95 latency
                 alerts.append(
                     {
                         "severity": "warning",
                         "type": "high_latency",
-                        "message": f"High P95 latency: {p95:.0f}ms",
-                        "value": p95,
+                        "message": f"High P95 latency: {p95_latency:.0f}ms",
+                        "value": p95_latency,
                     }
                 )
 
@@ -340,7 +483,39 @@ class ProxyMetricsCollector:
                 try:
                     await handler(alert)
                 except Exception as e:
+                    handler_errors += 1
                     logger.error(f"Alert handler error: {e}")
+
+        self._publish_observed_state(
+            operation="check_alerts",
+            status="alerts_detected" if alerts else "no_alerts",
+            success=handler_errors == 0,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            payload={
+                "alerts_count": len(alerts),
+                "alert_types": [alert["type"] for alert in alerts],
+                "handler_count": len(self._alert_handlers),
+                "handler_errors": handler_errors,
+                "failure_rate_5m": (
+                    round(float(failure_rate), 6)
+                    if failure_rate is not None
+                    else None
+                ),
+                "p95_latency_ms_5m": (
+                    round(float(p95_latency), 3)
+                    if p95_latency is not None
+                    else None
+                ),
+                "metric_value_counts": {
+                    "proxy_requests_failed": (
+                        len(failure_series.values) if failure_series else 0
+                    ),
+                    "proxy_latency_ms": (
+                        len(latency_series.values) if latency_series else 0
+                    ),
+                },
+            },
+        )
 
     async def _aggregation_loop(self):
         """Background loop for metric aggregation and alerting."""
@@ -436,9 +611,15 @@ DEFAULT_METRICS = [
 ]
 
 
-def create_default_collector() -> ProxyMetricsCollector:
+def create_default_collector(
+    event_bus: Optional[EventBus] = None,
+    event_project_root: Optional[str] = None,
+) -> ProxyMetricsCollector:
     """Create a collector with default metrics pre-registered."""
-    collector = ProxyMetricsCollector()
+    collector = ProxyMetricsCollector(
+        event_bus=event_bus,
+        event_project_root=event_project_root,
+    )
 
     for name, metric_type, description in DEFAULT_METRICS:
         collector.register_metric(name, metric_type, description)

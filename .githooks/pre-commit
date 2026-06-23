@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "${ROOT}"
+
+if [[ -z "$(git diff --cached --name-only --diff-filter=ACMR)" ]]; then
+  exit 0
+fi
+
+agent="${SWARM_AGENT:-}"
+agent_file="$(git rev-parse --git-path swarm_agent)"
+if [[ -z "${agent}" && -f "${agent_file}" ]]; then
+  agent="$(tr -d '[:space:]' < "${agent_file}")"
+fi
+
+if [[ -z "${agent}" ]]; then
+  echo "[swarm] pre-commit blocked: SWARM_AGENT is not set and ${agent_file} is missing." >&2
+  echo "[swarm] run: scripts/agents/start_swarm_session.sh <agent-key>" >&2
+  exit 1
+fi
+
+ttl="${SWARM_LEASE_TTL:-1800}"
+"${ROOT}/scripts/agents/check_swarm_ownership.py" --agent "${agent}"
+"${ROOT}/scripts/agents/swarm_coord.py" ensure-staged --agent "${agent}" --ttl "${ttl}"

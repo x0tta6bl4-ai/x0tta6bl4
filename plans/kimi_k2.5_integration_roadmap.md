@@ -1,3 +1,10 @@
+> Truth-surface note: aspirational roadmap.
+> Superseded for current readiness claims by `STATUS_REALITY.md`,
+> `docs/05-operations/REAL_READINESS_GATE.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`.
+> Production-ready wording below is a target state, not current production
+> deployment evidence.
+
 # Roadmap интеграции Kimi K2.5 в x0tta6bl4
 
 ## Обзор

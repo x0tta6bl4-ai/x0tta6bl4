@@ -443,3 +443,47 @@ def test_create_geo_proxy_manager_factory_paths():
     assert manager.pools[mod.Region.US_EAST].total_count == 1
     assert manager.get_domain_region("ok.com") == mod.Region.EU_WEST
     assert manager.get_domain_region("bad.com") is None
+
+
+@pytest.mark.asyncio
+async def test_libx0t_geo_proxy_thinking_redacts_selection_inputs(monkeypatch):
+    manager = mod.GeoProxyShardManager(default_region=mod.Region.US_EAST)
+    selected = _make_proxy(
+        "geo-proxy-secret-west",
+        region=mod.Region.US_WEST.value,
+    )
+
+    async def _fake_select(region, _require_healthy):
+        if region == mod.Region.US_EAST:
+            return None
+        if region == mod.Region.US_WEST:
+            return selected
+        return None
+
+    manager._select_from_region = _fake_select
+    monkeypatch.setattr(
+        manager,
+        "get_nearest_regions",
+        lambda _from_region, count=3: [mod.Region.US_WEST],
+    )
+    manager.set_domain_affinity("secret.example", mod.Region.US_EAST)
+
+    proxy = await manager.select_proxy(
+        target_domain="secret.example",
+        allow_failover=True,
+    )
+    assert proxy is selected
+
+    status = manager.get_thinking_status()
+    assert status["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in status["thinking"]["techniques"]
+    assert (
+        status["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "libx0t_geo_proxy_selected_after_failover"
+    )
+    assert status["claim_boundary"]
+
+    rendered = repr(status)
+    assert "secret.example" not in rendered
+    assert "geo-proxy-secret-west" not in rendered
+    assert "127.0.0.1" not in rendered

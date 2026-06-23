@@ -24,6 +24,7 @@ if "aiohttp_cors" not in sys.modules:
         ResourceOptions=_ResourceOptions,
     )
 
+from src.coordination.events import EventBus, EventType
 import src.network.proxy_orchestrator as mod
 from src.network.residential_proxy_manager import ProxyStatus
 
@@ -108,9 +109,17 @@ def _patch_initialize_dependencies(monkeypatch, *, metrics_enabled: bool = True)
             calls["selection_algorithm"] = self
 
     class _FakeProxyManager:
-        def __init__(self, health_check_interval, max_failures):
+        def __init__(
+            self,
+            health_check_interval,
+            max_failures,
+            event_bus=None,
+            event_project_root=None,
+        ):
             self.health_check_interval = health_check_interval
             self.max_failures = max_failures
+            self.event_bus = event_bus
+            self.event_project_root = event_project_root
             self.proxies = []
             self.started = False
             self.stopped = False
@@ -141,11 +150,18 @@ def _patch_initialize_dependencies(monkeypatch, *, metrics_enabled: bool = True)
             self.stopped = True
 
     class _FakeReputationScoringSystem:
+        def __init__(self, **kwargs):
+            calls["reputation_kwargs"] = kwargs
+
         def export_stats(self):
             return {"tracked_domains": 3}
 
+    def _fake_create_default_collector(**kwargs):
+        calls["metrics_collector_kwargs"] = kwargs
+        return _FakeMetricsCollector()
+
     monkeypatch.setattr(mod, "ProxyConfigManager", _FakeConfigManager)
-    monkeypatch.setattr(mod, "create_default_collector", lambda: _FakeMetricsCollector())
+    monkeypatch.setattr(mod, "create_default_collector", _fake_create_default_collector)
     monkeypatch.setattr(mod, "SelectionStrategy", lambda value: f"strategy:{value}")
     monkeypatch.setattr(mod, "ProxySelectionAlgorithm", _FakeSelectionAlgorithm)
     monkeypatch.setattr(mod, "ResidentialProxyManager", _FakeProxyManager)
@@ -301,6 +317,50 @@ async def test_update_status_and_signal_handler():
 
 
 @pytest.mark.asyncio
+async def test_update_status_publishes_redacted_eventbus_evidence(tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    orchestrator = mod.ProxyOrchestrator(event_bus=bus)
+    orchestrator.status.started_at = datetime.utcnow() - timedelta(seconds=2)
+    orchestrator.status.components_ready = {
+        "config": True,
+        "proxy_manager": False,
+    }
+    orchestrator.status.total_requests = 12
+    orchestrator.status.error_count = 3
+    orchestrator.proxy_manager = SimpleNamespace(
+        proxies=[
+            _proxy("proxy-secret-1", ProxyStatus.HEALTHY),
+            _proxy("proxy-secret-2", ProxyStatus.BANNED),
+        ]
+    )
+
+    await orchestrator._update_status()
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="proxy-orchestrator",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["component"] == "network.proxy_orchestrator"
+    assert payload["operation"] == "update_status"
+    assert payload["service_name"] == "proxy-orchestrator"
+    assert payload["layer"] == "network_proxy_orchestrator_observed_state"
+    assert payload["service_identity_present"] == {
+        "spiffe_id": False,
+        "did": False,
+        "wallet_address": False,
+    }
+    assert payload["proxies"] == {"active": 2, "healthy": 1}
+    assert payload["components"] == {"total": 2, "ready": 1, "not_ready": 1}
+    assert payload["requests"] == {"total": 12, "errors": 3}
+    assert payload["thinking"]["profile"]["role"] == "ops"
+    assert payload["raw_identifiers_redacted"] is True
+    assert "external proxy reachability" in payload["claim_boundary"]
+    assert "proxy-secret" not in str(payload)
+
+
+@pytest.mark.asyncio
 async def test_shutdown_continues_when_component_stop_fails(caplog):
     class _Component:
         def __init__(self, *, fail=False):
@@ -364,6 +424,51 @@ async def test_metrics_summary_and_health_report():
     assert report["proxies"]["by_status"]["banned"] == 1
     assert report["proxies"]["by_status"]["unhealthy"] == 1
     assert report["reputation"]["tracked_domains"] == 9
+    assert report["evidence"]["event_id"] is None
+    assert (
+        orchestrator.last_thinking_context["applied"]["framing"]["problem"]
+        == "proxy_orchestrator_health_report"
+    )
+
+
+@pytest.mark.asyncio
+async def test_health_report_returns_proxy_orchestrator_evidence(tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    orchestrator = mod.ProxyOrchestrator(event_bus=bus)
+    orchestrator.status.components_ready = {"config": True}
+    orchestrator.proxy_manager = SimpleNamespace(
+        proxies=[
+            _proxy("proxy-secret-1", ProxyStatus.HEALTHY),
+            _proxy("proxy-secret-2", ProxyStatus.UNHEALTHY),
+        ]
+    )
+    orchestrator.reputation_system = SimpleNamespace(
+        export_stats=lambda: {"tracked_domains": 9}
+    )
+
+    report = await orchestrator.get_health_report()
+
+    assert report["proxies"]["total"] == 2
+    assert report["evidence"]["event_id"]
+    assert report["evidence"]["source_agent"] == "proxy-orchestrator"
+    assert report["evidence"]["layer"] == "network_proxy_orchestrator_observed_state"
+    assert report["evidence"]["payload_redacted"] is True
+    assert "external proxy reachability" in report["evidence"]["claim_boundary"]
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="proxy-orchestrator",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["operation"] == "get_health_report"
+    assert payload["proxies"] == {"active": 2, "healthy": 1}
+    assert payload["service_identity_present"] == {
+        "spiffe_id": False,
+        "did": False,
+        "wallet_address": False,
+    }
+    assert "proxy-secret" not in str(payload)
 
 
 def test_get_status_returns_internal_status_object():
@@ -482,6 +587,9 @@ async def test_main_success_path(monkeypatch):
     calls = {"init": 0, "run": 0, "basic_config": 0}
 
     class _FakeOrchestrator:
+        def __init__(self, **kwargs):
+            assert kwargs == {"event_project_root": "."}
+
         async def initialize(self):
             calls["init"] += 1
 
@@ -506,6 +614,9 @@ async def test_main_success_path(monkeypatch):
 @pytest.mark.asyncio
 async def test_main_logs_and_reraises_on_failure(monkeypatch, caplog):
     class _FailingOrchestrator:
+        def __init__(self, **kwargs):
+            assert kwargs == {"event_project_root": "."}
+
         async def initialize(self):
             raise RuntimeError("init failed")
 

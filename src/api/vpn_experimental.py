@@ -18,6 +18,9 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.services.service_event_identity import service_event_identity
+
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
@@ -27,6 +30,137 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/vpn/experimental", tags=["vpn-experimental"])
 limiter = Limiter(key_func=get_remote_address)
+
+_CONFIG_SOURCE_AGENT = "vpn-experimental-config-generate"
+_CONFIG_LAYER = "api_vpn_experimental_config_control_action"
+_STATUS_SOURCE_AGENT = "vpn-experimental-status-read"
+_STATUS_LAYER = "api_vpn_experimental_status_observed_state"
+_USERS_SOURCE_AGENT = "vpn-experimental-users-read"
+_USERS_LAYER = "api_vpn_experimental_users_observed_state"
+_DELETE_SOURCE_AGENT = "vpn-experimental-user-delete"
+_DELETE_LAYER = "api_vpn_experimental_user_delete_control_action"
+
+VPN_EXPERIMENTAL_CLAIM_BOUNDARY = (
+    "Experimental VPN API evidence records local config generation, local TCP "
+    "status checks, configured/x-ui user reads, and stub delete responses only. "
+    "It does not prove censorship bypass, client installation, VPN dataplane "
+    "reachability, DNS privacy, firewall correctness, production provider "
+    "health, or that customer traffic uses the VPN tunnel."
+)
+
+
+def _redacted_sha256_prefix(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+
+def _identity_evidence(source_agent: str) -> Dict[str, Any]:
+    if source_agent == _STATUS_SOURCE_AGENT:
+        identity = service_event_identity(service_name=_STATUS_SOURCE_AGENT)
+    elif source_agent == _USERS_SOURCE_AGENT:
+        identity = service_event_identity(service_name=_USERS_SOURCE_AGENT)
+    elif source_agent == _DELETE_SOURCE_AGENT:
+        identity = service_event_identity(service_name=_DELETE_SOURCE_AGENT)
+    else:
+        identity = service_event_identity(service_name=_CONFIG_SOURCE_AGENT)
+    return {
+        "spiffe_id_present": bool(str(identity.get("spiffe_id") or "").strip()),
+        "spiffe_id_hash": _redacted_sha256_prefix(identity.get("spiffe_id")),
+        "did_present": bool(str(identity.get("did") or "").strip()),
+        "did_hash": _redacted_sha256_prefix(identity.get("did")),
+        "wallet_address_present": bool(
+            str(identity.get("wallet_address") or "").strip()
+        ),
+        "wallet_address_hash": _redacted_sha256_prefix(
+            identity.get("wallet_address")
+        ),
+        "raw_identity_redacted": True,
+    }
+
+
+def _vpn_experimental_event_bus_from_request(
+    request: Optional[Request],
+) -> Optional[EventBus]:
+    if request is None:
+        return None
+    state = getattr(request, "state", None)
+    if state is None:
+        return None
+    injected_bus = getattr(state, "event_bus", None)
+    if injected_bus is not None:
+        return injected_bus
+    project_root = getattr(state, "event_project_root", ".")
+    try:
+        return get_event_bus(project_root)
+    except Exception as exc:
+        logger.error("Failed to initialize experimental VPN EventBus: %s", exc)
+        return None
+
+
+def _event_type_for_status(http_status_code: int) -> EventType:
+    if http_status_code < 400:
+        return EventType.PIPELINE_STAGE_END
+    if http_status_code >= 500:
+        return EventType.TASK_FAILED
+    return EventType.TASK_BLOCKED
+
+
+def _publish_vpn_experimental_event(
+    request: Optional[Request],
+    *,
+    source_agent: str,
+    layer: str,
+    operation: str,
+    stage: str,
+    status_value: str,
+    http_status_code: int,
+    started_at: float,
+    control_action: bool,
+    observed_state: bool,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    bus = _vpn_experimental_event_bus_from_request(request)
+    if bus is None:
+        return None
+
+    payload: Dict[str, Any] = {
+        "component": "api.vpn_experimental",
+        "operation": operation,
+        "stage": stage,
+        "status": status_value,
+        "http_status_code": http_status_code,
+        "duration_ms": round((time.monotonic() - started_at) * 1000.0, 3),
+        "service_name": source_agent,
+        "source_alias": source_agent,
+        "layer": layer,
+        "control_action": bool(control_action),
+        "observed_state": bool(observed_state),
+        "service_identity": _identity_evidence(source_agent),
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "generated_config_redacted": True,
+        "vless_link_redacted": True,
+        "dataplane_confirmed": False,
+        "bypass_confirmed": False,
+        "claim_boundary": VPN_EXPERIMENTAL_CLAIM_BOUNDARY,
+    }
+    if metadata:
+        payload.update(metadata)
+    try:
+        event = bus.publish(
+            _event_type_for_status(http_status_code),
+            source_agent,
+            payload,
+            priority=4,
+        )
+        return event.event_id
+    except Exception as exc:
+        logger.error("Failed to publish experimental VPN event: %s", exc)
+        return None
 
 
 async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
@@ -208,6 +342,7 @@ async def get_vpn_config(
     Returns:
         VPN configuration with VLESS link and detailed instructions
     """
+    started = time.monotonic()
     try:
         import uuid
 
@@ -228,13 +363,66 @@ async def get_vpn_config(
         )
         vless_link = generate_vless_link(user_uuid=user_uuid, server=server, port=port)
 
-        return VPNConfigResponse(
+        response = VPNConfigResponse(
             user_id=user_id,
             username=username,
             vless_link=vless_link,
             config_text=config_text,
         )
+        _publish_vpn_experimental_event(
+            request,
+            source_agent=_CONFIG_SOURCE_AGENT,
+            layer=_CONFIG_LAYER,
+            operation="generate_experimental_vpn_config",
+            stage="config_generation",
+            status_value="success",
+            http_status_code=200,
+            started_at=started,
+            control_action=True,
+            observed_state=False,
+            metadata={
+                "source_quality": "local_config_generation_only",
+                "user_id_hash": _redacted_sha256_prefix(user_id),
+                "username_hash": _redacted_sha256_prefix(username),
+                "username_present": bool(username),
+                "server_hash": _redacted_sha256_prefix(server),
+                "server_present": bool(server),
+                "port": port,
+                "port_present": port is not None,
+                "user_uuid_hash": _redacted_sha256_prefix(user_uuid),
+                "user_uuid_present": bool(user_uuid),
+                "vless_link_present": bool(vless_link),
+                "vless_link_chars": len(vless_link or ""),
+                "config_text_present": bool(config_text),
+                "config_text_chars": len(config_text or ""),
+            },
+        )
+        return response
     except Exception as e:
+        _publish_vpn_experimental_event(
+            request,
+            source_agent=_CONFIG_SOURCE_AGENT,
+            layer=_CONFIG_LAYER,
+            operation="generate_experimental_vpn_config",
+            stage="config_generation",
+            status_value="error",
+            http_status_code=500,
+            started_at=started,
+            control_action=True,
+            observed_state=False,
+            metadata={
+                "source_quality": "local_config_generation_failed",
+                "user_id_hash": _redacted_sha256_prefix(user_id),
+                "username_hash": _redacted_sha256_prefix(username),
+                "username_present": bool(username),
+                "requested_server_hash": _redacted_sha256_prefix(server),
+                "requested_server_present": bool(server),
+                "requested_port": port,
+                "requested_port_present": port is not None,
+                "error_type": type(e).__name__,
+                "error_hash": _redacted_sha256_prefix(e),
+            },
+        )
         logger.error(f"Error generating experimental VPN config: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -271,6 +459,11 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
     Returns:
         Current VPN server status
     """
+    started = time.monotonic()
+    server = ""
+    port = 0
+    tcp_connect_attempted = False
+    tcp_connect_success = False
     try:
         # Get default values from environment
         server = _get_vpn_server()
@@ -282,8 +475,10 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)
         try:
+            tcp_connect_attempted = True
             sock.connect((server, port))
             status = "online"
+            tcp_connect_success = True
         except Exception:
             status = "offline"
         finally:
@@ -297,7 +492,56 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
             active_users=_get_active_users_count(),
             uptime=_read_system_uptime(),
         )
+        _publish_vpn_experimental_event(
+            request,
+            source_agent=_STATUS_SOURCE_AGENT,
+            layer=_STATUS_LAYER,
+            operation="read_experimental_vpn_status",
+            stage="status_read",
+            status_value="success",
+            http_status_code=200,
+            started_at=started,
+            control_action=False,
+            observed_state=True,
+            metadata={
+                "source_quality": "local_tcp_connect_observation_only",
+                "status_bucket": status,
+                "server_hash": _redacted_sha256_prefix(server),
+                "server_present": bool(server),
+                "port": port,
+                "port_present": bool(port),
+                "protocol_bucket": "vless_reality_experimental",
+                "tcp_connect_attempted": tcp_connect_attempted,
+                "tcp_connect_success": tcp_connect_success,
+                "active_users": active_users,
+                "uptime_present": uptime > 0,
+            },
+        )
+        return response
     except Exception as e:
+        _publish_vpn_experimental_event(
+            request,
+            source_agent=_STATUS_SOURCE_AGENT,
+            layer=_STATUS_LAYER,
+            operation="read_experimental_vpn_status",
+            stage="status_read",
+            status_value="error",
+            http_status_code=500,
+            started_at=started,
+            control_action=False,
+            observed_state=True,
+            metadata={
+                "source_quality": "local_tcp_connect_observation_failed",
+                "server_hash": _redacted_sha256_prefix(server),
+                "server_present": bool(server),
+                "port": port,
+                "port_present": bool(port),
+                "tcp_connect_attempted": tcp_connect_attempted,
+                "tcp_connect_success": tcp_connect_success,
+                "error_type": type(e).__name__,
+                "error_hash": _redacted_sha256_prefix(e),
+            },
+        )
         logger.error(f"Error getting experimental VPN status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -313,11 +557,54 @@ async def get_vpn_users(
     Returns:
         List of active VPN users
     """
+    started = time.monotonic()
     try:
         users = _get_experimental_vpn_users()
 
-        return {"total": len(users), "users": users}
+        response = {"total": len(users), "users": users}
+        _publish_vpn_experimental_event(
+            request,
+            source_agent=_USERS_SOURCE_AGENT,
+            layer=_USERS_LAYER,
+            operation="read_experimental_vpn_users",
+            stage="users_read",
+            status_value="success",
+            http_status_code=200,
+            started_at=started,
+            control_action=False,
+            observed_state=True,
+            metadata={
+                "source_quality": "configured_or_xui_user_read_only",
+                "users_total": len(users),
+                "user_id_present_count": sum(1 for user in users if user.get("user_id")),
+                "username_present_count": sum(1 for user in users if user.get("username")),
+                "email_present_count": sum(1 for user in users if user.get("email")),
+                "vless_link_present_count": sum(
+                    1 for user in users if user.get("vless_link")
+                ),
+                "admin_dependency_present": admin is not None,
+            },
+        )
+        return response
     except Exception as e:
+        _publish_vpn_experimental_event(
+            request,
+            source_agent=_USERS_SOURCE_AGENT,
+            layer=_USERS_LAYER,
+            operation="read_experimental_vpn_users",
+            stage="users_read",
+            status_value="error",
+            http_status_code=500,
+            started_at=started,
+            control_action=False,
+            observed_state=True,
+            metadata={
+                "source_quality": "configured_or_xui_user_read_failed",
+                "error_type": type(e).__name__,
+                "error_hash": _redacted_sha256_prefix(e),
+                "admin_dependency_present": admin is not None,
+            },
+        )
         logger.error(f"Error getting experimental VPN users: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -336,13 +623,57 @@ async def delete_vpn_user(
     Returns:
         Confirmation of deletion
     """
+    started = time.monotonic()
     try:
         logger.info(f"Deleting experimental VPN user {user_id}")
 
-        return {
+        response = {
             "success": True,
             "message": f"Experimental VPN user {user_id} deleted successfully",
         }
+        _publish_vpn_experimental_event(
+            request,
+            source_agent=_DELETE_SOURCE_AGENT,
+            layer=_DELETE_LAYER,
+            operation="delete_experimental_vpn_user",
+            stage="user_delete",
+            status_value="success",
+            http_status_code=200,
+            started_at=started,
+            control_action=True,
+            observed_state=False,
+            metadata={
+                "source_quality": "local_stub_response_only",
+                "user_id_hash": _redacted_sha256_prefix(user_id),
+                "admin_dependency_present": admin is not None,
+                "delete_stub_response": True,
+                "persistent_delete_attempted": False,
+                "persistent_delete_confirmed": False,
+            },
+        )
+        return response
     except Exception as e:
+        _publish_vpn_experimental_event(
+            request,
+            source_agent=_DELETE_SOURCE_AGENT,
+            layer=_DELETE_LAYER,
+            operation="delete_experimental_vpn_user",
+            stage="user_delete",
+            status_value="error",
+            http_status_code=500,
+            started_at=started,
+            control_action=True,
+            observed_state=False,
+            metadata={
+                "source_quality": "local_stub_response_failed",
+                "user_id_hash": _redacted_sha256_prefix(user_id),
+                "admin_dependency_present": admin is not None,
+                "delete_stub_response": True,
+                "persistent_delete_attempted": False,
+                "persistent_delete_confirmed": False,
+                "error_type": type(e).__name__,
+                "error_hash": _redacted_sha256_prefix(e),
+            },
+        )
         logger.error(f"Error deleting experimental VPN user: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")

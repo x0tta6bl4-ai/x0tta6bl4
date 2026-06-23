@@ -1,5 +1,10 @@
 # RFC-001: GNN-Powered Adaptive Routing for x0tta6bl4 Mesh Networks
 
+> Evidence status, 2026-05-30: this is an RFC and target design, not
+> implementation or production proof. MTTR, inference-latency, recall, uptime,
+> and chaos-test values below are success criteria or simulation/planning
+> claims unless a current verification artifact is cited.
+
 **Status**: DRAFT (Awaiting Community Consensus)  
 **Date**: Nov 1, 2025  
 **Authors**: x0tta6bl4 Core Mesh Team  

@@ -21,8 +21,56 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_float_band(value: float) -> str:
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 0.3:
+        return "0-0.3"
+    if value <= 0.6:
+        return "0.3-0.6"
+    if value <= 1.0:
+        return "0.6-1.0"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    return "100+"
+
+
+def _safe_node_summary(node: Any) -> Dict[str, Any]:
+    return {
+        "node_hash": _safe_hash(node.name),
+        "node_type": type(node).__name__,
+        "status": node.status.value,
+        "latency_band_ms": _safe_float_band(node.latency_ms),
+        "health_band": _safe_float_band(node.health_score()),
+        "request_count_bucket": _safe_count_bucket(node.request_count),
+        "error_count_bucket": _safe_count_bucket(node.error_count),
+    }
 
 
 class NodeStatus(Enum):
@@ -152,10 +200,68 @@ class MeshAIRouter:
         self.routing_history: List[Dict] = []
         self.failover_count = 0
         self.mttd_samples: List[float] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="mesh-ai-router",
+            role="coordinator",
+            capabilities=("monitoring", "healing", "fl"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mesh_ai_router_init",
+                "goal": "Initialize privacy-preserving AI route selection",
+                "signals": {
+                    "node_count_bucket": "0",
+                    "failover_count_bucket": "0",
+                },
+                "safety_boundary": (
+                    "Keep raw prompts, node names, addresses, provider keys, and "
+                    "model identifiers out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_queries": True,
+                    "redact_node_names": True,
+                    "redact_addresses": True,
+                    "redact_provider_credentials": True,
+                    "preserve_route_decision": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, node types, counts, health bands, and complexity bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def add_node(self, node: AINode):
         """Add a node to the mesh."""
         self.nodes.append(node)
+        self._record_thinking(
+            "mesh_ai_node_added",
+            "Register AI node for routing without exposing endpoint data",
+            {
+                "node": _safe_node_summary(node),
+                "node_count_bucket": _safe_count_bucket(len(self.nodes)),
+            },
+        )
         logger.info(f"Added node: {node.name} (latency: {node.latency_ms}ms)")
 
     def estimate_complexity(self, query: str) -> float:
@@ -196,7 +302,19 @@ class MeshAIRouter:
         if any(char in query for char in ["=", "+", "-", "*", "/", "def ", "class "]):
             complexity += 0.2
 
-        return max(0.1, min(1.0, complexity + 0.3))  # Base complexity 0.3
+        result = max(0.1, min(1.0, complexity + 0.3))  # Base complexity 0.3
+        self._record_thinking(
+            "mesh_ai_query_complexity",
+            "Estimate query complexity for route selection",
+            {
+                "query_hash": _safe_hash(query),
+                "query_length_bucket": _safe_count_bucket(len(query)),
+                "complexity_band": _safe_float_band(result),
+                "has_complex_keyword": any(kw in query_lower for kw in complex_keywords),
+                "has_simple_keyword": any(kw in query_lower for kw in simple_keywords),
+            },
+        )
+        return result
 
     def select_node(self, complexity: float) -> AINode:
         """
@@ -232,7 +350,17 @@ class MeshAIRouter:
 
         # Sort by score
         ranked = sorted(available, key=score_node, reverse=True)
-        return ranked[0]
+        selected = ranked[0]
+        self._record_thinking(
+            "mesh_ai_node_selected",
+            "Select best AI node from health, latency, and complexity",
+            {
+                "complexity_band": _safe_float_band(complexity),
+                "available_count_bucket": _safe_count_bucket(len(available)),
+                "selected_node": _safe_node_summary(selected),
+            },
+        )
+        return selected
 
     async def route_query(self, query: str) -> str:
         """
@@ -269,6 +397,19 @@ class MeshAIRouter:
                     }
                 )
 
+                self._record_thinking(
+                    "mesh_ai_query_routed",
+                    "Route AI query successfully",
+                    {
+                        "query_hash": _safe_hash(query),
+                        "complexity_band": _safe_float_band(complexity),
+                        "selected_node": _safe_node_summary(node),
+                        "attempt_count_bucket": _safe_count_bucket(attempts),
+                        "failover_count_bucket": _safe_count_bucket(
+                            self.failover_count
+                        ),
+                    },
+                )
                 return response
 
             except Exception:
@@ -283,6 +424,19 @@ class MeshAIRouter:
 
                 logger.warning(
                     f"Node {node.name} failed (MTTD: {mttd:.3f}ms), trying next..."
+                )
+                self._record_thinking(
+                    "mesh_ai_route_failover",
+                    "Fail over from failed AI node",
+                    {
+                        "query_hash": _safe_hash(query),
+                        "failed_node": _safe_node_summary(node),
+                        "attempt_count_bucket": _safe_count_bucket(attempts),
+                        "mttd_band_ms": _safe_float_band(mttd),
+                        "failover_count_bucket": _safe_count_bucket(
+                            self.failover_count
+                        ),
+                    },
                 )
                 continue
 
@@ -312,6 +466,55 @@ class FederatedLearningCoordinator:
         self.router = router
         self.global_weights: Dict[str, float] = {}
         self.round_number = 0
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="mesh-ai-fl-coordinator",
+            role="fl",
+            capabilities=("coordinator", "privacy", "monitoring"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mesh_ai_fl_coordinator_init",
+                "goal": "Initialize federated training without local data exposure",
+                "signals": {
+                    "router_node_count_bucket": _safe_count_bucket(
+                        len(self.router.nodes)
+                    ),
+                    "round_number": self.round_number,
+                },
+                "safety_boundary": (
+                    "Keep local training data, node names, prompts, and raw weights "
+                    "out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_local_training_data": True,
+                    "redact_node_names": True,
+                    "redact_raw_weights": True,
+                    "preserve_round_summary": True,
+                },
+                "safety_boundary": "Use hashes, counts, and aggregate weight stats only.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def local_training(
         self, node: AINode, local_data: List[str]
@@ -327,6 +530,15 @@ class FederatedLearningCoordinator:
         # Simulate weight updates
         weights = {f"layer_{i}": random.gauss(0, 0.01) for i in range(10)}
 
+        self._record_thinking(
+            "mesh_ai_local_training_completed",
+            "Summarize local federated training without data exposure",
+            {
+                "node": _safe_node_summary(node),
+                "local_sample_count_bucket": _safe_count_bucket(len(local_data)),
+                "weight_count_bucket": _safe_count_bucket(len(weights)),
+            },
+        )
         logger.info(f"Node {node.name} completed local training")
         return weights
 
@@ -339,6 +551,11 @@ class FederatedLearningCoordinator:
         Privacy-preserving: only weights shared, not data!
         """
         if not all_weights:
+            self._record_thinking(
+                "mesh_ai_fl_weight_aggregation",
+                "Skip aggregation when no client weights are available",
+                {"client_count_bucket": "0", "round_number": self.round_number},
+            )
             return self.global_weights
 
         # Simple averaging
@@ -350,6 +567,15 @@ class FederatedLearningCoordinator:
         self.global_weights = aggregated
         self.round_number += 1
 
+        self._record_thinking(
+            "mesh_ai_fl_weight_aggregation",
+            "Aggregate federated client weights",
+            {
+                "client_count_bucket": _safe_count_bucket(len(all_weights)),
+                "weight_count_bucket": _safe_count_bucket(len(aggregated)),
+                "round_number": self.round_number,
+            },
+        )
         logger.info(f"Completed FL round {self.round_number}")
         return aggregated
 
@@ -363,6 +589,15 @@ class FederatedLearningCoordinator:
                 all_weights.append(weights)
 
         await self.aggregate_weights(all_weights)
+        self._record_thinking(
+            "mesh_ai_fl_round_completed",
+            "Complete one federated training round",
+            {
+                "data_node_count_bucket": _safe_count_bucket(len(data_per_node)),
+                "participating_node_count_bucket": _safe_count_bucket(len(all_weights)),
+                "round_number": self.round_number,
+            },
+        )
 
 
 # Demo

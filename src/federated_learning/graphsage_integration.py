@@ -8,6 +8,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 try:
     from src.ml.graphsage_anomaly_detector import (AnomalyPrediction,
                                                    GraphSAGEAnomalyDetector)
@@ -57,6 +59,12 @@ class GraphSAGEFLCoordinator:
     ):
         self.node_id = node_id
         self.config = fl_config or GraphSAGEFLConfig()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=node_id,
+            role="fl",
+            capabilities=("graphsage", "coordinator"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Initialize GraphSAGE model
         if graphsage_model:
@@ -109,6 +117,18 @@ class GraphSAGEFLCoordinator:
         Returns:
             Round information or None if failed
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "graphsage_fl_round_start",
+                "goal": "start a GraphSAGE federated training round",
+                "constraints": {
+                    "selected_node_count": len(selected_nodes or []),
+                    "aggregation_method": self.config.aggregation_method,
+                    "privacy_enabled": self.config.enable_privacy,
+                    "graphsage_available": bool(self.graphsage),
+                },
+            }
+        )
         if not self.graphsage:
             logger.error("GraphSAGE model not available")
             return None
@@ -162,6 +182,17 @@ class GraphSAGEFLCoordinator:
             return None
 
         try:
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "type": "graphsage_local_training",
+                    "goal": "produce a local GraphSAGE model update",
+                    "constraints": {
+                        "round_number": round_number,
+                        "local_data_present": local_data is not None,
+                        "model_sync_enabled": self.model_sync is not None,
+                    },
+                }
+            )
             # Get current global model
             self.get_global_model()
 
@@ -199,6 +230,18 @@ class GraphSAGEFLCoordinator:
         Returns:
             New global model or None if failed
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "graphsage_update_aggregation",
+                "goal": "aggregate GraphSAGE FL updates with configured protections",
+                "constraints": {
+                    "update_count": len(updates),
+                    "aggregation_method": self.config.aggregation_method,
+                    "previous_model_present": previous_model is not None,
+                    "model_sync_enabled": self.model_sync is not None,
+                },
+            }
+        )
         if not updates:
             logger.warning("No updates to aggregate")
             return None
@@ -242,6 +285,16 @@ class GraphSAGEFLCoordinator:
         Returns:
             Dict mapping node_id -> success status
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "graphsage_model_distribution",
+                "goal": "distribute the global GraphSAGE model to target nodes",
+                "constraints": {
+                    "target_node_count": len(target_nodes),
+                    "model_version": global_model.version,
+                },
+            }
+        )
         results = {}
 
         for node_id in target_nodes:
@@ -277,6 +330,13 @@ class GraphSAGEFLCoordinator:
         # For now, just return success
         return True
 
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Return GraphSAGE FL thinking state without changing public results."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
+
 
 class GraphSAGEDistributedTrainer:
     """
@@ -292,6 +352,12 @@ class GraphSAGEDistributedTrainer:
         self.coordinator = coordinator
         self.num_rounds = num_rounds
         self.training_history: List[Dict[str, Any]] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"{coordinator.node_id}_distributed_trainer",
+            role="fl",
+            capabilities=("graphsage", "coordinator"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
     def train(self, participating_nodes: List[str]) -> Dict[str, Any]:
         """
@@ -305,6 +371,17 @@ class GraphSAGEDistributedTrainer:
         """
         logger.info(
             f"Starting distributed training: {self.num_rounds} rounds, {len(participating_nodes)} nodes"
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "graphsage_distributed_training",
+                "goal": "coordinate multi-round GraphSAGE federated training",
+                "constraints": {
+                    "num_rounds": self.num_rounds,
+                    "participating_node_count": len(participating_nodes),
+                    "aggregation_method": self.coordinator.config.aggregation_method,
+                },
+            }
         )
 
         for round_num in range(1, self.num_rounds + 1):
@@ -346,4 +423,6 @@ class GraphSAGEDistributedTrainer:
             "total_rounds": self.num_rounds,
             "completed_rounds": len(self.training_history),
             "history": self.training_history,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }

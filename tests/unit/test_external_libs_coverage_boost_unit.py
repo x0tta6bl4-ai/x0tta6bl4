@@ -9,18 +9,32 @@ import types
 import chardet
 import markupsafe
 import pytest
-from chardet.big5prober import Big5Prober
-from chardet.cp949prober import CP949Prober
-from chardet.eucjpprober import EUCJPProber
-from chardet.euckrprober import EUCKRProber
-from chardet.euctwprober import EUCTWProber
-from chardet.gb2312prober import GB2312Prober
-from chardet.johabprober import JOHABProber
-from chardet.mbcsgroupprober import MBCSGroupProber
-from chardet.sbcsgroupprober import SBCSGroupProber
-from chardet.sjisprober import SJISProber
-from chardet.universaldetector import UniversalDetector
-from chardet.utf8prober import UTF8Prober
+try:
+    from chardet.big5prober import Big5Prober
+    from chardet.cp949prober import CP949Prober
+    from chardet.eucjpprober import EUCJPProber
+    from chardet.euckrprober import EUCKRProber
+    from chardet.euctwprober import EUCTWProber
+    from chardet.gb2312prober import GB2312Prober
+    from chardet.johabprober import JOHABProber
+    from chardet.mbcsgroupprober import MBCSGroupProber
+    from chardet.sbcsgroupprober import SBCSGroupProber
+    from chardet.sjisprober import SJISProber
+    from chardet.universaldetector import UniversalDetector
+    from chardet.utf8prober import UTF8Prober
+except ImportError:
+    Big5Prober = None
+    CP949Prober = None
+    EUCJPProber = None
+    EUCKRProber = None
+    EUCTWProber = None
+    GB2312Prober = None
+    JOHABProber = None
+    MBCSGroupProber = None
+    SBCSGroupProber = None
+    SJISProber = None
+    UniversalDetector = None
+    UTF8Prober = None
 from colorama import ansi as color_ansi
 from colorama import ansitowin32, initialise, winterm
 from markupsafe import Markup

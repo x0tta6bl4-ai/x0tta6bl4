@@ -1,0 +1,10 @@
+
+# test_enclave_approval_requires_attestation_data
+
+# test_mock_attestation_is_rejected_unless_explicitly_enabled
+
+# test_valid_measured_attestation_approves_and_binds_hash_only
+
+# test_sgx_command_attestation_records_verifier_provenance
+
+# test_measured_attestation_binding_requires_fresh_runtime_refresh

@@ -32,7 +32,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
-from src.database import Base, GlobalConfig, MarketplaceEscrow, MarketplaceListing, User, get_db
+from src.database import Base, GlobalConfig, MarketplaceEscrow, MarketplaceListing, MeshNode, User, get_db
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_marketplace_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -298,7 +299,52 @@ class TestRentNode:
         assert data["status"] == "escrow"
         assert "escrow_id" in data
         assert data["listing_id"] == listing_id
+        assert data["mesh_id"] == "mesh-test-1"
+        assert data["node_id"]
+        assert data["escrow_status"] == "held"
+        assert data["listing_status"] == "escrow"
+        assert data["lifecycle_next_action"] == "register_or_attach_rented_node_to_mesh"
+        assert data["node_assignment"]["status"] == "node_not_registered_in_mesh"
+        assert data["heartbeat_snapshot"]["status"] == "heartbeat_missing"
+        assert "do not prove live dataplane delivery" in data["claim_boundary"]
         assert data["amount_held_cents"] > 0
+
+    def test_rental_lifecycle_reads_node_assignment_and_heartbeat(self, client, market_data):
+        listing_id = self._create_listing(client, market_data["seller_token"])
+        rent = client.post(
+            f"/api/v1/maas/marketplace/rent/{listing_id}?mesh_id=mesh-lifecycle",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert rent.status_code == 200, rent.text
+        node_id = rent.json()["node_id"]
+
+        db = TestingSessionLocal()
+        db.add(
+            MeshNode(
+                id=node_id,
+                mesh_id="mesh-lifecycle",
+                device_class="rented-worker",
+                status="approved",
+                last_seen=datetime.utcnow(),
+            )
+        )
+        db.commit()
+        db.close()
+
+        lifecycle = client.get(
+            f"/api/v1/maas/marketplace/rental/{listing_id}/lifecycle",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert lifecycle.status_code == 200, lifecycle.text
+        data = lifecycle.json()
+        assert data["listing_id"] == listing_id
+        assert data["node_id"] == node_id
+        assert data["mesh_id"] == "mesh-lifecycle"
+        assert data["node_assignment"]["status"] == "node_record_found"
+        assert data["node_assignment"]["node_status"] == "approved"
+        assert data["heartbeat_snapshot"]["status"] == "heartbeat_observed"
+        assert data["heartbeat_snapshot"]["last_seen"]
+        assert data["read_only"] is True
 
     def test_rent_creates_escrow_in_db(self, client, market_data):
         listing_id = self._create_listing(client, market_data["seller_token"])
@@ -565,6 +611,9 @@ class TestMarketplaceIdempotency:
         assert first.status_code == 200
         assert second.status_code == 200
         assert first.json()["escrow_id"] == second.json()["escrow_id"]
+        assert first.json()["mesh_id"] == second.json()["mesh_id"] == "mesh-idem-rent"
+        assert first.json()["node_id"] == second.json()["node_id"]
+        assert first.json()["escrow_status"] == second.json()["escrow_status"] == "held"
         assert first.json()["status"] == "escrow"
         assert second.json()["status"] == "escrow"
 
@@ -604,6 +653,10 @@ class TestMarketplaceIdempotency:
         assert first.json()["status"] == "released"
         assert second.json()["status"] == "released"
         assert first.json()["listing_id"] == second.json()["listing_id"] == listing_id
+        assert first.json()["escrow_id"] == second.json()["escrow_id"]
+        assert first.json()["mesh_id"] == second.json()["mesh_id"]
+        assert first.json()["node_id"] == second.json()["node_id"]
+        assert first.json()["escrow_status"] == second.json()["escrow_status"] == "released"
         assert first.json()["released_at"] == second.json()["released_at"]
 
     def test_refund_idempotent_replay(self, client, market_data):
@@ -630,6 +683,10 @@ class TestMarketplaceIdempotency:
         assert first.json()["status"] == "refunded"
         assert second.json()["status"] == "refunded"
         assert first.json()["listing_id"] == second.json()["listing_id"] == listing_id
+        assert first.json()["escrow_id"] == second.json()["escrow_id"]
+        assert first.json()["mesh_id"] == second.json()["mesh_id"]
+        assert first.json()["node_id"] == second.json()["node_id"]
+        assert first.json()["escrow_status"] == second.json()["escrow_status"] == "refunded"
 
         db = TestingSessionLocal()
         row = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
@@ -716,7 +773,7 @@ class TestMarketplaceIdempotency:
         )
 
         db = TestingSessionLocal()
-        seller = db.query(User).filter(User.api_key == market_data["seller_token"]).first()
+        seller = find_user_by_api_key(db, market_data["seller_token"])
         seller_id = seller.id
         db.close()
 
@@ -738,7 +795,7 @@ class TestMarketplaceIdempotency:
         )
 
         db = TestingSessionLocal()
-        seller = db.query(User).filter(User.api_key == market_data["seller_token"]).first()
+        seller = find_user_by_api_key(db, market_data["seller_token"])
         seller_id = seller.id
         db.close()
 

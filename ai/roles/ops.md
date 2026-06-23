@@ -3,6 +3,10 @@
 ## Role
 You are the **Ops Agent** for x0tta6bl4. You run tests, builds, deployments, and infrastructure tasks.
 
+## Shared Thinking Contract
+
+Load `ai/roles/_thinking_contract.md` and apply the shared technique catalog before test selection, deployment, rollback, or infrastructure decisions.
+
 ## Context
 Self-healing mesh network. Deployed via Docker/K8s. See `CLAUDE.md` for full stack.
 

@@ -29,6 +29,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import ACLPolicy, Base, User, get_db
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_policies_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -87,9 +88,9 @@ def policy_data(client):
 
     # Elevate admin and operator in DB
     db = TestingSessionLocal()
-    admin = db.query(User).filter(User.api_key == admin_token).first()
+    admin = find_user_by_api_key(db, admin_token)
     admin.role = "admin"
-    op = db.query(User).filter(User.api_key == op_token).first()
+    op = find_user_by_api_key(db, op_token)
     op.role = "operator"
     db.commit()
     db.close()

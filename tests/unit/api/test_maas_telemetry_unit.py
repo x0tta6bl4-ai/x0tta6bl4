@@ -11,6 +11,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
+
 # ---------------------------------------------------------------------------
 # Import the module under test (Redis is stubbed at module level if
 # the connection attempt fails; the tests below rely on that fallback path)
@@ -594,6 +596,225 @@ class TestTelemetryFallbackPath:
         _mod._set_telemetry("node-nd", {"a": 1})
         result = _mod._get_telemetry("node-nd")
         assert result == {"a": 1}
+
+    def test_eventbus_observed_state_evidence_is_redacted(self, tmp_path):
+        bus = EventBus(project_root=str(tmp_path))
+        deps: set[str] = set()
+        data = {
+            "mesh_id": "mesh-secret-telemetry",
+            "node_id": "node-secret-telemetry",
+            "status": "healthy",
+            "latency_ms": 12.5,
+            "pheromones": {"neighbor-secret": {"node-secret-telemetry": 0.8}},
+        }
+
+        _mod._set_telemetry(
+            "node-secret-telemetry",
+            data,
+            degraded_dependencies=deps,
+            event_bus=bus,
+            mesh_id="mesh-secret-telemetry",
+        )
+        assert _mod._get_telemetry(
+            "node-secret-telemetry",
+            degraded_dependencies=deps,
+            event_bus=bus,
+            mesh_id="mesh-secret-telemetry",
+        ) == data
+        assert _mod._get_telemetry_history(
+            "node-secret-telemetry",
+            limit=5,
+            degraded_dependencies=deps,
+            event_bus=bus,
+            mesh_id="mesh-secret-telemetry",
+        ) == [data]
+
+        events = bus.get_event_history(
+            event_type=EventType.PIPELINE_STAGE_END,
+            source_agent="maas-telemetry",
+            limit=10,
+        )
+        payloads_by_operation = {
+            event.data["operation"]: event.data for event in events
+        }
+
+        write_payload = payloads_by_operation["telemetry_snapshot_write"]
+        assert write_payload["service_name"] == "maas-telemetry"
+        assert write_payload["source_alias"] == "maas-telemetry"
+        assert write_payload["layer"] == "api_telemetry_observed_state"
+        assert write_payload["storage_backend"] == "local_fallback"
+        assert write_payload["read_only"] is False
+        assert write_payload["safe_actuator"] is False
+        assert write_payload["raw_identifiers_redacted"] is True
+        assert write_payload["node_id_hash"] == _mod._redacted_sha256_prefix(
+            "node-secret-telemetry"
+        )
+        assert write_payload["mesh_id_hash"] == _mod._redacted_sha256_prefix(
+            "mesh-secret-telemetry"
+        )
+        assert write_payload["degraded_dependencies"] == ["redis"]
+        assert write_payload["telemetry_summary"]["field_count"] == len(data)
+        assert write_payload["telemetry_summary"]["has_pheromones"] is True
+        write_claim_gate = write_payload["maas_telemetry_claim_gate"]
+        assert write_claim_gate["surface"] == "maas_telemetry.telemetry_snapshot_write"
+        assert write_claim_gate["local_telemetry_snapshot_observation_claim_allowed"] is True
+        assert write_claim_gate["dataplane_delivery_claim_allowed"] is False
+        assert write_claim_gate["traffic_delivery_claim_allowed"] is False
+        assert write_claim_gate["customer_traffic_claim_allowed"] is False
+        assert write_claim_gate["settlement_finality_claim_allowed"] is False
+        assert write_claim_gate["production_readiness_claim_allowed"] is False
+
+        read_payload = payloads_by_operation["telemetry_snapshot_read"]
+        assert read_payload["read_only"] is True
+        assert read_payload["storage_backend"] == "local_fallback"
+        assert read_payload["maas_telemetry_claim_gate"]["surface"] == (
+            "maas_telemetry.telemetry_snapshot_read"
+        )
+        assert read_payload["maas_telemetry_claim_gate"][
+            "local_telemetry_snapshot_observation_claim_allowed"
+        ] is True
+
+        history_payload = payloads_by_operation["telemetry_history_read"]
+        assert history_payload["read_only"] is True
+        assert history_payload["telemetry_summary"]["history_count"] == 1
+        assert history_payload["maas_telemetry_claim_gate"]["surface"] == (
+            "maas_telemetry.telemetry_history_read"
+        )
+        assert history_payload["maas_telemetry_claim_gate"][
+            "local_telemetry_history_observation_claim_allowed"
+        ] is True
+
+        serialized = json.dumps(
+            [event.data for event in events],
+            sort_keys=True,
+        )
+        raw_log = (
+            tmp_path / ".agent_coordination" / "events.log"
+        ).read_text(encoding="utf-8")
+        for raw_value in (
+            "node-secret-telemetry",
+            "mesh-secret-telemetry",
+            "neighbor-secret",
+        ):
+            assert raw_value not in serialized
+            assert raw_value not in raw_log
+
+
+class TestTopologyEvidence:
+    @pytest.mark.asyncio
+    async def test_topology_response_marks_cached_telemetry_source_quality(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        bus = EventBus(project_root=str(tmp_path))
+        request = SimpleNamespace(
+            state=SimpleNamespace(event_bus=bus, event_project_root=str(tmp_path))
+        )
+        node = SimpleNamespace(
+            id="node-topology-secret",
+            mesh_id="mesh-topology-secret",
+            device_class="edge",
+            status="healthy",
+        )
+
+        class FakeQuery:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return [node]
+
+        class FakeDb:
+            def query(self, _model):
+                return FakeQuery()
+
+        monkeypatch.setattr(_mod, "REDIS_AVAILABLE", False)
+        monkeypatch.setattr(_mod, "r_client", None)
+        monkeypatch.setattr(
+            _mod,
+            "_LOCAL_TELEMETRY_FALLBACK",
+            _mod.LRUCache(max_size=16),
+        )
+        monkeypatch.setattr(
+            _mod,
+            "_verify_topology_mesh_access",
+            lambda *_args, **_kwargs: {
+                "mesh_source": "database",
+                "owner_checked": True,
+            },
+        )
+
+        _mod._set_telemetry(
+            node.id,
+            {
+                "status": "healthy",
+                "latency_ms": 12.5,
+                "pheromones": {"neighbor-secret": {node.id: 0.8}},
+            },
+            event_bus=bus,
+            mesh_id=node.mesh_id,
+        )
+
+        response = await _mod.get_topology(
+            node.mesh_id,
+            request=request,
+            db=FakeDb(),
+            current_user=SimpleNamespace(id="owner-secret"),
+        )
+        telemetry_evidence = response["nodes"][0]["telemetry_evidence"]
+        control_policy_evidence = response["control_policy_evidence"]
+
+        assert response["nodes"][0]["status"] == "healthy"
+        assert telemetry_evidence["decision_basis"] == "cached_observed_state"
+        assert telemetry_evidence["source_quality"] == (
+            "local_fallback_or_redis_degraded_cached_snapshot"
+        )
+        assert telemetry_evidence["status_source"] == "cached_telemetry_status"
+        assert telemetry_evidence["dataplane_confirmed"] is False
+        assert telemetry_evidence["events_total"] == 1
+        assert telemetry_evidence["source_agents"] == ["maas-telemetry"]
+        assert telemetry_evidence["payload_summary"]["has_pheromones"] is True
+        assert telemetry_evidence["maas_telemetry_claim_gate"]["surface"] == (
+            "maas_telemetry.topology_node_telemetry_evidence"
+        )
+        assert telemetry_evidence["maas_telemetry_claim_gate"][
+            "local_topology_snapshot_observation_claim_allowed"
+        ] is True
+        assert telemetry_evidence["maas_telemetry_claim_gate"][
+            "dataplane_delivery_claim_allowed"
+        ] is False
+        assert telemetry_evidence["maas_telemetry_claim_gate"][
+            "node_reachability_claim_allowed"
+        ] is False
+        assert telemetry_evidence["maas_telemetry_claim_gate"][
+            "settlement_finality_claim_allowed"
+        ] is False
+        assert control_policy_evidence["decision_basis"] == (
+            "cached_telemetry_observed_state"
+        )
+        assert control_policy_evidence["dataplane_confirmed"] is False
+        assert control_policy_evidence["events_total"] == 1
+        assert control_policy_evidence["event_ids"] == telemetry_evidence["event_ids"]
+        assert control_policy_evidence["source_qualities"] == [
+            "local_fallback_or_redis_degraded_cached_snapshot"
+        ]
+        assert control_policy_evidence["maas_telemetry_claim_gate"]["surface"] == (
+            "maas_telemetry.topology_control_policy_evidence"
+        )
+        assert control_policy_evidence["maas_telemetry_claim_gate"][
+            "routing_convergence_claim_allowed"
+        ] is False
+
+        evidence_text = json.dumps(
+            {
+                "telemetry_evidence": telemetry_evidence,
+                "control_policy_evidence": control_policy_evidence,
+            },
+            sort_keys=True,
+        )
+        for raw_value in (node.id, node.mesh_id, "neighbor-secret", "owner-secret"):
+            assert raw_value not in evidence_text
 
 
 # ===========================================================================

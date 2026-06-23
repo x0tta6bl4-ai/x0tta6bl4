@@ -45,6 +45,10 @@ async def test_pq_agent_signing_verification(mock_spire):
     assert "manifest" in result.result
     assert "proof" in result.result
     assert result.result["proof"]["type"] == "ML-DSA-65"
+    assert result.thinking_context["pqc"]["role"] == "security"
+    assert result.thinking_context["pqc"]["applied"]["framing"]["problem"] == (
+        "pqc_signed_task_execution"
+    )
     
     # Agent B verifies Agent A's signed result
     # We simulate receiving a message
@@ -57,6 +61,9 @@ async def test_pq_agent_signing_verification(mock_spire):
     
     is_valid = agent_b.verify_message(msg, sig_pub_a)
     assert is_valid, "PQC Signature verification failed"
+    assert agent_b.last_pq_thinking_context["applied"]["framing"]["problem"] == (
+        "pqc_message_verification"
+    )
     print("✅ PQC Signature verified successfully between agents")
 
 @pytest.mark.asyncio

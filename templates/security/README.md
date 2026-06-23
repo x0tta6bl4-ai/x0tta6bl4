@@ -21,5 +21,15 @@
 - Доступ к интернету для скачивания CLI.
 - Docker для сканирования образов (или переключитесь на `trivy fs .`).
 
+## Локальная самопроверка
+
+```bash
+bash templates/security/security-scan.sh --trivy --severity HIGH --image demo-image:latest
+```
+
+Результат должен появиться в `scan-results/security-report.html`. Если
+`trivy-html-report` не установлен, скрипт создаёт минимальный HTML-отчёт из
+JSON Trivy через встроенную функцию `render_json_summary_html`.
+
 ## Поддержка
 - Расширение: SBOM, PR‑комментарии, авто‑Issue, policy‑as‑code.

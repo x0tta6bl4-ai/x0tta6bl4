@@ -1,0 +1,77 @@
+{
+  "apply_execution_proven": false,
+  "apply_transcript_path": "missing",
+  "apply_transcript_sha256": "missing",
+  "approval_phrase_required": "APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT",
+  "approval_present": false,
+  "checks": {
+    "apply_script_hash_matches_summary": true,
+    "apply_script_path_present": true,
+    "apply_script_syntax_ok": true,
+    "apply_transcript_all_expected_finishes_rc0": false,
+    "apply_transcript_all_expected_starts_present": false,
+    "apply_transcript_excludes_rollback_steps": true,
+    "apply_transcript_has_only_expected_apply_steps": true,
+    "apply_transcript_no_dry_run_events": true,
+    "apply_transcript_no_failed_finishes": true,
+    "apply_transcript_nonempty": false,
+    "apply_transcript_present": false,
+    "audit_does_not_execute_commands": true,
+    "no_nl_or_spb_writes_performed": true,
+    "operator_summary_approval_guarded": true,
+    "operator_summary_no_mutation": true,
+    "operator_summary_ok": true,
+    "os_mutation_not_performed_by_audit": true,
+    "rollback_script_hash_matches_summary": true,
+    "rollback_script_path_present": true,
+    "rollback_script_syntax_ok": true
+  },
+  "evidence_dir": "/mnt/projects/nl-diagnostics/firstparty-production-apply-transcript-audit-20260607T034345Z",
+  "expected_apply_command_ids": [
+    "apply_client_config_after_approval",
+    "build_completion_audit_after_post_apply",
+    "client_doctor_post_apply",
+    "client_health_post_apply",
+    "copy_handoff_to_nl_after_approval",
+    "install_server_service_after_approval",
+    "server_health_post_apply",
+    "verify_apply_packet_hash",
+    "verify_authorization_summary_hash",
+    "verify_handoff_archive_hash_and_mode",
+    "verify_handoff_manifest_hash_and_mode",
+    "verify_handoff_summary_hash",
+    "verify_nl_port_still_free_readonly"
+  ],
+  "expected_rollback_command_ids": [
+    "rollback_client_policy_and_service_after_approval",
+    "rollback_server_service_after_approval"
+  ],
+  "failed_checks": [
+    "apply_transcript_all_expected_finishes_rc0",
+    "apply_transcript_all_expected_starts_present",
+    "apply_transcript_nonempty",
+    "apply_transcript_present"
+  ],
+  "failed_finish_rows": [],
+  "generated_at": "2026-06-07T03:43:45Z",
+  "manual_approval_still_required": true,
+  "mode": "firstparty-production-apply-transcript-audit-summary",
+  "no_nl_or_spb_writes_performed": true,
+  "ok": false,
+  "operator_summary_path": "/mnt/projects/nl-diagnostics/firstparty-production-operator-script-20260607T034308Z/summary.json",
+  "operator_summary_sha256": "ec7e00fe55628593b504e4bddcd5d800d3512cd176a5ba258f92bcc1318c5cbf",
+  "os_mutation_performed": false,
+  "production_mutation_allowed": false,
+  "rollback_ids_in_transcript": [],
+  "script_hashes": {
+    "apply_script_sha256": "cb4846edbdd76ccbcd391e336b5389c216cb77e2414ade78b233497798408279",
+    "rollback_script_sha256": "c1534509841507a74a45cdb6623c945958e9b8ea2e53d43a09572e46e7ee175a"
+  },
+  "script_paths": {
+    "apply": "/mnt/projects/nl-diagnostics/firstparty-production-operator-script-20260607T034308Z/apply-firstparty-production.sh",
+    "rollback": "/mnt/projects/nl-diagnostics/firstparty-production-operator-script-20260607T034308Z/rollback-firstparty-production.sh"
+  },
+  "transcript_dry_run_ids": [],
+  "transcript_finish_rc0_ids": [],
+  "transcript_start_ids": []
+}

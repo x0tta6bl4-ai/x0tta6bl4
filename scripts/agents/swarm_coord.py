@@ -29,7 +29,7 @@ else:
     GIT_COMMON_DIR = (REPO_ROOT / GIT_COMMON_DIR_RAW).resolve()
 
 SWARM_STATE_DIR = Path(
-    os.environ.get("X0TTA6BL4_SWARM_STATE_DIR", str(GIT_COMMON_DIR / "swarm"))
+    os.environ.get("x0tta6bl4_SWARM_STATE_DIR", str(GIT_COMMON_DIR / "swarm"))
 ).resolve()
 SWARM_STATE_FILE = SWARM_STATE_DIR / "coordination_state.json"
 SWARM_LOCK_FILE = SWARM_STATE_DIR / "coordination.lock"
@@ -399,9 +399,13 @@ def roadmap_summary_payload(dispatch: dict[str, Any]) -> dict[str, Any]:
 
 def list_staged_files() -> list[str]:
     output = subprocess.check_output(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"], text=True
+        ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR"]
     )
-    return [line.strip() for line in output.splitlines() if line.strip()]
+    return [
+        item.decode("utf-8", errors="surrogateescape")
+        for item in output.split(b"\0")
+        if item
+    ]
 
 
 def match_rule(path: str, rule: str) -> bool:

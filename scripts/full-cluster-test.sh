@@ -4,6 +4,10 @@ set -e
 
 NAMESPACE="mesh-system"
 CONTEXT="kind-x0tta6bl4-local"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REAL_READINESS_JSON=".tmp/validation-shards/real-readiness-current.json"
+REAL_READINESS_MD=".tmp/validation-shards/real-readiness-current.md"
+REAL_READINESS_DECISION="NOT_RUN_CLUSTER_FAILURES"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║       x0tta6bl4 FULL CLUSTER TEST                            ║"
@@ -17,10 +21,10 @@ FAIL=0
 test_result() {
     if [ "$1" = "pass" ]; then
         echo "   ✅ $2"
-        ((PASS++))
+        ((PASS+=1))
     else
         echo "   ❌ $2"
-        ((FAIL++))
+        ((FAIL+=1))
     fi
 }
 
@@ -165,6 +169,25 @@ else
     test_result "fail" "Stress test MTTR > 5s (${AVG_MTTR}s)"
 fi
 
+# Final production claim gate. Cluster checks alone are not production proof:
+# they must be paired with the fail-closed current evidence/readiness gate.
+if [ "$FAIL" -eq 0 ]; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🧪 FINAL GATE: Real Readiness Claim Boundary"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    if python3 "$ROOT_DIR/scripts/ops/check_real_readiness.py" \
+        --write-json "$REAL_READINESS_JSON" \
+        --write-md "$REAL_READINESS_MD" >/dev/null; then
+        REAL_READINESS_DECISION="REAL_READINESS_READY"
+        test_result "pass" "Real-readiness gate allows production claim"
+    else
+        REAL_READINESS_DECISION="REAL_READINESS_BLOCKED"
+        test_result "fail" "Real-readiness gate blocked production claim"
+        echo "   Report: $REAL_READINESS_JSON"
+    fi
+fi
+
 # Summary
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
@@ -182,9 +205,12 @@ if [ $FAIL -eq 0 ]; then
     echo "║  🏆 ALL TESTS PASSED! Score: ${SCORE}%                        ║"
     echo "║                                                              ║"
     echo "║  Server: kind-x0tta6bl4-local                                ║"
-    echo "║  Status: PRODUCTION READY ✅                                 ║"
+    echo "║  Status: REAL READINESS GATE PASSED                          ║"
 else
     echo "║  ⚠️  Some tests failed. Score: ${SCORE}%                      ║"
+    if [ "$REAL_READINESS_DECISION" = "REAL_READINESS_BLOCKED" ]; then
+        echo "║  Production claim: BLOCKED BY REAL READINESS GATE             ║"
+    fi
 fi
 
 echo "║                                                              ║"

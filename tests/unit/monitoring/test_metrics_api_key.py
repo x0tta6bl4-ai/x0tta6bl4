@@ -1,6 +1,5 @@
 
 import pytest
-import hashlib
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.monitoring.metrics import MetricsMiddleware
 
@@ -28,9 +27,8 @@ async def test_metrics_middleware_extracts_api_key_header():
         mock_get.return_value = mock_registry
         await mw(scope, receive, send)
         
-        expected = hashlib.sha256(b"test-client-123").hexdigest()[:12]
         mock_registry.request_count.labels.assert_called_with(
-            method="GET", endpoint="/api/test", status=200, api_key=f"api_key_{expected}"
+            method="GET", endpoint="/api/test", status=200, api_key="api_key_present"
         )
 
 @pytest.mark.asyncio
@@ -56,9 +54,8 @@ async def test_metrics_middleware_extracts_bearer_token():
         mock_get.return_value = mock_registry
         await mw(scope, receive, send)
         
-        expected = hashlib.sha256(b"some-long-jwt-token-here").hexdigest()[:12]
         mock_registry.request_count.labels.assert_called_with(
-            method="GET", endpoint="/api/test", status=200, api_key=f"bearer_{expected}"
+            method="GET", endpoint="/api/test", status=200, api_key="bearer_present"
         )
 
 @pytest.mark.asyncio

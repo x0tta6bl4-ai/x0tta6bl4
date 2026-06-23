@@ -22,6 +22,10 @@ End-to-end orchestration of the x0tta6bl4 self-healing mesh network.
 Implements the full MAPE-K autonomic cycle with DAO-governed configuration changes
 and post-quantum cryptographic key rotation.
 
+All orchestration decisions must apply the shared thinking contract in
+`docs/ai_agents/THINKING_TECHNIQUES_FOR_AGENTS.md`. Use only the techniques that
+improve the current decision and keep safety boundaries explicit.
+
 ## Instructions (MAPE-K Orchestration Cycle)
 
 ### Step 1: Monitor (eBPF Telemetry)

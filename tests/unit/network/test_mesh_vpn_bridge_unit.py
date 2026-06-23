@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 import src.network.mesh_vpn_bridge as bridge_mod
+from src.coordination.events import EventBus, EventType
 
 
 class _FakeRewards:
@@ -17,8 +18,9 @@ class _FakeRewards:
         self.calls = []
         self.instances.append(self)
 
-    def reward_relay(self, node_id, packets):
+    def reward_relay(self, node_id, packets, **kwargs):
         self.calls.append((node_id, packets))
+        self.evidence_calls.append(dict(kwargs))
 
 
 class _FakeWriter:

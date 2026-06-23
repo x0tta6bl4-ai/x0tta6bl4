@@ -5,6 +5,7 @@ Provides context-aware analysis by retrieving relevant historical patterns
 and generating augmented insights for better decision making.
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -14,6 +15,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,49 @@ try:
     HNSWLIB_AVAILABLE = True
 except ImportError:
     HNSWLIB_AVAILABLE = False
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    if value <= 1000:
+        return "100-1000"
+    return "1000+"
+
+
+def _safe_doc_summary(doc: Any) -> Dict[str, Any]:
+    return {
+        "doc_hash": _safe_hash(doc.id),
+        "content_length_bucket": _safe_count_bucket(len(doc.content or "")),
+        "metadata_key_hashes": sorted(_safe_hash(key) for key in doc.metadata.keys()),
+        "has_embedding": doc.embedding is not None,
+    }
 
 
 @dataclass
@@ -338,9 +383,62 @@ class RAGAnalyzer:
             "last_batch_size": 0,
             "retrieval_times": [],
         }
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="rag-analyzer",
+            role="documentation",
+            capabilities=("rag", "monitoring", "quality"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "rag_analyzer_init",
+                "goal": "Initialize RAG retrieval without exposing document content",
+                "signals": {
+                    "embedding_dim": embedding_dim,
+                    "use_langchain": use_langchain,
+                    "use_hnsw": use_hnsw,
+                    "persist_dir_configured": persist_dir is not None,
+                },
+                "safety_boundary": (
+                    "Keep raw queries, document content, metadata values, embeddings, "
+                    "and filesystem paths out of thinking context."
+                ),
+            }
+        )
 
         # Eagerly initialize the vector store so callers can access it immediately.
         self._ensure_vector_store()
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_queries": True,
+                    "redact_document_content": True,
+                    "redact_metadata_values": True,
+                    "redact_embeddings": True,
+                    "redact_paths": True,
+                    "preserve_retrieval_decision": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, counts, booleans, similarity bands, and latency bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def _ensure_vector_store(self):
         if self.vector_store is not None:
@@ -417,6 +515,17 @@ class RAGAnalyzer:
         self.index_stats["documents_indexed"] += indexed
         self.index_stats["last_batch_size"] = indexed
 
+        self._record_thinking(
+            "rag_knowledge_indexed",
+            "Index knowledge entries without exposing content",
+            {
+                "entry_count_bucket": _safe_count_bucket(len(knowledge_entries)),
+                "indexed_count_bucket": _safe_count_bucket(indexed),
+                "doc_summaries": [_safe_doc_summary(doc) for doc in documents[:5]],
+                "langchain_used": use_lc,
+                "hnsw_enabled": self.use_hnsw,
+            },
+        )
         return indexed
 
     async def retrieve_context(
@@ -470,6 +579,22 @@ class RAGAnalyzer:
             }
         )
 
+        self._record_thinking(
+            "rag_context_retrieved",
+            "Retrieve RAG context safely",
+            {
+                "query_hash": _safe_hash(query),
+                "query_length_bucket": _safe_count_bucket(len(query)),
+                "k_bucket": _safe_count_bucket(k),
+                "threshold_band": _safe_number_band(threshold),
+                "result_count_bucket": _safe_count_bucket(len(documents)),
+                "similarity_bands": [
+                    _safe_number_band(similarity) for similarity in similarities[:5]
+                ],
+                "latency_band": _safe_number_band(retrieval_time_ms),
+                "langchain_used": use_lc,
+            },
+        )
         return RetrievalResult(
             documents=documents,
             similarities=similarities,
@@ -515,6 +640,22 @@ class RAGAnalyzer:
             },
         }
 
+        self._record_thinking(
+            "rag_analysis_augmented",
+            "Augment analysis with retrieved context safely",
+            {
+                "query_hash": _safe_hash(query),
+                "analysis_key_hashes": sorted(
+                    _safe_hash(key) for key in current_analysis.keys()
+                ),
+                "context_document_count_bucket": _safe_count_bucket(
+                    len(context.documents)
+                ),
+                "average_similarity_band": _safe_number_band(
+                    augmented["rag"]["average_similarity"]
+                ),
+            },
+        )
         return augmented
 
     def get_stats(self) -> Dict[str, Any]:
@@ -525,7 +666,7 @@ class RAGAnalyzer:
             else 0.0
         )
 
-        return {
+        stats = {
             "documents_indexed": len(self.vector_store.documents),
             "queries_processed": len(self.query_history),
             "embedding_dim": self.embedding_dim,
@@ -536,6 +677,21 @@ class RAGAnalyzer:
             "avg_retrieval_time_ms": avg_retrieval_time,
             "total_retrieval_queries": len(self.index_stats["retrieval_times"]),
         }
+        self._record_thinking(
+            "rag_stats",
+            "Summarize RAG analyzer state safely",
+            {
+                "documents_indexed_bucket": _safe_count_bucket(
+                    stats["documents_indexed"]
+                ),
+                "queries_processed_bucket": _safe_count_bucket(
+                    stats["queries_processed"]
+                ),
+                "avg_retrieval_time_band": _safe_number_band(avg_retrieval_time),
+                "vector_store_type": stats["vector_store_type"],
+            },
+        )
+        return stats
 
     def save_index(self, path: Optional[str] = None) -> None:
         """Save HNSW index to disk"""
@@ -547,6 +703,17 @@ class RAGAnalyzer:
 
         if self.use_hnsw and hasattr(self.vector_store, "save"):
             self.vector_store.save(path)
+        self._record_thinking(
+            "rag_index_saved",
+            "Save RAG index without exposing path",
+            {
+                "path_hash": _safe_hash(path),
+                "hnsw_enabled": self.use_hnsw,
+                "document_count_bucket": _safe_count_bucket(
+                    len(self.vector_store.documents)
+                ),
+            },
+        )
 
     def load_index(self, path: Optional[str] = None) -> None:
         """Load HNSW index from disk"""
@@ -558,6 +725,17 @@ class RAGAnalyzer:
 
         if self.use_hnsw and hasattr(self.vector_store, "load"):
             self.vector_store.load(path)
+        self._record_thinking(
+            "rag_index_loaded",
+            "Load RAG index without exposing path",
+            {
+                "path_hash": _safe_hash(path),
+                "hnsw_enabled": self.use_hnsw,
+                "document_count_bucket": _safe_count_bucket(
+                    len(self.vector_store.documents)
+                ),
+            },
+        )
 
 
 # Example usage

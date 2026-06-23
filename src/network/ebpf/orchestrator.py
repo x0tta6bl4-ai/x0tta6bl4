@@ -18,12 +18,15 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 # Local imports with graceful fallback
 try:
@@ -93,6 +96,12 @@ if TYPE_CHECKING:
     from .performance_monitor import EBPFPerformanceMonitor
 
 logger = logging.getLogger(__name__)
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8", errors="replace")).hexdigest()
 
 
 class OrchestratorState(Enum):
@@ -185,10 +194,49 @@ class EBPFOrchestrator:
 
         # Loaded programs tracking
         self._loaded_programs: List[str] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="ebpf-runtime-orchestrator",
+            role="coordinator",
+            capabilities=("security", "zero-trust", "monitoring"),
+            extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
         logger.info(
             f"EBPFOrchestrator initialized for interface: {self.config.interface}"
         )
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_runtime_orchestration",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Coordinate local eBPF runtime components with redacted "
+                "selectors; do not expose interface names, program paths, flow "
+                "addresses, stdout, stderr, or raw program IDs."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose runtime orchestration thinking state without task secrets."""
+
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
 
     # ==================== Lifecycle Management ====================
 
@@ -203,6 +251,18 @@ class EBPFOrchestrator:
             logger.warning("Orchestrator already running")
             return True
 
+        self._record_thinking_context(
+            operation="start",
+            goal="start local eBPF runtime components",
+            constraints={
+                "interface_hash": _hash_value(self.config.interface),
+                "interface_redacted": True,
+                "auto_load_programs": self.config.auto_load_programs,
+                "flow_observability_enabled": self.config.enable_flow_observability,
+                "metrics_export_enabled": self.config.enable_metrics_export,
+                "mapek_enabled": self.config.enable_mapek_integration,
+            },
+        )
         self.state = OrchestratorState.STARTING
         self.start_time = time.time()
 
@@ -237,6 +297,14 @@ class EBPFOrchestrator:
             logger.warning("Orchestrator already stopped")
             return True
 
+        self._record_thinking_context(
+            operation="stop",
+            goal="stop local eBPF runtime components",
+            constraints={
+                "state_before": self.state.value,
+                "loaded_program_count": len(self._loaded_programs),
+            },
+        )
         self.state = OrchestratorState.STOPPING
 
         try:
@@ -257,6 +325,11 @@ class EBPFOrchestrator:
 
     async def restart(self) -> bool:
         """Restart the orchestrator."""
+        self._record_thinking_context(
+            operation="restart",
+            goal="restart local eBPF runtime components",
+            constraints={"state_before": self.state.value},
+        )
         await self.stop()
         return await self.start()
 
@@ -522,6 +595,16 @@ class EBPFOrchestrator:
         Returns:
             Dict with status of all subsystems
         """
+        self._record_thinking_context(
+            operation="get_status",
+            goal="read local eBPF runtime component status",
+            constraints={
+                "read_only": True,
+                "state": self.state.value,
+                "interface_hash": _hash_value(self.config.interface),
+                "interface_redacted": True,
+            },
+        )
         uptime = 0.0
         start_time = self.start_time
         if start_time is not None:
@@ -610,6 +693,11 @@ class EBPFOrchestrator:
         Returns:
             Dict with metrics from all subsystems
         """
+        self._record_thinking_context(
+            operation="get_metrics",
+            goal="read aggregate eBPF runtime metrics",
+            constraints={"read_only": True, "state": self.state.value},
+        )
         return self._get_aggregated_metrics()
 
     def _get_aggregated_metrics(self) -> Dict[str, Any]:
@@ -662,6 +750,15 @@ class EBPFOrchestrator:
             logger.error("Loader not available")
             return None
 
+        self._record_thinking_context(
+            operation="load_program",
+            goal="load eBPF program through runtime orchestrator",
+            constraints={
+                "program_path_hash": _hash_value(program_path),
+                "program_path_redacted": True,
+                "program_type": program_type,
+            },
+        )
         try:
             prog_type = EBPFProgramType(program_type)
             program_id = loader.load_program(program_path, prog_type)
@@ -692,6 +789,17 @@ class EBPFOrchestrator:
 
         try:
             iface = interface or self.config.interface
+            self._record_thinking_context(
+                operation="attach_program",
+                goal="attach eBPF program through runtime orchestrator",
+                constraints={
+                    "program_id_hash": _hash_value(program_id),
+                    "interface_hash": _hash_value(iface),
+                    "program_id_redacted": True,
+                    "interface_redacted": True,
+                    "mode": mode,
+                },
+            )
             attach_mode = EBPFAttachMode(mode)
             return loader.attach_to_interface(program_id, iface, attach_mode)
         except Exception as e:
@@ -713,6 +821,14 @@ class EBPFOrchestrator:
             logger.error("Loader not available")
             return False
 
+        self._record_thinking_context(
+            operation="unload_program",
+            goal="unload eBPF program through runtime orchestrator",
+            constraints={
+                "program_id_hash": _hash_value(program_id),
+                "program_id_redacted": True,
+            },
+        )
         try:
             return loader.unload_program(program_id)
         except Exception as e:
@@ -737,6 +853,16 @@ class EBPFOrchestrator:
 
         try:
             iface = interface or self.config.interface
+            self._record_thinking_context(
+                operation="detach_program",
+                goal="detach eBPF program through runtime orchestrator",
+                constraints={
+                    "program_id_hash": _hash_value(program_id),
+                    "interface_hash": _hash_value(iface),
+                    "program_id_redacted": True,
+                    "interface_redacted": True,
+                },
+            )
             return loader.detach_from_interface(program_id, iface)
         except Exception as e:
             logger.error(f"Failed to detach program: {e}")
@@ -768,6 +894,18 @@ class EBPFOrchestrator:
             logger.warning("Cilium integration not available")
             return []
 
+        self._record_thinking_context(
+            operation="get_flows",
+            goal="read local eBPF flow observations",
+            constraints={
+                "read_only": True,
+                "source_ip_hash": _hash_value(source_ip),
+                "destination_ip_hash": _hash_value(destination_ip),
+                "flow_selectors_redacted": True,
+                "protocol": protocol,
+                "limit": limit,
+            },
+        )
         return cilium.get_hubble_like_flows(
             source_ip=source_ip,
             destination_ip=destination_ip,
@@ -801,6 +939,18 @@ class EBPFOrchestrator:
         if not cilium:
             return
 
+        self._record_thinking_context(
+            operation="record_flow",
+            goal="record local eBPF flow observation",
+            constraints={
+                "source_ip_hash": _hash_value(source_ip),
+                "destination_ip_hash": _hash_value(destination_ip),
+                "flow_selectors_redacted": True,
+                "protocol": protocol,
+                "bytes_count": bytes_count,
+                "packets": packets,
+            },
+        )
         cilium.record_flow(
             source_ip=source_ip,
             destination_ip=destination_ip,
@@ -824,6 +974,15 @@ class EBPFOrchestrator:
         """
         checks: Dict[str, Any] = {}
         health_status = True
+        self._record_thinking_context(
+            operation="health_check",
+            goal="evaluate local eBPF runtime health",
+            constraints={
+                "read_only": True,
+                "state": self.state.value,
+                "loaded_program_count": len(self._loaded_programs),
+            },
+        )
 
         # Check loader
         loader = self._loader

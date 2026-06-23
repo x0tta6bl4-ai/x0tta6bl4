@@ -14,67 +14,35 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# VPN Server Configuration
-VPN_SERVER = os.getenv("VPN_SERVER", "89.125.1.107")
-VPN_PORT = int(os.getenv("VPN_PORT", "443"))
+# NODE CONFIGURATIONS (Saturday multi-node setup)
+NODE_CONFIGS = {
+    "nl": {
+        "server": "89.125.1.107",
+        "port": 443,
+        "public_key": "xMwVfOuehQZwVHPodTvo3TJEGUYUbxmGTeAxMUBWpww",
+        "remark": "x0tta6bl4_NL_Master"
+    },
+    "ru": {
+        "server": "TBD_RU_IP", # Will be updated Saturday
+        "port": 443,
+        "public_key": "TBD_RU_PUB_KEY",
+        "remark": "x0tta6bl4_RU_Entry"
+    },
+    "us": {
+        "server": "TBD_US_IP",
+        "port": 443,
+        "public_key": "TBD_US_PUB_KEY",
+        "remark": "x0tta6bl4_US_Exit"
+    }
+}
 
-# Rotating Reality Configuration - Load from environment or use defaults with rotation support
-REALITY_PUBLIC_KEY = os.getenv("REALITY_PUBLIC_KEY", "xMwVfOuehQZwVHPodTvo3TJEGUYUbxmGTeAxMUBWpww")
-REALITY_PRIVATE_KEY = os.getenv("REALITY_PRIVATE_KEY")  # ✅ SECURITY: No hardcoded secrets
-
-# Rotating SNI options (popular CDN and trusted domains)
-# NOTE: Google/YouTube domains excluded to prevent conflicts with Google Cloud API
+# Rotating SNI options
 ROTATING_SNI_OPTIONS = [
-    "www.cloudflare.com",
-    "www.microsoft.com",
-    "www.apple.com",
-    "www.amazon.com",
-    "www.netflix.com",
-    "www.reddit.com",
-    "www.linkedin.com",
-    "www.github.com",
-    "www.gitlab.com",
-    "www.dropbox.com",
-    "www.cloudflare.net",
-    "www.akamai.com",
-    "www.fastly.com",
-    "www.spotify.com",  # Added for Spotify compatibility
-    "www.scdn.co"       # Spotify CDN
-]  # Excluded: google.com, youtube.com (conflict with Google Cloud)
-
-# Rotating TLS fingerprints options (mimic real browsers)
-ROTATING_FINGERPRINT_OPTIONS = [
-    "chrome",
-    "firefox",
-    "safari",
-    "edge",
-    "ios",
-    "android"
+    "www.cloudflare.com", "www.microsoft.com", "www.apple.com", "www.amazon.com",
+    "www.netflix.com", "www.reddit.com", "www.linkedin.com", "www.github.com"
 ]
 
-# Rotating SpiderX paths (legitimate-looking HTTP paths)
-ROTATING_SPIDERX_OPTIONS = [
-    "/",
-    "/index.html",
-    "/about",
-    "/contact",
-    "/blog",
-    "/products",
-    "/pricing",
-    "/download",
-    "/support",
-    "/docs",
-    "/api/v1/health",
-    "/cdn-cgi/trace",
-    "/robots.txt",
-    "/sitemap.xml",
-    "/favicon.ico",
-    "/watch?v=dQw4w9WgXcQ"
-]
-
-# Default Reality parameters (stable by default, optional rotation via env)
-ENABLE_OBFUSCATION_ROTATION = os.getenv("VPN_ROTATE_OBFUSCATION", "false").lower() == "true"
-REALITY_SNI = os.getenv("REALITY_SNI", "google.com")
+# Default Reality parameters
 REALITY_SHORT_ID = os.getenv("REALITY_SHORT_ID", "6b")
 REALITY_FINGERPRINT = os.getenv("REALITY_FINGERPRINT", "chrome")
 REALITY_SPIDERX = os.getenv("REALITY_SPIDERX", "/")
@@ -86,76 +54,34 @@ REALITY_SPIDERX = os.getenv("REALITY_SPIDERX", "/")
 
 
 def generate_uuid() -> str:
-    """Generate unique UUID for user"""
     return str(uuid.uuid4())
-
 
 def generate_vless_link(
     user_uuid: Optional[str] = None,
-    server: str = VPN_SERVER,
-    port: int = VPN_PORT,
+    node_id: str = "nl",
     sni: str = None,
     short_id: str = REALITY_SHORT_ID,
-    public_key: str = REALITY_PUBLIC_KEY,
     fingerprint: str = None,
-    spiderx: str = None,
-    remark: str = "x0tta6bl4_VPN"
+    spiderx: str = None
 ) -> str:
-    """
-    Generate VLESS + Reality link for user with optional randomization
-    
-    Args:
-        user_uuid: User UUID (if None, uses default)
-        server: VPN server address
-        port: VPN server port
-        sni: SNI for Reality (if None, random from ROTATING_SNI_OPTIONS)
-        short_id: Short ID for Reality
-        public_key: Reality public key
-        fingerprint: TLS fingerprint (if None, random from ROTATING_FINGERPRINT_OPTIONS)
-        spiderx: SpiderX path (if None, random from ROTATING_SPIDERX_OPTIONS)
-        remark: Connection remark/name
-        
-    Returns:
-        VLESS link string
-    """
-    """
-    Generate VLESS + Reality link for user
-    
-    Args:
-        user_uuid: User UUID (if None, uses default)
-        server: VPN server address
-        port: VPN server port
-        sni: SNI for Reality
-        short_id: Short ID for Reality
-        public_key: Reality public key
-        fingerprint: TLS fingerprint
-        spiderx: SpiderX path
-        remark: Connection remark/name
-    
-    Returns:
-        VLESS link string
-    """
-    # ✅ SECURITY FIX: Require user_uuid - no default fallback
     if user_uuid is None:
-        raise ValueError("user_uuid is required! Cannot generate config without unique UUID. This is a security requirement.")
+        raise ValueError("user_uuid is required!")
     
-    # Use stable defaults for better mobile reliability.
-    # Optional rotation can be enabled via VPN_ROTATE_OBFUSCATION=true.
+    node = NODE_CONFIGS.get(node_id, NODE_CONFIGS["nl"])
+    server = node["server"]
+    port = node["port"]
+    public_key = node["public_key"]
+    remark = node["remark"]
+    
     if sni is None:
-        sni = random.choice(ROTATING_SNI_OPTIONS) if ENABLE_OBFUSCATION_ROTATION else REALITY_SNI
+        sni = random.choice(ROTATING_SNI_OPTIONS) if ENABLE_OBFUSCATION_ROTATION else "google.com"
     if fingerprint is None:
-        fingerprint = (
-            random.choice(ROTATING_FINGERPRINT_OPTIONS)
-            if ENABLE_OBFUSCATION_ROTATION
-            else REALITY_FINGERPRINT
-        )
+        fingerprint = REALITY_FINGERPRINT
     if spiderx is None:
-        spiderx = random.choice(ROTATING_SPIDERX_OPTIONS) if ENABLE_OBFUSCATION_ROTATION else REALITY_SPIDERX
+        spiderx = REALITY_SPIDERX
     
-    # Encode SpiderX path
     spiderx_encoded = urllib.parse.quote(spiderx, safe='')
     
-    # Build VLESS link with optimized parameters
     vless_link = (
         f"vless://{user_uuid}@{server}:{port}"
         f"?type=tcp"
@@ -169,95 +95,32 @@ def generate_vless_link(
         f"&flow=xtls-rprx-vision"
         f"#{urllib.parse.quote(remark)}"
     )
-    
     return vless_link
-
 
 def generate_config_text(
     user_id: int,
     user_uuid: Optional[str] = None,
-    server: str = VPN_SERVER,
-    port: int = VPN_PORT
+    node_id: str = "nl"
 ) -> str:
-    """
-    Generate human-readable config text for user
-    
-    Args:
-        user_id: Telegram user ID
-        user_uuid: User UUID (if None, uses default)
-        server: VPN server address
-        port: VPN server port
-    
-    Returns:
-        Config text string
-    """
-    # ✅ SECURITY FIX: Require user_uuid - no default fallback
     if user_uuid is None:
-        raise ValueError("user_uuid is required! Cannot generate config without unique UUID. This is a security requirement.")
+        raise ValueError("user_uuid is required!")
     
-    vless_link = generate_vless_link(user_uuid, server, port)
+    node = NODE_CONFIGS.get(node_id, NODE_CONFIGS["nl"])
+    vless_link = generate_vless_link(user_uuid, node_id=node_id)
     
     config_text = f"""══════════════════════════════════════════════════════════
-✅ x0tta6bl4 VPN Config
+✅ x0tta6bl4 VPN Config ({node['remark']})
 ══════════════════════════════════════════════════════════
 
 User ID: {user_id}
+Node: {node_id.upper()} ({node['server']})
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-Server: {server}:{port}
-
-══════════════════════════════════════════════════════════
-🔗 VLESS ССЫЛКА (СКОПИРУЙТЕ ВСЮ СТРОКУ):
-══════════════════════════════════════════════════════════
 
 {vless_link}
 
-══════════════════════════════════════════════════════════
-📱 КАК ПОДКЛЮЧИТЬСЯ:
-══════════════════════════════════════════════════════════
-
-1. Скачайте клиент:
-   • Windows: v2rayN (https://github.com/2dust/v2rayN)
-   • Android: v2rayNG (Google Play)
-   • iOS: Shadowrocket (App Store)
-   • Mac: v2rayA или ClashX
-
-2. Скопируйте VLESS ссылку выше
-
-3. В клиенте выберите "Импорт из буфера обмена" или "Add from URL"
-
-4. Подключитесь к серверу
-
-5. Проверьте работу - откройте заблокированный сайт
-
-══════════════════════════════════════════════════════════
-📋 ПАРАМЕТРЫ ДЛЯ РУЧНОЙ НАСТРОЙКИ:
-══════════════════════════════════════════════════════════
-
-Protocol: VLESS
-Address: {server}
-Port: {port}
-UUID: {user_uuid}
-Flow: xtls-rprx-vision
-Encryption: none
-Network: TCP
-Security: reality
-Reality Public Key: {REALITY_PUBLIC_KEY}
-Fingerprint: {REALITY_FINGERPRINT}
-SNI: {REALITY_SNI}
-Short ID: {REALITY_SHORT_ID}
-SpiderX: {REALITY_SPIDERX}
-
-══════════════════════════════════════════════════════════
-⚠️ ВАЖНО:
-══════════════════════════════════════════════════════════
-
-• Не передавайте этот конфиг третьим лицам
-• Конфиг привязан к вашему аккаунту
-• При проблемах пишите в поддержку: @x0tta6bl4_support
-
+📱 Инструкция: Скопируйте ссылку и вставьте в v2rayNG/Shadowrocket.
 ══════════════════════════════════════════════════════════
 """
-    
     return config_text
 
 

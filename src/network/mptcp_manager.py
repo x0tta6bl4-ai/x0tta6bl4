@@ -6,6 +6,7 @@ Enables Kernel-level Multi-path TCP (MPTCP) to aggregate multiple
 mesh links into a single logical high-speed connection.
 """
 
+import hashlib
 import logging
 import os
 import subprocess
@@ -517,10 +518,31 @@ class MPTCPManager:
         )
 
     @staticmethod
-    def get_status() -> Dict:
+    def get_status(
+        *,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+        output_preview_limit: int = 0,
+        include_evidence: bool = False,
+        source_agent: str = _STATUS_SOURCE_AGENT,
+    ) -> Dict:
         """Returns current MPTCP status."""
+        started = time.monotonic()
+        bus = (
+            event_bus
+            if event_bus is not None
+            else MPTCPManager._default_event_bus(event_project_root)
+        )
         supported = MPTCPManager.is_mptcp_supported()
         enabled = False
+        proc_metadata: Dict[str, Any] = {
+            "enabled_path": "/proc/sys/net/mptcp/enabled",
+            "exists": supported,
+            "read_attempted": supported,
+            "read_succeeded": False,
+            "read_error_type": "",
+            "raw_value_redacted": True,
+        }
         if supported:
             try:
                 with open("/proc/sys/net/mptcp/enabled", "r", encoding="utf-8") as f:
@@ -535,3 +557,24 @@ class MPTCPManager:
             "max_subflows": limits.get("subflow", 0),
             "add_addr_accepted": limits.get("add_addr_accepted", 0),
         }
+        status = (
+            "enabled"
+            if supported and enabled
+            else "disabled" if supported else "unsupported"
+        )
+        event_id = MPTCPManager._publish_status_observation(
+            event_bus=bus,
+            source_agent=source_agent,
+            status=status,
+            supported=supported,
+            enabled=enabled,
+            proc_metadata=proc_metadata,
+            limits_metadata=limits_metadata,
+            limits=limits,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+        )
+        return MPTCPManager._with_status_evidence(
+            payload,
+            event_id,
+            include_evidence=include_evidence,
+        )

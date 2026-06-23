@@ -41,6 +41,10 @@ class PQCmTLSController(_impl.PQCmTLSController):
         _sync_impl_globals()
         super().__init__(enable_hybrid=enable_hybrid)
 
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose implementation thinking status for legacy imports."""
+        return super().get_thinking_status()
+
 
 def get_pqc_mtls_controller(enable_hybrid: bool = True) -> PQCmTLSController:
     """Get/create controller with legacy shim state synchronization."""

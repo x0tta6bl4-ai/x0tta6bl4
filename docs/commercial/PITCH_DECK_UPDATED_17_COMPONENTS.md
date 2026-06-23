@@ -1,5 +1,10 @@
 # 🎯 PITCH DECK - UPDATED WITH 17 COMPONENTS
 
+> Current gate note: Production-ready wording in this commercial draft is not
+> current production proof unless `docs/05-operations/REAL_READINESS_GATE.md`,
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json` pass.
+
 **Project:** x0tta6bl4  
 **Date:** 28 декабря 2025  
 **Version:** 2.0 (Updated after 17-component discovery)
@@ -570,4 +575,3 @@ Generic comparison with "Traditional solutions"
 **Document Version:** 2.0  
 **Last Updated:** 28 декабря 2025  
 **Status:** ✅ Ready for use
-

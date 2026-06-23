@@ -16,6 +16,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 from .edge_node import EdgeNode, EdgeNodeManager, EdgeTask, TaskPriority
 
 logger = logging.getLogger(__name__)
@@ -389,6 +391,12 @@ class TaskDistributor:
         self._affinity_cache: Dict[str, Tuple[str, datetime]] = {}
         self._running = False
         self._task_index: Dict[str, Dict[str, Any]] = {}
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="edge_task_distributor",
+            role="coordinator",
+            capabilities=("routing", "edge"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
     
     def _get_strategy_impl(self) -> DistributionStrategyBase:
         """Get current strategy implementation."""
@@ -404,6 +412,17 @@ class TaskDistributor:
         config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Set distribution strategy."""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "edge_distribution_strategy_update",
+                "goal": "select edge task distribution strategy",
+                "constraints": {
+                    "previous_strategy": self.config.strategy.value,
+                    "next_strategy": strategy.value,
+                    "config_keys": sorted((config or {}).keys()),
+                },
+            }
+        )
         self.config.strategy = strategy
         if config and isinstance(config, dict):
             for key, value in config.items():
@@ -445,6 +464,20 @@ class TaskDistributor:
                 timeout_seconds=float(task_kwargs.get("timeout_seconds", 300)),
                 metadata=task_kwargs.get("metadata") or {},
             )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "edge_task_distribution",
+                "goal": "route a task to the best available edge node",
+                "constraints": {
+                    "api_mode": api_mode,
+                    "strategy": self.config.strategy.value,
+                    "preferred_node_present": bool(preferred_node),
+                    "required_capability_count": len(task.required_capabilities),
+                    "max_retries": task.max_retries,
+                    "fallback_to_any_node": self.config.fallback_to_any_node,
+                },
+            }
+        )
 
         start_time = time.time()
         
@@ -655,6 +688,17 @@ class TaskDistributor:
                 nodes.extend(self.node_manager.get_nodes_by_region(region))
         else:
             nodes = self.node_manager.get_healthy_nodes()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "edge_task_broadcast",
+                "goal": "broadcast a task across selected edge nodes",
+                "constraints": {
+                    "region_count": len(regions or []),
+                    "target_node_count": len(nodes),
+                    "strategy": self.config.strategy.value,
+                },
+            }
+        )
         
         # Distribute to all nodes
         tasks = []
@@ -699,6 +743,8 @@ class TaskDistributor:
             "strategy": self.config.strategy.value,
             "node_distribution": dict(self._metrics.node_distribution_counts),
             "node_failures": dict(self._metrics.node_failure_counts),
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
 
     # ------------------------------------------------------------------

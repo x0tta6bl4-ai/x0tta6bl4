@@ -1,10 +1,7 @@
-"""
-MaaS SSO & RBAC Layer — x0tta6bl4
-==================================
+"""Compatibility alias for the DB-backed MaaS auth API."""
 
-Handles OIDC authentication flows and role-based access control.
-Supports Enterprise SSO (Google, GitHub, Okta).
-"""
+import sys as _sys
+from typing import Any, Iterable
 
 import logging
 import os
@@ -40,26 +37,7 @@ auth_service = MaaSAuthService(
     api_key_factory=ApiKeyManager.generate,
     default_plan="starter",
 )
-API_KEY_TOKEN_TTL_SECONDS = 31_536_000
-
-# OAuth2 / OIDC Setup (redirect-based flow, only when authlib works)
-oauth = _OAuth() if _oauth_available else None
-if oauth is not None and oidc_validator.enabled:
-    oidc_client_secret = os.getenv("OIDC_CLIENT_SECRET", "").strip() or None
-    oauth.register(
-        name='oidc',
-        server_metadata_url=oidc_validator.issuer + oidc_validator.WELL_KNOWN_SUFFIX,
-        client_id=oidc_validator.client_id,
-        client_secret=oidc_client_secret,
-        client_kwargs={'scope': 'openid email profile'},
-    )
-
-from src.core.rbac import MeshPermission, DEFAULT_ROLE_PERMISSIONS
-
-def _permission_to_value(permission: Union[MeshPermission, str]) -> str:
-    if isinstance(permission, MeshPermission):
-        return permission.value
-    return str(permission).strip()
+from src.core.rbac import DEFAULT_ROLE_PERMISSIONS, MeshPermission
 
 
 def _maas_auth_db_session_available(db: Any) -> bool:
@@ -292,356 +270,86 @@ _LEGACY_ROLE_DEFAULTS = {
 }
 
 
-def _default_permissions_for_role(role: str) -> set[str]:
-    permissions: set[str] = set()
-    if role in DEFAULT_ROLE_PERMISSIONS:
-        permissions.update(_permission_to_value(p) for p in DEFAULT_ROLE_PERMISSIONS[role])
-    permissions.update(_LEGACY_ROLE_DEFAULTS.get(role, set()))
-    return permissions
+def _role_allows(role: str, permission: str) -> bool:
+    wanted = _permission_value(permission)
+    allowed = DEFAULT_ROLE_PERMISSIONS.get(str(role or "user"), set())
+    return any(getattr(item, "value", str(item)) == wanted for item in allowed)
 
 
-def require_role(role: str):
-    """Dependency factory for role-based access control."""
-    def role_checker(user: User = Depends(get_current_user_from_maas)):
-        if user.role != role and user.role != "admin":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Requires {role} privileges"
-            )
-        return user
+def _iter_permission_values(value: Any) -> Iterable[str]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return tuple(item.strip() for item in value.split(",") if item.strip())
+    try:
+        return tuple(
+            str(getattr(item, "value", item)).strip()
+            for item in value
+            if str(getattr(item, "value", item)).strip()
+        )
+    except TypeError:
+        text = str(getattr(value, "value", value)).strip()
+        return (text,) if text else ()
+
+
+def _explicit_permissions(user: Any) -> set[str]:
+    values = set(_iter_permission_values(getattr(user, "permissions", None)))
+    values.update(_iter_permission_values(getattr(user, "scopes", None)))
+    return values
+
+
+def require_role(roles: str | list[str]):
+    allowed_roles = [roles] if isinstance(roles, str) else list(roles)
+
+    def role_checker(user=Depends(_legacy.get_current_user_from_maas)):
+        if user is None:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        role = str(getattr(user, "role", "user") or "user")
+        if role == "admin" or role in allowed_roles:
+            return user
+        raise HTTPException(
+            status_code=403,
+            detail=f"Required role(s): {', '.join(allowed_roles)}",
+        )
+
     return role_checker
 
-def require_permission(permission: Union[MeshPermission, str]):
-    """Dependency factory for granular permission-based access control."""
-    required_permission = _permission_to_value(permission)
 
-    def permission_checker(user: User = Depends(get_current_user_from_maas)):
-        # Admin bypass
-        if user.role == "admin":
+def require_permission(permission: str):
+    def permission_checker(user=Depends(_legacy.get_current_user_from_maas)):
+        if user is None:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        role = str(getattr(user, "role", "user") or "user")
+        permissions = _explicit_permissions(user)
+        if role == "admin" or "*" in permissions:
             return user
-        
-        # 1. Check explicit permissions string (comma-separated)
-        if user.permissions:
-            user_perms = [p.strip() for p in user.permissions.split(",")]
-            if required_permission in user_perms or "*" in user_perms:
-                return user
-        
-        # 2. Map default permissions for roles
-        role_permissions = _default_permissions_for_role(user.role)
-        if required_permission in role_permissions:
+        if permission in permissions or _role_allows(role, permission):
             return user
-            
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Insufficient permissions: required scope '{required_permission}'"
-        )
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
     return permission_checker
 
-def require_mesh_access(permission: Union[MeshPermission, str]):
-    """
-    Advanced Guard: Проверяет право доступа к КОНКРЕТНОЙ сети (mesh_id).
-    
-    Сценарии разрешения прав:
-    1. Admin -> Всегда можно (Superuser).
-    2. Owner -> Можно свои сети (Owner).
-    3. Explicit Grant -> Можно, если есть запись в MeshOperatorPermission.
-    4. Global Role -> Можно, если разрешено глобально для роли (Fallback).
-    """
-    from src.database import MeshInstance
-    
-    def access_checker(
-        mesh_id: str,
-        user: User = Depends(get_current_user_from_maas),
-        db: Session = Depends(get_db)
-    ):
-        required_permission = _permission_to_value(permission)
-        # Admin bypass
-        if user.role == "admin":
-            return user
-            
-        # 1. Проверяем существование сети и владельца
-        mesh = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
-        if not mesh:
-            raise HTTPException(status_code=404, detail="Mesh instance not found")
-            
-        # 2. Если пользователь владелец сети — разрешаем
-        if mesh.owner_id == user.id:
-            # Владельцу разрешены все базовые операции + специфические (MESH_WRITE и т.д.)
-            # Мы разрешаем владельцу всё, что не запрещено политикой
-            return user
-            
-        # 3. Проверка явных разрешений (Explicit Grants)
-        try:
-            from src.database import MeshOperatorPermission
-            explicit = db.query(MeshOperatorPermission).filter(
-                MeshOperatorPermission.user_id == user.id,
-                MeshOperatorPermission.mesh_id == mesh_id,
-                MeshOperatorPermission.permission == required_permission
-            ).first()
-            if explicit:
-                return user
-        except ImportError:
-            # Таблица не существует — пропускаем
-            pass
-            
-        # 4. Fallback на глобальные права роли
-        role_permissions = _default_permissions_for_role(user.role)
-        if required_permission in role_permissions:
-            return user
-        
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail=f"No access to mesh {mesh_id} with scope {required_permission}"
-        )
-    return access_checker
 
-async def get_current_user_from_maas(
-    request: Request,
-    db: Session = Depends(get_db)
-) -> User:
-    """
-    Production-ready user resolver. 
-    Supports API Keys (X-API-Key) and Bearer tokens for Dashboard sessions.
-    """
-    # 1. Check API Key Header (Prioritize machine-to-machine)
-    api_key = request.headers.get("X-API-Key")
-    if api_key:
-        # Never store plaintext keys in prod, but for now we query as-is 
-        # based on current DB model. Future: hash and salt.
-        user = db.query(User).filter(User.api_key == api_key).first()
-        if user:
-            return user
-    
-    # 2. Check Bearer Token (Session-based for UI/Frontend)
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header[7:].strip()
-        session = db.query(UserSession).filter(UserSession.token == token).first()
-        if session:
-            if session.expires_at > datetime.utcnow():
-                user = db.query(User).filter(User.id == session.user_id).first()
-                if user:
-                    return user
-            else:
-                # Cleanup expired session (Background task candidate)
-                logger.info(f"Session {session.id[:8]} expired for user {session.user_id}")
-            
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid authentication credentials or session expired"
-    )
+class _OIDCValidatorCompat:
+    issuer: str | None = None
+    client_id: str | None = None
 
-@router.get("/keys")
-async def list_api_keys(
-    current_user: User = Depends(get_current_user_from_maas),
-    db: Session = Depends(get_db)
-):
-    """List masked API keys for the current user."""
-    # Since we currently store keys in the User model directly, 
-    # we return the primary key masked.
-    # In a future P3 upgrade, we should have a dedicated ApiKey model (One-to-Many).
-    if not current_user.api_key:
-        return []
-        
-    key = current_user.api_key
-    masked = f"{key[:8]}...{key[-4:]}"
-    
-    return [{
-        "id": "primary",
-        "name": "Primary Key",
-        "key_masked": masked,
-        "created_at": current_user.created_at or datetime.utcnow()
-    }]
-
-@router.post("/register", response_model=TokenResponse)
-async def register(req: UserRegisterRequest, db: Session = Depends(get_db)):
-    """Regular email registration."""
-    user = auth_service.register(db, req)
-    return {
-        "access_token": user.api_key,
-        "token_type": "api_key",
-        "expires_in": API_KEY_TOKEN_TTL_SECONDS,
-    }
-
-@router.post("/login", response_model=TokenResponse)
-async def login(req: UserLoginRequest, db: Session = Depends(get_db)):
-    """Regular email login."""
-    api_key = auth_service.login(db, req)
-    return {
-        "access_token": api_key,
-        "token_type": "api_key",
-        "expires_in": API_KEY_TOKEN_TTL_SECONDS,
-    }
+    @property
+    def enabled(self) -> bool:
+        return bool(self.issuer and self.client_id)
 
 
-@router.post("/api-key", response_model=ApiKeyResponse)
-async def rotate_api_key(
-    request: Request,
-    current_user: User = Depends(get_current_user_from_maas),
-    db: Session = Depends(get_db),
-):
-    """Rotate API key for current authenticated user."""
-    new_key, rotated_at = auth_service.rotate_api_key(db, current_user)
-    record_audit_log(
-        db, request, "API_KEY_ROTATED", 
-        user_id=current_user.id, 
-        status_code=200
-    )
-    return {"api_key": new_key, "created_at": rotated_at}
+_legacy.require_role = require_role
+_legacy.require_permission = require_permission
 
-@router.get("/login/oidc")
-async def login_oidc(request: Request):
-    """Redirect to configured OIDC provider."""
-    if not oidc_validator.enabled:
-        raise HTTPException(status_code=501, detail="OIDC not configured")
-    if oauth is None:
-        raise HTTPException(status_code=501, detail="OIDC redirect flow not available (authlib unavailable)")
+if not hasattr(_legacy, "oidc_validator"):
+    _legacy.oidc_validator = _OIDCValidatorCompat()
 
-    redirect_uri = request.url_for('auth_callback')
-    return await oauth.oidc.authorize_redirect(request, str(redirect_uri))
+if not hasattr(_legacy, "oauth"):
+    _legacy.oauth = None
 
-@router.get("/callback")
-async def auth_callback(request: Request, db: Session = Depends(get_db)):
-    """Handle OIDC callback and establish session."""
-    if not oidc_validator.enabled:
-        raise HTTPException(status_code=501, detail="OIDC not configured")
-    if oauth is None:
-        raise HTTPException(status_code=501, detail="OIDC redirect flow not available (authlib unavailable)")
+if not hasattr(_legacy, "require_mesh_access"):
+    _legacy.require_mesh_access = _modular_require_mesh_access
 
-    try:
-        token = await oauth.oidc.authorize_access_token(request)
-        id_token = token.get('id_token')
-        if not id_token:
-            raise HTTPException(status_code=400, detail="Missing id_token")
-            
-        claims = oidc_validator.validate(id_token)
-        
-        # Find or create user
-        user = db.query(User).filter(User.oidc_id == claims.sub).first()
-        if not user:
-            # Check by email as fallback
-            user = db.query(User).filter(User.email == claims.email).first()
-            if user:
-                # Link existing user to OIDC
-                user.oidc_id = claims.sub
-                user.oidc_provider = claims.issuer
-            else:
-                # Create new enterprise user
-                user = User(
-                    id=str(uuid.uuid4()),
-                    email=claims.email,
-                    password_hash="!OIDC_NO_LOCAL_PASSWORD",  # Sentinel — rejected by verify_password()
-                    full_name=claims.name,
-                    oidc_id=claims.sub,
-                    oidc_provider=claims.issuer,
-                    role="user", # Default role
-                    api_key=ApiKeyManager.generate()
-                )
-                db.add(user)
-            db.commit()
-            db.refresh(user)
-            
-        # Create App Session
-        session_token = secrets.token_urlsafe(64)
-        new_session = UserSession(
-            token=session_token,
-            user_id=user.id,
-            email=user.email,
-            expires_at=datetime.utcnow() + timedelta(days=7)
-        )
-        db.add(new_session)
-        db.commit()
-        
-        # In a real app, we'd redirect to dashboard with the token
-        return {
-            "message": "Authenticated successfully",
-            "session_token": session_token,
-            "user": {
-                "email": user.email,
-                "role": user.role,
-                "api_key": user.api_key
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"OIDC Auth failed: {e}")
-        raise HTTPException(status_code=401, detail=f"Authentication failed: {e}")
-
-@router.get("/me")
-async def get_my_profile(user: User = Depends(get_current_user_from_maas)):
-    """Get current authenticated profile."""
-    return {
-        "id": user.id,
-        "email": user.email,
-        "role": user.role,
-        "plan": user.plan,
-        "oidc_linked": bool(user.oidc_id)
-    }
-
-@router.post("/set-admin/{email}")
-async def make_admin(
-    email: str,
-    request: Request,
-    db: Session = Depends(get_db),
-    _admin: User = Depends(require_role("admin")),
-):
-    """Promote a user to admin. Requires existing admin privileges."""
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    prev_role = user.role
-    user.role = "admin"
-    db.commit()
-    
-    record_audit_log(
-        db, request, "ADMIN_PROMOTION",
-        user_id=_admin.id,
-        payload={"target_email": email, "target_id": user.id, "prev_role": prev_role},
-        status_code=200
-    )
-    return {"message": f"User {email} is now an ADMIN"}
-
-
-@router.post("/bootstrap-admin")
-async def bootstrap_admin(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """Create the first admin user when no admins exist.
-
-    Requires the ``BOOTSTRAP_TOKEN`` environment variable to match the
-    ``X-Bootstrap-Token`` request header. Disabled once any admin exists.
-    """
-    bootstrap_token = os.getenv("BOOTSTRAP_TOKEN", "")
-    if not bootstrap_token:
-        raise HTTPException(status_code=403, detail="Bootstrap not configured")
-
-    provided = request.headers.get("X-Bootstrap-Token", "")
-    if not secrets.compare_digest(bootstrap_token, provided):
-        raise HTTPException(status_code=403, detail="Invalid bootstrap token")
-
-    # Disabled once any admin exists (idempotency guard)
-    existing_admin = db.query(User).filter(User.role == "admin").first()
-    if existing_admin:
-        raise HTTPException(status_code=409, detail="Admin already exists — bootstrap disabled")
-
-    body = await request.json()
-    email = body.get("email", "").strip()
-    password = body.get("password", "")
-    if not email or not password:
-        raise HTTPException(status_code=422, detail="email and password required")
-
-    from src.api.maas_auth_models import UserRegisterRequest
-    req = UserRegisterRequest(email=email, password=password)
-    user = auth_service.register(db, req)
-    user.role = "admin"
-    db.commit()
-    
-    record_audit_log(
-        db, request, "BOOTSTRAP_ADMIN_CREATED",
-        user_id=user.id,
-        payload={"email": email},
-        status_code=200
-    )
-    return {"message": f"Bootstrap admin {email} created", "api_key": user.api_key}
+globals().update(_legacy.__dict__)
+_sys.modules[__name__] = _legacy

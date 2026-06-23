@@ -8,7 +8,7 @@ import pytest
 from fastapi import FastAPI  # Added import
 from fastapi.testclient import TestClient
 
-from src.api.vpn import VPNConfigResponse, router as vpn_router  # Added import
+from src.api.maas.endpoints.vpn import VPNConfigResponse, router as vpn_router  # Added import
 from src.database import User, get_db  # Added import
 
 # Removed global client = TestClient(app) as it's being refactored into fixtures
@@ -25,7 +25,7 @@ class TestVPNConfig:
             yield mock_db
 
         app.dependency_overrides[get_db] = override_get_db
-        app.include_router(vpn_router)  # Router already has prefix="/vpn"
+        app.include_router(vpn_router, prefix="/vpn")  # Router already has prefix="/vpn"
         return TestClient(app)
 
     @pytest.fixture
@@ -78,8 +78,8 @@ class TestVPNConfig:
             config_text="cfg",
         )
 
-        with patch("src.api.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=auth_user)):
-            with patch("src.api.vpn._build_vpn_config", return_value=fake_config):
+        with patch("src.api.maas.endpoints.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=auth_user)):
+            with patch("src.api.maas.endpoints.vpn._build_vpn_config", return_value=fake_config):
                 response = client.get("/vpn/config?user_id=12345&username=same-user")
 
         assert response.status_code == 200
@@ -105,7 +105,7 @@ class TestVPNConfig:
         auth_user.id = "777"
         auth_user.scopes = []
 
-        with patch("src.api.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=auth_user)):
+        with patch("src.api.maas.endpoints.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=auth_user)):
             response = client.post("/vpn/config", json={"user_id": 12345})
 
         assert response.status_code == 403
@@ -123,8 +123,8 @@ class TestVPNConfig:
             config_text="cfg",
         )
 
-        with patch("src.api.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=auth_user)):
-            with patch("src.api.vpn._build_vpn_config", return_value=fake_config):
+        with patch("src.api.maas.endpoints.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=auth_user)):
+            with patch("src.api.maas.endpoints.vpn._build_vpn_config", return_value=fake_config):
                 response = client.post("/vpn/config", json={"user_id": 12345})
 
         assert response.status_code == 200
@@ -133,7 +133,7 @@ class TestVPNConfig:
     def test_post_vpn_config_requires_auth_in_production(self, client, monkeypatch):
         """Production mode must reject anonymous POST /config access."""
         monkeypatch.setenv("ENVIRONMENT", "production")
-        with patch("src.api.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=None)):
+        with patch("src.api.maas.endpoints.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=None)):
             response = client.post("/vpn/config", json={"user_id": 12345})
         assert response.status_code == 401
 
@@ -154,7 +154,7 @@ class TestVPNStatus:
             yield mock_db
 
         app.dependency_overrides[get_db] = override_get_db
-        app.include_router(vpn_router)  # Router already has prefix="/vpn"
+        app.include_router(vpn_router, prefix="/vpn")  # Router already has prefix="/vpn"
         return TestClient(app)
 
     @pytest.fixture
@@ -212,7 +212,7 @@ class TestVPNUsers:
             yield mock_db
 
         app.dependency_overrides[get_db] = override_get_db
-        app.include_router(vpn_router)
+        app.include_router(vpn_router, prefix="/vpn")
         return TestClient(app)
 
     def test_get_users_without_admin_token(self, client):
@@ -241,7 +241,7 @@ class TestVPNUsers:
             mock_user_2,
         ]
 
-        with patch("src.api.vpn.cache") as mock_cache:  # Patch cache here
+        with patch("src.api.maas.endpoints.vpn.cache") as mock_cache:  # Patch cache here
             mock_cache.get = AsyncMock(return_value=None)
             mock_cache.set = AsyncMock(return_value=True)
 
@@ -272,7 +272,7 @@ class TestVPNUsers:
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user
         mock_db.commit = Mock()
 
-        with patch("src.api.vpn.cache") as mock_cache:  # Patch cache here
+        with patch("src.api.maas.endpoints.vpn.cache") as mock_cache:  # Patch cache here
             mock_cache.delete = AsyncMock(return_value=True)
 
             response = client.delete(
@@ -329,7 +329,7 @@ class TestVPNRateLimiting:
             yield mock_db
 
         app.dependency_overrides[get_db] = override_get_db
-        app.include_router(vpn_router)
+        app.include_router(vpn_router, prefix="/vpn")
         return TestClient(app)
 
     def test_config_rate_limit(self, client):

@@ -2,9 +2,43 @@ import hashlib
 import logging
 from typing import Any, Dict, List, Optional, Set
 from dataclasses import dataclass, field
+
+from src.core.agent_thinking import AgentThinkingCoach
 from src.vision.processor import VisionProcessor
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    return "100+"
 
 
 @dataclass
@@ -68,6 +102,63 @@ class MeshTopologyAnalyzer:
         self._centrality_threshold = self.config.get("centrality_threshold", 0.8)
         self._latency_threshold_ms = self.config.get("latency_threshold_ms", 100)
         self._packet_loss_threshold = self.config.get("packet_loss_threshold", 0.05)
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="mesh-topology-vision-analyzer",
+            role="monitoring",
+            capabilities=("ops", "quality", "healing"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "vision_topology_analyzer_init",
+                "goal": "Initialize visual topology analysis safely",
+                "signals": {
+                    "centrality_threshold_band": _safe_number_band(
+                        self._centrality_threshold
+                    ),
+                    "latency_threshold_band": _safe_number_band(
+                        self._latency_threshold_ms
+                    ),
+                    "packet_loss_threshold_band": _safe_number_band(
+                        self._packet_loss_threshold
+                    ),
+                    "cache_count_bucket": "0",
+                },
+                "safety_boundary": (
+                    "Keep image bytes, node ids, findings text, recommendations, "
+                    "and file paths out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_image_bytes": True,
+                    "redact_node_ids": True,
+                    "redact_findings": True,
+                    "redact_recommendations": True,
+                    "redact_paths": True,
+                    "preserve_topology_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, and metric bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def _compute_node_degree(
         self,
@@ -207,12 +298,24 @@ class MeshTopologyAnalyzer:
         # Step 7: Compute resilience score
         resilience = self._compute_resilience_score(nodes, links, bottlenecks, isolated)
         
-        return TopologyMetrics(
+        topology = TopologyMetrics(
             nodes=node_metrics,
             links=link_metrics,
             avg_centrality=sum(centrality.values()) / max(len(centrality), 1),
             resilience_score=resilience
         )
+        self._record_thinking(
+            "vision_topology_structure_analyzed",
+            "Analyze topology structure safely",
+            {
+                "node_count_bucket": _safe_count_bucket(len(nodes)),
+                "link_count_bucket": _safe_count_bucket(len(links)),
+                "bottleneck_count_bucket": _safe_count_bucket(len(bottlenecks)),
+                "isolated_count_bucket": _safe_count_bucket(len(isolated)),
+                "resilience_band": _safe_number_band(resilience),
+            },
+        )
+        return topology
 
     async def analyze_bytes(self, image_data: bytes) -> Dict[str, Any]:
         """
@@ -225,6 +328,17 @@ class MeshTopologyAnalyzer:
         if cache_key in self._cache:
             logger.debug("Using cached topology analysis")
             topology = self._cache[cache_key]
+            self._record_thinking(
+                "vision_topology_analyzed",
+                "Return cached topology analysis safely",
+                {
+                    "image_hash": _safe_hash(cache_key),
+                    "image_size_bucket": _safe_count_bucket(len(image_data)),
+                    "cache_hit": True,
+                    "node_count_bucket": _safe_count_bucket(len(topology.nodes)),
+                    "link_count_bucket": _safe_count_bucket(len(topology.links)),
+                },
+            )
             return {
                 "status": "success",
                 "nodes_detected": len(topology.nodes),
@@ -258,7 +372,7 @@ class MeshTopologyAnalyzer:
         # Cache result
         self._cache[cache_key] = topology
         
-        return {
+        result = {
             "status": "success",
             "nodes_detected": len(topology.nodes),
             "links_detected": len(topology.links),
@@ -272,6 +386,23 @@ class MeshTopologyAnalyzer:
                 "isolated_nodes": [n for n in topology.nodes.values() if n.is_isolated],
             }
         }
+        self._record_thinking(
+            "vision_topology_analyzed",
+            "Analyze topology image bytes safely",
+            {
+                "image_hash": _safe_hash(cache_key),
+                "image_size_bucket": _safe_count_bucket(len(image_data)),
+                "cache_hit": False,
+                "node_count_bucket": _safe_count_bucket(len(topology.nodes)),
+                "link_count_bucket": _safe_count_bucket(len(topology.links)),
+                "finding_key_count_bucket": _safe_count_bucket(len(findings)),
+                "recommendation_count_bucket": _safe_count_bucket(
+                    len(raw_data.get("proposed_plan", []))
+                ),
+                "resilience_band": _safe_number_band(topology.resilience_score),
+            },
+        )
+        return result
 
     async def analyze(self, image_path: str) -> Dict[str, Any]:
         """
@@ -279,12 +410,28 @@ class MeshTopologyAnalyzer:
         """
         import os
         if not os.path.exists(image_path):
+            self._record_thinking(
+                "vision_topology_path_analyzed",
+                "Reject missing topology image path",
+                {"path_hash": _safe_hash(image_path), "exists": False},
+            )
             raise FileNotFoundError(f"Image not found at {image_path}")
             
         with open(image_path, "rb") as f:
-            return await self.analyze_bytes(f.read())
+            result = await self.analyze_bytes(f.read())
+        self._record_thinking(
+            "vision_topology_path_analyzed",
+            "Analyze topology image path safely",
+            {"path_hash": _safe_hash(image_path), "exists": True},
+        )
+        return result
     
     def clear_cache(self) -> None:
         """Clear analysis cache."""
         self._cache.clear()
+        self._record_thinking(
+            "vision_topology_cache_cleared",
+            "Clear topology analysis cache",
+            {"cache_count_bucket": "0"},
+        )
         logger.info("Topology analysis cache cleared")

@@ -1,8 +1,11 @@
 """
-MaaS Automatic Invoicing (Production) — x0tta6bl4
-================================================
+MaaS Billing API Shim — x0tta6bl4
+=================================
 
-SQLAlchemy-backed enterprise billing logic with Stripe integration.
+Compatibility shim for v4.0 architecture.
+Redirects to modular billing router in src/api/maas/endpoints/billing.py.
+
+DEPRECATED: Use src.api.maas.endpoints.billing instead.
 """
 
 import logging
@@ -44,22 +47,20 @@ BILLING_WEBHOOK_CLAIM_BOUNDARY = (
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
-# --- Stripe Configuration ---
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 APP_DOMAIN = os.getenv("APP_DOMAIN", "https://app.x0tta6bl4.com")
-
-# Stripe Plan Price IDs (must be set via environment variables)
-# We enforce real configuration for non-dev environments.
 STRIPE_PLANS = {
     "starter": os.getenv("STRIPE_PRICE_STARTER"),
     "pro": os.getenv("STRIPE_PRICE_PRO"),
     "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE"),
 }
 
-# Validate Stripe configuration
-_is_production = os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"}
-_missing_plans = [k for k, v in STRIPE_PLANS.items() if not v]
+warnings.warn(
+    "src.api.maas_billing is deprecated. Use src.api.maas.endpoints.billing instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 if _is_production and (not STRIPE_SECRET_KEY or _missing_plans):
     logger.critical(f"FATAL: Stripe not fully configured for production. Missing plans: {_missing_plans}")

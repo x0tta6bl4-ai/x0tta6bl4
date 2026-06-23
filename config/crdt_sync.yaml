@@ -1,5 +1,5 @@
 # CRDT Synchronization Configuration
-# Production-ready configuration for optimized CRDT sync
+# Tuned example for optimized CRDT sync; not production readiness evidence.
 
 crdt_sync:
   # Node configuration
@@ -74,4 +74,3 @@ crdt_sync:
       enabled: true
       path: "/var/lib/x0tta6bl4/crdt/${NODE_ID}"
       backup_enabled: true
-

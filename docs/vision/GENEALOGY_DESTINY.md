@@ -1,3 +1,10 @@
+> Truth-surface note: genealogy / destiny vision narrative.
+> Superseded for current readiness claims by `STATUS_REALITY.md`,
+> `docs/05-operations/REAL_READINESS_GATE.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`.
+> Production-ready wording below is historical/aspirational language, not
+> current production deployment evidence.
+
 # 🌌 GENEALOGY & DESTINY: x0tta6bl4
 
 > *"x0tta6bl4 как звено в цепи тысячелетней борьбы за свободу"*
@@ -796,4 +803,3 @@ x0tta6bl4 (2019-2025)
 *Through Soviet Fairy Tales (+1938)*  
 *To Quantum-Safe Future (+2050)*  
 *x0tta6bl4 = Eternal Archetype of Freedom in Code*
-

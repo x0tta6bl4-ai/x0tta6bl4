@@ -1,9 +1,8 @@
-"""
-MaaS Marketplace (Production) — x0tta6bl4
-=========================================
+"""Compatibility alias for the modular MaaS marketplace endpoint.
 
-Peer-to-peer infrastructure sharing with escrow payment protection.
-Funds are held in escrow until the rented node passes a health heartbeat.
+The real implementation lives in ``src.api.maas.endpoints.marketplace``.  Keep
+this module name as an alias so older imports and monkeypatches mutate the same
+module globals used by the endpoint functions.
 """
 
 import json
@@ -18,17 +17,9 @@ from decimal import Decimal, ROUND_HALF_UP
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+import sys
 
-from src.api.maas_auth import get_current_user_from_maas, require_permission
-from src.core.reliability_policy import mark_degraded_dependency
-from src.database import MarketplaceEscrow, MarketplaceListing, User, GlobalConfig, get_db
-from src.api.maas_telemetry import reputation_system
-from src.dao.token_bridge import TokenBridge, BridgeConfig
-from src.dao.token import MeshToken
-from src.utils.audit import record_audit_log
+from .maas.endpoints import marketplace as _marketplace
 
 from src.resilience.advanced_patterns import get_resilient_executor
 from src.monitoring.maas_metrics import record_escrow_failure

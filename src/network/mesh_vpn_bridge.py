@@ -4,6 +4,7 @@ Integates SOCKS5 proxy with Mesh Network and Rotating Exit Nodes.
 """
 
 import asyncio
+import hashlib
 import hmac
 import logging
 import os

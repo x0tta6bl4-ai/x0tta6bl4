@@ -1,5 +1,10 @@
 # 🤖 Distributed AI — The Next $100B Market
 
+> Current gate note: Production-ready wording in this business draft is not
+> current production proof unless `docs/05-operations/REAL_READINESS_GATE.md`,
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json` pass.
+
 ## The Vision
 
 **"AI that can't be stopped, can't be spied on, can't be censored"**

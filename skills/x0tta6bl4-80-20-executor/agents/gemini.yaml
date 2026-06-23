@@ -5,6 +5,11 @@ interface:
   model: "gemini-2.5-pro"
   provider: "google"
 
+thinking_contract:
+  source: "docs/ai_agents/THINKING_TECHNIQUES_FOR_AGENTS.md"
+  runtime_source: "src/core/agent_thinking.py"
+  required_for_all_agents: true
+
 cycle:
   mode: "focused"
   parallel: true

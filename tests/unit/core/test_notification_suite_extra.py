@@ -3,6 +3,9 @@ from importlib.machinery import SourceFileLoader
 notif = SourceFileLoader(
     "notification_suite_orig", "src/core/notification_suite.py"
 ).load_module()
+notif_libx0t = SourceFileLoader(
+    "notification_suite_libx0t", "src/libx0t/core/notification_suite.py"
+).load_module()
 
 
 class DummyResp:
@@ -39,6 +42,35 @@ def test_kubectl_get_pods_error(monkeypatch):
     monkeypatch.setattr(notif.subprocess, "run", lambda *a, **k: FakeResult())
     pods = notif.kubectl_get_pods("ns1", "app=x")
     assert pods is None
+
+
+def test_kubectl_get_pods_error_redacts_secret_text(monkeypatch, capsys):
+    class FakeResult:
+        def __init__(self):
+            self.returncode = 1
+            self.stderr = "failed token=raw-token api_key:raw-api-key"
+            self.stdout = ""
+
+    monkeypatch.setattr(notif.subprocess, "run", lambda *a, **k: FakeResult())
+    pods = notif.kubectl_get_pods("ns1", "app=x")
+
+    assert pods is None
+    output = capsys.readouterr().out
+    assert "raw-token" not in output
+    assert "raw-api-key" not in output
+    assert "token=[REDACTED]" in output
+    assert "api_key:[REDACTED]" in output
+
+
+def test_libx0t_notification_redactor_masks_webhooks_and_tokens():
+    text = notif_libx0t._redact_sensitive_text(
+        "url=https://hooks.slack.com/services/T000/B000/raw-secret token=raw-token"
+    )
+
+    assert "raw-secret" not in text
+    assert "raw-token" not in text
+    assert "https://hooks.slack.com/services/[REDACTED]" in text
+    assert "token=[REDACTED]" in text
 
 
 def test_watch_timeout(monkeypatch):

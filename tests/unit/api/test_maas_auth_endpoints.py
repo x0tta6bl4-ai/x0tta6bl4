@@ -20,6 +20,7 @@ os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 from src.core.app import app
 import src.api.maas_auth as maas_auth_mod
 from src.database import Base, get_db, User
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_auth_ep_{uuid.uuid4().hex}.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"
@@ -88,7 +89,7 @@ def admin_user(client):
     api_key = resp.json()["access_token"]
     # Promote to admin directly in DB
     db = TestingSessionLocal()
-    user = db.query(User).filter(User.api_key == api_key).first()
+    user = find_user_by_api_key(db, api_key)
     user.role = "admin"
     db.commit()
     db.close()
@@ -104,7 +105,88 @@ def target_user(client):
         json={"email": email, "password": "password123"},
     )
     assert resp.status_code == 200
-    return {"email": email}
+    api_key = resp.json()["access_token"]
+    return {"email": email, "api_key": api_key}
+
+
+class TestMaaSAuthReadiness:
+    def test_router_has_readiness_route(self):
+        route_paths = [r.path for r in maas_auth_mod.router.routes]
+        assert "/api/v1/maas/auth/readiness" in route_paths
+
+    def test_ready_when_local_dependencies_are_available(self, monkeypatch):
+        _force_maas_auth_dependencies_ready(monkeypatch)
+        db = MagicMock(spec=["query", "add", "commit", "refresh"])
+
+        payload = maas_auth_mod._maas_auth_readiness_status(db)
+
+        assert payload["status"] == "ready"
+        assert payload["maas_auth_runtime_ready"] is True
+        assert payload["auth_db_ready"] is True
+        assert payload["user_model_ready"] is True
+        assert payload["session_model_ready"] is True
+        assert payload["auth_service_ready"] is True
+        assert payload["api_key_manager_ready"] is True
+        assert payload["rbac_ready"] is True
+        assert payload["token_helpers_ready"] is True
+        assert payload["audit_log_ready"] is True
+        assert payload["oidc_enabled"] is False
+        assert payload["oidc_redirect_ready"] is True
+        assert payload["bootstrap_token_configured"] is False
+        assert payload["cross_plane_claim_gate"]["allowed"] is False
+        assert "production_readiness" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
+        assert payload["degraded_dependencies"] == []
+
+    def test_degraded_when_dependencies_are_missing(self, monkeypatch):
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_user_model_available", lambda: False)
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_session_model_available", lambda: False)
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_service_available", lambda: False)
+        monkeypatch.setattr(
+            maas_auth_mod, "_maas_auth_api_key_manager_available", lambda: False
+        )
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_rbac_available", lambda: False)
+        monkeypatch.setattr(
+            maas_auth_mod, "_maas_auth_token_helpers_available", lambda: False
+        )
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_audit_log_available", lambda: False)
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_oidc_enabled", lambda: True)
+        monkeypatch.setattr(
+            maas_auth_mod, "_maas_auth_oidc_redirect_available", lambda: False
+        )
+        monkeypatch.setattr(
+            maas_auth_mod, "_maas_auth_bootstrap_token_configured", lambda: False
+        )
+
+        payload = maas_auth_mod._maas_auth_readiness_status(SimpleNamespace())
+
+        assert payload["status"] == "degraded"
+        assert payload["maas_auth_runtime_ready"] is False
+        assert payload["degraded_dependencies"] == [
+            "database",
+            "user_model",
+            "session_model",
+            "auth_service",
+            "api_key_manager",
+            "rbac",
+            "token_helpers",
+            "audit_log",
+            "oidc_redirect",
+        ]
+        assert "BOOTSTRAP_TOKEN is intentionally optional" in (
+            payload["backing_state"]["bootstrap_token"]
+        )
+        assert "does not create a user" in payload["claim_boundary"]
+
+    def test_endpoint_marks_degraded_dependencies(self, monkeypatch):
+        _force_maas_auth_dependencies_ready(monkeypatch)
+        request = SimpleNamespace(state=SimpleNamespace())
+
+        payload = asyncio.run(
+            maas_auth_mod.maas_auth_readiness(request, db=SimpleNamespace())
+        )
+
+        assert payload["status"] == "degraded"
+        assert request.state.degraded_dependencies == {"database"}
 
 
 class TestMaaSAuthReadiness:
@@ -237,26 +319,27 @@ class TestSetAdmin:
 
     def test_set_admin_verifies_role_in_db(self, client, admin_user, target_user):
         """After set-admin, the user's /me endpoint shows role=admin."""
-        # Log in as target to get their API key
         db = TestingSessionLocal()
         user = db.query(User).filter(User.email == target_user["email"]).first()
-        target_api_key = user.api_key
         target_role = user.role
         db.close()
         assert target_role == "admin"
         # Verify via /me
-        resp = client.get("/api/v1/maas/auth/me", headers={"X-API-Key": target_api_key})
+        resp = client.get(
+            "/api/v1/maas/auth/me",
+            headers={"X-API-Key": target_user["api_key"]},
+        )
         assert resp.status_code == 200
         assert resp.json()["role"] == "admin"
 
 
 class TestRegisterLogin:
-    def test_duplicate_email_returns_400(self, client, normal_user):
+    def test_duplicate_email_returns_409(self, client, normal_user):
         resp = client.post(
             "/api/v1/maas/auth/register",
             json={"email": normal_user["email"], "password": "password123"},
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 409
 
     def test_short_password_returns_422(self, client):
         resp = client.post(

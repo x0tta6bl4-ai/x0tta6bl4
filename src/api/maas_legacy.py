@@ -1,49 +1,26 @@
-"""
-MaaS (Mesh-as-a-Service) API — x0tta6bl4
-==========================================
+"""Legacy MaaS compatibility facade with bounded evidence.
 
-Production API for deploying, managing, and monitoring
-PQC-secured self-healing mesh networks.
-
-Endpoints:
-    Auth:
-        POST   /api/v1/maas/register       — Register new user
-        POST   /api/v1/maas/login           — Login
-        POST   /api/v1/maas/api-key         — Rotate API key
-        GET    /api/v1/maas/me              — User profile
-
-    Mesh Lifecycle:
-        POST   /api/v1/maas/deploy          — Deploy a new mesh network
-        GET    /api/v1/maas/list            — List user's meshes
-        GET    /api/v1/maas/{id}/status     — Mesh health & status
-        GET    /api/v1/maas/{id}/metrics    — Consciousness & MAPE-K metrics
-        POST   /api/v1/maas/{id}/scale     — Scale nodes up/down
-        DELETE /api/v1/maas/{id}            — Terminate mesh
-        
-    Agent:
-        POST   /api/v1/maas/heartbeat       — Node heartbeat telemetry
+This module keeps the historical ``src.api.maas_legacy`` public contract alive
+while the implementation around it moves to modular v4 surfaces. The facade is
+intentionally explicit: legacy calls may still return raw API data to callers,
+but EventBus evidence must contain only hashes and aggregate summaries.
 """
 
-import asyncio
-import csv
+from __future__ import annotations
+
 import hashlib
 import hmac
-import io
 import json
 import logging
 import os
-from pathlib import Path
 import secrets
 import time
 import uuid
 from datetime import datetime, timedelta
+from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from fastapi.responses import FileResponse, Response
-from fastapi.security import APIKeyHeader
-from pydantic import BaseModel, Field, ValidationError
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from src.api.maas_auth_models import (ApiKeyResponse, TokenResponse,
@@ -51,680 +28,317 @@ from src.api.maas_auth_models import (ApiKeyResponse, TokenResponse,
 from src.core.reliability_policy import mark_degraded_dependency
 from src.database import BillingWebhookEvent, User, get_db, MeshInstance as DBMeshInstance
 from src.api.maas_security import api_key_manager, oidc_validator, token_signer
-from src.api.maas_auth import require_role, get_current_user_from_maas, require_permission
-from src.services.maas_auth_service import MaaSAuthService
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.database import (
+    BillingWebhookEvent,
+    MeshInstance as DBMeshInstance,
+    User,
+    get_db,
+)
 from src.security.hardware_enclave import AttestationService
+from src.services.maas_auth_service import MaaSAuthService, find_user_by_api_key
 
-# Try importing PQC identity manager
-try:
-    from src.security.pqc_identity import PQCNodeIdentity
-
-    PQC_AVAILABLE = True
-except ImportError:
+try:  # Optional in local/dev environments.
+    from src.security.ebpf_pqc_gateway import PQC_AVAILABLE
+except Exception:  # pragma: no cover - depends on host optional deps.
     PQC_AVAILABLE = False
+
+try:  # Historical readiness surface only checks callability.
+    from src.security.pqc_identity import PQCNodeIdentity
+except Exception:  # pragma: no cover - optional.
+    PQCNodeIdentity = None
+
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/maas", tags=["MaaS"])
+router = APIRouter(tags=["MaaS Legacy"])
+router.include_router(compat_router)
+router.include_router(mesh_router)
+router.include_router(nodes_legacy_router)
 
-# Re-alias for compatibility within this file
-get_current_user = get_current_user_from_maas
+_registry_lock = Lock()
+_mesh_registry: Dict[str, Any] = {}
+_pending_nodes: Dict[str, Dict[str, Dict[str, Any]]] = {}
+_node_telemetry: Dict[str, Dict[str, Any]] = {}
+_mesh_policies: Dict[str, List[Dict[str, Any]]] = {}
+_mesh_audit_log: Dict[str, List[Dict[str, Any]]] = {}
+_mesh_mapek_events: Dict[str, List[Dict[str, Any]]] = {}
+_revoked_nodes: Dict[str, Dict[str, Dict[str, Any]]] = {}
+_mesh_reissue_tokens: Dict[str, Dict[str, Dict[str, Any]]] = {}
+_billing_webhook_results: Dict[str, Dict[str, Any]] = {}
 
-
-# ---------------------------------------------------------------------------
-# PQC Segment Profiles
-# ---------------------------------------------------------------------------
-# Maps device_class → recommended PQC algorithm pair.
-# NIST-standardized: ML-KEM (FIPS 203) + ML-DSA (FIPS 204).
-# Security levels: 1 (128-bit) | 3 (192-bit) | 5 (256-bit)
-
-PQC_SEGMENT_PROFILES: Dict[str, Dict[str, Any]] = {
-    "sensor": {
-        "kem": "ML-KEM-512",
-        "sig": "ML-DSA-44",
-        "security_level": 1,
-        "rationale": "Battery/CPU constrained — balance security vs. performance",
-    },
-    "edge": {
-        "kem": "ML-KEM-512",
-        "sig": "ML-DSA-44",
-        "security_level": 1,
-        "rationale": "Low-power edge devices — performance-first",
-    },
-    "robot": {
-        "kem": "ML-KEM-768",
-        "sig": "ML-DSA-65",
-        "security_level": 3,
-        "rationale": "Industrial robots — high security, real-time safe",
-    },
-    "drone": {
-        "kem": "ML-KEM-768",
-        "sig": "ML-DSA-65",
-        "security_level": 3,
-        "rationale": "Autonomous drones — medium latency tolerance",
-    },
-    "gateway": {
-        "kem": "ML-KEM-1024",
-        "sig": "ML-DSA-87",
-        "security_level": 5,
-        "rationale": "Network gateways — maximum security, high-value targets",
-    },
-    "server": {
-        "kem": "ML-KEM-1024",
-        "sig": "ML-DSA-87",
-        "security_level": 5,
-        "rationale": "Control-plane servers — maximum security",
-    },
-}
-
-# Default profile for unknown device classes
-_PQC_DEFAULT_PROFILE: Dict[str, Any] = {
-    "kem": "ML-KEM-768",
-    "sig": "ML-DSA-65",
-    "security_level": 3,
-    "rationale": "Default: standard security for unclassified devices",
-}
-
-
-def _get_pqc_profile(device_class: str) -> Dict[str, Any]:
-    return PQC_SEGMENT_PROFILES.get(device_class, _PQC_DEFAULT_PROFILE)
-
-
-PLAN_ALIASES = {
-    "free": "starter",
-    "starter": "starter",
-    "pro": "pro",
-    "enterprise": "enterprise",
-}
-
-BILLING_WEBHOOK_EVENTS = {
-    "plan.upgraded",
-    "plan.downgraded",
-    "subscription.created",
-    "subscription.updated",
-    "subscription.canceled",
-    "subscription.deleted",
-}
+_MAPEK_EVENT_BUFFER_SIZE = 100
 
 PLAN_REQUEST_LIMITS = {
-    "starter": 10_000,
-    "pro": 100_000,
-    "enterprise": 1_000_000,
+    "free": 1000,
+    "starter": 10000,
+    "pro": 1000000,
+    "enterprise": 10000000,
 }
 
-# ---------------------------------------------------------------------------
-# Pydantic Models — Mesh
-# ---------------------------------------------------------------------------
-
-class MeshDeployRequest(BaseModel):
-    name: str = Field(..., min_length=3, max_length=64)
-    nodes: int = Field(default=5, ge=1, le=1000)
-    billing_plan: str = Field(default="starter", pattern="^(starter|pro|enterprise)$")
-    pqc_enabled: bool = Field(default=True)
-    obfuscation: str = Field(default="none", pattern="^(none|xor|aes)$")
-    traffic_profile: str = Field(default="none", pattern="^(none|gaming|streaming|voip)$")
-    join_token_ttl_sec: int = Field(default=604800, ge=3600, le=2592000)  # 1h–30d, default 7d
+_LEGACY_MESH_METRICS_CROSS_PLANE_CLAIMS = (
+    "production_readiness",
+    "dataplane_delivery",
+    "traffic_delivery",
+    "customer_traffic",
+    "dpi_bypass",
+    "settlement_finality",
+)
 
 
-class MeshDeployResponse(BaseModel):
-    mesh_id: str
-    join_config: Dict[str, Any]
-    dashboard_url: str
-    status: str
-    pqc_identity: Optional[Dict[str, Any]] = None
-    pqc_enabled: bool = True
-    created_at: str = ""
-    plan: str = ""
-    join_token_expires_at: str = ""
+def _utc_now() -> datetime:
+    return datetime.utcnow()
 
 
-class TokenRotateResponse(BaseModel):
-    mesh_id: str
-    join_token: str
-    issued_at: str
-    expires_at: str
+def _redacted_sha256_prefix(value: Optional[Any], *, length: int = 16) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return None
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:length]
 
 
-class MeshStatusResponse(BaseModel):
-    mesh_id: str
-    status: str  # provisioning | active | degraded | terminated
-    nodes_total: int
-    nodes_healthy: int
-    uptime_seconds: float
-    pqc_enabled: bool
-    obfuscation: str
-    traffic_profile: str
-    peers: List[Dict[str, Any]]
-    health_score: float  # 0.0 - 1.0
-
-
-class MeshMetricsResponse(BaseModel):
-    mesh_id: str
-    consciousness: Dict[str, Any]
-    mape_k: Dict[str, Any]
-    network: Dict[str, Any]
-    timestamp: str
-
-
-class ScaleRequest(BaseModel):
-    action: str = Field(..., pattern="^(scale_up|scale_down)$")
-    count: int = Field(..., ge=1, le=100)
-
-
-class ScaleResponse(BaseModel):
-    mesh_id: str
-    previous_nodes: int
-    current_nodes: int
-    status: str
-
-
-class NodeRegisterRequest(BaseModel):
-    """Headless agent registration request."""
-
-    node_id: Optional[str] = None
-    enrollment_token: str = Field(..., min_length=16)
-    device_class: str = Field(
-        default="edge",
-        pattern="^(edge|robot|drone|gateway|sensor|server)$",
+def _event_bus_from_request(request: Optional[Request]) -> Optional[EventBus]:
+    state = getattr(request, "state", None)
+    injected = getattr(state, "event_bus", None)
+    if injected is not None:
+        return injected
+    project_root = getattr(state, "event_project_root", None) or getattr(
+        state, "project_root", "."
     )
-    labels: Dict[str, str] = Field(default_factory=dict)
-    public_keys: Dict[str, str] = Field(default_factory=dict)
-    hardware_id: Optional[str] = None
-    attestation_data: Optional[Dict[str, Any]] = None
-    enclave_enabled: bool = False
+    try:
+        return get_event_bus(project_root)
+    except Exception as exc:
+        logger.error("Failed to initialize legacy MaaS EventBus: %s", exc)
+        return None
 
 
-class NodeRegisterResponse(BaseModel):
-    mesh_id: str
-    node_id: str
-    status: str  # pending_approval | approved
-    message: str
-
-
-class NodeApproveRequest(BaseModel):
-    acl_profile: str = Field(default="default", pattern="^(default|strict|isolated)$")
-    tags: List[str] = Field(default_factory=list)
-
-
-class NodeApproveResponse(BaseModel):
-    mesh_id: str
-    node_id: str
-    status: str
-    join_token: Dict[str, Any]
-    approved_at: str
-
-
-class NodeRevokeRequest(BaseModel):
-    node_id: Optional[str] = None
-    reason: str = Field(default="manual_revoke", min_length=3, max_length=120)
-
-
-class NodeRevokeResponse(BaseModel):
-    mesh_id: str
-    node_id: str
-    status: str
-    reason: str
-    revoked_at: str
-
-
-class NodeReissueTokenRequest(BaseModel):
-    ttl_seconds: int = Field(default=900, ge=60, le=86400)
-
-
-class NodeReissueTokenResponse(BaseModel):
-    mesh_id: str
-    node_id: str
-    join_token: Dict[str, Any]
-    issued_at: str
-    expires_at: str
-
-
-class BillingWebhookRequest(BaseModel):
-    event_id: Optional[str] = Field(default=None, min_length=8, max_length=128)
-    event_type: str = Field(..., min_length=3, max_length=64)
-    plan: Optional[str] = Field(
-        default=None, pattern="^(free|starter|pro|enterprise)$"
+def _publish(
+    request: Optional[Request],
+    *,
+    source_agent: str,
+    payload: Dict[str, Any],
+    priority: int = 6,
+) -> Optional[str]:
+    bus = _event_bus_from_request(request)
+    if bus is None:
+        return None
+    safe_payload = {
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        **payload,
+    }
+    event = bus.publish(
+        EventType.PIPELINE_STAGE_END,
+        source_agent,
+        safe_payload,
+        priority=priority,
     )
-    customer_id: Optional[str] = Field(default=None, min_length=3, max_length=128)
-    subscription_id: Optional[str] = Field(default=None, min_length=3, max_length=128)
-    user_id: Optional[str] = Field(default=None, min_length=3, max_length=128)
-    email: Optional[str] = Field(default=None, min_length=3, max_length=320)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    return event.event_id
 
 
-class BillingWebhookResponse(BaseModel):
-    processed: bool
-    event_id: str
-    event_type: str
-    user_id: str
-    plan_before: str
-    plan_after: str
-    requests_limit: int
-    idempotent_replay: bool = False
-
-class NodeHeartbeatRequest(BaseModel):
-    node_id: str
-    cpu_usage: float
-    memory_usage: float
-    neighbors_count: int
-    routing_table_size: int
-    uptime: float
-    pheromones: Optional[Dict[str, Dict[str, float]]] = None # For Stigmergy viz
-
-class PolicyRequest(BaseModel):
-    source_tag: str = Field(..., description="Tag of nodes initiating connection (e.g. 'robot')")
-    target_tag: str = Field(..., description="Tag of destination nodes (e.g. 'gateway')")
-    action: str = Field(default="allow", pattern="^(allow|deny)$")
-
-class PolicyResponse(BaseModel):
-    policy_id: str
-    source_tag: str
-    target_tag: str
-    action: str
-    created_at: str
-
-# ---------------------------------------------------------------------------
-# Mesh Instance — lifecycle + metrics
-# ---------------------------------------------------------------------------
-
-class MeshInstance:
-    """Running mesh network instance with consciousness metrics."""
-
-    def __init__(
-        self,
-        mesh_id: str,
-        name: str,
-        owner_id: str,
-        nodes: int,
-        pqc_enabled: bool = True,
-        obfuscation: str = "none",
-        traffic_profile: str = "none",
-    ):
-        self.mesh_id = mesh_id
-        self.name = name
-        self.owner_id = owner_id
-        self.target_nodes = nodes
-        self.pqc_enabled = pqc_enabled
-        self.obfuscation = obfuscation
-        self.traffic_profile = traffic_profile
-        self.status = "provisioning"
-        self.created_at = datetime.utcnow()
-        self.join_token = secrets.token_urlsafe(32)
-        self.join_token_ttl_sec: int = 604800  # overridden by MeshProvisioner
-        self.join_token_issued_at: datetime = self.created_at
-        self.join_token_expires_at: datetime = self.created_at + timedelta(seconds=604800)
-        self.node_instances: Dict[str, Dict] = {}
-
-    async def provision(self):
-        """Provision mesh nodes."""
-        try:
-            from src.libx0t.network.mesh_node import MeshNodeConfig
-
-            config = MeshNodeConfig(
-                node_id=self.mesh_id,
-                port=5000 + hash(self.mesh_id) % 4000,
-                obfuscation=self.obfuscation,
-                traffic_profile=self.traffic_profile,
-            )
-            # Store config for reference (don't auto-start in API context)
-            self._config = config
-        except ImportError:
-            pass
-
-        for i in range(self.target_nodes):
-            node_id = f"{self.mesh_id}-node-{i}"
-            self.node_instances[node_id] = {
-                "id": node_id,
-                "status": "healthy",
-                "started_at": datetime.utcnow().isoformat(),
-                "latency_ms": 0.0,
-            }
-        self.status = "active"
-        logger.info(
-            f"[MaaS] Provisioned mesh {self.mesh_id}: "
-            f"{self.target_nodes} nodes, PQC={self.pqc_enabled}"
-        )
-
-    async def terminate(self):
-        self.node_instances.clear()
-        self.status = "terminated"
-        logger.info(f"[MaaS] Terminated mesh {self.mesh_id}")
-
-    def scale(self, action: str, count: int) -> int:
-        previous = len(self.node_instances)
-        if action == "scale_up":
-            for i in range(count):
-                node_id = f"{self.mesh_id}-node-{previous + i}"
-                self.node_instances[node_id] = {
-                    "id": node_id,
-                    "status": "healthy",
-                    "started_at": datetime.utcnow().isoformat(),
-                    "latency_ms": 0.0,
-                }
-            self.target_nodes += count
-        elif action == "scale_down":
-            to_remove = min(count, len(self.node_instances) - 1)
-            keys = list(self.node_instances.keys())[-to_remove:]
-            for k in keys:
-                del self.node_instances[k]
-            self.target_nodes = max(1, self.target_nodes - count)
-        return len(self.node_instances)
-
-    def get_health_score(self) -> float:
-        if not self.node_instances:
-            return 0.0
-        healthy = sum(
-            1 for n in self.node_instances.values() if n["status"] == "healthy"
-        )
-        return healthy / len(self.node_instances)
-
-    def get_uptime(self) -> float:
-        return (datetime.utcnow() - self.created_at).total_seconds()
-
-    def get_consciousness_metrics(self) -> Dict[str, Any]:
-        health = self.get_health_score()
-        uptime = self.get_uptime()
-        phi = min(1.618, 0.5 + health * 1.118)
-        entropy = max(0.0, 1.0 - health)
-        harmony = health * min(1.0, uptime / 3600)
-        return {
-            "phi_ratio": round(phi, 4),
-            "entropy": round(entropy, 4),
-            "harmony": round(harmony, 4),
-            "state": (
-                "TRANSCENDENT" if health >= 0.95
-                else "FLOW" if health >= 0.8
-                else "AWARE" if health >= 0.5
-                else "DORMANT"
-            ),
-            "nodes_total": len(self.node_instances),
-            "nodes_healthy": sum(
-                1 for n in self.node_instances.values() if n["status"] == "healthy"
-            ),
-        }
-
-    def get_mape_k_state(self) -> Dict[str, Any]:
-        health = self.get_health_score()
-        return {
-            "phase": "MONITOR",
-            "interval_seconds": 10 if health < 0.8 else 30,
-            "directives": {
-                "monitoring_interval": 10 if health < 0.8 else 30,
-                "self_healing_aggressiveness": (
-                    "high" if health < 0.5
-                    else "medium" if health < 0.8
-                    else "low"
-                ),
-                "scaling_recommendation": (
-                    "scale_up" if health < 0.5 else "maintain"
-                ),
-            },
-            "last_cycle": datetime.utcnow().isoformat(),
-        }
-
-    def get_network_metrics(self) -> Dict[str, Any]:
-        return {
-            "nodes_active": len(self.node_instances),
-            "avg_latency_ms": 12.5,
-            "throughput_mbps": len(self.node_instances) * 10.0,
-            "packet_loss_pct": 0.01 if self.get_health_score() > 0.9 else 0.5,
-            "pqc_handshakes_completed": len(self.node_instances) * 3,
-            "obfuscation_mode": self.obfuscation,
-            "traffic_profile": self.traffic_profile,
-        }
+def _duration_ms(start: float) -> float:
+    return round((time.time() - start) * 1000, 3)
 
 
-# ---------------------------------------------------------------------------
-# Global registry + services
-# ---------------------------------------------------------------------------
-
-_mesh_registry: Dict[str, MeshInstance] = {}
-# Pending nodes for approval: mesh_id -> { node_id -> registration_data }
-_pending_nodes: Dict[str, Dict[str, Dict]] = {}
-# Real-time telemetry: node_id -> heartbeat_data
-_node_telemetry: Dict[str, Dict] = {}
-# ACL Policies: mesh_id -> List of policies
-# Policy: { "id": str, "source_tag": str, "target_tag": str, "action": "allow"|"deny" }
-_mesh_policies: Dict[str, List[Dict]] = {}
-_mesh_audit_log: Dict[str, List[Dict[str, Any]]] = {}
-# MAPE-K event stream: mesh_id -> chronological events
-_mesh_mapek_events: Dict[str, List[Dict[str, Any]]] = {}
-# Revoked nodes: mesh_id -> { node_id -> revoke_metadata }
-_revoked_nodes: Dict[str, Dict[str, Dict[str, Any]]] = {}
-# One-time reissue enrollment tokens:
-# mesh_id -> { token -> { node_id, issued_at, expires_at, used } }
-_mesh_reissue_tokens: Dict[str, Dict[str, Dict[str, Any]]] = {}
-_registry_lock = asyncio.Lock()
-_MAPEK_EVENT_BUFFER_SIZE = 1000
-_DASHBOARD_DIR = Path(__file__).resolve().parents[1] / "web" / "dashboard"
-_PENDING_APPROVALS_UI = _DASHBOARD_DIR / "pending_approvals.html"
+def _owner_id(user: Any) -> Optional[str]:
+    return str(getattr(user, "id", "")) or None
 
 
-async def record_audit_log(
-    mesh_id: str,
-    actor: str,
-    event: str,
-    details: str,
-) -> None:
-    """Append control-plane audit event (async, with registry lock)."""
-    entry = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "actor": actor,
-        "event": event,
-        "details": details,
-    }
-    async with _registry_lock:
-        if mesh_id not in _mesh_audit_log:
-            _mesh_audit_log[mesh_id] = []
-        _mesh_audit_log[mesh_id].append(entry)
-
-
-def _audit(mesh_id: str, actor: str, event: str, details: str) -> None:
-    """Sync audit helper for use inside non-async endpoints."""
-    entry = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "actor": actor,
-        "event": event,
-        "details": details,
-    }
-    if mesh_id not in _mesh_audit_log:
-        _mesh_audit_log[mesh_id] = []
-    _mesh_audit_log[mesh_id].append(entry)
-
-
-class BillingService:
-    """Quota enforcement based on plan."""
-
-    LIMITS = {
-        "free": 20,
-        "starter": 20,
-        "pro": 1000,
-        "enterprise": 10000,
-    }
-    PLAN_RANK = {
-        "starter": 1,
-        "pro": 2,
-        "enterprise": 3,
-    }
-
-    def normalize_plan(self, plan: Optional[str]) -> str:
-        return PLAN_ALIASES.get((plan or "").lower(), "starter")
-
-    def plan_catalog(self) -> Dict[str, Dict[str, Any]]:
-        return {
-            "starter": {
-                "max_nodes": self.LIMITS["starter"],
-                "features": ["basic_mesh", "zero_trust_identity"],
-            },
-            "pro": {
-                "max_nodes": self.LIMITS["pro"],
-                "features": ["ai_route_optimization", "mape_k_autoscaling"],
-            },
-            "enterprise": {
-                "max_nodes": "unlimited",
-                "features": [
-                    "on_prem_control_plane",
-                    "sso",
-                    "audit_logs",
-                    "dao_policy_hooks",
-                ],
-            },
-        }
-
-    def check_quota(
-        self,
-        user: User,
-        requested_nodes: int,
-        requested_plan: Optional[str] = None,
-    ):
-        user_plan = self.normalize_plan(getattr(user, "plan", "starter"))
-        request_plan = self.normalize_plan(requested_plan or user_plan)
-        if self.PLAN_RANK[request_plan] > self.PLAN_RANK[user_plan]:
-            raise Exception(
-                f"Plan escalation blocked: account plan '{user_plan}' "
-                f"cannot deploy '{request_plan}'."
-            )
-        limit = min(self.LIMITS[user_plan], self.LIMITS[request_plan])
-        if requested_nodes > limit:
-            raise Exception(
-                f"Quota exceeded: {user_plan} plan limit is {limit} nodes. "
-                f"Upgrade to increase."
-            )
-        return True
+def _is_operator(user: Any) -> bool:
+    return getattr(user, "role", None) in {"admin", "operator"}
 
 
 class MeshProvisioner:
-    """Provisions real mesh networks."""
+    """Small legacy provisioner backed by the in-process registry."""
 
     async def create(
         self,
-        user: User = None,
+        *,
+        user: Any = None,
         name: str = "",
         nodes: int = 5,
-        owner_id: str = None,
+        owner_id: Optional[str] = None,
         pqc_enabled: bool = True,
         obfuscation: str = "none",
         traffic_profile: str = "none",
         join_token_ttl_sec: int = 604800,
     ) -> MeshInstance:
-        _owner_id = owner_id or (user.id if user else "unknown")
+        resolved_owner_id = owner_id or _owner_id(user) or "unknown"
         mesh_id = f"mesh-{uuid.uuid4().hex[:8]}"
         instance = MeshInstance(
             mesh_id=mesh_id,
             name=name,
-            owner_id=_owner_id,
+            owner_id=resolved_owner_id,
             nodes=nodes,
             pqc_enabled=pqc_enabled,
             obfuscation=obfuscation,
             traffic_profile=traffic_profile,
+            plan=getattr(user, "plan", "starter"),
         )
+        instance.join_token = secrets.token_urlsafe(32)
         instance.join_token_ttl_sec = join_token_ttl_sec
-        instance.join_token_expires_at = instance.created_at + timedelta(seconds=join_token_ttl_sec)
-        await instance.provision()
-        async with _registry_lock:
-            _mesh_registry[mesh_id] = instance
-        logger.info(
-            f"[MaaS] Created mesh {mesh_id}: "
-            f"{nodes} nodes, PQC={pqc_enabled}, obf={obfuscation}"
+        instance.join_token_issued_at = _utc_now()
+        instance.join_token_expires_at = instance.join_token_issued_at + timedelta(
+            seconds=join_token_ttl_sec
         )
+        await instance.provision()
+        with _registry_lock:
+            _mesh_registry[mesh_id] = instance
         return instance
 
     async def terminate(self, mesh_id: str) -> bool:
-        async with _registry_lock:
+        with _registry_lock:
             instance = _mesh_registry.get(mesh_id)
-            if not instance:
+            if instance is None:
                 return False
-            await instance.terminate()
-            del _mesh_registry[mesh_id]
+            if hasattr(instance, "terminate"):
+                await instance.terminate()
+            _mesh_registry.pop(mesh_id, None)
         return True
 
-    def get(self, mesh_id: str) -> Optional[MeshInstance]:
+    def get(self, mesh_id: str) -> Optional[Any]:
         return _mesh_registry.get(mesh_id)
 
-    def list_for_owner(self, owner_id: str) -> List[MeshInstance]:
+    def list_for_owner(self, owner_id: str) -> List[Any]:
         return [
-            m for m in _mesh_registry.values()
-            if m.owner_id == owner_id and m.status != "terminated"
+            instance
+            for instance in _mesh_registry.values()
+            if str(getattr(instance, "owner_id", "")) == str(owner_id)
+            and getattr(instance, "status", None) != "terminated"
         ]
 
 
-class UsageMeteringService:
-    """Tracks mesh/node-hour usage for billing."""
-
-    def get_mesh_usage(self, instance: "MeshInstance") -> Dict[str, Any]:
-        now = datetime.utcnow()
-        total_node_hours = 0.0
-        node_detail = []
-
-        for node_id, node in instance.node_instances.items():
-            try:
-                started = datetime.fromisoformat(node["started_at"])
-            except (KeyError, ValueError):
-                started = instance.created_at
-            hours = max(0.0, (now - started).total_seconds() / 3600.0)
-            total_node_hours += hours
-            node_detail.append({"node_id": node_id, "hours": round(hours, 4)})
-
-        return {
-            "mesh_id": instance.mesh_id,
-            "mesh_name": instance.name,
-            "status": instance.status,
-            "active_nodes": len(instance.node_instances),
-            "total_node_hours": round(total_node_hours, 4),
-            "billing_period_start": instance.created_at.isoformat(),
-            "billing_period_end": now.isoformat(),
-            "nodes": node_detail,
-        }
-
-    def get_account_usage(self, owner_id: str) -> Dict[str, Any]:
-        meshes = [m for m in _mesh_registry.values() if m.owner_id == owner_id]
-        total_node_hours = 0.0
-        mesh_summaries = []
-
-        for instance in meshes:
-            usage = self.get_mesh_usage(instance)
-            total_node_hours += usage["total_node_hours"]
-            mesh_summaries.append({
-                "mesh_id": usage["mesh_id"],
-                "mesh_name": usage["mesh_name"],
-                "status": usage["status"],
-                "active_nodes": usage["active_nodes"],
-                "total_node_hours": usage["total_node_hours"],
-            })
-
-        return {
-            "owner_id": owner_id,
-            "total_node_hours": round(total_node_hours, 4),
-            "mesh_count": len(meshes),
-            "meshes": mesh_summaries,
-            "generated_at": datetime.utcnow().isoformat(),
-        }
-
-
-usage_metering_service = UsageMeteringService()
-
-
 class AuthService:
-    """User registration and login (MVP)."""
-
-    def __init__(self):
+    def __init__(self) -> None:
         self._shared = MaaSAuthService(
             api_key_factory=lambda: secrets.token_urlsafe(32),
             default_plan="starter",
         )
 
-    def register(self, db: Session, req: UserRegisterRequest) -> User:
+    def register(self, db: Session, req: Any) -> User:
         return self._shared.register(db, req)
 
-    def login(self, db: Session, req: UserLoginRequest) -> str:
+    def login(self, db: Session, req: Any) -> str:
         return self._shared.login(db, req)
 
     def rotate_api_key(self, db: Session, user: User) -> tuple[str, datetime]:
         return self._shared.rotate_api_key(db, user)
 
 
+class BillingService(ModularBillingService):
+    """Legacy billing facade methods expected by historical callers."""
+
+    PLAN_RANK = {"free": 0, "starter": 1, "pro": 2, "enterprise": 3}
+    LIMITS = {"free": 1, "starter": 5, "pro": 1000, "enterprise": 10000}
+    ALIASES = {
+        "basic": "starter",
+        "premium": "pro",
+        "business": "enterprise",
+    }
+
+    def normalize_plan(self, plan: Optional[str]) -> str:
+        normalized = self.ALIASES.get(
+            str(plan or "starter").lower(),
+            str(plan or "starter").lower(),
+        )
+        if normalized == "free":
+            return "starter"
+        return normalized if normalized in self.PLAN_RANK else "starter"
+
+    def plan_catalog(self) -> Dict[str, Dict[str, Any]]:
+        return {
+            plan: {"max_nodes": self.LIMITS[plan], "rank": self.PLAN_RANK[plan]}
+            for plan in self.PLAN_RANK
+        }
+
+    def check_quota(
+        self,
+        user: Any,
+        requested_nodes: int,
+        requested_plan: Optional[str] = None,
+    ) -> bool:
+        user_plan = self.normalize_plan(getattr(user, "plan", "starter"))
+        request_plan = self.normalize_plan(requested_plan or user_plan)
+        user_limit = self.LIMITS[user_plan]
+        if requested_nodes > user_limit:
+            raise HTTPException(status_code=402, detail="Quota exceeded")
+        if self.PLAN_RANK[request_plan] > self.PLAN_RANK[user_plan]:
+            raise HTTPException(status_code=403, detail="Plan escalation blocked")
+        limit = min(user_limit, self.LIMITS[request_plan])
+        if requested_nodes > limit:
+            raise HTTPException(status_code=402, detail="Quota exceeded")
+        return True
+
+
+class UsageMeteringService(ModularUsageMeteringService):
+    """Legacy usage-metering API over local MeshInstance objects."""
+
+    def get_mesh_usage(self, instance: Any) -> Dict[str, Any]:
+        now = _utc_now()
+        total_node_hours = 0.0
+        nodes = []
+        for node_id, node in (getattr(instance, "node_instances", {}) or {}).items():
+            started_raw = node.get("started_at")
+            try:
+                started = (
+                    datetime.fromisoformat(started_raw)
+                    if isinstance(started_raw, str)
+                    else getattr(instance, "created_at", now)
+                )
+            except ValueError:
+                started = getattr(instance, "created_at", now)
+            hours = max(0.0, (now - started).total_seconds() / 3600.0)
+            total_node_hours += hours
+            nodes.append({"node_id": node_id, "hours": round(hours, 4)})
+        return {
+            "mesh_id": getattr(instance, "mesh_id", None),
+            "mesh_name": getattr(instance, "name", None),
+            "status": getattr(instance, "status", "unknown"),
+            "active_nodes": len(nodes),
+            "total_node_hours": round(total_node_hours, 4),
+            "billing_period_start": getattr(
+                instance,
+                "created_at",
+                now,
+            ).isoformat(),
+            "billing_period_end": now.isoformat(),
+            "nodes": nodes,
+        }
+
+    def get_account_usage(self, owner_id: str) -> Dict[str, Any]:
+        meshes = [
+            instance
+            for instance in _mesh_registry.values()
+            if str(getattr(instance, "owner_id", "")) == str(owner_id)
+        ]
+        total = 0.0
+        summaries = []
+        for instance in meshes:
+            usage = self.get_mesh_usage(instance)
+            total += float(usage.get("total_node_hours") or 0.0)
+            summaries.append(
+                {
+                    "mesh_id": usage.get("mesh_id"),
+                    "mesh_name": usage.get("mesh_name"),
+                    "status": usage.get("status"),
+                    "active_nodes": usage.get("active_nodes"),
+                    "total_node_hours": usage.get("total_node_hours"),
+                }
+            )
+        return {
+            "owner_id": owner_id,
+            "total_node_hours": round(total, 4),
+            "mesh_count": len(meshes),
+            "meshes": summaries,
+            "generated_at": _utc_now().isoformat(),
+        }
+
+
 mesh_provisioner = MeshProvisioner()
 billing_service = BillingService()
+usage_metering_service = UsageMeteringService()
 auth_service = AuthService()
 
 
@@ -942,196 +556,1842 @@ def get_current_user(
 
 
 def validate_customer(api_key: str, db: Session) -> User:
-    """Validate API key (query-param style). Backward compat."""
-    user = db.query(User).filter(User.api_key == api_key).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+    user = find_user_by_api_key(db, api_key)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid API key")
     return user
 
 
-def _get_mesh_or_404(mesh_id: str, owner_id: str) -> MeshInstance:
-    instance = mesh_provisioner.get(mesh_id)
-    if not instance or instance.owner_id != owner_id:
-        raise HTTPException(status_code=404, detail=f"Mesh {mesh_id} not found")
+def _legacy_db_session_available(db: Any) -> bool:
+    return all(hasattr(db, attr) for attr in ("query", "add", "commit", "rollback"))
+
+
+def _legacy_registries_available() -> bool:
+    surfaces = (
+        _mesh_registry,
+        _pending_nodes,
+        _node_telemetry,
+        _mesh_policies,
+        _mesh_audit_log,
+        _mesh_mapek_events,
+        _revoked_nodes,
+        _mesh_reissue_tokens,
+    )
+    return all(isinstance(surface, dict) for surface in surfaces) and all(
+        callable(getattr(_registry_lock, attr, None))
+        for attr in ("acquire", "release", "locked")
+    )
+
+
+def _legacy_services_available() -> bool:
+    return (
+        all(
+            callable(getattr(mesh_provisioner, attr, None))
+            for attr in ("create", "terminate", "get", "list_for_owner")
+        )
+        and all(
+            callable(getattr(billing_service, attr, None))
+            for attr in ("normalize_plan", "plan_catalog", "check_quota")
+        )
+        and all(
+            callable(getattr(usage_metering_service, attr, None))
+            for attr in ("get_mesh_usage", "get_account_usage")
+        )
+        and all(
+            callable(getattr(auth_service, attr, None))
+            for attr in ("register", "login", "rotate_api_key")
+        )
+    )
+
+
+def _legacy_auth_dependencies_available() -> bool:
+    return (
+        callable(get_current_user_from_maas)
+        and callable(get_current_user)
+        and callable(require_permission)
+        and callable(require_role)
+        and callable(getattr(api_key_manager, "generate", None))
+        and callable(getattr(oidc_validator, "get_config", None))
+        and callable(getattr(oidc_validator, "validate", None))
+    )
+
+
+def _legacy_security_helpers_available() -> bool:
+    return (
+        callable(getattr(token_signer, "sign_token", None))
+        and callable(getattr(AttestationService, "validate_node", None))
+        and (not PQC_AVAILABLE or callable(PQCNodeIdentity))
+    )
+
+
+def _legacy_db_models_available() -> bool:
+    required = (
+        (User, ("id", "email", "api_key_hash", "plan", "role")),
+        (
+            BillingWebhookEvent,
+            ("event_id", "event_type", "payload_hash", "status", "created_at"),
+        ),
+        (DBMeshInstance, ("id", "name", "owner_id", "status", "plan", "created_at")),
+    )
+    return all(hasattr(model, attr) for model, attrs in required for attr in attrs)
+
+
+def _legacy_readiness_status(db: Any) -> Dict[str, Any]:
+    legacy_db_ready = _legacy_db_session_available(db)
+    legacy_registries_ready = _legacy_registries_available()
+    legacy_services_ready = _legacy_services_available()
+    legacy_auth_ready = _legacy_auth_dependencies_available()
+    legacy_security_ready = _legacy_security_helpers_available()
+    legacy_models_ready = _legacy_db_models_available()
+    degraded = []
+    if not legacy_db_ready:
+        degraded.append("database")
+    if not legacy_registries_ready:
+        degraded.append("registries")
+    if not legacy_services_ready:
+        degraded.append("legacy_services")
+    if not legacy_auth_ready:
+        degraded.append("auth_dependencies")
+    if not legacy_security_ready:
+        degraded.append("security_helpers")
+    if not legacy_models_ready:
+        degraded.append("db_models")
+    return {
+        "status": "ready" if not degraded else "degraded",
+        "route_registered": True,
+        "registration_mode": "always",
+        "route_present_in_light_mode": True,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "maas_legacy_runtime_ready": not degraded,
+        "legacy_db_ready": legacy_db_ready,
+        "legacy_registries_ready": legacy_registries_ready,
+        "legacy_services_ready": legacy_services_ready,
+        "legacy_auth_ready": legacy_auth_ready,
+        "legacy_security_ready": legacy_security_ready,
+        "legacy_models_ready": legacy_models_ready,
+        "pqc_identity_available": PQC_AVAILABLE,
+        "registry_counts": {
+            "meshes": len(_mesh_registry) if isinstance(_mesh_registry, dict) else None,
+            "pending_node_meshes": (
+                len(_pending_nodes) if isinstance(_pending_nodes, dict) else None
+            ),
+            "telemetry_nodes": (
+                len(_node_telemetry) if isinstance(_node_telemetry, dict) else None
+            ),
+            "revoked_node_meshes": (
+                len(_revoked_nodes) if isinstance(_revoked_nodes, dict) else None
+            ),
+        },
+        "route_precedence": {
+            "fixed_prefix": "/api/v1/maas",
+            "catch_all_owner": True,
+            "known_shadowing_boundary": (
+                "The legacy MaaS router exposes broad dynamic /{mesh_id}/... "
+                "routes. Static readiness is registered explicitly so route "
+                "availability is not confused with semantic mesh health."
+            ),
+        },
+        "degraded_dependencies": degraded,
+        "backing_state": {
+            "database": "SQLAlchemy query/add/commit/rollback required.",
+            "registries": "Legacy in-memory compatibility dictionaries required.",
+            "legacy_services": "Provisioning, billing, usage, and auth services required.",
+            "auth_dependencies": "MaaS auth dependencies and OIDC helpers required.",
+            "security_helpers": "Token signer, attestation, and optional PQC helpers required.",
+            "db_models": "User, BillingWebhookEvent, and MeshInstance model fields required.",
+        },
+        "cross_plane_claim_gate": readiness_cross_plane_claim_gate_metadata(
+            surface="maas_legacy_readiness"
+        ),
+        "claim_boundary": (
+            "Legacy MaaS readiness proves route and local dependency surfaces "
+            "are present. It does not deploy a mesh, validate dataplane traffic, "
+            "prove customer traffic, or prove every dynamic /{mesh_id}/... route "
+            "is semantically healthy."
+        ),
+    }
+
+
+@router.get("/api/v1/maas/readiness")
+async def maas_legacy_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    payload = _legacy_readiness_status(db)
+    degraded = set(payload.get("degraded_dependencies") or [])
+    if degraded:
+        setattr(request.state, "degraded_dependencies", degraded)
+    return payload
+
+
+legacy_maas_readiness = maas_legacy_readiness
+
+
+def _get_from_modular_registry(mesh_id: str) -> Optional[Any]:
+    try:
+        from src.api.maas import registry as modular_registry
+
+        getter = getattr(modular_registry, "get_mesh", None)
+        if callable(getter):
+            return getter(mesh_id)
+    except Exception:
+        return None
+    return None
+
+
+def _get_mesh_any(mesh_id: str) -> Optional[Any]:
+    instance = None
+    if callable(getattr(mesh_provisioner, "get", None)):
+        instance = mesh_provisioner.get(mesh_id)
+    return instance or _mesh_registry.get(mesh_id) or _get_from_modular_registry(mesh_id)
+
+
+def _require_owner(mesh_id: str, current_user: Any) -> Any:
+    instance = _get_mesh_any(mesh_id)
+    if instance is None or str(getattr(instance, "owner_id", "")) != str(
+        getattr(current_user, "id", "")
+    ):
+        raise HTTPException(status_code=404, detail="Mesh not found")
     return instance
 
 
-def _rule_matches(
-    source_tags: List[str],
-    target_tags: List[str],
-    source_tag: str,
-    target_tag: str,
-) -> bool:
-    return source_tag in source_tags and target_tag in target_tags
+def _get_mesh_or_404(mesh_id: str, owner_id: str) -> Any:
+    return _require_owner(mesh_id, type("_User", (), {"id": owner_id})())
 
 
-def _evaluate_acl_decision(
-    source_tags: List[str],
-    target_tags: List[str],
-    policies: List[Dict[str, Any]],
-    acl_profile: str,
-) -> Dict[str, Any]:
-    """Evaluate allow/deny using deny-priority semantics."""
-    matched_rules = [
-        p
-        for p in policies
-        if _rule_matches(
-            source_tags,
-            target_tags,
-            str(p.get("source_tag", "")),
-            str(p.get("target_tag", "")),
+def _node_count(instance: Any) -> int:
+    return len(getattr(instance, "node_instances", {}) or {})
+
+
+def _healthy_node_count(instance: Any) -> int:
+    return sum(
+        1
+        for node in (getattr(instance, "node_instances", {}) or {}).values()
+        if node.get("status") == "healthy"
+    )
+
+
+async def deploy_mesh(
+    req: MeshDeployRequest,
+    current_user: User = Depends(get_current_user_from_maas),
+    db: Session = Depends(get_db),
+    request: Optional[Request] = None,
+) -> MeshDeployResponse:
+    start = time.time()
+    mesh_id = None
+    join_token = None
+    registry_mutated = False
+    try:
+        billing_service.check_quota(
+            current_user,
+            req.nodes,
+            requested_plan=req.billing_plan,
         )
+        instance = await mesh_provisioner.create(
+            user=current_user,
+            name=req.name,
+            nodes=req.nodes,
+            pqc_enabled=req.pqc_enabled,
+            obfuscation=req.obfuscation,
+            traffic_profile=req.traffic_profile,
+            join_token_ttl_sec=req.join_token_ttl_sec,
+        )
+        mesh_id = instance.mesh_id
+        join_token = getattr(instance, "join_token", None)
+        _mesh_registry[mesh_id] = instance
+        registry_mutated = True
+        if hasattr(db, "add"):
+            db.add(
+                DBMeshInstance(
+                    id=mesh_id,
+                    name=req.name,
+                    owner_id=getattr(current_user, "id", None),
+                    plan=req.billing_plan,
+                    nodes=req.nodes,
+                    pqc_profile=getattr(instance, "pqc_profile", "edge"),
+                    pqc_enabled=req.pqc_enabled,
+                    obfuscation=req.obfuscation,
+                    traffic_profile=req.traffic_profile,
+                    join_token=join_token,
+                    join_token_expires_at=getattr(
+                        instance, "join_token_expires_at", None
+                    ),
+                    status=getattr(instance, "status", "active"),
+                )
+            )
+        if hasattr(db, "commit"):
+            db.commit()
+        _publish_legacy_lifecycle_event(
+            request,
+            operation="legacy_mesh_deploy",
+            stage="deployed",
+            status="success",
+            mesh_id=mesh_id,
+            owner_id=getattr(current_user, "id", None),
+            node_count=req.nodes,
+            registry_mutated=registry_mutated,
+            db_persisted=True,
+            join_token_issued=bool(join_token),
+            request_summary={
+                "mesh_name_present": bool(req.name),
+                "requested_nodes": req.nodes,
+            },
+            duration_ms=_duration_ms(start),
+        )
+        return MeshDeployResponse(
+            mesh_id=mesh_id,
+            join_config={"token": join_token, "ttl_sec": req.join_token_ttl_sec},
+            dashboard_url=f"/dashboard/{mesh_id}",
+            status=getattr(instance, "status", "active"),
+            pqc_enabled=req.pqc_enabled,
+            created_at=getattr(instance, "created_at", _utc_now()).isoformat(),
+            plan=req.billing_plan,
+            join_token_expires_at=getattr(
+                instance, "join_token_expires_at", _utc_now()
+            ).isoformat(),
+        )
+    except Exception as exc:
+        if hasattr(db, "rollback"):
+            db.rollback()
+        if mesh_id:
+            _mesh_registry.pop(mesh_id, None)
+        _publish_legacy_lifecycle_event(
+            request,
+            operation="legacy_mesh_deploy",
+            stage="db_persist_failed" if registry_mutated else "failed",
+            status="failed",
+            mesh_id=mesh_id,
+            owner_id=getattr(current_user, "id", None),
+            node_count=req.nodes,
+            registry_mutated=registry_mutated,
+            db_persisted=False,
+            join_token_issued=bool(join_token),
+            request_summary={
+                "mesh_name_present": bool(req.name),
+                "requested_nodes": req.nodes,
+            },
+            reason="db_persist_failed" if registry_mutated else type(exc).__name__,
+            duration_ms=_duration_ms(start),
+        )
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=500,
+            detail="Database persistence error during mesh deployment",
+        ) from exc
+
+
+def _publish_legacy_lifecycle_event(
+    request: Optional[Request],
+    *,
+    operation: str,
+    stage: str,
+    status: str,
+    mesh_id: Optional[Any],
+    owner_id: Optional[Any] = None,
+    node_count: int = 0,
+    registry_mutated: bool = False,
+    db_persisted: bool = False,
+    join_token_issued: bool = False,
+    request_summary: Optional[Dict[str, Any]] = None,
+    reason: str = "",
+    duration_ms: float = 0.0,
+) -> Optional[str]:
+    return _publish(
+        request,
+        source_agent="maas-legacy-lifecycle",
+        payload={
+            "component": "api.maas_legacy",
+            "operation": operation,
+            "service_name": "maas-legacy-lifecycle",
+            "source_alias": "maas-legacy-lifecycle",
+            "layer": "api_legacy_lifecycle_control_action",
+            "stage": stage,
+            "status": status,
+            "duration_ms": duration_ms,
+            "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+            "owner_id_hash": _redacted_sha256_prefix(owner_id),
+            "node_count": node_count,
+            "registry_mutated": registry_mutated,
+            "db_persisted": db_persisted,
+            "join_token_issued": join_token_issued,
+            "request_summary": request_summary or {},
+            "read_only": False,
+            "control_action": True,
+            "reason": reason,
+        },
+    )
+
+
+def _publish_legacy_lifecycle_read_event(
+    request: Optional[Request],
+    *,
+    operation: str,
+    stage: str,
+    status: str,
+    current_user: Any = None,
+    mesh_id: Optional[Any] = None,
+    owner_id: Optional[Any] = None,
+    mesh_count: Optional[int] = None,
+    node_count: Optional[int] = None,
+    healthy_node_count: Optional[int] = None,
+    result_summary: Optional[Dict[str, Any]] = None,
+    reason: str = "",
+) -> Optional[str]:
+    return _publish(
+        request,
+        source_agent="maas-legacy-lifecycle-read",
+        payload={
+            "component": "api.maas_legacy",
+            "operation": operation,
+            "service_name": "maas-legacy-lifecycle-read",
+            "source_alias": "maas-legacy-lifecycle-read",
+            "layer": "api_legacy_lifecycle_observed_state",
+            "stage": stage,
+            "status": status,
+            "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+            "owner_id_hash": _redacted_sha256_prefix(owner_id),
+            "actor_user_id_hash": _redacted_sha256_prefix(
+                getattr(current_user, "id", None)
+            ),
+            "mesh_count": mesh_count,
+            "node_count": node_count,
+            "healthy_node_count": healthy_node_count,
+            "result_summary": result_summary or {},
+            "read_only": True,
+            "observed_state": True,
+            "control_action": False,
+            "reason": reason,
+        },
+    )
+
+
+async def legacy_list_meshes(
+    request: Optional[Request] = None,
+    current_user: User = Depends(get_current_user_from_maas),
+) -> Dict[str, Any]:
+    instances = mesh_provisioner.list_for_owner(getattr(current_user, "id", None))
+    meshes = [
+        {
+            "mesh_id": instance.mesh_id,
+            "name": getattr(instance, "name", ""),
+            "status": getattr(instance, "status", "unknown"),
+            "nodes": _node_count(instance),
+        }
+        for instance in instances
     ]
+    _publish_legacy_lifecycle_read_event(
+        request,
+        operation="legacy_mesh_list_read",
+        stage="list_read",
+        status="success",
+        current_user=current_user,
+        owner_id=getattr(current_user, "id", None),
+        mesh_count=len(meshes),
+        node_count=sum(_node_count(instance) for instance in instances),
+        healthy_node_count=sum(_healthy_node_count(instance) for instance in instances),
+    )
+    return {"count": len(meshes), "meshes": meshes}
 
-    if acl_profile == "isolated":
-        return {"action": "deny", "reason": "acl_profile_isolated", "rules": []}
 
-    if any(rule.get("action") == "deny" for rule in matched_rules):
-        return {
-            "action": "deny",
-            "reason": "explicit_deny",
-            "rules": matched_rules,
+async def legacy_mesh_status(
+    mesh_id: str,
+    request: Optional[Request] = None,
+    current_user: User = Depends(get_current_user_from_maas),
+) -> MeshStatusResponse:
+    try:
+        instance = _require_owner(mesh_id, current_user)
+    except HTTPException:
+        _publish_legacy_lifecycle_read_event(
+            request,
+            operation="legacy_mesh_status_read",
+            stage="access_denied",
+            status="denied",
+            current_user=current_user,
+            mesh_id=mesh_id,
+            reason="mesh_not_found_or_forbidden",
+        )
+        raise
+    peers = [
+        {"node_id": node_id, "status": node.get("status", "unknown")}
+        for node_id, node in (getattr(instance, "node_instances", {}) or {}).items()
+    ]
+    response = MeshStatusResponse(
+        mesh_id=mesh_id,
+        status=getattr(instance, "status", "unknown"),
+        nodes_total=len(peers),
+        nodes_healthy=_healthy_node_count(instance),
+        uptime_seconds=(
+            instance.get_uptime() if callable(getattr(instance, "get_uptime", None)) else 0
+        ),
+        pqc_enabled=bool(getattr(instance, "pqc_enabled", False)),
+        obfuscation=getattr(instance, "obfuscation", "none"),
+        traffic_profile=getattr(instance, "traffic_profile", "none"),
+        peers=peers,
+        health_score=(
+            instance.get_health_score()
+            if callable(getattr(instance, "get_health_score", None))
+            else 0
+        ),
+        mesh_lifecycle_claim_gate=_legacy_observed_claim_gate(
+            surface="legacy_maas_mesh.status"
+        ),
+        cross_plane_claim_gate=cross_plane_claim_gate_metadata(
+            _LEGACY_MESH_METRICS_CROSS_PLANE_CLAIMS,
+            surface="legacy_maas_mesh.status",
+        ),
+    )
+    _publish_legacy_lifecycle_read_event(
+        request,
+        operation="legacy_mesh_status_read",
+        stage="status_read",
+        status="success",
+        current_user=current_user,
+        mesh_id=mesh_id,
+        owner_id=getattr(instance, "owner_id", None),
+        node_count=response.nodes_total,
+        healthy_node_count=response.nodes_healthy,
+        result_summary={"peer_count": len(peers)},
+    )
+    return response
+
+
+def _legacy_observed_claim_gate(*, surface: str) -> Dict[str, Any]:
+    return {
+        "schema": "x0tta6bl4.legacy_observed_claim_gate.v1",
+        "surface": surface,
+        "local_observation_claim_allowed": True,
+        "production_readiness_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "external_dpi_bypass_claim_allowed": False,
+        "settlement_finality_claim_allowed": False,
+    }
+
+
+def _legacy_mesh_metrics_claim_gate() -> Dict[str, Any]:
+    return {
+        "schema": "x0tta6bl4.legacy_mesh_metrics_claim_gate.v1",
+        "surface": "legacy_maas_mesh.metrics",
+        "local_mesh_metrics_observation_claim_allowed": True,
+        "production_readiness_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "external_dpi_bypass_claim_allowed": False,
+        "settlement_finality_claim_allowed": False,
+    }
+
+
+async def legacy_mesh_metrics(
+    mesh_id: str,
+    request: Optional[Request] = None,
+    current_user: User = Depends(get_current_user_from_maas),
+) -> MeshMetricsResponse:
+    try:
+        instance = _require_owner(mesh_id, current_user)
+    except HTTPException:
+        _publish_legacy_lifecycle_read_event(
+            request,
+            operation="legacy_mesh_metrics_read",
+            stage="access_denied",
+            status="denied",
+            current_user=current_user,
+            mesh_id=mesh_id,
+            reason="mesh_not_found_or_forbidden",
+        )
+        raise
+    response = MeshMetricsResponse(
+        mesh_id=mesh_id,
+        consciousness=instance.get_consciousness_metrics(),
+        mape_k=instance.get_mape_k_state(),
+        network=instance.get_network_metrics(),
+        mesh_metrics_claim_gate=_legacy_mesh_metrics_claim_gate(),
+        cross_plane_claim_gate=cross_plane_claim_gate_metadata(
+            _LEGACY_MESH_METRICS_CROSS_PLANE_CLAIMS,
+            surface="legacy_maas_mesh.metrics",
+        ),
+        timestamp=_utc_now().isoformat(),
+    )
+    _publish_legacy_lifecycle_read_event(
+        request,
+        operation="legacy_mesh_metrics_read",
+        stage="metrics_read",
+        status="success",
+        current_user=current_user,
+        mesh_id=mesh_id,
+        owner_id=getattr(instance, "owner_id", None),
+        result_summary={
+            "consciousness_metric_count": len(response.consciousness),
+            "mape_k_metric_count": len(response.mape_k),
+            "network_metric_count": len(response.network),
+            "mesh_metrics_claim_gate_present": True,
+            "cross_plane_claim_gate_present": True,
+            "production_readiness_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "external_dpi_bypass_claim_allowed": False,
+            "has_timestamp": bool(response.timestamp),
+        },
+    )
+    return response
+
+
+def _heartbeat_summary(req: NodeHeartbeatRequest) -> Dict[str, Any]:
+    pheromones = req.pheromones or {}
+    return {
+        "has_pheromones": bool(pheromones),
+        "pheromone_destination_count": len(pheromones),
+        "raw_metric_values_redacted": True,
+        "payloads_redacted": True,
+    }
+
+
+def _publish_heartbeat_event(
+    request: Optional[Request],
+    *,
+    stage: str,
+    status: str,
+    node_id: Optional[Any],
+    mesh_id: Optional[Any] = None,
+    owner_id: Optional[Any] = None,
+    actor_user_id: Optional[Any] = None,
+    node_found: bool = False,
+    owner_checked: bool = False,
+    authorized: bool = False,
+    stored_telemetry: bool = False,
+    mapek_event_recorded: bool = False,
+    reason: str = "",
+    heartbeat_summary: Optional[Dict[str, Any]] = None,
+    duration_ms: float = 0.0,
+) -> Optional[str]:
+    mesh_events = _mesh_mapek_events.get(str(mesh_id), []) if mesh_id else []
+    return _publish(
+        request,
+        source_agent="maas-legacy-heartbeat",
+        payload={
+            "component": "api.maas_legacy",
+            "operation": "legacy_heartbeat",
+            "service_name": "maas-legacy-heartbeat",
+            "source_alias": "maas-legacy-heartbeat",
+            "layer": "api_legacy_heartbeat_observed_state",
+            "stage": stage,
+            "status": status,
+            "duration_ms": duration_ms,
+            "node_id_hash": _redacted_sha256_prefix(node_id),
+            "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+            "owner_id_hash": _redacted_sha256_prefix(owner_id),
+            "actor_user_id_hash": _redacted_sha256_prefix(actor_user_id),
+            "node_found": node_found,
+            "owner_checked": owner_checked,
+            "authorized": authorized,
+            "stored_telemetry": stored_telemetry,
+            "mapek_event_recorded": mapek_event_recorded,
+            "heartbeat_summary": heartbeat_summary or {},
+            "telemetry_store_summary": {
+                "storage_backend": "legacy_in_memory",
+                "mutation_attempted": stored_telemetry,
+                "current_node_stored": node_id in _node_telemetry if node_id else False,
+                "stored_nodes_total": len(_node_telemetry),
+            },
+            "mapek_store_summary": {
+                "storage_backend": "legacy_in_memory",
+                "mutation_attempted": mapek_event_recorded,
+                "event_recorded": mapek_event_recorded,
+                "mesh_event_count_after": len(mesh_events),
+                "buffer_limit": _MAPEK_EVENT_BUFFER_SIZE,
+                "event_type": "node.heartbeat" if mapek_event_recorded else None,
+            },
+            "storage_backend": "legacy_in_memory",
+            "source_quality": (
+                "legacy_in_memory_telemetry_and_mapek"
+                if authorized
+                else "denied_before_state_mutation"
+            ),
+            "dataplane_confirmed": False,
+            "read_only": not authorized,
+            "reason": reason,
+        },
+    )
+
+
+def heartbeat(
+    req: NodeHeartbeatRequest,
+    current_user: User = Depends(get_current_user_from_maas),
+    request: Optional[Request] = None,
+) -> Dict[str, Any]:
+    start = time.time()
+    actor_id = getattr(current_user, "id", None)
+    found_mesh_id = None
+    found_instance = None
+    node_id = req.node_id
+    for mesh_id, instance in _mesh_registry.items():
+        if node_id in (getattr(instance, "node_instances", {}) or {}):
+            found_mesh_id = mesh_id
+            found_instance = instance
+            break
+    if found_instance is None:
+        _publish_heartbeat_event(
+            request,
+            stage="denied",
+            status="denied",
+            node_id=node_id,
+            node_found=False,
+            authorized=False,
+            reason="node_not_found",
+            duration_ms=_duration_ms(start),
+        )
+        raise HTTPException(status_code=404, detail="Node not found")
+    owner_id = getattr(found_instance, "owner_id", None)
+    if str(owner_id) != str(actor_id):
+        _publish_heartbeat_event(
+            request,
+            stage="denied",
+            status="denied",
+            node_id=node_id,
+            mesh_id=found_mesh_id,
+            owner_id=owner_id,
+            actor_user_id=actor_id,
+            node_found=True,
+            owner_checked=True,
+            authorized=False,
+            reason="owner_mismatch",
+            duration_ms=_duration_ms(start),
+        )
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    _node_telemetry[node_id] = {
+        "status": req.status,
+        "cpu_usage": req.cpu_usage,
+        "memory_usage": req.memory_usage,
+        "neighbors_count": req.neighbors_count,
+        "routing_table_size": req.routing_table_size,
+        "uptime": req.uptime,
+        "updated_at": _utc_now().isoformat(),
+    }
+    event = {
+        "node_id": node_id,
+        "phase": "MONITOR",
+        "event_type": "node.heartbeat",
+        "cpu_usage": req.cpu_usage,
+        "memory_usage": req.memory_usage,
+        "timestamp": _utc_now().isoformat(),
+    }
+    events = _mesh_mapek_events.setdefault(found_mesh_id, [])
+    events.append(event)
+    del events[:-_MAPEK_EVENT_BUFFER_SIZE]
+    _publish_heartbeat_event(
+        request,
+        stage="accepted",
+        status="success",
+        node_id=node_id,
+        mesh_id=found_mesh_id,
+        owner_id=owner_id,
+        actor_user_id=actor_id,
+        node_found=True,
+        owner_checked=True,
+        authorized=True,
+        stored_telemetry=True,
+        mapek_event_recorded=True,
+        heartbeat_summary=_heartbeat_summary(req),
+        duration_ms=_duration_ms(start),
+    )
+    return {"status": "ack", "mesh_id": found_mesh_id, "event_emitted": True}
+
+
+def _publish_billing_usage_event(
+    request: Optional[Request],
+    *,
+    scope: str,
+    owner_id: Optional[Any],
+    mesh_id: Optional[Any] = None,
+    usage: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    usage = usage or {}
+    nodes = usage.get("nodes") if isinstance(usage.get("nodes"), list) else []
+    meshes = usage.get("meshes") if isinstance(usage.get("meshes"), list) else []
+    summary = (
+        {
+            "active_nodes": usage.get("active_nodes"),
+            "node_entries": len(nodes),
         }
-
-    if any(rule.get("action") == "allow" for rule in matched_rules):
-        return {
-            "action": "allow",
-            "reason": "explicit_allow",
-            "rules": matched_rules,
+        if scope == "mesh"
+        else {
+            "mesh_count": usage.get("mesh_count"),
+            "mesh_entries": len(meshes),
         }
+    )
+    return _publish(
+        request,
+        source_agent="maas-legacy-billing-usage",
+        payload={
+            "component": "api.maas_legacy",
+            "operation": "billing_usage_read",
+            "service_name": "maas-billing",
+            "source_alias": "maas-legacy-billing-usage",
+            "layer": "billing_usage_observed_state",
+            "stage": "usage_read",
+            "status": "success",
+            "scope": scope,
+            "owner_id_hash": _redacted_sha256_prefix(owner_id),
+            "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+            "usage_summary": summary,
+            "observed_state": True,
+            "read_only": True,
+            "safe_actuator": False,
+        },
+    )
 
-    # Legacy fallback for bootstrapping meshes without explicit policy set.
-    if not policies and acl_profile == "default":
-        return {"action": "allow", "reason": "legacy_open_mesh", "rules": []}
 
-    return {"action": "deny", "reason": "default_deny_zero_trust", "rules": []}
+async def legacy_mesh_usage(
+    mesh_id: str,
+    request: Optional[Request] = None,
+    current_user: User = Depends(get_current_user_from_maas),
+) -> Dict[str, Any]:
+    instance = _get_mesh_or_404(mesh_id, getattr(current_user, "id", None))
+    usage = usage_metering_service.get_mesh_usage(instance)
+    _publish_billing_usage_event(
+        request,
+        scope="mesh",
+        owner_id=getattr(current_user, "id", None),
+        mesh_id=mesh_id,
+        usage=usage,
+    )
+    return usage
 
 
-def _is_reissue_token_expired(token_data: Dict[str, Any]) -> bool:
-    expires_raw = token_data.get("expires_at")
-    if not isinstance(expires_raw, str):
+async def legacy_account_usage(
+    request: Optional[Request] = None,
+    current_user: User = Depends(get_current_user_from_maas),
+) -> Dict[str, Any]:
+    usage = usage_metering_service.get_account_usage(getattr(current_user, "id", None))
+    _publish_billing_usage_event(
+        request,
+        scope="account",
+        owner_id=getattr(current_user, "id", None),
+        usage=usage,
+    )
+    return usage
+
+
+async def legacy_billing_webhook(
+    req: BillingWebhookRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    x_billing_webhook_secret: Optional[str] = None,
+    x_billing_timestamp: Optional[str] = None,
+    x_billing_signature: Optional[str] = None,
+) -> Dict[str, Any]:
+    raw_payload = await request.body()
+    event_id = req.event_id or _redacted_sha256_prefix(raw_payload, length=32)
+    payload_hash = hashlib.sha256(raw_payload).hexdigest()
+    if event_id in _billing_webhook_results:
+        cached = dict(_billing_webhook_results[event_id])
+        _publish_legacy_billing_webhook_event(
+            request,
+            stage="idempotent_replay",
+            status="replayed",
+            req=req,
+            event_id=event_id,
+            payload_hash=payload_hash,
+            user_id=cached.get("user_id"),
+            plan_before=cached.get("plan_before"),
+            plan_after=cached.get("plan_after"),
+            idempotent_replay=True,
+        )
+        cached["idempotent_replay"] = True
+        return cached
+
+    user = None
+    if req.user_id and hasattr(db, "query"):
+        user = db.query(User).filter(User.id == req.user_id).first()
+    if user is None and req.email and hasattr(db, "query"):
+        user = db.query(User).filter(User.email == req.email).first()
+    if user is None:
+        _publish_legacy_billing_webhook_event(
+            request,
+            stage="failed",
+            status="failed",
+            req=req,
+            event_id=event_id,
+            payload_hash=payload_hash,
+            user_id=req.user_id,
+            reason="user_not_found",
+        )
+        raise HTTPException(status_code=404, detail="Billing user not found")
+
+    plan_before = billing_service.normalize_plan(getattr(user, "plan", "starter"))
+    if req.event_type in {"subscription.canceled", "subscription.deleted"}:
+        plan_after = "starter"
+    else:
+        plan_after = billing_service.normalize_plan(req.plan or plan_before)
+    user.plan = plan_after
+    if req.customer_id:
+        user.stripe_customer_id = req.customer_id
+    if req.subscription_id:
+        user.stripe_subscription_id = req.subscription_id
+    if hasattr(db, "commit"):
+        db.commit()
+    response = {
+        "processed": True,
+        "event_id": event_id,
+        "event_type": req.event_type,
+        "user_id": user.id,
+        "plan_before": plan_before,
+        "plan_after": plan_after,
+        "requests_limit": PLAN_REQUEST_LIMITS.get(
+            plan_after, PLAN_REQUEST_LIMITS["starter"]
+        ),
+        "idempotent_replay": False,
+    }
+    _billing_webhook_results[event_id] = dict(response)
+    _publish_legacy_billing_webhook_event(
+        request,
+        stage="processed",
+        status="success",
+        req=req,
+        event_id=event_id,
+        payload_hash=payload_hash,
+        user_id=user.id,
+        plan_before=plan_before,
+        plan_after=plan_after,
+    )
+    return response
+
+
+def _publish_legacy_billing_webhook_event(
+    request: Optional[Request],
+    *,
+    stage: str,
+    status: str,
+    req: BillingWebhookRequest,
+    event_id: str,
+    payload_hash: str,
+    user_id: Optional[Any] = None,
+    plan_before: Optional[str] = None,
+    plan_after: Optional[str] = None,
+    idempotent_replay: bool = False,
+    reason: str = "",
+) -> Optional[str]:
+    return _publish(
+        request,
+        source_agent="maas-legacy-billing",
+        payload={
+            "component": "api.maas_legacy",
+            "operation": "billing_webhook",
+            "service_name": "maas-legacy-billing",
+            "source_alias": "maas-legacy-billing",
+            "layer": "api_legacy_billing_webhook_lifecycle",
+            "stage": stage,
+            "status": status,
+            "event_type": req.event_type,
+            "billing_event_id_hash": _redacted_sha256_prefix(event_id),
+            "payload_hash_prefix": payload_hash[:16],
+            "customer_id_hash": _redacted_sha256_prefix(req.customer_id),
+            "subscription_id_hash": _redacted_sha256_prefix(req.subscription_id),
+            "email_hash": _redacted_sha256_prefix(req.email),
+            "user_id_hash": _redacted_sha256_prefix(user_id),
+            "plan_before": plan_before,
+            "plan_after": plan_after,
+            "idempotent_replay": idempotent_replay,
+            "reason": reason,
+            "read_only": False,
+            "control_action": True,
+        },
+    )
+
+
+def _publish_node_lifecycle_event(
+    request: Optional[Request],
+    *,
+    operation: str,
+    stage: str,
+    status: str,
+    mesh_id: Optional[Any],
+    node_id: Optional[Any] = None,
+    owner_id: Optional[Any] = None,
+    actor_user_id: Optional[Any] = None,
+    request_summary: Optional[Dict[str, Any]] = None,
+    reason: str = "",
+    **flags: Any,
+) -> Optional[str]:
+    return _publish(
+        request,
+        source_agent="maas-legacy-node-lifecycle",
+        payload={
+            "component": "api.maas_legacy",
+            "operation": operation,
+            "service_name": "maas-legacy-node-lifecycle",
+            "source_alias": "maas-legacy-node-lifecycle",
+            "layer": "api_legacy_node_lifecycle_control_action",
+            "stage": stage,
+            "status": status,
+            "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+            "node_id_hash": _redacted_sha256_prefix(node_id),
+            "owner_id_hash": _redacted_sha256_prefix(owner_id),
+            "actor_user_id_hash": _redacted_sha256_prefix(actor_user_id),
+            "request_summary": request_summary or {},
+            "control_action": True,
+            "read_only": False,
+            "reason": reason,
+            **flags,
+        },
+    )
+
+
+def _audit(mesh_id: str, *args: Any) -> None:
+    """Append a legacy in-memory audit entry.
+
+    EventBus evidence remains redacted elsewhere. This helper preserves the old
+    local registry API, where direct callers can inspect raw in-process details.
+    """
+
+    if len(args) == 1 and isinstance(args[0], dict):
+        record = args[0]
+        entry = {
+            "actor": record.get("actor"),
+            "event": record.get("event"),
+            "details": record.get("details"),
+            "node_id_hash": _redacted_sha256_prefix(record.get("node_id")),
+            "created_at": _utc_now().isoformat(),
+        }
+    elif len(args) == 3:
+        actor, event, details = args
+        entry = {
+            "actor": actor,
+            "event": event,
+            "details": details,
+            "created_at": _utc_now().isoformat(),
+        }
+    else:
+        entry = {"event": "unknown", "created_at": _utc_now().isoformat()}
+    _mesh_audit_log.setdefault(mesh_id, []).append(entry)
+
+
+async def register_node(
+    mesh_id: str,
+    req: NodeRegisterRequest,
+    request: Optional[Request] = None,
+) -> NodeRegisterResponse:
+    instance = _get_mesh_any(mesh_id)
+    node_id = req.node_id or f"node-{uuid.uuid4().hex[:8]}"
+    main_token_valid = (
+        instance is not None
+        and req.enrollment_token == getattr(instance, "join_token", None)
+        and not _is_join_token_expired(instance)
+    )
+    reissue = (_mesh_reissue_tokens.get(mesh_id, {}) or {}).get(node_id, {})
+    reissue_token_valid = (
+        isinstance(reissue, dict)
+        and _redacted_sha256_prefix(req.enrollment_token) == reissue.get("token_hash")
+        and not _is_reissue_token_expired(reissue)
+    )
+    expired_main_token = (
+        instance is not None
+        and req.enrollment_token == getattr(instance, "join_token", None)
+        and _is_join_token_expired(instance)
+    )
+    if instance is None or not (main_token_valid or reissue_token_valid):
+        _publish_node_lifecycle_event(
+            request,
+            operation="legacy_node_register",
+            stage="registration_denied",
+            status="denied",
+            mesh_id=mesh_id,
+            node_id=node_id,
+            owner_id=getattr(instance, "owner_id", None),
+            reason="invalid_enrollment_token",
+            pending_registry_mutated=False,
+        )
+        detail = "Enrollment token expired" if expired_main_token else "Invalid enrollment token"
+        raise HTTPException(status_code=401, detail=detail)
+    if reissue_token_valid:
+        (_mesh_reissue_tokens.get(mesh_id, {}) or {}).pop(node_id, None)
+    pending = {
+        "node_id": node_id,
+        "device_class": req.device_class,
+        "labels": dict(req.labels),
+        "public_keys": dict(req.public_keys),
+        "hardware_id": req.hardware_id,
+        "attestation_data": req.attestation_data,
+        "enclave_enabled": req.enclave_enabled,
+    }
+    _pending_nodes.setdefault(mesh_id, {})[node_id] = pending
+    _audit(mesh_id, {"event": "node_register", "node_id": node_id})
+    _publish_node_lifecycle_event(
+        request,
+        operation="legacy_node_register",
+        stage="registration_pending",
+        status="success",
+        mesh_id=mesh_id,
+        node_id=node_id,
+        owner_id=getattr(instance, "owner_id", None),
+        request_summary={
+            "device_class": req.device_class,
+            "label_count": len(req.labels),
+            "public_key_count": len(req.public_keys),
+        },
+        pending_registry_mutated=True,
+        audit_recorded=True,
+    )
+    return NodeRegisterResponse(
+        mesh_id=mesh_id,
+        node_id=node_id,
+        status="pending_approval",
+        message="Node registration pending approval",
+    )
+
+
+async def approve_node(
+    mesh_id: str,
+    node_id: str,
+    req: NodeApproveRequest,
+    current_user: User = Depends(get_current_user_from_maas),
+    request: Optional[Request] = None,
+) -> NodeApproveResponse:
+    instance = _require_owner(mesh_id, current_user)
+    pending = _pending_nodes.get(mesh_id, {}).pop(node_id, None)
+    if pending is None:
+        raise HTTPException(status_code=404, detail="Pending node not found")
+    token = secrets.token_urlsafe(32)
+    signed = token_signer.sign_token(token, mesh_id)
+    instance.node_instances[node_id] = {
+        "status": "healthy",
+        "device_class": pending.get("device_class"),
+        "tags": list(req.tags),
+        "acl_profile": req.acl_profile,
+        "pqc_profile": _get_pqc_profile(pending.get("device_class", "edge")),
+    }
+    _audit(mesh_id, {"event": "node_approve", "node_id": node_id})
+    _publish_node_lifecycle_event(
+        request,
+        operation="legacy_node_approve",
+        stage="approved",
+        status="success",
+        mesh_id=mesh_id,
+        node_id=node_id,
+        owner_id=getattr(instance, "owner_id", None),
+        request_summary={
+            "acl_profile": req.acl_profile,
+            "tag_count": len(req.tags),
+            "pending_device_class": pending.get("device_class"),
+        },
+        node_registry_mutated=True,
+        pending_registry_mutated=True,
+        join_token_issued=True,
+        audit_recorded=True,
+    )
+    return NodeApproveResponse(
+        mesh_id=mesh_id,
+        node_id=node_id,
+        status="approved",
+        join_token=signed,
+        approved_at=_utc_now().isoformat(),
+    )
+
+
+async def revoke_node(
+    mesh_id: str,
+    node_id: str,
+    req: NodeRevokeRequest,
+    current_user: User = Depends(get_current_user_from_maas),
+    request: Optional[Request] = None,
+) -> NodeRevokeResponse:
+    instance = _require_owner(mesh_id, current_user)
+    node = (getattr(instance, "node_instances", {}) or {}).setdefault(node_id, {})
+    node["status"] = "revoked"
+    _revoked_nodes.setdefault(mesh_id, {})[node_id] = {
+        "reason_length": len(req.reason),
+        "revoked_at": _utc_now().isoformat(),
+    }
+    _audit(mesh_id, {"event": "node_revoke", "node_id": node_id})
+    _publish_node_lifecycle_event(
+        request,
+        operation="legacy_node_revoke",
+        stage="revoked",
+        status="success",
+        mesh_id=mesh_id,
+        node_id=node_id,
+        owner_id=getattr(instance, "owner_id", None),
+        request_summary={"reason_length": len(req.reason)},
+        node_registry_mutated=True,
+        revoked_registry_mutated=True,
+        audit_recorded=True,
+    )
+    return NodeRevokeResponse(
+        mesh_id=mesh_id,
+        node_id=node_id,
+        status="revoked",
+        reason=req.reason,
+        revoked_at=_utc_now().isoformat(),
+    )
+
+
+async def reissue_node_token(
+    mesh_id: str,
+    node_id: str,
+    req: NodeReissueTokenRequest,
+    current_user: User = Depends(get_current_user_from_maas),
+    request: Optional[Request] = None,
+) -> NodeReissueTokenResponse:
+    instance = _require_owner(mesh_id, current_user)
+    token = secrets.token_urlsafe(32)
+    signed = token_signer.sign_token(token, mesh_id)
+    issued = _utc_now()
+    expires = issued + timedelta(seconds=req.ttl_seconds)
+    _mesh_reissue_tokens.setdefault(mesh_id, {})[node_id] = {
+        "token_hash": _redacted_sha256_prefix(token),
+        "expires_at": expires.isoformat(),
+    }
+    _audit(mesh_id, {"event": "node_reissue", "node_id": node_id})
+    _publish_node_lifecycle_event(
+        request,
+        operation="legacy_node_reissue_token",
+        stage="reissue_token_issued",
+        status="success",
+        mesh_id=mesh_id,
+        node_id=node_id,
+        owner_id=getattr(instance, "owner_id", None),
+        request_summary={"ttl_seconds": req.ttl_seconds},
+        reissue_token_mutated=True,
+        join_token_issued=True,
+        audit_recorded=True,
+    )
+    return NodeReissueTokenResponse(
+        mesh_id=mesh_id,
+        node_id=node_id,
+        join_token=signed,
+        issued_at=issued.isoformat(),
+        expires_at=expires.isoformat(),
+    )
+
+
+def _publish_node_read_event(
+    request: Optional[Request],
+    *,
+    operation: str,
+    stage: str,
+    status: str,
+    mesh_id: Optional[Any],
+    owner_id: Optional[Any] = None,
+    actor_user_id: Optional[Any] = None,
+    node_status_filter: Optional[str] = None,
+    result_summary: Optional[Dict[str, Any]] = None,
+    reason: str = "",
+) -> Optional[str]:
+    return _publish(
+        request,
+        source_agent="maas-legacy-node-read",
+        payload={
+            "component": "api.maas_legacy",
+            "operation": operation,
+            "service_name": "maas-legacy-node-read",
+            "source_alias": "maas-legacy-node-read",
+            "layer": "api_legacy_node_observed_state",
+            "stage": stage,
+            "status": status,
+            "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+            "owner_id_hash": _redacted_sha256_prefix(owner_id),
+            "actor_user_id_hash": _redacted_sha256_prefix(actor_user_id),
+            "node_status_filter": node_status_filter,
+            "result_summary": result_summary or {},
+            "read_only": True,
+            "control_action": False,
+            "reason": reason,
+        },
+    )
+
+
+def _node_summary(nodes: List[Dict[str, Any]]) -> Dict[str, Any]:
+    by_status: Dict[str, int] = {}
+    by_device: Dict[str, int] = {}
+    tags = 0
+    for node in nodes:
+        status = node.get("status")
+        by_status[status] = by_status.get(status, 0) + 1
+        device = node.get("device_class")
+        if device:
+            by_device[device] = by_device.get(device, 0) + 1
+        tags += len(node.get("tags") or [])
+    summary = {
+        "node_count": len(nodes),
+        "by_status": by_status,
+        "tag_entry_count": tags,
+    }
+    if by_device:
+        summary["by_device_class"] = by_device
+    return summary
+
+
+def list_pending_nodes(
+    mesh_id: str,
+    current_user: User = Depends(get_current_user_from_maas),
+    request: Optional[Request] = None,
+) -> Dict[str, Any]:
+    if not _is_operator(current_user):
+        _publish_node_read_event(
+            request,
+            operation="legacy_pending_node_list_read",
+            stage="role_denied",
+            status="denied",
+            mesh_id=mesh_id,
+            actor_user_id=getattr(current_user, "id", None),
+            reason="operator_role_required",
+        )
+        raise HTTPException(status_code=403, detail="Operator role required")
+    instance = _require_owner(mesh_id, current_user)
+    nodes = [
+        {"node_id": node_id, "status": "pending", **data}
+        for node_id, data in (_pending_nodes.get(mesh_id, {}) or {}).items()
+    ]
+    _publish_node_read_event(
+        request,
+        operation="legacy_pending_node_list_read",
+        stage="pending_node_list_read",
+        status="success",
+        mesh_id=mesh_id,
+        owner_id=getattr(instance, "owner_id", None),
+        node_status_filter="pending",
+        result_summary=_node_summary(nodes),
+    )
+    return {"pending": [node["node_id"] for node in nodes], "nodes": nodes}
+
+
+def list_all_nodes(
+    mesh_id: str,
+    node_status: Optional[str] = None,
+    current_user: User = Depends(get_current_user_from_maas),
+    request: Optional[Request] = None,
+) -> Dict[str, Any]:
+    instance = _require_owner(mesh_id, current_user)
+    nodes: List[Dict[str, Any]] = []
+    for node_id, node in (getattr(instance, "node_instances", {}) or {}).items():
+        status = "revoked" if node.get("status") == "revoked" else "approved"
+        nodes.append({"node_id": node_id, "status": status, **node})
+        nodes[-1]["status"] = status
+    for node_id, node in (_pending_nodes.get(mesh_id, {}) or {}).items():
+        nodes.append({"node_id": node_id, "status": "pending", **node})
+    if node_status:
+        nodes = [node for node in nodes if node.get("status") == node_status]
+    summary = _node_summary(nodes)
+    _publish_node_read_event(
+        request,
+        operation="legacy_node_list_read",
+        stage="node_list_read",
+        status="success",
+        mesh_id=mesh_id,
+        owner_id=getattr(instance, "owner_id", None),
+        result_summary=summary,
+    )
+    return {"nodes": nodes, "by_status": summary["by_status"]}
+
+
+def _publish_token_lifecycle_event(
+    request: Optional[Request],
+    *,
+    mesh_id: str,
+    owner_id: Optional[Any],
+    request_summary: Dict[str, Any],
+) -> Optional[str]:
+    return _publish(
+        request,
+        source_agent="maas-legacy-token-lifecycle",
+        payload={
+            "component": "api.maas_legacy",
+            "operation": "legacy_join_token_rotate",
+            "service_name": "maas-legacy-token-lifecycle",
+            "source_alias": "maas-legacy-token-lifecycle",
+            "layer": "api_legacy_token_lifecycle_control_action",
+            "stage": "rotated",
+            "status": "success",
+            "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+            "owner_id_hash": _redacted_sha256_prefix(owner_id),
+            "request_summary": request_summary,
+            "token_rotated": True,
+            "join_token_issued": True,
+            "control_action": True,
+            "read_only": False,
+        },
+    )
+
+
+def rotate_join_token(
+    mesh_id: str,
+    ttl_seconds: int = 604800,
+    current_user: User = Depends(get_current_user_from_maas),
+    request: Optional[Request] = None,
+) -> TokenRotateResponse:
+    instance = _require_owner(mesh_id, current_user)
+    issued = _utc_now()
+    expires = issued + timedelta(seconds=ttl_seconds)
+    token = secrets.token_urlsafe(32)
+    instance.join_token = token
+    instance.join_token_issued_at = issued
+    instance.join_token_expires_at = expires
+    instance.join_token_ttl_sec = ttl_seconds
+    _publish_token_lifecycle_event(
+        request,
+        mesh_id=mesh_id,
+        owner_id=getattr(instance, "owner_id", None),
+        request_summary={"ttl_seconds": ttl_seconds},
+    )
+    return TokenRotateResponse(
+        mesh_id=mesh_id,
+        join_token=token,
+        issued_at=issued.isoformat(),
+        expires_at=expires.isoformat(),
+    )
+
+
+def _publish_policy_lifecycle_event(
+    request: Optional[Request],
+    *,
+    operation: str,
+    stage: str,
+    status: str,
+    mesh_id: str,
+    owner_id: Optional[Any] = None,
+    actor_user_id: Optional[Any] = None,
+    request_summary: Optional[Dict[str, Any]] = None,
+    reason: str = "",
+    **flags: Any,
+) -> Optional[str]:
+    return _publish(
+        request,
+        source_agent="maas-legacy-policy-lifecycle",
+        payload={
+            "component": "api.maas_legacy",
+            "operation": operation,
+            "service_name": "maas-legacy-policy-lifecycle",
+            "source_alias": "maas-legacy-policy-lifecycle",
+            "layer": "api_legacy_policy_lifecycle_control_action",
+            "stage": stage,
+            "status": status,
+            "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+            "owner_id_hash": _redacted_sha256_prefix(owner_id),
+            "actor_user_id_hash": _redacted_sha256_prefix(actor_user_id),
+            "request_summary": request_summary or {},
+            "control_action": True,
+            "read_only": False,
+            "reason": reason,
+            **flags,
+        },
+    )
+
+
+async def create_policy(
+    mesh_id: str,
+    req: PolicyRequest,
+    current_user: User = Depends(get_current_user_from_maas),
+    request: Optional[Request] = None,
+) -> PolicyResponse:
+    try:
+        instance = _require_owner(mesh_id, current_user)
+    except HTTPException:
+        _publish_policy_lifecycle_event(
+            request,
+            operation="legacy_policy_create",
+            stage="access_denied",
+            status="denied",
+            mesh_id=mesh_id,
+            actor_user_id=getattr(current_user, "id", None),
+            request_summary={
+                "source_tag_hash": _redacted_sha256_prefix(req.source_tag),
+                "target_tag_hash": _redacted_sha256_prefix(req.target_tag),
+                "action": req.action,
+            },
+            policy_registry_mutated=False,
+            reason="mesh_not_found_or_forbidden",
+        )
+        raise
+    policy_id = f"policy-{uuid.uuid4().hex[:8]}"
+    row = {
+        "id": policy_id,
+        "source_tag": req.source_tag,
+        "target_tag": req.target_tag,
+        "action": req.action,
+        "created_at": _utc_now().isoformat(),
+    }
+    _mesh_policies.setdefault(mesh_id, []).append(row)
+    _audit(mesh_id, {"event": "policy_create", "node_id": policy_id})
+    _publish_policy_lifecycle_event(
+        request,
+        operation="legacy_policy_create",
+        stage="created",
+        status="success",
+        mesh_id=mesh_id,
+        owner_id=getattr(instance, "owner_id", None),
+        request_summary={
+            "policy_id_hash": _redacted_sha256_prefix(policy_id),
+            "source_tag_hash": _redacted_sha256_prefix(req.source_tag),
+            "target_tag_hash": _redacted_sha256_prefix(req.target_tag),
+            "action": req.action,
+        },
+        policy_registry_mutated=True,
+        audit_recorded=True,
+    )
+    return PolicyResponse(
+        policy_id=policy_id,
+        source_tag=req.source_tag,
+        target_tag=req.target_tag,
+        action=req.action,
+        created_at=row["created_at"],
+    )
+
+
+def _publish_policy_read_event(
+    request: Optional[Request],
+    *,
+    operation: str,
+    stage: str,
+    status: str,
+    mesh_id: str,
+    owner_id: Optional[Any] = None,
+    actor_user_id: Optional[Any] = None,
+    node_id: Optional[Any] = None,
+    result_summary: Optional[Dict[str, Any]] = None,
+    reason: str = "",
+) -> Optional[str]:
+    return _publish(
+        request,
+        source_agent="maas-legacy-policy-read",
+        payload={
+            "component": "api.maas_legacy",
+            "operation": operation,
+            "service_name": "maas-legacy-policy-read",
+            "source_alias": "maas-legacy-policy-read",
+            "layer": "api_legacy_policy_observed_state",
+            "stage": stage,
+            "status": status,
+            "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+            "node_id_hash": _redacted_sha256_prefix(node_id),
+            "owner_id_hash": _redacted_sha256_prefix(owner_id),
+            "actor_user_id_hash": _redacted_sha256_prefix(actor_user_id),
+            "result_summary": result_summary or {},
+            "read_only": True,
+            "control_action": False,
+            "reason": reason,
+        },
+    )
+
+
+async def legacy_list_policies_route(
+    mesh_id: str,
+    request: Optional[Request] = None,
+    current_user: User = Depends(get_current_user_from_maas),
+) -> Dict[str, Any]:
+    try:
+        instance = _require_owner(mesh_id, current_user)
+    except HTTPException:
+        _publish_policy_read_event(
+            request,
+            operation="legacy_policy_list_read",
+            stage="access_denied",
+            status="denied",
+            mesh_id=mesh_id,
+            actor_user_id=getattr(current_user, "id", None),
+            reason="mesh_not_found_or_forbidden",
+        )
+        raise
+    policies = list(_mesh_policies.get(mesh_id, []))
+    action_counts: Dict[str, int] = {}
+    for policy in policies:
+        action = policy.get("action")
+        action_counts[action] = action_counts.get(action, 0) + 1
+    _publish_policy_read_event(
+        request,
+        operation="legacy_policy_list_read",
+        stage="policy_list_read",
+        status="success",
+        mesh_id=mesh_id,
+        owner_id=getattr(instance, "owner_id", None),
+        result_summary={
+            "policy_count": len(policies),
+            "action_counts": action_counts,
+        },
+    )
+    return {"policies": policies}
+
+
+def get_node_config(
+    mesh_id: str,
+    node_id: str,
+    request: Optional[Request] = None,
+    current_user: User = Depends(get_current_user_from_maas),
+) -> Dict[str, Any]:
+    if hasattr(current_user, "id"):
+        instance = _require_owner(mesh_id, current_user)
+    else:
+        instance = _get_mesh_any(mesh_id)
+        if instance is None:
+            raise HTTPException(status_code=404, detail="Mesh not found")
+    nodes = getattr(instance, "node_instances", {}) or {}
+    source = nodes.get(node_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+    source_tags = set(source.get("tags") or [])
+    policies = _mesh_policies.get(mesh_id, [])
+    allowed: List[str] = []
+    denied: List[str] = []
+    decisions: Dict[str, Dict[str, Any]] = {}
+    explicit = 0
+    for peer_id, peer in nodes.items():
+        if peer_id == node_id:
+            continue
+        peer_tags = set(peer.get("tags") or [])
+        matched = next(
+            (
+                policy
+                for policy in policies
+                if policy.get("source_tag") in source_tags
+                and policy.get("target_tag") in peer_tags
+            ),
+            None,
+        )
+        if matched is not None:
+            explicit += 1
+            action = matched.get("action", "deny")
+            decisions[peer_id] = {
+                "action": action,
+                "policy_id": matched.get("id"),
+            }
+        else:
+            action = "deny"
+            decisions[peer_id] = {"action": action, "policy_id": None}
+        if action == "allow":
+            allowed.append(peer_id)
+        else:
+            denied.append(peer_id)
+    _publish_policy_read_event(
+        request,
+        operation="legacy_node_config_read",
+        stage="node_config_read",
+        status="success",
+        mesh_id=mesh_id,
+        node_id=node_id,
+        owner_id=getattr(instance, "owner_id", None),
+        result_summary={
+            "allowed_peer_count": len(allowed),
+            "denied_peer_count": len(denied),
+            "decision_count": len(decisions),
+            "explicit_policy_decision_count": explicit,
+        },
+    )
+    return {
+        "mesh_id": mesh_id,
+        "node_id": node_id,
+        "allowed_peers": allowed,
+        "denied_peers": denied,
+        "policy_decisions": decisions,
+    }
+
+
+def list_mapek_events(
+    mesh_id: str,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user_from_maas),
+    request: Optional[Request] = None,
+) -> Dict[str, Any]:
+    try:
+        instance = _require_owner(mesh_id, current_user)
+    except HTTPException as exc:
+        _publish_mapek_read_event(
+            request,
+            stage="access_denied",
+            status="denied",
+            mesh_id=mesh_id,
+            actor_user_id=getattr(current_user, "id", None),
+            returned_event_count=0,
+            reason=f"http_{exc.status_code}",
+        )
+        raise
+    stored = _mesh_mapek_events.get(mesh_id, [])
+    events = stored[-limit:]
+    _publish_mapek_read_event(
+        request,
+        stage="mapek_event_list_read",
+        status="success",
+        mesh_id=mesh_id,
+        owner_id=getattr(instance, "owner_id", None),
+        stored_event_count=len(stored),
+        returned_event_count=len(events),
+        result_summary=_mapek_summary(events),
+    )
+    return {"mesh_id": mesh_id, "count": len(events), "events": events}
+
+
+def _mapek_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    phase_counts: Dict[str, int] = {}
+    event_type_counts: Dict[str, int] = {}
+    metric_mentions = 0
+    for event in events:
+        phase = event.get("phase")
+        phase_key = phase if phase in {"MONITOR", "ANALYZE", "PLAN", "EXECUTE"} else "other"
+        phase_counts[phase_key] = phase_counts.get(phase_key, 0) + 1
+        event_type = event.get("event_type")
+        event_type_key = event_type if event_type in {"node.heartbeat"} else "other"
+        event_type_counts[event_type_key] = event_type_counts.get(event_type_key, 0) + 1
+        if any(key in event for key in ("cpu_usage", "memory_usage", "packet_loss")):
+            metric_mentions += 1
+    return {
+        "phase_counts": phase_counts,
+        "event_type_counts": event_type_counts,
+        "node_id_mentions": sum(1 for event in events if event.get("node_id")),
+        "known_metric_mentions": metric_mentions,
+    }
+
+
+def _publish_mapek_read_event(
+    request: Optional[Request],
+    *,
+    stage: str,
+    status: str,
+    mesh_id: str,
+    owner_id: Optional[Any] = None,
+    actor_user_id: Optional[Any] = None,
+    stored_event_count: int = 0,
+    returned_event_count: int = 0,
+    result_summary: Optional[Dict[str, Any]] = None,
+    reason: str = "",
+) -> Optional[str]:
+    return _publish(
+        request,
+        source_agent="maas-legacy-mapek-read",
+        payload={
+            "component": "api.maas_legacy",
+            "operation": "legacy_mapek_event_read",
+            "service_name": "maas-legacy-mapek-read",
+            "source_alias": "maas-legacy-mapek-read",
+            "layer": "api_legacy_mapek_observed_state",
+            "stage": stage,
+            "status": status,
+            "mesh_id_hash": _redacted_sha256_prefix(mesh_id),
+            "owner_id_hash": _redacted_sha256_prefix(owner_id),
+            "actor_user_id_hash": _redacted_sha256_prefix(actor_user_id),
+            "stored_event_count": stored_event_count,
+            "returned_event_count": returned_event_count,
+            "result_summary": result_summary or {},
+            "read_only": True,
+            "control_action": False,
+            "reason": reason,
+        },
+    )
+
+
+def _is_join_token_expired(instance: Any) -> bool:
+    expires_at = getattr(instance, "join_token_expires_at", None)
+    if not isinstance(expires_at, datetime):
+        return True
+    return expires_at <= _utc_now()
+
+
+def _is_reissue_token_expired(record: Dict[str, Any]) -> bool:
+    expires_at = record.get("expires_at") if isinstance(record, dict) else None
+    if not isinstance(expires_at, str):
         return True
     try:
-        return datetime.utcnow() >= datetime.fromisoformat(expires_raw)
+        return datetime.fromisoformat(expires_at) <= _utc_now()
     except ValueError:
         return True
 
 
-def _is_join_token_expired(instance: "MeshInstance") -> bool:
-    return datetime.utcnow() >= instance.join_token_expires_at
-
-
-def _verify_billing_webhook_secret(provided_secret: Optional[str]) -> None:
-    """Optional shared-secret auth for MaaS billing webhook."""
-    expected_secret = os.getenv("X0T_BILLING_WEBHOOK_SECRET", "").strip()
-    if not expected_secret:
-        return
-
-    if not provided_secret or not secrets.compare_digest(
-        provided_secret, expected_secret
-    ):
-        raise HTTPException(status_code=401, detail="Invalid billing webhook secret")
+def _env_int_clamped(name: str, *, default: int, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except ValueError:
+        value = default
+    return max(minimum, min(maximum, value))
 
 
 def _billing_webhook_tolerance_seconds() -> int:
-    raw = os.getenv("X0T_BILLING_WEBHOOK_TOLERANCE_SEC", "300").strip()
-    try:
-        value = int(raw)
-    except ValueError:
-        return 300
-    return max(30, min(value, 3600))
+    return _env_int_clamped(
+        "X0T_BILLING_WEBHOOK_TOLERANCE_SEC",
+        default=300,
+        minimum=30,
+        maximum=3600,
+    )
 
 
 def _billing_event_ttl_seconds() -> int:
-    raw = os.getenv("X0T_BILLING_EVENT_TTL_SEC", "86400").strip()
-    try:
-        value = int(raw)
-    except ValueError:
-        return 86_400
-    return max(300, min(value, 604_800))
+    return _env_int_clamped(
+        "X0T_BILLING_EVENT_TTL_SEC",
+        default=86_400,
+        minimum=300,
+        maximum=2_592_000,
+    )
 
 
-def _verify_billing_webhook_hmac(
-    payload: bytes,
-    timestamp_header: Optional[str],
-    signature_header: Optional[str],
-) -> None:
-    """
-    Verify webhook integrity using HMAC-SHA256 over `${timestamp}.${payload}`.
-    Enforced only when X0T_BILLING_WEBHOOK_HMAC_SECRET is configured.
-    """
-    secret = os.getenv("X0T_BILLING_WEBHOOK_HMAC_SECRET", "").strip()
-    if not secret:
-        return
-
-    if not timestamp_header or not signature_header:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing HMAC headers: X-Billing-Timestamp and X-Billing-Signature",
-        )
-
-    try:
-        ts = int(timestamp_header)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid X-Billing-Timestamp")
-
-    now = int(time.time())
-    tolerance = _billing_webhook_tolerance_seconds()
-    if abs(now - ts) > tolerance:
-        raise HTTPException(status_code=401, detail="Billing webhook timestamp expired")
-
-    signed_payload = f"{timestamp_header}.".encode("utf-8") + payload
-    expected = hmac.new(
-        secret.encode("utf-8"),
-        signed_payload,
-        hashlib.sha256,
-    ).hexdigest()
-
-    provided = signature_header.strip()
-    if provided.startswith("sha256="):
-        provided = provided[7:]
-
-    if not hmac.compare_digest(expected, provided):
-        raise HTTPException(status_code=401, detail="Invalid billing webhook signature")
+def _verify_billing_webhook_secret(provided: Optional[str]) -> None:
+    expected = os.getenv("X0T_BILLING_WEBHOOK_SECRET")
+    if not expected:
+        return None
+    if not provided or not hmac.compare_digest(str(provided), expected):
+        raise HTTPException(status_code=401, detail="Invalid billing webhook secret")
+    return None
 
 
 def _payload_sha256_hex(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _extract_billing_event_id(req: BillingWebhookRequest) -> str:
-    metadata = req.metadata if isinstance(req.metadata, dict) else {}
-    event_id = req.event_id or metadata.get("event_id") or metadata.get("id")
-    if not isinstance(event_id, str) or not event_id.strip():
-        raise HTTPException(status_code=400, detail="event_id is required for idempotency")
-    return event_id.strip()
-
-
-def _deserialize_billing_event_response(
-    response_json: Optional[str],
-) -> Optional[Dict[str, Any]]:
-    if not response_json:
+def _verify_billing_webhook_hmac(
+    payload: bytes,
+    timestamp: Optional[str],
+    signature: Optional[str],
+) -> None:
+    secret = os.getenv("X0T_BILLING_WEBHOOK_HMAC_SECRET")
+    if not secret:
         return None
+    if not timestamp:
+        raise HTTPException(status_code=401, detail="Missing billing timestamp")
+    if not signature:
+        raise HTTPException(status_code=401, detail="Missing billing signature")
     try:
-        loaded = json.loads(response_json)
-    except json.JSONDecodeError:
-        return None
-    if isinstance(loaded, dict):
-        return loaded
+        ts = int(timestamp)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid billing timestamp") from exc
+    if abs(time.time() - ts) > _billing_webhook_tolerance_seconds():
+        raise HTTPException(status_code=401, detail="Billing signature expired")
+    raw_signature = signature.split("=", 1)[1] if signature.startswith("sha256=") else signature
+    signed = f"{timestamp}.".encode("utf-8") + payload
+    expected = hmac.new(secret.encode("utf-8"), signed, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(raw_signature, expected):
+        raise HTTPException(status_code=401, detail="Invalid billing signature")
     return None
 
 
-def _cleanup_expired_billing_events(db: Session) -> None:
-    """Best-effort TTL cleanup for idempotency table."""
-    cutoff = datetime.utcnow() - timedelta(seconds=_billing_event_ttl_seconds())
+def _extract_billing_event_id(req: BillingWebhookRequest) -> str:
+    candidates = [
+        req.event_id,
+        (req.metadata or {}).get("event_id"),
+        (req.metadata or {}).get("id"),
+    ]
+    for candidate in candidates:
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+    raise HTTPException(status_code=400, detail="Missing billing event id")
+
+
+def _deserialize_billing_event_response(value: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not value:
+        return None
     try:
-        db.query(BillingWebhookEvent).filter(
-            BillingWebhookEvent.created_at < cutoff
-        ).delete(synchronize_session=False)
-        db.commit()
-    except Exception as exc:
-        db.rollback()
-        logger.warning("[MaaS] Failed cleanup billing_webhook_events: %s", exc)
+        decoded = json.loads(value)
+    except (TypeError, ValueError):
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def _resolve_billing_user(db: Session, req: BillingWebhookRequest) -> Optional[User]:
+    user_id = req.user_id or (req.metadata or {}).get("user_id")
+    if user_id:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is not None:
+            return user
+    if req.customer_id:
+        user = db.query(User).filter(User.stripe_customer_id == req.customer_id).first()
+        if user is not None:
+            return user
+    if req.email:
+        return db.query(User).filter(User.email == req.email).first()
+    return None
 
 
 def _start_billing_event_processing(
@@ -1140,12 +2400,25 @@ def _start_billing_event_processing(
     event_type: str,
     payload_hash: str,
 ) -> Optional[Dict[str, Any]]:
-    """
-    Reserve event_id in DB and return cached response for done events.
-    Raises 409 on concurrent processing or payload mismatch.
-    """
-    _cleanup_expired_billing_events(db)
-
+    existing = db.query(BillingWebhookEvent).filter_by(event_id=event_id).first()
+    if existing is not None:
+        if existing.payload_hash != payload_hash:
+            raise HTTPException(
+                status_code=409,
+                detail="Billing event payload hash mismatch",
+            )
+        if existing.status == "done":
+            return _deserialize_billing_event_response(existing.response_json)
+        if existing.status == "processing":
+            raise HTTPException(
+                status_code=409,
+                detail="Billing event already being processed",
+            )
+        if existing.status == "failed":
+            raise HTTPException(
+                status_code=409,
+                detail="Billing event previously failed",
+            )
     db.add(
         BillingWebhookEvent(
             event_id=event_id,
@@ -1154,1489 +2427,269 @@ def _start_billing_event_processing(
             status="processing",
         )
     )
-    try:
-        db.commit()
-        return None
-    except IntegrityError:
-        db.rollback()
-
-    existing = (
-        db.query(BillingWebhookEvent)
-        .filter(BillingWebhookEvent.event_id == event_id)
-        .first()
-    )
-    if existing is None:
-        raise HTTPException(
-            status_code=409,
-            detail="Billing event state conflict; retry delivery",
-        )
-
-    if existing.payload_hash != payload_hash:
-        raise HTTPException(status_code=409, detail="Billing event_id payload mismatch")
-
-    if existing.status == "done":
-        cached = _deserialize_billing_event_response(existing.response_json)
-        if cached is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Billing event already processed without cached response",
-            )
-        return dict(cached)
-
-    if existing.status == "processing":
-        raise HTTPException(
-            status_code=409,
-            detail="Billing event is already being processed",
-        )
-
-    existing.status = "processing"
-    existing.event_type = event_type
-    existing.last_error = None
-    existing.processed_at = None
     db.commit()
     return None
 
 
 def _finalize_billing_event_processing(
-    db: Session, event_id: str, response_payload: Dict[str, Any]
+    db: Session,
+    event_id: str,
+    response: Dict[str, Any],
 ) -> None:
-    event = (
-        db.query(BillingWebhookEvent)
-        .filter(BillingWebhookEvent.event_id == event_id)
-        .first()
-    )
-    if event is None:
-        raise RuntimeError(
-            f"Billing event reservation missing during finalize: {event_id}"
-        )
-
-    event.status = "done"
-    event.response_json = json.dumps(response_payload, ensure_ascii=False)
-    event.last_error = None
-    event.processed_at = datetime.utcnow()
+    row = db.query(BillingWebhookEvent).filter_by(event_id=event_id).first()
+    if row is None:
+        raise RuntimeError("Billing event reservation missing")
+    row.status = "done"
+    row.response_json = json.dumps(response)
+    row.last_error = None
+    row.processed_at = _utc_now()
     db.commit()
 
 
 def _fail_billing_event_processing(db: Session, event_id: str, error: str) -> None:
-    try:
-        event = (
-            db.query(BillingWebhookEvent)
-            .filter(BillingWebhookEvent.event_id == event_id)
-            .first()
-        )
-        if event is None:
-            return
-        event.status = "failed"
-        event.last_error = error[:2000]
-        event.processed_at = datetime.utcnow()
-        db.commit()
-    except Exception:
-        db.rollback()
-
-
-def _resolve_billing_user(db: Session, req: BillingWebhookRequest) -> Optional[User]:
-    """Resolve user for billing event via user_id/customer/subscription/email."""
-    metadata = req.metadata if isinstance(req.metadata, dict) else {}
-
-    user_id = req.user_id or metadata.get("user_id")
-    if isinstance(user_id, str) and user_id:
-        user = db.query(User).filter(User.id == user_id).first()
-        if user:
-            return user
-
-    customer_id = req.customer_id or metadata.get("customer_id")
-    if isinstance(customer_id, str) and customer_id:
-        user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
-        if user:
-            return user
-
-    subscription_id = req.subscription_id or metadata.get("subscription_id")
-    if isinstance(subscription_id, str) and subscription_id:
-        user = db.query(User).filter(User.stripe_subscription_id == subscription_id).first()
-        if user:
-            return user
-
-    email = req.email or metadata.get("email") or metadata.get("user_email")
-    if isinstance(email, str) and email:
-        return db.query(User).filter(User.email == email).first()
-
+    row = db.query(BillingWebhookEvent).filter_by(event_id=event_id).first()
+    if row is None:
+        return None
+    row.status = "failed"
+    row.last_error = str(error or "")[:2000]
+    row.processed_at = _utc_now()
+    db.commit()
     return None
+
+
+def _cleanup_expired_billing_events(db: Session) -> None:
+    cutoff = _utc_now() - timedelta(seconds=_billing_event_ttl_seconds())
+    rows = db.query(BillingWebhookEvent).filter(BillingWebhookEvent.created_at < cutoff).all()
+    for row in rows:
+        db.delete(row)
+    db.commit()
+
+
+def _rule_matches(
+    source_tags: List[str],
+    target_tags: List[str],
+    source_tag: str,
+    target_tag: str,
+) -> bool:
+    return source_tag in set(source_tags or []) and target_tag in set(target_tags or [])
+
+
+def _evaluate_acl_decision(
+    source_tags: List[str],
+    target_tags: List[str],
+    policies: List[Dict[str, Any]],
+    acl_profile: str,
+) -> Dict[str, Any]:
+    if acl_profile == "isolated":
+        return {"action": "deny", "reason": "acl_profile_isolated"}
+    matched = [
+        policy
+        for policy in policies
+        if _rule_matches(
+            source_tags,
+            target_tags,
+            policy.get("source_tag"),
+            policy.get("target_tag"),
+        )
+    ]
+    if any(policy.get("action") == "deny" for policy in matched):
+        return {"action": "deny", "reason": "explicit_deny"}
+    allow = next((policy for policy in matched if policy.get("action") == "allow"), None)
+    if allow is not None:
+        return {"action": "allow", "reason": "explicit_allow", "policy_id": allow.get("id")}
+    if not policies:
+        return {"action": "allow", "reason": "legacy_open_mesh"}
+    return {"action": "deny", "reason": "default_deny_zero_trust"}
 
 
 def _find_mesh_id_for_node(node_id: str) -> Optional[str]:
     for mesh_id, instance in _mesh_registry.items():
-        if node_id in instance.node_instances:
+        if node_id in (getattr(instance, "node_instances", {}) or {}):
             return mesh_id
     return None
 
 
 def _build_mapek_heartbeat_event(telemetry: NodeHeartbeatRequest) -> Dict[str, Any]:
-    """Translate heartbeat into a compact MAPE-K monitor/analyze event."""
-    if telemetry.neighbors_count == 0 or telemetry.cpu_usage >= 95 or telemetry.memory_usage >= 95:
+    cpu = float(telemetry.cpu_usage or telemetry.cpu_percent or 0.0)
+    memory = float(telemetry.memory_usage or telemetry.memory_percent or 0.0)
+    neighbors = int(telemetry.neighbors_count or 0)
+    if neighbors == 0 or cpu >= 95.0 or memory >= 95.0:
         health_state = "critical"
         recommendation = "reroute_and_recover"
-    elif telemetry.cpu_usage >= 85 or telemetry.memory_usage >= 85:
+    elif cpu >= 85.0 or memory >= 85.0:
         health_state = "degraded"
         recommendation = "scale_or_rebalance"
     else:
         health_state = "healthy"
         recommendation = "maintain"
-
     return {
-        "event_id": f"evt-{uuid.uuid4().hex[:10]}",
-        "timestamp": datetime.utcnow().isoformat(),
+        "event_id": f"mapek-{uuid.uuid4().hex}",
+        "timestamp": _utc_now().isoformat(),
         "phase": "MONITOR",
+        "event_type": "node.heartbeat",
         "node_id": telemetry.node_id,
         "health_state": health_state,
         "recommendation": recommendation,
         "signals": {
-            "cpu_usage": telemetry.cpu_usage,
-            "memory_usage": telemetry.memory_usage,
-            "neighbors_count": telemetry.neighbors_count,
+            "cpu_usage": cpu,
+            "memory_usage": memory,
+            "neighbors_count": neighbors,
             "routing_table_size": telemetry.routing_table_size,
             "uptime": telemetry.uptime,
         },
     }
 
 
-# ---------------------------------------------------------------------------
-# Auth Endpoints
-# ---------------------------------------------------------------------------
+_PQC_DEFAULT_PROFILE = {
+    "kem": "ML-KEM-768",
+    "sig": "ML-DSA-65",
+    "security_level": 3,
+}
 
-@router.post("/register", response_model=TokenResponse)
-def register(req: UserRegisterRequest, db: Session = Depends(get_db)):
-    user = auth_service.register(db, req)
-    return {
-        "access_token": user.api_key,
-        "token_type": "api_key",
-        "expires_in": 31536000,
-    }
+_PQC_PROFILES = {
+    "sensor": {"kem": "ML-KEM-512", "sig": "ML-DSA-44", "security_level": 1},
+    "edge": _PQC_DEFAULT_PROFILE,
+    "robot": _PQC_DEFAULT_PROFILE,
+    "drone": _PQC_DEFAULT_PROFILE,
+    "gateway": {"kem": "ML-KEM-1024", "sig": "ML-DSA-87", "security_level": 5},
+    "server": {"kem": "ML-KEM-1024", "sig": "ML-DSA-87", "security_level": 5},
+}
 
+PQC_SEGMENT_PROFILES = _PQC_PROFILES
 
-@router.post("/login", response_model=TokenResponse)
-def login(req: UserLoginRequest, db: Session = Depends(get_db)):
-    api_key = auth_service.login(db, req)
-    return {
-        "access_token": api_key,
-        "token_type": "api_key",
-        "expires_in": 31536000,
-    }
 
+def _get_pqc_profile(device_class: str) -> Dict[str, Any]:
+    return dict(_PQC_PROFILES.get(device_class, _PQC_DEFAULT_PROFILE))
 
-@router.post("/api-key", response_model=ApiKeyResponse)
-def rotate_api_key(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    new_key, rotated_at = auth_service.rotate_api_key(db, current_user)
-    return {"api_key": new_key, "created_at": rotated_at}
 
-
-@router.get("/me")
-def get_me(current_user: User = Depends(get_current_user)):
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "plan": current_user.plan,
-        "company": current_user.company,
-        "requests_count": current_user.requests_count,
-        "requests_limit": current_user.requests_limit,
-    }
-
-
-@router.get("/plans")
-def list_maas_plans():
-    """Commercial plan catalog for self-service customers."""
-    return {"plans": billing_service.plan_catalog()}
-
-
-@router.get("/pqc/profiles")
-def list_pqc_profiles():
-    """
-    List PQC algorithm profiles per device segment.
-    Returns recommended KEM + signature algorithm per device_class.
-    """
-    return {
-        "profiles": PQC_SEGMENT_PROFILES,
-        "default": _PQC_DEFAULT_PROFILE,
-        "standards": {
-            "kem": "FIPS 203 (ML-KEM / CRYSTALS-Kyber)",
-            "sig": "FIPS 204 (ML-DSA / CRYSTALS-Dilithium)",
-        },
-    }
-
-
-# ---------------------------------------------------------------------------
-# SSO / OIDC Endpoints (Enterprise)
-# ---------------------------------------------------------------------------
-
-
-class OIDCExchangeRequest(BaseModel):
-    id_token: str = Field(..., min_length=10, description="OIDC ID token from provider")
-
-
-@router.get("/auth/oidc/config")
-def oidc_config():
-    """Return OIDC configuration for frontend login flow."""
-    return oidc_validator.get_config()
-
-
-@router.post("/auth/oidc/exchange")
-def oidc_exchange(req: OIDCExchangeRequest, db: Session = Depends(get_db)):
-    """
-    Exchange an OIDC ID token for a x0tta6bl4 MaaS API key.
-
-    Flow:
-      1. Frontend obtains id_token from OIDC provider (Google, Okta, etc.)
-      2. Frontend POSTs id_token here
-      3. We validate signature + claims against provider's JWKS
-      4. We create/find the User and return an x0t API key
-    """
-    claims = oidc_validator.validate(req.id_token)
-
-    # Find or create user
-    user = db.query(User).filter(User.email == claims.email).first()
-    if not user:
-        new_api_key = api_key_manager.generate()
-        user = User(
-            email=claims.email,
-            full_name=claims.name,
-            api_key=new_api_key,
-            plan="starter",
-            oidc_sub=claims.sub,
-            oidc_issuer=claims.issuer,
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        logger.info(f"[OIDC] New user via SSO: {claims.email} (sub={claims.sub[:8]}...)")
-    else:
-        # Update OIDC fields if missing
-        changed = False
-        if not getattr(user, "oidc_sub", None):
-            user.oidc_sub = claims.sub
-            changed = True
-        if not getattr(user, "oidc_issuer", None):
-            user.oidc_issuer = claims.issuer
-            changed = True
-        if changed:
-            db.commit()
-
-    _audit("__system__", claims.email, "OIDC_LOGIN", f"SSO login via {claims.issuer}")
-
-    return {
-        "access_token": user.api_key,
-        "token_type": "api_key",
-        "email": user.email,
-        "plan": user.plan,
-        "oidc_sub": claims.sub,
-        "message": "Authenticated via OIDC. Use access_token as X-API-Key.",
-    }
-
-
-# ---------------------------------------------------------------------------
-# Mesh Lifecycle Endpoints
-# ---------------------------------------------------------------------------
-
-@router.post("/deploy", response_model=MeshDeployResponse)
-async def deploy_mesh(
-    req: MeshDeployRequest,
-    current_user: User = Depends(require_permission("mesh:create")),
-    db: Session = Depends(get_db),
-):
-    """Deploy a PQC-secured mesh network."""
-    # Check quota
-    try:
-        billing_service.check_quota(
-            current_user,
-            req.nodes,
-            requested_plan=req.billing_plan,
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=str(e),
-        )
-
-    # Provision
-    instance = await mesh_provisioner.create(
-        user=current_user,
-        name=req.name,
-        nodes=req.nodes,
-        pqc_enabled=req.pqc_enabled,
-        obfuscation=req.obfuscation,
-        traffic_profile=req.traffic_profile,
-        join_token_ttl_sec=req.join_token_ttl_sec,
-    )
-
-    _audit(instance.mesh_id, current_user.email, "MESH_DEPLOYED",
-           f"Mesh '{req.name}' deployed: {req.nodes} nodes, plan={req.billing_plan}, PQC={req.pqc_enabled}")
-
-    # Persist to database
-    try:
-        db_mesh = DBMeshInstance(
-            id=instance.mesh_id,
-            name=instance.name,
-            owner_id=current_user.id,
-            plan=billing_service.normalize_plan(req.billing_plan),
-            region=getattr(instance, "region", None) or "global",
-            nodes=getattr(instance, "target_nodes", None) or req.nodes,
-            pqc_profile=getattr(instance, "pqc_profile", None) or "edge",
-            pqc_enabled=getattr(instance, "pqc_enabled", req.pqc_enabled),
-            obfuscation=getattr(instance, "obfuscation", req.obfuscation),
-            traffic_profile=getattr(instance, "traffic_profile", req.traffic_profile),
-            status=instance.status,
-            join_token=instance.join_token,
-            join_token_expires_at=instance.join_token_expires_at,
-            created_at=instance.created_at,
-        )
-        db.add(db_mesh)
-        db.commit()
-    except Exception as db_err:
-        db.rollback()
-        logger.error(f"Failed to persist mesh {instance.mesh_id} to DB: {db_err}")
-        # Rollback in-memory creation to maintain consistency
-        async with _registry_lock:
-            _mesh_registry.pop(instance.mesh_id, None)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Mesh creation failed - database persistence error. Please contact support.",
-        )
-
-    # PQC identity
-    pqc_data = None
-    if PQC_AVAILABLE:
-        try:
-            identity = PQCNodeIdentity(f"client-{current_user.id[:8]}")
-            pkeys = identity.security.get_public_keys()
-            pqc_data = {
-                "did": identity.did,
-                "keys": {
-                    "sig_alg": pkeys.get("sig_algorithm", "unknown"),
-                    "kem_alg": pkeys.get("kem_algorithm", "unknown"),
-                    "sig_pub": pkeys.get("sig_public_key"),
-                    "kem_pub": pkeys.get("kem_public_key"),
-                },
-            }
-        except Exception as e:
-            logger.warning(f"Failed to generate PQC identity: {e}")
-
-    return MeshDeployResponse(
-        mesh_id=instance.mesh_id,
-        join_config={
-            "peers": [
-                f"tcp://node{i}.{instance.mesh_id}.x0tta6bl4.net:9001"
-                for i in range(min(3, req.nodes))
-            ],
-            "token": instance.join_token,
-            "token_expires_at": instance.join_token_expires_at.isoformat(),
-            "pqc_algorithm": "ML-KEM-768" if req.pqc_enabled else "none",
-        },
-        dashboard_url=f"https://observability.x0tta6bl4.net/{instance.mesh_id}",
-        status=instance.status,
-        pqc_identity=pqc_data,
-        pqc_enabled=instance.pqc_enabled,
-        created_at=instance.created_at.isoformat(),
-        plan=billing_service.normalize_plan(req.billing_plan),
-        join_token_expires_at=instance.join_token_expires_at.isoformat(),
-    )
-
-
-@router.get("/list")
-def list_meshes(current_user: User = Depends(require_permission("mesh:view"))):
-    """List all meshes for the authenticated user."""
-    meshes = mesh_provisioner.list_for_owner(current_user.id)
-    return {
-        "meshes": [
-            {
-                "mesh_id": m.mesh_id,
-                "name": m.name,
-                "status": m.status,
-                "nodes": len(m.node_instances),
-                "pqc_enabled": m.pqc_enabled,
-                "health_score": m.get_health_score(),
-                "uptime_seconds": round(m.get_uptime(), 1),
-                "created_at": m.created_at.isoformat(),
-            }
-            for m in meshes
-        ],
-        "total": len(meshes),
-    }
-
-
-@router.get("/{mesh_id}/status", response_model=MeshStatusResponse)
-def mesh_status(mesh_id: str, current_user: User = Depends(require_permission("mesh:view"))):
-    """Get detailed status and health of a mesh network."""
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-    return MeshStatusResponse(
-        mesh_id=instance.mesh_id,
-        status=instance.status,
-        nodes_total=len(instance.node_instances),
-        nodes_healthy=sum(
-            1 for n in instance.node_instances.values() if n["status"] == "healthy"
-        ),
-        uptime_seconds=round(instance.get_uptime(), 1),
-        pqc_enabled=instance.pqc_enabled,
-        obfuscation=instance.obfuscation,
-        traffic_profile=instance.traffic_profile,
-        peers=[
-            {"id": nid, **ndata}
-            for nid, ndata in list(instance.node_instances.items())[:20]
-        ],
-        health_score=round(instance.get_health_score(), 4),
-    )
-
-
-@router.get("/{mesh_id}/metrics", response_model=MeshMetricsResponse)
-def mesh_metrics(mesh_id: str, current_user: User = Depends(require_permission("mesh:view"))):
-    """
-    Get consciousness + MAPE-K + network metrics.
-
-    Returns phi-ratio, entropy, harmony (consciousness engine),
-    self-healing directives (MAPE-K), and network performance data.
-    """
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-    return MeshMetricsResponse(
-        mesh_id=instance.mesh_id,
-        consciousness=instance.get_consciousness_metrics(),
-        mape_k=instance.get_mape_k_state(),
-        network=instance.get_network_metrics(),
-        timestamp=datetime.utcnow().isoformat(),
-    )
-
-
-@router.post("/{mesh_id}/scale", response_model=ScaleResponse)
-def scale_mesh(
-    mesh_id: str,
-    request: ScaleRequest,
-    current_user: User = Depends(require_permission("mesh:update")),
-):
-    """Scale a mesh network up or down."""
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-    if instance.status == "terminated":
-        raise HTTPException(status_code=400, detail="Cannot scale a terminated mesh")
-
-    previous = len(instance.node_instances)
-
-    if request.action == "scale_up":
-        try:
-            billing_service.check_quota(current_user, previous + request.count)
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail=str(e),
-            )
-
-    new_total = instance.scale(request.action, request.count)
-    logger.info(
-        f"[MaaS] Scaled {mesh_id}: {previous} → {new_total} "
-        f"({request.action}, {request.count})"
-    )
-    return ScaleResponse(
-        mesh_id=mesh_id,
-        previous_nodes=previous,
-        current_nodes=new_total,
-        status=instance.status,
-    )
-
-
-@router.delete("/{mesh_id}")
-async def terminate_mesh(
-    mesh_id: str, current_user: User = Depends(require_permission("mesh:delete"))
-):
-    """Terminate a mesh network and release all resources."""
-    _get_mesh_or_404(mesh_id, current_user.id)
-    terminated = await mesh_provisioner.terminate(mesh_id)
-    if not terminated:
-        raise HTTPException(status_code=500, detail="Failed to terminate mesh")
-    _audit(mesh_id, current_user.email, "MESH_TERMINATED", f"Mesh {mesh_id} terminated by {current_user.email}")
-    logger.info(f"[MaaS] User {current_user.id} terminated mesh {mesh_id}")
-    return {
-        "mesh_id": mesh_id,
-        "status": "terminated",
-        "message": f"Mesh {mesh_id} has been terminated",
-    }
-
-@router.post("/heartbeat")
-def heartbeat(
-    telemetry: NodeHeartbeatRequest,
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Receive telemetry from Headless Agent.
-    Updates Control Plane visualization and MAPE-K state.
-    """
-    captured_at = datetime.utcnow().isoformat()
-    _node_telemetry[telemetry.node_id] = {
-        "cpu": telemetry.cpu_usage,
-        "mem": telemetry.memory_usage,
-        "neighbors": telemetry.neighbors_count,
-        "routes": telemetry.routing_table_size,
-        "pheromones": telemetry.pheromones,
-        "last_seen": captured_at,
-    }
-
-    mesh_id = _find_mesh_id_for_node(telemetry.node_id)
-    event_emitted = False
-    if mesh_id:
-        if mesh_id not in _mesh_mapek_events:
-            _mesh_mapek_events[mesh_id] = []
-        _mesh_mapek_events[mesh_id].append(_build_mapek_heartbeat_event(telemetry))
-        if len(_mesh_mapek_events[mesh_id]) > _MAPEK_EVENT_BUFFER_SIZE:
-            _mesh_mapek_events[mesh_id] = _mesh_mapek_events[mesh_id][-_MAPEK_EVENT_BUFFER_SIZE:]
-        event_emitted = True
-
-    logger.info(f"❤️ Heartbeat from {telemetry.node_id}")
-    return {
-        "status": "ack",
-        "sync_required": False,
-        "mesh_id": mesh_id,
-        "event_emitted": event_emitted,
-    }
-
-@router.post("/{mesh_id}/register-node", response_model=NodeRegisterResponse)
-async def register_node(
-    mesh_id: str,
-    req: NodeRegisterRequest,
-    # No auth here, agent just has a mesh_id (or we check a public registration token)
-):
-    """Initial request from a new agent wanting to join."""
-    instance = mesh_provisioner.get(mesh_id)
-    if not instance or instance.status == "terminated":
-        raise HTTPException(status_code=404, detail=f"Mesh {mesh_id} not found")
-
-    requested_node_id = req.node_id or f"node-{uuid.uuid4().hex[:6]}"
-    enrollment_mode = "mesh_join_token"
-    node_id = requested_node_id
-
-    if req.enrollment_token == instance.join_token:
-        if _is_join_token_expired(instance):
-            raise HTTPException(
-                status_code=401,
-                detail="Join token expired. Use POST /{mesh_id}/tokens/rotate to issue a new one.",
-            )
-    else:
-        mesh_reissue = _mesh_reissue_tokens.get(mesh_id, {})
-        token_data = mesh_reissue.get(req.enrollment_token)
-        if not token_data:
-            raise HTTPException(status_code=401, detail="Invalid enrollment token")
-        if token_data.get("used"):
-            raise HTTPException(
-                status_code=401,
-                detail="Enrollment token already used",
-            )
-        if _is_reissue_token_expired(token_data):
-            raise HTTPException(status_code=401, detail="Enrollment token expired")
-
-        expected_node_id = token_data.get("node_id")
-        if isinstance(expected_node_id, str):
-            if req.node_id and req.node_id != expected_node_id:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Enrollment token does not match node_id",
-                )
-            node_id = expected_node_id
-        token_data["used"] = True
-        enrollment_mode = "reissue_token"
-
-    if node_id in _revoked_nodes.get(mesh_id, {}) and enrollment_mode != "reissue_token":
-        raise HTTPException(
-            status_code=403,
-            detail="Node is revoked; reissue token is required",
-        )
-
-    async with _registry_lock:
-        if mesh_id not in _pending_nodes:
-            _pending_nodes[mesh_id] = {}
-        if node_id in instance.node_instances:
-            raise HTTPException(status_code=409, detail="Node already approved")
-
-        # Hardware Attestation (Enterprise Tier)
-        attestation = AttestationService.validate_node({
-            "hardware_id": req.hardware_id,
-            "enclave_enabled": req.enclave_enabled,
-            "attestation_data": req.attestation_data
-        })
-
-        _pending_nodes[mesh_id][node_id] = {
-            "device_class": req.device_class,
-            "labels": req.labels,
-            "public_keys": req.public_keys,
-            "requested_at": datetime.utcnow().isoformat(),
-            "enrollment_mode": enrollment_mode,
-            "attestation": attestation
-        }
-
-    return NodeRegisterResponse(
-        mesh_id=mesh_id,
-        node_id=node_id,
-        status="pending_approval",
-        message="Node registration submitted. Awaiting administrator approval."
-    )
-
-@router.get("/{mesh_id}/pending-nodes")
-def list_pending_nodes(mesh_id: str, current_user: User = Depends(require_permission("node:view"))):
-    """Admin view: list nodes waiting for approval."""
-    _get_mesh_or_404(mesh_id, current_user.id)
-    return {"pending": _pending_nodes.get(mesh_id, {})}
-
-
-@router.post("/{mesh_id}/nodes/register", response_model=NodeRegisterResponse)
-async def register_node_v2(mesh_id: str, req: NodeRegisterRequest):
-    """Canonical node registration endpoint (v2)."""
-    return await register_node(mesh_id, req)
-
-
-@router.get("/{mesh_id}/nodes/pending")
-def list_pending_nodes_v2(
-    mesh_id: str, current_user: User = Depends(require_role("operator"))
-):
-    """Canonical pending list endpoint (v2)."""
-    return list_pending_nodes(mesh_id, current_user)
-
-@router.post("/{mesh_id}/approve-node/{node_id}", response_model=NodeApproveResponse)
-async def approve_node(
-    mesh_id: str,
-    node_id: str,
-    req: NodeApproveRequest,
-    current_user: User = Depends(require_permission("node:approve"))
-):
-    """Admin action: approve a node and return its join token."""
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-    
-    async with _registry_lock:
-        if mesh_id not in _pending_nodes or node_id not in _pending_nodes[mesh_id]:
-            raise HTTPException(status_code=404, detail="Pending node not found")
-        
-        node_data = _pending_nodes[mesh_id].pop(node_id)
-        signed_join_token = token_signer.sign_token(instance.join_token, mesh_id)
-
-        device_class = node_data["device_class"]
-        pqc_profile = _get_pqc_profile(device_class)
-
-        # Add to mesh instance
-        instance.node_instances[node_id] = {
-            "id": node_id,
-            "status": "healthy",
-            "device_class": device_class,
-            "started_at": datetime.utcnow().isoformat(),
-            "approved_at": datetime.utcnow().isoformat(),
-            "acl_profile": req.acl_profile,
-            "tags": req.tags,
-            "pqc_profile": pqc_profile,
-            "security_level": node_data.get("attestation", {}).get("security_level", "SOFTWARE_ONLY")
-        }
-        if mesh_id in _revoked_nodes:
-            _revoked_nodes[mesh_id].pop(node_id, None)
-        
-    await record_audit_log(mesh_id, current_user.email, "NODE_APPROVED", f"Approved {node_id} with profile {req.acl_profile}")
-        
-    return NodeApproveResponse(
-        mesh_id=mesh_id,
-        node_id=node_id,
-        status="approved",
-        join_token={
-            "token": signed_join_token["token"],
-            "signature": signed_join_token["signature"],
-            "algorithm": signed_join_token["algorithm"],
-            "pqc_secured": signed_join_token.get("pqc_secured", False),
-            "peers": [f"tcp://node0.{mesh_id}.x0tta6bl4.net:9001"],
-        },
-        approved_at=datetime.utcnow().isoformat()
-    )
-
-
-@router.post("/{mesh_id}/nodes/{node_id}/approve", response_model=NodeApproveResponse)
-async def approve_node_v2(
-    mesh_id: str,
-    node_id: str,
-    req: NodeApproveRequest,
-    current_user: User = Depends(get_current_user),
-):
-    """Canonical approve endpoint (v2)."""
-    return await approve_node(mesh_id, node_id, req, current_user)
-
-
-@router.get("/{mesh_id}/policies")
-def list_policies(mesh_id: str, current_user: User = Depends(get_current_user)):
-    """Admin view: list access control policies."""
-    _get_mesh_or_404(mesh_id, current_user.id)
-    return {"policies": _mesh_policies.get(mesh_id, [])}
-
-
-@router.get("/{mesh_id}/audit-logs")
-def list_audit_logs(mesh_id: str, current_user: User = Depends(require_permission("audit:view"))):
-    """Enterprise audit trail for control-plane actions."""
-    _get_mesh_or_404(mesh_id, current_user.id)
-    return {
-        "mesh_id": mesh_id,
-        "events": _mesh_audit_log.get(mesh_id, []),
-        "count": len(_mesh_audit_log.get(mesh_id, [])),
-    }
-
-
-@router.get("/{mesh_id}/audit-logs/export")
-def export_audit_logs(
-    mesh_id: str,
-    format: str = "json",
-    limit: int = 1000,
-    event_type: Optional[str] = None,
-    current_user: User = Depends(require_permission("audit:view")),
-):
-    """
-    Export audit log as CSV or JSON download.
-    ?format=csv|json  ?limit=N  ?event_type=NODE_APPROVED
-    """
-    _get_mesh_or_404(mesh_id, current_user.id)
-    events = _mesh_audit_log.get(mesh_id, [])
-
-    # Optional filter
-    if event_type:
-        events = [e for e in events if e.get("event") == event_type.upper()]
-
-    events = events[-max(1, min(limit, 10000)):]
-
-    if format.lower() == "csv":
-        buf = io.StringIO()
-        writer = csv.DictWriter(buf, fieldnames=["timestamp", "actor", "event", "details"])
-        writer.writeheader()
-        writer.writerows(events)
-        return Response(
-            content=buf.getvalue(),
-            media_type="text/csv",
-            headers={"Content-Disposition": f'attachment; filename="audit-{mesh_id}.csv"'},
-        )
-
-    # Default: JSON download
-    payload = json.dumps({"mesh_id": mesh_id, "count": len(events), "events": events}, indent=2)
-    return Response(
-        content=payload,
-        media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="audit-{mesh_id}.json"'},
-    )
-
-
-@router.get("/{mesh_id}/mapek/events")
-def list_mapek_events(
-    mesh_id: str,
-    limit: int = 50,
-    current_user: User = Depends(get_current_user),
-):
-    """Control-plane view of recent MAPE-K heartbeat-derived events."""
-    _get_mesh_or_404(mesh_id, current_user.id)
-    limit = max(1, min(limit, 500))
-    events = _mesh_mapek_events.get(mesh_id, [])
-    return {
-        "mesh_id": mesh_id,
-        "events": events[-limit:],
-        "count": len(events),
-        "limit": limit,
-    }
-
-@router.post("/{mesh_id}/policies", response_model=PolicyResponse)
-async def create_policy(
-    mesh_id: str,
-    req: PolicyRequest,
-    current_user: User = Depends(require_permission("policy:create"))
-):
-    """Admin action: create a new ACL policy rule."""
-    _get_mesh_or_404(mesh_id, current_user.id)
-    
-    policy_id = f"pol-{uuid.uuid4().hex[:6]}"
-    policy = {
-        "policy_id": policy_id,
-        "source_tag": req.source_tag,
-        "target_tag": req.target_tag,
-        "action": req.action,
-        "created_at": datetime.utcnow().isoformat()
-    }
-    
-    async with _registry_lock:
-        if mesh_id not in _mesh_policies:
-            _mesh_policies[mesh_id] = []
-        _mesh_policies[mesh_id].append(policy)
-        
-    logger.info(f"🛡️ ACL: Policy {policy_id} created for mesh {mesh_id}: {req.source_tag} -> {req.target_tag} ({req.action})")
-    return policy
-
-@router.get("/{mesh_id}/node-config/{node_id}")
-def get_node_config(mesh_id: str, node_id: str):
-    """
-    Called by Agent to fetch its allowed policies and peer tags.
-    This is the core of local enforcement.
-    """
-    instance = mesh_provisioner.get(mesh_id)
-    if not instance or instance.status == "terminated":
-        raise HTTPException(status_code=404, detail=f"Mesh {mesh_id} not found")
-    if node_id in _revoked_nodes.get(mesh_id, {}):
-        raise HTTPException(status_code=403, detail=f"Node {node_id} is revoked")
-
-    node = instance.node_instances.get(node_id)
-    if not node:
-        raise HTTPException(status_code=404, detail=f"Node {node_id} is not approved")
-
-    policies = _mesh_policies.get(mesh_id, [])
-    node_tags = list(node.get("tags", []))
-    acl_profile = str(node.get("acl_profile", "default"))
-
-    peer_tags = {}
-    policy_decisions: Dict[str, Dict[str, Any]] = {}
-    allowed_peers: List[str] = []
-    denied_peers: List[str] = []
-
-    for peer_id, peer in instance.node_instances.items():
-        if peer_id == node_id:
-            continue
-        peer_node_tags = list(peer.get("tags", []))
-        peer_tags[peer_id] = peer_node_tags
-        decision = _evaluate_acl_decision(
-            source_tags=node_tags,
-            target_tags=peer_node_tags,
-            policies=policies,
-            acl_profile=acl_profile,
-        )
-
-        if peer_id in _revoked_nodes.get(mesh_id, {}):
-            decision = {
-                "action": "deny",
-                "reason": "peer_revoked",
-                "rules": [],
-            }
-
-        matched_rule_ids = [
-            str(rule.get("policy_id", "unknown")) for rule in decision.get("rules", [])
-        ]
-        policy_decisions[peer_id] = {
-            "action": decision["action"],
-            "reason": decision["reason"],
-            "matched_policy_ids": matched_rule_ids,
-        }
-        if decision["action"] == "allow":
-            allowed_peers.append(peer_id)
-        else:
-            denied_peers.append(peer_id)
-
-    return {
-        "mesh_id": mesh_id,
-        "node_id": node_id,
-        "node_tags": node_tags,
-        "acl_profile": acl_profile,
-        "policies": policies,
-        "peer_tags": peer_tags,
-        "allowed_peers": allowed_peers,
-        "denied_peers": denied_peers,
-        "policy_decisions": policy_decisions,
-        "global_mode": "zero-trust",
-        "enforcement": "tag-based",
-    }
-
-@router.get("/control-plane/pending-approvals", include_in_schema=False)
-def pending_approvals_ui():
-    """Serve minimal Pending Approvals UI for control-plane operators."""
-    if not _PENDING_APPROVALS_UI.exists():
-        raise HTTPException(status_code=404, detail="Pending approvals UI not found")
-    return FileResponse(_PENDING_APPROVALS_UI)
-
-@router.get("/{mesh_id}/topology")
-def get_topology(mesh_id: str, current_user: User = Depends(get_current_user)):
-    """Returns nodes and pheromone-weighted links for the dashboard."""
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-    
-    nodes = []
-    links = []
-    
-    for nid, ndata in instance.node_instances.items():
-        telemetry = _node_telemetry.get(nid, {})
-        nodes.append({
-            "id": nid,
-            "class": ndata.get("device_class", "edge"),
-            "status": ndata["status"],
-            "telemetry": telemetry
-        })
-        
-        # Pheromone-based links
-        pheromones = telemetry.get("pheromones", {})
-        for dest_id, targets in pheromones.items():
-            for next_hop, score in targets.items():
-                links.append({
-                    "source": nid,
-                    "target": next_hop,
-                    "weight": score
-                })
-                
-    return {"nodes": nodes, "links": links}
-
-
-@router.get("/{mesh_id}/nodes")
-def list_approved_nodes(mesh_id: str, current_user: User = Depends(get_current_user)):
-    """List approved nodes in mesh."""
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-    return {
-        "mesh_id": mesh_id,
-        "nodes": list(instance.node_instances.values()),
-        "count": len(instance.node_instances),
-    }
-
-
-@router.get("/{mesh_id}/nodes/all")
-def list_all_nodes(
-    mesh_id: str,
-    node_status: Optional[str] = None,
-    current_user: User = Depends(require_role("operator")),
-):
-    """
-    Unified node list: approved + pending + revoked in one response.
-    ?node_status=approved|pending|revoked  (omit for all)
-    """
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-    result = []
-
-    # Approved nodes
-    for node_id, data in instance.node_instances.items():
-        result.append({
-            "node_id": node_id,
-            "status": "approved",
-            "device_class": data.get("device_class", "edge"),
-            "acl_profile": data.get("acl_profile", "default"),
-            "tags": data.get("tags", []),
-            "approved_at": data.get("approved_at"),
-            "started_at": data.get("started_at"),
-        })
-
-    # Pending nodes
-    for node_id, data in _pending_nodes.get(mesh_id, {}).items():
-        result.append({
-            "node_id": node_id,
-            "status": "pending",
-            "device_class": data.get("device_class", "edge"),
-            "acl_profile": None,
-            "tags": [],
-            "requested_at": data.get("requested_at"),
-            "enrollment_mode": data.get("enrollment_mode"),
-        })
-
-    # Revoked nodes
-    for node_id, data in _revoked_nodes.get(mesh_id, {}).items():
-        result.append({
-            "node_id": node_id,
-            "status": "revoked",
-            "device_class": data.get("device_class", "edge"),
-            "acl_profile": data.get("acl_profile"),
-            "tags": data.get("tags", []),
-            "revoked_at": data.get("revoked_at"),
-            "reason": data.get("reason"),
-        })
-
-    if node_status:
-        result = [n for n in result if n["status"] == node_status]
-
-    return {
-        "mesh_id": mesh_id,
-        "nodes": result,
-        "count": len(result),
-        "by_status": {
-            "approved": sum(1 for n in result if n["status"] == "approved"),
-            "pending": sum(1 for n in result if n["status"] == "pending"),
-            "revoked": sum(1 for n in result if n["status"] == "revoked"),
-        },
-    }
-
-
-@router.get("/{mesh_id}/nodes/{node_id}/pqc-profile")
-def get_node_pqc_profile(
-    mesh_id: str,
-    node_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """Return the active PQC algorithm profile for a specific approved node."""
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-    node_data = instance.node_instances.get(node_id)
-    if not node_data:
-        raise HTTPException(status_code=404, detail=f"Node {node_id} not found or not approved")
-    profile = node_data.get("pqc_profile") or _get_pqc_profile(node_data.get("device_class", "edge"))
-    return {
-        "mesh_id": mesh_id,
-        "node_id": node_id,
-        "device_class": node_data.get("device_class", "edge"),
-        "pqc_profile": profile,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Node Revocation & Token Re-issue
-# ---------------------------------------------------------------------------
-
-
-@router.post(
-    "/{mesh_id}/nodes/{node_id}/revoke",
-    response_model=NodeRevokeResponse,
-)
-async def revoke_node(
-    mesh_id: str,
-    node_id: str,
-    req: Optional[NodeRevokeRequest] = None,
-    current_user: User = Depends(require_permission("node:revoke")),
-):
-    """
-    Revoke a node — remove from mesh, add to blacklist.
-    A revoked node cannot re-enroll via the global join token.
-    Admin must issue a one-time reissue token to allow re-enrollment.
-    """
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-
-    reason = req.reason if req else "manual_revoke"
-
-    if node_id not in instance.node_instances:
-        raise HTTPException(status_code=404, detail=f"Node {node_id} not found in mesh")
-
-    async with _registry_lock:
-        # Remove from mesh
-        node_data = instance.node_instances.pop(node_id, None)
-        if node_data is None:
-            raise HTTPException(
-                status_code=404, detail=f"Node {node_id} not found in mesh"
-            )
-
-        # Add to revoked list
-        if mesh_id not in _revoked_nodes:
-            _revoked_nodes[mesh_id] = {}
-        _revoked_nodes[mesh_id][node_id] = {
-            "reason": reason,
-            "revoked_by": current_user.email,
-            "revoked_at": datetime.utcnow().isoformat(),
-            "tags": list(node_data.get("tags", [])),
-            "acl_profile": node_data.get("acl_profile", "default"),
-            "device_class": node_data.get("device_class", "edge"),
-        }
-        if mesh_id in _pending_nodes:
-            _pending_nodes[mesh_id].pop(node_id, None)
-
-    await record_audit_log(
-        mesh_id,
-        current_user.email,
-        "NODE_REVOKED",
-        f"Revoked {node_id}: {reason}",
-    )
-    logger.info(f"🚫 Node {node_id} revoked from mesh {mesh_id}: {reason}")
-
-    return NodeRevokeResponse(
-        mesh_id=mesh_id,
-        node_id=node_id,
-        status="revoked",
-        reason=reason,
-        revoked_at=datetime.utcnow().isoformat(),
-    )
-
-
-@router.post(
-    "/{mesh_id}/nodes/revoke",
-    response_model=NodeRevokeResponse,
-)
-async def revoke_node_legacy(
-    mesh_id: str,
-    req: NodeRevokeRequest,
-    current_user: User = Depends(get_current_user),
-):
-    """Legacy alias: revoke endpoint with node_id in request body."""
-    if not req.node_id:
-        raise HTTPException(status_code=422, detail="node_id is required")
-    return await revoke_node(mesh_id, req.node_id, req, current_user)
-
-
-@router.post(
-    "/{mesh_id}/nodes/{node_id}/reissue-token",
-    response_model=NodeReissueTokenResponse,
-)
-async def reissue_enrollment_token(
-    mesh_id: str,
-    node_id: str,
-    req: NodeReissueTokenRequest,
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Issue a one-time enrollment token for a revoked node.
-    The token is bound to the specific node_id and expires after TTL.
-    """
-    _get_mesh_or_404(mesh_id, current_user.id)
-
-    # Verify node is actually revoked
-    revoked = _revoked_nodes.get(mesh_id, {})
-    if node_id not in revoked:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Node {node_id} is not revoked. Revoke before reissuing.",
-        )
-
-    now = datetime.utcnow()
-    expires_at = now + timedelta(seconds=req.ttl_seconds)
-    token = secrets.token_urlsafe(32)
-
-    signed = token_signer.sign_token(token, mesh_id)
-
-    async with _registry_lock:
-        if mesh_id not in _mesh_reissue_tokens:
-            _mesh_reissue_tokens[mesh_id] = {}
-        # Keep at most one active reissue token per node.
-        old_tokens = [
-            existing
-            for existing, token_meta in _mesh_reissue_tokens[mesh_id].items()
-            if token_meta.get("node_id") == node_id
-        ]
-        for existing in old_tokens:
-            del _mesh_reissue_tokens[mesh_id][existing]
-        _mesh_reissue_tokens[mesh_id][token] = {
-            "node_id": node_id,
-            "issued_at": now.isoformat(),
-            "expires_at": expires_at.isoformat(),
-            "used": False,
-        }
-
-    await record_audit_log(
-        mesh_id,
-        current_user.email,
-        "NODE_TOKEN_REISSUED",
-        f"Reissue token for {node_id}, TTL={req.ttl_seconds}s",
-    )
-
-    return NodeReissueTokenResponse(
-        mesh_id=mesh_id,
-        node_id=node_id,
-        join_token={
-            "token": signed["token"],
-            "signature": signed["signature"],
-            "algorithm": signed["algorithm"],
-            "pqc_secured": signed.get("pqc_secured", False),
-            "type": "one-time-reissue",
-            "node_id": node_id,
-            "expires_at": expires_at.isoformat(),
-        },
-        issued_at=now.isoformat(),
-        expires_at=expires_at.isoformat(),
-    )
-
-
-async def reissue_node_token(
-    mesh_id: str,
-    node_id: str,
-    req: NodeReissueTokenRequest,
-    current_user: User,
-):
-    """Backward-compatible callable alias used by unit tests/helpers."""
-    return await reissue_enrollment_token(mesh_id, node_id, req, current_user)
-
-
-@router.get("/{mesh_id}/nodes/revoked")
-def list_revoked_nodes(
-    mesh_id: str, current_user: User = Depends(get_current_user)
-):
-    """List all revoked nodes for a mesh."""
-    _get_mesh_or_404(mesh_id, current_user.id)
-    revoked = _revoked_nodes.get(mesh_id, {})
-    return {
-        "mesh_id": mesh_id,
-        "revoked": revoked,
-        "count": len(revoked),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Usage Metering
-# ---------------------------------------------------------------------------
-
-
-@router.get("/billing/usage")
-def get_account_usage(current_user: User = Depends(get_current_user)):
-    """Return aggregated node-hour usage across all meshes for this account."""
-    return usage_metering_service.get_account_usage(current_user.id)
-
-
-@router.get("/billing/usage/{mesh_id}")
-def get_mesh_usage(
-    mesh_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """Return detailed node-hour usage for a single mesh."""
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-    return usage_metering_service.get_mesh_usage(instance)
-
-
-@router.post("/billing/webhook", response_model=BillingWebhookResponse)
-async def billing_webhook(
-    request: Request,
-    x_billing_webhook_secret: Optional[str] = Header(
-        default=None, alias="X-Billing-Webhook-Secret"
-    ),
-    x_billing_timestamp: Optional[str] = Header(default=None, alias="X-Billing-Timestamp"),
-    x_billing_signature: Optional[str] = Header(default=None, alias="X-Billing-Signature"),
-    db: Session = Depends(get_db),
-):
-    """
-    Process external billing events and sync account plan automatically.
-    Supports plan upgrades/downgrades and subscription cancellation flow.
-    """
-    raw_payload = await request.body()
-    _verify_billing_webhook_hmac(raw_payload, x_billing_timestamp, x_billing_signature)
-    _verify_billing_webhook_secret(x_billing_webhook_secret)
-
-    try:
-        payload_data = json.loads(raw_payload.decode("utf-8"))
-        req = BillingWebhookRequest(**payload_data)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        raise HTTPException(status_code=400, detail="Invalid billing webhook JSON payload")
-    except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=exc.errors())
-
-    event_id = _extract_billing_event_id(req)
-    event_type = req.event_type.strip().lower()
-    if event_type not in BILLING_WEBHOOK_EVENTS:
-        raise HTTPException(status_code=400, detail=f"Unsupported event type: {req.event_type}")
-
-    payload_hash = _payload_sha256_hex(raw_payload)
-    cached_response = _start_billing_event_processing(
-        db,
-        event_id,
-        event_type,
-        payload_hash,
-    )
-    if cached_response is not None:
-        cached_response["idempotent_replay"] = True
-        return BillingWebhookResponse(**cached_response)
-
-    try:
-        user = _resolve_billing_user(db, req)
-        if not user:
-            raise HTTPException(status_code=404, detail="User for billing event not found")
-
-        plan_before = billing_service.normalize_plan(user.plan or "starter")
-        plan_after = plan_before
-
-        requested_plan: Optional[str] = req.plan
-        if not requested_plan and isinstance(req.metadata, dict):
-            plan_from_meta = req.metadata.get("plan")
-            if isinstance(plan_from_meta, str):
-                requested_plan = plan_from_meta
-
-        if event_type in {"subscription.canceled", "subscription.deleted"}:
-            plan_after = "starter"
-        elif requested_plan:
-            plan_after = billing_service.normalize_plan(requested_plan)
-
-        user.plan = plan_after
-        user.requests_limit = PLAN_REQUEST_LIMITS.get(
-            plan_after, PLAN_REQUEST_LIMITS["starter"]
-        )
-
-        customer_id = req.customer_id
-        if not customer_id and isinstance(req.metadata, dict):
-            meta_customer_id = req.metadata.get("customer_id")
-            if isinstance(meta_customer_id, str):
-                customer_id = meta_customer_id
-        if customer_id:
-            user.stripe_customer_id = customer_id
-
-        subscription_id = req.subscription_id
-        if not subscription_id and isinstance(req.metadata, dict):
-            meta_subscription_id = req.metadata.get("subscription_id")
-            if isinstance(meta_subscription_id, str):
-                subscription_id = meta_subscription_id
-        if subscription_id:
-            user.stripe_subscription_id = subscription_id
-
-        logger.info("[MaaS] Billing webhook processed successfully")
-
-        response_payload = {
-            "processed": True,
-            "event_id": event_id,
-            "event_type": event_type,
-            "user_id": user.id,
-            "plan_before": plan_before,
-            "plan_after": plan_after,
-            "requests_limit": user.requests_limit or PLAN_REQUEST_LIMITS["starter"],
-            "idempotent_replay": False,
-        }
-        _finalize_billing_event_processing(db, event_id, response_payload)
-        return BillingWebhookResponse(**response_payload)
-    except HTTPException as exc:
-        db.rollback()
-        _fail_billing_event_processing(
-            db,
-            event_id,
-            f"HTTP {exc.status_code}: {exc.detail}",
-        )
-        raise
-    except Exception as exc:
-        db.rollback()
-        _fail_billing_event_processing(
-            db,
-            event_id,
-            f"{exc.__class__.__name__}: {str(exc)}",
-        )
-        raise
-
-
-# ---------------------------------------------------------------------------
-# Token Rotation
-# ---------------------------------------------------------------------------
-
-
-@router.post("/{mesh_id}/tokens/rotate", response_model=TokenRotateResponse)
-def rotate_join_token(
-    mesh_id: str,
-    current_user: User = Depends(require_role("admin")),
-):
-    """Rotate the primary mesh join token. Old token is immediately invalidated."""
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-    instance.join_token = secrets.token_urlsafe(32)
-    instance.join_token_issued_at = datetime.utcnow()
-    instance.join_token_expires_at = instance.join_token_issued_at + timedelta(
-        seconds=instance.join_token_ttl_sec
-    )
-    _audit(mesh_id, current_user.email, "TOKEN_ROTATED", f"Join token rotated, TTL={instance.join_token_ttl_sec}s")
-    logger.info(f"[MaaS] Rotated join token for mesh {mesh_id}")
-    return TokenRotateResponse(
-        mesh_id=mesh_id,
-        join_token=instance.join_token,
-        issued_at=instance.join_token_issued_at.isoformat(),
-        expires_at=instance.join_token_expires_at.isoformat(),
-    )
-
-
-# ---------------------------------------------------------------------------
-# On-Prem Deployment Profile (Enterprise)
-# ---------------------------------------------------------------------------
-
-
-@router.get("/{mesh_id}/deploy/onprem")
 def get_onprem_profile(
     mesh_id: str,
     format: str = "json",
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Generate a self-contained on-prem deployment bundle.
-
-    Returns everything needed to self-host the x0tta6bl4 control plane
-    alongside the mesh nodes: docker-compose config + per-node agent configs.
-
-    ?format=json|yaml
-    """
-    instance = _get_mesh_or_404(mesh_id, current_user.id)
-
-    agent_configs = {}
-    for node_id, node in instance.node_instances.items():
-        agent_configs[node_id] = {
+    current_user: User = Depends(get_current_user_from_maas),
+) -> Dict[str, Any]:
+    instance = _require_owner(mesh_id, current_user)
+    agent_configs = {
+        node_id: {
+            "mesh_id": mesh_id,
             "node_id": node_id,
-            "api_endpoint": "http://control-plane:8000",
-            "join_token": instance.join_token,
-            "listen_port": 5000,
-            "pqc_enabled": instance.pqc_enabled,
-            "obfuscation": instance.obfuscation,
-            "heartbeat_interval_sec": 30,
-            "log_level": "info",
-            "data_dir": "/var/lib/x0t",
+            "pqc_profile": node.get("pqc_profile")
+            or _get_pqc_profile(node.get("device_class", "edge")),
         }
-
-    token_secret = secrets.token_hex(32)
-    docker_compose = f"""version: '3.8'
-
-services:
-  control-plane:
-    image: ghcr.io/x0tta6bl4/control-plane:latest
-    container_name: x0t-control-plane
-    restart: unless-stopped
-    ports:
-      - "8000:8000"
-    environment:
-      - MAAS_TOKEN_SECRET={token_secret}
-      - DATABASE_URL=sqlite:///./x0t_maas.db
-      - LOG_LEVEL=info
-      - PQC_ENABLED={str(instance.pqc_enabled).lower()}
-    volumes:
-      - x0t_data:/app/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
-volumes:
-  x0t_data:
-
-networks:
-  default:
-    name: x0t-mesh
-"""
-
-    bundle = {
+        for node_id, node in (getattr(instance, "node_instances", {}) or {}).items()
+    }
+    return {
         "schema_version": "1.0",
         "mesh_id": mesh_id,
-        "mesh_name": instance.name,
-        "generated_at": datetime.utcnow().isoformat(),
-        "pqc_enabled": instance.pqc_enabled,
-        "control_plane": {
-            "image": "ghcr.io/x0tta6bl4/control-plane:latest",
-            "port": 8000,
-            "env": {
-                "MAAS_TOKEN_SECRET": token_secret,
-                "DATABASE_URL": "sqlite:///./x0t_maas.db",
-                "LOG_LEVEL": "info",
+        "format": format,
+        "docker_compose": {
+            "control-plane": {
+                "image": "x0tta6bl4/control-plane:local",
+                "environment": {"MESH_ID": mesh_id},
             },
+            "services": {
+                "control-plane": {
+                    "image": "x0tta6bl4/control-plane:local",
+                    "environment": {"MESH_ID": mesh_id},
+                }
+            }
         },
-        "docker_compose": docker_compose,
         "agent_configs": agent_configs,
-        "join_token": instance.join_token,
-        "join_token_expires_at": instance.join_token_expires_at.isoformat(),
+        "join_token": getattr(instance, "join_token", None),
         "install_instructions": [
-            "1. Save docker_compose content to docker-compose.yml",
-            "2. Run: docker compose up -d",
-            "3. Install agents on target machines:",
-            f"   curl -sL https://<your-host>/install | bash -s -- --token {instance.join_token}",
-            f"4. Token expires: {instance.join_token_expires_at.isoformat()}",
-            "5. Rotate token after deployment: POST /{mesh_id}/tokens/rotate",
+            "Deploy the control-plane service locally.",
+            "Start mesh agents with the generated node configuration.",
         ],
+        "claim_boundary": (
+            "On-prem profile generation returns local configuration material. "
+            "It does not prove deployment, node reachability, dataplane delivery, "
+            "customer traffic, or production readiness."
+        ),
     }
 
-    if format.lower() == "yaml":
-        try:
-            import yaml as _yaml
-            content = _yaml.dump(bundle, default_flow_style=False, allow_unicode=True)
-            return Response(
-                content=content,
-                media_type="application/x-yaml",
-                headers={"Content-Disposition": f'attachment; filename="onprem-{mesh_id}.yaml"'},
-            )
-        except ImportError:
-            pass  # Fall through to JSON
 
-    return bundle
-
-
-# ---------------------------------------------------------------------------
-# Dashboard UI
-# ---------------------------------------------------------------------------
-
-
-@router.get("/{mesh_id}/dashboard/pending-approvals")
-def serve_pending_approvals_ui(
-    mesh_id: str, current_user: User = Depends(get_current_user)
-):
-    """
-    Serve the interactive pending-approvals HTML page.
-    Falls back to JSON if the file doesn't exist yet.
-    """
-    _get_mesh_or_404(mesh_id, current_user.id)
-
-    if _PENDING_APPROVALS_UI.exists():
-        return FileResponse(
-            str(_PENDING_APPROVALS_UI),
-            media_type="text/html",
-        )
-
-    # Fallback: return JSON data
-    pending = _pending_nodes.get(mesh_id, {})
-    return {
-        "mesh_id": mesh_id,
-        "pending_nodes": pending,
-        "count": len(pending),
-        "note": "HTML dashboard not yet deployed. Showing JSON.",
-    }
+__all__ = [
+    "router",
+    "BillingWebhookRequest",
+    "BillingWebhookResponse",
+    "LegacyBillingResponse",
+    "MeshDeployRequest",
+    "MeshDeployResponse",
+    "MeshStatusResponse",
+    "MeshMetricsResponse",
+    "MeshInstance",
+    "MeshProvisioner",
+    "NodeApproveRequest",
+    "NodeApproveResponse",
+    "NodeHeartbeatRequest",
+    "NodeRegisterRequest",
+    "NodeRegisterResponse",
+    "NodeReissueTokenRequest",
+    "NodeReissueTokenResponse",
+    "NodeRevokeRequest",
+    "NodeRevokeResponse",
+    "PolicyRequest",
+    "PolicyResponse",
+    "ScaleRequest",
+    "TokenRotateResponse",
+    "BillingService",
+    "UsageMeteringService",
+    "PQC_SEGMENT_PROFILES",
+    "_MAPEK_EVENT_BUFFER_SIZE",
+    "_PQC_DEFAULT_PROFILE",
+    "_audit",
+    "_billing_event_ttl_seconds",
+    "_billing_webhook_tolerance_seconds",
+    "_build_mapek_heartbeat_event",
+    "_cleanup_expired_billing_events",
+    "_deserialize_billing_event_response",
+    "_evaluate_acl_decision",
+    "_extract_billing_event_id",
+    "_fail_billing_event_processing",
+    "_finalize_billing_event_processing",
+    "_find_mesh_id_for_node",
+    "_get_mesh_or_404",
+    "_get_pqc_profile",
+    "_is_join_token_expired",
+    "_is_reissue_token_expired",
+    "_mesh_audit_log",
+    "_mesh_mapek_events",
+    "_mesh_policies",
+    "_mesh_registry",
+    "_mesh_reissue_tokens",
+    "_node_telemetry",
+    "_pending_nodes",
+    "_payload_sha256_hex",
+    "_redacted_sha256_prefix",
+    "_resolve_billing_user",
+    "_revoked_nodes",
+    "_rule_matches",
+    "_start_billing_event_processing",
+    "_verify_billing_webhook_hmac",
+    "_verify_billing_webhook_secret",
+    "auth_service",
+    "billing_service",
+    "create_policy",
+    "deploy_mesh",
+    "get_node_config",
+    "get_onprem_profile",
+    "heartbeat",
+    "legacy_account_usage",
+    "legacy_billing_webhook",
+    "legacy_list_meshes",
+    "legacy_list_policies_route",
+    "legacy_maas_readiness",
+    "legacy_mesh_metrics",
+    "legacy_mesh_status",
+    "legacy_mesh_usage",
+    "list_all_nodes",
+    "list_mapek_events",
+    "list_pending_nodes",
+    "maas_legacy_readiness",
+    "mesh_provisioner",
+    "register_node",
+    "reissue_node_token",
+    "revoke_node",
+    "rotate_join_token",
+    "usage_metering_service",
+    "validate_customer",
+]

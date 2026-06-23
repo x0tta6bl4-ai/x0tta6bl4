@@ -5,6 +5,8 @@ Unit Tests for Batman-adv Health Monitoring
 Tests for BatmanHealthMonitor, BatmanMetricsCollector, and MAPE-K integration.
 """
 
+import json
+
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -93,6 +95,15 @@ class TestBatmanHealthMonitor:
         assert health_monitor.check_interval == 5.0
         assert not health_monitor._running
         assert health_monitor._last_report is None
+
+    def test_thinking_status_redacts_node_and_interface(self, health_monitor):
+        """Thinking status should expose techniques without raw node/interface."""
+        status = json.dumps(health_monitor.get_thinking_status(), sort_keys=True)
+
+        assert "thinking" in status
+        assert "last_thinking_context" in status
+        assert "test-node-001" not in status
+        assert "bat0" not in status
     
     def test_health_status_enum(self):
         """Test HealthStatus enum values."""
@@ -722,6 +733,22 @@ class TestBatmanMAPEKLoop:
         assert mapek_loop.interface == "bat0"
         assert not mapek_loop._running
         assert not mapek_loop.auto_heal
+
+    def test_thinking_status_redacts_loop_node_and_interface(self):
+        """MAPE-K thinking status should not leak raw node/interface values."""
+        loop = BatmanMAPEKLoop(
+            node_id="secret-node-42",
+            interface="batsec0",
+            cycle_interval=5.0,
+            auto_heal=False,
+        )
+
+        status = json.dumps(loop.get_thinking_status(), sort_keys=True)
+
+        assert "batman-mapek-loop" in status
+        assert "components" in status
+        assert "secret-node-42" not in status
+        assert "batsec0" not in status
     
     @pytest.mark.asyncio
     async def test_run_cycle(self, mapek_loop, mock_subprocess):

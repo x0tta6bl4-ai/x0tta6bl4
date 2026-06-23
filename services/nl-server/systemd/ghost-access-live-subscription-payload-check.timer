@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Ghost Access live subscription payload safety check
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=ghost-access-live-subscription-payload-check.service
+
+[Install]
+WantedBy=timers.target

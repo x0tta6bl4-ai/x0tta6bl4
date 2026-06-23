@@ -48,6 +48,13 @@ def test_spiffe_controller_identity_and_mtls(tmp_path, monkeypatch):
         )
         ident = controller.get_identity()
         assert ident.spiffe_id.startswith("spiffe://")
+        thinking_status = controller.get_thinking_status()
+        assert thinking_status["thinking"]["profile"]["role"] == "security"
+        assert "zero_trust_review" in thinking_status["thinking"]["techniques"]
+        assert (
+            thinking_status["last_thinking_context"]["applied"]["framing"]["problem"]
+            == "spiffe_controller_get_identity"
+        )
 
         # Check if establish_mtls_connection exists, if not skip that part
         if hasattr(controller, "establish_mtls_connection"):

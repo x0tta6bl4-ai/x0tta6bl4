@@ -1,0 +1,175 @@
+{
+  "generated_at_utc": "2026-06-04T20:10:32Z",
+  "report": {
+    "claim_boundary": "This report verifies local source-code and business-document evidence for monetization paths. It does not prove accepted tasks, active customers, live traffic delivery, submitted blockchain transactions, chain finality, bank settlement, or received funds.",
+    "machine_commands": [
+      "PYTHONPATH=. python3 scripts/ops/build_economic_layer_readiness_report.py",
+      "PYTHONPATH=. python3 scripts/ops/build_productization_snapshot.py"
+    ],
+    "paths": [
+      {
+        "claim_gate": {
+          "chain_finality_claim_allowed": false,
+          "funds_received_claim_allowed": false,
+          "live_traffic_delivery_claim_allowed": false,
+          "local_share_to_earn_accounting_claim_allowed": true,
+          "revenue_recognition_claim_allowed": false,
+          "submitted_transaction_claim_allowed": false
+        },
+        "current_state": "Local accounting and simulation are implemented. The service records reward events but does not claim a payout transaction.",
+        "files": [
+          {
+            "complete": true,
+            "exists": true,
+            "markers_found": [
+              "Record local share-to-earn accounting without claiming payout settlement.",
+              "submitted_transaction=False",
+              "settlement_recorded=False",
+              "transaction_hash=\"\"",
+              "GHOST_ENABLE_ECONOMY_SIMULATION",
+              "OBSERVE_ONLY_NOT_EARNING"
+            ],
+            "markers_missing": [],
+            "path": "src/services/share_to_earn_service.py"
+          }
+        ],
+        "monetization_mode": "DePIN: reward accounting for relayed packets and exit-node role.",
+        "name": "Share-to-Earn DePIN relay accounting",
+        "next_evidence_needed": [
+          "Real relay-meter evidence tied to customer traffic.",
+          "A payout path that calls TokenRewards.reward_relay or another on-chain settlement path.",
+          "A confirmed transaction hash to the payout wallet."
+        ],
+        "path_id": "share_to_earn_depin",
+        "readiness": "local_evidence_verified",
+        "verified_finding": "The service writes local reward evidence with submitted_transaction=False, settlement_recorded=False, and an empty transaction hash."
+      },
+      {
+        "claim_gate": {
+          "chain_finality_claim_allowed": false,
+          "chain_submission_code_path_claim_allowed": true,
+          "funds_received_claim_allowed": false,
+          "live_traffic_delivery_claim_allowed": false,
+          "revenue_recognition_claim_allowed": false,
+          "submitted_transaction_claim_allowed": false
+        },
+        "current_state": "A blockchain submission path exists, but it only runs when Web3, RPC, contract, account, and a private key are configured.",
+        "files": [
+          {
+            "complete": true,
+            "exists": true,
+            "markers_found": [
+              "Supports both local simulation and real Base Sepolia transactions.",
+              "TOKEN_REWARDS_USE_ENV_KEY",
+              "OPERATOR_PRIVATE_KEY",
+              "local_accounting_only",
+              "blockchain_submitted",
+              "send_raw_transaction"
+            ],
+            "markers_missing": [],
+            "path": "src/dao/token_rewards.py"
+          }
+        ],
+        "monetization_mode": "Token payout path: local accounting first, optional Base Sepolia ERC20 transfer.",
+        "name": "TokenRewards ERC20 transfer path",
+        "next_evidence_needed": [
+          "Locally configured RPC URL and token contract address.",
+          "Operator private key stored locally, not in chat.",
+          "On-chain receipt proving transfer finality."
+        ],
+        "path_id": "token_rewards_chain_path",
+        "readiness": "local_evidence_verified",
+        "verified_finding": "Without blockchain configuration, settlement is local_accounting_only. With configuration and a returned tx hash, the status becomes blockchain_submitted."
+      },
+      {
+        "claim_gate": {
+          "chain_finality_claim_allowed": false,
+          "funds_received_claim_allowed": false,
+          "live_traffic_delivery_claim_allowed": false,
+          "local_escrow_lifecycle_claim_allowed": true,
+          "revenue_recognition_claim_allowed": false,
+          "submitted_transaction_claim_allowed": false
+        },
+        "current_state": "The worker can release or refund local escrow records and attempts a token bridge for X0T escrows, but it does not prove external settlement finality.",
+        "files": [
+          {
+            "complete": true,
+            "exists": true,
+            "markers_found": [
+              "SETTLEMENT_UPTIME_THRESHOLD = 0.999",
+              "release_escrow_on_chain",
+              "refund_escrow_on_chain",
+              "\"external_settlement_finality_claim_allowed\": False",
+              "\"revenue_recognition_claim_allowed\": False"
+            ],
+            "markers_missing": [],
+            "path": "src/services/marketplace_settlement.py"
+          }
+        ],
+        "monetization_mode": "Marketplace: release or refund escrow after uptime check.",
+        "name": "Marketplace escrow settlement worker",
+        "next_evidence_needed": [
+          "A real held escrow created by a paying customer.",
+          "24-hour uptime evidence linked to the rented node.",
+          "External bridge receipt and independent finality verification."
+        ],
+        "path_id": "marketplace_settlement",
+        "readiness": "local_evidence_verified",
+        "verified_finding": "The claim gate explicitly blocks traffic delivery, external finality, bank settlement, revenue recognition, and production-readiness claims."
+      },
+      {
+        "claim_gate": {
+          "business_opportunity_claim_allowed": true,
+          "chain_finality_claim_allowed": false,
+          "funds_received_claim_allowed": false,
+          "live_traffic_delivery_claim_allowed": false,
+          "revenue_recognition_claim_allowed": false,
+          "submitted_transaction_claim_allowed": false
+        },
+        "current_state": "The document describes a business direction. It is not proof of paying users or live inference revenue.",
+        "files": [
+          {
+            "complete": true,
+            "exists": true,
+            "markers_found": [
+              "current production proof unless",
+              "Mesh AI Router",
+              "Federated learning"
+            ],
+            "markers_missing": [],
+            "path": "business/DISTRIBUTED_AI_OPPORTUNITY.md"
+          }
+        ],
+        "monetization_mode": "DeAI: route inference, federated learning, and AI service work.",
+        "name": "Distributed AI opportunity draft",
+        "next_evidence_needed": [
+          "A concrete inference product offer with price and buyer.",
+          "A working request router with metering.",
+          "Invoice, escrow, or payout evidence from a real customer/task platform."
+        ],
+        "path_id": "mesh_ai_router_business",
+        "readiness": "local_evidence_verified",
+        "verified_finding": "The document itself says its current gate note is not current production proof."
+      }
+    ],
+    "root": "/mnt/projects",
+    "schema": "x0tta6bl4.economic_layer_readiness.v1",
+    "status": "economic_layer_local_evidence_ready",
+    "summary": {
+      "funds_received_claim_allowed": false,
+      "live_revenue_ready": false,
+      "local_blocked_total": 0,
+      "local_verified_total": 4,
+      "marketplace_external_finality_claim_allowed": false,
+      "paths_total": 4,
+      "share_to_earn_live_payout_claim_allowed": false,
+      "x0t_chain_submission_code_path_present": true
+    },
+    "wallet": {
+      "address": "0x6017613e80d7893EB2aD5c0585b3f1f88CD6e099",
+      "masked": "0x6017...e099",
+      "routing_note": "Use this wallet only where a platform supports direct EVM payout."
+    }
+  },
+  "schema": "x0tta6bl4.economic_layer_readiness.v1"
+}

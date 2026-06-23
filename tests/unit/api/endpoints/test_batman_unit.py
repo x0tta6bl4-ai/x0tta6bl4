@@ -1,5 +1,6 @@
 """Unit tests for src/api/maas/endpoints/batman.py."""
 
+import json
 import subprocess
 from datetime import datetime
 from types import SimpleNamespace
@@ -10,6 +11,8 @@ from fastapi import HTTPException
 
 from src.api.maas.auth import UserContext
 from src.api.maas.endpoints import batman as mod
+from src.coordination.events import EventBus, EventType
+from src.services.service_event_trace import event_trace_evidence_summary
 
 
 # ---------------------------------------------------------------------------
@@ -53,6 +56,22 @@ def _mock_snapshot(node_id="node-1"):
     snap.packet_loss_percent = 0.1
     snap.interface_up = True
     return snap
+
+
+class _BatmanEvidenceRequest:
+    def __init__(self, bus: EventBus):
+        self.state = SimpleNamespace(event_bus=bus)
+
+
+def _batman_event_payloads(bus: EventBus, source_agent: str) -> list[dict]:
+    return [
+        event.data
+        for event in bus.get_event_history(
+            event_type=EventType.PIPELINE_STAGE_END,
+            source_agent=source_agent,
+            limit=20,
+        )
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -105,10 +124,10 @@ class TestGetOrCreateInstances:
         fake = MagicMock()
         FakeClass = MagicMock(return_value=fake)
 
-        import libx0t.network.batman.health_monitor as hm_mod
+        import src.libx0t.network.batman.health_monitor as hm_mod
 
         monkeypatch.setattr(hm_mod, "BatmanHealthMonitor", FakeClass)
-        with patch.dict("sys.modules", {"libx0t.network.batman.health_monitor": hm_mod}):
+        with patch.dict("sys.modules", {"src.libx0t.network.batman.health_monitor": hm_mod}):
             m1 = mod.get_batman_health_monitor("n1", "bat0")
             m2 = mod.get_batman_health_monitor("n1", "bat0")
 
@@ -116,23 +135,23 @@ class TestGetOrCreateInstances:
         assert FakeClass.call_count == 1
 
     def test_health_monitor_different_interfaces_separate_instances(self, monkeypatch):
-        import libx0t.network.batman.health_monitor as hm_mod
+        import src.libx0t.network.batman.health_monitor as hm_mod
 
         original_cls = MagicMock(side_effect=lambda **_kw: MagicMock())
         monkeypatch.setattr(hm_mod, "BatmanHealthMonitor", original_cls)
-        with patch.dict("sys.modules", {"libx0t.network.batman.health_monitor": hm_mod}):
+        with patch.dict("sys.modules", {"src.libx0t.network.batman.health_monitor": hm_mod}):
             m1 = mod.get_batman_health_monitor("n1", "bat0")
             m2 = mod.get_batman_health_monitor("n1", "bat1")
 
         assert m1 is not m2
 
     def test_metrics_collector_cached(self, monkeypatch):
-        import libx0t.network.batman.metrics as met_mod
+        import src.libx0t.network.batman.metrics as met_mod
 
         fake = MagicMock()
         FakeClass = MagicMock(return_value=fake)
         monkeypatch.setattr(met_mod, "BatmanMetricsCollector", FakeClass)
-        with patch.dict("sys.modules", {"libx0t.network.batman.metrics": met_mod}):
+        with patch.dict("sys.modules", {"src.libx0t.network.batman.metrics": met_mod}):
             c1 = mod.get_batman_metrics_collector("n1", "bat0")
             c2 = mod.get_batman_metrics_collector("n1", "bat0")
 
@@ -140,12 +159,12 @@ class TestGetOrCreateInstances:
         assert FakeClass.call_count == 1
 
     def test_mapek_loop_cached(self, monkeypatch):
-        import libx0t.network.batman.mape_k_integration as mk_mod
+        import src.libx0t.network.batman.mape_k_integration as mk_mod
 
         fake = MagicMock()
         FakeClass = MagicMock(return_value=fake)
         monkeypatch.setattr(mk_mod, "BatmanMAPEKLoop", FakeClass)
-        with patch.dict("sys.modules", {"libx0t.network.batman.mape_k_integration": mk_mod}):
+        with patch.dict("sys.modules", {"src.libx0t.network.batman.mape_k_integration": mk_mod}):
             l1 = mod.get_batman_mapek_loop("n1", "bat0")
             l2 = mod.get_batman_mapek_loop("n1", "bat0")
 
@@ -226,6 +245,33 @@ class TestGetBatmanHealth:
         assert resp.overall_score == 95.0
         assert resp.checks == []
         assert resp.recommendations == []
+        assert (
+            resp.batman_health_claim_gate[
+                "local_batman_health_observation_claim_allowed"
+            ]
+            is True
+        )
+        assert (
+            resp.batman_health_claim_gate["production_readiness_claim_allowed"]
+            is False
+        )
+        assert resp.batman_health_claim_gate["production_slo_claim_allowed"] is False
+        assert (
+            resp.batman_health_claim_gate["dataplane_delivery_claim_allowed"]
+            is False
+        )
+        assert (
+            resp.batman_health_claim_gate["physical_link_health_claim_allowed"]
+            is False
+        )
+        assert (
+            resp.batman_health_claim_gate[
+                "kernel_forwarding_correctness_claim_allowed"
+            ]
+            is False
+        )
+        assert resp.cross_plane_claim_gate["surface"] == "maas_batman.health"
+        assert resp.cross_plane_claim_gate["allowed"] is False
         assert "2026" in resp.timestamp
 
     @pytest.mark.asyncio
@@ -265,6 +311,34 @@ class TestGetBatmanHealthHistory:
         monitor.get_health_history.assert_called_once_with(5)
 
     @pytest.mark.asyncio
+    async def test_history_sets_claim_boundary_headers(self, monkeypatch):
+        response = SimpleNamespace(headers={})
+        monitor = MagicMock()
+        monitor.get_health_history.return_value = []
+        monkeypatch.setattr(mod, "get_batman_health_monitor", lambda _n, _i: monitor)
+
+        await mod.get_batman_health_history(
+            "node-1",
+            limit=5,
+            user=USER,
+            http_response=response,
+        )
+
+        assert (
+            response.headers[
+                "X-X0TTA6BL4-Local-Batman-Health-Observation-Claim-Allowed"
+            ]
+            == "true"
+        )
+        assert response.headers["X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed"] == "false"
+        assert (
+            response.headers[
+                "X-X0TTA6BL4-Physical-Link-Health-Claim-Allowed"
+            ]
+            == "false"
+        )
+
+    @pytest.mark.asyncio
     async def test_empty_history_returns_empty_list(self, monkeypatch):
         monitor = MagicMock()
         monitor.get_health_history.return_value = []
@@ -285,6 +359,27 @@ class TestGetBatmanHealthTrend:
         result = await mod.get_batman_health_trend("node-1", window=10, user=USER)
         assert result == trend_data
         monitor.get_health_trend.assert_called_once_with(10)
+
+    @pytest.mark.asyncio
+    async def test_trend_sets_claim_boundary_headers(self, monkeypatch):
+        response = SimpleNamespace(headers={})
+        monitor = MagicMock()
+        monitor.get_health_trend.return_value = {"direction": "stable"}
+        monkeypatch.setattr(mod, "get_batman_health_monitor", lambda _n, _i: monitor)
+
+        await mod.get_batman_health_trend(
+            "node-1",
+            window=10,
+            user=USER,
+            http_response=response,
+        )
+
+        assert (
+            response.headers[
+                "X-X0TTA6BL4-Kernel-Forwarding-Correctness-Claim-Allowed"
+            ]
+            == "false"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +403,33 @@ class TestGetBatmanMetrics:
         assert resp.total_links == 8
         assert resp.has_gateway is True
         assert resp.interface_up is True
+        assert (
+            resp.batman_metrics_claim_gate[
+                "local_batman_metrics_observation_claim_allowed"
+            ]
+            is True
+        )
+        assert (
+            resp.batman_metrics_claim_gate["production_readiness_claim_allowed"]
+            is False
+        )
+        assert (
+            resp.batman_metrics_claim_gate["production_slo_claim_allowed"] is False
+        )
+        assert (
+            resp.batman_metrics_claim_gate["dataplane_delivery_claim_allowed"]
+            is False
+        )
+        assert (
+            resp.batman_metrics_claim_gate["external_dpi_bypass_claim_allowed"]
+            is False
+        )
+        assert (
+            resp.batman_metrics_claim_gate["settlement_finality_claim_allowed"]
+            is False
+        )
+        assert resp.cross_plane_claim_gate["surface"] == "maas_batman.metrics"
+        assert resp.cross_plane_claim_gate["allowed"] is False
 
     @pytest.mark.asyncio
     async def test_collect_is_called(self, monkeypatch):
@@ -329,6 +451,8 @@ class TestGetBatmanMetricsPrometheus:
         monkeypatch.setattr(mod, "get_batman_metrics_collector", lambda _n, _i: collector)
 
         result = await mod.get_batman_metrics_prometheus("node-1", user=USER)
+        assert "x0tta6bl4_claim_gate_schema" in result
+        assert "x0tta6bl4_dataplane_delivery_claim_allowed false" in result
         assert "batman_up" in result
 
     @pytest.mark.asyncio
@@ -368,6 +492,29 @@ class TestGetBatmanMetricsHistory:
         assert result == [{"throughput": 50.0}, {"throughput": 60.0}]
         collector.get_snapshots.assert_called_once_with(5)
 
+    @pytest.mark.asyncio
+    async def test_history_sets_claim_boundary_headers(self, monkeypatch):
+        response = SimpleNamespace(headers={})
+        collector = MagicMock()
+        collector.get_snapshots.return_value = []
+        monkeypatch.setattr(mod, "get_batman_metrics_collector", lambda _n, _i: collector)
+
+        await mod.get_batman_metrics_history(
+            "node-1",
+            limit=5,
+            user=USER,
+            http_response=response,
+        )
+
+        assert (
+            response.headers[
+                "X-X0TTA6BL4-Local-Batman-Metrics-Observation-Claim-Allowed"
+            ]
+            == "true"
+        )
+        assert response.headers["X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed"] == "false"
+        assert response.headers["X-X0TTA6BL4-Production-SLO-Claim-Allowed"] == "false"
+
 
 # ---------------------------------------------------------------------------
 # Topology endpoint
@@ -377,7 +524,7 @@ class TestGetBatmanMetricsHistory:
 class TestGetBatmanTopology:
     @pytest.mark.asyncio
     async def test_raises_503_when_import_fails(self, monkeypatch):
-        """If libx0t.network.batman.topology is missing, return 503."""
+        """If src.libx0t.network.batman.topology is missing, return 503."""
 
         def _bad_import(name, *args, **kwargs):
             if "topology" in name:
@@ -414,13 +561,39 @@ class TestGetBatmanTopology:
         fake_mod.MeshLink = MagicMock()
         fake_mod.LinkQuality = MagicMock()
 
-        with patch.dict("sys.modules", {"libx0t.network.batman.topology": fake_mod}):
+        with patch.dict("sys.modules", {"src.libx0t.network.batman.topology": fake_mod}):
             resp = await mod.get_batman_topology("node-1", user=USER)
 
         assert resp.mesh_id == "default"
         assert resp.local_node_id == "node-1"
         assert resp.routing_table == {"10.0.0.2": "aa:bb:cc:dd:ee:ff"}
         assert resp.mesh_diameter == 3
+        assert (
+            resp.batman_topology_claim_gate[
+                "local_batman_topology_observation_claim_allowed"
+            ]
+            is True
+        )
+        assert (
+            resp.batman_topology_claim_gate["production_readiness_claim_allowed"]
+            is False
+        )
+        assert (
+            resp.batman_topology_claim_gate["dataplane_delivery_claim_allowed"]
+            is False
+        )
+        assert (
+            resp.batman_topology_claim_gate[
+                "routing_convergence_claim_allowed"
+            ]
+            is False
+        )
+        assert resp.cross_plane_claim_gate["surface"] == "maas_batman.topology"
+        assert resp.cross_plane_claim_gate["allowed"] is False
+        summary = mod._topology_response_summary(resp)
+        assert summary["batman_topology_claim_gate_present"] is True
+        assert summary["cross_plane_claim_gate_present"] is True
+        assert summary["routing_convergence_claim_allowed"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -479,6 +652,25 @@ class TestGetBatmanOriginators:
         assert resp.count == 2
         assert resp.originators[0]["mac"] == "aa:bb:cc:dd:ee:01"
         assert resp.interface == "bat0"
+        assert (
+            resp.batman_topology_claim_gate[
+                "local_batctl_observation_claim_allowed"
+            ]
+            is True
+        )
+        assert resp.batman_topology_claim_gate["surface"] == "maas_batman.originators"
+        assert (
+            resp.batman_topology_claim_gate["dataplane_delivery_claim_allowed"]
+            is False
+        )
+        assert (
+            resp.batman_topology_claim_gate[
+                "routing_convergence_claim_allowed"
+            ]
+            is False
+        )
+        assert resp.cross_plane_claim_gate["surface"] == "maas_batman.originators"
+        assert resp.cross_plane_claim_gate["allowed"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -552,6 +744,25 @@ class TestGetBatmanGateways:
         assert resp.has_selected is True
         assert resp.gateway_mode == "server"
         assert resp.count >= 1
+        assert (
+            resp.batman_topology_claim_gate[
+                "local_batctl_observation_claim_allowed"
+            ]
+            is True
+        )
+        assert resp.batman_topology_claim_gate["surface"] == "maas_batman.gateways"
+        assert (
+            resp.batman_topology_claim_gate["dataplane_delivery_claim_allowed"]
+            is False
+        )
+        assert (
+            resp.batman_topology_claim_gate[
+                "routing_convergence_claim_allowed"
+            ]
+            is False
+        )
+        assert resp.cross_plane_claim_gate["surface"] == "maas_batman.gateways"
+        assert resp.cross_plane_claim_gate["allowed"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -580,6 +791,26 @@ class TestGetBatmanMAPEKStatus:
         assert resp.running is True
         assert resp.cycle_count == 42
         assert resp.knowledge_stats == {"entries": 10}
+        assert (
+            resp.batman_control_claim_gate[
+                "local_batman_mapek_control_claim_allowed"
+            ]
+            is True
+        )
+        assert (
+            resp.batman_control_claim_gate[
+                "restored_dataplane_claim_allowed"
+            ]
+            is False
+        )
+        assert (
+            resp.batman_control_claim_gate[
+                "autonomous_remediation_completion_claim_allowed"
+            ]
+            is False
+        )
+        assert resp.cross_plane_claim_gate["surface"] == "maas_batman.mapek.status"
+        assert resp.cross_plane_claim_gate["allowed"] is False
 
 
 class TestRunBatmanMAPEKCycle:
@@ -605,6 +836,26 @@ class TestRunBatmanMAPEKCycle:
         assert resp.cycle_id == 7
         assert resp.success is True
         assert resp.anomalies_count == 0
+        assert (
+            resp.batman_control_claim_gate[
+                "local_batman_mapek_control_claim_allowed"
+            ]
+            is True
+        )
+        assert (
+            resp.batman_control_claim_gate[
+                "restored_dataplane_claim_allowed"
+            ]
+            is False
+        )
+        assert (
+            resp.batman_control_claim_gate[
+                "production_route_mutation_claim_allowed"
+            ]
+            is False
+        )
+        assert resp.cross_plane_claim_gate["surface"] == "maas_batman.mapek.cycle"
+        assert resp.cross_plane_claim_gate["allowed"] is False
 
     @pytest.mark.asyncio
     async def test_auto_heal_flag_set_on_loop(self, monkeypatch):
@@ -638,6 +889,13 @@ class TestStartBatmanMAPEKLoop:
         )
         assert resp["status"] == "started"
         assert resp["node_id"] == "node-1"
+        assert (
+            resp["batman_control_claim_gate"][
+                "restored_dataplane_claim_allowed"
+            ]
+            is False
+        )
+        assert resp["cross_plane_claim_gate"]["surface"] == "maas_batman.mapek.start"
         background_tasks.add_task.assert_called_once_with(loop.start)
 
     @pytest.mark.asyncio
@@ -662,6 +920,13 @@ class TestStopBatmanMAPEKLoop:
         resp = await mod.stop_batman_mapek_loop("node-1", user=USER)
         assert resp["status"] == "stopped"
         assert resp["node_id"] == "node-1"
+        assert (
+            resp["batman_control_claim_gate"][
+                "restored_dataplane_claim_allowed"
+            ]
+            is False
+        )
+        assert resp["cross_plane_claim_gate"]["surface"] == "maas_batman.mapek.stop"
         loop.stop.assert_called_once()
 
 
@@ -673,7 +938,7 @@ class TestStopBatmanMAPEKLoop:
 class TestTriggerBatmanHealing:
     @pytest.mark.asyncio
     async def test_invalid_action_raises_400(self, monkeypatch):
-        import libx0t.network.batman.mape_k_integration as mk_mod
+        import src.libx0t.network.batman.mape_k_integration as mk_mod
 
         # Make BatmanRecoveryAction raise ValueError on unknown value
         real_class = MagicMock(side_effect=ValueError("bad action"))
@@ -681,7 +946,7 @@ class TestTriggerBatmanHealing:
 
         real_enum = MagicMock()
         real_enum.__iter__ = MagicMock(return_value=iter([]))
-        with patch.dict("sys.modules", {"libx0t.network.batman.mape_k_integration": mk_mod}):
+        with patch.dict("sys.modules", {"src.libx0t.network.batman.mape_k_integration": mk_mod}):
             request = mod.BatmanHealingRequest(action="bad_action")
             with pytest.raises(HTTPException) as exc:
                 await mod.trigger_batman_healing("node-1", request=request, user=USER)
@@ -689,7 +954,7 @@ class TestTriggerBatmanHealing:
 
     @pytest.mark.asyncio
     async def test_successful_heal_returns_response(self, monkeypatch):
-        import libx0t.network.batman.mape_k_integration as mk_mod
+        import src.libx0t.network.batman.mape_k_integration as mk_mod
 
         fake_action = MagicMock()
         fake_action.value = "restart_interface"
@@ -704,17 +969,37 @@ class TestTriggerBatmanHealing:
         monkeypatch.setattr(mk_mod, "BatmanRecoveryAction", BatmanRecoveryAction)
         monkeypatch.setattr(mk_mod, "BatmanMAPEKExecutor", BatmanMAPEKExecutor)
 
-        with patch.dict("sys.modules", {"libx0t.network.batman.mape_k_integration": mk_mod}):
+        with patch.dict("sys.modules", {"src.libx0t.network.batman.mape_k_integration": mk_mod}):
             request = mod.BatmanHealingRequest(action="restart_interface")
             resp = await mod.trigger_batman_healing("node-1", request=request, user=USER)
 
         assert resp.success is True
         assert resp.message == "done"
         assert resp.action == "restart_interface"
+        assert (
+            resp.batman_control_claim_gate[
+                "local_batman_healing_control_claim_allowed"
+            ]
+            is True
+        )
+        assert (
+            resp.batman_control_claim_gate[
+                "restored_dataplane_claim_allowed"
+            ]
+            is False
+        )
+        assert (
+            resp.batman_control_claim_gate[
+                "production_route_mutation_claim_allowed"
+            ]
+            is False
+        )
+        assert resp.cross_plane_claim_gate["surface"] == "maas_batman.healing"
+        assert resp.cross_plane_claim_gate["allowed"] is False
 
     @pytest.mark.asyncio
     async def test_executor_exception_returns_failure(self, monkeypatch):
-        import libx0t.network.batman.mape_k_integration as mk_mod
+        import src.libx0t.network.batman.mape_k_integration as mk_mod
 
         fake_action = MagicMock()
         BatmanRecoveryAction = MagicMock(return_value=fake_action)
@@ -726,18 +1011,24 @@ class TestTriggerBatmanHealing:
         monkeypatch.setattr(mk_mod, "BatmanRecoveryAction", BatmanRecoveryAction)
         monkeypatch.setattr(mk_mod, "BatmanMAPEKExecutor", BatmanMAPEKExecutor)
 
-        with patch.dict("sys.modules", {"libx0t.network.batman.mape_k_integration": mk_mod}):
+        with patch.dict("sys.modules", {"src.libx0t.network.batman.mape_k_integration": mk_mod}):
             request = mod.BatmanHealingRequest(action="restart_interface")
             resp = await mod.trigger_batman_healing("node-1", request=request, user=USER)
 
         assert resp.success is False
         assert "boom" in resp.message
+        assert (
+            resp.batman_control_claim_gate[
+                "restored_dataplane_claim_allowed"
+            ]
+            is False
+        )
 
 
 class TestGetBatmanHealingActions:
     @pytest.mark.asyncio
     async def test_returns_list_of_actions(self, monkeypatch):
-        import libx0t.network.batman.mape_k_integration as mk_mod
+        import src.libx0t.network.batman.mape_k_integration as mk_mod
 
         a1 = MagicMock()
         a1.value = "restart_interface"
@@ -750,10 +1041,19 @@ class TestGetBatmanHealingActions:
 
         monkeypatch.setattr(mk_mod, "BatmanRecoveryAction", FakeEnum())
 
-        with patch.dict("sys.modules", {"libx0t.network.batman.mape_k_integration": mk_mod}):
-            result = await mod.get_batman_healing_actions("node-1", user=USER)
+        with patch.dict("sys.modules", {"src.libx0t.network.batman.mape_k_integration": mk_mod}):
+            http_response = SimpleNamespace(headers={})
+            result = await mod.get_batman_healing_actions(
+                "node-1", user=USER, http_response=http_response
+            )
 
         assert len(result) == 2
+        assert (
+            http_response.headers[
+                "X-X0TTA6BL4-Restored-Dataplane-Claim-Allowed"
+            ]
+            == "false"
+        )
         values = [r["action"] for r in result]
         assert "restart_interface" in values
         assert "escalate" in values
@@ -786,8 +1086,41 @@ class TestGetMeshBatmanStatus:
 
         monkeypatch.setattr(mod, "require_mesh_access", _require)
 
-        resp = await mod.get_mesh_batman_status("mesh-1", user=USER)
+        http_response = SimpleNamespace(headers={})
+        resp = await mod.get_mesh_batman_status(
+            "mesh-1", user=USER, http_response=http_response
+        )
         assert resp["mesh_id"] == "mesh-1"
+        assert (
+            resp["batman_mesh_status_claim_gate"][
+                "local_batman_mesh_status_observation_claim_allowed"
+            ]
+            is True
+        )
+        assert (
+            resp["batman_mesh_status_claim_gate"][
+                "dataplane_delivery_claim_allowed"
+            ]
+            is False
+        )
+        assert (
+            resp["batman_mesh_status_claim_gate"][
+                "routing_convergence_claim_allowed"
+            ]
+            is False
+        )
+        assert resp["cross_plane_claim_gate"]["surface"] == "maas_batman.mesh.status"
+        assert resp["cross_plane_claim_gate"]["allowed"] is False
+        assert (
+            http_response.headers[
+                "X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed"
+            ]
+            == "false"
+        )
+        summary = mod._mesh_batman_status_summary(resp)
+        assert summary["batman_mesh_status_claim_gate_present"] is True
+        assert summary["cross_plane_claim_gate_present"] is True
+        assert summary["dataplane_delivery_claim_allowed"] is False
         assert called["require"] == 0
 
     @pytest.mark.asyncio
@@ -842,6 +1175,12 @@ class TestGetMeshBatmanStatus:
         resp = await mod.get_mesh_batman_status("mesh-1", user=USER)
         assert resp["nodes"][0]["health_status"] == "degraded"
         assert resp["nodes"][0]["health_score"] == 60.0
+        assert (
+            resp["batman_mesh_status_claim_gate"][
+                "physical_link_health_claim_allowed"
+            ]
+            is False
+        )
 
     @pytest.mark.asyncio
     async def test_response_contains_timestamp(self, monkeypatch):
@@ -851,6 +1190,348 @@ class TestGetMeshBatmanStatus:
         resp = await mod.get_mesh_batman_status("mesh-1", user=USER)
         assert "timestamp" in resp
         assert "2026" in resp["timestamp"] or len(resp["timestamp"]) > 10
+
+
+@pytest.mark.asyncio
+async def test_batman_health_and_metrics_publish_redacted_observed_state_evidence(
+    monkeypatch,
+    tmp_path,
+):
+    node_id = "node-batman-health-secret"
+    interface = "bat-secret-health"
+    bus = EventBus(str(tmp_path))
+    http_request = _BatmanEvidenceRequest(bus)
+
+    report = _mock_health_report(node_id=node_id)
+    health_monitor = AsyncMock()
+    health_monitor.run_health_checks = AsyncMock(return_value=report)
+    monkeypatch.setattr(
+        mod,
+        "get_batman_health_monitor",
+        lambda _node_id, _interface: health_monitor,
+    )
+
+    snap = _mock_snapshot(node_id=node_id)
+    collector = AsyncMock()
+    collector.collect = AsyncMock(return_value=snap)
+    monkeypatch.setattr(
+        mod,
+        "get_batman_metrics_collector",
+        lambda _node_id, _interface: collector,
+    )
+
+    health = await mod.get_batman_health(
+        node_id,
+        interface=interface,
+        user=USER,
+        http_request=http_request,
+    )
+    metrics = await mod.get_batman_metrics(
+        node_id,
+        interface=interface,
+        user=USER,
+        http_request=http_request,
+    )
+
+    assert health.node_id == node_id
+    assert metrics.node_id == node_id
+
+    health_payloads = _batman_event_payloads(
+        bus,
+        mod._MODULAR_BATMAN_HEALTH_SOURCE_AGENT,
+    )
+    metrics_payloads = _batman_event_payloads(
+        bus,
+        mod._MODULAR_BATMAN_METRICS_SOURCE_AGENT,
+    )
+    assert len(health_payloads) == 1
+    assert len(metrics_payloads) == 1
+
+    health_payload = health_payloads[0]
+    metrics_payload = metrics_payloads[0]
+    assert health_payload["operation"] == "get_batman_health"
+    assert health_payload["source_quality"] == "local_batman_health_observed_state"
+    assert health_payload["node_id_hash"]
+    assert health_payload["interface_hash"]
+    assert health_payload["interface_bucket"] == "other"
+    assert health_payload["batman_endpoint_evidence"]["dataplane_confirmed"] is False
+    assert health_payload["batman_endpoint_evidence"][
+        "kernel_forwarding_confirmed"
+    ] is False
+    assert health_payload["result_summary"]["batman_health_claim_gate_present"] is True
+    assert health_payload["result_summary"]["cross_plane_claim_gate_present"] is True
+    assert (
+        health_payload["result_summary"]["production_readiness_claim_allowed"]
+        is False
+    )
+    assert (
+        health_payload["result_summary"]["dataplane_delivery_claim_allowed"]
+        is False
+    )
+    assert (
+        health_payload["result_summary"]["physical_link_health_claim_allowed"]
+        is False
+    )
+    assert metrics_payload["operation"] == "get_batman_metrics"
+    assert metrics_payload["source_quality"] == "local_batman_metrics_observed_state"
+    assert metrics_payload["result_summary"]["originators_count"] == 5
+    assert metrics_payload["result_summary"]["interface_up"] is True
+    assert metrics_payload["result_summary"]["batman_metrics_claim_gate_present"] is True
+    assert metrics_payload["result_summary"]["cross_plane_claim_gate_present"] is True
+    assert (
+        metrics_payload["result_summary"]["production_readiness_claim_allowed"]
+        is False
+    )
+    assert (
+        metrics_payload["result_summary"]["dataplane_delivery_claim_allowed"]
+        is False
+    )
+    assert (
+        metrics_payload["result_summary"]["external_dpi_bypass_claim_allowed"]
+        is False
+    )
+
+    trace_summary = event_trace_evidence_summary(health_payload)
+    assert "batman_endpoint_evidence" in trace_summary["runtime_evidence"][
+        "evidence_blocks_present"
+    ]
+
+    serialized = json.dumps(health_payloads + metrics_payloads, sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    for raw_value in (node_id, interface):
+        assert raw_value not in serialized
+        assert raw_value not in raw_log
+
+
+@pytest.mark.asyncio
+async def test_batman_batctl_reads_publish_returncode_and_redacted_output(
+    monkeypatch,
+    tmp_path,
+):
+    node_id = "node-batctl-secret"
+    interface = "batctl-secret-iface"
+    raw_mac = "aa:bb:cc:dd:ee:99"
+    stdout = (
+        "B.A.T.M.A.N. adv 2022.3\n"
+        "Originator    last-seen  next-hop    outgoing-interface\n"
+        f"{raw_mac} 0.160s {raw_mac}  {interface}\n"
+    )
+    result = MagicMock()
+    result.returncode = 0
+    result.stdout = stdout
+    result.stderr = "stderr-secret-value"
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: result)
+
+    bus = EventBus(str(tmp_path))
+    http_request = _BatmanEvidenceRequest(bus)
+
+    response = await mod.get_batman_originators(
+        node_id,
+        interface=interface,
+        user=USER,
+        http_request=http_request,
+    )
+
+    assert response.count == 1
+    assert response.originators[0]["mac"] == raw_mac
+
+    payloads = _batman_event_payloads(
+        bus,
+        mod._MODULAR_BATMAN_TOPOLOGY_SOURCE_AGENT,
+    )
+    assert len(payloads) == 1
+    payload = payloads[0]
+    assert payload["operation"] == "get_batman_originators"
+    assert payload["source_quality"] == "local_batman_topology_observed_state"
+    assert payload["batman_endpoint_evidence"]["batctl_evidence"] == {
+        "attempted": True,
+        "payloads_redacted": True,
+    }
+    assert payload["result_summary"]["batctl"]["return_code"] == 0
+    assert payload["result_summary"]["batctl"]["stdout"]["sha256"]
+    assert payload["result_summary"]["batctl"]["stderr"]["sha256"]
+    assert payload["result_summary"]["batman_topology_claim_gate_present"] is True
+    assert payload["result_summary"]["cross_plane_claim_gate_present"] is True
+    assert (
+        payload["result_summary"]["production_readiness_claim_allowed"]
+        is False
+    )
+    assert (
+        payload["result_summary"]["dataplane_delivery_claim_allowed"]
+        is False
+    )
+    assert (
+        payload["result_summary"]["routing_convergence_claim_allowed"]
+        is False
+    )
+
+    serialized = json.dumps(payloads, sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    for raw_value in (node_id, interface, raw_mac, "stderr-secret-value"):
+        assert raw_value not in serialized
+        assert raw_value not in raw_log
+
+
+@pytest.mark.asyncio
+async def test_batman_mapek_and_healing_publish_redacted_control_evidence(
+    monkeypatch,
+    tmp_path,
+):
+    node_id = "node-mapek-heal-secret"
+    target_node = "target-mapek-heal-secret"
+    interface = "bat-mapek-secret"
+    bus = EventBus(str(tmp_path))
+    http_request = _BatmanEvidenceRequest(bus)
+
+    cycle_result = {
+        "cycle_id": 7,
+        "node_id": node_id,
+        "started_at": "2026-02-23T12:00:00",
+        "completed_at": "2026-02-23T12:00:01",
+        "duration_seconds": 1.0,
+        "success": True,
+        "anomalies_count": 1,
+        "anomalies": [{"node_id": target_node, "reason": "secret-anomaly"}],
+        "plan": {"action": "restart_interface", "target": target_node},
+        "execution": {"message": "execution-secret"},
+    }
+    loop = AsyncMock()
+    loop.run_cycle = AsyncMock(return_value=cycle_result)
+    loop.auto_heal = True
+    monkeypatch.setattr(mod, "get_batman_mapek_loop", lambda _n, _i: loop)
+
+    import src.libx0t.network.batman.mape_k_integration as mk_mod
+
+    fake_action = MagicMock()
+    fake_action.value = "restart_interface"
+    monkeypatch.setattr(mk_mod, "BatmanRecoveryAction", MagicMock(return_value=fake_action))
+
+    fake_executor = AsyncMock()
+    fake_executor._execute_action = AsyncMock(
+        return_value={"status": "success", "message": "healing-secret-message"}
+    )
+    monkeypatch.setattr(
+        mk_mod,
+        "BatmanMAPEKExecutor",
+        MagicMock(return_value=fake_executor),
+    )
+
+    with patch.dict("sys.modules", {"src.libx0t.network.batman.mape_k_integration": mk_mod}):
+        cycle = await mod.run_batman_mapek_cycle(
+            node_id,
+            interface=interface,
+            auto_heal=True,
+            user=USER,
+            http_request=http_request,
+        )
+        healing = await mod.trigger_batman_healing(
+            node_id,
+            request=mod.BatmanHealingRequest(
+                action="restart_interface",
+                target_node=target_node,
+                force=True,
+            ),
+            interface=interface,
+            user=USER,
+            http_request=http_request,
+        )
+
+    assert cycle.success is True
+    assert healing.success is True
+    assert (
+        cycle.batman_control_claim_gate[
+            "autonomous_remediation_completion_claim_allowed"
+        ]
+        is False
+    )
+    assert (
+        cycle.batman_control_claim_gate["restored_dataplane_claim_allowed"]
+        is False
+    )
+    assert (
+        healing.batman_control_claim_gate["production_route_mutation_claim_allowed"]
+        is False
+    )
+    assert (
+        healing.batman_control_claim_gate["restored_dataplane_claim_allowed"]
+        is False
+    )
+
+    mapek_payloads = _batman_event_payloads(
+        bus,
+        mod._MODULAR_BATMAN_MAPEK_SOURCE_AGENT,
+    )
+    healing_payloads = _batman_event_payloads(
+        bus,
+        mod._MODULAR_BATMAN_HEALING_SOURCE_AGENT,
+    )
+    assert len(mapek_payloads) == 1
+    assert len(healing_payloads) == 1
+
+    mapek_payload = mapek_payloads[0]
+    healing_payload = healing_payloads[0]
+    assert mapek_payload["operation"] == "run_batman_mapek_cycle"
+    assert mapek_payload["control_action"] is True
+    assert mapek_payload["batman_endpoint_evidence"]["mapek_evidence"] == {
+        "attempted": True,
+        "payloads_redacted": True,
+    }
+    assert mapek_payload["batman_endpoint_evidence"][
+        "autonomous_remediation_confirmed"
+    ] is False
+    assert mapek_payload["result_summary"]["batman_control_claim_gate_present"] is True
+    assert mapek_payload["result_summary"]["cross_plane_claim_gate_present"] is True
+    assert (
+        mapek_payload["result_summary"][
+            "autonomous_remediation_completion_claim_allowed"
+        ]
+        is False
+    )
+    assert (
+        mapek_payload["result_summary"]["restored_dataplane_claim_allowed"]
+        is False
+    )
+    assert healing_payload["operation"] == "trigger_batman_healing"
+    assert healing_payload["action"] == "restart_interface"
+    assert healing_payload["target_node_hash"]
+    assert healing_payload["batman_endpoint_evidence"]["healing_evidence"] == {
+        "attempted": True,
+        "payloads_redacted": True,
+    }
+    assert healing_payload["batman_endpoint_evidence"][
+        "production_route_mutation_confirmed"
+    ] is False
+    assert (
+        healing_payload["result_summary"]["batman_control_claim_gate_present"]
+        is True
+    )
+    assert (
+        healing_payload["result_summary"]["production_route_mutation_claim_allowed"]
+        is False
+    )
+    assert (
+        healing_payload["result_summary"]["restored_dataplane_claim_allowed"]
+        is False
+    )
+
+    serialized = json.dumps(mapek_payloads + healing_payloads, sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    for raw_value in (
+        node_id,
+        target_node,
+        interface,
+        "secret-anomaly",
+        "execution-secret",
+        "healing-secret-message",
+    ):
+        assert raw_value not in serialized
+        assert raw_value not in raw_log
 
 
 # ---------------------------------------------------------------------------

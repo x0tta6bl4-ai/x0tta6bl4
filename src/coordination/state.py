@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Optional, Set
 import hashlib
 import logging
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -198,6 +200,13 @@ class AgentCoordinator:
         self.agents: Dict[str, AgentState] = {}
         self.locks: Dict[str, CoordinationLock] = {}
         self.file_zones = DEFAULT_FILE_ZONES.copy()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="agent_coordinator",
+            role="coordinator",
+            capabilities=("quality", "ops"),
+            extra_techniques=("delphi_consensus",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
         
         # Load existing state
         self._load_state()
@@ -442,6 +451,18 @@ class AgentCoordinator:
     
     def find_conflicts(self) -> List[Dict[str, Any]]:
         """Find potential conflicts between agents."""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "agent_coordination_conflict_scan",
+                "goal": "Find file-lock and task-overlap conflicts between agents.",
+                "agent_count": len(self.agents),
+                "lock_count": len(self.locks),
+                "constraints": {
+                    "preserve_conflict_schema": True,
+                    "file_zone_count": len(self.file_zones),
+                },
+            }
+        )
         conflicts = []
         
         # Check for agents working on same files
@@ -488,6 +509,18 @@ class AgentCoordinator:
     
     def suggest_next_task(self, agent_id: str) -> Optional[Dict[str, Any]]:
         """Suggest next task for an agent based on current state."""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "agent_next_task_suggestion",
+                "goal": "Suggest an unlocked, role-appropriate next task for one agent.",
+                "agent_id": agent_id,
+                "known_agent": agent_id in self.agents,
+                "constraints": {
+                    "respect_file_zones": True,
+                    "do_not_mutate_locks": True,
+                },
+            }
+        )
         if agent_id not in self.agents:
             return None
         
@@ -513,6 +546,13 @@ class AgentCoordinator:
                     })
         
         return suggestions[0] if suggestions else None
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose coordination thinking metadata without changing state.json."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
 
 # Singleton instance

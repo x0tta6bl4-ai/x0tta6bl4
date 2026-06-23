@@ -1,9 +1,28 @@
 # src/core/mape_orchestrator.py
 import asyncio
+import hashlib
 import logging
 import time
+from typing import Any, Dict
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _metrics_summary(metrics: Dict[str, Any]) -> Dict[str, Any]:
+    keys = sorted(str(key) for key in (metrics or {}).keys())
+    return {
+        "key_count": len(keys),
+        "keys_hash": _safe_hash("|".join(keys)),
+        "has_latency": "latency_p95_value" in metrics,
+        "has_packet_loss": "packet_loss_value" in metrics,
+        "has_pqc": "pqc_handshake_success_value" in metrics,
+    }
 
 
 class MAPEOrchestrator:
@@ -12,7 +31,58 @@ class MAPEOrchestrator:
         self.mesh = mesh_client
         self.dao = dao_client
         self.ipfs = ipfs_client
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"libx0t-mape-orchestrator:{_safe_hash(id(self))}",
+            role="healing",
+            capabilities=("mape_k", "monitoring", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "libx0t_mape_orchestrator_init",
+                "goal": "Initialize MAPE-K orchestrator clients",
+                "signals": {
+                    "prometheus_configured": prometheus_client is not None,
+                    "mesh_configured": mesh_client is not None,
+                    "dao_configured": dao_client is not None,
+                    "ipfs_configured": ipfs_client is not None,
+                },
+                "safety_boundary": (
+                    "Do not expose raw metrics, routing plans, DAO event payloads, "
+                    "or snapshot names in orchestrator thinking context."
+                ),
+            }
+        )
         logger.info("MAPEOrchestrator initialized.")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_metrics": True,
+                    "redact_routing_details": True,
+                    "redact_dao_payloads": True,
+                    "preserve_mapek_contract": True,
+                },
+                "safety_boundary": (
+                    "Use metric summaries, action names, hashes, and boolean flags."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def monitor_cycle(self):
         """
@@ -29,6 +99,11 @@ class MAPEOrchestrator:
             }
         )
         logger.debug(f"Метрики получены: {metrics}")
+        self._record_thinking(
+            "libx0t_mape_monitor_cycle",
+            "Collect metrics for MAPE-K analysis",
+            {"metrics": _metrics_summary(metrics)},
+        )
         return metrics
 
     async def analyze_cycle(self, metrics):
@@ -59,6 +134,16 @@ class MAPEOrchestrator:
             plan = {"action": "none", "reason": "System stable"}
 
         logger.debug(f"План анализа: {plan}")
+        self._record_thinking(
+            "libx0t_mape_analyze_cycle",
+            "Select routing plan from redacted metric summary",
+            {
+                "metrics": _metrics_summary(metrics),
+                "action": plan.get("action"),
+                "algorithm": plan.get("algorithm"),
+                "reason_hash": _safe_hash(plan.get("reason")),
+            },
+        )
         return plan
 
     async def execute_cycle(self, plan):
@@ -67,6 +152,16 @@ class MAPEOrchestrator:
         Выполняет план действий и логирует в DAO.
         """
         logger.debug(f"Начало цикла выполнения: {plan['action']}")
+        self._record_thinking(
+            "libx0t_mape_execute_cycle_started",
+            "Execute selected MAPE-K plan",
+            {
+                "action": plan.get("action"),
+                "algorithm": plan.get("algorithm"),
+                "plan_key_count": len(plan),
+                "plan_keys_hash": _safe_hash("|".join(sorted(str(k) for k in plan))),
+            },
+        )
         if plan["action"] == "re-route":
             # Предполагаем, что self.mesh.apply_routing() применяет изменения маршрутизации
             logger.info(f"Применяется маршрутизация: {plan['algorithm']}")
@@ -88,6 +183,16 @@ class MAPEOrchestrator:
         logger.info(f"Создание IPFS snapshot: {snapshot_name}")
         await self.ipfs.snapshot(snapshot_name)
         logger.debug("Цикл выполнения завершен.")
+        self._record_thinking(
+            "libx0t_mape_execute_cycle_completed",
+            "Record MAPE-K execution audit and snapshot completion",
+            {
+                "action": plan.get("action"),
+                "dao_event_type": event_data["type"],
+                "snapshot_created": True,
+                "snapshot_hash": _safe_hash(snapshot_name),
+            },
+        )
 
     async def mape_k_loop(self, interval_seconds: float = 3.14):
         """
@@ -95,6 +200,11 @@ class MAPEOrchestrator:
         """
         logger.info(
             f"Запуск основного цикла MAPE-K с интервалом {interval_seconds} секунд..."
+        )
+        self._record_thinking(
+            "libx0t_mape_loop_started",
+            "Start continuous MAPE-K loop",
+            {"interval_seconds": interval_seconds},
         )
         while True:
             try:
@@ -104,6 +214,11 @@ class MAPEOrchestrator:
                     await self.execute_cycle(plan)
             except Exception as e:
                 logger.error(f"Ошибка в цикле MAPE-K: {e}")
+                self._record_thinking(
+                    "libx0t_mape_loop_error",
+                    "Handle MAPE-K loop error",
+                    {"error_type": type(e).__name__},
+                )
             await asyncio.sleep(interval_seconds)
 
 

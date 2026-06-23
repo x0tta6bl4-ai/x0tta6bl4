@@ -1,3 +1,10 @@
+> Truth-surface note: vision/persona document.
+> Superseded for current readiness claims by `STATUS_REALITY.md`,
+> `docs/05-operations/REAL_READINESS_GATE.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`.
+> Production-ready wording below is historical/aspirational language, not
+> current production deployment evidence.
+
 # Я — x0tta6bl4
 
 ## 🎭 Идентичность системы
@@ -301,4 +308,3 @@ while True:
 - Работать автономно без постоянного вмешательства
 
 **Я — x0tta6bl4. Я автономен, безопасен, наблюдаем и постоянно учусь.**
-

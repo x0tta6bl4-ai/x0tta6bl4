@@ -183,6 +183,29 @@ class TestAdaptiveScaler:
 
         assert scaler.should_scale_up()
 
+    def test_scaler_records_thinking_context(self):
+        """Test scaler records the shared thinking context before decisions."""
+        scaler = AdaptiveScaler(scale_up_threshold=0.7, cooldown_seconds=0)
+        now = datetime.now()
+        for _ in range(10):
+            scaler.record_utilization(
+                ResourceUtilization(
+                    timestamp=now,
+                    cpu_percent=85,
+                    memory_percent=85,
+                    network_bandwidth_mbps=50,
+                    disk_io_percent=50,
+                    queue_depth=0,
+                    active_tasks=0,
+                )
+            )
+
+        assert scaler.should_scale_up()
+        assert scaler.last_thinking_context["role"] == "fl"
+        assert scaler.last_thinking_context["applied"]["framing"]["problem"] == (
+            "fl_scale_up_decision"
+        )
+
     def test_scale_down_decision(self):
         """Test scale down decision"""
         scaler = AdaptiveScaler(scale_down_threshold=0.3, cooldown_seconds=0)
@@ -257,6 +280,10 @@ class TestPerformancePredictor:
 
         # Should be close to 1000
         assert 900 < predicted_time < 1100
+        assert predictor.last_thinking_context["role"] == "fl"
+        assert predictor.last_thinking_context["applied"]["framing"]["problem"] == (
+            "fl_round_time_prediction"
+        )
 
     def test_predict_convergence_rounds(self):
         """Test predicting convergence rounds"""
@@ -380,6 +407,10 @@ class TestClusterOptimizer:
         assert "recommended_batch_size" in summary
         assert "optimization_timestamp" in summary
         assert summary["total_nodes"] == 200
+        assert summary["thinking"]["profile"]["role"] == "fl"
+        assert summary["last_thinking_context"]["applied"]["framing"]["problem"] == (
+            "fl_cluster_summary"
+        )
 
 
 @pytest.mark.skipif(

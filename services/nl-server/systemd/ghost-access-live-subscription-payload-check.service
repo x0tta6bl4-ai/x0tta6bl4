@@ -1,0 +1,26 @@
+[Unit]
+Description=Ghost Access live subscription payload safety check
+After=network-online.target telegram-bot-simple.service
+Wants=network-online.target
+ConditionPathExists=/opt/ghost-access-bot/shared/scripts/check_live_subscription_payload.py
+ConditionPathExists=/opt/ghost-access-bot/shared/x0tta6bl4.db
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/opt/ghost-access-bot/shared
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/usr/bin/install -d -m 0750 -o root -g root /var/lib/ghost-access/subscription-payload
+ExecStart=/usr/bin/python3 /opt/ghost-access-bot/shared/scripts/check_live_subscription_payload.py --limit 50 --expired-limit 50 --json-out /var/lib/ghost-access/subscription-payload/latest.json
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/ghost-access-bot/shared
+ReadWritePaths=/var/lib/ghost-access
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+MemoryDenyWriteExecute=true

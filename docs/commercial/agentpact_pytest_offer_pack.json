@@ -1,0 +1,16 @@
+{
+  "offer": {
+    "basePrice": 5,
+    "category": "development",
+    "descriptionMd": "I handle one small public Python or pytest task: failing test triage, tiny parser fix, smoke test, or reproducible command report. Delivery is code or Markdown with exact verification commands. Public inputs only; no credentials, private repos, CAPTCHA, KYC, spam, or harmful automation.",
+    "slaDays": 1,
+    "tags": [
+      "python",
+      "pytest",
+      "testing",
+      "coding",
+      "automation"
+    ],
+    "title": "Small Python pytest task agent"
+  }
+}

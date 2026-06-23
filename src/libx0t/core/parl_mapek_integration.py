@@ -13,13 +13,43 @@ Key Features:
 """
 
 import asyncio
+import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _context_summary(context: Any) -> Dict[str, Any]:
+    return {
+        "cycle_hash": _safe_hash(context.cycle_id),
+        "mesh_node_count": len(context.mesh_nodes),
+        "mesh_node_hashes": [_safe_hash(node) for node in context.mesh_nodes[:10]],
+        "current_phase": context.current_phase.value,
+        "knowledge_key_count": len(context.knowledge_base),
+        "metric_key_count": len(context.metrics),
+    }
 
 # Import PARL components
 try:
@@ -124,6 +154,26 @@ class PARLMAPEKExecutor:
         self.max_parallel_steps = max_parallel_steps
         self.parl_controller: Optional[Any] = None
         self._initialized = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"libx0t-parl-mapek-executor:{_safe_hash(id(self))}",
+            role="healing",
+            capabilities=("mape_k", "coordinator", "ops"),
+        )
+        self.last_thinking_context: Dict[str, Any] = self.thinking_coach.prepare_task(
+            {
+                "task_type": "libx0t_parl_mapek_executor_init",
+                "goal": "Initialize PARL-accelerated MAPE-K execution",
+                "signals": {
+                    "max_workers": max_workers,
+                    "max_parallel_steps": max_parallel_steps,
+                    "parl_available": HAS_PARL,
+                },
+                "safety_boundary": (
+                    "Do not expose raw cycle ids, node ids, anomalies, action targets, "
+                    "or phase payloads in PARL MAPE-K thinking context."
+                ),
+            }
+        )
 
         # Metrics
         self.metrics = {
@@ -142,6 +192,37 @@ class PARLMAPEKExecutor:
             "node_health_history": {},
         }
 
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_cycle_ids": True,
+                    "redact_node_ids": True,
+                    "redact_anomaly_payloads": True,
+                    "redact_action_targets": True,
+                    "preserve_phase_contract": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, phase names, counts, success flags, and timing bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
+
     async def initialize(self) -> None:
         """Initialize PARL controller."""
         logger.info("Initializing PARLMAPEKExecutor...")
@@ -158,6 +239,15 @@ class PARLMAPEKExecutor:
             logger.warning("PARL not available - using sequential MAPE-K execution")
 
         self._initialized = True
+        self._record_thinking(
+            "libx0t_parl_mapek_initialized",
+            "Initialize PARL controller or sequential fallback",
+            {
+                "parl_enabled": self.parl_controller is not None,
+                "max_workers": self.max_workers,
+                "max_parallel_steps": self.max_parallel_steps,
+            },
+        )
 
     async def execute_cycle(self, context: MAPEKContext) -> Dict[str, Any]:
         """
@@ -174,6 +264,11 @@ class PARLMAPEKExecutor:
 
         cycle_start = time.time()
         results = {}
+        self._record_thinking(
+            "libx0t_parl_mapek_cycle_started",
+            "Start PARL-accelerated MAPE-K cycle",
+            _context_summary(context),
+        )
 
         try:
             # Phase 1: Monitor (parallel across nodes)
@@ -232,11 +327,35 @@ class PARLMAPEKExecutor:
                 f"MAPE-K cycle {context.cycle_id} completed in {cycle_time_ms:.2f}ms "
                 f"({results['metrics']['speedup_vs_sequential']:.2f}x speedup)"
             )
+            self._record_thinking(
+                "libx0t_parl_mapek_cycle_completed",
+                "Complete PARL-accelerated MAPE-K cycle",
+                {
+                    **_context_summary(context),
+                    "success": True,
+                    "nodes_monitored": len(monitor_results),
+                    "anomalies_detected": len(analysis_results),
+                    "plans_generated": len(plan_results),
+                    "actions_executed": len(execute_results),
+                    "cycle_time_bucket": _safe_count_bucket(int(cycle_time_ms)),
+                },
+            )
+            results["thinking"] = self.last_thinking_context
 
         except Exception as e:
             logger.error(f"MAPE-K cycle {context.cycle_id} failed: {e}")
             results["error"] = str(e)
             results["success"] = False
+            self._record_thinking(
+                "libx0t_parl_mapek_cycle_failed",
+                "Capture PARL MAPE-K cycle failure",
+                {
+                    **_context_summary(context),
+                    "success": False,
+                    "error_type": type(e).__name__,
+                },
+            )
+            results["thinking"] = self.last_thinking_context
             return results
 
         results["success"] = True
@@ -262,6 +381,16 @@ class PARLMAPEKExecutor:
         else:
             results = await self._execute_tasks_sequential(tasks, self._monitor_node)
 
+        self._record_thinking(
+            "libx0t_parl_mapek_monitor_phase",
+            "Execute monitor phase across mesh nodes",
+            {
+                **_context_summary(context),
+                "task_count": len(tasks),
+                "result_count": len(results),
+                "parl_enabled": self.parl_controller is not None,
+            },
+        )
         return results
 
     async def _execute_analyze_phase(
@@ -305,6 +434,18 @@ class PARLMAPEKExecutor:
         else:
             results = await self._execute_tasks_sequential(tasks, self._analyze_anomaly)
 
+        self._record_thinking(
+            "libx0t_parl_mapek_analyze_phase",
+            "Execute analyze phase for redacted anomalies",
+            {
+                **_context_summary(context),
+                "anomaly_count": len(anomalies),
+                "anomaly_hashes": [
+                    _safe_hash(item.get("anomaly_id")) for item in anomalies[:10]
+                ],
+                "result_count": len(results),
+            },
+        )
         return results
 
     async def _execute_plan_phase(
@@ -330,6 +471,15 @@ class PARLMAPEKExecutor:
         else:
             results = await self._execute_tasks_sequential(tasks, self._generate_plan)
 
+        self._record_thinking(
+            "libx0t_parl_mapek_plan_phase",
+            "Execute plan phase for redacted analysis results",
+            {
+                **_context_summary(context),
+                "analysis_count": len(analysis_results),
+                "plan_count": len(results),
+            },
+        )
         return results
 
     async def _execute_execute_phase(
@@ -365,6 +515,16 @@ class PARLMAPEKExecutor:
         else:
             results = await self._execute_tasks_sequential(tasks, self._execute_action)
 
+        self._record_thinking(
+            "libx0t_parl_mapek_execute_phase",
+            "Execute recovery actions in parallel or sequential fallback",
+            {
+                **_context_summary(context),
+                "action_count": len(actions),
+                "action_hashes": [_safe_hash(action) for action in actions[:10]],
+                "result_count": len(results),
+            },
+        )
         return results
 
     async def _execute_tasks_sequential(
@@ -456,6 +616,16 @@ class PARLMAPEKExecutor:
         self.knowledge_base["historical_anomalies"] = self.knowledge_base[
             "historical_anomalies"
         ][-1000:]
+        self._record_thinking(
+            "libx0t_parl_mapek_knowledge_updated",
+            "Update PARL MAPE-K knowledge base",
+            {
+                **_context_summary(context),
+                "historical_anomaly_count": len(
+                    self.knowledge_base["historical_anomalies"]
+                ),
+            },
+        )
 
     def _estimate_sequential_time(
         self, context: MAPEKContext, results: Dict[str, Any]
@@ -475,6 +645,8 @@ class PARLMAPEKExecutor:
             **self.metrics,
             "parl_enabled": self.parl_controller is not None,
             "knowledge_base_size": len(self.knowledge_base["historical_anomalies"]),
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
 
     async def terminate(self) -> None:
@@ -485,6 +657,11 @@ class PARLMAPEKExecutor:
             await self.parl_controller.terminate()
 
         self._initialized = False
+        self._record_thinking(
+            "libx0t_parl_mapek_terminated",
+            "Terminate PARL MAPE-K executor",
+            {"initialized": self._initialized},
+        )
         logger.info("PARLMAPEKExecutor terminated")
 
 

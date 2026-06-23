@@ -555,3 +555,31 @@ class TestTrafficShaperDefaults:
     def test_params_set_from_profiles_dict(self):
         shaper = TrafficShaper()
         assert shaper.params is TRAFFIC_PROFILES[TrafficProfile.VIDEO_STREAMING]
+
+    def test_thinking_status_redacts_payload_after_shape(self):
+        shaper = TrafficShaper(profile=TrafficProfile.VIDEO_STREAMING)
+        shaped = shaper.shape_packet(b"raw-payload-secret")
+        assert shaper.unshape_packet(shaped) == b"raw-payload-secret"
+
+        status = shaper.get_thinking_status()
+        assert status["thinking"]["profile"]["role"] == "security"
+        assert "zero_trust_review" in status["thinking"]["techniques"]
+        assert (
+            status["last_thinking_context"]["applied"]["framing"]["problem"]
+            == "traffic_shaping_unshape_packet"
+        )
+        assert "raw-payload-secret" not in repr(status)
+
+    def test_analyzer_thinking_status_records_counts_only(self):
+        analyzer = TrafficAnalyzer()
+        analyzer.record_packet(128)
+        stats = analyzer.get_statistics()
+        assert stats["packets"] == 1
+
+        status = analyzer.get_thinking_status()
+        assert status["thinking"]["profile"]["role"] == "monitoring"
+        assert (
+            status["last_thinking_context"]["applied"]["framing"]["problem"]
+            == "traffic_analyzer_get_statistics"
+        )
+        assert "raw-payload" not in repr(status)

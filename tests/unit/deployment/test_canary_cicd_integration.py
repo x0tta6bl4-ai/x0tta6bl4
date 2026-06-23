@@ -24,7 +24,7 @@ class TestCanaryCICDIntegration:
     @pytest.fixture
     def canary(self):
         """Create a canary deployment instance."""
-        config = DeploymentConfig()
+        config = DeploymentConfig(allow_live_actions=True)
         return CanaryDeployment(config=config)
 
     @pytest.mark.asyncio

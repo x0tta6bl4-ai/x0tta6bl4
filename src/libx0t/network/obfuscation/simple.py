@@ -23,7 +23,17 @@ class XORSocket(socket.socket):
         except Exception:
             pass  # Can't always inherit from socket directly in wrappers
 
-        self.timeout = sock.gettimeout()
+        self._timeout = sock.gettimeout()
+
+    @property
+    def timeout(self):
+        return self._timeout
+
+    def fileno(self) -> int:
+        return self._sock.fileno()
+
+    def getsockname(self):
+        return self._sock.getsockname()
 
     def _xor(self, data: bytes) -> bytes:
         return bytes(a ^ self._key[i % self._key_len] for i, a in enumerate(data))

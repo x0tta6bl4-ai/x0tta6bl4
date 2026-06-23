@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 from src.core.app import app
+from src.api.maas.nodes import hash_node_runtime_credential
 from src.database import SessionLocal, User, MarketplaceListing, MarketplaceEscrow, AuditLog, MeshInstance, MeshNode
 
 client = TestClient(app)
@@ -59,10 +60,25 @@ def run_full_flow_test():
 
     # 5. Heartbeat & Auto-release
     print("💓 Sending heartbeat (auto-releasing escrow)...")
-    db.add(MeshNode(id=node_id, mesh_id=mesh_id, status="approved"))
+    node_runtime_credential = f"x0tn_test_{node_id}"
+    db.add(
+        MeshNode(
+            id=node_id,
+            mesh_id=mesh_id,
+            status="approved",
+            runtime_credential_hash=hash_node_runtime_credential(
+                node_runtime_credential
+            ),
+            runtime_credential_expires_at=datetime.utcnow() + timedelta(hours=1),
+        )
+    )
     db.commit()
     
-    res = client.post(f"/api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat", json={"status": "healthy"}, headers=admin_headers)
+    res = client.post(
+        f"/api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat",
+        json={"status": "healthy"},
+        headers={"X-API-Key": node_runtime_credential},
+    )
     assert res.status_code == 200
     assert res.json()["escrow_released"] == escrow_id
     

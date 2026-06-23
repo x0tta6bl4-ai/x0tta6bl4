@@ -4,6 +4,7 @@ Handles distributing X0T tokens for relay traffic and uptime.
 Supports both local simulation and real Base Sepolia transactions.
 """
 
+import hashlib
 import logging
 import os
 import warnings
@@ -63,6 +64,41 @@ ERC20_ABI = [
     },
 ]
 _UNSET = object()
+REWARD_RATE_XOT_PER_PACKET = Decimal("0.0001")
+MAX_GAS_COST_PERCENTAGE = Decimal("0.5")  # Do not spend more than 50% of reward on gas.
+
+
+class GasGuard:
+    """Ensures blockchain transactions are economically viable."""
+
+    def __init__(self, web3: Any):
+        self.web3 = web3
+
+    def is_viable(self, amount_xot: Decimal, gas_limit: int = 100000) -> tuple[bool, str]:
+        if not self.web3:
+            return True, "No blockchain connected"
+
+        try:
+            gas_price_wei = self.web3.eth.gas_price
+            total_gas_cost_wei = gas_price_wei * gas_limit
+
+            # Simple conversion for viability check (1 X0T = 1e18 wei equivalent in value for ratio)
+            # In real mainnet, we'd need an oracle for X0T/ETH price.
+            # For now, we assume 1 X0T is significant enough.
+
+            # Real logic: if reward < 2x gas cost, wait.
+            # (Assuming 1 X0T = 0.001 ETH for placeholder)
+            # amount_eth = amount_xot * Decimal("0.001")
+
+            # Honest Mode: Without an oracle, we use a conservative absolute gas cap.
+            max_gas_wei = int(1e15)  # 0.001 ETH cap per reward payout
+
+            if total_gas_cost_wei > max_gas_wei:
+                return False, f"Gas too high: {total_gas_cost_wei} wei > {max_gas_wei} cap"
+
+            return True, "Economically viable"
+        except Exception as e:
+            return False, f"Gas check failed: {e}"
 
 
 class TokenRewards:
@@ -111,6 +147,7 @@ class TokenRewards:
         self.web3 = None
         self.contract = None
         self.account = None
+        self.gas_guard = None
 
         web3_class = _get_web3_class() if self.private_key else None
         if web3_class is not None and self.private_key:
@@ -121,21 +158,98 @@ class TokenRewards:
                     abi=ERC20_ABI,
                 )
                 self.account = self.web3.eth.account.from_key(self.private_key)
+                self.gas_guard = GasGuard(self.web3)
                 logger.info(f"🔗 Blockchain connected: {self.rpc_url}")
                 logger.info(f"   Wallet: {self.account.address}")
             except Exception as e:
                 logger.error(f"Failed to initialize Web3: {e}")
                 self.web3 = None
 
-    def reward_relay(self, node_address: str, packets: int):
+    @staticmethod
+    def _hash_value(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        if not normalized:
+            return None
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    def _reward_evidence_metadata(
+        self,
+        *,
+        result: dict,
+        node_address: str,
+        packets: Optional[int],
+        calculation_metadata: Any = None,
+    ) -> dict:
+        metadata = dict(calculation_metadata or {}) if isinstance(calculation_metadata, dict) else {}
+        metadata.update(
+            {
+                "component": "dao.token_rewards",
+                "calculator": metadata.get("calculator") or "TokenRewards.reward_relay",
+                "settlement_status": result.get("status"),
+                "settlement_recorded": result.get("settlement_recorded"),
+                "local_accounting_recorded": result.get("local_accounting_recorded"),
+                "submitted_transaction": result.get("submitted_transaction"),
+                "simulated": result.get("simulated"),
+                "packets": packets,
+                "amount_xot": result.get("amount"),
+                "reward_rate_xot_per_packet": str(REWARD_RATE_XOT_PER_PACKET),
+                "node_address_hash": self._hash_value(node_address),
+                "contract_address_hash": self._hash_value(self.contract_address),
+                "blockchain_configured": bool(self.web3 and self.contract and self.account),
+                "pending_after_xot": str(self.pending_rewards),
+                "balance_after_xot": str(self.balance),
+                "total_distributed_after_xot": str(self.total_distributed),
+            }
+        )
+        return metadata
+
+    def reward_relay(
+        self,
+        node_address: str,
+        packets: int,
+        *,
+        upstream_event_ids: Any = None,
+        upstream_source_agents: Any = None,
+        upstream_claim_gate: Any = None,
+        upstream_cross_plane_claim_gate: Any = None,
+    ):
         """Calculate and queue reward for relayed packets."""
+        return self.reward_relay_with_evidence(
+            node_address,
+            packets,
+            upstream_event_ids=upstream_event_ids,
+            upstream_source_agents=upstream_source_agents,
+            upstream_claim_gate=upstream_claim_gate,
+            upstream_cross_plane_claim_gate=upstream_cross_plane_claim_gate,
+        )
+
+    def reward_relay_with_evidence(
+        self,
+        node_address: str,
+        packets: int,
+        *,
+        upstream_event_ids: Any = None,
+        upstream_source_agents: Any = None,
+        upstream_claim_gate: Any = None,
+        upstream_cross_plane_claim_gate: Any = None,
+    ):
+        """Calculate and queue reward for relayed packets with upstream trace IDs."""
         # Rate: 0.0001 X0T per packet
-        reward = Decimal(packets) * Decimal("0.0001")
+        reward = Decimal(packets) * REWARD_RATE_XOT_PER_PACKET
         self.pending_rewards += reward
         self.daily_earnings += reward
 
         logger.info(f"💰 Reward queued: {reward:.4f} X0T for {packets} packets")
 
+        calculation_metadata = {
+            "calculator": "TokenRewards.reward_relay",
+            "packets": packets,
+            "calculated_reward_xot": str(reward),
+            "reward_rate_xot_per_packet": str(REWARD_RATE_XOT_PER_PACKET),
+            "pending_queued_before_settlement_xot": str(self.pending_rewards),
+        }
         # Settle rewards (local + blockchain if configured)
         return self._settle_rewards(node_address, packets=packets)
 

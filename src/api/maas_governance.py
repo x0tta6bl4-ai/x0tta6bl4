@@ -1,11 +1,6 @@
-"""
-MaaS DAO Governance API — x0tta6bl4
-====================================
+"""Compatibility wrapper for the modular MaaS governance endpoint."""
 
-Decentralized decision making for mesh network parameters.
-Proposals, votes, and execution results are persisted to the DB.
-Execution finality is anchored by a SHA-256 hash of the full vote record.
-"""
+import sys
 
 import hashlib
 import json

@@ -10,11 +10,20 @@ import (
 	"sync"
 	"time"
 
+	"github.com/x0tta6bl4/agent/internal/crypto/pqc"
 	"github.com/x0tta6bl4/agent/internal/mesh/discovery"
 )
 
 // Ensure Node implements the stats interface needed by telemetry and healing.
 var _ interface{ GetStats() map[string]any } = (*Node)(nil)
+
+// Message prefix bytes for protocol negotiation.
+const (
+	PrefixRaw    byte = 0x00 // plaintext message
+	PrefixPQC    byte = 0x01 // PQC1 encrypted message
+	PrefixPQCInit byte = 0x10 // PQC handshake init
+	PrefixPQCResp byte = 0x11 // PQC handshake response
+)
 
 // NodeState represents the current state of the mesh node.
 type NodeState int
@@ -70,6 +79,12 @@ type Node struct {
 
 	discovery  *discovery.Discovery
 	handlers   []MessageHandler
+	tunnelMgr  *pqc.TunnelManager
+	resolver   *ConflictResolver
+
+	// Track which peers we've initiated PQC handshakes to.
+	// Only process responses from these peers.
+	pendingHandshakes map[string]bool
 
 	stopCh  chan struct{}
 	logger  *slog.Logger
@@ -83,14 +98,23 @@ type Node struct {
 // NewNode creates a new mesh node.
 func NewNode(nodeID string, listenPort int, disc *discovery.Discovery) *Node {
 	return &Node{
-		ID:         nodeID,
-		ListenPort: listenPort,
-		State:      StateInit,
-		peers:      make(map[string]*Peer),
-		discovery:  disc,
-		stopCh:     make(chan struct{}),
-		logger:     slog.Default().With("component", "mesh-node", "node_id", nodeID),
+		ID:                nodeID,
+		ListenPort:        listenPort,
+		State:             StateInit,
+		peers:             make(map[string]*Peer),
+		discovery:         disc,
+		resolver:          NewConflictResolver(),
+		pendingHandshakes: make(map[string]bool),
+		stopCh:            make(chan struct{}),
+		logger:            slog.Default().With("component", "mesh-node", "node_id", nodeID),
 	}
+}
+
+// SetTunnelManager enables PQC encryption on the mesh data path.
+// Must be called before Start(). If nil, the node operates in plaintext mode.
+func (n *Node) SetTunnelManager(tm *pqc.TunnelManager) {
+	n.tunnelMgr = tm
+	n.logger.Info("PQC tunnel manager attached")
 }
 
 // Start initializes the node and begins listening.
@@ -152,6 +176,7 @@ func (n *Node) OnMessage(handler MessageHandler) {
 }
 
 // SendTo sends data to a specific peer.
+// If PQC is enabled and a session exists, data is encrypted automatically.
 func (n *Node) SendTo(peerID string, data []byte) error {
 	n.mu.RLock()
 	peer, ok := n.peers[peerID]
@@ -161,13 +186,25 @@ func (n *Node) SendTo(peerID string, data []byte) error {
 		return fmt.Errorf("peer not found: %s", peerID)
 	}
 
-	_, err := n.conn.WriteToUDP(data, peer.Addr)
+	// PQC encrypt if tunnel is available and session exists
+	outData := data
+	if n.tunnelMgr != nil && n.tunnelMgr.HasSession(peerID) {
+		wrapped, err := n.tunnelMgr.WrapPacket(data, peerID)
+		if err != nil {
+			return fmt.Errorf("pqc wrap: %w", err)
+		}
+		outData = append([]byte{PrefixPQC}, wrapped...)
+	} else if n.tunnelMgr != nil {
+		outData = append([]byte{PrefixRaw}, data...)
+	}
+
+	_, err := n.conn.WriteToUDP(outData, peer.Addr)
 	if err != nil {
 		return fmt.Errorf("send to %s: %w", peerID, err)
 	}
 
 	n.mu.Lock()
-	peer.BytesSent += int64(len(data))
+	peer.BytesSent += int64(len(outData))
 	n.msgSent++
 	n.mu.Unlock()
 
@@ -175,6 +212,7 @@ func (n *Node) SendTo(peerID string, data []byte) error {
 }
 
 // Broadcast sends data to all peers.
+// If PQC is enabled, each peer's data is encrypted with their respective session key.
 func (n *Node) Broadcast(data []byte) {
 	n.mu.RLock()
 	peers := make([]*Peer, 0, len(n.peers))
@@ -184,9 +222,22 @@ func (n *Node) Broadcast(data []byte) {
 	n.mu.RUnlock()
 
 	for _, peer := range peers {
-		n.conn.WriteToUDP(data, peer.Addr)
+		outData := data
+		if n.tunnelMgr != nil && n.tunnelMgr.HasSession(peer.NodeID) {
+			wrapped, err := n.tunnelMgr.WrapPacket(data, peer.NodeID)
+			if err != nil {
+				n.logger.Warn("pqc wrap failed for broadcast", "peer", peer.NodeID, "error", err)
+				outData = append([]byte{PrefixRaw}, data...)
+			} else {
+				outData = append([]byte{PrefixPQC}, wrapped...)
+			}
+		} else if n.tunnelMgr != nil {
+			outData = append([]byte{PrefixRaw}, data...)
+		}
+
+		n.conn.WriteToUDP(outData, peer.Addr)
 		n.mu.Lock()
-		peer.BytesSent += int64(len(data))
+		peer.BytesSent += int64(len(outData))
 		n.msgSent++
 		n.mu.Unlock()
 	}
@@ -250,14 +301,14 @@ func (n *Node) listenLoop() {
 			continue
 		}
 
-		data := make([]byte, nBytes)
-		copy(data, buf[:nBytes])
+		rawData := make([]byte, nBytes)
+		copy(rawData, buf[:nBytes])
 
 		n.mu.Lock()
 		n.msgRecv++
 		n.mu.Unlock()
 
-		// Try to identify sender
+		// Identify sender
 		senderID := ""
 		n.mu.RLock()
 		for id, p := range n.peers {
@@ -278,11 +329,92 @@ func (n *Node) listenLoop() {
 			n.mu.Unlock()
 		}
 
+		// Protocol dispatch
+		data := rawData
+		if len(rawData) == 0 {
+			continue
+		}
+
+		switch rawData[0] {
+		case PrefixPQC:
+			// PQC encrypted data — decrypt
+			if n.tunnelMgr != nil && senderID != "" {
+				decrypted, err := n.tunnelMgr.UnwrapPacket(rawData[1:], senderID)
+				if err == nil {
+					data = decrypted
+					n.logger.Debug("PQC decrypted", "peer", senderID, "bytes", len(decrypted))
+				} else {
+					n.logger.Warn("PQC decrypt failed", "peer", senderID, "error", err)
+					continue // drop corrupted packets
+				}
+			} else {
+				continue // no PQC session, drop
+			}
+
+		case PrefixPQCInit:
+			// PQC handshake init — process and send response
+			if n.tunnelMgr != nil {
+				n.tryProcessPQCInit(rawData[1:], remoteAddr)
+			}
+			continue // consumed
+
+		case PrefixPQCResp:
+			// PQC handshake response — process if we initiated
+			if n.tunnelMgr != nil && senderID != "" {
+				n.tryProcessPQCResponse(rawData[1:], senderID)
+			}
+			continue // consumed
+
+		case PrefixRaw:
+			data = rawData[1:]
+
+		default:
+			// Unknown prefix — treat as raw (backward compat with old nodes)
+			data = rawData
+		}
+
 		// Dispatch to handlers
 		for _, handler := range n.handlers {
 			handler(data, senderID, remoteAddr)
 		}
 	}
+}
+
+// tryProcessPQCInit processes an incoming PQC handshake init message.
+func (n *Node) tryProcessPQCInit(data []byte, senderAddr *net.UDPAddr) {
+	peerID, _, respMsg, err := n.tunnelMgr.ProcessHandshakeInit(data)
+	if err != nil {
+		n.logger.Warn("PQC handshake init failed", "error", err)
+		return
+	}
+	wireMsg := append([]byte{PrefixPQCResp}, respMsg...)
+	n.conn.WriteToUDP(wireMsg, senderAddr)
+	n.logger.Info("PQC handshake completed (responder)", "peer", peerID)
+}
+
+// tryProcessPQCResponse processes an incoming PQC handshake response message.
+func (n *Node) tryProcessPQCResponse(data []byte, senderID string) {
+	n.mu.RLock()
+	isPending := n.pendingHandshakes[senderID]
+	n.mu.RUnlock()
+
+	if !isPending {
+		return
+	}
+
+	peerID, _, err := n.tunnelMgr.ProcessHandshakeResponse(data)
+	if err != nil {
+		n.logger.Warn("PQC handshake response failed", "peer", senderID, "error", err)
+		n.mu.Lock()
+		delete(n.pendingHandshakes, senderID)
+		n.mu.Unlock()
+		return
+	}
+
+	n.mu.Lock()
+	delete(n.pendingHandshakes, senderID)
+	n.mu.Unlock()
+	n.logger.Info("PQC handshake completed (initiator)", "peer", peerID)
 }
 
 func (n *Node) healthCheckLoop() {
@@ -299,26 +431,103 @@ func (n *Node) healthCheckLoop() {
 	}
 }
 
+// Health thresholds for peer lifecycle management.
+const (
+	peerWarnAfter     = 30 * time.Second  // mark as unhealthy
+	peerRemoveAfter   = 120 * time.Second // remove from peer table
+	peerCleanupEvery  = 15 * time.Second  // cleanup interval
+)
+
 func (n *Node) checkPeerHealth() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
 	now := time.Now()
 	degraded := false
-	for _, peer := range n.peers {
-		if now.Sub(peer.LastSeen) > 30*time.Second {
+	removed := make([]string, 0)
+
+	for peerID, peer := range n.peers {
+		age := now.Sub(peer.LastSeen)
+
+		switch {
+		case age > peerRemoveAfter:
+			// Peer inactive too long — remove
+			removed = append(removed, peerID)
+
+		case age > peerWarnAfter:
+			// Peer unhealthy but still tracked
 			peer.Healthy = false
 			degraded = true
-		} else {
+
+		default:
 			peer.Healthy = true
 		}
 	}
 
+	// Remove stale peers outside the map iteration
+	for _, peerID := range removed {
+		delete(n.peers, peerID)
+		n.resolver.RemovePeer(peerID)
+		if n.tunnelMgr != nil {
+			n.tunnelMgr.RemoveSession(peerID)
+		}
+		n.logger.Info("peer auto-removed (inactive)",
+			"node_id", peerID,
+			"inactive_for", peerRemoveAfter,
+		)
+	}
+
+	// Update node state
 	if degraded && n.State == StateActive {
 		n.State = StateDegraded
 	} else if !degraded && n.State == StateDegraded {
 		n.State = StateActive
 	}
+}
+
+// GetPeerHealthStats returns health statistics for all peers.
+func (n *Node) GetPeerHealthStats() map[string]PeerHealthStats {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	stats := make(map[string]PeerHealthStats, len(n.peers))
+	now := time.Now()
+	for id, p := range n.peers {
+		age := now.Sub(p.LastSeen)
+		var status string
+		switch {
+		case age > peerRemoveAfter:
+			status = "stale"
+		case age > peerWarnAfter:
+			status = "unhealthy"
+		default:
+			status = "healthy"
+		}
+
+		stats[id] = PeerHealthStats{
+			NodeID:     id,
+			Status:     status,
+			Healthy:    p.Healthy,
+			InactiveMs: age.Milliseconds(),
+			BytesSent:  p.BytesSent,
+			BytesRecv:  p.BytesRecv,
+			LastSeen:   p.LastSeen,
+			PQCSession: n.tunnelMgr != nil && n.tunnelMgr.HasSession(id),
+		}
+	}
+	return stats
+}
+
+// PeerHealthStats is the health status of a single peer.
+type PeerHealthStats struct {
+	NodeID     string    `json:"node_id"`
+	Status     string    `json:"status"`
+	Healthy    bool      `json:"healthy"`
+	InactiveMs int64     `json:"inactive_ms"`
+	BytesSent  int64     `json:"bytes_sent"`
+	BytesRecv  int64     `json:"bytes_recv"`
+	LastSeen   time.Time `json:"last_seen"`
+	PQCSession bool      `json:"pqc_session"`
 }
 
 func (n *Node) addPeerFromDiscovery(info discovery.PeerInfo) {
@@ -362,6 +571,157 @@ func (n *Node) addPeerFromDiscovery(info discovery.PeerInfo) {
 	n.mu.Unlock()
 
 	n.logger.Info("peer added", "node_id", info.NodeID, "addr", udpAddr)
+
+	// Initiate PQC handshake if tunnel manager is available
+	if n.tunnelMgr != nil {
+		go n.initiatePQCHandshake(info.NodeID)
+	}
+}
+
+// shouldInitiatePQCHandshake returns true if this node should be the PQC handshake initiator.
+// Uses lexicographic tiebreaker on nodeIDs to avoid simultaneous init race.
+func (n *Node) shouldInitiatePQCHandshake(peerID string) bool {
+	return n.ID < peerID
+}
+
+// initiatePQCHandshake sends a PQC handshake init to a peer and processes the response.
+func (n *Node) initiatePQCHandshake(peerID string) {
+	n.mu.RLock()
+	peer, ok := n.peers[peerID]
+	n.mu.RUnlock()
+	if !ok {
+		return
+	}
+
+	// Only initiate if we "win" the tiebreaker
+	if !n.shouldInitiatePQCHandshake(peerID) {
+		n.logger.Debug("PQC handshake: waiting for peer to initiate", "peer", peerID)
+		return
+	}
+
+	// Create and send handshake init
+	initMsg, err := n.tunnelMgr.CreateHandshakeInit()
+	if err != nil {
+		n.logger.Warn("PQC handshake init failed", "peer", peerID, "error", err)
+		return
+	}
+
+	// Mark as pending before sending
+	n.mu.Lock()
+	n.pendingHandshakes[peerID] = true
+	n.mu.Unlock()
+
+	// Send init with type prefix
+	wireMsg := append([]byte{PrefixPQCInit}, initMsg...)
+	_, err = n.conn.WriteToUDP(wireMsg, peer.Addr)
+	if err != nil {
+		n.mu.Lock()
+		delete(n.pendingHandshakes, peerID)
+		n.mu.Unlock()
+		n.logger.Warn("PQC handshake init send failed", "peer", peerID, "error", err)
+		return
+	}
+
+	n.logger.Info("PQC handshake initiated", "peer", peerID, "tiebreaker", n.ID+" < "+peerID)
+}
+
+// HandlePQCMessage processes an incoming PQC handshake message.
+// Call this from a message handler registered via OnMessage.
+// Returns true if the message was a PQC handshake message.
+func (n *Node) HandlePQCMessage(data []byte, senderID string, senderAddr *net.UDPAddr) bool {
+	if n.tunnelMgr == nil || len(data) < 2 {
+		return false
+	}
+
+	// Check if this looks like a PQC handshake response (has our nodeID prefix)
+	// The response format: [node_id_len:2][node_id][ciphertext][sign_pubkey][signature]
+	nodeIDLen := int(data[0])<<8 | int(data[1])
+	if nodeIDLen != len(n.ID) {
+		return false
+	}
+	if len(data) < 2+nodeIDLen {
+		return false
+	}
+	candidateID := string(data[2 : 2+nodeIDLen])
+	if candidateID != n.ID {
+		return false
+	}
+
+	// This is a PQC handshake response addressed to us
+	peerID, _, respMsg, err := n.tunnelMgr.ProcessHandshakeInit(data)
+	if err != nil {
+		n.logger.Warn("PQC handshake init process failed", "error", err)
+		return true
+	}
+
+	// Send response back
+	wireMsg := append([]byte{PrefixRaw}, respMsg...)
+	_, err = n.conn.WriteToUDP(wireMsg, senderAddr)
+	if err != nil {
+		n.logger.Warn("PQC handshake response send failed", "error", err)
+		return true
+	}
+
+	n.logger.Info("PQC handshake completed (responder)", "peer", peerID)
+	return true
+}
+
+// InjectPeer directly adds a peer to the node (for testing or manual configuration).
+func (n *Node) InjectPeer(peerID, ip string, port int) {
+	n.InjectPeerWithSource(peerID, ip, port, "inject")
+}
+
+// InjectPeerWithSource adds a peer from a specific discovery source.
+// Automatically resolves conflicts when the same peer is reported
+// from multiple sources (mDNS, UDP, manual) with different addresses.
+func (n *Node) InjectPeerWithSource(peerID, ip string, port int, source string) {
+	addr := &net.UDPAddr{IP: net.ParseIP(ip), Port: port}
+
+	// Resolve conflicts (duplicate detection, address changes)
+	resolvedAddr, isUpdate, conflict := n.resolver.ResolvePeer(peerID, addr, source)
+
+	if conflict != "" {
+		n.logger.Warn("peer conflict resolved",
+			"node_id", peerID,
+			"conflict", conflict,
+			"resolved_addr", resolvedAddr,
+		)
+	}
+
+	n.mu.Lock()
+	existingPeer, exists := n.peers[peerID]
+	if exists {
+		// Update existing peer — preserve PQC session and stats
+		existingPeer.Addr = resolvedAddr
+		existingPeer.LastSeen = time.Now()
+		existingPeer.Healthy = true
+		n.mu.Unlock()
+
+		if isUpdate {
+			n.logger.Info("peer address updated",
+				"node_id", peerID,
+				"new_addr", resolvedAddr,
+				"source", source,
+			)
+		}
+		return
+	}
+
+	// New peer — add to table
+	n.peers[peerID] = &Peer{
+		NodeID:   peerID,
+		Addr:     resolvedAddr,
+		LastSeen: time.Now(),
+		Healthy:  true,
+	}
+	n.mu.Unlock()
+
+	n.logger.Info("peer injected", "node_id", peerID, "addr", resolvedAddr, "source", source)
+
+	// Initiate PQC handshake if tunnel manager is available
+	if n.tunnelMgr != nil {
+		go n.initiatePQCHandshake(peerID)
+	}
 }
 
 func (n *Node) removePeer(nodeID string) {
@@ -370,4 +730,23 @@ func (n *Node) removePeer(nodeID string) {
 	n.mu.Unlock()
 
 	n.logger.Info("peer removed", "node_id", nodeID)
+}
+
+// RemovePeer drops a peer from the node's peer table and from discovery.
+// Exposed for the healing executor to evict unhealthy peers.
+func (n *Node) RemovePeer(peerID string) {
+	n.removePeer(peerID)
+	n.resolver.RemovePeer(peerID)
+	if n.discovery != nil {
+		n.discovery.RemovePeer(peerID)
+	}
+}
+
+// RestartDiscovery stops and restarts the discovery subsystem.
+// Exposed for the healing executor to force re-announcements.
+func (n *Node) RestartDiscovery() error {
+	if n.discovery == nil {
+		return nil
+	}
+	return n.discovery.Restart()
 }

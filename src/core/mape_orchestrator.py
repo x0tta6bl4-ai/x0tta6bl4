@@ -6,6 +6,8 @@ import logging
 import time
 import os
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 # Lazy import with fallback for GraphSAGE ML module
 # This allows the module to load even if ML dependencies are missing
 def _get_graphsage_loader():
@@ -235,6 +237,13 @@ class MAPEOrchestrator:
         self._total_healing_actions = 0
         self._successful_healing_actions = 0
         self._total_mttr_seconds = 0.0  # Mean Time To Recovery
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="mape_orchestrator",
+            role="healing",
+            capabilities=("monitoring", "ops"),
+            extra_techniques=("mape_k", "causal_loops_system_dynamics"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
         
         # Security manager for node isolation/quarantine
         self._init_security_manager()
@@ -290,6 +299,16 @@ class MAPEOrchestrator:
         """
         Slot-based sync каждые 3.14 сек. Собирает метрики из Prometheus.
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mape_monitor_cycle",
+                "goal": "Collect mesh health metrics for the MAPE-K loop.",
+                "constraints": {
+                    "thresholds": self.thresholds,
+                    "preserve_metric_shape": True,
+                },
+            }
+        )
         logger.debug("Начало цикла мониторинга...")
         metrics = await self.prometheus.query(
             {
@@ -333,6 +352,18 @@ class MAPEOrchestrator:
         Analyze metrics using GraphSAGE V3 and determine healing action plan.
         Returns list of healing actions to execute.
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mape_analyze_cycle",
+                "goal": "Turn observed metrics into bounded healing actions.",
+                "metrics": metrics,
+                "constraints": {
+                    "circuit_breaker_state": self.circuit_breaker_state,
+                    "thresholds": self.thresholds,
+                    "graphsage_available": self.graphsage is not None,
+                },
+            }
+        )
         logger.debug("Начало цикла анализа (GraphSAGE)...")
         actions: List[HealingAction] = []
         
@@ -431,6 +462,14 @@ class MAPEOrchestrator:
 
     async def _analyze_cycle_fallback(self, metrics: Dict[str, Any]) -> List[HealingAction]:
         """Fallback static threshold analysis if ML fails."""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mape_threshold_fallback_analysis",
+                "goal": "Use static thresholds when GraphSAGE is unavailable or failed.",
+                "metrics": metrics,
+                "constraints": {"thresholds": self.thresholds},
+            }
+        )
         actions: List[HealingAction] = []
         latency = metrics.get("latency_p95_value", 0)
         packet_loss = metrics.get("packet_loss_value", 0)
@@ -497,6 +536,17 @@ class MAPEOrchestrator:
         """
         Execute healing actions with circuit breaker protection.
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mape_execute_cycle",
+                "goal": "Execute planned healing actions with circuit-breaker protection.",
+                "action_count": len(actions),
+                "constraints": {
+                    "circuit_breaker_state": self.circuit_breaker_state,
+                    "audit_to_dao": True,
+                },
+            }
+        )
         if not actions:
             logger.debug("No actions to execute")
             return
@@ -674,5 +724,7 @@ class MAPEOrchestrator:
             "avg_mttr_seconds": self._total_mttr_seconds,
             "circuit_breaker_state": self.circuit_breaker_state,
             "is_healthy": self._state.is_healthy,
-            "last_update": self._state.last_update
+            "last_update": self._state.last_update,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }

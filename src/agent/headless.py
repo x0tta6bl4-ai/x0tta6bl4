@@ -19,6 +19,7 @@ import httpx
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.security.pqc_identity import PQCNodeIdentity
 from src.network.discovery.protocol import MeshDiscovery
 from src.network.routing.stigmergy import StigmergyRouter
@@ -43,6 +44,12 @@ class HeadlessAgent:
         self.router = None
         self.mesh_id = os.getenv("MAAS_MESH_ID", "mesh-auto-001")
         self.running = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="headless-agent",
+            role="ops",
+            capabilities=("node_runtime", "playbook_execution", "routing"),
+        )
+        self.last_thinking_context = {}
         
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -134,6 +141,18 @@ class HeadlessAgent:
         pb_id = pb["playbook_id"]
         payload_json = pb["payload"]
         signature = pb["signature"]
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "playbook_execution",
+                "goal": "verify and execute a signed control-plane playbook",
+                "playbook_id": pb_id,
+                "constraints": {
+                    "has_signature": bool(signature),
+                    "mesh_id": self.mesh_id,
+                    "node_id": self.node_id,
+                },
+            }
+        )
         
         logger.info(f"📜 Received Playbook {pb_id}. Verifying PQC signature...")
         # In production: self.identity.security.verify(payload_json.encode(), bytes.fromhex(signature), cp_pub_key)
@@ -155,6 +174,15 @@ class HeadlessAgent:
 
     async def _handle_action(self, action_type: str, params: dict):
         """Action implementation dispatch."""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "node_action",
+                "goal": f"handle {action_type}",
+                "action": action_type,
+                "params": params,
+                "constraints": {"node_id": self.node_id, "mesh_id": self.mesh_id},
+            }
+        )
         logger.info(f"▶️ Executing action: {action_type} {params}")
         
         if action_type == "exec":

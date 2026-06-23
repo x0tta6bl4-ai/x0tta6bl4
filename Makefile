@@ -1,7 +1,7 @@
 # Makefile for x0tta6bl4 v3.3.0
 # ================================
 
-.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft iso-p2-readiness-check mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-reproducibility mesh-operator-release-dry-run mesh-operator-lifecycle-e2e mesh-operator-canary-rollback-e2e api-memory-profile-longrun maas-api-load-scenarios maas-api-load-scenarios-ci mesh-operator-uninstall
+.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft iso-p2-readiness-check mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-reproducibility mesh-operator-release-dry-run mesh-operator-lifecycle-e2e mesh-operator-canary-rollback-e2e api-memory-profile-longrun maas-api-load-scenarios maas-api-load-scenarios-ci pilot0-edge-mesh-maas mesh-operator-uninstall
 
 .DEFAULT_GOAL := help
 
@@ -56,6 +56,7 @@ help:
 	@echo "  make api-memory-profile-longrun - Run long-run API memory profile with report artifacts"
 	@echo "  make maas-api-load-scenarios - Run Marketplace/Telemetry/Nodes load scenarios with report artifacts"
 	@echo "  make maas-api-load-scenarios-ci - Run deterministic CI profile for Marketplace/Telemetry/Nodes load scenarios"
+	@echo "  make pilot0-edge-mesh-maas - Run local/lab Pilot 0 MaaS + Go-agent report"
 	@echo "  make mesh-operator-uninstall - Uninstall operator chart release"
 	@echo ""
 	@echo "=== Development ==="
@@ -272,6 +273,10 @@ maas-api-load-scenarios-ci:
 	MAX_SCENARIO_P95_MS=900 \
 	STARTUP_TIMEOUT_SECONDS=300 \
 	bash scripts/ops/run_maas_api_load_scenarios.sh
+
+pilot0-edge-mesh-maas:
+	@echo "Running Pilot 0 Edge Mesh MaaS local/lab scenario..."
+	PYTHONPATH=. python3 scripts/ops/run_pilot0_edge_mesh_maas.py --require-ready --output-dir docs/operations
 
 mesh-operator-uninstall:
 	@echo "🧹 Uninstalling x0tta mesh operator..."
@@ -700,3 +705,49 @@ cleanup-rc-check:
 	@echo "3) docs/runbooks/MAAS_PLATFORM_CLEANUP_RUNBOOK.md"
 	@make up
 	@make cleanup-gate
+
+# ============================================
+# Multi-Node Mesh Deployment Targets
+# ============================================
+
+mesh-build:
+	@echo "🔨 Building Go agent..."
+	cd agent && go build -o ../x0t-agent .
+	@echo "✅ Agent binary built: x0t-agent"
+
+mesh-deploy-entry:
+	@echo "🇷🇺 Deploying entry node (RU)..."
+	ssh root@$(ENTRY_IP) "bash -s" < scripts/deploy_multi_node.sh entry $(MASTER_IP)
+	@echo "✅ Entry node deployed"
+
+mesh-deploy-exit:
+	@echo "🇺🇸 Deploying exit node (US/SG)..."
+	ssh root@$(EXIT_IP) "bash -s" < scripts/deploy_multi_node.sh exit $(MASTER_IP)
+	@echo "✅ Exit node deployed"
+
+mesh-health:
+	@echo "🏥 Checking mesh health..."
+	@echo "--- NL (Master) ---"
+	@ssh root@$(MASTER_IP) "systemctl is-active x0tta-ghost-vpn yggdrasil x0t-agent" 2>/dev/null || echo "unreachable"
+	@echo "--- RU (Entry) ---"
+	@ssh root@$(ENTRY_IP) "systemctl is-active x0tta-ghost-vpn yggdrasil x0t-agent" 2>/dev/null || echo "unreachable"
+	@echo "--- US (Exit) ---"
+	@ssh root@$(EXIT_IP) "systemctl is-active x0tta-ghost-vpn yggdrasil x0t-agent" 2>/dev/null || echo "unreachable"
+
+mesh-ygg-status:
+	@echo "🔗 Yggdrasil mesh status..."
+	@ssh root@$(MASTER_IP) "yggdrasilctl getSelf 2>/dev/null | grep -E 'IPv6|Peers'"
+	@ssh root@$(ENTRY_IP) "yggdrasilctl getSelf 2>/dev/null | grep -E 'IPv6|Peers'" 2>/dev/null
+	@ssh root@$(EXIT_IP) "yggdrasilctl getSelf 2>/dev/null | grep -E 'IPv6|Peers'" 2>/dev/null
+
+mesh-vpn-test:
+	@echo "🔒 VPN connectivity test..."
+	@echo "Testing from RU → NL..."
+	@ssh root@$(ENTRY_IP) "curl -s http://$(MASTER_IP):8080/health" 2>/dev/null || echo "UNREACHABLE"
+	@echo "Testing from US → NL..."
+	@ssh root@$(EXIT_IP) "curl -s http://$(MASTER_IP):8080/health" 2>/dev/null || echo "UNREACHABLE"
+
+# Default values for mesh targets
+MASTER_IP ?= 89.125.1.107
+ENTRY_IP ?= TBD
+EXIT_IP ?= TBD

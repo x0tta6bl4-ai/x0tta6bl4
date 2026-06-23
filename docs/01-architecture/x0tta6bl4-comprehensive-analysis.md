@@ -1,30 +1,43 @@
 # Комплексный анализ системы x0tta6bl4
 ## Интеграция данных из PDF документации
 
+> Статус доказательств на 2026-05-30: это исторический PDF-derived
+> architecture/claim synthesis, а не текущее доказательство production-ready
+> состояния. Используйте
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md` и
+> `docs/architecture/CURRENT_EVENT_CONTROL_PLANE_MAP.json` как текущий источник
+> проверяемого EventBus/service-identity/control-plane evidence. Любые
+> production-ready, MTTR, route-discovery, availability, GraphSAGE, uptime или
+> chaos-test числа ниже считаются инвентарем claims, пока рядом с claim не
+> указан текущий verification artifact.
+
 **Дата анализа**: 2025-01-XX  
 **Версия системы**: v1.0.0-restructured → v3.0 roadmap  
-**Статус**: Production Ready с планом развития на 52 недели
+**Статус**: historical/PDF-sourced claim document; текущие evidence-карты не доказывают production readiness.
 
 ---
 
 ## 📊 Исполнительное резюме
 
-**x0tta6bl4** — это production-ready децентрализованная само-восстанавливающаяся mesh-платформа, демонстрирующая выдающиеся метрики производительности и готовность к масштабированию до 300+ узлов в 5 регионах.
+Здесь **x0tta6bl4** описывается как decentralized self-healing mesh platform
+с заявленными production metrics и scaling targets. В текущей evidence-модели
+репозитория эти claims не принимаются как production facts без current bounded
+verification artifacts.
 
-### Ключевые достижения (подтверждено PDF документацией)
+### Ключевые достижения из PDF источников, не текущий proof
 
-| Метрика | Цель | Достигнуто | Статус |
+| Метрика | Цель | Исторически заявлено | Evidence status |
 |---------|------|------------|--------|
-| **MTTR p95** | <5-7s | 1.9-4.3s | ✅ Превышено на 36% |
-| **Route Discovery** | <100ms | 85ms | ✅ Превышено на 15% |
-| **Search Accuracy** | >90% | 92-95% | ✅ Превышено |
-| **System Availability** | >99% | 99.5% | ✅ Превышено |
-| **Recovery Success Rate** | >95% | 96% | ✅ Превышено |
-| **Chaos Test Pass Rate** | >90% | 95% | ✅ Превышено |
-| **Test Coverage** | >70% | 74% (111 tests) | ✅ Превышено |
-| **GraphSAGE Accuracy** | >95% | 94-98% | ✅ Превышено |
-| **FPR (False Positive Rate)** | <10% | 5-8% | ✅ Превышено |
-| **GNN Inference Latency** | <100ms | <50ms | ✅ Превышено |
+| **MTTR p95** | <5-7s | 1.9-4.3s | claim, needs current artifact |
+| **Route Discovery** | <100ms | 85ms | claim, needs current artifact |
+| **Search Accuracy** | >90% | 92-95% | claim, needs current artifact |
+| **System Availability** | >99% | 99.5% | claim, needs current artifact |
+| **Recovery Success Rate** | >95% | 96% | claim, needs current artifact |
+| **Chaos Test Pass Rate** | >90% | 95% | claim, needs current artifact |
+| **Test Coverage** | >70% | 74% (111 tests) | claim, needs current artifact |
+| **GraphSAGE Accuracy** | >95% | 94-98% | claim, needs current artifact |
+| **FPR (False Positive Rate)** | <10% | 5-8% | claim, needs current artifact |
+| **GNN Inference Latency** | <100ms | <50ms | claim, needs current artifact |
 
 ---
 
@@ -62,7 +75,7 @@
 - mTLS handshake latency, auth failure rate
 - GNN anomaly scores, drift detection metrics
 
-**Производительность**: MTTD (Mean Time To Detect) = 1.9s (цель 2-3s) ✅
+**Производительность**: MTTD (Mean Time To Detect) = 1.9s (цель 2-3s) — historical/PDF claim, needs current artifact
 
 #### Analyze (Анализ)
 **Алгоритмы**:
@@ -209,7 +222,7 @@
 - Prometheus/eBPF metrics для monitoring
 - RAG-indexed historical data для learning
 
-**Результат**: MTTR = 1.2s для 25 nodes, 2.5s для 1000 nodes ✅
+**Результат**: MTTR = 1.2s для 25 nodes, 2.5s для 1000 nodes — historical/PDF claim, needs current artifact
 
 ### RAG-Based Memory System
 
@@ -290,11 +303,11 @@
 - [ ] Публиковать mesh-core-v2.0.tgz релиз (неделя 12)
 
 **Ожидаемые метрики**:
-- MTTR p95: ≤ 7 сек ✅
-- Latency p95: < 100 мс ✅
-- Packet Loss p95: < 2% ✅
-- Network Uptime: ≥ 95% ✅
-- Beacon Jitter: < 5% ✅
+- MTTR p95: ≤ 7 сек — target/claim, needs current artifact
+- Latency p95: < 100 мс — target/claim, needs current artifact
+- Packet Loss p95: < 2% — target/claim, needs current artifact
+- Network Uptime: ≥ 95% — target/claim, needs current artifact
+- Beacon Jitter: < 5% — target/claim, needs current artifact
 
 **Риски**:
 - ⚠️ Slot-sync может иметь race condition при 100+ узлах → Ранее начните chaos testing (неделя 6)
@@ -316,11 +329,11 @@
 - [ ] Активировать GNN detector в 'observe' mode (неделя 24-28)
 
 **Ожидаемые метрики**:
-- GraphSAGE Accuracy: ≥ 99% ✅
-- FPR: ≤ 8% ✅
-- Incident Prevention Rate: ≥ 91% ✅
-- MTTR Reduction vs Manual: 35% ✅
-- mTLS Auth Errors: 0 ✅
+- GraphSAGE Accuracy: ≥ 99% — target/claim, needs current artifact
+- FPR: ≤ 8% — target/claim, needs current artifact
+- Incident Prevention Rate: ≥ 91% — target/claim, needs current artifact
+- MTTR Reduction vs Manual: 35% — target/claim, needs current artifact
+- mTLS Auth Errors: 0 — target/claim, needs current artifact
 - GNN Inference Latency: < 50 мс ✅
 
 **Риски**:
@@ -513,15 +526,20 @@
 
 ## ✅ Заключение
 
-**x0tta6bl4** представляет собой зрелую, production-ready платформу с:
+**x0tta6bl4** имеет существенную архитектуру и активные evidence surfaces, но
+этот PDF-derived документ должен читаться как roadmap/claim inventory, пока
+те же claims не будут подтверждены current repository evidence, live deployment
+checks и bounded verification artifacts.
 
-1. **Выдающимися метриками**: Все ключевые показатели превышают целевые значения
+1. **Claimed metrics**: ключевые показатели выше требуют current verification before production use
 2. **Чётким roadmap**: 52-недельный план развития с ясными вехами
-3. **Готовностью к масштабированию**: От 50 узлов до 300+ в 5 регионах
+3. **Scaling target**: от 50 узлов до 300+ в 5 регионах является target/claim, пока current evidence не докажет это
 4. **Инновационными решениями**: GigaMemory winning solution, Agent-3 security scanner
 5. **Comprehensive документацией**: Детальные технические отчёты и стратегические планы
 
-Система готова к production deployment и демонстрирует все характеристики зрелой enterprise-grade платформы для критически важных децентрализованных приложений.
+Production deployment readiness остается недоказанной этим документом. Для нее
+нужны current release evidence, runtime checks и external/lab proof для live
+mesh, MTTR, availability и bypass claims.
 
 ---
 
@@ -534,4 +552,3 @@
 - gigamemory-solution-strategy.pdf
 - rag-gigamemory-instructions.pdf
 - winning-solution-guide.pdf
-

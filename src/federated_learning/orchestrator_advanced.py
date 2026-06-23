@@ -17,6 +17,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -124,6 +126,12 @@ class AdaptiveScaler:
         self.last_scale_time = datetime.now()
         self.utilization_history: List[ResourceUtilization] = []
         self.performance_history: List[PerformanceMetrics] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="adaptive_fl_scaler",
+            role="fl",
+            capabilities=("coordinator", "ops"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
     def record_utilization(self, metrics: ResourceUtilization) -> None:
         """Record resource utilization snapshot"""
@@ -141,6 +149,19 @@ class AdaptiveScaler:
 
     def should_scale_up(self) -> bool:
         """Determine if we should scale up"""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_scale_up_decision",
+                "goal": "decide whether to add FL capacity",
+                "constraints": {
+                    "current_nodes": self.current_nodes,
+                    "max_nodes": self.max_nodes,
+                    "cooldown_seconds": self.cooldown_seconds,
+                    "scale_up_threshold": self.scale_up_threshold,
+                    "history_samples": len(self.utilization_history),
+                },
+            }
+        )
         if self.current_nodes >= self.max_nodes:
             return False
 
@@ -160,6 +181,19 @@ class AdaptiveScaler:
 
     def should_scale_down(self) -> bool:
         """Determine if we should scale down"""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_scale_down_decision",
+                "goal": "decide whether to reduce FL capacity",
+                "constraints": {
+                    "current_nodes": self.current_nodes,
+                    "min_nodes": self.min_nodes,
+                    "cooldown_seconds": self.cooldown_seconds,
+                    "scale_down_threshold": self.scale_down_threshold,
+                    "history_samples": len(self.utilization_history),
+                },
+            }
+        )
         if self.current_nodes <= self.min_nodes:
             return False
 
@@ -189,6 +223,19 @@ class AdaptiveScaler:
 
         recent_util = statistics.mean(
             [m.total_utilization() for m in self.utilization_history[-10:]]
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_scaling_factor",
+                "goal": "choose the scaling multiplier for current FL load",
+                "constraints": {
+                    "policy": self.policy.value,
+                    "recent_utilization": round(recent_util, 4),
+                    "scale_up_threshold": self.scale_up_threshold,
+                    "scale_down_threshold": self.scale_down_threshold,
+                    "current_nodes": self.current_nodes,
+                },
+            }
         )
 
         factors = {
@@ -223,6 +270,18 @@ class AdaptiveScaler:
         Returns:
             New node count if scaled, None if no scaling
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_apply_scaling",
+                "goal": "apply the safest FL scaling change allowed by policy",
+                "constraints": {
+                    "current_nodes": self.current_nodes,
+                    "min_nodes": self.min_nodes,
+                    "max_nodes": self.max_nodes,
+                    "policy": self.policy.value,
+                },
+            }
+        )
         if self.should_scale_up():
             factor = self.get_scaling_factor()
             new_count = int(self.current_nodes * factor)
@@ -263,6 +322,12 @@ class PerformancePredictor:
         """Initialize predictor with historical window size"""
         self.window_size = window_size
         self.history: List[PerformanceMetrics] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="fl_performance_predictor",
+            role="fl",
+            capabilities=("coordinator",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
     def add_metrics(self, metrics: PerformanceMetrics) -> None:
         """Add new performance metrics"""
@@ -278,9 +343,26 @@ class PerformancePredictor:
             Predicted round time in milliseconds
         """
         if not self.history:
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "type": "fl_round_time_prediction",
+                    "goal": "estimate next FL round time without history",
+                    "constraints": {"history_samples": 0},
+                }
+            )
             return 1000.0  # Default estimate
 
         recent_times = [m.total_time_ms for m in self.history[-5:]]
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_round_time_prediction",
+                "goal": "estimate next FL round time from recent history",
+                "constraints": {
+                    "history_samples": len(self.history),
+                    "recent_samples": len(recent_times),
+                },
+            }
+        )
 
         # Use weighted average (more recent = higher weight)
         weights = [i + 1 for i in range(len(recent_times))]
@@ -299,10 +381,31 @@ class PerformancePredictor:
             Estimated number of additional rounds
         """
         if len(self.history) < 2:
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "type": "fl_convergence_prediction",
+                    "goal": "estimate convergence rounds with limited history",
+                    "constraints": {
+                        "history_samples": len(self.history),
+                        "target_accuracy": target_accuracy,
+                    },
+                }
+            )
             return 10  # Default estimate
 
         # Calculate accuracy improvement rate
         accuracies = [m.model_accuracy for m in self.history[-10:]]
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_convergence_prediction",
+                "goal": "estimate rounds needed to reach target accuracy",
+                "constraints": {
+                    "history_samples": len(self.history),
+                    "target_accuracy": target_accuracy,
+                    "current_accuracy": accuracies[-1] if accuracies else 0.0,
+                },
+            }
+        )
 
         if len(accuracies) < 2:
             return 10
@@ -331,9 +434,26 @@ class PerformancePredictor:
             Dict mapping bottleneck type to severity (0-1)
         """
         if not self.history:
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    "type": "fl_bottleneck_identification",
+                    "goal": "identify FL bottlenecks without history",
+                    "constraints": {"history_samples": 0},
+                }
+            )
             return {}
 
         recent = self.history[-10:]
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_bottleneck_identification",
+                "goal": "identify the dominant FL performance bottlenecks",
+                "constraints": {
+                    "history_samples": len(self.history),
+                    "recent_samples": len(recent),
+                },
+            }
+        )
 
         bottlenecks = {
             "aggregation": statistics.mean([m.aggregation_time_ms for m in recent])
@@ -360,6 +480,16 @@ class PerformancePredictor:
             List of optimization recommendations
         """
         bottlenecks = self.identify_bottlenecks()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_optimization_recommendation",
+                "goal": "select FL optimization recommendations from bottlenecks",
+                "constraints": {
+                    "bottleneck_types": sorted(bottlenecks.keys()),
+                    "history_samples": len(self.history),
+                },
+            }
+        )
         recommendations = []
 
         if bottlenecks.get("aggregation", 0) > 0.3:
@@ -398,6 +528,12 @@ class ClusterOptimizer:
         self.num_nodes = num_nodes
         self.node_latencies: Dict[str, float] = {}
         self.node_bandwidths: Dict[str, float] = {}
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="fl_cluster_optimizer",
+            role="fl",
+            capabilities=("coordinator",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
     def recommend_partition_size(self, model_size_mb: float) -> int:
         """
@@ -412,6 +548,16 @@ class ClusterOptimizer:
         # Heuristic: partition size ~= sqrt(num_nodes)
         # Adjustment for model size
         base_partitions = int(self.num_nodes**0.5)
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_partition_size_recommendation",
+                "goal": "choose FL partition count for model distribution",
+                "constraints": {
+                    "num_nodes": self.num_nodes,
+                    "model_size_mb": model_size_mb,
+                },
+            }
+        )
 
         # Adjust based on model size
         if model_size_mb > 1000:  # Large model
@@ -434,6 +580,16 @@ class ClusterOptimizer:
         """
         # Base batch size: 32
         base_batch = 32
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_batch_size_recommendation",
+                "goal": "choose FL batch size within node memory limits",
+                "constraints": {
+                    "total_nodes": total_nodes,
+                    "available_memory_gb": available_memory_gb,
+                },
+            }
+        )
 
         # Adjust based on available memory
         # Assume ~2GB per batch
@@ -444,9 +600,24 @@ class ClusterOptimizer:
 
     def get_summary(self) -> Dict[str, Any]:
         """Get cluster optimization summary"""
+        recommended_partitions = self.recommend_partition_size(100)
+        recommended_batch_size = self.recommend_batch_size(self.num_nodes, 8)
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "fl_cluster_summary",
+                "goal": "summarize FL cluster optimization recommendations",
+                "constraints": {
+                    "num_nodes": self.num_nodes,
+                    "recommended_partitions": recommended_partitions,
+                    "recommended_batch_size": recommended_batch_size,
+                },
+            }
+        )
         return {
             "total_nodes": self.num_nodes,
-            "recommended_partitions": self.recommend_partition_size(100),
-            "recommended_batch_size": self.recommend_batch_size(self.num_nodes, 8),
+            "recommended_partitions": recommended_partitions,
+            "recommended_batch_size": recommended_batch_size,
             "optimization_timestamp": datetime.now().isoformat(),
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }

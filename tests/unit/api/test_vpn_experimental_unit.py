@@ -6,6 +6,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
+from src.coordination.events import EventBus, EventType
+
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
@@ -15,6 +17,20 @@ import src.api.vpn_experimental as vpn
 
 def _raw(fn):
     return getattr(fn, "__wrapped__", fn)
+
+
+def _request_with_bus(bus):
+    return SimpleNamespace(state=SimpleNamespace(event_bus=bus))
+
+
+def _latest_event_payload(bus, source_agent):
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent=source_agent,
+        limit=10,
+    )
+    assert events
+    return events[-1].data
 
 
 @pytest.mark.asyncio
@@ -64,6 +80,65 @@ async def test_get_vpn_config_uses_defaults_and_generators(monkeypatch) -> None:
     assert resp.user_id == 7
     assert "vpn.example:443" in resp.vless_link
     assert resp.config_text.startswith("cfg:7:vpn.example:443")
+
+
+@pytest.mark.asyncio
+async def test_get_vpn_config_publishes_redacted_evidence(monkeypatch, tmp_path) -> None:
+    bus = EventBus(str(tmp_path))
+    monkeypatch.setenv("VPN_SERVER", "secret.vpn.example")
+    monkeypatch.setenv("VPN_PORT_EXPERIMENTAL", "443")
+    monkeypatch.setenv(
+        "VPN_EXPERIMENTAL_CONFIG_GENERATE_SPIFFE_ID",
+        "spiffe://secret/vpn-experimental-config",
+    )
+    monkeypatch.setattr(
+        vpn,
+        "generate_config_text",
+        lambda user_id, user_uuid, server, port: (
+            f"cfg-private:{user_id}:{server}:{port}:{user_uuid}"
+        ),
+    )
+    monkeypatch.setattr(
+        vpn,
+        "generate_vless_link",
+        lambda user_uuid, server, port: f"vless://{user_uuid}@{server}:{port}",
+    )
+
+    class _UUID:
+        @staticmethod
+        def uuid4():
+            return "uuid-private"
+
+    monkeypatch.setitem(__import__("sys").modules, "uuid", _UUID)
+
+    resp = await _raw(vpn.get_vpn_config)(
+        _request_with_bus(bus),
+        user_id=777,
+        username="private-user",
+    )
+    payload = _latest_event_payload(bus, "vpn-experimental-config-generate")
+    payload_text = str(payload)
+
+    assert resp.user_id == 777
+    assert payload["operation"] == "generate_experimental_vpn_config"
+    assert payload["control_action"] is True
+    assert payload["observed_state"] is False
+    assert payload["source_quality"] == "local_config_generation_only"
+    assert payload["vless_link_present"] is True
+    assert payload["config_text_present"] is True
+    assert payload["service_identity"]["spiffe_id_present"] is True
+    assert payload["dataplane_confirmed"] is False
+    assert payload["bypass_confirmed"] is False
+    for raw_value in [
+        "secret.vpn.example",
+        "vless://uuid-private@secret.vpn.example:443",
+        "cfg-private",
+        "uuid-private",
+        "private-user",
+        "777",
+        "spiffe://secret/vpn-experimental-config",
+    ]:
+        assert raw_value not in payload_text
 
 
 @pytest.mark.asyncio
@@ -212,3 +287,25 @@ def test_active_users_count_counts_xui_db_enabled_users(monkeypatch, tmp_path) -
 async def test_delete_vpn_user_returns_confirmation() -> None:
     deleted = await _raw(vpn.delete_vpn_user)(SimpleNamespace(), 1001, admin=None)
     assert deleted["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_delete_vpn_user_evidence_marks_stub_without_raw_id(tmp_path) -> None:
+    bus = EventBus(str(tmp_path))
+
+    deleted = await _raw(vpn.delete_vpn_user)(
+        _request_with_bus(bus),
+        1001,
+        admin=object(),
+    )
+    payload = _latest_event_payload(bus, "vpn-experimental-user-delete")
+    payload_text = str(payload)
+
+    assert deleted["success"] is True
+    assert payload["operation"] == "delete_experimental_vpn_user"
+    assert payload["control_action"] is True
+    assert payload["delete_stub_response"] is True
+    assert payload["persistent_delete_attempted"] is False
+    assert payload["persistent_delete_confirmed"] is False
+    assert payload["dataplane_confirmed"] is False
+    assert "1001" not in payload_text

@@ -17,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, get_db, User, SignedPlaybook, PlaybookAck
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_playbooks_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -54,7 +55,7 @@ def _register(client, role="user"):
     token = r.json()["access_token"]
     if role in ("admin", "operator"):
         db = TestingSessionLocal()
-        u = db.query(User).filter(User.api_key == token).first()
+        u = find_user_by_api_key(db, token)
         u.role = role
         db.commit()
         db.close()

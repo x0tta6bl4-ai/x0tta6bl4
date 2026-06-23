@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
 import src.network.geo_proxy_sharding as mod
 from src.network.residential_proxy_manager import ProxyEndpoint, ProxyStatus
 
@@ -33,6 +34,24 @@ def _make_proxy(
     proxy.success_count = success_count
     proxy.failure_count = failure_count
     return proxy
+
+
+def _clear_geo_proxy_identity(monkeypatch):
+    for name in (
+        "GEO_PROXY_SHARD_MANAGER_SPIFFE_ID",
+        "GEO_PROXY_SHARD_MANAGER_DID",
+        "GEO_PROXY_SHARD_MANAGER_WALLET_ADDRESS",
+        "X0TTA6BL4_SERVICE_SPIFFE_ID",
+        "X0TTA6BL4_SERVICE_DID",
+        "X0TTA6BL4_SERVICE_WALLET_ADDRESS",
+        "SERVICE_SPIFFE_ID",
+        "SERVICE_DID",
+        "SERVICE_WALLET_ADDRESS",
+        "SPIFFE_ID",
+        "DID",
+        "GHOST_WALLET_ADDRESS",
+    ):
+        monkeypatch.delenv(name, raising=False)
 
 
 def test_region_latency_lookup_paths():
@@ -299,6 +318,65 @@ async def test_check_proxy_health_success_non_200_and_exception(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_check_proxy_health_publishes_redacted_eventbus_evidence(
+    tmp_path,
+    monkeypatch,
+):
+    _clear_geo_proxy_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    manager = mod.GeoProxyShardManager(event_bus=bus)
+    pool = manager.pools[mod.Region.US_EAST]
+    proxy = _make_proxy(
+        "geo-proxy-secret-1",
+        status=ProxyStatus.DEGRADED,
+        region=mod.Region.US_EAST.value,
+    )
+
+    fake_aiohttp_success = SimpleNamespace(
+        ClientSession=lambda: _FakeSession(200),
+        ClientTimeout=lambda total: SimpleNamespace(total=total),
+    )
+    monkeypatch.setitem(sys.modules, "aiohttp", fake_aiohttp_success)
+
+    await manager._check_proxy_health(proxy, pool)
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="geo-proxy-shard-manager",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["component"] == "network.geo_proxy_sharding"
+    assert payload["operation"] == "health_check"
+    assert payload["service_name"] == "geo-proxy-shard-manager"
+    assert payload["layer"] == "network_geo_proxy_sharding_observed_state"
+    assert payload["status"] == "health_check_ok"
+    assert payload["success"] is True
+    assert payload["region"] == "us-east-1"
+    assert payload["proxy"]["proxy_id_hash"].startswith("sha256:")
+    assert payload["previous_status"] == "degraded"
+    assert payload["new_status"] == "healthy"
+    assert payload["status_code"] == 200
+    assert payload["health_check"]["target"] == "httpbin_ip_probe"
+    assert payload["service_identity_present"] == {
+        "spiffe_id": False,
+        "did": False,
+        "wallet_address": False,
+    }
+    assert payload["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in payload["thinking"]["techniques"]
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "geo_proxy_health_check"
+    )
+    assert "customer traffic delivery" in payload["claim_boundary"]
+    text = str(payload)
+    assert "geo-proxy-secret-1" not in text
+    assert "127.0.0.1" not in text
+    assert "https://httpbin.org/ip" not in text
+
+
+@pytest.mark.asyncio
 async def test_select_proxy_primary_failover_and_no_failover(monkeypatch):
     manager = mod.GeoProxyShardManager(default_region=mod.Region.US_EAST)
     selected = _make_proxy("picked")
@@ -328,6 +406,70 @@ async def test_select_proxy_primary_failover_and_no_failover(monkeypatch):
     )
     assert none_proxy is None
     assert manager.failover_count == 1
+
+
+@pytest.mark.asyncio
+async def test_select_proxy_publishes_redacted_failover_evidence(
+    tmp_path,
+    monkeypatch,
+):
+    _clear_geo_proxy_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    manager = mod.GeoProxyShardManager(
+        default_region=mod.Region.US_EAST,
+        event_bus=bus,
+    )
+    selected = _make_proxy(
+        "geo-proxy-secret-west",
+        region=mod.Region.US_WEST.value,
+    )
+
+    async def _fake_select(region, _require_healthy):
+        if region == mod.Region.US_EAST:
+            return None
+        if region == mod.Region.US_WEST:
+            return selected
+        return None
+
+    manager._select_from_region = _fake_select
+    monkeypatch.setattr(
+        manager,
+        "get_nearest_regions",
+        lambda _from_region, count=3: [mod.Region.US_WEST, mod.Region.EU_WEST],
+    )
+
+    proxy = await manager.select_proxy(
+        target_domain="secret.example",
+        allow_failover=True,
+    )
+
+    assert proxy is selected
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="geo-proxy-shard-manager",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["operation"] == "select_proxy"
+    assert payload["status"] == "proxy_selected_after_failover"
+    assert payload["success"] is True
+    assert payload["target_domain_hash"].startswith("sha256:")
+    assert payload["target_region"] == "us-east-1"
+    assert payload["selected_region"] == "us-west-2"
+    assert payload["allow_failover"] is True
+    assert payload["failover_attempted"] is True
+    assert payload["failover_count"] == 1
+    assert payload["selected_proxy"]["proxy_id_hash"].startswith("sha256:")
+    assert payload["thinking"]["profile"]["role"] == "security"
+    assert "mape_k" in payload["thinking"]["techniques"]
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "geo_proxy_selected_after_failover"
+    )
+    text = str(payload)
+    assert "secret.example" not in text
+    assert "geo-proxy-secret-west" not in text
+    assert "127.0.0.1" not in text
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 Mesh Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'SF Mono', 'Consolas', monospace; background: #0a0e17; color: #e0e0e0; }
+        .header { background: #111827; padding: 16px 24px; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 18px; color: #22d3ee; }
+        .header .status { font-size: 12px; color: #6b7280; }
+        .header .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+        .header .status .dot.green { background: #22c55e; }
+        .header .status .dot.yellow { background: #eab308; }
+        .header .status .dot.red { background: #ef4444; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; padding: 16px 24px; }
+        .card { background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 16px; }
+        .card h3 { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+        .card .value { font-size: 28px; font-weight: bold; color: #22d3ee; }
+        .card .unit { font-size: 12px; color: #6b7280; }
+        .main { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; padding: 0 24px 16px; }
+        .panel { background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 16px; }
+        .panel h3 { font-size: 14px; color: #e0e0e0; margin-bottom: 12px; }
+        canvas { width: 100%; height: 400px; }
+        .peer-list { list-style: none; }
+        .peer-list li { padding: 8px 0; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; }
+        .peer-list li:last-child { border-bottom: none; }
+        .peer-id { font-weight: bold; color: #22d3ee; }
+        .peer-addr { font-size: 12px; color: #6b7280; }
+        .peer-status { font-size: 12px; }
+        .peer-status.healthy { color: #22c55e; }
+        .peer-status.degraded { color: #eab308; }
+        .peer-status.offline { color: #ef4444; }
+        .event-list { list-style: none; max-height: 300px; overflow-y: auto; }
+        .event-list li { padding: 6px 0; border-bottom: 1px solid #1e293b; font-size: 12px; }
+        .event-list li:last-child { border-bottom: none; }
+        .event-action { color: #a78bfa; }
+        .event-time { color: #6b7280; }
+        .event-diagnosis { color: #9ca3af; }
+        .pqc-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+        .pqc-badge.active { background: #064e3b; color: #34d399; }
+        .pqc-badge.inactive { background: #374151; color: #9ca3af; }
+        @media (max-width: 1200px) { .grid { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } .main { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>x0tta6bl4 Mesh Dashboard</h1>
+        <div class="status">
+            <span class="dot green" id="statusDot"></span>
+            <span id="statusText">Connecting...</span>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>Peers</h3>
+            <div class="value" id="peerCount">-</div>
+            <div class="unit">connected</div>
+        </div>
+        <div class="card">
+            <h3>Health Score</h3>
+            <div class="value" id="healthScore">-</div>
+            <div class="unit">/ 1.0</div>
+        </div>
+        <div class="card">
+            <h3>PQC Sessions</h3>
+            <div class="value" id="pqcSessions">-</div>
+            <div class="unit" id="pqcAlgo">ML-KEM-768</div>
+        </div>
+        <div class="card">
+            <h3>Uptime</h3>
+            <div class="value" id="uptime">-</div>
+            <div class="unit">seconds</div>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="panel">
+            <h3>Network Topology</h3>
+            <canvas id="topologyCanvas"></canvas>
+        </div>
+        <div>
+            <div class="panel" style="margin-bottom: 16px;">
+                <h3>Connected Peers</h3>
+                <ul class="peer-list" id="peerList">
+                    <li style="color: #6b7280;">No peers connected</li>
+                </ul>
+            </div>
+            <div class="panel">
+                <h3>Healing Events</h3>
+                <ul class="event-list" id="eventList">
+                    <li style="color: #6b7280;">No events</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v1/mesh';
+        let lastSnapshot = null;
+
+        async function fetchJSON(url) {
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                return await resp.json();
+            } catch (e) {
+                console.error('Fetch error:', e);
+                return null;
+            }
+        }
+
+        function updateStats(snap) {
+            if (!snap) return;
+            document.getElementById('peerCount').textContent = snap.peers ? snap.peers.length : 0;
+            document.getElementById('healthScore').textContent = snap.metrics ? snap.metrics.health_score.toFixed(2) : '-';
+            document.getElementById('pqcSessions').textContent = snap.pqc ? snap.pqc.active_sessions : 0;
+            document.getElementById('pqcAlgo').textContent = snap.pqc ? snap.pqc.algorithm : '';
+            document.getElementById('uptime').textContent = snap.metrics ? Math.floor(snap.metrics.uptime_sec) : '-';
+
+            // Status dot
+            const healthy = snap.peers && snap.peers.every(p => p.healthy);
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            if (snap.peers && snap.peers.length > 0) {
+                dot.className = healthy ? 'dot green' : 'dot yellow';
+                text.textContent = healthy ? 'All peers healthy' : 'Some peers degraded';
+            } else {
+                dot.className = 'dot red';
+                text.textContent = 'No peers connected';
+            }
+        }
+
+        function updatePeerList(peers) {
+            const list = document.getElementById('peerList');
+            if (!peers || peers.length === 0) {
+                list.innerHTML = '<li style="color: #6b7280;">No peers connected</li>';
+                return;
+            }
+            list.innerHTML = peers.map(p => `
+                <li>
+                    <div>
+                        <span class="peer-id">${p.node_id}</span>
+                        <span class="peer-addr">${p.addr}</span>
+                    </div>
+                    <div>
+                        <span class="peer-status ${p.healthy ? 'healthy' : 'degraded'}">${p.healthy ? 'Healthy' : 'Degraded'}</span>
+                        <span class="pqc-badge ${p.pqc_session ? 'active' : 'inactive'}">${p.pqc_session ? 'PQC' : ''}</span>
+                    </div>
+                </li>
+            `).join('');
+        }
+
+        function updateEventList(events) {
+            const list = document.getElementById('eventList');
+            if (!events || events.length === 0) {
+                list.innerHTML = '<li style="color: #6b7280;">No events</li>';
+                return;
+            }
+            list.innerHTML = events.slice(-10).reverse().map(e => `
+                <li>
+                    <span class="event-time">${new Date(e.timestamp).toLocaleTimeString()}</span>
+                    <span class="event-action">${e.action}</span>
+                    <span class="event-diagnosis">${e.diagnosis}</span>
+                </li>
+            `).join('');
+        }
+
+        function drawTopology(peers, self) {
+            const canvas = document.getElementById('topologyCanvas');
+            const ctx = canvas.getContext('2d');
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * 2;
+            canvas.height = rect.height * 2;
+            ctx.scale(2, 2);
+            const W = rect.width;
+            const H = rect.height;
+
+            ctx.clearRect(0, 0, W, H);
+
+            // Draw background grid
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 0.5;
+            for (let x = 0; x < W; x += 40) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+            }
+            for (let y = 0; y < H; y += 40) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+            }
+
+            const centerX = W / 2;
+            const centerY = H / 2;
+            const radius = Math.min(W, H) / 3;
+
+            // Draw self node
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 20, 0, Math.PI * 2);
+            ctx.fillStyle = '#22d3ee';
+            ctx.fill();
+            ctx.fillStyle = '#0a0e17';
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('SELF', centerX, centerY);
+
+            // Draw peers in a circle
+            if (peers && peers.length > 0) {
+                peers.forEach((peer, i) => {
+                    const angle = (2 * Math.PI * i) / peers.length - Math.PI / 2;
+                    const x = centerX + radius * Math.cos(angle);
+                    const y = centerY + radius * Math.sin(angle);
+
+                    // Draw connection line
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, centerY);
+                    ctx.lineTo(x, y);
+                    ctx.strokeStyle = peer.healthy ? '#22c55e44' : '#ef444444';
+                    ctx.lineWidth = peer.pqc_session ? 2 : 1;
+                    ctx.setLineDash(peer.pqc_session ? [] : [4, 4]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // Draw peer node
+                    ctx.beginPath();
+                    ctx.arc(x, y, 14, 0, Math.PI * 2);
+                    ctx.fillStyle = peer.healthy ? '#22c55e' : '#ef4444';
+                    ctx.fill();
+
+                    // Draw PQC indicator
+                    if (peer.pqc_session) {
+                        ctx.beginPath();
+                        ctx.arc(x, y, 18, 0, Math.PI * 2);
+                        ctx.strokeStyle = '#a78bfa';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+
+                    // Label
+                    ctx.fillStyle = '#e0e0e0';
+                    ctx.font = '9px monospace';
+                    ctx.fillText(peer.node_id.split('-').pop(), x, y + 24);
+                });
+            }
+
+            // Draw legend
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('● Healthy   ● Degraded   ○ PQC Session', 10, H - 10);
+        }
+
+        async function refresh() {
+            const snap = await fetchJSON(`${API_BASE}/snapshot`);
+            if (snap) {
+                lastSnapshot = snap;
+                updateStats(snap);
+                updatePeerList(snap.peers);
+                updateEventList(snap.healing ? snap.healing.events : []);
+                drawTopology(snap.peers, snap.node_id);
+            }
+        }
+
+        // Initial fetch + polling
+        refresh();
+        setInterval(refresh, 2000);
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            if (lastSnapshot) drawTopology(lastSnapshot.peers, lastSnapshot.node_id);
+        });
+    </script>
+</body>
+</html>

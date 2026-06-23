@@ -620,6 +620,17 @@ class MetricsResponse:
 def get_metrics() -> MetricsResponse:
     """Получить метрики в формате Prometheus"""
     body = prometheus_client.generate_latest(_metrics_registry)
+
+    # Добавляем нативные eBPF метрики, если доступны
+    try:
+        from src.monitoring.ebpf_native_exporter import get_native_exporter
+        exporter = get_native_exporter()
+        ebpf_body = exporter.get_metrics_text()
+        if ebpf_body:
+            body += ebpf_body
+    except Exception:
+        pass
+
     return MetricsResponse(body)
 
 

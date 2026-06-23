@@ -17,7 +17,10 @@ from unittest.mock import MagicMock, patch
 
 from src.ml.graphsage_anomaly_detector import (
     AnomalyPrediction,
+    DEFAULT_ANOMALY_THRESHOLD,
+    GRAPHSAGE_ANOMALY_CLAIM_GATE_SCHEMA,
     GraphSAGEAnomalyDetector,
+    build_graphsage_anomaly_claim_gate,
     create_graphsage_detector_for_mapek,
     is_quantization_available,
     get_model_class)
@@ -189,6 +192,46 @@ class TestAnomalyPredictionDataclass:
         )
         assert len(pred.features) == 20
 
+    def test_claim_gate_blocks_production_security_overclaims(self):
+        pred = AnomalyPrediction(
+            is_anomaly=True,
+            anomaly_score=0.81,
+            confidence=0.72,
+            node_id="node-claim",
+            features={"cpu": 0.95},
+            inference_time_ms=1.2,
+        )
+
+        gate = build_graphsage_anomaly_claim_gate(
+            pred,
+            threshold=DEFAULT_ANOMALY_THRESHOLD,
+            detector_trained=True,
+        )
+
+        assert gate["schema"] == GRAPHSAGE_ANOMALY_CLAIM_GATE_SCHEMA
+        assert gate["local_model_score_claim_allowed"] is True
+        assert gate["local_anomaly_threshold_exceeded"] is True
+        assert gate["live_intrusion_detection_claim_allowed"] is False
+        assert gate["complete_attack_absence_claim_allowed"] is False
+        assert gate["production_security_coverage_claim_allowed"] is False
+        assert gate["fail_closed"] is True
+
+    def test_claim_gate_fails_closed_on_invalid_score(self):
+        pred = AnomalyPrediction(
+            is_anomaly=False,
+            anomaly_score=1.5,
+            confidence=0.5,
+            node_id="bad-score",
+            features={},
+            inference_time_ms=0.1,
+        )
+
+        gate = build_graphsage_anomaly_claim_gate(pred)
+
+        assert gate["decision"] == "GRAPHSAGE_LOCAL_MODEL_SCORE_INVALID_FAIL_CLOSED"
+        assert gate["local_model_score_claim_allowed"] is False
+        assert "invalid_anomaly_score" in gate["blockers"]
+
 
 # ---------------------------------------------------------------------------
 # GraphSAGEAnomalyDetector initialization
@@ -201,7 +244,7 @@ class TestDetectorInit:
         assert det.input_dim == 8
         assert det.hidden_dim == 64
         assert det.num_layers == 2
-        assert det.anomaly_threshold == 0.6
+        assert det.anomaly_threshold == DEFAULT_ANOMALY_THRESHOLD
 
     def test_custom_parameters(self):
         det = _make_detector(
@@ -726,6 +769,9 @@ class TestPredictUntrained:
         )
         assert isinstance(pred, AnomalyPrediction)
         assert pred.node_id == "test"
+        assert pred.claim_gate["schema"] == GRAPHSAGE_ANOMALY_CLAIM_GATE_SCHEMA
+        assert pred.claim_gate["source"] == "graphsage_rule_fallback"
+        assert pred.claim_gate["production_security_coverage_claim_allowed"] is False
 
     def test_predict_normal_features_not_anomaly(self):
         det = _make_detector()

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 # Mocking environment for local smoke test
 os.environ["DATABASE_URL"] = "sqlite:///./smoke_test.db"
-os.environ["X0TTA6BL4_PRODUCTION"] = "true"
+os.environ["x0tta6bl4_PRODUCTION"] = "true"
 os.environ["STRIPE_SECRET_KEY"] = "sk_test_mock"
 
 from sqlalchemy.orm import Session

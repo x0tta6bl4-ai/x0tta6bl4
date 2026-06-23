@@ -21,6 +21,8 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 
 def _get_ppo_default() -> bool:
     """Get default skip_policy_update based on PyTorch availability."""
@@ -242,6 +244,13 @@ class AgentWorker:
         self.completed_tasks = 0
         self.failed_tasks = 0
         self.total_execution_time = 0.0
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=worker_id,
+            role="coordinator",
+            capabilities=("fl", "ops"),
+            extra_techniques=("mape_k",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
     async def run(self) -> None:
         """Main worker loop."""
@@ -271,6 +280,18 @@ class AgentWorker:
         task_id = task.get("task_id", "unknown")
         task_type = task.get("task_type", "unknown")
         self.current_task = task_id
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": "Execute one swarm PARL task and report completion.",
+                "task_id": task_id,
+                "payload": task.get("payload", {}),
+                "constraints": {
+                    "preserve_report_shape": True,
+                    "worker_id": self.worker_id,
+                },
+            }
+        )
         
         swarm_spans = get_swarm_spans()
 
@@ -348,6 +369,13 @@ class PARLController:
         self.workers: Dict[str, AgentWorker] = {}
         self.scheduler = TaskScheduler(max_workers)
         self.metrics = PARLMetrics()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="swarm_parl_controller",
+            role="coordinator",
+            capabilities=("fl", "ops", "quality"),
+            extra_techniques=("mape_k",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Task tracking
         self.pending_tasks: Dict[str, Dict[str, Any]] = {}
@@ -518,6 +546,18 @@ class PARLController:
         """
         if not tasks:
             return []
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "swarm_parl_parallel_execution",
+                "goal": "Dispatch a bounded batch of tasks across PARL workers.",
+                "task_count": len(tasks),
+                "constraints": {
+                    "max_workers": self.config.max_workers,
+                    "max_parallel_steps": self.config.max_parallel_steps,
+                    "preserve_result_order": True,
+                },
+            }
+        )
 
         results: List[Dict[str, Any]] = []
         batch_size = self.config.max_parallel_steps

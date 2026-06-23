@@ -46,3 +46,28 @@ def test_swarm_orchestrator_get_active_nodes():
     assert len(active) == 2
     assert "peer1" in active
     assert "peer2" in active
+
+
+@pytest.mark.asyncio
+async def test_swarm_orchestrator_records_thinking_context():
+    """Test orchestrator records thinking context around swarm decisions."""
+    orchestrator = SwarmOrchestrator(node_id="test-node", peers={"peer1"})
+
+    await orchestrator.spawn_agent("base", "monitor-test")
+    status = orchestrator.get_status()
+
+    assert status["thinking"]["profile"]["role"] == "coordinator"
+    assert status["last_thinking_context"]["applied"]["framing"]["problem"] == (
+        "swarm_spawn_agent"
+    )
+
+    await orchestrator.execute_task(
+        "task-thinking",
+        "base",
+        {"node_id": "node-1"},
+    )
+    status = orchestrator.get_status()
+
+    assert status["last_thinking_context"]["applied"]["framing"]["problem"] == (
+        "swarm_task_delegation"
+    )

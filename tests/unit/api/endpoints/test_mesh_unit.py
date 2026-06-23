@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import Any, Dict, List
@@ -9,12 +10,14 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 
 from src.api.maas.auth import UserContext
 from src.api.maas.endpoints import mesh as mod
 from src.api.maas.models import MeshDeployRequest, MeshScaleRequest
 from src.api.maas.registry import _mesh_registry, _registry_lock
+from src.coordination.events import EventBus, EventType
+from src.services.service_event_trace import event_trace_evidence_summary
 
 
 def _build_instance(mesh_id: str, owner_id: str, nodes: int) -> SimpleNamespace:
@@ -34,6 +37,19 @@ def _build_instance(mesh_id: str, owner_id: str, nodes: int) -> SimpleNamespace:
         obfuscation="none",
         traffic_profile="none",
         region="global",
+        mesh_provisioner_claim_gate={
+            "local_mesh_instance_lifecycle_claim_allowed": True,
+            "local_node_seed_claim_allowed": True,
+            "external_infrastructure_provisioning_claim_allowed": False,
+            "node_dataplane_join_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+        },
+        cross_plane_claim_gate={
+            "surface": "maas_services.mesh_provisioner.provision_mesh",
+            "allowed": False,
+            "requested_claim_ids": ["production_readiness"],
+        },
     )
 
 
@@ -43,6 +59,22 @@ class _Provisioner:
 
     async def provision_mesh(self, **_kwargs):
         return self._instance
+
+
+class _MeshEvidenceRequest:
+    def __init__(self, bus: EventBus):
+        self.state = SimpleNamespace(event_bus=bus)
+
+
+def _mesh_event_payloads(bus: EventBus, source_agent: str) -> list[dict]:
+    return [
+        event.data
+        for event in bus.get_event_history(
+            event_type=EventType.PIPELINE_STAGE_END,
+            source_agent=source_agent,
+            limit=20,
+        )
+    ]
 
 
 @pytest.mark.asyncio
@@ -71,6 +103,92 @@ async def test_deploy_mesh_persists_mesh_instance_to_db(monkeypatch):
     assert response.mesh_id == mesh_id
     assert response.status == "active"
     assert response.join_config["enrollment_token"] == instance.join_token
+    assert response.mesh_deploy_claim_gate[
+        "local_mesh_provisioner_invocation_claim_allowed"
+    ] is True
+    assert response.mesh_deploy_claim_gate[
+        "external_node_deployment_claim_allowed"
+    ] is False
+    assert response.mesh_deploy_claim_gate[
+        "dataplane_delivery_claim_allowed"
+    ] is False
+    assert response.mesh_provisioner_claim_gate[
+        "local_mesh_instance_lifecycle_claim_allowed"
+    ] is True
+    assert response.provisioner_cross_plane_claim_gate[
+        "surface"
+    ] == "maas_services.mesh_provisioner.provision_mesh"
+    assert response.cross_plane_claim_gate["surface"] == "maas_mesh.deploy"
+    assert response.cross_plane_claim_gate["allowed"] is False
+
+
+@pytest.mark.asyncio
+async def test_deploy_mesh_publishes_redacted_lifecycle_evidence(
+    monkeypatch,
+    tmp_path,
+):
+    user_id = "owner-mesh-deploy-secret"
+    mesh_id = "mesh-deploy-secret"
+    mesh_name = "mesh-name-deploy-secret"
+    join_token = "join-token-deploy-secret"
+    instance = _build_instance(mesh_id=mesh_id, owner_id=user_id, nodes=7)
+    instance.name = mesh_name
+    instance.join_token = join_token
+    monkeypatch.setattr(mod, "get_provisioner", lambda: _Provisioner(instance))
+
+    bus = EventBus(str(tmp_path))
+    http_request = _MeshEvidenceRequest(bus)
+    request = MeshDeployRequest(name=mesh_name, nodes=7, billing_plan="pro")
+    user = UserContext(user_id=user_id, plan="pro")
+    db = MagicMock()
+
+    response = await mod.deploy_mesh(request, user, db, http_request=http_request)
+
+    assert response.mesh_id == mesh_id
+    assert response.join_config["enrollment_token"] == join_token
+
+    payloads = _mesh_event_payloads(bus, mod._MODULAR_MESH_DEPLOY_SOURCE_AGENT)
+    assert len(payloads) == 1
+    payload = payloads[0]
+    assert payload["operation"] == "deploy_mesh"
+    assert payload["layer"] == "api_modular_mesh_deploy_control_action"
+    assert payload["status"] == "success"
+    assert payload["return_code"] == 201
+    assert payload["source_quality"] == "local_mesh_deployment_recorded"
+    assert payload["actor_user_id_hash"]
+    assert payload["mesh_id_hash"]
+    assert payload["owner_id_hash"]
+    assert payload["result_summary"]["join_token_present"] is True
+    assert payload["result_summary"]["mesh_name_present"] is True
+    assert payload["result_summary"]["mesh_deploy_claim_gate_present"] is True
+    assert payload["result_summary"]["mesh_provisioner_claim_gate_present"] is True
+    assert payload["result_summary"]["cross_plane_claim_gate_present"] is True
+    assert payload["result_summary"]["dataplane_delivery_claim_allowed"] is False
+    assert (
+        payload["result_summary"]["external_node_deployment_claim_allowed"] is False
+    )
+    assert payload["result_summary"]["production_readiness_claim_allowed"] is False
+    lifecycle = payload["mesh_lifecycle_evidence"]
+    assert lifecycle["dataplane_confirmed"] is False
+    assert lifecycle["external_node_deployment_confirmed"] is False
+    assert lifecycle["agent_enrollment_confirmed"] is False
+    assert lifecycle["join_token_consumed"] is False
+    assert lifecycle["db_write_evidence"]["committed"] is True
+    assert lifecycle["registry_mutation"]["committed"] is True
+
+    trace_summary = event_trace_evidence_summary(payload)
+    assert trace_summary["runtime_evidence"]["present"] is True
+    assert "mesh_lifecycle_evidence" in trace_summary["runtime_evidence"][
+        "evidence_blocks_present"
+    ]
+
+    serialized = json.dumps(payloads, sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    for raw_value in (user_id, mesh_id, mesh_name, join_token):
+        assert raw_value not in serialized
+        assert raw_value not in raw_log
 
 
 def _make_user(user_id: str = "owner-1") -> UserContext:
@@ -160,6 +278,15 @@ class TestListMeshes:
         assert r.nodes_healthy == 2
         assert 0.0 <= r.health_score <= 1.0
         assert isinstance(r.peers, list)
+        assert r.mesh_lifecycle_claim_gate[
+            "local_mesh_registry_read_claim_allowed"
+        ] is True
+        assert (
+            r.mesh_lifecycle_claim_gate["dataplane_delivery_claim_allowed"]
+            is False
+        )
+        assert r.cross_plane_claim_gate["surface"] == "maas_mesh.list"
+        assert r.cross_plane_claim_gate["allowed"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +306,40 @@ class TestGetMeshStatus:
         assert result.status == "active"
         assert result.nodes_total == 1
         assert result.nodes_healthy == 1
+        assert result.mesh_lifecycle_claim_gate[
+            "local_mesh_status_observation_claim_allowed"
+        ] is True
+        assert (
+            result.mesh_lifecycle_claim_gate[
+                "external_node_deployment_claim_allowed"
+            ]
+            is False
+        )
+        assert result.cross_plane_claim_gate["surface"] == "maas_mesh.status"
+        assert result.cross_plane_claim_gate["allowed"] is False
+
+    @pytest.mark.asyncio
+    async def test_status_includes_redacted_control_policy_evidence(self, monkeypatch):
+        mid = f"mesh-{uuid.uuid4().hex[:8]}"
+        inst = _build_instance_with_nodes(mid, "owner-1", ["healthy"])
+        evidence = {
+            "status": "available",
+            "source_agents": ["core-mapek-loop"],
+            "event_ids": ["event-1"],
+            "events_total": 1,
+            "mesh_metric_evidence_policy": {
+                "decision_basis": "estimate_or_fallback_based",
+                "redacted": True,
+            },
+            "redacted": True,
+        }
+        monkeypatch.setattr(mod, "get_mesh", lambda _id: inst)
+        monkeypatch.setattr(mod, "_maas_control_policy_evidence", lambda: evidence)
+
+        result = await mod.get_mesh_status(mesh_id=mid, user=_make_user("owner-1"))
+
+        assert result.control_policy_evidence == evidence
+        assert "10.0.0.1" not in str(result.control_policy_evidence)
 
     @pytest.mark.asyncio
     async def test_raises_404_for_unknown_mesh(self, monkeypatch):
@@ -251,7 +412,57 @@ class TestGetMeshMetrics:
         assert "phi_ratio" in result.consciousness
         assert "phase" in result.mape_k
         assert "nodes_active" in result.network
+        assert (
+            result.mesh_metrics_claim_gate[
+                "local_mesh_metrics_observation_claim_allowed"
+            ]
+            is True
+        )
+        assert (
+            result.mesh_metrics_claim_gate["production_readiness_claim_allowed"]
+            is False
+        )
+        assert (
+            result.mesh_metrics_claim_gate["production_slo_claim_allowed"] is False
+        )
+        assert (
+            result.mesh_metrics_claim_gate["dataplane_delivery_claim_allowed"]
+            is False
+        )
+        assert (
+            result.mesh_metrics_claim_gate["external_dpi_bypass_claim_allowed"]
+            is False
+        )
+        assert (
+            result.mesh_metrics_claim_gate["settlement_finality_claim_allowed"]
+            is False
+        )
+        assert result.cross_plane_claim_gate["surface"] == "maas_mesh.metrics"
+        assert result.cross_plane_claim_gate["allowed"] is False
         assert result.timestamp  # non-empty string
+
+    @pytest.mark.asyncio
+    async def test_metrics_include_redacted_control_policy_evidence(self, monkeypatch):
+        mid = f"mesh-{uuid.uuid4().hex[:8]}"
+        inst = _build_instance(mesh_id=mid, owner_id="owner-1", nodes=3)
+        evidence = {
+            "status": "available",
+            "source_agents": ["mesh-action-enforcer"],
+            "event_ids": ["event-2"],
+            "events_total": 1,
+            "mesh_metric_evidence_policy": {
+                "decision_basis": "dataplane_confirmed",
+                "redacted": True,
+            },
+            "redacted": True,
+        }
+        monkeypatch.setattr(mod, "get_mesh", lambda _id: inst)
+        monkeypatch.setattr(mod, "_maas_control_policy_evidence", lambda: evidence)
+
+        result = await mod.get_mesh_metrics(mesh_id=mid, user=_make_user("owner-1"))
+
+        assert result.control_policy_evidence == evidence
+        assert "10.0.0.1" not in str(result.control_policy_evidence)
 
     @pytest.mark.asyncio
     async def test_uses_get_consciousness_metrics_if_available(self, monkeypatch):
@@ -319,7 +530,20 @@ class TestScaleMesh:
         request = MeshScaleRequest(target_count=5)
         result = await mod.scale_mesh(mesh_id=mid, request=request, user=_make_user("owner-1"))
 
-        assert result == scale_result
+        assert result["mesh_id"] == scale_result["mesh_id"]
+        assert result["target_count"] == scale_result["target_count"]
+        assert result["status"] == scale_result["status"]
+        assert result["mesh_lifecycle_claim_gate"][
+            "local_mesh_control_action_claim_allowed"
+        ] is True
+        assert (
+            result["mesh_lifecycle_claim_gate"][
+                "external_infrastructure_convergence_claim_allowed"
+            ]
+            is False
+        )
+        assert result["cross_plane_claim_gate"]["surface"] == "maas_mesh.scale"
+        assert result["cross_plane_claim_gate"]["allowed"] is False
 
     @pytest.mark.asyncio
     async def test_scale_value_error_returns_400(self, monkeypatch):
@@ -424,6 +648,116 @@ class TestTerminateMesh:
         assert exc.value.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_mesh_scale_and_terminate_publish_redacted_control_evidence(
+    monkeypatch,
+    tmp_path,
+):
+    user_id = "owner-mesh-control-secret"
+    mesh_id = "mesh-control-secret"
+    reason = "manual-secret-reason"
+    inst = _build_instance(mesh_id=mesh_id, owner_id=user_id, nodes=3)
+    bus = EventBus(str(tmp_path))
+    http_request = _MeshEvidenceRequest(bus)
+
+    class _Prov:
+        async def scale_mesh(self, mesh_id, target_count, actor):
+            return {
+                "mesh_id": mesh_id,
+                "target_count": target_count,
+                "status": "scaling",
+                "actor": actor,
+            }
+
+        async def terminate_mesh(self, mesh_id, actor, reason):
+            return {
+                "mesh_id": mesh_id,
+                "status": "terminated",
+                "actor": actor,
+                "reason": reason,
+            }
+
+    monkeypatch.setattr(mod, "get_mesh", lambda _id: inst)
+    monkeypatch.setattr(mod, "get_provisioner", lambda: _Prov())
+    user = UserContext(user_id=user_id, plan="pro")
+
+    scale_response = await mod.scale_mesh(
+        mesh_id=mesh_id,
+        request=MeshScaleRequest(target_count=5),
+        user=user,
+        http_request=http_request,
+    )
+    terminate_response = await mod.terminate_mesh(
+        mesh_id=mesh_id,
+        user=user,
+        reason=reason,
+        http_request=http_request,
+    )
+
+    assert scale_response["target_count"] == 5
+    assert terminate_response["status"] == "terminated"
+    assert scale_response["mesh_lifecycle_claim_gate"][
+        "dataplane_delivery_claim_allowed"
+    ] is False
+    assert terminate_response["mesh_lifecycle_claim_gate"][
+        "production_readiness_claim_allowed"
+    ] is False
+
+    scale_payloads = _mesh_event_payloads(bus, mod._MODULAR_MESH_SCALE_SOURCE_AGENT)
+    terminate_payloads = _mesh_event_payloads(
+        bus,
+        mod._MODULAR_MESH_TERMINATE_SOURCE_AGENT,
+    )
+    assert len(scale_payloads) == 1
+    assert len(terminate_payloads) == 1
+
+    scale_payload = scale_payloads[0]
+    terminate_payload = terminate_payloads[0]
+    assert scale_payload["operation"] == "scale_mesh"
+    assert scale_payload["source_quality"] == "local_mesh_scale_control_action"
+    assert scale_payload["target_nodes"] == 5
+    assert scale_payload["mesh_lifecycle_evidence"]["registry_mutation"][
+        "committed"
+    ] is True
+    assert scale_payload["mesh_lifecycle_evidence"][
+        "durable_infrastructure_convergence_confirmed"
+    ] is False
+    assert scale_payload["result_summary"]["mesh_lifecycle_claim_gate_present"] is True
+    assert scale_payload["result_summary"]["cross_plane_claim_gate_present"] is True
+    assert scale_payload["result_summary"]["dataplane_delivery_claim_allowed"] is False
+    assert (
+        scale_payload["result_summary"][
+            "external_node_deployment_claim_allowed"
+        ]
+        is False
+    )
+    assert terminate_payload["operation"] == "terminate_mesh"
+    assert terminate_payload["source_quality"] == "local_mesh_terminate_control_action"
+    assert terminate_payload["result_summary"]["reason_present"] is True
+    assert (
+        terminate_payload["result_summary"]["mesh_lifecycle_claim_gate_present"]
+        is True
+    )
+    assert (
+        terminate_payload["result_summary"]["production_readiness_claim_allowed"]
+        is False
+    )
+    assert terminate_payload["mesh_lifecycle_evidence"][
+        "external_node_deployment_confirmed"
+    ] is False
+    assert terminate_payload["mesh_lifecycle_evidence"][
+        "mapek_remediation_confirmed"
+    ] is False
+
+    serialized = json.dumps(scale_payloads + terminate_payloads, sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    for raw_value in (user_id, mesh_id, reason):
+        assert raw_value not in serialized
+        assert raw_value not in raw_log
+
+
 # ---------------------------------------------------------------------------
 # get_mesh_audit
 # ---------------------------------------------------------------------------
@@ -443,6 +777,40 @@ class TestGetMeshAudit:
         result = await mod.get_mesh_audit(mesh_id=mid, user=_make_user("owner-1"), limit=100)
 
         assert result == log
+
+    @pytest.mark.asyncio
+    async def test_audit_sets_claim_boundary_headers(self, monkeypatch):
+        mid = f"mesh-{uuid.uuid4().hex[:8]}"
+        inst = _build_instance(mesh_id=mid, owner_id="owner-1", nodes=1)
+        monkeypatch.setattr(mod, "get_mesh", lambda _id: inst)
+        monkeypatch.setattr(mod, "get_audit_log", lambda _id: [])
+        http_response = Response()
+
+        result = await mod.get_mesh_audit(
+            mesh_id=mid,
+            user=_make_user("owner-1"),
+            limit=100,
+            http_response=http_response,
+        )
+
+        assert result == []
+        assert (
+            http_response.headers["X-X0TTA6BL4-Claim-Gate-Schema"]
+            == "x0tta6bl4.maas_mesh_read_list_claim_boundary_headers.v1"
+        )
+        assert http_response.headers["X-X0TTA6BL4-Claim-Surface"] == "maas_mesh.audit"
+        assert (
+            http_response.headers[
+                "X-X0TTA6BL4-Dataplane-Delivery-Claim-Allowed"
+            ]
+            == "false"
+        )
+        assert (
+            http_response.headers[
+                "X-X0TTA6BL4-Production-Readiness-Claim-Allowed"
+            ]
+            == "false"
+        )
 
     @pytest.mark.asyncio
     async def test_limit_trims_to_last_n_entries(self, monkeypatch):
@@ -501,6 +869,36 @@ class TestGetMeshMapek:
         assert result == events
 
     @pytest.mark.asyncio
+    async def test_mapek_sets_claim_boundary_headers(self, monkeypatch):
+        mid = f"mesh-{uuid.uuid4().hex[:8]}"
+        inst = _build_instance(mesh_id=mid, owner_id="owner-1", nodes=1)
+        monkeypatch.setattr(mod, "get_mesh", lambda _id: inst)
+        monkeypatch.setattr(mod, "get_mapek_events", lambda _id: [])
+        http_response = Response()
+
+        result = await mod.get_mesh_mapek(
+            mesh_id=mid,
+            user=_make_user("owner-1"),
+            limit=100,
+            http_response=http_response,
+        )
+
+        assert result == []
+        assert http_response.headers["X-X0TTA6BL4-Claim-Surface"] == "maas_mesh.mapek"
+        assert (
+            http_response.headers[
+                "X-X0TTA6BL4-Autonomous-Remediation-Completion-Claim-Allowed"
+            ]
+            == "false"
+        )
+        assert (
+            http_response.headers[
+                "X-X0TTA6BL4-Restored-Dataplane-Claim-Allowed"
+            ]
+            == "false"
+        )
+
+    @pytest.mark.asyncio
     async def test_limit_trims_to_last_n_entries(self, monkeypatch):
         mid = f"mesh-{uuid.uuid4().hex[:8]}"
         inst = _build_instance(mesh_id=mid, owner_id="owner-1", nodes=1)
@@ -536,6 +934,217 @@ class TestGetMeshMapek:
         assert exc.value.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_mesh_read_routes_publish_redacted_observed_state_evidence(
+    monkeypatch,
+    tmp_path,
+):
+    user_id = "owner-mesh-read-secret"
+    mesh_id = "mesh-read-secret"
+    node_id = "node-read-secret"
+    mesh_name = "mesh-name-read-secret"
+    inst = _build_instance(mesh_id=mesh_id, owner_id=user_id, nodes=1)
+    inst.name = mesh_name
+    inst.node_instances = {node_id: {"status": "healthy"}}
+    evidence = {
+        "status": "available",
+        "source_agents": ["control-policy-agent-secret"],
+        "event_ids": ["control-policy-event-secret"],
+        "events_total": 1,
+        "mesh_metric_evidence_policy": {
+            "decision_basis": "estimate_or_fallback_based",
+            "redacted": True,
+        },
+        "redacted": True,
+    }
+    audit_log = [
+        {
+            "timestamp": "2026-03-08T10:00:00",
+            "actor": user_id,
+            "event": "deploy",
+            "details": "audit-detail-secret",
+        }
+    ]
+    mapek_events = [
+        {
+            "timestamp": "2026-03-08T10:01:00",
+            "phase": "ANALYZE",
+            "node_id": node_id,
+            "metric": "metric-secret",
+            "cpu": 0.75,
+        }
+    ]
+    bus = EventBus(str(tmp_path))
+    http_request = _MeshEvidenceRequest(bus)
+
+    monkeypatch.setattr(mod, "get_all_meshes", lambda: {mesh_id: inst})
+    monkeypatch.setattr(mod, "get_mesh", lambda _id: inst)
+    monkeypatch.setattr(mod, "_maas_control_policy_evidence", lambda: evidence)
+    monkeypatch.setattr(mod, "get_audit_log", lambda _id: audit_log)
+    monkeypatch.setattr(mod, "get_mapek_events", lambda _id: mapek_events)
+    user = UserContext(user_id=user_id, plan="pro")
+
+    listed = await mod.list_meshes(
+        user=user,
+        include_terminated=False,
+        http_request=http_request,
+    )
+    status_response = await mod.get_mesh_status(
+        mesh_id=mesh_id,
+        user=user,
+        http_request=http_request,
+    )
+    metrics_response = await mod.get_mesh_metrics(
+        mesh_id=mesh_id,
+        user=user,
+        http_request=http_request,
+    )
+    audit_response = await mod.get_mesh_audit(
+        mesh_id=mesh_id,
+        user=user,
+        limit=100,
+        http_request=http_request,
+    )
+    mapek_response = await mod.get_mesh_mapek(
+        mesh_id=mesh_id,
+        user=user,
+        limit=100,
+        http_request=http_request,
+    )
+
+    assert listed[0].mesh_id == mesh_id
+    assert status_response.control_policy_evidence == evidence
+    assert listed[0].mesh_lifecycle_claim_gate[
+        "local_mesh_registry_read_claim_allowed"
+    ] is True
+    assert status_response.mesh_lifecycle_claim_gate[
+        "local_mesh_status_observation_claim_allowed"
+    ] is True
+    assert metrics_response.control_policy_evidence == evidence
+    assert audit_response == audit_log
+    assert mapek_response == mapek_events
+
+    payloads = _mesh_event_payloads(bus, mod._MODULAR_MESH_READ_SOURCE_AGENT)
+    assert {payload["operation"] for payload in payloads} == {
+        "get_mesh_audit",
+        "get_mesh_mapek",
+        "get_mesh_metrics",
+        "get_mesh_status",
+        "list_meshes",
+    }
+    assert all(payload["read_only"] is True for payload in payloads)
+    assert all(payload["control_action"] is False for payload in payloads)
+
+    status_payload = next(
+        payload for payload in payloads if payload["operation"] == "get_mesh_status"
+    )
+    audit_payload = next(
+        payload for payload in payloads if payload["operation"] == "get_mesh_audit"
+    )
+    mapek_payload = next(
+        payload for payload in payloads if payload["operation"] == "get_mesh_mapek"
+    )
+    assert status_payload["source_quality"] == "local_mesh_status_observed_state"
+    assert (
+        status_payload["result_summary"]["mesh_lifecycle_claim_gate_present"]
+        is True
+    )
+    assert status_payload["result_summary"]["cross_plane_claim_gate_present"] is True
+    assert (
+        status_payload["result_summary"]["dataplane_delivery_claim_allowed"]
+        is False
+    )
+    list_payload = next(
+        payload for payload in payloads if payload["operation"] == "list_meshes"
+    )
+    assert list_payload["result_summary"]["mesh_lifecycle_claim_gate_count"] == 1
+    assert list_payload["result_summary"]["cross_plane_claim_gate_count"] == 1
+    assert status_payload["control_policy_evidence_summary"] == {
+        "present": True,
+        "status": "available",
+        "events_total": 1,
+        "source_agents_count": 1,
+        "event_ids_count": 1,
+        "decision_basis": "estimate_or_fallback_based",
+        "redacted": True,
+        "payloads_redacted": True,
+    }
+    metrics_payload = next(
+        payload for payload in payloads if payload["operation"] == "get_mesh_metrics"
+    )
+    assert metrics_payload["result_summary"]["mesh_metrics_claim_gate_present"] is True
+    assert metrics_payload["result_summary"]["cross_plane_claim_gate_present"] is True
+    assert (
+        metrics_payload["result_summary"]["production_readiness_claim_allowed"]
+        is False
+    )
+    assert (
+        metrics_payload["result_summary"]["dataplane_delivery_claim_allowed"]
+        is False
+    )
+    assert (
+        metrics_payload["result_summary"]["external_dpi_bypass_claim_allowed"]
+        is False
+    )
+    assert audit_payload["result_summary"]["event_counts"] == {"deploy": 1}
+    assert (
+        audit_payload["result_summary"][
+            "mesh_read_list_claim_boundary_headers_present"
+        ]
+        is True
+    )
+    assert audit_payload["result_summary"]["claim_surface"] == "maas_mesh.audit"
+    assert (
+        audit_payload["result_summary"]["dataplane_delivery_claim_allowed"]
+        is False
+    )
+    assert (
+        audit_payload["result_summary"]["production_readiness_claim_allowed"]
+        is False
+    )
+    assert mapek_payload["result_summary"]["phase_counts"] == {"ANALYZE": 1}
+    assert mapek_payload["result_summary"]["known_metric_mentions"] == 1
+    assert (
+        mapek_payload["result_summary"][
+            "mesh_read_list_claim_boundary_headers_present"
+        ]
+        is True
+    )
+    assert mapek_payload["result_summary"]["claim_surface"] == "maas_mesh.mapek"
+    assert (
+        mapek_payload["result_summary"][
+            "autonomous_remediation_completion_claim_allowed"
+        ]
+        is False
+    )
+    assert (
+        mapek_payload["result_summary"]["restored_dataplane_claim_allowed"]
+        is False
+    )
+
+    trace_summary = event_trace_evidence_summary(status_payload)
+    assert "mesh_lifecycle_evidence" in trace_summary["runtime_evidence"][
+        "evidence_blocks_present"
+    ]
+
+    serialized = json.dumps(payloads, sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    for raw_value in (
+        user_id,
+        mesh_id,
+        node_id,
+        mesh_name,
+        "audit-detail-secret",
+        "metric-secret",
+        "control-policy-agent-secret",
+        "control-policy-event-secret",
+    ):
+        assert raw_value not in serialized
+        assert raw_value not in raw_log
+
+
 # ---------------------------------------------------------------------------
 # _build_mesh_status_response helper
 # ---------------------------------------------------------------------------
@@ -549,6 +1158,9 @@ class TestBuildMeshStatusResponse:
         result = mod._build_mesh_status_response(inst)
 
         assert result.health_score == 1.0
+        assert result.mesh_lifecycle_claim_gate[
+            "production_readiness_claim_allowed"
+        ] is False
 
     def test_health_score_clamped_floor(self):
         mid = f"mesh-{uuid.uuid4().hex[:8]}"
@@ -605,4 +1217,3 @@ async def test_deploy_mesh_db_failure_rolls_back_registry_and_returns_http_500(m
 
     async with _registry_lock:
         assert mesh_id not in _mesh_registry
-

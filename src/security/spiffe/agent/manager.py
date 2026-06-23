@@ -9,14 +9,9 @@ Manages SPIRE Agent lifecycle:
 
 Interacts with SPIRE Server for identity provisioning.
 
-The implementation supports two operational modes:
-
-* **Real SPIRE mode** – when the ``spire-agent`` binary is available
-  and not explicitly disabled; a subprocess is spawned and the agent
-  socket is monitored.
-* **Mock mode** – used in local development and tests when the binary
-  is not present or ``FORCE_MOCK_SPIRE=1`` is set; the Workload API
-  socket is simulated by creating a regular file on disk.
+The implementation starts a real ``spire-agent`` process. Tests may mock
+subprocess calls, but a regular file must never count as a ready SPIRE
+Workload API socket.
 """
 
 import logging
@@ -417,7 +412,7 @@ class SPIREAgentManager:
             logger.info("Started SPIRE Agent (PID=%s)", self.agent_process.pid)
 
             for _ in range(20):
-                if self.socket_path.exists():
+                if self._socket_ready():
                     logger.info("SPIRE Agent socket is ready at %s", self.socket_path)
                     return SafeActuatorResult(True, "SPIRE Agent started")
                 time.sleep(0.5)
@@ -728,26 +723,7 @@ class SPIREAgentManager:
         if not self.agent_process or self.agent_process.poll() is not None:
             return False
 
-        exists_fn = self.socket_path.exists
-        try:
-            # Some tests use a MagicMock Path.exists with side_effect from startup logic.
-            # If a test explicitly sets return_value, we should respect it.
-            if hasattr(exists_fn, "side_effect") and exists_fn.side_effect is not None:
-                if hasattr(exists_fn, "return_value") and isinstance(
-                    exists_fn.return_value, bool
-                ):
-                    _saved = exists_fn.side_effect
-                    exists_fn.side_effect = None
-                    socket_exists = bool(exists_fn())
-                    exists_fn.side_effect = _saved
-                else:
-                    socket_exists = bool(exists_fn())
-            else:
-                socket_exists = bool(exists_fn())
-        except Exception:
-            socket_exists = False
-
-        if not socket_exists:
+        if not self._socket_ready():
             return False
 
         result = self._run_control_action(
@@ -787,6 +763,13 @@ class SPIREAgentManager:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _socket_ready(self) -> bool:
+        """Return True only when the SPIRE endpoint is a real Unix socket."""
+        try:
+            return bool(self.socket_path.exists()) and bool(self.socket_path.is_socket())
+        except Exception:
+            return False
 
     def _find_spire_binary(self, binary_name: str) -> str:
         """Locate a SPIRE binary or raise FileNotFoundError."""

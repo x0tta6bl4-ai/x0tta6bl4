@@ -8,11 +8,30 @@ application configuration.
 """
 
 import logging
+import hashlib
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
 
 
 class SecretType(Enum):
@@ -119,6 +138,58 @@ class VaultSecretManager:
             SecretType.TOKEN: f"{self._base_path}/tokens",
             SecretType.ENCRYPTION_KEY: f"{self._base_path}/encryption",
         }
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"vault-secret-manager:{_safe_hash(id(vault_client))}",
+            role="security",
+            capabilities=("zero-trust", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "vault_secret_manager_init",
+                "goal": "Initialize Vault secret path manager safely",
+                "signals": {
+                    "base_path_hash": _safe_hash(self._base_path),
+                    "secret_type_count_bucket": _safe_count_bucket(
+                        len(self._secret_paths)
+                    ),
+                },
+                "safety_boundary": (
+                    "Keep secret names, Vault paths, credential values, certificates, "
+                    "tokens, and encryption keys out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_secret_names": True,
+                    "redact_vault_paths": True,
+                    "redact_credential_values": True,
+                    "redact_certificates": True,
+                    "redact_tokens": True,
+                    "redact_encryption_keys": True,
+                    "preserve_secret_operation_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, and secret type labels.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def get_database_credentials(self, db_name: str) -> DatabaseCredentials:
         """Get database credentials from Vault.
@@ -136,7 +207,7 @@ class VaultSecretManager:
             f"{self._secret_paths[SecretType.DATABASE]}/{db_name}"
         )
 
-        return DatabaseCredentials(
+        credentials = DatabaseCredentials(
             username=data.get("username", ""),
             password=data.get("password", ""),
             host=data.get("host"),
@@ -144,6 +215,19 @@ class VaultSecretManager:
             database=data.get("database"),
             connection_string=data.get("connection_string"),
         )
+        self._record_thinking(
+            "vault_database_credentials_retrieved",
+            "Retrieve database credentials safely",
+            {
+                "secret_type": SecretType.DATABASE.value,
+                "secret_name_hash": _safe_hash(db_name),
+                "field_count_bucket": _safe_count_bucket(len(data)),
+                "has_username": bool(credentials.username),
+                "has_password": bool(credentials.password),
+                "has_connection_string": bool(credentials.connection_string),
+            },
+        )
+        return credentials
 
     async def store_database_credentials(
         self, db_name: str, credentials: DatabaseCredentials
@@ -158,6 +242,16 @@ class VaultSecretManager:
         await self.vault_client.put_secret(
             f"{self._secret_paths[SecretType.DATABASE]}/{db_name}",
             secret_data,
+        )
+        self._record_thinking(
+            "vault_database_credentials_stored",
+            "Store database credentials safely",
+            {
+                "secret_type": SecretType.DATABASE.value,
+                "secret_name_hash": _safe_hash(db_name),
+                "field_count_bucket": _safe_count_bucket(len(secret_data)),
+                "field_hashes": [_safe_hash(key) for key in sorted(secret_data)[:20]],
+            },
         )
         logger.info("Stored database credentials for %s", db_name)
 
@@ -174,13 +268,27 @@ class VaultSecretManager:
             f"{self._secret_paths[SecretType.API_KEY]}/{api_name}"
         )
 
-        return ApiCredentials(
+        credentials = ApiCredentials(
             api_key=data.get("api_key", ""),
             api_secret=data.get("api_secret"),
             api_token=data.get("api_token"),
             client_id=data.get("client_id"),
             client_secret=data.get("client_secret"),
         )
+        self._record_thinking(
+            "vault_api_credentials_retrieved",
+            "Retrieve API credentials safely",
+            {
+                "secret_type": SecretType.API_KEY.value,
+                "secret_name_hash": _safe_hash(api_name),
+                "field_count_bucket": _safe_count_bucket(len(data)),
+                "has_api_key": bool(credentials.api_key),
+                "has_api_secret": bool(credentials.api_secret),
+                "has_api_token": bool(credentials.api_token),
+                "has_client_secret": bool(credentials.client_secret),
+            },
+        )
+        return credentials
 
     async def store_api_credentials(
         self, api_name: str, credentials: ApiCredentials
@@ -195,6 +303,15 @@ class VaultSecretManager:
             f"{self._secret_paths[SecretType.API_KEY]}/{api_name}",
             credentials.to_dict(),
         )
+        self._record_thinking(
+            "vault_api_credentials_stored",
+            "Store API credentials safely",
+            {
+                "secret_type": SecretType.API_KEY.value,
+                "secret_name_hash": _safe_hash(api_name),
+                "field_count_bucket": _safe_count_bucket(len(credentials.to_dict())),
+            },
+        )
         logger.info("Stored API credentials for %s", api_name)
 
     async def get_proxy_credentials(self) -> Dict[str, str]:
@@ -203,9 +320,19 @@ class VaultSecretManager:
         Returns:
             Dictionary with proxy credentials
         """
-        return await self.vault_client.get_secret(
+        credentials = await self.vault_client.get_secret(
             f"{self._secret_paths[SecretType.CREDENTIALS]}/proxy-api"
         )
+        self._record_thinking(
+            "vault_proxy_credentials_retrieved",
+            "Retrieve proxy credentials safely",
+            {
+                "secret_type": SecretType.CREDENTIALS.value,
+                "secret_name_hash": _safe_hash("proxy-api"),
+                "field_count_bucket": _safe_count_bucket(len(credentials)),
+            },
+        )
+        return credentials
 
     async def rotate_proxy_credentials(self, new_credentials: Dict[str, str]) -> None:
         """Rotate proxy-api credentials.
@@ -218,6 +345,18 @@ class VaultSecretManager:
         """
         await self.vault_client.put_secret(
             f"{self._secret_paths[SecretType.CREDENTIALS]}/proxy-api", new_credentials
+        )
+        self._record_thinking(
+            "vault_proxy_credentials_rotated",
+            "Rotate proxy credentials safely",
+            {
+                "secret_type": SecretType.CREDENTIALS.value,
+                "secret_name_hash": _safe_hash("proxy-api"),
+                "field_count_bucket": _safe_count_bucket(len(new_credentials)),
+                "field_hashes": [
+                    _safe_hash(key) for key in sorted(new_credentials.keys())[:20]
+                ],
+            },
         )
         logger.info("Proxy credentials rotated successfully")
 
@@ -234,11 +373,24 @@ class VaultSecretManager:
             f"{self._secret_paths[SecretType.CERTIFICATE]}/{cert_name}"
         )
 
-        return TLSCertificate(
+        certificate = TLSCertificate(
             certificate=data.get("certificate", ""),
             private_key=data.get("private_key", ""),
             ca_chain=data.get("ca_chain"),
         )
+        self._record_thinking(
+            "vault_tls_certificate_retrieved",
+            "Retrieve TLS certificate safely",
+            {
+                "secret_type": SecretType.CERTIFICATE.value,
+                "secret_name_hash": _safe_hash(cert_name),
+                "field_count_bucket": _safe_count_bucket(len(data)),
+                "has_certificate": bool(certificate.certificate),
+                "has_private_key": bool(certificate.private_key),
+                "has_ca_chain": bool(certificate.ca_chain),
+            },
+        )
+        return certificate
 
     async def store_tls_certificate(
         self, cert_name: str, certificate: TLSCertificate
@@ -253,6 +405,15 @@ class VaultSecretManager:
             f"{self._secret_paths[SecretType.CERTIFICATE]}/{cert_name}",
             certificate.to_dict(),
         )
+        self._record_thinking(
+            "vault_tls_certificate_stored",
+            "Store TLS certificate safely",
+            {
+                "secret_type": SecretType.CERTIFICATE.value,
+                "secret_name_hash": _safe_hash(cert_name),
+                "field_count_bucket": _safe_count_bucket(len(certificate.to_dict())),
+            },
+        )
         logger.info("Stored TLS certificate for %s", cert_name)
 
     async def get_encryption_key(self, key_name: str) -> str:
@@ -264,10 +425,20 @@ class VaultSecretManager:
         Returns:
             Encryption key string
         """
-        return await self.vault_client.get_secret(
+        key = await self.vault_client.get_secret(
             f"{self._secret_paths[SecretType.ENCRYPTION_KEY]}/{key_name}",
             secret_key="key",
         )
+        self._record_thinking(
+            "vault_encryption_key_retrieved",
+            "Retrieve encryption key safely",
+            {
+                "secret_type": SecretType.ENCRYPTION_KEY.value,
+                "secret_name_hash": _safe_hash(key_name),
+                "hit": key is not None,
+            },
+        )
+        return key
 
     async def list_secrets(self, secret_type: SecretType) -> List[str]:
         """List available secrets of a given type.
@@ -280,8 +451,27 @@ class VaultSecretManager:
         """
         path = self._secret_paths[secret_type]
         try:
-            return await self.vault_client.list_secrets(path)
+            secrets = await self.vault_client.list_secrets(path)
+            self._record_thinking(
+                "vault_secrets_listed",
+                "List Vault secrets safely",
+                {
+                    "secret_type": secret_type.value,
+                    "path_hash": _safe_hash(path),
+                    "secret_count_bucket": _safe_count_bucket(len(secrets)),
+                },
+            )
+            return secrets
         except Exception as e:
+            self._record_thinking(
+                "vault_secrets_list_failed",
+                "Record Vault secret list failure safely",
+                {
+                    "secret_type": secret_type.value,
+                    "path_hash": _safe_hash(path),
+                    "error_type": type(e).__name__,
+                },
+            )
             logger.warning("Failed to list secrets at %s: %s", path, e)
             return []
 
@@ -311,6 +501,52 @@ class SecretInjector:
             secret_manager: VaultSecretManager instance
         """
         self.secret_manager = secret_manager
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"secret-injector:{_safe_hash(id(secret_manager))}",
+            role="security",
+            capabilities=("zero-trust", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "secret_injector_init",
+                "goal": "Initialize secret injection safely",
+                "signals": {"secret_manager_present": secret_manager is not None},
+                "safety_boundary": (
+                    "Keep secret names, base config values, injected credentials, "
+                    "certificates, and private keys out of thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_secret_names": True,
+                    "redact_config_values": True,
+                    "redact_credentials": True,
+                    "redact_certificates": True,
+                    "redact_private_keys": True,
+                    "preserve_injection_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, and config key hashes.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def inject_database_config(
         self, db_name: str, config: Dict[str, Any]
@@ -324,6 +560,7 @@ class SecretInjector:
         Returns:
             Configuration with injected credentials
         """
+        before_keys = set(config)
         credentials = await self.secret_manager.get_database_credentials(db_name)
 
         config.update(
@@ -338,7 +575,22 @@ class SecretInjector:
         )
 
         # Remove None values
-        return {k: v for k, v in config.items() if v is not None}
+        injected = {k: v for k, v in config.items() if v is not None}
+        self._record_thinking(
+            "database_config_injected",
+            "Inject database configuration safely",
+            {
+                "secret_name_hash": _safe_hash(db_name),
+                "input_key_count_bucket": _safe_count_bucket(len(before_keys)),
+                "output_key_count_bucket": _safe_count_bucket(len(injected)),
+                "input_key_hashes": [_safe_hash(key) for key in sorted(before_keys)[:20]],
+                "output_key_hashes": [
+                    _safe_hash(key) for key in sorted(injected.keys())[:20]
+                ],
+                "has_connection_string": "connection_string" in injected,
+            },
+        )
+        return injected
 
     async def inject_api_config(
         self, api_name: str, config: Dict[str, Any]
@@ -352,6 +604,7 @@ class SecretInjector:
         Returns:
             Configuration with injected credentials
         """
+        before_keys = set(config)
         credentials = await self.secret_manager.get_api_credentials(api_name)
 
         config.update(
@@ -365,7 +618,23 @@ class SecretInjector:
         )
 
         # Remove None values
-        return {k: v for k, v in config.items() if v is not None}
+        injected = {k: v for k, v in config.items() if v is not None}
+        self._record_thinking(
+            "api_config_injected",
+            "Inject API configuration safely",
+            {
+                "secret_name_hash": _safe_hash(api_name),
+                "input_key_count_bucket": _safe_count_bucket(len(before_keys)),
+                "output_key_count_bucket": _safe_count_bucket(len(injected)),
+                "input_key_hashes": [_safe_hash(key) for key in sorted(before_keys)[:20]],
+                "output_key_hashes": [
+                    _safe_hash(key) for key in sorted(injected.keys())[:20]
+                ],
+                "has_api_secret": "api_secret" in injected,
+                "has_client_secret": "client_secret" in injected,
+            },
+        )
+        return injected
 
     async def inject_tls_config(
         self, cert_name: str, config: Dict[str, Any]
@@ -379,6 +648,7 @@ class SecretInjector:
         Returns:
             Configuration with injected certificate data
         """
+        before_keys = set(config)
         certificate = await self.secret_manager.get_tls_certificate(cert_name)
 
         config.update(
@@ -390,4 +660,20 @@ class SecretInjector:
         )
 
         # Remove None values
-        return {k: v for k, v in config.items() if v is not None}
+        injected = {k: v for k, v in config.items() if v is not None}
+        self._record_thinking(
+            "tls_config_injected",
+            "Inject TLS configuration safely",
+            {
+                "secret_name_hash": _safe_hash(cert_name),
+                "input_key_count_bucket": _safe_count_bucket(len(before_keys)),
+                "output_key_count_bucket": _safe_count_bucket(len(injected)),
+                "input_key_hashes": [_safe_hash(key) for key in sorted(before_keys)[:20]],
+                "output_key_hashes": [
+                    _safe_hash(key) for key in sorted(injected.keys())[:20]
+                ],
+                "has_cert_pem": "cert_pem" in injected,
+                "has_key_pem": "key_pem" in injected,
+            },
+        )
+        return injected

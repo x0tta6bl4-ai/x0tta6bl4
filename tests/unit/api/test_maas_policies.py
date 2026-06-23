@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, get_db, User
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_policies_{uuid.uuid4().hex}.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"
@@ -82,9 +83,7 @@ class TestPolicyCreate:
         """User with policy:create permission can create policy on their mesh."""
         db = TestingSessionLocal()
         try:
-            user = db.query(User).filter(
-                User.api_key == user_with_mesh["api_key"]
-            ).first()
+            user = find_user_by_api_key(db, user_with_mesh["api_key"])
             user.permissions = "policy:create"
             db.commit()
         finally:
@@ -106,9 +105,7 @@ class TestPolicyCreate:
         """User without mesh ownership gets 404 (not 403)."""
         db = TestingSessionLocal()
         try:
-            other = db.query(User).filter(
-                User.api_key == other_user["headers"]["X-API-Key"]
-            ).first()
+            other = find_user_by_api_key(db, other_user["headers"]["X-API-Key"])
             other.permissions = "policy:create"
             db.commit()
         finally:
@@ -125,9 +122,7 @@ class TestPolicyCreate:
         """User without policy:create permission gets 403."""
         db = TestingSessionLocal()
         try:
-            user = db.query(User).filter(
-                User.api_key == user_with_mesh["api_key"]
-            ).first()
+            user = find_user_by_api_key(db, user_with_mesh["api_key"])
             user.permissions = None  # remove explicit permissions, role defaults apply
             db.commit()
         finally:
@@ -144,9 +139,7 @@ class TestPolicyCreate:
         """Invalid action value (not allow/deny) fails validation."""
         db = TestingSessionLocal()
         try:
-            user = db.query(User).filter(
-                User.api_key == user_with_mesh["api_key"]
-            ).first()
+            user = find_user_by_api_key(db, user_with_mesh["api_key"])
             user.permissions = "policy:create"
             db.commit()
         finally:
@@ -183,9 +176,7 @@ class TestPolicyList:
         # Ensure policy exists first
         db = TestingSessionLocal()
         try:
-            user = db.query(User).filter(
-                User.api_key == user_with_mesh["api_key"]
-            ).first()
+            user = find_user_by_api_key(db, user_with_mesh["api_key"])
             user.permissions = "policy:create"
             db.commit()
         finally:
@@ -242,7 +233,7 @@ class TestPolicyDelete:
 
         db = TestingSessionLocal()
         try:
-            user = db.query(User).filter(User.api_key == api_key).first()
+            user = find_user_by_api_key(db, api_key)
             user.role = "admin"
             db.commit()
         finally:
@@ -251,7 +242,7 @@ class TestPolicyDelete:
         # Deploy mesh as admin
         db = TestingSessionLocal()
         try:
-            user = db.query(User).filter(User.api_key == api_key).first()
+            user = find_user_by_api_key(db, api_key)
             user.role = "user"
             db.commit()
         finally:
@@ -266,7 +257,7 @@ class TestPolicyDelete:
 
         db = TestingSessionLocal()
         try:
-            user = db.query(User).filter(User.api_key == api_key).first()
+            user = find_user_by_api_key(db, api_key)
             user.role = "admin"
             db.commit()
         finally:
@@ -295,7 +286,7 @@ class TestPolicyDelete:
         headers = {"X-API-Key": api_key}
         db = TestingSessionLocal()
         try:
-            user = db.query(User).filter(User.api_key == api_key).first()
+            user = find_user_by_api_key(db, api_key)
             user.role = "admin"
             db.commit()
         finally:

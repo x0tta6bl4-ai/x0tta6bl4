@@ -138,7 +138,7 @@ class TelemetryDemo:
             return
 
         # Load performance monitor eBPF program
-        bpf_program_path = Path(__file__).parent.parent / "performance_monitor.bpf.c"
+        bpf_program_path = Path(__file__).parent.parent / "kernel" / "performance_monitor.bpf.c"
 
         if not bpf_program_path.exists():
             logger.warning(f"⚠️ eBPF program not found at {bpf_program_path}, using stub mode")
@@ -199,7 +199,7 @@ class TelemetryDemo:
             return
 
         # Load network monitor eBPF program
-        bpf_program_path = Path(__file__).parent.parent / "network_monitor.bpf.c"
+        bpf_program_path = Path(__file__).parent.parent / "kernel" / "network_monitor.bpf.c"
 
         if not bpf_program_path.exists():
             logger.warning(f"⚠️ eBPF program not found at {bpf_program_path}, using stub mode")

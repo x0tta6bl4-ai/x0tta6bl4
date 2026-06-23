@@ -69,6 +69,8 @@ class TelemetryConfig:
     max_retries: int = 3
     retry_delay: float = 0.5  # seconds
     enable_fallback: bool = True
+    max_dropped_events_healthy: int = 0
+    max_drop_ratio_healthy: float = 0.0
 
     # Logging
     log_level: str = "INFO"

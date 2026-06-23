@@ -1,7 +1,9 @@
 """
 MaaS Auth - FastAPI dependencies and authentication helpers.
 
-Provides dependency injection for authentication, authorization, and user context.
+Provides dependency injection for authentication, authorization, user context,
+mesh access checks, and a small in-memory rate limiter used by the modular MaaS
+API surface.
 """
 
 import logging
@@ -10,10 +12,16 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+
+from src.api.maas_security import ApiKeyManager
+from src.core.rbac import DEFAULT_ROLE_PERMISSIONS, MeshPermission
+from src.database import get_db
+from src.services.maas_auth_service import MaaSAuthService, find_user_by_api_key
 
 from .services import AuthService
 
@@ -25,69 +33,75 @@ _RATE_LIMIT_EVENTS: Dict[str, deque[float]] = {}
 
 
 # ---------------------------------------------------------------------------
-# Security Schemes
+# Security schemes
 # ---------------------------------------------------------------------------
 
-# API Key authentication
 api_key_header = APIKeyHeader(
     name="X-API-Key",
     scheme_name="api_key",
     description="MaaS API Key (maas_...)",
     auto_error=False,
 )
-
-# Bearer token authentication
 bearer_scheme = HTTPBearer(
     scheme_name="bearer",
     description="Bearer token for session authentication",
     auto_error=False,
 )
 
+# Compatibility aliases used by the DB-backed auth path.
+API_KEY_HEADER = api_key_header
+BEARER_AUTH = bearer_scheme
+
 
 # ---------------------------------------------------------------------------
-# User Context
+# User context
 # ---------------------------------------------------------------------------
 
 @dataclass
 class UserContext:
-    """Authenticated user context."""
+    """Authenticated modular MaaS user context."""
 
     user_id: str
     plan: str
     api_key: Optional[str] = None
     session_token: Optional[str] = None
-    authenticated_at: datetime = None
+    authenticated_at: Optional[datetime] = None
+    email: str = ""
+    role: str = "user"
+    scopes: Optional[List[str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.authenticated_at is None:
             self.authenticated_at = datetime.utcnow()
 
     @property
+    def id(self) -> str:
+        """Compatibility alias for DB-backed helpers that expect User.id."""
+        return self.user_id
+
+    @property
     def is_authenticated(self) -> bool:
-        """Check if user is authenticated."""
         return bool(self.user_id)
 
     @property
     def is_enterprise(self) -> bool:
-        """Check if user has enterprise plan."""
         return self.plan == "enterprise"
 
     @property
     def is_pro(self) -> bool:
-        """Check if user has pro plan or higher."""
         return self.plan in ("pro", "enterprise")
 
 
 # ---------------------------------------------------------------------------
-# Auth Service Instance
+# Auth service instances
 # ---------------------------------------------------------------------------
 
-# Global auth service instance (can be overridden for testing)
 _auth_service: Optional[AuthService] = None
+_db_auth_service: Optional[MaaSAuthService] = None
 
 
 def get_auth_service() -> AuthService:
-    """Get or create the global auth service."""
+    """Get or create the modular in-memory auth service."""
     global _auth_service
     if _auth_service is None:
         _auth_service = AuthService()
@@ -95,9 +109,70 @@ def get_auth_service() -> AuthService:
 
 
 def set_auth_service(service: AuthService) -> None:
-    """Set the global auth service (for testing)."""
+    """Set the modular auth service, mainly for tests."""
     global _auth_service
     _auth_service = service
+
+
+def _get_db_auth_service() -> MaaSAuthService:
+    """Get or create the DB-backed MaaS auth service used as fallback."""
+    global _db_auth_service
+    if _db_auth_service is None:
+        _db_auth_service = MaaSAuthService(
+            api_key_factory=ApiKeyManager.generate,
+            default_plan="starter",
+        )
+    return _db_auth_service
+
+
+def _permission_scopes_from_db_user(user: Any) -> List[str]:
+    permissions = getattr(user, "permissions", None)
+    if permissions is None:
+        return []
+    if isinstance(permissions, str):
+        return [item.strip() for item in permissions.split(",") if item.strip()]
+    try:
+        return [
+            str(getattr(item, "value", item)).strip()
+            for item in permissions
+            if str(getattr(item, "value", item)).strip()
+        ]
+    except TypeError:
+        text = str(getattr(permissions, "value", permissions)).strip()
+        return [text] if text else []
+
+
+def _permission_value(permission: str) -> str:
+    try:
+        return MeshPermission(permission).value
+    except ValueError:
+        return str(permission)
+
+
+def _role_allows_permission(role: str, permission: str) -> bool:
+    wanted = _permission_value(permission)
+    allowed = DEFAULT_ROLE_PERMISSIONS.get(str(role or "user"), set())
+    return any(getattr(item, "value", str(item)) == wanted for item in allowed)
+
+
+def _user_scope_values(user: UserContext) -> set[str]:
+    scopes = user.scopes or []
+    return {
+        str(getattr(scope, "value", scope)).strip()
+        for scope in scopes
+        if str(getattr(scope, "value", scope)).strip()
+    }
+
+
+def _as_user_context_from_db_user(user: Any, *, api_key: Optional[str] = None) -> UserContext:
+    return UserContext(
+        user_id=str(getattr(user, "id", "")),
+        email=str(getattr(user, "email", "") or ""),
+        role=str(getattr(user, "role", "user") or "user"),
+        plan=str(getattr(user, "plan", "starter") or "starter"),
+        api_key=api_key,
+        scopes=_permission_scopes_from_db_user(user),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -108,52 +183,73 @@ async def get_current_user(
     request: Request,
     api_key: Optional[str] = Depends(api_key_header),
     bearer: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
 ) -> UserContext:
     """
     FastAPI dependency to get the current authenticated user.
 
-    Supports both API Key and Bearer token authentication.
-    API Key takes precedence if both are provided.
-
-    Raises:
-        HTTPException: If authentication fails
-
-    Returns:
-        UserContext with user information
+    The v3.4 modular endpoints use the in-memory ``AuthService`` contract. The
+    DB-backed lookup remains as a fallback so hashed persisted API keys can still
+    authenticate without reintroducing plaintext DB key lookups.
     """
     auth_service = get_auth_service()
 
-    # Try API Key first
     if api_key:
         key_data = auth_service.validate_api_key(api_key)
         if key_data:
             return UserContext(
-                user_id=key_data["user_id"],
-                plan=key_data["plan"],
+                user_id=str(key_data["user_id"]),
+                plan=str(key_data.get("plan", "starter")),
                 api_key=api_key,
             )
+
+        session = auth_service.validate_session(api_key)
+        if session:
+            return UserContext(
+                user_id=str(session["user_id"]),
+                plan=str(session.get("plan", "unknown")),
+                session_token=api_key,
+            )
+
+        try:
+            db_user = find_user_by_api_key(db, api_key)
+        except Exception as exc:
+            logger.warning("DB-backed MaaS API key lookup failed: %s", exc)
+            db_user = None
+        if db_user is not None:
+            return _as_user_context_from_db_user(db_user, api_key=api_key)
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key",
+            detail="Invalid API key or session token",
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    # Try Bearer token
     if bearer:
         session = auth_service.validate_session(bearer.credentials)
         if session:
             return UserContext(
-                user_id=session["user_id"],
-                plan="unknown",  # Plan from session or lookup
+                user_id=str(session["user_id"]),
+                plan=str(session.get("plan", "unknown")),
                 session_token=bearer.credentials,
             )
+
+        try:
+            db_user = _get_db_auth_service().validate_session(db, bearer.credentials)
+        except Exception as exc:
+            logger.warning("DB-backed MaaS session lookup failed: %s", exc)
+            db_user = None
+        if db_user is not None:
+            context = _as_user_context_from_db_user(db_user)
+            context.session_token = bearer.credentials
+            return context
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired session token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # No credentials provided
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Authentication required",
@@ -165,53 +261,21 @@ async def get_optional_user(
     request: Request,
     api_key: Optional[str] = Depends(api_key_header),
     bearer: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
 ) -> Optional[UserContext]:
-    """
-    FastAPI dependency to get the current user (optional).
-
-    Returns None if no credentials are provided, instead of raising.
-    Useful for endpoints that have different behavior for authenticated users.
-
-    Returns:
-        UserContext if authenticated, None otherwise
-    """
-    auth_service = get_auth_service()
-
-    # Try API Key first
-    if api_key:
-        key_data = auth_service.validate_api_key(api_key)
-        if key_data:
-            return UserContext(
-                user_id=key_data["user_id"],
-                plan=key_data["plan"],
-                api_key=api_key,
-            )
-
-    # Try Bearer token
-    if bearer:
-        session = auth_service.validate_session(bearer.credentials)
-        if session:
-            return UserContext(
-                user_id=session["user_id"],
-                plan="unknown",
-                session_token=bearer.credentials,
-            )
-
-    return None
+    """Return the current user or ``None`` when credentials are absent/invalid."""
+    if not api_key and not bearer:
+        return None
+    try:
+        return await get_current_user(request, api_key, bearer, db)
+    except HTTPException:
+        return None
 
 
 async def require_enterprise(
     user: UserContext = Depends(get_current_user),
 ) -> UserContext:
-    """
-    Dependency that requires enterprise plan.
-
-    Raises:
-        HTTPException: If user doesn't have enterprise plan
-
-    Returns:
-        UserContext for enterprise user
-    """
+    """Require an enterprise plan."""
     if not user.is_enterprise:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -223,15 +287,7 @@ async def require_enterprise(
 async def require_pro(
     user: UserContext = Depends(get_current_user),
 ) -> UserContext:
-    """
-    Dependency that requires pro plan or higher.
-
-    Raises:
-        HTTPException: If user doesn't have pro plan
-
-    Returns:
-        UserContext for pro user
-    """
+    """Require a pro or enterprise plan."""
     if not user.is_pro:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -240,27 +296,64 @@ async def require_pro(
     return user
 
 
+async def get_optional_current_user(
+    request: Request,
+    api_key: Optional[str] = Depends(API_KEY_HEADER),
+    token: Optional[HTTPAuthorizationCredentials] = Depends(BEARER_AUTH),
+    db: Session = Depends(get_db),
+) -> Optional[UserContext]:
+    """Get current user if credentials provided, otherwise None."""
+    return await get_optional_user(request, api_key, token, db)
+
+
+def require_role(roles: Union[str, List[str]]):
+    """FastAPI dependency factory requiring one of the supplied roles."""
+    allowed_roles = [roles] if isinstance(roles, str) else list(roles)
+
+    async def role_checker(user: UserContext = Depends(get_current_user)) -> UserContext:
+        if user.role == "admin":
+            return user
+        if user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Required role(s): {', '.join(allowed_roles)}",
+            )
+        return user
+
+    return role_checker
+
+
+def require_permission(permission: str):
+    """FastAPI dependency factory requiring a specific permission string."""
+
+    async def permission_checker(user: UserContext = Depends(get_current_user)) -> UserContext:
+        if user.role == "admin":
+            return user
+
+        user_scopes = _user_scope_values(user)
+        wanted = _permission_value(permission)
+        if "*" in user_scopes or wanted in user_scopes:
+            return user
+        if _role_allows_permission(user.role, permission):
+            return user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Missing required permission: {permission}",
+        )
+
+    return permission_checker
+
+
 # ---------------------------------------------------------------------------
-# Mesh Ownership Dependencies
+# Mesh access helpers
 # ---------------------------------------------------------------------------
 
 async def require_mesh_owner(
     mesh_id: str,
     user: UserContext = Depends(get_current_user),
 ) -> UserContext:
-    """
-    Dependency that requires user to own the mesh.
-
-    Args:
-        mesh_id: Mesh ID from path parameter
-        user: Current user context
-
-    Raises:
-        HTTPException: If user doesn't own the mesh
-
-    Returns:
-        UserContext for mesh owner
-    """
+    """Require the authenticated user to own the mesh."""
     from .registry import get_mesh
 
     instance = get_mesh(mesh_id)
@@ -284,19 +377,10 @@ async def require_mesh_access(
     user: UserContext = Depends(get_current_user),
 ) -> UserContext:
     """
-    Dependency that requires user to have access to the mesh.
+    Require the authenticated user to have access to the mesh.
 
-    This is more permissive than ownership - it checks ACL policies.
-
-    Args:
-        mesh_id: Mesh ID from path parameter
-        user: Current user context
-
-    Raises:
-        HTTPException: If user doesn't have access
-
-    Returns:
-        UserContext for user with mesh access
+    Owner access is allowed directly. Additional ACL policies are evaluated from
+    the mesh registry.
     """
     from .registry import get_mesh, get_mesh_policies
 
@@ -307,11 +391,9 @@ async def require_mesh_access(
             detail=f"Mesh {mesh_id} not found",
         )
 
-    # Owner always has access
     if instance.owner_id == user.user_id:
         return user
 
-    # Check ACL policies
     policies = get_mesh_policies(mesh_id)
     for policy in policies:
         if _evaluate_policy(policy, user, "access", f"mesh/{mesh_id}"):
@@ -329,53 +411,24 @@ def _evaluate_policy(
     action: str,
     resource: str,
 ) -> bool:
-    """
-    Evaluate an ACL policy for a user action.
-
-    Args:
-        policy: Policy definition
-        user: User context
-        action: Action being performed
-        resource: Resource being accessed
-
-    Returns:
-        True if policy allows the action
-    """
-    # Check principal
+    """Evaluate a simple ACL policy for a user action."""
     principal = policy.get("principal", "*")
     if principal != "*" and principal != user.user_id:
         return False
 
-    # Check action
     policy_action = policy.get("action", "*")
     if policy_action != "*" and policy_action != action:
         return False
 
-    # Check resource
     policy_resource = policy.get("resource", "*")
     if policy_resource != "*" and not _match_resource(policy_resource, resource):
         return False
 
-    # Check effect
-    effect = policy.get("effect", "allow")
-    return effect == "allow"
+    return policy.get("effect", "allow") == "allow"
 
 
 def _match_resource(pattern: str, resource: str) -> bool:
-    """
-    Match a resource pattern against a resource string.
-
-    Supports wildcards:
-    - * matches any single segment
-    - ** matches any number of segments
-
-    Args:
-        pattern: Resource pattern (e.g., "mesh/*", "nodes/**")
-        resource: Actual resource (e.g., "mesh/abc123", "nodes/xyz/actions/read")
-
-    Returns:
-        True if pattern matches resource
-    """
+    """Match resource patterns with ``*`` and ``**`` wildcards."""
     if pattern == resource:
         return True
 
@@ -385,22 +438,19 @@ def _match_resource(pattern: str, resource: str) -> bool:
     pattern_parts = pattern.split("/")
     resource_parts = resource.split("/")
 
-    for i, p_part in enumerate(pattern_parts):
-        if i >= len(resource_parts):
-            return False
-
-        if p_part == "**":
-            # ** matches everything remaining
+    for index, pattern_part in enumerate(pattern_parts):
+        if pattern_part == "**":
             return True
-
-        if p_part != "*" and p_part != resource_parts[i]:
+        if index >= len(resource_parts):
+            return False
+        if pattern_part != "*" and pattern_part != resource_parts[index]:
             return False
 
     return len(pattern_parts) == len(resource_parts)
 
 
 # ---------------------------------------------------------------------------
-# Rate Limiting Helpers
+# Rate limiting
 # ---------------------------------------------------------------------------
 
 def check_rate_limit(
@@ -408,20 +458,7 @@ def check_rate_limit(
     endpoint: str,
     requests_per_minute: int,
 ) -> None:
-    """
-    Check if user has exceeded rate limit for an endpoint.
-
-    This is a simple in-memory rate limiter. For production,
-    use a distributed rate limiter like Redis.
-
-    Args:
-        user: User context
-        endpoint: Endpoint identifier
-        requests_per_minute: Rate limit
-
-    Raises:
-        HTTPException: If rate limit exceeded
-    """
+    """Check and update the in-memory per-user/per-endpoint rate limit bucket."""
     if requests_per_minute <= 0:
         raise ValueError("requests_per_minute must be a positive integer")
 
@@ -454,29 +491,31 @@ def check_rate_limit(
 
 
 def _clear_rate_limit_state() -> None:
-    """Clear in-memory rate limiter state (tests only)."""
+    """Clear in-memory rate limiter state; intended for tests."""
     with _RATE_LIMIT_LOCK:
         _RATE_LIMIT_EVENTS.clear()
 
 
-# ---------------------------------------------------------------------------
-# Exports
-# ---------------------------------------------------------------------------
+get_current_user_from_maas = get_current_user
 
 __all__ = [
-    # User context
+    "AuthService",
     "UserContext",
-    # Dependencies
+    "get_auth_service",
+    "set_auth_service",
     "get_current_user",
     "get_optional_user",
     "require_enterprise",
     "require_pro",
+    "require_role",
     "require_mesh_owner",
     "require_mesh_access",
-    # Auth service
-    "get_auth_service",
-    "set_auth_service",
-    # Security schemes
+    "_evaluate_policy",
+    "_match_resource",
+    "check_rate_limit",
+    "_clear_rate_limit_state",
     "api_key_header",
     "bearer_scheme",
+    "API_KEY_HEADER",
+    "BEARER_AUTH",
 ]

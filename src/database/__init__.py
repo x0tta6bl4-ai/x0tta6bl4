@@ -8,10 +8,10 @@ import os
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 from dotenv import load_dotenv
-from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer, String,
+from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint,
                         Text, create_engine, inspect as sqlalchemy_inspect, event, exc as sa_exc)
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from src.resilience.advanced_patterns import CircuitBreaker, CircuitBreakerConfig, CircuitState
@@ -124,6 +124,7 @@ class User(Base):
     oidc_id = Column(String, unique=True, index=True, nullable=True)
     oidc_provider = Column(String, nullable=True)
     api_key = Column(String, unique=True, index=True, nullable=True)
+    api_key_hash = Column(String, unique=True, index=True, nullable=True)
     stripe_customer_id = Column(String, unique=True, index=True, nullable=True)
     stripe_subscription_id = Column(String, unique=True, index=True, nullable=True)
     vpn_uuid = Column(String, unique=True, index=True, nullable=True)
@@ -174,6 +175,13 @@ class MeshNode(Base):
     device_class = Column(String)
     status = Column(String, default="healthy")
     ip_address = Column(String, index=True, nullable=True)
+    runtime_credential_hash = Column(String, unique=True, index=True, nullable=True)
+    runtime_credential_expires_at = Column(DateTime, index=True, nullable=True)
+    runtime_credential_rotated_at = Column(DateTime, nullable=True)
+    runtime_identity_binding_type = Column(String, index=True, nullable=True)
+    runtime_identity_binding_hash = Column(String, unique=True, index=True, nullable=True)
+    runtime_identity_bound_at = Column(DateTime, nullable=True)
+    runtime_identity_last_verified_at = Column(DateTime, nullable=True)
     acl_profile = Column(String, default="default")
     hardware_id = Column(String, nullable=True)
     enclave_enabled = Column(Boolean, default=False)
@@ -413,28 +421,11 @@ class AuditLog(Base):
 
 
 def get_required_schema_gaps() -> List[str]:
-    """
-    Return a list of required schema gaps that must be fixed before startup.
-    """
-    required_columns = {
-        "marketplace_listings": {"renter_id", "mesh_id"},
-        "mesh_nodes": {"last_seen"},
-    }
+    return list(get_schema_parity_report()["gaps"])
 
-    inspector = sqlalchemy_inspect(engine)
-    table_names = set(inspector.get_table_names())
-    missing: List[str] = []
 
-    for table, columns in required_columns.items():
-        if table not in table_names:
-            missing.append(f"missing table '{table}'")
-            continue
-        existing = {col["name"] for col in inspector.get_columns(table)}
-        for col in sorted(columns):
-            if col not in existing:
-                missing.append(f"missing column '{table}.{col}'")
-
-    return missing
+def get_schema_compatibility_gaps() -> List[str]:
+    return [*get_alembic_head_gaps(), *get_required_schema_gaps()]
 
 
 def validate_required_secrets() -> None:
@@ -515,7 +506,7 @@ def ensure_schema_compatible(auto_migrate: bool = False) -> None:
     # Validate secrets first - fail fast before any DB operations
     validate_required_secrets()
     
-    missing = get_required_schema_gaps()
+    missing = get_schema_compatibility_gaps()
     if not missing:
         return
 
@@ -525,7 +516,7 @@ def ensure_schema_compatible(auto_migrate: bool = False) -> None:
             "; ".join(missing),
         )
         run_alembic_upgrade("head")
-        missing = get_required_schema_gaps()
+        missing = get_schema_compatibility_gaps()
         if not missing:
             logger.info("Database schema upgraded and validated successfully")
             return

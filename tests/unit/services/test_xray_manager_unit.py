@@ -42,7 +42,9 @@ class TestGenerateVlessLink:
         )
         monkeypatch.setenv("PUBLIC_DOMAIN", "public.example")
 
-        link = mod.XrayManager.generate_vless_link("uuid-1", "mail@example.com", port=8443)
+        link = mod.XrayManager.generate_vless_link(
+            "uuid-1", "mail@example.com", port=8443
+        )
         assert link == "legacy://uuid-1@public.example:8443"
 
     def test_fallback_builder_format(self, monkeypatch):
@@ -66,6 +68,16 @@ class TestGenerateVlessLink:
         assert "pbk=test-pbk-value" in link
         assert "sid=ab" in link
         assert link.endswith("#user%40test.com")
+        thinking_status = mod.XrayManager.get_thinking_status()
+        assert thinking_status["thinking"]["profile"]["role"] == "security"
+        assert "zero_trust_review" in thinking_status["thinking"]["techniques"]
+        assert (
+            thinking_status["last_thinking_context"]["applied"]["framing"]["problem"]
+            == "xray_vless_link_generation"
+        )
+        assert "test-pbk-value" not in json.dumps(
+            thinking_status["last_thinking_context"], sort_keys=True
+        )
 
     def test_falls_back_to_localhost_when_no_env(self, monkeypatch):
         """Without PUBLIC_DOMAIN, XRAY_HOST, or an explicit server arg the
@@ -199,7 +211,9 @@ class TestAddUser:
         restart_mock = AsyncMock(return_value=True)
         monkeypatch.setattr(mod.XrayManager, "restart_container", restart_mock)
 
-        result = await mod.XrayManager.add_user("uuid-new", "new@example.com", restart=True)
+        result = await mod.XrayManager.add_user(
+            "uuid-new", "new@example.com", restart=True
+        )
         assert result is True
         restart_mock.assert_awaited_once()
 
@@ -238,7 +252,9 @@ class TestAddUser:
         restart_mock = AsyncMock(return_value=True)
         monkeypatch.setattr(mod.XrayManager, "restart_container", restart_mock)
 
-        result = await mod.XrayManager.add_user("uuid-dup", "dup@example.com", restart=True)
+        result = await mod.XrayManager.add_user(
+            "uuid-dup", "dup@example.com", restart=True
+        )
         assert result is True
         restart_mock.assert_not_awaited()
 
@@ -256,7 +272,9 @@ class TestAddUser:
         restart_mock = AsyncMock(return_value=True)
         monkeypatch.setattr(mod.XrayManager, "restart_container", restart_mock)
 
-        result = await mod.XrayManager.add_user("uuid-nr", "nr@example.com", restart=False)
+        result = await mod.XrayManager.add_user(
+            "uuid-nr", "nr@example.com", restart=False
+        )
         assert result is True
         restart_mock.assert_not_awaited()
 
@@ -366,7 +384,9 @@ class TestRestartContainer:
         monkeypatch.setattr(
             mod.httpx,
             "AsyncClient",
-            lambda **_kwargs: _FakeAsyncClient(SimpleNamespace(status_code=204, text="")),
+            lambda **_kwargs: _FakeAsyncClient(
+                SimpleNamespace(status_code=204, text="")
+            ),
         )
 
         result = await mod.XrayManager.restart_container("xray-test")

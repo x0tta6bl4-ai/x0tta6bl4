@@ -23,6 +23,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
 from src.database import Base, User, get_db
+from src.services.maas_auth_service import find_user_by_api_key
 
 _TEST_DB_PATH = f"./test_auth_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -61,7 +62,7 @@ def auth_data(client):
     token = r.json()["access_token"]
 
     db = TestingSessionLocal()
-    user = db.query(User).filter(User.api_key == token).first()
+    user = find_user_by_api_key(db, token)
     user_id = user.id
     db.close()
 
@@ -134,6 +135,20 @@ class TestRotateApiKey:
         assert client.get("/api/v1/maas/auth/me",
                           headers={"X-API-Key": new_key}).status_code == 200
 
+    def test_plaintext_api_key_column_is_not_accepted(self, client):
+        token = _fresh_user(client)
+        db = TestingSessionLocal()
+        try:
+            user = find_user_by_api_key(db, token)
+            user.api_key = token
+            user.api_key_hash = None
+            db.commit()
+        finally:
+            db.close()
+
+        r = client.get("/api/v1/maas/auth/me", headers={"X-API-Key": token})
+        assert r.status_code == 401
+
 
 # ---------------------------------------------------------------------------
 # GET /auth/login/oidc and GET /auth/callback  (501 when OIDC not configured)
@@ -198,7 +213,7 @@ class TestRequirePermissionExplicit:
         token = r.json()["access_token"]
 
         db = TestingSessionLocal()
-        user = db.query(User).filter(User.api_key == token).first()
+        user = find_user_by_api_key(db, token)
         # Grant explicit analytics:view permission (overrides role defaults)
         user.permissions = "analytics:view,audit:view"
         user.role = "user"  # user doesn't have analytics:view by default
@@ -223,7 +238,7 @@ class TestRequirePermissionExplicit:
         token = r.json()["access_token"]
 
         db = TestingSessionLocal()
-        user = db.query(User).filter(User.api_key == token).first()
+        user = find_user_by_api_key(db, token)
         user.permissions = "*"
         user.role = "user"
         db.commit()
@@ -245,7 +260,7 @@ class TestRequirePermissionExplicit:
         token = r.json()["access_token"]
 
         db = TestingSessionLocal()
-        user = db.query(User).filter(User.api_key == token).first()
+        user = find_user_by_api_key(db, token)
         user.permissions = None
         user.role = "user"
         db.commit()
@@ -281,7 +296,7 @@ class TestBearerTokenAuth:
         api_key = r.json()["access_token"]
 
         db = TestingSessionLocal()
-        user = db.query(User).filter(User.api_key == api_key).first()
+        user = find_user_by_api_key(db, api_key)
         user_id = user.id
 
         sess_token = f"sess-{uuid.uuid4().hex}"
@@ -322,7 +337,7 @@ class TestBearerTokenAuth:
         api_key = r.json()["access_token"]
 
         db = TestingSessionLocal()
-        user = db.query(User).filter(User.api_key == api_key).first()
+        user = find_user_by_api_key(db, api_key)
         user_id = user.id
 
         expired_token = f"exp-{uuid.uuid4().hex}"
@@ -381,7 +396,7 @@ class TestSetAdmin:
 
         # Elevate the admin user
         db = TestingSessionLocal()
-        u = db.query(User).filter(User.api_key == admin_token).first()
+        u = find_user_by_api_key(db, admin_token)
         u.role = "admin"
         db.commit()
         db.close()
@@ -544,6 +559,27 @@ class TestRequirePermissionUnit:
         with pytest.raises(HTTPException) as exc:
             perm_checker(user=user)
         assert exc.value.status_code == 403
+
+
+class TestModularRequirePermissionUnit:
+    """Direct tests for the modular async permission checker."""
+
+    def test_modular_user_context_scope_grants_access(self):
+        import asyncio
+
+        from src.api.maas.auth import UserContext, require_permission
+
+        perm_checker = require_permission("analytics:view")
+        user = UserContext(
+            user_id="user-with-explicit-scope",
+            plan="starter",
+            role="user",
+            scopes=["analytics:view"],
+        )
+
+        result = asyncio.run(perm_checker(user=user))
+
+        assert result is user
 
     def test_non_matching_explicit_permissions_raises_403(self):
         """Explicit permissions set but doesn't include required → 403."""

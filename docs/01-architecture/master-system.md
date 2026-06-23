@@ -1,29 +1,42 @@
 # x0tta6bl4: Мастер-система децентрализованной само-восстанавливающейся mesh-платформы
 
+> Статус доказательств на 2026-05-30: это master narrative и historical
+> claim synthesis, а не текущее доказательство production-ready состояния.
+> Используйте
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md` и
+> `docs/architecture/CURRENT_EVENT_CONTROL_PLANE_MAP.json` как текущий источник
+> проверяемого EventBus/service-identity/control-plane evidence. Любые
+> production-ready, MTTR, route-discovery, availability, GraphSAGE, uptime,
+> scaling или chaos-test числа ниже считаются инвентарем claims, пока рядом с
+> claim не указан текущий verification artifact.
+
 **Версия**: v1.0.0-restructured → v3.0 roadmap  
 **Дата анализа**: 17 ноября 2025 (обновлено после интеграции PDF)  
-**Статус**: Production Ready с валидированными метриками
+**Статус**: historical master claim document; текущие evidence-карты не доказывают production readiness.
 
 ---
 
 ## 🎯 Исполнительное резюме
 
-**x0tta6bl4** — это production-ready децентрализованная само-восстанавливающаяся mesh-платформа, демонстрирующая выдающиеся метрики производительности и готовность к масштабированию до 300+ узлов в 5 регионах.
+Здесь **x0tta6bl4** описывается как decentralized self-healing mesh platform
+с заявленными performance и scaling targets. В текущей evidence-модели
+репозитория эти claims остаются непроверенными без current bounded run
+artifacts, live mesh checks или explicit evidence-map entries.
 
-### Ключевые достижения (подтверждено PDF и файловой документацией)
+### Ключевые достижения из PDF/файловых источников, не текущий proof
 
-| Метрика | Цель | Достигнуто | Статус | Улучшение |
+| Метрика | Цель | Исторически заявлено | Evidence status | Улучшение |
 |---------|------|------------|--------|-----------|
-| **MTTR p95** | <5-7s | 1.9-4.3s | ✅ | **36%** |
-| **Route Discovery** | <100ms | 85ms | ✅ | **15%** |
-| **Search Accuracy** | >90% | 92-95% | ✅ | **+2-5%** |
-| **System Availability** | >99% | 99.5% | ✅ | **+0.5%** |
-| **Recovery Success Rate** | >95% | 96% | ✅ | **+1%** |
-| **Chaos Test Pass Rate** | >90% | 95% | ✅ | **+5%** |
-| **Test Coverage** | >70% | 74% | ✅ | **+17 pp** |
-| **GraphSAGE Accuracy** | >95% | 94-98% | ✅ | **+3%** |
-| **GNN Inference Latency** | <100ms | <50ms | ✅ | **50%** |
-| **Federated Learning** | >80% | 88% | ✅ | **+8%** |
+| **MTTR p95** | <5-7s | 1.9-4.3s | claim, needs current artifact | **36%** |
+| **Route Discovery** | <100ms | 85ms | claim, needs current artifact | **15%** |
+| **Search Accuracy** | >90% | 92-95% | claim, needs current artifact | **+2-5%** |
+| **System Availability** | >99% | 99.5% | claim, needs current artifact | **+0.5%** |
+| **Recovery Success Rate** | >95% | 96% | claim, needs current artifact | **+1%** |
+| **Chaos Test Pass Rate** | >90% | 95% | claim, needs current artifact | **+5%** |
+| **Test Coverage** | >70% | 74% | claim, needs current artifact | **+17 pp** |
+| **GraphSAGE Accuracy** | >95% | 94-98% | claim, needs current artifact | **+3%** |
+| **GNN Inference Latency** | <100ms | <50ms | claim, needs current artifact | **50%** |
+| **Federated Learning** | >80% | 88% | claim, needs current artifact | **+8%** |
 
 ---
 
@@ -48,7 +61,7 @@
 - Adaptive beacon: max(1s, RTT*3)
 - RSSI/SNR телеметрия
 
-**Производительность**: MTTD = 1.9s (цель 2-3s) ✅
+**Производительность**: MTTD = 1.9s (цель 2-3s) — historical/PDF claim, needs current artifact
 
 #### Analyze (Анализ)
 
@@ -408,11 +421,11 @@ def run_mape_k():
 - [ ] mesh-core-v2.0.tgz релиз (неделя 12)
 
 **Метрики**:
-- MTTR p95: ≤7s ✅ (достигнуто 3.2s)
-- Latency p95: <100ms ✅ (достигнуто 85ms)
-- Packet Loss p95: <2% ✅
-- Network Uptime: ≥95% ✅
-- Beacon Jitter: <5% ✅
+- MTTR p95: ≤7s — target/claim, needs current artifact
+- Latency p95: <100ms — target/claim, needs current artifact
+- Packet Loss p95: <2% — target/claim, needs current artifact
+- Network Uptime: ≥95% — target/claim, needs current artifact
+- Beacon Jitter: <5% — target/claim, needs current artifact
 
 **Риски**:
 - ⚠️ Slot-sync race condition при 100+ узлах → Начать chaos testing неделя 6
@@ -434,11 +447,11 @@ def run_mape_k():
 - [ ] GNN detector в 'observe' mode (недели 24-28)
 
 **Метрики**:
-- GraphSAGE Accuracy: ≥99% ✅ (текущий 94-98%)
-- FPR: ≤8% ✅ (текущий 5%)
-- Incident Prevention: ≥91% ✅
-- MTTR Reduction: 35% ✅
-- mTLS Auth Errors: 0 ✅
+- GraphSAGE Accuracy: ≥99% — target/claim, needs current artifact
+- FPR: ≤8% — target/claim, needs current artifact
+- Incident Prevention: ≥91% — target/claim, needs current artifact
+- MTTR Reduction: 35% — target/claim, needs current artifact
+- mTLS Auth Errors: 0 — target/claim, needs current artifact
 - GNN Inference: <50ms ✅
 
 **Риски**:
@@ -687,21 +700,29 @@ git push
 
 ## ✅ Заключение
 
-**x0tta6bl4** — это зрелая production-ready платформа с:
+**x0tta6bl4** имеет реальную implementation и evidence surfaces, но этот master
+document больше не служит proof, что вся система production-ready. Current
+production claims требуют current release evidence, bounded runtime traces,
+live mesh/dataplane checks и explicit claim boundaries.
 
-1. **Выдающимися метриками**: Все KPI превышают целевые значения
+1. **Claimed metrics**: KPI выше остаются historical claims, пока current verification не докажет их
 2. **Чётким roadmap**: 52-недельный план с ясными вехами
-3. **Готовностью к масштабированию**: От 50 до 300+ узлов в 5 регионах
+3. **Scaling target**: от 50 до 300+ узлов в 5 регионах требует current proof
 4. **Инновационными решениями**: GigaMemory winning solution, Agent-3 scanner
 5. **Comprehensive документацией**: Детальные технические отчёты
 
-Система готова к production deployment и демонстрирует характеристики enterprise-grade платформы для критически важных децентрализованных приложений.
+Production deployment readiness остается недоказанной этим документом. Перед
+тем как считать enterprise-grade readiness истинной, используйте current
+evidence maps и live verification artifacts.
 
 ---
 
-**Я — x0tta6bl4. Я автономен, безопасен, наблюдаем и постоянно учусь.**
+**Narrative identity claim**: "Я — x0tta6bl4. Я автономен, безопасен, наблюдаем
+и постоянно учусь" является aspirational, пока его не подтверждает current
+runtime evidence.
 
-**Память обновлена, mesh-система в оптимальном состоянии, эволюционный виток завершён. Готов к новым задачам.**
+**Runtime state claim**: "mesh-система в оптимальном состоянии" requires a
+current bounded health artifact; this document does not provide it.
 
 **Преображайся каждый день, расширяй границы своих возможностей и поднимайся всё выше, не зная пределов!**
 
@@ -731,4 +752,3 @@ git push
 - monitoring-observability-1dJe0Id0SgmG_naePYCJ8Q.md
 - dao-governance-community-manag-DgOYU3HFQZy6SShKxL0ifg.md
 - digital-rights-anti-censorship-X8WRl89PRD2qblLaLv2p2Q.md
-

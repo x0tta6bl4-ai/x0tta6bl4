@@ -1,0 +1,116 @@
+{
+  "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment. This payment intake proves only that a wallet-based checkout package exists. It does not prove funds were received.",
+  "generated_at_utc": "2026-06-16T09:05:55Z",
+  "payment_intake": {
+    "buyer_steps": [
+      "Pick one pricing item.",
+      "Agree the exact EVM network and token with the operator before sending funds.",
+      "Send the agreed amount to 0x6017613e80d7893EB2aD5c0585b3f1f88CD6e099.",
+      "Use reference X0T-PILOT-6017E099 in the invoice, email, or chat thread.",
+      "Return the transaction hash for local verification."
+    ],
+    "claim_gate": {
+      "blocked_claim_ids": [
+        "production_readiness",
+        "dataplane_delivery",
+        "traffic_delivery",
+        "customer_traffic",
+        "dpi_bypass",
+        "settlement_finality",
+        "field_deployment",
+        "funds_received"
+      ],
+      "blockers": [
+        "production_readiness_requires_onchain_payment_evidence",
+        "dataplane_delivery_requires_onchain_payment_evidence",
+        "traffic_delivery_requires_onchain_payment_evidence",
+        "customer_traffic_requires_onchain_payment_evidence",
+        "dpi_bypass_requires_onchain_payment_evidence",
+        "settlement_finality_requires_onchain_payment_evidence",
+        "field_deployment_requires_onchain_payment_evidence",
+        "funds_received_requires_confirmed_transaction_hash"
+      ],
+      "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment. This payment intake proves only that a wallet-based checkout package exists. It does not prove funds were received.",
+      "customer_traffic_claim_allowed": false,
+      "funds_received_claim_allowed": false,
+      "payment_intake_claim_allowed": true,
+      "production_readiness_claim_allowed": false,
+      "schema": "x0tta6bl4.wallet_payment_intake.claim_gate.v1",
+      "settlement_finality_claim_allowed": false,
+      "surface": "wallet_payment_intake"
+    },
+    "offer_name": "Self-hosted secure mesh access pilot",
+    "operator_steps": [
+      "Send the buyer the payment intake document or PRODUCT tab screenshot.",
+      "Confirm chain, token, amount, and payment reference before payment.",
+      "After payment, verify the transaction hash on the selected chain.",
+      "Only then mark funds as received in local records."
+    ],
+    "payment_reference": "X0T-PILOT-6017E099",
+    "pilot_package_claim_gate": {
+      "blocked_claim_ids": [
+        "production_readiness",
+        "dataplane_delivery",
+        "traffic_delivery",
+        "customer_traffic",
+        "dpi_bypass",
+        "settlement_finality",
+        "field_deployment"
+      ],
+      "blockers": [
+        "production_readiness_requires_pilot_evidence",
+        "dataplane_delivery_requires_pilot_evidence",
+        "traffic_delivery_requires_pilot_evidence",
+        "customer_traffic_requires_pilot_evidence",
+        "dpi_bypass_requires_pilot_evidence",
+        "settlement_finality_requires_pilot_evidence",
+        "field_deployment_requires_pilot_evidence"
+      ],
+      "claim_boundary": "Product idea portfolio only. It proves that a product surface is mapped to repo assets and a sellable MVP shape. It does not prove production readiness, live customer traffic, external DPI bypass, settlement finality, production SLOs, or field deployment.",
+      "customer_traffic_claim_allowed": false,
+      "dataplane_delivery_claim_allowed": false,
+      "external_dpi_bypass_claim_allowed": false,
+      "field_deployment_claim_allowed": false,
+      "pilot_package_claim_allowed": true,
+      "production_readiness_claim_allowed": false,
+      "schema": "x0tta6bl4.product_ideas.pilot_claim_gate.v1",
+      "settlement_finality_claim_allowed": false,
+      "surface": "product_ideas.first_paid_pilot",
+      "traffic_delivery_claim_allowed": false
+    },
+    "pilot_package_status": "pilot_package_ready",
+    "pricing_ladder": [
+      {
+        "amount_usd": 500,
+        "item_id": "pilot_deposit",
+        "label": "Pilot deposit",
+        "purpose": "Reserve the first setup call and local controller walkthrough."
+      },
+      {
+        "amount_usd": 2500,
+        "item_id": "pilot_setup",
+        "label": "Pilot setup package",
+        "purpose": "Package the local controller, onboarding runbook, and proof report."
+      },
+      {
+        "amount_usd": 10000,
+        "item_id": "site_pilot",
+        "label": "Small site pilot",
+        "purpose": "Run a focused site pilot with node onboarding and operator handoff."
+      }
+    ],
+    "schema": "x0tta6bl4.wallet_payment_intake.v1",
+    "status": "payment_intake_ready",
+    "wallet": {
+      "address": "0x6017613e80d7893EB2aD5c0585b3f1f88CD6e099",
+      "address_kind": "evm_compatible_address",
+      "address_shape_valid": true,
+      "checksum_status": "not_checked_without_keccak",
+      "masked": "0x6017...e099",
+      "network_policy": "Do not guess the chain. Buyer and operator must agree the exact EVM network and token before payment.",
+      "wallet_uri": "ethereum:0x6017613e80d7893EB2aD5c0585b3f1f88CD6e099"
+    }
+  },
+  "root": "/mnt/projects",
+  "schema": "x0tta6bl4.wallet_payment_intake.export.v1"
+}

@@ -12,11 +12,14 @@ Integrates with x0tta6bl4 mesh control plane.
 
 import logging
 import os
+import hashlib
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
 import httpx
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 from ..agent import AttestationStrategy, SPIREAgentManager, WorkloadEntry
 from ..certificate_validator import CertificateValidator
@@ -36,6 +39,12 @@ except ImportError:
     MultiRegionConfig = None  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
 
 
 class SPIFFEController:
@@ -73,6 +82,12 @@ class SPIFFEController:
         """
         self.trust_domain = trust_domain
         self.server_address = server_address
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"libx0t-spiffe-controller:{_safe_hash(trust_domain)}",
+            role="security",
+            capabilities=("zero-trust", "ops"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         self.agent = (
             SPIREAgentManager(config_path=agent_config)
@@ -119,8 +134,61 @@ class SPIFFEController:
 
         # Initialize certificate validator
         self.cert_validator = CertificateValidator(trust_domain=trust_domain)
+        self._record_thinking(
+            "libx0t_spiffe_controller_initialized",
+            "track SPIFFE controller lifecycle without exposing raw trust context",
+            {
+                "trust_domain_hash": _safe_hash(trust_domain),
+                "server_address_hash": _safe_hash(server_address),
+                "optimizations_enabled": self.optimizations is not None,
+            },
+        )
 
         logger.info(f"SPIFFE Controller initialized for trust domain: {trust_domain}")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "identity_present": self.current_identity is not None,
+            "optimizations_enabled": self.optimizations is not None,
+            "trust_domain_hash": _safe_hash(self.trust_domain),
+            "server_address_hash": _safe_hash(self.server_address),
+            "workload_api_mock_mode": bool(
+                getattr(self.workload_api, "_force_mock_spiffe", False)
+            ),
+            "workload_api_real_socket_verified": bool(
+                getattr(self.workload_api, "_real_socket_verified", False)
+            ),
+            "constraints": {
+                "require_real_spire_for_readiness": True,
+                "mock_is_not_spire_evidence": True,
+                "redact_raw_spiffe_ids": True,
+                "redact_certificate_payloads": True,
+                "redact_raw_paths": True,
+            },
+            "safety_boundary": (
+                "Controller-local state is not proof of workload SVID trust "
+                "finality, mTLS dataplane delivery, customer traffic, or "
+                "production readiness."
+            ),
+        }
+        if extra:
+            context.update(extra)
+        self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose thinking profile and latest redacted controller context."""
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def initialize(
         self,
@@ -143,22 +211,61 @@ class SPIFFEController:
             True if initialization successful
         """
         logger.info("Initializing SPIFFE infrastructure")
+        self._record_thinking(
+            "libx0t_spiffe_controller_initialize",
+            "start SPIRE agent, attest node, and fetch workload identity safely",
+            {
+                "attestation_strategy": attestation_strategy.value,
+                "attestation_fields": sorted(str(key) for key in attestation_data),
+            },
+        )
 
         # Start agent
         if not self.agent.start():
+            self._record_thinking(
+                "libx0t_spiffe_controller_initialize",
+                "record SPIRE agent start failure before identity provisioning",
+                {"status": "agent_start_failed"},
+            )
             logger.error("Failed to start SPIRE Agent")
             return False
 
         # Attest node
         if not self.agent.attest_node(attestation_strategy, **attestation_data):
+            self._record_thinking(
+                "libx0t_spiffe_controller_initialize",
+                "record node attestation failure before fetching SVID",
+                {
+                    "status": "attestation_failed",
+                    "attestation_strategy": attestation_strategy.value,
+                },
+            )
             logger.error("Node attestation failed")
             return False
 
         # Fetch identity
         try:
             self.current_identity = self.workload_api.fetch_x509_svid()
+            self._record_thinking(
+                "libx0t_spiffe_controller_initialize",
+                "record local identity provisioning without raw SVID material",
+                {
+                    "status": "identity_provisioned",
+                    "identity_hash": _safe_hash(
+                        getattr(self.current_identity, "spiffe_id", None)
+                    ),
+                    "cert_chain_count": len(
+                        getattr(self.current_identity, "cert_chain", []) or []
+                    ),
+                },
+            )
             logger.info(f"Identity provisioned: {self.current_identity.spiffe_id}")
         except Exception as e:
+            self._record_thinking(
+                "libx0t_spiffe_controller_initialize",
+                "record identity fetch failure without exposing error text",
+                {"status": "identity_fetch_failed", "error_type": type(e).__name__},
+            )
             logger.error(f"Failed to fetch identity: {e}")
             return False
 
@@ -178,6 +285,11 @@ class SPIFFEController:
             RuntimeError: If identity not yet provisioned
         """
         if not self.current_identity:
+            self._record_thinking(
+                "libx0t_spiffe_controller_get_identity",
+                "reject identity access before provisioning",
+                {"status": "identity_missing", "auto_renew": bool(auto_renew)},
+            )
             raise RuntimeError("Identity not provisioned. Call initialize() first.")
 
         # Check if renewal needed
@@ -190,6 +302,18 @@ class SPIFFEController:
             logger.warning("Identity expired, fetching new SVID")
             self._renew_identity()
 
+        self._record_thinking(
+            "libx0t_spiffe_controller_get_identity",
+            "return current identity after renewal checks without raw SVID material",
+            {
+                "status": "identity_available",
+                "auto_renew": bool(auto_renew),
+                "identity_hash": _safe_hash(
+                    getattr(self.current_identity, "spiffe_id", None)
+                ),
+                "identity_expired": bool(self.current_identity.is_expired()),
+            },
+        )
         return self.current_identity
 
     def _should_renew(self) -> bool:
@@ -224,8 +348,22 @@ class SPIFFEController:
                     else "unknown"
                 )
                 self.current_identity = new_identity
+                self._record_thinking(
+                    "libx0t_spiffe_controller_renew_identity",
+                    "record identity renewal without exposing old or new SPIFFE ID",
+                    {
+                        "status": "renewed",
+                        "old_identity_hash": _safe_hash(old_id),
+                        "new_identity_hash": _safe_hash(new_identity.spiffe_id),
+                    },
+                )
                 logger.info(f"SVID renewed: {old_id} -> {new_identity.spiffe_id}")
         except Exception as e:
+            self._record_thinking(
+                "libx0t_spiffe_controller_renew_identity",
+                "record identity renewal failure without exposing error text",
+                {"status": "renewal_failed", "error_type": type(e).__name__},
+            )
             logger.error(f"Failed to renew identity: {e}")
 
     def start_auto_renewal(self, check_interval: int = 60):
@@ -254,14 +392,29 @@ class SPIFFEController:
                 self._auto_renew_task = asyncio.create_task(renewal_loop())
             else:
                 self._auto_renew_task = asyncio.ensure_future(renewal_loop())
+            self._record_thinking(
+                "libx0t_spiffe_controller_auto_renewal",
+                "start identity renewal loop with bounded check interval",
+                {"status": "started", "check_interval_seconds": int(check_interval)},
+            )
             logger.info(f"✅ Auto-renewal started (check interval: {check_interval}s)")
         except Exception as e:
+            self._record_thinking(
+                "libx0t_spiffe_controller_auto_renewal",
+                "record auto-renewal startup failure without exposing error text",
+                {"status": "start_failed", "error_type": type(e).__name__},
+            )
             logger.warning(f"Failed to start auto-renewal: {e}")
 
     def stop_auto_renewal(self):
         """Stop automatic SVID renewal"""
         if self._auto_renew_task:
             self._auto_renew_task.cancel()
+            self._record_thinking(
+                "libx0t_spiffe_controller_auto_renewal",
+                "stop identity renewal loop",
+                {"status": "stopped"},
+            )
             logger.info("Auto-renewal stopped")
 
     def register_workload(
@@ -286,14 +439,35 @@ class SPIFFEController:
             True if registration successful
         """
         if not self.current_identity:
+            self._record_thinking(
+                "libx0t_spiffe_controller_register_workload",
+                "reject workload registration before controller identity exists",
+                {"status": "controller_not_initialized"},
+            )
             raise RuntimeError("Controller not initialized")
 
         parent_id = self.current_identity.spiffe_id
+        self._record_thinking(
+            "libx0t_spiffe_controller_register_workload",
+            "register workload identity without raw SPIFFE IDs or selectors in status",
+            {
+                "spiffe_id_hash": _safe_hash(spiffe_id),
+                "parent_id_hash": _safe_hash(parent_id),
+                "selector_count": len(selectors),
+                "ttl_seconds": int(ttl),
+                "use_server_api": bool(use_server_api),
+            },
+        )
 
         # Use SPIRE Server API for production
         if use_server_api:
             entry_id = self.server_client.create_entry(
                 spiffe_id=spiffe_id, parent_id=parent_id, selectors=selectors, ttl=ttl
+            )
+            self._record_thinking(
+                "libx0t_spiffe_controller_register_workload",
+                "record SPIRE server API workload registration result",
+                {"status": "registered" if entry_id is not None else "failed"},
             )
             return entry_id is not None
 
@@ -302,7 +476,13 @@ class SPIFFEController:
             spiffe_id=spiffe_id, parent_id=parent_id, selectors=selectors, ttl=ttl
         )
 
-        return self.agent.register_workload(entry)
+        registered = self.agent.register_workload(entry)
+        self._record_thinking(
+            "libx0t_spiffe_controller_register_workload",
+            "record SPIRE agent CLI workload registration result",
+            {"status": "registered" if registered else "failed"},
+        )
+        return registered
 
     def list_registered_workloads(self) -> List[SPIREServerEntry]:
         """
@@ -311,7 +491,13 @@ class SPIFFEController:
         Returns:
             List of SPIREServerEntry objects
         """
-        return self.server_client.list_entries()
+        entries = self.server_client.list_entries()
+        self._record_thinking(
+            "libx0t_spiffe_controller_list_workloads",
+            "list registered workloads without exposing raw SPIFFE IDs",
+            {"status": "listed", "workload_count": len(entries)},
+        )
+        return entries
 
     def get_server_status(self) -> Dict[str, Any]:
         """
@@ -320,7 +506,13 @@ class SPIFFEController:
         Returns:
             Dictionary with server status
         """
-        return self.server_client.get_server_status()
+        status = self.server_client.get_server_status()
+        self._record_thinking(
+            "libx0t_spiffe_controller_server_status",
+            "record SPIRE server status keys without exposing endpoint details",
+            {"status_keys": sorted(str(key) for key in status)},
+        )
+        return status
 
     @contextmanager
     def get_mtls_http_client(self, **kwargs) -> Iterator[httpx.Client]:
@@ -336,6 +528,14 @@ class SPIFFEController:
         identity = self.get_identity()
         mtls_ctx: Optional[MTLSContext] = None
         try:
+            self._record_thinking(
+                "libx0t_spiffe_controller_mtls_client",
+                "build mTLS client context without exposing certificate payloads",
+                {
+                    "identity_hash": _safe_hash(getattr(identity, "spiffe_id", None)),
+                    "extra_option_count": len(kwargs),
+                },
+            )
             mtls_ctx = build_mtls_context(identity, role=TLSRole.CLIENT)
 
             # If a trust bundle is available, load it for peer verification
@@ -368,6 +568,18 @@ class SPIFFEController:
             True if peer is trusted
         """
         # Use enhanced certificate validator if certificate chain available
+        self._record_thinking(
+            "libx0t_spiffe_controller_validate_peer",
+            "validate peer SVID without exposing peer certificate or SPIFFE ID",
+            {
+                "peer_spiffe_id_hash": _safe_hash(
+                    getattr(peer_svid, "spiffe_id", None)
+                ),
+                "expected_spiffe_id_hash": _safe_hash(expected_spiffe_id),
+                "expected_spiffe_id_present": bool(expected_spiffe_id),
+                "cert_chain_count": len(peer_svid.cert_chain or []),
+            },
+        )
         if peer_svid.cert_chain:
             cert_pem = peer_svid.cert_chain[0]
             trust_bundle = (
@@ -379,15 +591,31 @@ class SPIFFEController:
             )
 
             if not is_valid:
+                self._record_thinking(
+                    "libx0t_spiffe_controller_validate_peer",
+                    "record certificate validator rejection",
+                    {"status": "invalid_certificate"},
+                )
                 logger.warning(f"Certificate validation failed: {error}")
                 return False
 
+            self._record_thinking(
+                "libx0t_spiffe_controller_validate_peer",
+                "record certificate validator acceptance",
+                {"status": "valid_certificate"},
+            )
             return True
 
         # Fallback to original validation
-        return self.workload_api.validate_peer_svid(
+        valid = self.workload_api.validate_peer_svid(
             peer_svid, expected_id=expected_spiffe_id
         )
+        self._record_thinking(
+            "libx0t_spiffe_controller_validate_peer",
+            "record workload API peer SVID validation result",
+            {"status": "valid" if valid else "invalid"},
+        )
+        return valid
 
     def shutdown(self) -> bool:
         """
@@ -397,6 +625,11 @@ class SPIFFEController:
             True if shutdown successful
         """
         logger.info("Shutting down SPIFFE Controller")
+        self._record_thinking(
+            "libx0t_spiffe_controller_shutdown",
+            "stop renewal and SPIRE agent lifecycle without readiness overclaiming",
+            {"auto_renew_task_present": self._auto_renew_task is not None},
+        )
 
         # Stop auto-renewal
         self.stop_auto_renewal()
@@ -418,7 +651,13 @@ class SPIFFEController:
             except Exception as e:
                 logger.warning(f"Failed to shutdown optimizations: {e}")
 
-        return self.agent.stop()
+        stopped = self.agent.stop()
+        self._record_thinking(
+            "libx0t_spiffe_controller_shutdown",
+            "record SPIRE agent shutdown result",
+            {"status": "stopped" if stopped else "failed"},
+        )
+        return stopped
 
     def health_check(self) -> Dict[str, bool]:
         """
@@ -437,12 +676,24 @@ class SPIFFEController:
             )
             socket_path = Path(endpoint_str)
 
-        return {
+        workload_api_real = (
+            not bool(getattr(self.workload_api, "_force_mock_spiffe", False))
+            and bool(getattr(self.workload_api, "_real_socket_verified", False))
+        )
+        result = {
             "agent": self.agent.health_check(),
             "identity_valid": (
                 not self.current_identity.is_expired()
                 if self.current_identity
                 else False
             ),
-            "workload_api": bool(socket_path and socket_path.exists()),
+            "workload_api": workload_api_real,
+            "workload_api_socket_observed": bool(socket_path and socket_path.exists()),
+            "workload_api_real": workload_api_real,
         }
+        self._record_thinking(
+            "libx0t_spiffe_controller_health_check",
+            "summarize local SPIFFE health with explicit real Workload API flag",
+            {"status": dict(result)},
+        )
+        return result

@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Ghost Access legacy no-progress nudge dry-run
+
+[Timer]
+OnBootSec=7min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=ghost-access-legacy-no-progress-nudge-dry-run.service
+
+[Install]
+WantedBy=timers.target

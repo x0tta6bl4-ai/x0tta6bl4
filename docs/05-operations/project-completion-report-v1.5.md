@@ -1,6 +1,13 @@
 # 🏆 x0tta6bl4 Project Completion Report
 ## v1.5.0-alpha: Production-Ready Distributed Mesh Platform
 
+> Current evidence note: historical completion report. The production-ready
+> wording below is historical sprint/status language from November 2025, not
+> current production-readiness proof for the live repository. Current readiness
+> is superseded by `docs/05-operations/REAL_READINESS_GATE.md`,
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`.
+
 **Project:** x0tta6bl4 Decentralized Self-Healing Mesh  
 **Status:** ✅ **Production Ready (95%+)**  
 **Version:** v1.5.0-alpha  

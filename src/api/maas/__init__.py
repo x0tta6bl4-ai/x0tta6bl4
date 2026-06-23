@@ -88,6 +88,7 @@ __all__ = [
     "get_mesh",
     "register_mesh",
     "record_audit_log",
+    "_mesh_registry",
     # Router
     "get_maas_router",
     # Legacy compatibility symbols still imported by existing tests/callers.
@@ -101,8 +102,13 @@ __all__ = [
     "revoke_node",
     "reissue_node_token",
     "rotate_join_token",
+    "create_policy",
+    "get_node_config",
+    "list_mapek_events",
     "get_onprem_profile",
     "list_all_nodes",
+    "usage_metering_service",
+    "_get_mesh_or_404",
 ]
 
 
@@ -150,7 +156,7 @@ def __getattr__(name: str) -> Any:
         return ACLManager
 
     # Registry
-    if name in ("get_mesh", "register_mesh", "record_audit_log"):
+    if name in ("get_mesh", "register_mesh", "record_audit_log", "_mesh_registry"):
         from . import registry
         return getattr(registry, name)
 

@@ -22,13 +22,18 @@ This will:
 - Create necessary directories
 - Start SPIRE server and agent containers
 - Wait for services to be ready
-- Create the agent socket at `/tmp/spire-agent/public/api.sock`
+- Create the agent socket at `${SPIRE_AGENT_SOCKET_DIR}/api.sock`
+
+By default, `scripts/spire/start-spire.sh` uses
+`${XDG_RUNTIME_DIR:-/tmp}/x0tta6bl4-spire-agent` and creates it with mode
+`0700`. Override it locally with `x0tta6bl4_SPIRE_AGENT_SOCKET_DIR` if Docker
+needs a different bind-mount path.
 
 ### 2. Verify SPIRE is Running
 
 ```bash
 # Check if socket exists and is accessible
-ls -la /tmp/spire-agent/public/api.sock
+ls -la "${SPIRE_AGENT_SOCKET_DIR:-${XDG_RUNTIME_DIR:-/tmp}/x0tta6bl4-spire-agent}/api.sock"
 
 # Check Docker containers
 docker ps | grep spire
@@ -105,12 +110,11 @@ docker-compose -f docker-compose.spire.yml exec spire-server \
 docker-compose -f docker-compose.spire.yml logs spire-agent
 
 # Verify permissions on socket directory
-ls -la /tmp/spire-agent/public/
+ls -ld "${SPIRE_AGENT_SOCKET_DIR:-${XDG_RUNTIME_DIR:-/tmp}/x0tta6bl4-spire-agent}"
 
-# Recreate directory if needed
-rm -rf /tmp/spire-agent/public
-mkdir -p /tmp/spire-agent/public
-chmod 777 /tmp/spire-agent/public
+# Recreate private directory if needed
+rm -rf "${SPIRE_AGENT_SOCKET_DIR:-${XDG_RUNTIME_DIR:-/tmp}/x0tta6bl4-spire-agent}"
+install -d -m 700 "${SPIRE_AGENT_SOCKET_DIR:-${XDG_RUNTIME_DIR:-/tmp}/x0tta6bl4-spire-agent}"
 ```
 
 ### Connection Refused
@@ -145,7 +149,7 @@ docker-compose -f docker-compose.spire.yml down
 docker-compose -f docker-compose.spire.yml down -v
 
 # Remove socket directory
-rm -rf /tmp/spire-agent/public
+rm -rf "${SPIRE_AGENT_SOCKET_DIR:-${XDG_RUNTIME_DIR:-/tmp}/x0tta6bl4-spire-agent}"
 ```
 
 ## Production Deployment

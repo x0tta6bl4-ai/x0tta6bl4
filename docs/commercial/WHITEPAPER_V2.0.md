@@ -1,4 +1,9 @@
 # 📄 WHITEPAPER V2.0 - x0tta6bl4
+> Current gate note: Production-ready wording in this commercial draft is not
+> current production proof unless `docs/05-operations/REAL_READINESS_GATE.md`,
+> `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json` pass.
+
 **Version:** 2.0 (Commercial Focus)  
 **Date:** January 26, 2026  
 **Status:** ✅ **COMPLETED**

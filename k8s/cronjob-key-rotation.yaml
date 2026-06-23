@@ -45,7 +45,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: rotate
-              image: ghcr.io/x0tta6bl4/agent:latest
+              image: ghcr.io/x0tta6bl4/agent:3.4.0
               imagePullPolicy: IfNotPresent
               command:
                 - /app/agent

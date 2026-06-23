@@ -12,12 +12,82 @@ Target metrics (Stage 2):
 """
 
 import logging
+import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_ANOMALY_THRESHOLD = 0.6
+GRAPHSAGE_ANOMALY_CLAIM_GATE_SCHEMA = (
+    "x0tta6bl4.ml.graphsage_anomaly_claim_gate.v1"
+)
+GRAPHSAGE_ANOMALY_CLAIM_BOUNDARY = (
+    "Local GraphSAGE model-score evidence only; this does not prove live "
+    "intrusion detection coverage, complete attack absence, external "
+    "compromise absence, or production security coverage."
+)
+
+
+def _probability_value(value: Any) -> Optional[float]:
+    """Return value as a bounded probability, or None when invalid."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    if not math.isfinite(number) or number < 0.0 or number > 1.0:
+        return None
+    return number
+
+
+def build_graphsage_anomaly_claim_gate(
+    prediction: "AnomalyPrediction",
+    *,
+    threshold: float = DEFAULT_ANOMALY_THRESHOLD,
+    source: str = "graphsage_predict",
+    detector_trained: bool = False,
+) -> Dict[str, Any]:
+    """Build a fail-closed claim boundary for a local GraphSAGE score."""
+    anomaly_score = _probability_value(prediction.anomaly_score)
+    confidence = _probability_value(prediction.confidence)
+    threshold_value = _probability_value(threshold)
+    local_model_score_observed = anomaly_score is not None and threshold_value is not None
+    threshold_exceeded = (
+        local_model_score_observed and anomaly_score >= threshold_value
+    )
+    blockers: List[str] = []
+    if anomaly_score is None:
+        blockers.append("invalid_anomaly_score")
+    if confidence is None:
+        blockers.append("invalid_confidence")
+    if threshold_value is None:
+        blockers.append("invalid_anomaly_threshold")
+
+    return {
+        "schema": GRAPHSAGE_ANOMALY_CLAIM_GATE_SCHEMA,
+        "source": source,
+        "claim_boundary": GRAPHSAGE_ANOMALY_CLAIM_BOUNDARY,
+        "decision": (
+            "GRAPHSAGE_LOCAL_MODEL_SCORE_RECORDED"
+            if local_model_score_observed
+            else "GRAPHSAGE_LOCAL_MODEL_SCORE_INVALID_FAIL_CLOSED"
+        ),
+        "threshold": threshold_value,
+        "baseline_threshold": DEFAULT_ANOMALY_THRESHOLD,
+        "detector_trained": bool(detector_trained),
+        "local_model_score_observed": local_model_score_observed,
+        "local_model_score_claim_allowed": local_model_score_observed,
+        "local_anomaly_threshold_exceeded": bool(threshold_exceeded),
+        "live_intrusion_detection_claim_allowed": False,
+        "complete_attack_absence_claim_allowed": False,
+        "external_compromise_absence_claim_allowed": False,
+        "production_security_coverage_claim_allowed": False,
+        "autonomous_block_claim_allowed": False,
+        "fail_closed": True,
+        "blockers": blockers,
+    }
+
 
 # Monitoring metrics
 try:
@@ -200,6 +270,7 @@ class AnomalyPrediction:
     node_id: str
     features: Dict[str, float]
     inference_time_ms: float
+    claim_gate: Dict[str, Any] = field(default_factory=dict)
 
 class GraphSAGEAnomalyDetector:
     """
@@ -210,7 +281,7 @@ class GraphSAGEAnomalyDetector:
         input_dim: int = 8,
         hidden_dim: int = 64,
         num_layers: int = 2,
-        anomaly_threshold: float = 0.6,
+        anomaly_threshold: float = DEFAULT_ANOMALY_THRESHOLD,
         use_quantization: bool = True,
     ):
         self.input_dim = input_dim
@@ -341,7 +412,7 @@ class GraphSAGEAnomalyDetector:
             labels = self._generate_labels([node_features])
             anomaly_score = float(labels[0]) if labels else 0.0
             is_anomaly = anomaly_score >= self.anomaly_threshold
-            return AnomalyPrediction(
+            prediction = AnomalyPrediction(
                 is_anomaly=is_anomaly,
                 anomaly_score=anomaly_score,
                 confidence=0.8,
@@ -349,6 +420,13 @@ class GraphSAGEAnomalyDetector:
                 features=node_features,
                 inference_time_ms=(time.time() - start_time) * 1000,
             )
+            prediction.claim_gate = build_graphsage_anomaly_claim_gate(
+                prediction,
+                threshold=self.anomaly_threshold,
+                source="graphsage_rule_fallback",
+                detector_trained=self.is_trained,
+            )
+            return prediction
 
         t_comp = _ensure_torch()
         torch = t_comp["torch"]
@@ -374,7 +452,7 @@ class GraphSAGEAnomalyDetector:
         
         record_graphsage_inference(inf_time, is_anomaly, "CRITICAL" if is_anomaly else "NORMAL")
 
-        return AnomalyPrediction(
+        prediction = AnomalyPrediction(
             is_anomaly=is_anomaly,
             anomaly_score=anomaly_score,
             confidence=abs(anomaly_score - 0.5) * 2,
@@ -382,6 +460,13 @@ class GraphSAGEAnomalyDetector:
             features=node_features,
             inference_time_ms=inf_time,
         )
+        prediction.claim_gate = build_graphsage_anomaly_claim_gate(
+            prediction,
+            threshold=self.anomaly_threshold,
+            source="graphsage_model_inference",
+            detector_trained=self.is_trained,
+        )
+        return prediction
 
         # Prepare graph data
         all_nodes = [(node_id, node_features)] + neighbors
@@ -816,7 +901,7 @@ def create_graphsage_detector_for_mapek(
         input_dim=8,
         hidden_dim=64,
         num_layers=2,
-        anomaly_threshold=0.6,
+        anomaly_threshold=DEFAULT_ANOMALY_THRESHOLD,
         use_quantization=use_quantization,  # Use the new parameter
     )
 
