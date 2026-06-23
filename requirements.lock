@@ -153,7 +153,7 @@ py-cpuinfo==9.0.0
 pycryptodome==3.23.0
 pydantic==2.13.4
 pydantic_core==2.46.4
-pydantic-settings==2.13.0
+pydantic-settings==2.14.2
 pyelftools==0.30
 pyflakes==3.4.0
 Pygments==2.20.0
