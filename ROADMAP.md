@@ -39,7 +39,11 @@
 | `core/meta_cognitive_mape_k.py` | 1153 | ✅ **Archived** (dead code, not imported) |
 | `self_healing/mape_k.py` | 1145 | ✅ **Split** → 9 files (6 classes) |
 | `core/mape_k_loop/` (package) | 1084 | ✅ **Split** during earlier session |
+<<<<<<< HEAD
 | `network/ebpf/orchestrator.py` | 1120 | ✅ **Split** → 7 files |
+=======
+| `network/ebpf/orchestrator.py` | 1120 | 🟡 Related to loader |
+>>>>>>> 3c6fbf145 (refactor(mape-k): decompose MAPE-K and metrics exporter god-objects, fix boot-validate unit test)
 | `ledger/drift_detector.py` | 922 | 🟡 Borderline |
 | `swarm/vision_coding.py` | 887 | 🟡 Borderline |
 
