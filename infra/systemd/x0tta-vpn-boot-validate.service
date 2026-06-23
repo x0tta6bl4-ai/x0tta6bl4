@@ -1,9 +1,9 @@
 [Unit]
 Description=x0tta6bl4 VPN post-boot validation
 Documentation=file:/mnt/projects/docs/runbooks/NL_VPN_HEALTH.md
-Requires=x0tta-vpn-route-bypass.service x0tta-vpn-watchdog.service
+Requires=x0tta-vpn-route-bypass.service x0tta-node.service x0tta-vpn-watchdog.service
 After=network-online.target x0tta-vpn-route-bypass.service x0tta-node.service x0tta-vpn-watchdog.service
-Wants=network-online.target x0tta-node.service
+Wants=network-online.target
 
 [Service]
 Type=oneshot

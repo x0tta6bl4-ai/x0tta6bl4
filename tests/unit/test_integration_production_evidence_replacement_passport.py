@@ -14,70 +14,6 @@ def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _write_current_evidence_context(
-    root: Path,
-    *,
-    current_gaps: list[dict] | None = None,
-    next_actions: list[dict] | None = None,
-) -> None:
-    _write_json(
-        root / "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
-        {
-            "status": "working_map_not_production_completion_proof",
-            "planes": {
-                "data_plane": {},
-                "control_plane": {},
-                "trust_plane": {},
-                "evidence_plane": {},
-                "economy_plane": {},
-            },
-            "current_gaps": current_gaps or [],
-            "next_actions": next_actions or [],
-        },
-    )
-    audit = root / "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md"
-    audit.parent.mkdir(parents=True, exist_ok=True)
-    audit.write_text("# active goal audit\n", encoding="utf-8")
-
-
-def _write_cross_plane_proof_gate(root: Path, *, allowed: bool) -> None:
-    claim_ids = [
-        "production_readiness",
-        "dataplane_delivery",
-        "traffic_delivery",
-        "customer_traffic",
-        "settlement_finality",
-        "dpi_bypass",
-    ]
-    claim_results = [
-        {
-            "claim_id": claim_id,
-            "allowed": allowed,
-            "blockers": [] if allowed else [f"{claim_id}_not_verified"],
-        }
-        for claim_id in claim_ids
-    ]
-    _write_json(
-        root / ".tmp/validation-shards/cross-plane-proof-gate-current.json",
-        {
-            "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
-            "decision": "CROSS_PLANE_CLAIMS_ALLOWED" if allowed else "CROSS_PLANE_CLAIMS_BLOCKED",
-            "allowed": allowed,
-            "claim_results": claim_results,
-            "context": {
-                "source_artifact_hashes_present": True,
-                "map_sha256": "0xmap",
-                "audit_sha256": "0xaudit",
-            },
-            "summary": {
-                "claims_total": len(claim_results),
-                "claims_allowed": len(claim_results) if allowed else 0,
-                "claims_blocked": 0 if allowed else len(claim_results),
-            },
-        },
-    )
-
-
 def _inputs(root: Path, *, include_raw_operator_packet: bool = False) -> PassportInputs:
     return PassportInputs(
         root=root,
@@ -323,99 +259,17 @@ def test_replacement_passport_verification_rejects_inconsistent_counts(tmp_path)
 
 def test_replacement_passport_can_clear_when_all_required_files_are_ready(tmp_path):
     _write_inputs(tmp_path, ready=True)
-    _write_current_evidence_context(tmp_path)
-    _write_cross_plane_proof_gate(tmp_path, allowed=True)
 
     report = build_passport(_inputs(tmp_path))
 
     assert report["decision"] == "PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_CLEAR"
-    assert report["local_production_ready"] is True
     assert report["production_ready"] is True
     assert report["ready_for_operator_replacement"] is False
-    assert report["summary"]["local_production_ready"] is True
-    assert report["summary"]["current_evidence_context_clear"] is True
-    assert report["summary"]["cross_plane_proof_gate_allowed"] is True
-    assert report["summary"]["cross_plane_proof_gate_source_artifact_hashes_present"] is True
-    assert report["cross_plane_proof_gate"]["allowed"] is True
-    assert report["cross_plane_claim_gate"]["production_ready_claim_allowed"] is True
-    assert report["cross_plane_claim_gate"]["cross_plane_proof_gate_required"] is True
-    assert report["cross_plane_claim_gate"]["cross_plane_proof_gate_allowed"] is True
-    assert report["cross_plane_claim_gate"]["proof_claims"]["goal_completion_authorized"] is False
-    assert report["current_evidence_context_hash"].startswith("0x")
     assert report["summary"]["items_ready"] == 2
     assert report["summary"]["items_blocking"] == 0
     assert report["summary"]["current_raw_files_installed"] == 1
     assert report["summary"]["return_acceptance_raw_ready_to_stage"] is True
     assert report["not_verified_yet"] == []
-
-
-def test_replacement_passport_blocks_production_ready_when_cross_plane_proof_gate_blocks(tmp_path):
-    _write_inputs(tmp_path, ready=True)
-    _write_current_evidence_context(tmp_path)
-    _write_cross_plane_proof_gate(tmp_path, allowed=False)
-
-    report = build_passport(_inputs(tmp_path))
-    verification = build_verification_report(report, "passport.json")
-
-    assert report["decision"] == "PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_BLOCKED_BY_CROSS_PLANE_PROOF_GATE"
-    assert report["local_production_ready"] is True
-    assert report["production_ready"] is False
-    assert report["summary"]["current_evidence_context_clear"] is True
-    assert report["summary"]["cross_plane_proof_gate_allowed"] is False
-    assert report["summary"]["production_ready_blocked_by_cross_plane_proof_gate"] is True
-    assert report["cross_plane_claim_gate"]["production_ready_claim_allowed"] is False
-    assert "cross_plane_proof_gate_blocked" in report["cross_plane_claim_gate"]["blocked_reason_ids"]
-    assert "claim_blocked:dpi_bypass" in report["cross_plane_claim_gate"]["blocked_reason_ids"]
-    assert any("cross-plane proof gate" in item for item in report["not_verified_yet"])
-    assert verification["valid"] is True
-    assert (
-        verification["decision"]
-        == "VALID_PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_BLOCKED_BY_CROSS_PLANE_PROOF_GATE"
-    )
-
-
-def test_replacement_passport_blocks_production_ready_without_current_evidence_context(tmp_path):
-    _write_inputs(tmp_path, ready=True)
-
-    report = build_passport(_inputs(tmp_path))
-    verification = build_verification_report(report, "passport.json")
-
-    assert report["decision"] == "PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_BLOCKED_BY_CURRENT_EVIDENCE"
-    assert report["local_production_ready"] is True
-    assert report["production_ready"] is False
-    assert report["ready_for_operator_replacement"] is False
-    assert report["summary"]["current_evidence_context_included"] is False
-    assert report["summary"]["current_evidence_context_clear"] is False
-    assert report["summary"]["production_ready_blocked_by_current_evidence"] is True
-    assert report["current_evidence_context"]["status"] == "missing_current_evidence_context"
-    assert "current_evidence_context_missing" in report["cross_plane_claim_gate"]["blocked_reason_ids"]
-    assert report["cross_plane_claim_gate"]["production_ready_claim_allowed"] is False
-    assert verification["valid"] is True
-    assert (
-        verification["decision"]
-        == "VALID_PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_BLOCKED_BY_CURRENT_EVIDENCE"
-    )
-
-
-def test_replacement_passport_blocks_production_ready_on_current_evidence_open_gap(tmp_path):
-    _write_inputs(tmp_path, ready=True)
-    _write_current_evidence_context(
-        tmp_path,
-        current_gaps=[{"id": "external-dpi-proof-missing", "blocks_real_readiness": True}],
-        next_actions=[{"id": "external-dpi-real-artifact-intake"}],
-    )
-
-    report = build_passport(_inputs(tmp_path))
-
-    assert report["decision"] == "PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_BLOCKED_BY_CURRENT_EVIDENCE"
-    assert report["local_production_ready"] is True
-    assert report["production_ready"] is False
-    assert report["summary"]["current_evidence_open_gaps"] == 1
-    assert report["summary"]["current_evidence_next_actions"] == 1
-    assert report["current_evidence_context"]["open_gap_ids"] == ["external-dpi-proof-missing"]
-    assert report["current_evidence_context"]["next_action_ids"] == ["external-dpi-real-artifact-intake"]
-    assert "current_evidence_open_gaps" in report["cross_plane_claim_gate"]["blocked_reason_ids"]
-    assert "current_evidence_next_actions_open" in report["cross_plane_claim_gate"]["blocked_reason_ids"]
 
 
 def test_replacement_passport_adds_raw_operator_files_missing_from_checklist(tmp_path):

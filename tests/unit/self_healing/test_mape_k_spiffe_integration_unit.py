@@ -121,27 +121,6 @@ async def test_execute_publishes_events_with_identity(tmp_path):
     assert payload["resource"] == "self_healing:spiffe:renew_svid"
     assert payload["context"]["action"]["parameters"]["join_token"] == "<redacted>"
     assert payload["claim_boundary"]
-    assert payload["claim_gate"]["schema"] == (
-        "x0tta6bl4.self_healing.spiffe_recovery_claim_gate.v1"
-    )
-    assert payload["claim_gate"]["claim_allowed"] == {
-        "local_identity_recovery_lifecycle": True,
-        "live_spiffe_svid": False,
-        "did_ownership": False,
-        "wallet_control": False,
-        "chain_identity_finality": False,
-        "dataplane_delivery": False,
-        "traffic_delivery": False,
-        "external_settlement_finality": False,
-        "production_readiness": False,
-    }
-    assert payload["live_spiffe_svid_claim_allowed"] is False
-    assert payload["did_ownership_claim_allowed"] is False
-    assert payload["wallet_control_claim_allowed"] is False
-    assert payload["chain_identity_finality_claim_allowed"] is False
-    assert payload["dataplane_delivery_claim_allowed"] is False
-    assert payload["traffic_delivery_claim_allowed"] is False
-    assert payload["production_readiness_claim_allowed"] is False
 
 
 @pytest.mark.asyncio

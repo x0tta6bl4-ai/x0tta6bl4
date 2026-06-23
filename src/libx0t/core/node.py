@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 
 from src.security.pqc.simple import PQC
-from src.libx0t.network.tunnel import Tunnel
+from libx0t.network.tunnel import Tunnel
 
 logger = logging.getLogger("x0t")
 

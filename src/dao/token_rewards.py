@@ -251,35 +251,16 @@ class TokenRewards:
             "pending_queued_before_settlement_xot": str(self.pending_rewards),
         }
         # Settle rewards (local + blockchain if configured)
-        return self._settle_rewards(
-            node_address,
-            packets=packets,
-            upstream_event_ids=upstream_event_ids,
-            upstream_source_agents=upstream_source_agents,
-            upstream_claim_gate=upstream_claim_gate,
-            upstream_cross_plane_claim_gate=upstream_cross_plane_claim_gate,
-            calculation_metadata=calculation_metadata,
-        )
+        return self._settle_rewards(node_address, packets=packets)
 
     def _publish_settlement_event(
         self,
         result: dict,
         node_address: str,
         packets: Optional[int] = None,
-        upstream_event_ids: Any = None,
-        upstream_source_agents: Any = None,
-        calculation_metadata: Any = None,
-        upstream_claim_gate: Any = None,
-        upstream_cross_plane_claim_gate: Any = None,
     ) -> dict:
         if self.event_bus is None:
             return result
-        evidence_metadata = self._reward_evidence_metadata(
-            result=result,
-            node_address=node_address,
-            packets=packets,
-            calculation_metadata=calculation_metadata,
-        )
         transition = "recorded" if result.get("ok") is True else "blocked"
         event_id = publish_reward_settlement_event(
             transition=transition,
@@ -297,11 +278,6 @@ class TokenRewards:
             settlement_recorded=result.get("settlement_recorded"),
             local_accounting_recorded=result.get("local_accounting_recorded"),
             transaction_hash=result.get("transaction_hash"),
-            upstream_event_ids=upstream_event_ids,
-            upstream_source_agents=upstream_source_agents,
-            upstream_claim_gate=upstream_claim_gate,
-            upstream_cross_plane_claim_gate=upstream_cross_plane_claim_gate,
-            evidence_metadata=evidence_metadata,
             reason=str(result.get("error") or result.get("status") or ""),
             event_bus=self.event_bus,
             project_root=self.event_project_root,
@@ -310,22 +286,8 @@ class TokenRewards:
             result["event_id"] = event_id
         return result
 
-    def _settle_rewards(
-        self,
-        node_address: str,
-        packets: Optional[int] = None,
-        *,
-        upstream_event_ids: Any = None,
-        upstream_source_agents: Any = None,
-        calculation_metadata: Any = None,
-        upstream_claim_gate: Any = None,
-        upstream_cross_plane_claim_gate: Any = None,
-    ):
+    def _settle_rewards(self, node_address: str, packets: Optional[int] = None):
         """Execute transfer - local always, blockchain if configured."""
-        publish_kwargs = {
-            "upstream_claim_gate": upstream_claim_gate,
-            "upstream_cross_plane_claim_gate": upstream_cross_plane_claim_gate,
-        }
         if self.pending_rewards <= 0:
             return self._publish_settlement_event({
                 "ok": True,
@@ -337,7 +299,7 @@ class TokenRewards:
                 "amount": "0.0",
                 "to": node_address,
                 "transaction_hash": "",
-            }, node_address, packets, upstream_event_ids, upstream_source_agents, calculation_metadata, **publish_kwargs)
+            }, node_address, packets)
 
         amount = self.pending_rewards
         self.balance += amount
@@ -356,41 +318,7 @@ class TokenRewards:
                 "amount": str(amount),
                 "to": node_address,
                 "transaction_hash": "",
-            }, node_address, packets, upstream_event_ids, upstream_source_agents, calculation_metadata, **publish_kwargs)
-
-        # Gas Viability Check
-        if self.gas_guard is None:
-            reason = "gas guard unavailable for configured blockchain settlement"
-            logger.warning("Settlement blocked: %s", reason)
-            return self._publish_settlement_event({
-                "ok": False,
-                "status": "gas_guard_unavailable",
-                "settlement_recorded": False,
-                "local_accounting_recorded": True,
-                "submitted_transaction": False,
-                "simulated": False,
-                "amount": str(amount),
-                "to": node_address,
-                "transaction_hash": "",
-                "error": reason,
-            }, node_address, packets, upstream_event_ids, upstream_source_agents, calculation_metadata, **publish_kwargs)
-
-        is_viable, reason = self.gas_guard.is_viable(amount)
-        if not is_viable:
-            logger.warning(f"💸 Settlement deferred: {reason}")
-            # Do NOT reset pending_rewards, we keep them for next attempt
-            return self._publish_settlement_event({
-                "ok": False,
-                "status": "deferred_high_gas",
-                "settlement_recorded": False,
-                "local_accounting_recorded": True,
-                "submitted_transaction": False,
-                "simulated": False,
-                "amount": str(amount),
-                "to": node_address,
-                "transaction_hash": "",
-                "error": reason,
-            }, node_address, packets, upstream_event_ids, upstream_source_agents, calculation_metadata, **publish_kwargs)
+            }, node_address, packets)
 
         try:
             tx_hash = self._send_blockchain_reward(node_address, amount)
@@ -415,7 +343,7 @@ class TokenRewards:
                     "amount": str(amount),
                     "to": node_address,
                     "transaction_hash": tx_hash,
-                }, node_address, packets, upstream_event_ids, upstream_source_agents, calculation_metadata, **publish_kwargs)
+                }, node_address, packets)
             self.pending_rewards = Decimal("0.0")
             return self._publish_settlement_event({
                 "ok": False,
@@ -428,7 +356,7 @@ class TokenRewards:
                 "to": node_address,
                 "transaction_hash": "",
                 "error": "blockchain transaction hash was not returned",
-            }, node_address, packets, upstream_event_ids, upstream_source_agents, calculation_metadata, **publish_kwargs)
+            }, node_address, packets)
         except Exception as e:
             logger.error(f"Blockchain TX failed: {e}")
             self.pending_rewards = Decimal("0.0")
@@ -443,7 +371,7 @@ class TokenRewards:
                 "to": node_address,
                 "transaction_hash": "",
                 "error": str(e),
-            }, node_address, packets, upstream_event_ids, upstream_source_agents, calculation_metadata, **publish_kwargs)
+            }, node_address, packets)
 
     def _send_blockchain_reward(self, to_address: str, amount: Decimal) -> Optional[str]:
         """Send actual ERC20 transfer on Base Sepolia."""

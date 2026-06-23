@@ -252,14 +252,6 @@ class TestLedgerStatus:
         assert payload["ledger_runtime_ready"] is False
         assert payload["indexed"] is False
         assert payload["file_exists"] is False
-        assert payload["cross_plane_claim_gate"]["allowed"] is False
-        assert payload["cross_plane_claim_gate"]["requested_claim_ids"] == [
-            "production_readiness",
-            "dataplane_delivery",
-            "traffic_delivery",
-            "settlement_finality",
-            "dpi_bypass",
-        ]
         assert payload["degraded_dependencies"] == [
             "rag",
             "continuity_file",

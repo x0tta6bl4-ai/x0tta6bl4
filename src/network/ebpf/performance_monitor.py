@@ -440,14 +440,6 @@ class EBPFPerformanceMonitor:
 
     async def _collect_metrics(self):
         """Collect current performance metrics"""
-        self._record_thinking_context(
-            operation="collect_metrics",
-            goal="collect bounded local eBPF performance metrics",
-            constraints={
-                "metrics_registered": len(self.metrics),
-                "metric_source_type": type(self.metric_source).__name__,
-            },
-        )
         snapshot = self._read_metric_snapshot()
 
         if "ebpf_packets_processed_total" in self.metrics:

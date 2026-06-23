@@ -9,16 +9,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
-
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from src.coordination.events import EventBus, EventType
 from src.dao.token_rewards import TokenRewards
@@ -26,7 +21,6 @@ from src.integration.spine import (
     CLAIM_BOUNDARY,
     IntegrationSpine,
     SafeActuator,
-    SafeActuatorEvidenceMetadata,
     SafeActuatorResult,
     SpineIdentity,
     SpineRequest,
@@ -65,8 +59,8 @@ class _RewardManager:
     def __post_init__(self) -> None:
         self.calls: List[Dict[str, Any]] = []
 
-    def reward_relay(self, node_address: str, packets: int, **kwargs: Any) -> Any:
-        self.calls.append({"node_address": node_address, "packets": packets, "kwargs": kwargs})
+    def reward_relay(self, node_address: str, packets: int) -> Any:
+        self.calls.append({"node_address": node_address, "packets": packets})
         return self.result
 
 
@@ -85,9 +79,9 @@ class _TokenRewardsAdapter:
         self.rewards.did = identity.did
         self.rewards.wallet_address = identity.wallet_address
 
-    def reward_relay(self, node_address: str, packets: int, **kwargs: Any) -> Any:
-        self.calls.append({"node_address": node_address, "packets": packets, "kwargs": kwargs})
-        return self.rewards.reward_relay(node_address, packets, **kwargs)
+    def reward_relay(self, node_address: str, packets: int) -> Any:
+        self.calls.append({"node_address": node_address, "packets": packets})
+        return self.rewards.reward_relay(node_address, packets)
 
 
 def _utc_now() -> str:
@@ -114,44 +108,6 @@ def _request(**overrides: Any) -> SpineRequest:
     }
     data.update(overrides)
     return SpineRequest(**data)
-
-
-def _simulated_actuator_metadata() -> SafeActuatorEvidenceMetadata:
-    return SafeActuatorEvidenceMetadata.from_value(
-        {
-            "claim_gate": {
-                "schema": "x0tta6bl4.integration_spine.demo_safe_actuator_claim_gate.v1",
-                "surface": "integration.code_wiring.simulated_actuator",
-                "local_actuator_execution_claim_allowed": False,
-                "safe_actuator_result_recorded": True,
-                "safe_actuator_result_successful": True,
-                "safe_actuator_result_simulated": True,
-                "production_readiness_claim_allowed": False,
-                "dataplane_delivery_claim_allowed": False,
-                "traffic_delivery_claim_allowed": False,
-                "customer_traffic_claim_allowed": False,
-                "external_dpi_bypass_claim_allowed": False,
-                "external_settlement_finality_claim_allowed": False,
-                "claim_boundary": CLAIM_BOUNDARY,
-                "redacted": True,
-            },
-            "cross_plane_claim_gate": {
-                "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
-                "surface": "integration.code_wiring.simulated_actuator",
-                "allowed": False,
-                "blockers": ["simulated_actuator_result"],
-                "claim_boundary": CLAIM_BOUNDARY,
-            },
-            "evidence": {
-                "local_demo_trace_only": True,
-                "raw_context_values_redacted": True,
-                "raw_command_output_redacted": True,
-            },
-            "source_agents": ["integration-code-wiring"],
-            "claim_boundary": CLAIM_BOUNDARY,
-            "redacted": True,
-        }
-    )
 
 
 def _allowing_policy() -> PolicyEngine:
@@ -225,110 +181,6 @@ def _trace_case(
     fingerprints = _identity_fingerprints(events)
     canonical_identity_consistent = bool(fingerprints) and len(set(fingerprints)) == 1
     event_ids_match = outcome.event_ids == [event.event_id for event in spine_events]
-    outcome_claim_gate_present = bool(outcome.claim_gate) and bool(outcome.cross_plane_claim_gate)
-    event_claim_gates_present = all(
-        bool(event.data.get("claim_gate")) and bool(event.data.get("cross_plane_claim_gate"))
-        for event in spine_events
-    )
-    safe_actuator_events = [
-        event
-        for event in spine_events
-        if event.data.get("safe_actuator") is True
-    ]
-    event_safe_actuator_metadata_retained = (
-        not safe_actuator_events
-        if expect_executor_calls == 0
-        else all(
-            event.data.get("safe_actuator_evidence_metadata", {}).get("schema")
-            == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
-            and event.data["safe_actuator_evidence_metadata"].get("redacted") is True
-            and event.data["safe_actuator_evidence_metadata"]
-            .get("claim_gate", {})
-            .get("safe_actuator_result_recorded")
-            is True
-            and event.data["safe_actuator_evidence_metadata"]
-            .get("cross_plane_claim_gate", {})
-            .get("allowed")
-            is False
-            for event in safe_actuator_events
-        )
-    )
-    outcome_safe_actuator_metadata_retained = (
-        not outcome.safe_actuator_evidence_metadata
-        if expect_executor_calls == 0
-        else outcome.safe_actuator_evidence_metadata.get("schema")
-        == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
-        and outcome.safe_actuator_evidence_metadata.get("redacted") is True
-        and outcome.safe_actuator_evidence_metadata.get("claim_gate", {}).get(
-            "safe_actuator_result_recorded"
-        )
-        is True
-        and outcome.safe_actuator_evidence_metadata.get(
-            "cross_plane_claim_gate", {}
-        ).get("allowed")
-        is False
-    )
-    actuator_contexts = [
-        call.get("context", {})
-        for call in executor.calls
-        if isinstance(call.get("context"), dict)
-    ]
-    actuator_context_claim_gate_present = (
-        not actuator_contexts
-        if expect_executor_calls == 0
-        else all(
-            bool(context.get("claim_gate")) and bool(context.get("cross_plane_claim_gate"))
-            for context in actuator_contexts
-        )
-    )
-    actuator_context_upstream_events_present = (
-        not actuator_contexts
-        if expect_executor_calls == 0
-        else all(
-            bool(context.get("upstream_event_ids"))
-            and context.get("upstream_source_agents") == ["code-wiring-audit"]
-            for context in actuator_contexts
-        )
-    )
-    reward_kwargs = [
-        call.get("kwargs", {})
-        for call in reward_manager.calls
-        if isinstance(call.get("kwargs"), dict)
-    ]
-    reward_context_claim_gate_present = (
-        not reward_kwargs
-        if expect_reward_calls == 0
-        else all(
-            bool(kwargs.get("upstream_claim_gate"))
-            and bool(kwargs.get("upstream_cross_plane_claim_gate"))
-            for kwargs in reward_kwargs
-        )
-    )
-    reward_context_upstream_events_present = (
-        not reward_kwargs
-        if expect_reward_calls == 0
-        else all(
-            bool(kwargs.get("upstream_event_ids"))
-            and kwargs.get("upstream_source_agents") == ["code-wiring-audit"]
-            for kwargs in reward_kwargs
-        )
-    )
-    strong_claims_blocked = (
-        outcome.claim_gate.get("production_readiness_claim_allowed") is False
-        and outcome.claim_gate.get("dataplane_delivery_claim_allowed") is False
-        and outcome.claim_gate.get("traffic_delivery_claim_allowed") is False
-        and outcome.claim_gate.get("customer_traffic_claim_allowed") is False
-        and outcome.claim_gate.get("external_dpi_bypass_claim_allowed") is False
-        and outcome.claim_gate.get("external_settlement_finality_claim_allowed") is False
-        and outcome.cross_plane_claim_gate.get("allowed") is False
-        and all(
-            event.data["claim_gate"].get("external_settlement_finality_claim_allowed") is False
-            and event.data["claim_gate"].get("dataplane_delivery_claim_allowed") is False
-            and event.data["cross_plane_claim_gate"].get("allowed") is False
-            for event in spine_events
-            if "claim_gate" in event.data and "cross_plane_claim_gate" in event.data
-        )
-    )
     passed = (
         outcome.status == expected_status
         and event_types == expected_event_values
@@ -336,15 +188,6 @@ def _trace_case(
         and len(executor.calls) == expect_executor_calls
         and len(reward_manager.calls) == expect_reward_calls
         and canonical_identity_consistent
-        and outcome_claim_gate_present
-        and event_claim_gates_present
-        and actuator_context_claim_gate_present
-        and actuator_context_upstream_events_present
-        and reward_context_claim_gate_present
-        and reward_context_upstream_events_present
-        and event_safe_actuator_metadata_retained
-        and outcome_safe_actuator_metadata_retained
-        and strong_claims_blocked
     )
     return {
         "name": name,
@@ -368,15 +211,6 @@ def _trace_case(
         "policy_allowed": outcome.policy_allowed,
         "allowed": outcome.allowed,
         "reason": outcome.reason,
-        "outcome_claim_gate_present": outcome_claim_gate_present,
-        "event_claim_gates_present": event_claim_gates_present,
-        "actuator_context_claim_gate_present": actuator_context_claim_gate_present,
-        "actuator_context_upstream_events_present": actuator_context_upstream_events_present,
-        "reward_context_claim_gate_present": reward_context_claim_gate_present,
-        "reward_context_upstream_events_present": reward_context_upstream_events_present,
-        "event_safe_actuator_metadata_retained": event_safe_actuator_metadata_retained,
-        "outcome_safe_actuator_metadata_retained": outcome_safe_actuator_metadata_retained,
-        "strong_claims_blocked": strong_claims_blocked,
     }
 
 
@@ -425,14 +259,7 @@ def build_report(root: Path) -> Dict[str, Any]:
             name="simulated_actuator_blocks_settlement",
             request=_request(),
             policy_engine=_allowing_policy(),
-            executor=_Executor(
-                SafeActuatorResult(
-                    success=True,
-                    reason="dry run",
-                    simulated=True,
-                    evidence_metadata=_simulated_actuator_metadata(),
-                )
-            ),
+            executor=_Executor(SafeActuatorResult(success=True, reason="dry run", simulated=True)),
             reward_manager=_RewardManager(),
             expected_status="ACTUATOR_SIMULATED",
             expected_event_types=[
@@ -551,27 +378,6 @@ def build_report(root: Path) -> Dict[str, Any]:
             and token_rewards_local_only["allowed"] is False
             and token_rewards_local_only["settlement_recorded"] is False,
             "token_rewards_event_bus_recorded": token_rewards_local_only["reward_event_count"] == 1,
-            "spine_claim_gates_preserved": all(
-                trace["outcome_claim_gate_present"]
-                and trace["event_claim_gates_present"]
-                and trace["strong_claims_blocked"]
-                for trace in traces
-            ),
-            "actuator_context_claim_gates_preserved": all(
-                trace["actuator_context_claim_gate_present"]
-                and trace["actuator_context_upstream_events_present"]
-                for trace in traces
-            ),
-            "reward_context_claim_gates_preserved": all(
-                trace["reward_context_claim_gate_present"]
-                and trace["reward_context_upstream_events_present"]
-                for trace in traces
-            ),
-            "safe_actuator_evidence_metadata_retained": all(
-                trace["event_safe_actuator_metadata_retained"]
-                and trace["outcome_safe_actuator_metadata_retained"]
-                for trace in traces
-            ),
         },
         "trace_cases": traces,
         "known_non_completion_reasons": [

@@ -75,7 +75,7 @@ def test_namespace_convergence_source_refs_resolve_to_existing_files_and_lines()
         assert 1 <= int(line_text) <= line_count, source_ref
 
 
-def test_src_path_restores_libx0t_compat_import_surface(monkeypatch):
+def test_top_level_security_bridge_restores_current_import_surface(monkeypatch):
     monkeypatch.setenv("PQC_FAIL_CLOSED", "false")
 
     for module_name in [
@@ -89,26 +89,17 @@ def test_src_path_restores_libx0t_compat_import_surface(monkeypatch):
     ]:
         module = importlib.import_module(module_name)
         assert module is not None, module_name
-        module_file = Path(module.__file__).resolve()
-        assert str(module_file).startswith(str(ROOT / "src" / "libx0t")), module_name
 
 
-def test_libx0t_network_compat_bridges_resolve_to_src_network():
-    for module_name in [
-        "libx0t.network.byzantine.mesh_byzantine_protection",
-        "libx0t.network.byzantine.signed_gossip",
-        "libx0t.network.ebpf.cilium_integration",
-        "libx0t.network.ebpf.explainer",
-    ]:
-        module = importlib.import_module(module_name)
-        module_file = Path(module.__file__).resolve()
-        assert str(module_file).startswith(str(ROOT / "src" / "network")), module_name
+def test_security_bridge_files_point_to_canonical_implementations():
+    bridge_targets = {
+        ROOT / "libx0t/security/post_quantum.py": "src.libx0t.security",
+        ROOT / "libx0t/security/pqc_core.py": "src.libx0t.security",
+        ROOT / "libx0t/security/pqc_mtls.py": "src.libx0t.security",
+        ROOT / "libx0t/security/production_hardening.py": "src.security.production_hardening",
+        ROOT / "libx0t/security/zero_trust/__init__.py": "src.libx0t.security",
+    }
 
-
-def test_top_level_libx0t_source_tree_is_absent_and_src_surface_exists():
-    namespace_map = _load_map()
-    top_level = ROOT / namespace_map["surfaces"]["top_level_libx0t"]["path"]
-    src_surface = ROOT / namespace_map["surfaces"]["src_libx0t"]["path"]
-
-    assert not top_level.exists()
-    assert (src_surface / "__init__.py").exists()
+    for path, target in bridge_targets.items():
+        source = path.read_text(encoding="utf-8")
+        assert target in source, str(path)

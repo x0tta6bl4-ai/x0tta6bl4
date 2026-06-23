@@ -1,6 +1,6 @@
 # X0T Bridge Config
 
-Generated: `2026-06-15T06:16:46Z`
+Generated: `2026-05-21T08:01:49Z`
 Decision: `X0T_BRIDGE_CONFIG_BLOCKED_ON_OPERATOR`
 Bridge config ready: `False`
 Goal can be marked complete: `False`
@@ -14,5 +14,4 @@ Goal can be marked complete: `False`
 
 ## Missing Inputs
 
-- `bridge_contract_address`: `OPERATOR_INPUT_REQUIRED` - bridge contract address must not equal X0TToken
-- `bridge_config_write`: `BLOCKED` - bridge address input is not ready
+- `bridge_contract_address`: `OPERATOR_INPUT_REQUIRED` - bridge contract address is required and must not be zero or placeholder

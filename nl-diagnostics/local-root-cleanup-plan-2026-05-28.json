@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/plan_local_root_cleanup.py",
-  "generated_at": "2026-06-06T12:58:33.303196+00:00",
-  "status": "no_cleanup_needed",
+  "generated_at": "2026-05-28T03:42:29.195424+00:00",
+  "status": "manual_cleanup_plan_ready",
   "ok": true,
   "summary": {
-    "root_status": "ok",
-    "root_free_gib": 18.24,
+    "root_status": "critical_full",
+    "root_free_gib": 0.0,
     "candidate_count": 5,
-    "existing_candidate_count": 3,
-    "estimated_reclaim_gib": 1.28,
+    "existing_candidate_count": 5,
+    "estimated_reclaim_gib": 3.24,
     "min_target_free_gib": 2.0,
-    "top_candidate_id": "JOURNAL-01",
-    "top_candidate_size_gib": 0.62,
+    "top_candidate_id": "APT-CACHE-01",
+    "top_candidate_size_gib": 0.85,
     "cleanup_execute_allowed": false,
     "nl_write_allowed": false,
     "spb_fallback_allowed": false,
@@ -27,10 +27,10 @@
       "action": "manual_review_before_delete",
       "command_preview": "sudo rm -rf /tmp/antigravity_restore",
       "approval": "separate local cleanup approval after reviewing directory contents",
-      "exists": false,
-      "is_dir": false,
-      "size_bytes": 0,
-      "size_gib": 0.0,
+      "exists": true,
+      "is_dir": true,
+      "size_bytes": 724011432,
+      "size_gib": 0.67,
       "error_count": 0,
       "errors": []
     },
@@ -42,10 +42,10 @@
       "action": "manual_review_before_delete",
       "command_preview": "sudo rm -rf /tmp/antigravity_restore_correct",
       "approval": "separate local cleanup approval after reviewing directory contents",
-      "exists": false,
-      "is_dir": false,
-      "size_bytes": 0,
-      "size_gib": 0.0,
+      "exists": true,
+      "is_dir": true,
+      "size_bytes": 647011013,
+      "size_gib": 0.6,
       "error_count": 0,
       "errors": []
     },
@@ -59,8 +59,8 @@
       "approval": "separate local cleanup approval",
       "exists": true,
       "is_dir": true,
-      "size_bytes": 263622842,
-      "size_gib": 0.25,
+      "size_bytes": 912223922,
+      "size_gib": 0.85,
       "error_count": 1,
       "errors": [
         "[Errno 13] Permission denied: '/var/cache/apt/archives/partial'"
@@ -76,8 +76,8 @@
       "approval": "separate local cleanup approval; keep recent logs",
       "exists": true,
       "is_dir": true,
-      "size_bytes": 666914816,
-      "size_gib": 0.62,
+      "size_bytes": 763383808,
+      "size_gib": 0.71,
       "error_count": 0,
       "errors": []
     },
@@ -91,22 +91,24 @@
       "approval": "review printed paths first; delete only explicitly approved items",
       "exists": true,
       "is_dir": true,
-      "size_bytes": 436344390,
+      "size_bytes": 436332102,
       "size_gib": 0.41,
-      "error_count": 15,
+      "error_count": 12,
       "errors": [
-        "[Errno 13] Permission denied: '/var/tmp/systemd-private-8622b5041fbc48b5b1f853960fb130f6-systemd-logind.service-mPotVs'",
-        "[Errno 13] Permission denied: '/var/tmp/systemd-private-8622b5041fbc48b5b1f853960fb130f6-upower.service-BzfpEI'",
-        "[Errno 13] Permission denied: '/var/tmp/systemd-private-8622b5041fbc48b5b1f853960fb130f6-x0t-agent.service-fTDmLy'",
-        "[Errno 13] Permission denied: '/var/tmp/systemd-private-8622b5041fbc48b5b1f853960fb130f6-systemd-oomd.service-Ceggrr'",
-        "[Errno 13] Permission denied: '/var/tmp/systemd-private-8622b5041fbc48b5b1f853960fb130f6-x0tta6bl4-core-api.service-G3O7yN'"
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-3d7e23cf1a954bc3a0cae967d1925b06-fwupd.service-wIowjo'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-3d7e23cf1a954bc3a0cae967d1925b06-systemd-logind.service-JXxTlv'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-3d7e23cf1a954bc3a0cae967d1925b06-power-profiles-daemon.service-QrHITr'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-3d7e23cf1a954bc3a0cae967d1925b06-polkit.service-eiwidx'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-3d7e23cf1a954bc3a0cae967d1925b06-bluetooth.service-FGiBGE'"
       ]
     }
   ],
   "review_order": [
+    "APT-CACHE-01",
     "JOURNAL-01",
-    "VARTMP-01",
-    "APT-CACHE-01"
+    "TMP-ANTIGRAVITY-01",
+    "TMP-ANTIGRAVITY-02",
+    "VARTMP-01"
   ],
   "execution_rules": [
     "This report does not delete files.",

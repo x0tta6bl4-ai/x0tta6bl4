@@ -1,51 +1,31 @@
-# x0tta6bl4_pulse Kernel Attach Evidence
+# x0tta6bl4_pulse kernel_attach Imported External Evidence
 
-Observed at: `2026-06-07T17:20:05.962388+00:00`
+Observed at: `2026-05-22T20:17:21.575656+00:00`
 
-Status: `VERIFIED`
+Validation status: `VERIFIED`
 
 ## Measurements
 
-- Interface: `docker0`
-- Interface seen by ip link: `True`
-- Interfaces seen by full scan: `11`
-- Interfaces with XDP in full scan: `['docker0']`
-- XDP attached: `True`
-- Pulse marker visible in bpftool output: `True`
-- Interface visible in bpftool net: `True`
-- Map packet counter delta: `5`
+- bpftool_net_contains_interface: `True`
+- bpftool_prog_show_contains_pulse: `True`
+- historical_candidate_audit_status: `NO_ACCEPTED_CANDIDATE`
+- interface: `x0rp021`
+- interface_scan_count: `16`
+- interface_scan_xdp_interfaces: `['x0rp021']`
+- interface_seen: `True`
+- map_counter_after_packets: `564`
+- map_counter_before_packets: `76`
+- map_counter_delta_packets: `488`
+- object_preflight_object_contains_pulse_function: `True`
+- object_preflight_object_contains_pulse_stats: `True`
+- object_preflight_object_has_btf_section: `True`
+- object_preflight_object_has_xdp_section: `True`
+- object_preflight_object_is_ebpf: `True`
+- object_preflight_object_path: `src/network/ebpf/x0tta6bl4_pulse.o`
+- object_preflight_source_path: `src/network/ebpf/x0tta6bl4_pulse.bpf.c`
+- object_preflight_status: `READY_FOR_CONTROLLED_ATTACH_TEST`
+- xdp_attached: `True`
 
-## eBPF Artifact Preflight
-
-- Status: `READY_FOR_CONTROLLED_ATTACH_TEST`
-- Source: `src/network/ebpf/x0tta6bl4_pulse.bpf.c`
-- Object: `src/network/ebpf/x0tta6bl4_pulse.o`
-- Object is eBPF: `True`
-- Object has XDP section: `True`
-- Object has BTF section: `True`
-- Object contains pulse_stats: `True`
-- Object contains pulse function: `True`
-- Preflight blockers: ``
-
-## Collection Options
-
-- bpftool sudo: `True`
-- bpftool privilege mode: `sudo_noninteractive`
-- sudo non-interactive unavailable: `False`
-
-## Collection Diagnostics
-
-- Status: `READY_FOR_PROOF`
-- Blockers: `none`
-- bpftool permission denied: `False`
-
-## Candidate Import Readiness
-
-- Status: `READY_TO_STAGE_CANDIDATE`
-- Candidate path: `docs/verification/incoming/kernel_attach.json`
-- Can stage candidate: `True`
-- Blocking reasons: `none`
-
-## Failures
+## Validation Errors
 
 - None

@@ -53,7 +53,8 @@ def test_enable_mptcp_publishes_identity_policy_and_safe_actuator_events(tmp_pat
     assert "actuator_start" in stages
     assert "actuator_completed" in stages
     completed = [
-        event for event in events if event.event_type == EventType.PIPELINE_STAGE_END
+        event for event in events
+        if event.event_type == EventType.PIPELINE_STAGE_END
     ][-1]
     payload = completed.data
     assert payload["node_id"] == "node-mptcp-1"
@@ -64,35 +65,6 @@ def test_enable_mptcp_publishes_identity_policy_and_safe_actuator_events(tmp_pat
     assert payload["context"]["enabled"] is True
     assert payload["policy_allowed"] is True
     assert payload["safe_actuator"] is True
-    assert payload["thinking"]["profile"]["role"] == "security"
-    assert "zero_trust_review" in payload["thinking"]["techniques"]
-    assert (
-        payload["last_thinking_context"]["applied"]["framing"]["problem"]
-        == "mptcp_control_action"
-    )
-    assert (
-        payload["last_thinking_context"]["applied"]["framing"]["constraints"][
-            "safe_actuator_required_for_control"
-        ]
-        is True
-    )
-    metadata = payload["safe_actuator_evidence_metadata"]
-    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
-    assert metadata["source_agents"] == ["mptcp-manager"]
-    assert metadata["claim_gate"]["schema"] == (
-        "x0tta6bl4.network_mptcp.safe_actuator_claim_gate.v1"
-    )
-    assert metadata["claim_gate"]["safe_actuator_result_recorded"] is True
-    assert metadata["claim_gate"]["local_mptcp_configuration_claim_allowed"] is True
-    assert metadata["claim_gate"]["dataplane_delivery_claim_allowed"] is False
-    assert metadata["claim_gate"]["customer_traffic_claim_allowed"] is False
-    assert metadata["claim_gate"]["production_readiness_claim_allowed"] is False
-    assert metadata["evidence"]["resource"] == "network:mptcp:enable_mptcp"
-    assert metadata["evidence"]["raw_context_values_redacted"] is True
-    assert metadata["evidence"]["raw_command_output_redacted"] is True
-    assert metadata["evidence"]["action"] == "sysctl_set"
-    assert metadata["evidence"]["sysctl_key_present"] is True
-    assert metadata["evidence"]["outputs_redacted"] is True
     assert payload["claim_boundary"]
 
 
@@ -185,17 +157,6 @@ def test_configure_endpoints_runs_ip_mptcp_through_safe_actuator(tmp_path):
     assert payload["context"]["add_addr_accepted"] == 2
     assert payload["policy_allowed"] is True
     assert payload["safe_actuator"] is True
-    metadata = payload["safe_actuator_evidence_metadata"]
-    assert metadata["claim_gate"]["safe_actuator_result_recorded"] is True
-    assert metadata["claim_gate"]["local_endpoint_limit_claim_allowed"] is True
-    assert metadata["claim_gate"]["throughput_claim_allowed"] is False
-    assert metadata["claim_gate"]["remote_path_quality_claim_allowed"] is False
-    assert metadata["evidence"]["resource"] == "network:mptcp:configure_endpoints"
-    assert metadata["evidence"]["raw_context_values_redacted"] is True
-    assert metadata["evidence"]["raw_command_output_redacted"] is True
-    assert metadata["evidence"]["action"] == "ip_mptcp_limits_set"
-    assert metadata["evidence"]["interface_count"] == 2
-    assert metadata["evidence"]["raw_interfaces_redacted"] is True
 
 
 def test_configure_endpoints_unsupported_kernel_fails_closed(tmp_path):
@@ -218,15 +179,6 @@ def test_configure_endpoints_unsupported_kernel_fails_closed(tmp_path):
     assert failed[-1].data["success"] is False
     assert failed[-1].data["simulated"] is False
     assert "not supported" in failed[-1].data["reason"]
-    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
-    assert metadata["claim_gate"]["safe_actuator_result_recorded"] is True
-    assert metadata["claim_gate"]["local_mptcp_configuration_claim_allowed"] is False
-    assert metadata["claim_gate"]["throughput_claim_allowed"] is False
-    assert metadata["evidence"]["resource"] == "network:mptcp:configure_endpoints"
-    assert metadata["evidence"]["raw_context_values_redacted"] is True
-    assert metadata["evidence"]["raw_command_output_redacted"] is True
-    assert metadata["evidence"]["kernel_supported"] is False
-    assert metadata["evidence"]["raw_interfaces_redacted"] is True
 
 
 def test_configure_endpoints_uses_explicit_limits(tmp_path):
@@ -290,69 +242,3 @@ def test_get_status_reads_kernel_enabled_and_mptcp_limits():
         timeout=5,
         check=False,
     )
-
-
-def test_get_status_publishes_redacted_observed_state_evidence(tmp_path, monkeypatch):
-    bus = EventBus(str(tmp_path))
-    monkeypatch.setenv("MPTCP_MANAGER_SPIFFE_ID", "spiffe://private/mptcp")
-    monkeypatch.setenv("MPTCP_MANAGER_DID", "did:private:mptcp")
-    monkeypatch.setenv("MPTCP_MANAGER_WALLET_ADDRESS", "0xprivate")
-
-    with patch.object(mptcp_mod.MPTCPManager, "is_mptcp_supported", return_value=True):
-        with patch("builtins.open", mock_open(read_data="1\n")):
-            with patch.object(
-                mptcp_mod.subprocess,
-                "run",
-                return_value=MagicMock(
-                    stdout="add_addr_accepted 5 subflows 7 private-peer-token\n",
-                    stderr="private stderr detail",
-                    returncode=0,
-                ),
-            ):
-                status = mptcp_mod.MPTCPManager.get_status(
-                    event_bus=bus,
-                    include_evidence=True,
-                )
-
-    events = bus.get_event_history(
-        event_type=EventType.PIPELINE_STAGE_END,
-        source_agent="mptcp-manager-status-read",
-        limit=10,
-    )
-    payload = events[-1].data
-    payload_text = str(payload)
-
-    assert status["supported"] is True
-    assert status["enabled"] is True
-    assert status["evidence"] == {
-        "source_agents": ["mptcp-manager-status-read"],
-        "layer": "network_mptcp_observed_state",
-        "event_ids": [events[-1].event_id],
-        "events_total": 1,
-        "redacted": True,
-    }
-    assert payload["component"] == "network.mptcp_manager"
-    assert payload["operation"] == "get_status"
-    assert payload["resource"] == "network:mptcp:get_status"
-    assert payload["read_only"] is True
-    assert payload["observed_state"] is True
-    assert payload["safe_actuator"] is False
-    assert payload["thinking"]["profile"]["role"] == "security"
-    assert (
-        payload["last_thinking_context"]["applied"]["framing"]["problem"]
-        == "mptcp_status_observation"
-    )
-    assert payload["identity"]["service_name"] == "mptcp-manager"
-    assert payload["identity"]["spiffe_id_configured"] is True
-    assert payload["proc"]["read_succeeded"] is True
-    assert payload["proc"]["raw_value_redacted"] is True
-    assert payload["limits_command"]["returncode"] == 0
-    assert payload["limits_command"]["output"]["stdout_chars"] > 0
-    assert payload["limits_command"]["output"]["stderr_chars"] > 0
-    assert payload["limits_command"]["output"]["stdout_sha256"]
-    assert payload["limits_command"]["output"]["stderr_sha256"]
-    assert "private-peer-token" not in payload_text
-    assert "private stderr detail" not in payload_text
-    assert "spiffe://private/mptcp" not in payload_text
-    assert "did:private:mptcp" not in payload_text
-    assert "0xprivate" not in payload_text

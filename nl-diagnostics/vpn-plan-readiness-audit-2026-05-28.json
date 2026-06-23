@@ -1,22 +1,19 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_vpn_plan_readiness.py",
-  "generated_at": "2026-06-06T12:58:41.249310+00:00",
-  "overall_status": "missing_evidence",
-  "ok": false,
+  "generated_at": "2026-05-28T03:42:31.056483+00:00",
+  "overall_status": "ready_local_with_future_blocks",
+  "ok": true,
   "summary": {
-    "ready_local": 22,
+    "ready_local": 24,
     "blocked_future_approval": 4,
-    "watch": 4,
-    "missing": 1,
-    "missing_items": [
-      "FAILOVER-01"
-    ],
+    "watch": 3,
+    "missing": 0,
+    "missing_items": [],
     "watch_items": [
-      "DECISION-01",
       "BOOT-01",
-      "EVIDENCE-02",
-      "OPERATOR-01"
+      "LOCALENV-01",
+      "LOCALCLEAN-01"
     ],
     "blocked_items": [
       "FAILOVER-03",
@@ -24,12 +21,12 @@
       "GATE-01",
       "FAILOVER-02"
     ],
-    "operator_status": "provider_ticket",
-    "decision": "provider_ticket",
-    "boot_gap_watch_status": "provider_ticket",
-    "provider_packet_type": "provider_ticket",
+    "operator_status": "observe",
+    "decision": "observe",
+    "boot_gap_watch_status": "watch",
+    "provider_packet_type": "provider_watch",
     "provider_packet_stale": false,
-    "manual_failover_readiness_status": "blocked_missing_secondary",
+    "manual_failover_readiness_status": "blocked_no_incident_trigger",
     "manual_failover_switch_allowed": false,
     "secondary_candidate_score_status": "missing_candidates",
     "secondary_exit_requirements_status": "requirements_ready_no_candidate",
@@ -58,16 +55,16 @@
     "secondary_post_provision_can_generate_probe_config": false,
     "secondary_post_provision_can_run_public_probe": false,
     "secondary_post_provision_test_client_allowed": false,
-    "local_diagnostic_environment_status": "ok",
-    "local_root_status": "ok",
+    "local_diagnostic_environment_status": "watch_root_full_tmpdir_available",
+    "local_root_status": "critical_full",
     "local_tmpdir_writable": true,
-    "local_root_cleanup_plan_status": "no_cleanup_needed",
-    "local_root_cleanup_estimated_reclaim_gib": 1.28,
+    "local_root_cleanup_plan_status": "manual_cleanup_plan_ready",
+    "local_root_cleanup_estimated_reclaim_gib": 3.24,
     "local_root_cleanup_execute_allowed": false,
-    "local_root_cleanup_approval_packet_status": "cleanup_approval_packet_no_cleanup_needed",
-    "local_root_cleanup_approval_required": false,
+    "local_root_cleanup_approval_packet_status": "cleanup_approval_packet_ready",
+    "local_root_cleanup_approval_required": true,
     "local_root_cleanup_commands_executed": 0,
-    "incident_symptom_intake_status": "symptom_intake_ready_incident",
+    "incident_symptom_intake_status": "symptom_intake_ready_observe",
     "incident_symptom_required_fields": 12,
     "incident_symptom_forbidden_material": 12,
     "transport_probe_status": "healthy",
@@ -83,11 +80,11 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260606T125103Z",
-        "refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260606T125103Z",
-        "latest_snapshot=20260606T125103Z",
+        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
+        "refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
+        "latest_snapshot=20260528T034120Z",
         "snapshot_exists=true",
-        "snapshot_age_seconds=458",
+        "snapshot_age_seconds=71",
         "fresh=true"
       ],
       "next_step": "collect a fresh read-only snapshot during the next visible outage"
@@ -95,12 +92,12 @@
     {
       "id": "DECISION-01",
       "title": "Current decision blocks mutation and automatic profile changes",
-      "status": "watch",
+      "status": "ready_local",
       "ok": true,
       "evidence": [
-        "decision=provider_ticket",
-        "transport_status=degraded",
-        "failure_domain=provider_host",
+        "decision=observe",
+        "transport_status=healthy",
+        "failure_domain=external_network",
         "safe_flags=true"
       ],
       "next_step": "keep decision=observe unless a fresh snapshot changes the failure domain"
@@ -111,10 +108,10 @@
       "status": "watch",
       "ok": true,
       "evidence": [
-        "boot_gap_watch_status=provider_ticket",
-        "boot_gap_seconds=9",
-        "provider_status=suspect_active",
-        "transport_status=degraded",
+        "boot_gap_watch_status=watch",
+        "boot_gap_seconds=21907",
+        "provider_status=recent_boot_gap",
+        "transport_status=healthy",
         "safe_flags=true"
       ],
       "next_step": "keep provider boot gap on watch while current transport remains healthy/advisory"
@@ -125,10 +122,10 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "provider_packet_type=provider_ticket",
+        "provider_packet_type=provider_watch",
         "snapshot_stale=false",
-        "packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260606T125103Z",
-        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260606T125103Z",
+        "packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
+        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
         "same_snapshot=true",
         "safe_flags=true"
       ],
@@ -137,13 +134,13 @@
     {
       "id": "EVIDENCE-02",
       "title": "Blocking/app probe history is available as trend evidence",
-      "status": "watch",
+      "status": "ready_local",
       "ok": true,
       "evidence": [
-        "snapshot_count=15",
-        "trend=has_degradation",
-        "latest_probe_snapshot=20260606T125103Z",
-        "latest_targets_ok=0/8"
+        "snapshot_count=11",
+        "trend=stable_no_probe_evidence",
+        "latest_probe_snapshot=20260528T034120Z",
+        "latest_targets_ok=8/8"
       ],
       "next_step": "use probes as app/path evidence, not as an x-ui restart trigger"
     },
@@ -154,8 +151,8 @@
       "ok": true,
       "evidence": [
         "refresh_ok=true",
-        "operator_status=provider_ticket",
-        "manual_failover_status=manual_failover_candidate",
+        "operator_status=observe",
+        "manual_failover_status=planning_not_active",
         "safe_flags=true"
       ],
       "next_step": "run refresh after every new snapshot before deciding on action"
@@ -163,18 +160,18 @@
     {
       "id": "LOCALENV-01",
       "title": "Local diagnostic host has a writable project temp directory",
-      "status": "ready_local",
+      "status": "watch",
       "ok": true,
       "evidence": [
-        "local_environment_status=ok",
-        "root_status=ok",
-        "root_used_percent=77.7",
-        "root_free_gib=18.24",
-        "tmp_status=ok",
+        "local_environment_status=watch_root_full_tmpdir_available",
+        "root_status=critical_full",
+        "root_used_percent=94.9",
+        "root_free_gib=0.0",
+        "tmp_status=critical_full",
         "diagnostic_tmpdir=/mnt/projects/.tmp",
         "diagnostic_tmpdir_writable=true",
         "recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp",
-        "cleanup_required=false",
+        "cleanup_required=true",
         "safe_flags=true"
       ],
       "next_step": "keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval"
@@ -182,15 +179,15 @@
     {
       "id": "LOCALCLEAN-01",
       "title": "Local root cleanup plan is prepared but execution is blocked",
-      "status": "ready_local",
+      "status": "watch",
       "ok": true,
       "evidence": [
-        "cleanup_plan_status=no_cleanup_needed",
-        "root_status=ok",
-        "root_free_gib=18.24",
-        "existing_candidate_count=3",
-        "estimated_reclaim_gib=1.28",
-        "top_candidate_id=JOURNAL-01",
+        "cleanup_plan_status=manual_cleanup_plan_ready",
+        "root_status=critical_full",
+        "root_free_gib=0.0",
+        "existing_candidate_count=5",
+        "estimated_reclaim_gib=3.24",
+        "top_candidate_id=APT-CACHE-01",
         "cleanup_execute_allowed=false",
         "safe_flags=true"
       ],
@@ -202,10 +199,10 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "cleanup_approval_packet_status=cleanup_approval_packet_no_cleanup_needed",
+        "cleanup_approval_packet_status=cleanup_approval_packet_ready",
         "first_review_id=APT-CACHE-01",
-        "command_preview_count=3",
-        "approval_required=false",
+        "command_preview_count=5",
+        "approval_required=true",
         "commands_executed=0",
         "cleanup_execute_allowed=false",
         "safe_flags=true"
@@ -215,12 +212,12 @@
     {
       "id": "OPERATOR-01",
       "title": "Short incident card exists for the next outage",
-      "status": "watch",
+      "status": "ready_local",
       "ok": true,
       "evidence": [
-        "operator_status=provider_ticket",
-        "plain_action=Build a provider packet; do not hide provider symptoms with restarts.",
-        "blocking_history_trend=has_degradation",
+        "operator_status=observe",
+        "plain_action=VPN core is healthy. Do not restart NL; collect fresh evidence during the next visible outage.",
+        "blocking_history_trend=stable_no_probe_evidence",
         "safe_flags=true"
       ],
       "next_step": "start incidents from the operator card, then collect fresh evidence"
@@ -231,11 +228,11 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "incident_symptom_intake_status=symptom_intake_ready_incident",
-        "decision=provider_ticket",
-        "operator_status=provider_ticket",
-        "failure_domain=provider_host",
-        "transport_status=degraded",
+        "incident_symptom_intake_status=symptom_intake_ready_observe",
+        "decision=observe",
+        "operator_status=observe",
+        "failure_domain=external_network",
+        "transport_status=healthy",
         "required_field_count=12",
         "forbidden_material_count=12",
         "safe_flags=true"
@@ -248,7 +245,7 @@
       "status": "blocked_future_approval",
       "ok": true,
       "evidence": [
-        "manual_failover_readiness_status=blocked_missing_secondary",
+        "manual_failover_readiness_status=blocked_no_incident_trigger",
         "manual_probe_allowed=false",
         "manual_switch_allowed=false",
         "secondary_probe_status=planning_template",
@@ -439,7 +436,7 @@
       "ok": true,
       "evidence": [
         "uptime_status=stable_healthy",
-        "sample_count=28",
+        "sample_count=24",
         "latest_status=healthy",
         "consecutive_non_healthy=0",
         "safe_flags=true"
@@ -483,7 +480,7 @@
         "preflight_ok=true",
         "deploy_status=local_ready_but_deploy_blocked",
         "nl_write_allowed=false",
-        "check_count=389"
+        "check_count=70"
       ],
       "next_step": "run preflight again before any maintenance window"
     },
@@ -518,10 +515,10 @@
     {
       "id": "FAILOVER-01",
       "title": "Manual failover is documented but inactive",
-      "status": "missing",
-      "ok": false,
+      "status": "ready_local",
+      "ok": true,
       "evidence": [
-        "manual_failover_status=manual_failover_candidate",
+        "manual_failover_status=planning_not_active",
         "spb_fallback_allowed=false",
         "automatic_failover_allowed=false",
         "safe_flags=true"

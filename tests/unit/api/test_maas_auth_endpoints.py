@@ -189,6 +189,84 @@ class TestMaaSAuthReadiness:
         assert request.state.degraded_dependencies == {"database"}
 
 
+class TestMaaSAuthReadiness:
+    def test_router_has_readiness_route(self):
+        route_paths = [r.path for r in maas_auth_mod.router.routes]
+        assert "/api/v1/maas/auth/readiness" in route_paths
+
+    def test_ready_when_local_dependencies_are_available(self, monkeypatch):
+        _force_maas_auth_dependencies_ready(monkeypatch)
+        db = MagicMock(spec=["query", "add", "commit", "refresh"])
+
+        payload = maas_auth_mod._maas_auth_readiness_status(db)
+
+        assert payload["status"] == "ready"
+        assert payload["maas_auth_runtime_ready"] is True
+        assert payload["auth_db_ready"] is True
+        assert payload["user_model_ready"] is True
+        assert payload["session_model_ready"] is True
+        assert payload["auth_service_ready"] is True
+        assert payload["api_key_manager_ready"] is True
+        assert payload["rbac_ready"] is True
+        assert payload["token_helpers_ready"] is True
+        assert payload["audit_log_ready"] is True
+        assert payload["oidc_enabled"] is False
+        assert payload["oidc_redirect_ready"] is True
+        assert payload["bootstrap_token_configured"] is False
+        assert payload["degraded_dependencies"] == []
+
+    def test_degraded_when_dependencies_are_missing(self, monkeypatch):
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_user_model_available", lambda: False)
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_session_model_available", lambda: False)
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_service_available", lambda: False)
+        monkeypatch.setattr(
+            maas_auth_mod, "_maas_auth_api_key_manager_available", lambda: False
+        )
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_rbac_available", lambda: False)
+        monkeypatch.setattr(
+            maas_auth_mod, "_maas_auth_token_helpers_available", lambda: False
+        )
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_audit_log_available", lambda: False)
+        monkeypatch.setattr(maas_auth_mod, "_maas_auth_oidc_enabled", lambda: True)
+        monkeypatch.setattr(
+            maas_auth_mod, "_maas_auth_oidc_redirect_available", lambda: False
+        )
+        monkeypatch.setattr(
+            maas_auth_mod, "_maas_auth_bootstrap_token_configured", lambda: False
+        )
+
+        payload = maas_auth_mod._maas_auth_readiness_status(SimpleNamespace())
+
+        assert payload["status"] == "degraded"
+        assert payload["maas_auth_runtime_ready"] is False
+        assert payload["degraded_dependencies"] == [
+            "database",
+            "user_model",
+            "session_model",
+            "auth_service",
+            "api_key_manager",
+            "rbac",
+            "token_helpers",
+            "audit_log",
+            "oidc_redirect",
+        ]
+        assert "BOOTSTRAP_TOKEN is intentionally optional" in (
+            payload["backing_state"]["bootstrap_token"]
+        )
+        assert "does not create a user" in payload["claim_boundary"]
+
+    def test_endpoint_marks_degraded_dependencies(self, monkeypatch):
+        _force_maas_auth_dependencies_ready(monkeypatch)
+        request = SimpleNamespace(state=SimpleNamespace())
+
+        payload = asyncio.run(
+            maas_auth_mod.maas_auth_readiness(request, db=SimpleNamespace())
+        )
+
+        assert payload["status"] == "degraded"
+        assert request.state.degraded_dependencies == {"database"}
+
+
 class TestMe:
     def test_me_unauthenticated_returns_401(self, client):
         resp = client.get("/api/v1/maas/auth/me")

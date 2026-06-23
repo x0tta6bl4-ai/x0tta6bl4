@@ -1,20 +1,20 @@
 # VPN Improvement Backlog
 
-generated_at: `2026-06-06T12:58:07.475755+00:00`
+generated_at: `2026-05-28T03:42:17.995694+00:00`
 
 ## Current Evidence
 
 ```text
-decision=provider_ticket
+decision=observe
 decision_confidence=high
-overall_status=provider_outage
-transport_status=degraded
-telegram_media_status=healthy
-provider_status=suspect_active
-failure_domain=provider_host
-blocking_history_trend=has_degradation
-blocking_history_snapshot_count=15
-promoted_source_count=43
+overall_status=advisory
+transport_status=healthy
+telegram_media_status=degraded
+provider_status=recent_boot_gap
+failure_domain=external_network
+blocking_history_trend=stable_no_probe_evidence
+blocking_history_snapshot_count=11
+promoted_source_count=22
 nl_write_allowed=false
 spb_fallback_allowed=false
 ```
@@ -26,7 +26,7 @@ spb_fallback_allowed=false
 ```text
 phase=local_now
 priority=P0
-status=watch
+status=ready
 allowed_now=true
 nl_write_required=false
 mutation_allowed=false
@@ -37,8 +37,8 @@ spb_fallback_allowed=false
 Reason: Fresh evidence prevents restarting NL for app-only or provider symptoms.
 
 Evidence:
-- decision=provider_ticket
-- transport_status=degraded
+- decision=observe
+- transport_status=healthy
 - collector=nl-diagnostics/collect_vpn_readonly_snapshot.sh
 
 Next steps:
@@ -56,7 +56,7 @@ Acceptance:
 ```text
 phase=local_now
 priority=P0
-status=watch
+status=ready
 allowed_now=true
 nl_write_required=false
 mutation_allowed=false
@@ -67,8 +67,8 @@ spb_fallback_allowed=false
 Reason: Current app/path probe history does not prove an x-ui outage.
 
 Evidence:
-- blocking_history_trend=has_degradation
-- blocking_history_snapshot_count=15
+- blocking_history_trend=stable_no_probe_evidence
+- blocking_history_snapshot_count=11
 
 Next steps:
 - keep nl-diagnostics/blocking_probe_targets.json as the default target set
@@ -96,7 +96,7 @@ spb_fallback_allowed=false
 Reason: Local source must match or explain current NL before any future deploy.
 
 Evidence:
-- promoted_source_count=43
+- promoted_source_count=22
 - nl_write_allowed=False
 - deployable_to_nl=False
 
@@ -115,7 +115,7 @@ Acceptance:
 ```text
 phase=local_now
 priority=P1
-status=ready
+status=watch
 allowed_now=true
 nl_write_required=false
 mutation_allowed=false
@@ -126,8 +126,8 @@ spb_fallback_allowed=false
 Reason: A boot gap with current healthy transport is a provider-watch signal, not a restart signal.
 
 Evidence:
-- provider_status=suspect_active
-- failure_domain=provider_host
+- provider_status=recent_boot_gap
+- failure_domain=external_network
 
 Next steps:
 - build a provider packet if transport becomes degraded or critical

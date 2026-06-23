@@ -20,31 +20,10 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 CONTINUITY_FILE = PROJECT_ROOT / "CONTINUITY.md"
 VERIFICATION_ROOT = PROJECT_ROOT / "docs" / "verification"
-ARCHITECTURE_ROOT = PROJECT_ROOT / "docs" / "architecture"
 VERIFICATION_SUFFIXES = {".md", ".json", ".jsonl"}
 EVENT_TRACE_SOURCE = "EventBus"
 EVENT_TRACE_SOURCE_CLASS = "event_trace"
 EVENT_TRACE_RELATIVE_PATH = ".agent_coordination/events.log"
-EVENT_TRACE_CLAIM_BOUNDARY_LIMIT = 8
-EVENT_TRACE_CLAIM_BOUNDARY_TEXT_LIMIT = 256
-CLAIM_STATUS_CURRENT_ACTIVE_AUDIT = "current_active_audit"
-CLAIM_STATUS_CURRENT_EVIDENCE_MAP = "current_evidence_map"
-CLAIM_STATUS_LATEST_VERIFICATION_ALIAS = "latest_verification_alias"
-CLAIM_STATUS_VERIFICATION_ARTIFACT = "verification_artifact"
-CLAIM_STATUS_EXTERNAL_EVIDENCE_INTAKE_CANDIDATE = (
-    "external_evidence_intake_candidate"
-)
-CLAIM_STATUS_EXTERNAL_DPI_INTAKE_CANDIDATE = "external_dpi_intake_candidate"
-CLAIM_STATUS_EXTERNAL_DPI_GAP_RECORD = "external_dpi_gap_record"
-CLAIM_STATUS_HISTORICAL_CLAIM_INVENTORY = "historical_claim_inventory"
-CLAIM_STATUS_ARCHITECTURE_CONTEXT = "architecture_context"
-CLAIM_STATUS_UNCLASSIFIED = "unclassified"
-EXTERNAL_DPI_INTAKE_RELATIVE_PATH = "docs/verification/incoming/dpi_lab.json"
-EXTERNAL_EVIDENCE_GAP_RECORD_MODE = "EXTERNAL_EVIDENCE_GAP_RECORD"
-HISTORICAL_OPERATIONS_CLAIM_INVENTORY = {
-    "docs/05-operations/project-completion-report-v1.4.0.md",
-    "docs/05-operations/project-completion-report-v1.5.md",
-}
 
 
 @dataclass
@@ -458,7 +437,6 @@ class LedgerRAGSearch:
         self,
         continuity_file: Path = CONTINUITY_FILE,
         verification_root: Path = VERIFICATION_ROOT,
-        current_evidence_root: Path = ARCHITECTURE_ROOT,
         vector_index: Optional[VectorIndex] = None,
         top_k: int = 10,
         enable_reranking: bool = True,
@@ -474,7 +452,6 @@ class LedgerRAGSearch:
         """
         self.continuity_file = continuity_file
         self.verification_root = verification_root
-        self.current_evidence_root = current_evidence_root
         self.top_k = top_k
 
         # Инициализация RAG pipeline с существующими компонентами
@@ -486,9 +463,6 @@ class LedgerRAGSearch:
         self._verification_indexed = False
         self._verification_indexed_files = 0
         self._verification_indexed_chunks = 0
-        self._current_evidence_indexed = False
-        self._current_evidence_indexed_files = 0
-        self._current_evidence_indexed_chunks = 0
         self._event_trace_indexed = False
         self._event_trace_indexed_events = 0
         self._event_trace_indexed_chunks = 0
@@ -502,10 +476,6 @@ class LedgerRAGSearch:
     def is_verification_indexed(self) -> bool:
         """Проверка, проиндексированы ли verification artifacts."""
         return self._verification_indexed
-
-    def is_current_evidence_indexed(self) -> bool:
-        """Проверка, проиндексированы ли current architecture evidence maps."""
-        return self._current_evidence_indexed
 
     def is_event_trace_indexed(self) -> bool:
         """Проверка, проиндексированы ли EventBus trace artifacts."""
@@ -616,29 +586,11 @@ class LedgerRAGSearch:
             if path.is_file() and path.suffix.lower() in VERIFICATION_SUFFIXES
         )
 
-    def _iter_current_evidence_files(self) -> List[Path]:
-        """Return current architecture evidence maps/audits for claim-sensitive search."""
-        if not self.current_evidence_root.exists():
-            return []
-        return sorted(
-            path
-            for path in self.current_evidence_root.iterdir()
-            if path.is_file()
-            and path.suffix.lower() in VERIFICATION_SUFFIXES
-            and path.name.startswith("CURRENT_")
-        )
-
     def _relative_evidence_path(self, path: Path) -> str:
         try:
             return path.relative_to(PROJECT_ROOT).as_posix()
         except ValueError:
-            if "docs" in path.parts:
-                docs_index = path.parts.index("docs")
-                return Path(*path.parts[docs_index:]).as_posix()
             relative = path.relative_to(self.verification_root).as_posix()
-            root_name = self.verification_root.name
-            if root_name in {"verification", "architecture", "01-architecture"}:
-                return f"docs/{root_name}/{relative}"
             return f"docs/verification/{relative}"
 
     def verification_evidence_status(self) -> Dict[str, Any]:
@@ -654,16 +606,6 @@ class LedgerRAGSearch:
             for path in files
             if "_LATEST" in path.name
         ]
-        claim_status_counts: Dict[str, int] = {}
-        external_dpi_gap_records = 0
-        for path in files:
-            metadata = self._verification_metadata(path)
-            claim_status = metadata["claim_status"]
-            claim_status_counts[claim_status] = (
-                claim_status_counts.get(claim_status, 0) + 1
-            )
-            if metadata.get("external_evidence_gap_record") is True:
-                external_dpi_gap_records += 1
 
         return {
             "verification_root": str(self.verification_root),
@@ -676,40 +618,6 @@ class LedgerRAGSearch:
             "indexed_files": self._verification_indexed_files,
             "indexed_chunks": self._verification_indexed_chunks,
             "source": "docs/verification",
-            "claim_status_counts": claim_status_counts,
-            "external_dpi_gap_record_count": external_dpi_gap_records,
-        }
-
-    def current_evidence_status(self) -> Dict[str, Any]:
-        """Summarize current architecture maps/audits available for runtime indexing."""
-        files = self._iter_current_evidence_files()
-        by_suffix: Dict[str, int] = {}
-        claim_status_counts: Dict[str, int] = {}
-        paths: List[str] = []
-        for path in files:
-            suffix = path.suffix.lower()
-            by_suffix[suffix] = by_suffix.get(suffix, 0) + 1
-            relative = self._relative_evidence_path(path)
-            paths.append(relative)
-            claim_status = _claim_status_metadata(
-                relative,
-                latest_alias=False,
-            )["claim_status"]
-            claim_status_counts[claim_status] = (
-                claim_status_counts.get(claim_status, 0) + 1
-            )
-
-        return {
-            "current_evidence_root": str(self.current_evidence_root),
-            "root_exists": self.current_evidence_root.exists(),
-            "indexable_files": len(files),
-            "by_suffix": by_suffix,
-            "paths": paths,
-            "indexed": self._current_evidence_indexed,
-            "indexed_files": self._current_evidence_indexed_files,
-            "indexed_chunks": self._current_evidence_indexed_chunks,
-            "source": "docs/architecture",
-            "claim_status_counts": claim_status_counts,
         }
 
     def event_trace_status(self) -> Dict[str, Any]:
@@ -726,7 +634,7 @@ class LedgerRAGSearch:
 
     def _verification_document_id(self, path: Path) -> str:
         relative = self._relative_evidence_path(path)
-        digest = hashlib.sha256(relative.encode("utf-8")).hexdigest()[:12]
+        digest = hashlib.sha1(relative.encode("utf-8")).hexdigest()[:12]
         safe_name = (
             relative.replace("/", "_")
             .replace(".", "_")
@@ -735,61 +643,20 @@ class LedgerRAGSearch:
         )
         return f"verification_{safe_name}_{digest}"
 
-    def _verification_metadata(
-        self,
-        path: Path,
-        content: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    def _verification_metadata(self, path: Path) -> Dict[str, Any]:
         relative = self._relative_evidence_path(path)
-        latest_alias = "_LATEST" in path.name
-        claim_metadata = _claim_status_metadata(
-            relative,
-            latest_alias=latest_alias,
-        )
-        payload = _json_metadata_payload(path, content=content)
-        claim_metadata = {
-            **claim_metadata,
-            **_external_dpi_intake_metadata(relative, payload),
-        }
         return {
             "title": path.stem,
             "section": path.stem,
-            "source": _evidence_source(relative),
-            "source_class": claim_metadata["source_class"],
+            "source": "docs/verification",
+            "source_class": "verification_evidence",
             "relative_path": relative,
             "file_suffix": path.suffix.lower(),
-            "latest_alias": latest_alias,
+            "latest_alias": "_LATEST" in path.name,
             "parent_run": (
                 path.parent.name if path.parent != self.verification_root else None
             ),
-            **claim_metadata,
         }
-
-    def _index_evidence_paths(self, files: List[Path]) -> tuple[int, int]:
-        total_chunks = 0
-        indexed_files = 0
-
-        for path in files:
-            try:
-                content = path.read_text(encoding="utf-8", errors="replace")
-            except OSError as exc:
-                logger.warning(
-                    "Skipping unreadable evidence artifact %s: %s", path, exc
-                )
-                continue
-
-            if not content.strip():
-                continue
-
-            chunk_ids = self.rag.add_document(
-                text=content,
-                document_id=self._verification_document_id(path),
-                metadata=self._verification_metadata(path, content=content),
-            )
-            indexed_files += 1
-            total_chunks += len(chunk_ids)
-
-        return indexed_files, total_chunks
 
     async def index_verification_evidence(
         self, force: bool = False, max_files: Optional[int] = None
@@ -815,7 +682,28 @@ class LedgerRAGSearch:
             self._verification_indexed_chunks = 0
             return False
 
-        indexed_files, total_chunks = self._index_evidence_paths(files)
+        total_chunks = 0
+        indexed_files = 0
+
+        for path in files:
+            try:
+                content = path.read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                logger.warning(
+                    "Skipping unreadable verification artifact %s: %s", path, exc
+                )
+                continue
+
+            if not content.strip():
+                continue
+
+            chunk_ids = self.rag.add_document(
+                text=content,
+                document_id=self._verification_document_id(path),
+                metadata=self._verification_metadata(path),
+            )
+            indexed_files += 1
+            total_chunks += len(chunk_ids)
 
         self._verification_indexed = indexed_files > 0
         self._verification_indexed_files = indexed_files
@@ -828,41 +716,9 @@ class LedgerRAGSearch:
         )
         return self._verification_indexed
 
-    async def index_current_evidence(
-        self, force: bool = False, max_files: Optional[int] = None
-    ) -> bool:
-        """Index current architecture maps/audits into the runtime RAG surface."""
-        if self._current_evidence_indexed and not force:
-            logger.info("✅ Current architecture evidence уже проиндексирован")
-            return True
-
-        files = self._iter_current_evidence_files()
-        if max_files is not None:
-            files = files[:max_files]
-
-        if not files:
-            logger.warning("⚠️ Current architecture evidence files not found")
-            self._current_evidence_indexed = False
-            self._current_evidence_indexed_files = 0
-            self._current_evidence_indexed_chunks = 0
-            return False
-
-        indexed_files, total_chunks = self._index_evidence_paths(files)
-
-        self._current_evidence_indexed = indexed_files > 0
-        self._current_evidence_indexed_files = indexed_files
-        self._current_evidence_indexed_chunks = total_chunks
-
-        logger.info(
-            "✅ Current architecture evidence indexed: files=%s chunks=%s",
-            indexed_files,
-            total_chunks,
-        )
-        return self._current_evidence_indexed
-
     def _event_trace_document_id(self, event: Dict[str, Any]) -> str:
         event_id = str(event.get("event_id") or "unknown")
-        digest = hashlib.sha256(event_id.encode("utf-8")).hexdigest()[:12]
+        digest = hashlib.sha1(event_id.encode("utf-8")).hexdigest()[:12]
         safe_id = (
             event_id.replace("/", "_")
             .replace(".", "_")
@@ -904,26 +760,6 @@ class LedgerRAGSearch:
         service_metadata = self._event_trace_service_metadata(event, trace_filter)
         event_type = event.get("event_type")
         source_agent = event.get("source_agent")
-        evidence_summary = event.get("evidence_summary")
-        evidence_profile = (
-            evidence_summary.get("cross_plane_evidence_profile")
-            if isinstance(evidence_summary, dict)
-            else None
-        )
-        economy_finality = (
-            evidence_summary.get("economy_finality_summary")
-            if isinstance(evidence_summary, dict)
-            else None
-        )
-        claim_boundary_summary = _event_trace_claim_boundary_summary(
-            evidence_summary,
-        )
-        upstream_claim_gate_summary = _event_trace_upstream_claim_gate_summary(
-            evidence_summary,
-        )
-        upstream_cross_plane_claim_gate_summary = (
-            _event_trace_upstream_cross_plane_claim_gate_summary(evidence_summary)
-        )
         return {
             "title": f"EventBus {event_type} from {source_agent}",
             "section": f"{source_agent}:{event_type}",
@@ -936,14 +772,6 @@ class LedgerRAGSearch:
             "service_name": service_metadata["service_name"],
             "layer": service_metadata["layer"],
             "entrypoint": service_metadata["entrypoint"],
-            "evidence_summary": evidence_summary,
-            "cross_plane_evidence_profile": evidence_profile,
-            "economy_finality_summary": economy_finality,
-            "claim_boundary_summary": claim_boundary_summary,
-            "upstream_claim_gate_summary": upstream_claim_gate_summary,
-            "upstream_cross_plane_claim_gate_summary": (
-                upstream_cross_plane_claim_gate_summary
-            ),
             "redacted": event.get("redacted") is True,
         }
 
@@ -962,12 +790,6 @@ class LedgerRAGSearch:
             "timestamp": event.get("timestamp"),
             "target_agents": event.get("target_agents"),
             "data": event.get("data"),
-            "evidence_summary": event.get("evidence_summary"),
-            "claim_boundary_summary": metadata["claim_boundary_summary"],
-            "upstream_claim_gate_summary": metadata["upstream_claim_gate_summary"],
-            "upstream_cross_plane_claim_gate_summary": metadata[
-                "upstream_cross_plane_claim_gate_summary"
-            ],
             "redacted": event.get("redacted") is True,
         }
         return json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)

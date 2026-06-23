@@ -45,7 +45,6 @@ ZONE_PATHS = {
         "index_maas.html",
         "x0tta6bl4.yaml",
         "docs/commercial",
-        "docs/marketing",
         "docs/product",
         "docs/release",
         "business",
@@ -59,9 +58,6 @@ ZONE_PATHS = {
         "charts",
         "chaos",
         "grafana",
-    ),
-    "architecture": (
-        "docs/architecture",
     ),
     "legacy": (
         "archive",
@@ -126,9 +122,6 @@ CAVEAT_RE = re.compile(
             "required evidence",
             "requires",
             "scheduled",
-            "separate",
-            "separates",
-            "separating",
             "simulated",
             "simulation",
             "superseded",
@@ -138,12 +131,10 @@ CAVEAT_RE = re.compile(
             "without",
             "before claiming",
             "does not confirm",
-            "distinguish",
             "falling short",
             "path to",
             "to benchmark",
             "to reach",
-            "not mistaken for proof",
             "unverified",
             "не использовать",
             "без ссылок",
@@ -235,17 +226,10 @@ def scan_file(path: Path, zone: str) -> list[Finding]:
 
 
 def scan_zone(zone: str) -> list[Finding]:
-    findings, _ = scan_zone_with_file_count(zone)
-    return findings
-
-
-def scan_zone_with_file_count(zone: str) -> tuple[list[Finding], int]:
     findings: list[Finding] = []
-    files_scanned = 0
     for path in iter_zone_files(zone):
-        files_scanned += 1
         findings.extend(scan_file(path, zone))
-    return findings, files_scanned
+    return findings
 
 
 def print_text(findings: list[Finding], *, all_hits: bool) -> None:
@@ -284,13 +268,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
-    findings, files_scanned = scan_zone_with_file_count(args.zone)
+    findings = scan_zone(args.zone)
     active = [item for item in findings if not item.caveated]
 
     if args.json:
         payload = {
             "zone": args.zone,
-            "files_scanned": files_scanned,
+            "files_scanned": sum(1 for _ in iter_zone_files(args.zone)),
             "findings": [asdict(item) for item in findings if args.all_hits or not item.caveated],
             "finding_count": len(findings),
             "active_count": len(active),

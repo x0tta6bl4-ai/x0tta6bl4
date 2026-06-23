@@ -1,58 +1,58 @@
 {
   "artifacts": {
-    "baseline_packet_events_csv": "docs/verification/ghost-pulse-local-evidence-20260531T000533Z/baseline-packet-events.csv",
-    "baseline_packet_events_jsonl": "docs/verification/ghost-pulse-local-evidence-20260531T000533Z/baseline-packet-events.jsonl",
-    "packet_events_csv": "docs/verification/ghost-pulse-local-evidence-20260531T000533Z/packet-events.csv",
-    "packet_events_jsonl": "docs/verification/ghost-pulse-local-evidence-20260531T000533Z/packet-events.jsonl"
+    "baseline_packet_events_csv": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/baseline-packet-events.csv",
+    "baseline_packet_events_jsonl": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/baseline-packet-events.jsonl",
+    "packet_events_csv": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/packet-events.csv",
+    "packet_events_jsonl": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/packet-events.jsonl"
   },
   "baseline_probe": {
     "claim_boundary": "Loopback baseline only; it is a local negative control, not network/DPI evidence.",
-    "duration_ms": 252.236108,
+    "duration_ms": 252.654838,
     "event_summary": {
       "inter_packet_gap_ms": {
-        "count": 7,
-        "max": 0.163597,
-        "mean": 0.12452685714285715,
-        "min": 0.099953,
-        "p50": 0.12854,
-        "p95": 0.163597,
-        "stdev": 0.02220985390978242
+        "count": 11,
+        "max": 0.298962,
+        "mean": 0.18573545454545454,
+        "min": 0.125556,
+        "p50": 0.167876,
+        "p95": 0.298962,
+        "stdev": 0.05458795693251503
       },
-      "packet_count": 8,
+      "packet_count": 12,
       "size_bytes": {
         "max": 652,
-        "mean": 454.0,
-        "min": 204
+        "mean": 402.3333333333333,
+        "min": 101
       }
     },
     "kind": "baseline_unshaped_udp",
     "loss_count_local": 0,
-    "packet_count_requested": 8,
-    "packets_received": 8,
-    "packets_send_success": 8,
-    "receiver": "127.0.0.1:43559",
+    "packet_count_requested": 12,
+    "packets_received": 12,
+    "packets_send_success": 12,
+    "receiver": "127.0.0.1:52757",
     "seed": 20260522,
     "status": "VERIFIED_LOCAL",
     "transport_stats": {
-      "local_address": "127.0.0.1:42462",
+      "local_address": "127.0.0.1:56641",
       "obfuscation": "none",
-      "packets_per_second": 31.730949523720362,
+      "packets_per_second": 47.51626196246215,
       "peers_count": 1,
       "total_received": 0,
-      "total_sent": 8,
+      "total_sent": 12,
       "traffic_analysis": {
-        "avg_interval_ms": 0.1347064971923828,
-        "avg_size": 454.0,
+        "avg_interval_ms": 0.18345225941051138,
+        "avg_size": 402.3333333333333,
         "max_size": 652,
-        "min_size": 204,
-        "packets": 8,
-        "throughput_pps": 7423.546902654867
+        "min_size": 101,
+        "packets": 12,
+        "throughput_pps": 5451.0094517958405
       },
       "traffic_profile": "none",
-      "uptime_seconds": 0.252119779586792
+      "uptime_seconds": 0.2525451183319092
     }
   },
-  "bundle": "docs/verification/ghost-pulse-local-evidence-20260531T000533Z",
+  "bundle": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "kernel_read_only_visible": false,
@@ -147,7 +147,7 @@
         "available": true,
         "returncode": 0,
         "stderr": "",
-        "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\"},{\"ifindex\":2,\"ifname\":\"enp8s0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"18:c0:4d:ab:68:60\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":3,\"ifname\":\"virbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"52:54:00:34:e7:cf\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":4,\"ifname\":\"lxcbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"00:16:3e:00:00:00\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":5,\"ifname\":\"x0tctrl\",\"flags\":[\"POINTOPOINT\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"none\"},{\"ifindex\":6,\"ifname\":\"br-224057b2b3d0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"92:73:c8:c6:b1:84\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":7,\"ifname\":\"docker0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"7e:08:36:39:aa:00\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":8,\"link_index\":2,\"ifname\":\"vethff00ee1\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"3e:da:df:1b:1e:aa\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":0},{\"ifindex\":9,\"link_index\":2,\"ifname\":\"veth9e01cdc\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"docker0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"62:bc:2c:98:b5:6d\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":1},{\"ifindex\":10,\"link_index\":2,\"ifname\":\"veth0d9f787\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ca:ef:dc:a5:0b:e4\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":2},{\"ifindex\":11,\"ifname\":\"singbox_tun\",\"flags\":[\"POINTOPOINT\",\"MULTICAST\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"fq\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":500,\"link_type\":\"none\"}]\n"
+        "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\"},{\"ifindex\":2,\"ifname\":\"enp8s0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"18:c0:4d:ab:68:60\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":3,\"ifname\":\"virbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"52:54:00:34:e7:cf\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":4,\"ifname\":\"lxcbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"00:16:3e:00:00:00\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":5,\"ifname\":\"x0tctrl\",\"flags\":[\"POINTOPOINT\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"none\"},{\"ifindex\":6,\"ifname\":\"br-2346afa010d6\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"9e:d9:ef:93:23:80\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":7,\"ifname\":\"br-5cce4ae051c7\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"32:ad:9b:96:8e:23\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":8,\"ifname\":\"br-afb7e5743700\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ae:8a:5a:72:04:6d\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":9,\"ifname\":\"docker0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"1a:d5:9e:f7:f5:69\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":10,\"ifname\":\"br-224057b2b3d0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"62:75:0e:8d:0a:8c\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":11,\"link_index\":2,\"ifname\":\"veth6864553\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"docker0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"d6:c6:17:be:6d:61\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":0},{\"ifindex\":13,\"link_index\":2,\"ifname\":\"vethb6b7267\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"06:ca:da:6a:35:a2\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":2},{\"ifindex\":14,\"link_index\":2,\"ifname\":\"vethdfca4d4\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"c6:04:bb:36:cb:e8\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":3},{\"ifindex\":54,\"ifname\":\"singbox_tun\",\"flags\":[\"POINTOPOINT\",\"MULTICAST\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"fq\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":500,\"link_type\":\"none\"}]\n"
       }
     },
     "pulse_map_present": false,
@@ -157,76 +157,63 @@
   },
   "local_probe": {
     "claim_boundary": "Loopback timing probe only; this does not prove DPI evasion or whitelist behavior.",
-    "duration_ms": 418.920016,
+    "duration_ms": 702.200888,
     "event_summary": {
       "inter_packet_gap_ms": {
-        "count": 7,
-        "max": 46.571251,
-        "mean": 21.739938857142857,
-        "min": 12.131975,
-        "p50": 15.520766,
-        "p95": 46.571251,
-        "stdev": 11.67298612941058
+        "count": 11,
+        "max": 45.811847,
+        "mean": 40.93050981818182,
+        "min": 36.596624,
+        "p50": 40.833428,
+        "p95": 45.811847,
+        "stdev": 2.373123479438661
       },
-      "packet_count": 8,
+      "packet_count": 12,
       "size_bytes": {
         "max": 642,
-        "mean": 518.125,
+        "mean": 455.1666666666667,
         "min": 145
       }
     },
     "loss_count_local": 0,
     "mode": "corporate",
-    "packet_count_requested": 8,
-    "packets_received": 8,
-    "packets_send_success": 8,
+    "packet_count_requested": 12,
+    "packets_received": 12,
+    "packets_send_success": 12,
     "pcap_capture": {
       "path": null,
       "requested": false,
       "status": "NOT_REQUESTED"
     },
-    "receiver": "127.0.0.1:50910",
+    "receiver": "127.0.0.1:34998",
     "seed": 20260521,
     "status": "VERIFIED_LOCAL",
     "transport_stats": {
-      "claim_boundary": "Ghost Pulse timing plans are deterministic local sender evidence only; they are not DPI, provider whitelist, remote reachability, anonymity, or production proof.",
       "evidence_status": "EXPERIMENTAL_LOCAL_TIMING_PROFILE",
-      "local_address": "127.0.0.1:60023",
+      "local_address": "127.0.0.1:48896",
       "obfuscation": "none",
-      "packets_per_second": 19.119399838404007,
+      "packets_per_second": 17.105493222259454,
       "peers_count": 1,
       "protocol": "x0tta6bl4_pulse",
-      "pulse_coherence": 0.953502,
+      "pulse_coherence": "98.5%",
       "pulse_mode": "corporate",
-      "pulse_packets_sent": 8,
+      "pulse_packets_sent": 12,
       "pulse_rng_seed": 20260521,
       "stealth_mode": "NOT_VERIFIED",
       "timing_plan_replay": {
-        "claim_boundary": "Ghost Pulse timing plans are deterministic local sender evidence only; they are not DPI, provider whitelist, remote reachability, anonymity, or production proof.",
-        "mode": "corporate",
-        "projection": {
-          "claim_boundary": "Ghost Pulse timing plans are deterministic local sender evidence only; they are not DPI, provider whitelist, remote reachability, anonymity, or production proof.",
-          "modes": [
-            "corporate"
-          ],
-          "planned_delay_ms": {
-            "count": 8,
-            "max": 45.999992,
-            "mean": 20.052191,
-            "min": 10.945796
-          },
-          "profile_labels": [
-            "burst-gap",
-            "idle",
-            "meeting",
-            "short"
-          ],
-          "sample_count": 8,
-          "sha256": "89d9e727dc6b396ed8b262475a6b4710b4385943c2eeb5ce4b8f5c451721d175"
-        },
-        "sample_count": 8,
+        "claim_boundary": "Replay validates deterministic sender-side timing plans from the local seed only; it does not prove network delivery timing or DPI behavior.",
+        "deterministic_fields": [
+          "index",
+          "mode",
+          "profile_label",
+          "next_profile_label",
+          "mode_shift_roll",
+          "mode_shifted",
+          "planned_delay_ms"
+        ],
+        "sample_count": 12,
         "seed": 20260521,
-        "sha256": "89d9e727dc6b396ed8b262475a6b4710b4385943c2eeb5ce4b8f5c451721d175",
+        "sha256": "63161b0c98bc3482b730371866c327eb2d5c57bd00eab453a823e97d5d0f77ff",
         "status": "LOCAL_SEED_REPLAYABLE"
       },
       "timing_plan_samples": [
@@ -234,248 +221,335 @@
           "actual_gap_ms": null,
           "index": 1,
           "mode": "corporate",
-          "mode_shift_roll": 0.581617,
+          "mode_shift_roll": null,
           "mode_shifted": false,
-          "next_profile_label": "meeting",
+          "next_profile_label": "corporate",
           "payload_size_bytes": 129,
-          "planned_delay_ms": 13.999134837075529,
-          "profile_label": "short",
+          "planned_delay_ms": 42.02115945885417,
+          "profile_label": "corporate",
           "relative_error": null,
-          "wait_time_ms": 13.999134837075529
+          "wait_time_ms": 0.0
         },
         {
-          "actual_gap_ms": 27.367115020751953,
+          "actual_gap_ms": 41.29528999328613,
           "index": 2,
           "mode": "corporate",
-          "mode_shift_roll": 0.255848,
-          "mode_shifted": true,
-          "next_profile_label": "short",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
           "payload_size_bytes": 479,
-          "planned_delay_ms": 26.58875904330692,
-          "profile_label": "meeting",
-          "relative_error": 0.02927387382680308,
-          "wait_time_ms": 26.55681095370731
+          "planned_delay_ms": 40.86002075545901,
+          "profile_label": "corporate",
+          "relative_error": 0.010652692528771365,
+          "wait_time_ms": 40.848338245083035
         },
         {
-          "actual_gap_ms": 13.017654418945312,
+          "actual_gap_ms": 36.51022911071777,
           "index": 3,
           "mode": "corporate",
-          "mode_shift_roll": 0.048315,
-          "mode_shifted": true,
-          "next_profile_label": "idle",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
           "payload_size_bytes": 527,
-          "planned_delay_ms": 12.289464969635898,
-          "profile_label": "short",
-          "relative_error": 0.05925314495859531,
-          "wait_time_ms": 12.255847949982577
+          "planned_delay_ms": 35.79488508298193,
+          "profile_label": "corporate",
+          "relative_error": 0.019984532037957185,
+          "wait_time_ms": 35.77724210812841
         },
         {
-          "actual_gap_ms": 46.57125473022461,
+          "actual_gap_ms": 41.98193550109863,
           "index": 4,
           "mode": "corporate",
-          "mode_shift_roll": 0.802169,
+          "mode_shift_roll": null,
           "mode_shifted": false,
-          "next_profile_label": "burst-gap",
+          "next_profile_label": "corporate",
           "payload_size_bytes": 606,
-          "planned_delay_ms": 45.99999207347224,
-          "profile_label": "idle",
-          "relative_error": 0.012418755547608136,
-          "wait_time_ms": 45.96780556529353
+          "planned_delay_ms": 41.57490361973795,
+          "profile_label": "corporate",
+          "relative_error": 0.009790326517255954,
+          "wait_time_ms": 41.55821431920084
         },
         {
-          "actual_gap_ms": 15.561342239379883,
+          "actual_gap_ms": 38.32292556762695,
           "index": 5,
           "mode": "corporate",
-          "mode_shift_roll": 0.895315,
+          "mode_shift_roll": null,
           "mode_shifted": false,
-          "next_profile_label": "short",
+          "next_profile_label": "corporate",
           "payload_size_bytes": 517,
-          "planned_delay_ms": 14.92333042418753,
-          "profile_label": "burst-gap",
-          "relative_error": 0.042752642812108006,
-          "wait_time_ms": 14.897104380486358
+          "planned_delay_ms": 37.73342499934682,
+          "profile_label": "corporate",
+          "relative_error": 0.015622768627293586,
+          "wait_time_ms": 37.71911988460073
         },
         {
-          "actual_gap_ms": 12.332916259765625,
+          "actual_gap_ms": 40.799856185913086,
           "index": 6,
           "mode": "corporate",
-          "mode_shift_roll": 0.098001,
-          "mode_shifted": true,
-          "next_profile_label": "short",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
           "payload_size_bytes": 549,
-          "planned_delay_ms": 11.43947986692949,
-          "profile_label": "short",
-          "relative_error": 0.0781011377465665,
-          "wait_time_ms": 11.406816521592576
+          "planned_delay_ms": 39.2685436290777,
+          "profile_label": "corporate",
+          "relative_error": 0.038995909074190344,
+          "wait_time_ms": 39.253046421436096
         },
         {
-          "actual_gap_ms": 12.132883071899414,
+          "actual_gap_ms": 40.69805145263672,
           "index": 7,
           "mode": "corporate",
-          "mode_shift_roll": 0.442165,
+          "mode_shift_roll": null,
           "mode_shifted": false,
-          "next_profile_label": "meeting",
+          "next_profile_label": "corporate",
           "payload_size_bytes": 626,
-          "planned_delay_ms": 10.94579638913121,
-          "profile_label": "short",
-          "relative_error": 0.10845137626960964,
-          "wait_time_ms": 10.920524019746445
+          "planned_delay_ms": 39.66250935459284,
+          "profile_label": "corporate",
+          "relative_error": 0.0261088396799575,
+          "wait_time_ms": 39.646296891213936
         },
         {
-          "actual_gap_ms": 25.24280548095703,
+          "actual_gap_ms": 38.98811340332031,
           "index": 8,
           "mode": "corporate",
-          "mode_shift_roll": 0.014173,
-          "mode_shifted": true,
-          "next_profile_label": "meeting",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
           "payload_size_bytes": 584,
-          "planned_delay_ms": 24.231568579863648,
-          "profile_label": "meeting",
-          "relative_error": 0.041732209690037034,
-          "wait_time_ms": 24.20438886184607
+          "planned_delay_ms": 38.72309550428161,
+          "profile_label": "corporate",
+          "relative_error": 0.006843923389580281,
+          "wait_time_ms": 38.702591506478875
+        },
+        {
+          "actual_gap_ms": 40.352821350097656,
+          "index": 9,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 131,
+          "planned_delay_ms": 39.87174869404944,
+          "profile_label": "corporate",
+          "relative_error": 0.012065501810308568,
+          "wait_time_ms": 39.85696674214514
+        },
+        {
+          "actual_gap_ms": 45.83930969238281,
+          "index": 10,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 264,
+          "planned_delay_ms": 45.27903981015254,
+          "profile_label": "corporate",
+          "relative_error": 0.01237371385478553,
+          "wait_time_ms": 45.26401943966914
+        },
+        {
+          "actual_gap_ms": 43.350934982299805,
+          "index": 11,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 535,
+          "planned_delay_ms": 43.01233698596146,
+          "profile_label": "corporate",
+          "relative_error": 0.007872113446169041,
+          "wait_time_ms": 42.97705103625443
+        },
+        {
+          "actual_gap_ms": 42.02628135681152,
+          "index": 12,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 323,
+          "planned_delay_ms": 41.21543643846675,
+          "profile_label": "corporate",
+          "relative_error": 0.01967333087823387,
+          "wait_time_ms": 41.1915945805566
         }
       ],
       "timing_plan_samples_tail": [
         {
-          "actual_gap_ms": null,
-          "index": 1,
-          "mode": "corporate",
-          "mode_shift_roll": 0.581617,
-          "mode_shifted": false,
-          "next_profile_label": "meeting",
-          "payload_size_bytes": 129,
-          "planned_delay_ms": 13.999134837075529,
-          "profile_label": "short",
-          "relative_error": null,
-          "wait_time_ms": 13.999134837075529
-        },
-        {
-          "actual_gap_ms": 27.367115020751953,
-          "index": 2,
-          "mode": "corporate",
-          "mode_shift_roll": 0.255848,
-          "mode_shifted": true,
-          "next_profile_label": "short",
-          "payload_size_bytes": 479,
-          "planned_delay_ms": 26.58875904330692,
-          "profile_label": "meeting",
-          "relative_error": 0.02927387382680308,
-          "wait_time_ms": 26.55681095370731
-        },
-        {
-          "actual_gap_ms": 13.017654418945312,
+          "actual_gap_ms": 36.51022911071777,
           "index": 3,
           "mode": "corporate",
-          "mode_shift_roll": 0.048315,
-          "mode_shifted": true,
-          "next_profile_label": "idle",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
           "payload_size_bytes": 527,
-          "planned_delay_ms": 12.289464969635898,
-          "profile_label": "short",
-          "relative_error": 0.05925314495859531,
-          "wait_time_ms": 12.255847949982577
+          "planned_delay_ms": 35.79488508298193,
+          "profile_label": "corporate",
+          "relative_error": 0.019984532037957185,
+          "wait_time_ms": 35.77724210812841
         },
         {
-          "actual_gap_ms": 46.57125473022461,
+          "actual_gap_ms": 41.98193550109863,
           "index": 4,
           "mode": "corporate",
-          "mode_shift_roll": 0.802169,
+          "mode_shift_roll": null,
           "mode_shifted": false,
-          "next_profile_label": "burst-gap",
+          "next_profile_label": "corporate",
           "payload_size_bytes": 606,
-          "planned_delay_ms": 45.99999207347224,
-          "profile_label": "idle",
-          "relative_error": 0.012418755547608136,
-          "wait_time_ms": 45.96780556529353
+          "planned_delay_ms": 41.57490361973795,
+          "profile_label": "corporate",
+          "relative_error": 0.009790326517255954,
+          "wait_time_ms": 41.55821431920084
         },
         {
-          "actual_gap_ms": 15.561342239379883,
+          "actual_gap_ms": 38.32292556762695,
           "index": 5,
           "mode": "corporate",
-          "mode_shift_roll": 0.895315,
+          "mode_shift_roll": null,
           "mode_shifted": false,
-          "next_profile_label": "short",
+          "next_profile_label": "corporate",
           "payload_size_bytes": 517,
-          "planned_delay_ms": 14.92333042418753,
-          "profile_label": "burst-gap",
-          "relative_error": 0.042752642812108006,
-          "wait_time_ms": 14.897104380486358
+          "planned_delay_ms": 37.73342499934682,
+          "profile_label": "corporate",
+          "relative_error": 0.015622768627293586,
+          "wait_time_ms": 37.71911988460073
         },
         {
-          "actual_gap_ms": 12.332916259765625,
+          "actual_gap_ms": 40.799856185913086,
           "index": 6,
           "mode": "corporate",
-          "mode_shift_roll": 0.098001,
-          "mode_shifted": true,
-          "next_profile_label": "short",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
           "payload_size_bytes": 549,
-          "planned_delay_ms": 11.43947986692949,
-          "profile_label": "short",
-          "relative_error": 0.0781011377465665,
-          "wait_time_ms": 11.406816521592576
+          "planned_delay_ms": 39.2685436290777,
+          "profile_label": "corporate",
+          "relative_error": 0.038995909074190344,
+          "wait_time_ms": 39.253046421436096
         },
         {
-          "actual_gap_ms": 12.132883071899414,
+          "actual_gap_ms": 40.69805145263672,
           "index": 7,
           "mode": "corporate",
-          "mode_shift_roll": 0.442165,
+          "mode_shift_roll": null,
           "mode_shifted": false,
-          "next_profile_label": "meeting",
+          "next_profile_label": "corporate",
           "payload_size_bytes": 626,
-          "planned_delay_ms": 10.94579638913121,
-          "profile_label": "short",
-          "relative_error": 0.10845137626960964,
-          "wait_time_ms": 10.920524019746445
+          "planned_delay_ms": 39.66250935459284,
+          "profile_label": "corporate",
+          "relative_error": 0.0261088396799575,
+          "wait_time_ms": 39.646296891213936
         },
         {
-          "actual_gap_ms": 25.24280548095703,
+          "actual_gap_ms": 38.98811340332031,
           "index": 8,
           "mode": "corporate",
-          "mode_shift_roll": 0.014173,
-          "mode_shifted": true,
-          "next_profile_label": "meeting",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
           "payload_size_bytes": 584,
-          "planned_delay_ms": 24.231568579863648,
-          "profile_label": "meeting",
-          "relative_error": 0.041732209690037034,
-          "wait_time_ms": 24.20438886184607
+          "planned_delay_ms": 38.72309550428161,
+          "profile_label": "corporate",
+          "relative_error": 0.006843923389580281,
+          "wait_time_ms": 38.702591506478875
+        },
+        {
+          "actual_gap_ms": 40.352821350097656,
+          "index": 9,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 131,
+          "planned_delay_ms": 39.87174869404944,
+          "profile_label": "corporate",
+          "relative_error": 0.012065501810308568,
+          "wait_time_ms": 39.85696674214514
+        },
+        {
+          "actual_gap_ms": 45.83930969238281,
+          "index": 10,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 264,
+          "planned_delay_ms": 45.27903981015254,
+          "profile_label": "corporate",
+          "relative_error": 0.01237371385478553,
+          "wait_time_ms": 45.26401943966914
+        },
+        {
+          "actual_gap_ms": 43.350934982299805,
+          "index": 11,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 535,
+          "planned_delay_ms": 43.01233698596146,
+          "profile_label": "corporate",
+          "relative_error": 0.007872113446169041,
+          "wait_time_ms": 42.97705103625443
+        },
+        {
+          "actual_gap_ms": 42.02628135681152,
+          "index": 12,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 323,
+          "planned_delay_ms": 41.21543643846675,
+          "profile_label": "corporate",
+          "relative_error": 0.01967333087823387,
+          "wait_time_ms": 41.1915945805566
         }
       ],
       "timing_plan_summary": {
         "actual_gap_ms": {
-          "count": 7,
-          "max": 46.571255,
-          "mean": 21.746567,
-          "min": 12.132883
+          "count": 11,
+          "max": 45.83930969238281,
+          "mean": 40.924158963290125,
+          "min": 36.51022911071777,
+          "stdev": 2.391456736333693
         },
-        "claim_boundary": "Ghost Pulse timing plans are deterministic local sender evidence only; they are not DPI, provider whitelist, remote reachability, anonymity, or production proof.",
-        "coherence": 0.953502,
+        "claim_boundary": "Local sender-side timing plan telemetry only; this does not prove DPI evasion or third-party traffic equivalence.",
         "planned_delay_ms": {
-          "count": 8,
-          "max": 45.999992,
-          "mean": 20.052191,
-          "min": 10.945796
+          "count": 12,
+          "max": 45.27903981015254,
+          "mean": 40.41809202774685,
+          "min": 35.79488508298193,
+          "stdev": 2.393452319374174
         },
         "relative_error": {
-          "count": 7,
-          "max": 0.108451,
-          "mean": 0.05314,
-          "min": 0.012419
+          "count": 11,
+          "max": 0.038995909074190344,
+          "mean": 0.01636215016768211,
+          "min": 0.006843923389580281,
+          "stdev": 0.009069179577732284
         },
-        "samples_recorded": 8
+        "samples_recorded": 12,
+        "wait_time_ms": {
+          "count": 12,
+          "max": 45.26401943966914,
+          "mean": 36.899540097897265,
+          "min": 0.0,
+          "stdev": 11.369575603080486
+        }
       },
       "total_received": 0,
-      "total_sent": 8,
+      "total_sent": 12,
       "traffic_analysis": {
-        "avg_interval_ms": 21.746362958635604,
-        "avg_size": 518.125,
+        "avg_interval_ms": 40.924180637706414,
+        "avg_size": 455.1666666666667,
         "max_size": 642,
         "min_size": 145,
-        "packets": 8,
-        "throughput_pps": 45.98470106942156
+        "packets": 12,
+        "throughput_pps": 24.435431190493464
       },
       "traffic_profile": "none",
-      "uptime_seconds": 0.4184231758117676
+      "uptime_seconds": 0.7015290260314941
     }
   },
   "schema": "x0tta6bl4.ghost_pulse.local_evidence.v1",
@@ -488,36 +562,36 @@
       "available": true,
       "returncode": 0,
       "stderr": "",
-      "stdout": "src/network/ebpf/x0tta6bl4_pulse.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), with debug_info, not stripped\n"
+      "stdout": "src/network/ebpf/x0tta6bl4_pulse.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), not stripped\n"
     },
     "object": {
       "elf_magic": "7f454c46",
       "exists": true,
       "is_elf": true,
       "path": "src/network/ebpf/x0tta6bl4_pulse.o",
-      "sha256": "86a613ae31f2440a95a0f10f25dc8db1c1b672dc77b987454ca8c465be18f40d",
-      "size_bytes": 10584
+      "sha256": "f5f713eae20ab53c1fcc533f88b8614349e0707aa1ae7b4b01bc495196099927",
+      "size_bytes": 1288
     },
     "source": {
       "exists": true,
       "path": "src/network/ebpf/x0tta6bl4_pulse.bpf.c",
-      "sha256": "765341035f97256a11b85d977d740fe3662be56540db43364cb0bee179edb7ec",
-      "size_bytes": 818
+      "sha256": "75bd37951938ff63157ae912c953da08ce189c73a5634ab9b7a2e70d93535475",
+      "size_bytes": 2196
     },
     "status": "STATIC_OBJECT_PRESENT"
   },
-  "timestamp_utc": "2026-05-31T00:05:34.973327+00:00",
+  "timestamp_utc": "2026-05-22T00:53:53.918970+00:00",
   "timing_comparison": {
-    "baseline_mean_gap_ms": 0.12452685714285715,
-    "baseline_received": 8,
+    "baseline_mean_gap_ms": 0.18573545454545454,
+    "baseline_received": 12,
     "claim_boundary": "Local baseline comparison only; this can show timing modulation relative to unshaped UDP, not DPI evasion or whitelist behavior.",
-    "mean_gap_delta_ms": 21.615412,
-    "mean_gap_ratio": 174.58032231715933,
-    "pulse_mean_gap_ms": 21.739938857142857,
-    "pulse_received": 8,
-    "sender_actual_mean_gap_ms": 21.746567,
-    "sender_planned_mean_delay_ms": 20.052191,
-    "sender_relative_error_mean": 0.05314,
+    "mean_gap_delta_ms": 40.74477436363637,
+    "mean_gap_ratio": 220.3699337767793,
+    "pulse_mean_gap_ms": 40.93050981818182,
+    "pulse_received": 12,
+    "sender_actual_mean_gap_ms": 40.924158963290125,
+    "sender_planned_mean_delay_ms": 40.41809202774685,
+    "sender_relative_error_mean": 0.01636215016768211,
     "status": "VERIFIED_LOCAL_COMPARISON"
   }
 }

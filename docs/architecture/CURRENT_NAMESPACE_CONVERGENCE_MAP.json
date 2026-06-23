@@ -1,25 +1,25 @@
 {
-  "captured_at": "2026-06-01",
+  "captured_at": "2026-05-28",
   "status": "working_map_not_production_completion_proof",
   "scope": "Namespace convergence map for top-level libx0t and src/libx0t.",
   "surfaces": {
     "top_level_libx0t": {
       "path": "libx0t",
-      "python_files": 0,
-      "role": "absent_legacy_source_tree"
+      "python_files": 154,
+      "role": "legacy_and_public_import_surface"
     },
     "src_libx0t": {
       "path": "src/libx0t",
-      "python_files": 186,
-      "role": "canonical_libx0t_compatibility_surface"
+      "python_files": 114,
+      "role": "src_namespace_compatibility_and_security_surface"
     }
   },
   "tree_comparison": {
-    "common_python_paths": 0,
-    "byte_identical_common_paths": 0,
-    "different_common_paths": 0,
-    "top_level_only_python_paths": 0,
-    "src_only_python_paths": 186
+    "common_python_paths": 82,
+    "byte_identical_common_paths": 14,
+    "different_common_paths": 68,
+    "top_level_only_python_paths": 72,
+    "src_only_python_paths": 32
   },
   "import_counts": {
     "scanned_roots": [
@@ -29,17 +29,17 @@
       "libx0t"
     ],
     "direct_import_statements": {
-      "libx0t": 48,
-      "src.libx0t": 113
+      "libx0t": 96,
+      "src.libx0t": 76
     }
   },
   "known_bridges": [
     {
       "id": "core-app-file-compat",
       "source": "src/core/app.py",
-      "bridge_type": "conditional_runtime_file_identity_rewrite",
+      "bridge_type": "runtime_file_identity_rewrite",
       "target": "libx0t/core/app.py",
-      "why_it_matters": "Tools and audits that rely on __file__ can see the legacy libx0t path only if that file exists; in the current worktree the top-level libx0t tree is absent, so the rewrite is inactive.",
+      "why_it_matters": "Tools and audits that rely on __file__ can see the legacy libx0t path while the loaded module is src.core.app.",
       "source_refs": [
         "src/core/app.py:33",
         "src/core/app.py:34",
@@ -71,114 +71,32 @@
       ]
     },
     {
-      "id": "test-import-path-src-libx0t-compat",
-      "source": "tests/conftest.py",
-      "bridge_type": "test_import_path_compatibility",
-      "target": "src/libx0t",
-      "why_it_matters": "Top-level libx0t source files are absent. Tests that still import libx0t.* now resolve the compatibility surface by adding src after the repo root on sys.path, without recreating deleted top-level files.",
+      "id": "top-level-security-bridge",
+      "source": "libx0t/security",
+      "bridge_type": "top_level_security_reexport",
+      "target": "src.libx0t.security plus src.security.production_hardening",
+      "why_it_matters": "Several modules import libx0t.security.*, but the top-level security source tree was missing. The bridge restores imports for post_quantum, pqc_core, pqc_mtls, zero_trust, and production_hardening.",
       "source_refs": [
-        "tests/conftest.py:189",
-        "tests/conftest.py:192",
-        "tests/conftest.py:195"
+        "libx0t/security/__init__.py:1",
+        "libx0t/security/post_quantum.py:3",
+        "libx0t/security/pqc_core.py:3",
+        "libx0t/security/pqc_mtls.py:3",
+        "libx0t/security/production_hardening.py:3",
+        "libx0t/security/zero_trust/__init__.py:3"
       ]
     },
     {
-      "id": "src-libx0t-network-canonical-imports",
-      "source": "src/libx0t/core app/demo/q2 network imports",
-      "bridge_type": "canonical_src_namespace_imports",
-      "target": "src.libx0t.network.*",
-      "why_it_matters": "Runtime files under src/libx0t import src.libx0t.network modules directly where current source exists, instead of relying on deleted top-level libx0t/network files.",
+      "id": "src-libx0t-network-top-level-bridges",
+      "source": "src/libx0t/network/{yggdrasil_client,byzantine,ebpf}",
+      "bridge_type": "src_namespace_network_bridge_to_top_level",
+      "target": "top-level libx0t.network yggdrasil/byzantine/ebpf modules",
+      "why_it_matters": "The runtime files under src/libx0t now import through src.libx0t.network while the current implementations remain under top-level libx0t.network.",
       "source_refs": [
-        "src/libx0t/core/app.py:98",
-        "src/libx0t/core/app.py:109",
-        "src/libx0t/core/app.py:721",
-        "src/libx0t/core/app.py:737",
-        "src/libx0t/core/app.py:753",
-        "src/libx0t/core/app_minimal_with_byzantine.py:23",
-        "src/libx0t/core/app_minimal_with_byzantine.py:25",
-        "src/libx0t/core/app_minimal_with_byzantine.py:188",
-        "src/libx0t/core/demo_api.py:164",
-        "src/libx0t/core/q2_integration.py:39"
-      ]
-    },
-    {
-      "id": "src-libx0t-network-compat-bridges-to-src-network",
-      "source": "src/libx0t/network/{byzantine,ebpf}",
-      "bridge_type": "compatibility_bridge_to_canonical_src_network",
-      "target": "src.network.*",
-      "why_it_matters": "Selected libx0t.network imports are still public compatibility paths, but their source now delegates to existing src.network modules instead of the deleted top-level libx0t/network tree.",
-      "source_refs": [
+        "src/libx0t/network/yggdrasil_client.py:6",
         "src/libx0t/network/byzantine/mesh_byzantine_protection.py:6",
         "src/libx0t/network/byzantine/signed_gossip.py:6",
         "src/libx0t/network/ebpf/cilium_integration.py:6",
         "src/libx0t/network/ebpf/explainer.py:6"
-      ]
-    },
-    {
-      "id": "src-runtime-libx0t-imports-canonicalized",
-      "source": "src/api/maas/endpoints/batman.py, src/cli/node_cli.py, src/dao/governance_mvp.py",
-      "bridge_type": "runtime_import_canonicalization",
-      "target": "src.libx0t.*",
-      "why_it_matters": "Runtime code no longer depends on deleted top-level libx0t source files for Batman MaaS endpoints, node CLI startup, or governance helm fallback.",
-      "source_refs": [
-        "src/api/maas/endpoints/batman.py:544",
-        "src/api/maas/endpoints/batman.py:557",
-        "src/api/maas/endpoints/batman.py:570",
-        "src/api/maas/endpoints/batman.py:1631",
-        "src/api/maas/endpoints/batman.py:2307",
-        "src/api/maas/endpoints/batman.py:2449",
-        "src/cli/node_cli.py:11",
-        "src/cli/node_cli.py:12",
-        "src/dao/governance_mvp.py:22"
-      ]
-    },
-    {
-      "id": "test-libx0t-public-compatibility-import-surface",
-      "source": "tests",
-      "bridge_type": "test_only_public_compatibility_contract",
-      "target": "libx0t.* imports resolved through src/libx0t",
-      "why_it_matters": "The remaining direct libx0t.* imports are tests that prove the public compatibility surface still resolves through src/libx0t. Runtime src files and scripts should stay free of direct top-level libx0t imports while the top-level source tree is absent.",
-      "source_refs": [
-        "tests/dao/test_pqc_governance.py:12",
-        "tests/network/test_pqc_discovery.py:13",
-        "tests/security/test_pqc_identity_did.py:11",
-        "tests/unit/core/test_libx0t_cache.py:4",
-        "tests/unit/core/test_libx0t_circuit_breaker.py:4",
-        "tests/unit/core/test_libx0t_consciousness.py:4",
-        "tests/unit/core/test_libx0t_mape_k_loop.py:3",
-        "tests/unit/core/test_libx0t_mape_k_loop.py:4",
-        "tests/unit/core/test_libx0t_mape_k_loop.py:5",
-        "tests/unit/libx0t/core/test_settings_security_profile_unit.py:3",
-        "tests/unit/libx0t/core/test_settings_validation_unit.py:6",
-        "tests/unit/libx0t/network/obfuscation/test_base_unit.py:4",
-        "tests/unit/libx0t/network/obfuscation/test_domain_fronting_unit.py:7",
-        "tests/unit/libx0t/network/obfuscation/test_simple_xor_obfuscation_unit.py:4",
-        "tests/unit/libx0t/network/obfuscation/test_simple_xor_obfuscation_unit.py:5",
-        "tests/unit/libx0t/network/obfuscation/test_traffic_shaping_unit.py:5",
-        "tests/unit/libx0t/test_pqc_module_unit.py:9",
-        "tests/unit/libx0t/test_secure_chat_unit.py:3",
-        "tests/unit/network/test_batman_health.py:14",
-        "tests/unit/network/test_batman_health.py:22",
-        "tests/unit/network/test_batman_health.py:27",
-        "tests/unit/network/test_dns_over_https_libx0t_unit.py:15",
-        "tests/unit/network/test_geo_proxy_sharding_libx0t_unit.py:8",
-        "tests/unit/network/test_geo_proxy_sharding_libx0t_unit.py:9",
-        "tests/unit/network/test_proxy_auth_middleware_libx0t_unit.py:12",
-        "tests/unit/network/test_proxy_auth_middleware_libx0t_unit.py:16",
-        "tests/unit/network/test_proxy_config_manager_libx0t_unit.py:12",
-        "tests/unit/network/test_proxy_orchestrator_libx0t_unit.py:12",
-        "tests/unit/network/test_proxy_orchestrator_libx0t_unit.py:13",
-        "tests/unit/network/test_proxy_selection_algorithm_libx0t_unit.py:11",
-        "tests/unit/network/test_proxy_selection_algorithm_libx0t_unit.py:12",
-        "tests/unit/network/test_reputation_scoring_libx0t_unit.py:9",
-        "tests/unit/network/test_residential_proxy_manager_libx0t_unit.py:12",
-        "tests/unit/network/test_vpn_leak_protection_libx0t_unit.py:6",
-        "tests/unit/network/test_vpn_obfuscation_manager_libx0t_unit.py:9",
-        "tests/unit/network/test_vpn_proxy_libx0t_unit.py:7",
-        "tests/unit/network/test_vpn_proxy_libx0t_unit.py:8",
-        "tests/unit/network/test_webrtc_leak_fix_libx0t_unit.py:7",
-        "tests/unit/network/test_yggdrasil_client_errors_libx0t_unit.py:4",
-        "tests/unit/network/test_yggdrasil_client_libx0t_unit.py:6"
       ]
     }
   ],
@@ -187,10 +105,11 @@
       "id": "three-production-lifespan-surfaces",
       "evidence": [
         "src/core/production_lifespan.py",
-        "src/libx0t/core/production_lifespan.py"
+        "src/libx0t/core/production_lifespan.py",
+        "libx0t/core/production_lifespan.py"
       ],
-      "risk": "The active FastAPI app uses src.core.production_lifespan, while the src.libx0t compatibility module exposes a similar name with different imports and behavior.",
-      "current_status": "The top-level libx0t/core/production_lifespan.py source file is absent; libx0t.core.production_lifespan imports depend on src/libx0t being on sys.path."
+      "risk": "The active FastAPI app uses src.core.production_lifespan, while compatibility modules expose similar names with different imports and behavior.",
+      "current_status": "src.libx0t.core.production_lifespan and libx0t.core.production_lifespan both import after top-level security bridge restoration."
     },
     {
       "id": "src-libx0t-imports-top-level-libx0t",
@@ -198,8 +117,8 @@
         "docs/architecture/CURRENT_CANONICAL_IMPORT_MAP.json",
         "tests/unit/test_canonical_import_map_unit.py"
       ],
-      "risk": "The src.libx0t package can jump back to top-level libx0t modules when direct libx0t.* imports remain.",
-      "current_status": "src/libx0t has 0 direct top-level libx0t import statements. The previously stale Byzantine/eBPF import_module bridges now target src.network canonical modules."
+      "risk": "The src.libx0t package can jump back to top-level libx0t modules when no src.libx0t counterpart exists.",
+      "current_status": "src/libx0t has 0 direct top-level libx0t import statements; yggdrasil/byzantine/eBPF top-level-only implementations are now reached through explicit src.libx0t bridge modules."
     },
     {
       "id": "security-source-exists-only-under-src-libx0t",
@@ -208,13 +127,13 @@
         "src/libx0t/security/pqc_core.py",
         "src/libx0t/security/zero_trust/__init__.py"
       ],
-      "risk": "Top-level libx0t.security source files are absent. Compatibility imports work only when src/libx0t is on sys.path."
+      "risk": "Top-level libx0t.security imports were broken until bridge shims were added."
     }
   ],
   "current_policy": {
     "canonical_runtime_app": "src/core/app.py",
     "canonical_security_implementation": "src.libx0t.security plus src.security.pqc and src.security.production_hardening public wrappers",
-    "compatibility_surface": "top-level libx0t source files are absent; import libx0t compatibility relies on src/libx0t being on sys.path",
-    "do_not_assume": "Do not assume top-level libx0t files exist. Treat src/libx0t as the current compatibility source surface."
+    "compatibility_surface": "top-level libx0t remains supported through shims where current code imports it",
+    "do_not_assume": "Do not assume libx0t and src.libx0t files are mirrors; most common files differ."
   }
 }

@@ -34,7 +34,7 @@ def build_mapek_dependencies(node_id=None):
     mesh_node_id = (
         node_id
         or os.environ.get("MVP_NODE_ID")
-        or os.environ.get("x0tta6bl4_NODE_ID")
+        or os.environ.get("X0TTA6BL4_NODE_ID")
         or "local"
     )
     return {

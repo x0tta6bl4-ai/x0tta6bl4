@@ -1,7 +1,7 @@
-"""Compatibility bridge to the canonical signed gossip implementation."""
+"""Compatibility bridge to the top-level signed gossip implementation."""
 
 import sys
 from importlib import import_module
 
-_mod = import_module("src.network.byzantine.signed_gossip")
+_mod = import_module("libx0t.network.byzantine.signed_gossip")
 sys.modules[__name__] = _mod

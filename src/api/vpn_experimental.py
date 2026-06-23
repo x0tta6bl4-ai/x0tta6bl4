@@ -6,13 +6,11 @@ These endpoints use optimized parameters to bypass current blocking techniques.
 """
 
 import hmac
-import hashlib
 import json
 import logging
 import os
 from pathlib import Path
 import sys
-import time
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -486,15 +484,13 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
         finally:
             sock.close()
 
-        active_users = _get_active_users_count()
-        uptime = _read_system_uptime()
-        response = VPNStatusResponse(
+        return VPNStatusResponse(
             status=status,
             server=server,
             port=port,
             protocol="VLESS+Reality (Experimental)",
-            active_users=active_users,
-            uptime=uptime,
+            active_users=_get_active_users_count(),
+            uptime=_read_system_uptime(),
         )
         _publish_vpn_experimental_event(
             request,

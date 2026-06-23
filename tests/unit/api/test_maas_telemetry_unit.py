@@ -109,30 +109,8 @@ class TestTelemetryReadiness:
         assert payload["reputation_system_ready"] is True
         assert payload["metrics_export_ready"] is True
         assert payload["auth_dependency_ready"] is True
-        assert payload["cross_plane_claim_gate"]["allowed"] is False
-        assert payload["cross_plane_claim_gate"]["requested_claim_ids"] == [
-            "production_readiness",
-            "dataplane_delivery",
-            "settlement_finality",
-            "customer_traffic",
-        ]
-        claim_gate = payload["maas_telemetry_claim_gate"]
-        assert claim_gate["schema"] == "x0tta6bl4.maas_telemetry.claim_gate.v1"
-        assert claim_gate["surface"] == "maas_telemetry.readiness"
-        assert claim_gate["local_readiness_dependency_observation_claim_allowed"] is True
-        assert claim_gate["settlement_uptime_dependency_ready_observed"] is True
-        assert claim_gate["telemetry_runtime_ready_observed"] is True
-        assert claim_gate["dataplane_delivery_claim_allowed"] is False
-        assert claim_gate["traffic_delivery_claim_allowed"] is False
-        assert claim_gate["customer_traffic_claim_allowed"] is False
-        assert claim_gate["node_reachability_claim_allowed"] is False
-        assert claim_gate["settlement_finality_claim_allowed"] is False
-        assert claim_gate["external_settlement_finality_claim_allowed"] is False
-        assert claim_gate["production_readiness_claim_allowed"] is False
         assert payload["legacy_route_shadowing"]["shadowed_by_legacy"] == [
             "POST /heartbeat",
-        ]
-        assert payload["legacy_route_shadowing"]["direct_routes"] == [
             "GET /{mesh_id}/topology",
         ]
         assert payload["degraded_dependencies"] == []
@@ -160,12 +138,6 @@ class TestTelemetryReadiness:
         assert payload["reputation_system_ready"] is False
         assert payload["metrics_export_ready"] is False
         assert payload["auth_dependency_ready"] is False
-        assert payload["cross_plane_claim_gate"]["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
-        assert payload["maas_telemetry_claim_gate"]["surface"] == "maas_telemetry.readiness"
-        assert payload["maas_telemetry_claim_gate"][
-            "settlement_uptime_dependency_ready_observed"
-        ] is False
-        assert payload["maas_telemetry_claim_gate"]["production_readiness_claim_allowed"] is False
         assert payload["degraded_dependencies"] == [
             "database",
             "mesh_node_model",

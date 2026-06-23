@@ -60,29 +60,6 @@ def test_proof_gate_verifier_rejects_promoted_claim_boundary(tmp_path):
     assert "claim_boundary does not match proof-row-derived boundary" in failures
 
 
-def test_proof_gate_verifier_derives_current_runtime_boundary():
-    verifier = _load_script(
-        "verify_ghost_pulse_proof_gate_runtime_boundary",
-        "scripts/ops/verify_ghost_pulse_proof_gate.py",
-    )
-
-    boundary = verifier.expected_claim_boundary(
-        [
-            {"claim_id": "kernel_attach", "status": "VERIFIED"},
-            {"claim_id": "packet_capture", "status": "VERIFIED"},
-            {"claim_id": "baseline_timing_comparison", "status": "VERIFIED"},
-            {"claim_id": "dpi_lab", "status": "INVALID"},
-            {"claim_id": "whitelist_lab", "status": "INVALID"},
-            {"claim_id": "production_readiness", "status": "INVALID"},
-            {"claim_id": "current_runtime_attached", "status": "INVALID"},
-        ]
-    )
-
-    assert boundary["kernel_attach_verified"] is True
-    assert boundary["current_runtime_attached"] is False
-    assert boundary["production_ready"] is False
-
-
 def test_proof_gate_verifier_rejects_stale_not_verified_list(tmp_path):
     verifier = _load_script(
         "verify_ghost_pulse_proof_gate_not_verified",

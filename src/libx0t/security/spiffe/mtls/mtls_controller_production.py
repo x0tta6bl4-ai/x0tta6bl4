@@ -11,9 +11,7 @@ import ssl
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-
-from src.core.agent_thinking import AgentThinkingCoach
+from typing import Any, List, Optional
 
 try:
     from prometheus_client import Counter, Gauge
@@ -93,28 +91,6 @@ class MTLSControllerProduction:
         self._temp_files: List[tempfile.NamedTemporaryFile] = []
         self.enable_optimizations = enable_optimizations
         self._cached_svid: Optional[Any] = None
-        self.thinking_coach = AgentThinkingCoach(
-            agent_id=f"libx0t-mtls-controller-production:{_safe_hash(rotation_interval)}",
-            role="security",
-            capabilities=("zero-trust", "ops"),
-        )
-        self.last_thinking_context = self.thinking_coach.prepare_task(
-            {
-                "task_type": "mtls_controller_production_init",
-                "goal": "Initialize libx0t production mTLS controller safely",
-                "signals": {
-                    "rotation_interval_band": _safe_number_band(rotation_interval),
-                    "optimizations_enabled": enable_optimizations,
-                    "current_context_present": False,
-                    "cached_svid_present": False,
-                },
-                "safety_boundary": (
-                    "Keep SVID certificate bytes, private keys, CA bundles, temp "
-                    "file paths, peer certs, SPIFFE IDs, and exception text out of "
-                    "thinking context."
-                ),
-            }
-        )
 
         # Try to import optimizations
         if enable_optimizations:

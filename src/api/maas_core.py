@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -140,8 +140,6 @@ class MeshResponse(BaseModel):
     status: str
     nodes_count: int
     created_at: datetime
-    maas_core_lifecycle_claim_gate: Dict[str, Any] = Field(default_factory=dict)
-    cross_plane_claim_gate: Dict[str, Any] = Field(default_factory=dict)
 
 @router.post("/deploy", response_model=MeshResponse)
 async def deploy_mesh(

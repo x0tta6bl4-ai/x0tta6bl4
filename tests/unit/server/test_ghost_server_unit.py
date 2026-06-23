@@ -86,21 +86,6 @@ def test_setup_tun_publishes_events_with_identity(tmp_path):
     assert payload["wallet_address"] == "0xghost"
     assert payload["resource"] == "server:ghost_l3:setup_tun"
     assert payload["context"]["tun_name"] == "x0t-srv0"
-    metadata = payload["safe_actuator_evidence_metadata"]
-    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
-    claim_gate = metadata["claim_gate"]
-    assert claim_gate["schema"] == "x0tta6bl4.ghost_l3.safe_actuator_claim_gate.v1"
-    assert claim_gate["local_tun_nat_setup_claim_allowed"] is True
-    assert claim_gate["safe_actuator_result_recorded"] is True
-    assert claim_gate["restored_dataplane_claim_allowed"] is False
-    assert claim_gate["dataplane_delivery_claim_allowed"] is False
-    assert claim_gate["customer_traffic_claim_allowed"] is False
-    assert claim_gate["kernel_forwarding_correctness_claim_allowed"] is False
-    assert claim_gate["production_readiness_claim_allowed"] is False
-    assert metadata["evidence"]["raw_context_values_redacted"] is True
-    assert metadata["evidence"]["raw_command_output_redacted"] is True
-    assert metadata["evidence"]["resource"] == "server:ghost_l3:setup_tun"
-    assert payload["claim_gate"] == claim_gate
     assert payload["claim_boundary"]
 
 
@@ -157,9 +142,6 @@ def test_setup_tun_policy_allow_continues_to_safe_actuator(tmp_path):
     )
     assert completed[-1].data["policy_allowed"] is True
     assert completed[-1].data["matched_rules"] == ["allow-ghost-l3-setup"]
-    assert completed[-1].data["safe_actuator_evidence_metadata"]["claim_gate"][
-        "production_readiness_claim_allowed"
-    ] is False
 
 
 def test_setup_tun_simulated_safe_actuator_fails_closed(tmp_path):
@@ -183,8 +165,3 @@ def test_setup_tun_simulated_safe_actuator_fails_closed(tmp_path):
     assert failed[-1].data["stage"] == "actuator_simulated"
     assert failed[-1].data["success"] is False
     assert failed[-1].data["result"]["simulated"] is True
-    claim_gate = failed[-1].data["safe_actuator_evidence_metadata"]["claim_gate"]
-    assert claim_gate["local_tun_nat_setup_claim_allowed"] is False
-    assert claim_gate["safe_actuator_result_simulated"] is True
-    assert "safe_actuator_result_simulated" in claim_gate["blockers"]
-    assert claim_gate["production_readiness_claim_allowed"] is False

@@ -7,35 +7,94 @@ package, so ``src.security.pqc`` no longer imports legacy modules to initialize.
 """
 from __future__ import annotations
 
-import hashlib
+import contextlib
+import io
 import logging
-import os
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from enum import Enum
-from typing import Any
-
-from .adapter import is_liboqs_available
-from .types import PQCKeyPair, PQCSignature
+import warnings
 
 logger = logging.getLogger(__name__)
 
-os.environ.setdefault("OQS_DISABLE_AUTO_INSTALL", "1")
+
+@contextlib.contextmanager
+def _quiet_legacy_imports():
+    oqs_logger = logging.getLogger("oqs.oqs")
+    previous_oqs_disabled = oqs_logger.disabled
+    oqs_logger.disabled = True
+    try:
+        with (
+            warnings.catch_warnings(),
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            warnings.filterwarnings(
+                "ignore",
+                message=(
+                    r"Importing from src\.libx0t\.security\.post_quantum "
+                    r"is deprecated\..*"
+                ),
+                category=DeprecationWarning,
+                append=False,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=(
+                    r"Importing from src\.libx0t\.security\.pqc_core "
+                    r"is deprecated\..*"
+                ),
+                category=DeprecationWarning,
+                append=False,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"liboqs version .* differs from liboqs-python version .*",
+                category=UserWarning,
+                append=False,
+            )
+            yield
+    finally:
+        oqs_logger.disabled = previous_oqs_disabled
+
+# ---------------------------------------------------------------------------
+# Legacy classes from src.libx0t.security.post_quantum
+# ---------------------------------------------------------------------------
+try:
+    with _quiet_legacy_imports():
+        from src.libx0t.security.post_quantum import (  # noqa: F401
+            LIBOQS_AVAILABLE,
+            HybridPQEncryption,
+            LibOQSBackend,
+            PQAlgorithm,
+            PQCiphertext,
+            PQKeyPair,
+            PQMeshSecurityLibOQS,
+        )
+    _LEGACY_POST_QUANTUM_AVAILABLE = True
+except (ImportError, RuntimeError) as _e:  # pragma: no cover
+    logger.debug("Legacy post_quantum classes unavailable: %s", _e)
+    _LEGACY_POST_QUANTUM_AVAILABLE = False
+    # Provide safe placeholders so import of this module never hard-fails
+    LIBOQS_AVAILABLE = False
+    LibOQSBackend = None  # type: ignore[assignment,misc]
+    HybridPQEncryption = None  # type: ignore[assignment,misc]
+    PQAlgorithm = None  # type: ignore[assignment,misc]
+    PQKeyPair = None  # type: ignore[assignment,misc]
+    PQCiphertext = None  # type: ignore[assignment,misc]
+    PQMeshSecurityLibOQS = None  # type: ignore[assignment,misc]
 
 try:
-    import oqs
-
-    KeyEncapsulation = getattr(oqs, "KeyEncapsulation", None)
-    Signature = getattr(oqs, "Signature", None)
-except (ImportError, RuntimeError, AttributeError):  # pragma: no cover
-    KeyEncapsulation = None
-    Signature = None
-
-try:
-    from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import x25519
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    with _quiet_legacy_imports():
+        from src.libx0t.security.pqc_core import (  # noqa: F401
+            PQCHybridScheme,
+            get_pqc_digital_signature,
+            get_pqc_hybrid,
+            get_pqc_key_exchange,
+            test_pqc_availability,
+        )
+    _LEGACY_PQC_CORE_AVAILABLE = True
+except (ImportError, RuntimeError) as _e:  # pragma: no cover
+    logger.debug("Legacy pqc_core helpers unavailable: %s", _e)
+    _LEGACY_PQC_CORE_AVAILABLE = False
+    PQCHybridScheme = None  # type: ignore[assignment,misc]
 
     CRYPTOGRAPHY_AVAILABLE = True
 except ImportError:  # pragma: no cover

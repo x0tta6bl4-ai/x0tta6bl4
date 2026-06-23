@@ -98,15 +98,6 @@ def assess_blocking_context(
             "reason": "NL service or listener evidence is critical",
         }
 
-    if failure_domain == "monitoring":
-        return {
-            **base,
-            "category": "monitoring_gap",
-            "confidence": "high",
-            "recommended_probe": "restore the Reality canary monitor/timer under approval, then collect a fresh read-only snapshot",
-            "reason": "core transport has TCP/x-ui evidence, but Reality canary evidence is not configured",
-        }
-
     if runtime_mode == "anti_block" or runtime_recommended_action == "switch_profile":
         confidence = "high" if current_core_healthy and transport_status in {"healthy", "advisory"} else "medium"
         return {
@@ -191,44 +182,6 @@ def parse_failed_units(text: str) -> tuple[bool, list[str], list[str]]:
         return False, [], []
     critical = [unit for unit in units if unit not in NON_CRITICAL_FAILED_UNITS]
     return not critical, units, critical
-
-
-def parse_key_services(text: str) -> tuple[list[str], list[str]]:
-    services = non_comment_lines(text)
-    inactive: list[str] = []
-    for line in services:
-        if "=" in line:
-            name, status = line.rsplit("=", 1)
-            if status.strip() != "active":
-                inactive.append(f"{name.strip()}={status.strip()}")
-            continue
-        if line != "active":
-            inactive.append(line)
-    return services, inactive
-
-
-def transport_canary_not_configured(transport_summary: Any) -> bool:
-    if not isinstance(transport_summary, dict):
-        return False
-    paths = transport_summary.get("paths")
-    if not isinstance(paths, dict) or not paths:
-        return False
-
-    checked = 0
-    for path in paths.values():
-        if not isinstance(path, dict):
-            continue
-        checked += 1
-        errors = {str(error) for error in (path.get("errors") or [])}
-        if path.get("canary_ok") is True:
-            return False
-        if "not-configured" not in errors:
-            return False
-        if path.get("tcp_ok") is not True:
-            return False
-        if path.get("xui_required") is True and path.get("xui_ok") is not True:
-            return False
-    return checked > 0
 
 
 def parse_boot_gap_seconds(boot_history: str) -> int | None:
@@ -378,7 +331,8 @@ def classify(snapshot_dir: Path) -> dict[str, Any]:
         else:
             problems.append("NL has failed systemd units or failed_units evidence missing")
 
-    services, inactive_services = parse_key_services(nl_key_services)
+    services = non_comment_lines(nl_key_services)
+    inactive_services = [line for line in services if line != "active"]
     if services and not inactive_services:
         evidence.append("NL key services active")
     elif inactive_services:
@@ -426,22 +380,6 @@ def classify(snapshot_dir: Path) -> dict[str, Any]:
         and not missing_ports
         and transport_status in {"healthy", "advisory"}
     )
-    transport_monitor_gap = (
-        transport_status == "degraded"
-        and transport_canary_not_configured(transport_summary)
-    )
-    core_without_transport_canary_healthy = (
-        local_pass
-        and route_bypass_ok
-        and exit_ip_ok
-        and proxy_healthy == 1
-        and failed_units_ok
-        and bool(services)
-        and not inactive_services
-        and not missing_ports
-    )
-    if transport_monitor_gap:
-        warnings.append("NL Reality transport canary monitor is not configured")
 
     provider_text = uncommented_text(nl_boot_history + "\n" + nl_provider_signals).lower()
     provider_signal = any(
@@ -467,9 +405,7 @@ def classify(snapshot_dir: Path) -> dict[str, Any]:
     if unclean_boot:
         evidence.append("NL current boot reports previous journal uncleanly shut down")
 
-    if provider_signal and (
-        current_core_healthy or (core_without_transport_canary_healthy and transport_monitor_gap)
-    ):
+    if provider_signal and current_core_healthy:
         provider_status = "historical_incident"
         evidence.append("historical provider shutdown signal present")
     elif provider_signal:
@@ -483,11 +419,7 @@ def classify(snapshot_dir: Path) -> dict[str, Any]:
     if unclean_boot:
         warnings.append("NL previous boot ended uncleanly")
 
-    if (
-        provider_signal
-        and not current_core_healthy
-        and not (core_without_transport_canary_healthy and transport_monitor_gap)
-    ):
+    if provider_signal and not current_core_healthy:
         overall_status = "provider_outage"
         failure_domain = "provider_host"
         recommended_action = "provider_ticket"
@@ -495,10 +427,6 @@ def classify(snapshot_dir: Path) -> dict[str, Any]:
         overall_status = "critical"
         failure_domain = "local_client"
         recommended_action = "local_soft_heal"
-    elif transport_monitor_gap and core_without_transport_canary_healthy:
-        overall_status = "advisory"
-        failure_domain = "monitoring"
-        recommended_action = "restore_transport_canary_monitor"
     elif not failed_units_ok or inactive_services or missing_ports or transport_status not in {"healthy", "advisory"}:
         overall_status = "critical"
         failure_domain = "nl_service"

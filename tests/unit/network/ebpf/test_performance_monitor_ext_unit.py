@@ -103,37 +103,6 @@ class TestEBPFPerformanceMonitorInit:
         assert m.performance_history == {}
 
 
-class TestThinkingStatus:
-    def test_profile_loaded(self):
-        m = EBPFPerformanceMonitor()
-        thinking_status = m.get_thinking_status()
-        techniques = set(thinking_status["techniques"])
-        assert thinking_status["profile"]["role"] == "monitoring"
-        assert "mape_k" in techniques
-        assert "causal_analysis" in techniques
-        assert "zero_trust_review" in techniques
-
-    @pytest.mark.asyncio
-    async def test_alert_context_redacts_message_text(self):
-        m = EBPFPerformanceMonitor()
-        title = "secret alert title"
-        message = "secret alert message"
-
-        await m._generate_alert(title, message, AlertSeverity.WARNING)
-
-        thinking_status = m.get_thinking_status()
-        last_context = thinking_status["last_context"]
-        assert last_context["applied"]["framing"]["problem"] == (
-            "ebpf_performance_monitoring"
-        )
-        constraints = last_context["applied"]["framing"]["constraints"]
-        assert constraints["operation"] == "generate_alert"
-        assert constraints["alert_text_redacted"] is True
-        assert constraints["severity"] == "warning"
-        assert title not in str(thinking_status)
-        assert message not in str(thinking_status)
-
-
 class TestEBPFSystemMetricSource:
     def test_reads_proc_net_dev_packet_totals(self, tmp_path):
         proc_net_dev = tmp_path / "dev"

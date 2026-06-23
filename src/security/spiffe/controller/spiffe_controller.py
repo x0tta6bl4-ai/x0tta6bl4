@@ -143,44 +143,6 @@ class SPIFFEController:
 
         logger.info(f"SPIFFE Controller initialized for trust domain: {trust_domain}")
 
-    def _prepare_thinking_context(
-        self,
-        *,
-        task_type: str,
-        goal: str,
-        extra: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """Prepare redacted thinking context for SPIFFE controller decisions."""
-        context: Dict[str, Any] = {
-            "type": task_type,
-            "goal": goal,
-            "node_id_present": bool(self.node_id),
-            "identity_present": self.current_identity is not None,
-            "optimizations_enabled": self.optimizations is not None,
-            "constraints": {
-                "redact_raw_spiffe_ids": True,
-                "redact_private_keys": True,
-                "redact_certificate_payloads": True,
-                "separate_local_controller_state_from_mtls_dataplane_claims": True,
-            },
-            "safety_boundary": (
-                "Do not claim workload SVID trust finality, mTLS dataplane delivery, "
-                "customer traffic, or production readiness from controller-local state "
-                "without separate runtime evidence."
-            ),
-        }
-        if extra:
-            context.update(extra)
-        self.last_thinking_context = self.thinking_coach.prepare_task(context)
-        return self.last_thinking_context
-
-    def get_thinking_status(self) -> Dict[str, Any]:
-        """Expose thinking profile and latest redacted controller context."""
-        return {
-            "thinking": self.thinking_coach.status(),
-            "last_thinking_context": self.last_thinking_context,
-        }
-
     def _ensure_pqc_identity(
         self,
     ) -> tuple["PQCCertificateAuthority", "PQCIdentityManager"]:
@@ -349,7 +311,7 @@ class SPIFFEController:
             # Also rotate PQC identity
             pqc_ca, pqc_manager = self._ensure_pqc_identity()
             pqc_manager.rotate_identity(pqc_ca)
-
+            
         except Exception as e:
             logger.error(f"Failed to renew identity: {e}")
 

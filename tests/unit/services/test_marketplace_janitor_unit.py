@@ -22,8 +22,6 @@ def _make_escrow(
     renter_id: str = "user-42",
     status: str = "held",
     currency: str = "USD",
-    amount_cents: int | None = 1000,
-    amount_token: float | None = None,
 ) -> MagicMock:
     esc = MagicMock()
     esc.id = escrow_id
@@ -31,8 +29,6 @@ def _make_escrow(
     esc.renter_id = renter_id
     esc.status = status
     esc.currency = currency
-    esc.amount_cents = amount_cents
-    esc.amount_token = amount_token
     return esc
 
 
@@ -184,17 +180,6 @@ async def test_single_expired_escrow_with_listing(monkeypatch, _patch_marketplac
     assert event_kwargs["spiffe_id"] == "spiffe://mesh.x0tta6bl4.mesh/workload/janitor"
     assert event_kwargs["did"] == "did:mesh:pqc:janitor"
     assert event_kwargs["wallet_address"] == "0xdddddddddddddddddddddddddddddddddddddddd"
-    assert event_kwargs["upstream_event_ids"] == []
-    assert event_kwargs["upstream_source_agents"] == []
-    _assert_janitor_evidence(
-        event_kwargs["settlement_evidence"],
-        bridge_attempted=False,
-        bridge_status="not_required",
-        db_write_attempted=True,
-        db_committed=True,
-        escrow_status_after="refunded",
-        listing_status_after="available",
-    )
 
 
 @pytest.mark.asyncio
@@ -327,53 +312,6 @@ async def test_audit_log_status_code_200():
 
 
 @pytest.mark.asyncio
-async def test_x0t_refund_success_links_bridge_evidence(_patch_marketplace_event_publish):
-    """Successful X0T janitor refunds include TokenBridge upstream evidence."""
-    mock_db = MagicMock()
-    escrow = _make_escrow(currency="X0T", amount_cents=None, amount_token=12.5)
-    listing = _make_listing(status="escrow")
-    bridge = MagicMock()
-    bridge.refund_escrow_on_chain = AsyncMock(return_value=True)
-    bridge.last_chain_write_event_ids = ["evt-refund-start", "evt-refund-ok"]
-    bridge.source_agent = "token-bridge"
-    _setup_db(mock_db, escrows=[escrow], listing=listing)
-
-    with (
-        patch(f"{_MOD}.SessionLocal", return_value=mock_db),
-        patch(f"{_MOD}._get_token_bridge", return_value=bridge),
-        patch(f"{_MOD}.record_audit_log") as mock_audit,
-        patch(f"{_MOD}.asyncio.sleep", side_effect=_StopLoop),
-    ):
-        from src.services.marketplace_janitor import marketplace_janitor_loop
-
-        with pytest.raises(_StopLoop):
-            await marketplace_janitor_loop()
-
-    bridge.refund_escrow_on_chain.assert_awaited_once_with("esc-1")
-    assert escrow.status == "refunded"
-    assert listing.status == "available"
-    assert listing.renter_id is None
-    assert listing.mesh_id is None
-    mock_db.commit.assert_called_once()
-    mock_audit.assert_called_once()
-    _patch_marketplace_event_publish.assert_called_once()
-    event_kwargs = _patch_marketplace_event_publish.call_args.kwargs
-    assert event_kwargs["transition"] == "refunded"
-    assert event_kwargs["reason"] == "timeout_no_heartbeat"
-    assert event_kwargs["upstream_event_ids"] == ["evt-refund-start", "evt-refund-ok"]
-    assert event_kwargs["upstream_source_agents"] == ["token-bridge"]
-    _assert_janitor_evidence(
-        event_kwargs["settlement_evidence"],
-        bridge_attempted=True,
-        bridge_status="refunded",
-        db_write_attempted=True,
-        db_committed=True,
-        escrow_status_after="refunded",
-        listing_status_after="available",
-    )
-
-
-@pytest.mark.asyncio
 async def test_x0t_refund_rejection_keeps_expired_escrow_held(_patch_marketplace_event_publish):
     """X0T expiry must not update local state until on-chain refund succeeds."""
     mock_db = MagicMock()
@@ -381,8 +319,6 @@ async def test_x0t_refund_rejection_keeps_expired_escrow_held(_patch_marketplace
     listing = _make_listing(status="escrow")
     bridge = MagicMock()
     bridge.refund_escrow_on_chain = AsyncMock(return_value=False)
-    bridge.last_chain_write_event_ids = ["evt-refund-start", "evt-refund-rejected"]
-    bridge.source_agent = "token-bridge"
     _setup_db(mock_db, escrows=[escrow], listing=listing)
 
     with (
@@ -404,23 +340,8 @@ async def test_x0t_refund_rejection_keeps_expired_escrow_held(_patch_marketplace
     mock_db.commit.assert_not_called()
     mock_audit.assert_not_called()
     _patch_marketplace_event_publish.assert_called_once()
-    event_kwargs = _patch_marketplace_event_publish.call_args.kwargs
-    assert event_kwargs["transition"] == "blocked"
-    assert event_kwargs["reason"] == "refund_bridge_rejected"
-    assert event_kwargs["upstream_event_ids"] == [
-        "evt-refund-start",
-        "evt-refund-rejected",
-    ]
-    assert event_kwargs["upstream_source_agents"] == ["token-bridge"]
-    _assert_janitor_evidence(
-        event_kwargs["settlement_evidence"],
-        bridge_attempted=True,
-        bridge_status="rejected",
-        db_write_attempted=False,
-        db_committed=False,
-        escrow_status_after="held",
-        listing_status_after="escrow",
-    )
+    assert _patch_marketplace_event_publish.call_args.kwargs["transition"] == "blocked"
+    assert _patch_marketplace_event_publish.call_args.kwargs["reason"] == "refund_bridge_rejected"
 
 
 @pytest.mark.asyncio
@@ -431,8 +352,6 @@ async def test_x0t_refund_exception_keeps_expired_escrow_held(_patch_marketplace
     listing = _make_listing(status="escrow")
     bridge = MagicMock()
     bridge.refund_escrow_on_chain = AsyncMock(side_effect=RuntimeError("bridge down"))
-    bridge.last_chain_write_event_ids = ["evt-refund-start", "evt-refund-error"]
-    bridge.source_agent = "token-bridge"
     _setup_db(mock_db, escrows=[escrow], listing=listing)
 
     with (
@@ -454,20 +373,5 @@ async def test_x0t_refund_exception_keeps_expired_escrow_held(_patch_marketplace
     mock_db.commit.assert_not_called()
     mock_audit.assert_not_called()
     _patch_marketplace_event_publish.assert_called_once()
-    event_kwargs = _patch_marketplace_event_publish.call_args.kwargs
-    assert event_kwargs["transition"] == "blocked"
-    assert event_kwargs["reason"] == "refund_bridge_error"
-    assert event_kwargs["upstream_event_ids"] == [
-        "evt-refund-start",
-        "evt-refund-error",
-    ]
-    assert event_kwargs["upstream_source_agents"] == ["token-bridge"]
-    _assert_janitor_evidence(
-        event_kwargs["settlement_evidence"],
-        bridge_attempted=True,
-        bridge_status="error",
-        db_write_attempted=False,
-        db_committed=False,
-        escrow_status_after="held",
-        listing_status_after="escrow",
-    )
+    assert _patch_marketplace_event_publish.call_args.kwargs["transition"] == "blocked"
+    assert _patch_marketplace_event_publish.call_args.kwargs["reason"] == "refund_bridge_error"

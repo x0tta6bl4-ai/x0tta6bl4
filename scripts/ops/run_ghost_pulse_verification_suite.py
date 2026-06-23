@@ -93,7 +93,7 @@ FALSE_CLAIM_SCAN_REL_PATHS = (
     "scripts/ops/verify_ghost_pulse_goal_state.py",
     "scripts/ops/run_ghost_pulse_proof_gate.py",
     "scripts/ops/run_ghost_pulse_verification_suite.py",
-    "docs/architecture/x0tta6bl4_PULSE_PROTOCOL.md",
+    "docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md",
     "docs/verification/ghost-core-pulse-claim-audit-2026-05-21.md",
     "docs/verification/gemini-ghost-core-vv-audit-2026-05-20.md",
     "docs/verification/ghost-pulse-local-evidence-runbook.md",

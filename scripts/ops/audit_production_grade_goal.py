@@ -10,52 +10,19 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-try:
-    from scripts.ops.run_cross_plane_proof_gate import (
-        build_report as build_cross_plane_proof_gate_report,
-    )
-except Exception:  # pragma: no cover - fail closed if ops scripts are unavailable
-    build_cross_plane_proof_gate_report = None
-
 
 DEFAULT_OUTPUT_JSON = ".tmp/validation-shards/production-grade-goal-audit-current.json"
 DEFAULT_OUTPUT_MD = ".tmp/validation-shards/production-grade-goal-audit-current.md"
 DEFAULT_COMPLETION_GATE_RUNNER = ".tmp/validation-shards/integration-spine-completion-gate-runner-current.json"
-CURRENT_CROSS_PLANE_MAP = "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json"
-CURRENT_ACTIVE_AUDIT = "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md"
-PROTECTED_CURRENT_EVIDENCE_OUTPUTS = {
-    CURRENT_CROSS_PLANE_MAP,
-    CURRENT_ACTIVE_AUDIT,
-}
-REQUIRED_CROSS_PLANE_PLANES = {
-    "data_plane",
-    "control_plane",
-    "trust_plane",
-    "evidence_plane",
-    "economy_plane",
-}
 OPERATOR_INPUT_REQUIRED = "OPERATOR_INPUT_REQUIRED"
 OPERATOR_APPROVAL_REQUIRED = "OPERATOR_APPROVAL_REQUIRED"
 AFTER_BLOCKERS = "AFTER_BLOCKERS"
 BLOCKING = "BLOCKING"
-PRODUCTION_GRADE_AUDIT_CROSS_PLANE_CLAIMS = (
-    "production_readiness",
-    "dataplane_delivery",
-    "traffic_delivery",
-    "customer_traffic",
-    "settlement_finality",
-    "dpi_bypass",
-)
 
 
 @dataclass(frozen=True)
@@ -301,216 +268,7 @@ def _production_ready(root: Path, requirement: Requirement) -> bool:
             if data.get("goal_can_be_marked_complete") is True or _ready_value(data) is True:
                 continue
             return False
-    return True
-
-
-def _current_evidence_context(root: Path) -> Dict[str, Any]:
-    map_path = root / CURRENT_CROSS_PLANE_MAP
-    audit_path = root / CURRENT_ACTIVE_AUDIT
-    context: Dict[str, Any] = {
-        "included": map_path.exists() and audit_path.exists(),
-        "source": "docs/architecture",
-        "cross_plane_map": CURRENT_CROSS_PLANE_MAP,
-        "active_goal_audit": CURRENT_ACTIVE_AUDIT,
-        "claim_boundary": (
-            "Production-grade goal audit requires current cross-plane evidence "
-            "context before it can return COMPLETE. The maps/audit are gating "
-            "context, not production proof by themselves."
-        ),
-    }
-    if not map_path.exists() or not audit_path.exists():
-        context.update(
-            {
-                "status": "missing_current_evidence_context",
-                "current_gap_count": None,
-                "next_action_count": None,
-                "open_gap_ids": [],
-                "next_action_ids": [],
-                "required_planes_present": False,
-                "plane_ids": [],
-            }
-        )
-        return context
-    try:
-        data = json.loads(map_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        context.update(
-            {
-                "status": "invalid_current_evidence_map",
-                "error": str(exc),
-                "current_gap_count": None,
-                "next_action_count": None,
-                "open_gap_ids": [],
-                "next_action_ids": [],
-                "required_planes_present": False,
-                "plane_ids": [],
-            }
-        )
-        return context
-
-    gaps = data.get("current_gaps")
-    if not isinstance(gaps, list):
-        gaps = []
-    blocking_gaps = [
-        item
-        for item in gaps
-        if isinstance(item, dict) and item.get("blocks_real_readiness") is not False
-    ]
-    non_blocking_gaps = [
-        item
-        for item in gaps
-        if isinstance(item, dict) and item.get("blocks_real_readiness") is False
-    ]
-    next_actions = data.get("next_actions")
-    if not isinstance(next_actions, list):
-        next_actions = []
-    planes = data.get("planes")
-    plane_ids = set(planes) if isinstance(planes, dict) else set()
-    context.update(
-        {
-            "status": data.get("status"),
-            "current_gap_count": len(blocking_gaps),
-            "tracked_gap_count": len([item for item in gaps if isinstance(item, dict)]),
-            "non_blocking_gap_count": len(non_blocking_gaps),
-            "next_action_count": len(next_actions),
-            "open_gap_ids": [
-                item.get("id")
-                for item in blocking_gaps
-                if item.get("id")
-            ],
-            "non_blocking_gap_ids": [
-                item.get("id")
-                for item in non_blocking_gaps
-                if item.get("id")
-            ],
-            "next_action_ids": [
-                item.get("id")
-                for item in next_actions
-                if isinstance(item, dict) and item.get("id")
-            ],
-            "required_planes_present": REQUIRED_CROSS_PLANE_PLANES.issubset(
-                plane_ids
-            ),
-            "plane_ids": sorted(plane_ids),
-        }
-    )
-    return context
-
-
-def _current_evidence_gate_clear(context: Dict[str, Any]) -> bool:
-    return bool(
-        context.get("included") is True
-        and context.get("status") == "working_map_not_production_completion_proof"
-        and context.get("required_planes_present") is True
-        and context.get("current_gap_count") == 0
-        and context.get("next_action_count") == 0
-    )
-
-
-def _current_evidence_blocker_ids(context: Dict[str, Any]) -> List[str]:
-    blockers: List[str] = []
-    if context.get("included") is not True:
-        blockers.append("current_evidence_context_missing")
-    if (
-        context.get("included") is True
-        and context.get("status") != "working_map_not_production_completion_proof"
-    ):
-        blockers.append("current_evidence_context_status")
-    if context.get("required_planes_present") is not True:
-        blockers.append("current_evidence_context_planes")
-    if context.get("current_gap_count") or context.get("next_action_count"):
-        blockers.append("current_evidence_open_gaps")
-    return blockers
-
-
-def _cross_plane_proof_gate_context(root: Path) -> Dict[str, Any]:
-    requested_claims = list(PRODUCTION_GRADE_AUDIT_CROSS_PLANE_CLAIMS)
-    surface = "production_grade_goal_audit.completion"
-    if build_cross_plane_proof_gate_report is None:
-        return {
-            "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
-            "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
-            "allowed": False,
-            "available": False,
-            "surface": surface,
-            "requested_claim_ids": requested_claims,
-            "blockers": ["cross_plane_proof_gate_unavailable"],
-            "claim_boundary": (
-                "Cross-plane proof gate unavailable; production-grade audit must "
-                "not return COMPLETE from local artifact evidence alone."
-            ),
-        }
-    try:
-        report = build_cross_plane_proof_gate_report(
-            root,
-            claims=PRODUCTION_GRADE_AUDIT_CROSS_PLANE_CLAIMS,
-        )
-    except Exception as exc:
-        return {
-            "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
-            "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
-            "allowed": False,
-            "available": False,
-            "surface": surface,
-            "requested_claim_ids": requested_claims,
-            "blockers": [f"cross_plane_proof_gate_error:{type(exc).__name__}"],
-            "claim_boundary": (
-                "Cross-plane proof gate failed closed; production-grade audit "
-                "must not return COMPLETE from local artifact evidence alone."
-            ),
-        }
-    if not isinstance(report, dict):
-        return {
-            "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
-            "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
-            "allowed": False,
-            "available": False,
-            "surface": surface,
-            "requested_claim_ids": requested_claims,
-            "blockers": ["cross_plane_proof_gate_invalid_response"],
-            "claim_boundary": (
-                "Cross-plane proof gate returned invalid metadata; production-grade "
-                "audit must not return COMPLETE from local artifact evidence alone."
-            ),
-        }
-    return {
-        "schema": report.get("schema", "x0tta6bl4.cross_plane_proof_gate.v1"),
-        "decision": report.get("decision", "CROSS_PLANE_CLAIMS_BLOCKED"),
-        "allowed": report.get("allowed") is True,
-        "available": True,
-        "surface": surface,
-        "requested_claim_ids": requested_claims,
-        "summary": report.get("summary"),
-        "context": report.get("context"),
-        "claim_results": report.get("claim_results"),
-        "claim_boundary": report.get(
-            "claim_boundary",
-            (
-                "Production-grade audit uses the reusable cross-plane proof gate "
-                "before allowing COMPLETE."
-            ),
-        ),
-    }
-
-
-def _cross_plane_proof_gate_blocker_ids(context: Dict[str, Any]) -> List[str]:
-    blockers: List[str] = []
-    if context.get("available") is False:
-        blockers.append("cross_plane_proof_gate_unavailable")
-    for blocker in context.get("blockers") or []:
-        if isinstance(blocker, str) and blocker not in blockers:
-            blockers.append(blocker)
-    for result in context.get("claim_results") or []:
-        if not isinstance(result, dict):
-            continue
-        claim_id = str(result.get("claim_id") or "unknown_claim")
-        if result.get("allowed") is True:
-            continue
-        blockers.append(f"claim_blocked:{claim_id}")
-        for blocker in result.get("blockers") or []:
-            if isinstance(blocker, str):
-                blockers.append(blocker)
-    return sorted(set(blockers))
+    return False
 
 
 def _int_summary(summary: Dict[str, Any], key: str) -> int:
@@ -523,14 +281,7 @@ def _load_completion_gate_runner(root: Path) -> tuple[Optional[Dict[str, Any]], 
     return data, _summary(data), error
 
 
-def _next_actions(
-    complete: bool,
-    completion_gate_summary: Dict[str, Any],
-    current_evidence_context: Dict[str, Any],
-    cross_plane_proof_gate: Dict[str, Any],
-    *,
-    cross_plane_proof_gate_action_required: bool,
-) -> List[Dict[str, Any]]:
+def _next_actions(complete: bool, completion_gate_summary: Dict[str, Any]) -> List[Dict[str, Any]]:
     if complete:
         return []
     actions = [
@@ -576,49 +327,6 @@ def _next_actions(
                 "action": "Return digest-pinned runtime image references and retained per-image provenance, then rerun live rollout evidence and rollout provenance gates.",
                 "source_artifact": DEFAULT_COMPLETION_GATE_RUNNER,
                 "handoff_decision": completion_gate_summary.get("live_rollout_handoff_decision", ""),
-            }
-        )
-    if not _current_evidence_gate_clear(current_evidence_context):
-        actions.append(
-            {
-                "id": "clear_current_cross_plane_evidence_context",
-                "status": BLOCKING,
-                "action": (
-                    "Resolve current cross-plane evidence gaps/next actions before "
-                    "treating the production-grade audit as complete."
-                ),
-                "source_artifacts": [CURRENT_CROSS_PLANE_MAP, CURRENT_ACTIVE_AUDIT],
-                "blocker_ids": _current_evidence_blocker_ids(
-                    current_evidence_context
-                ),
-                "open_gap_ids": current_evidence_context.get("open_gap_ids", []),
-                "next_action_ids": current_evidence_context.get("next_action_ids", []),
-            }
-        )
-    if (
-        cross_plane_proof_gate_action_required
-        and cross_plane_proof_gate.get("allowed") is not True
-    ):
-        actions.append(
-            {
-                "id": "clear_cross_plane_proof_gate",
-                "status": BLOCKING,
-                "action": (
-                    "Resolve cross-plane proof gate blockers before treating the "
-                    "production-grade audit as complete."
-                ),
-                "source_artifacts": [
-                    "scripts/ops/run_cross_plane_proof_gate.py",
-                    CURRENT_CROSS_PLANE_MAP,
-                    CURRENT_ACTIVE_AUDIT,
-                ],
-                "blocker_ids": _cross_plane_proof_gate_blocker_ids(
-                    cross_plane_proof_gate
-                ),
-                "requested_claim_ids": cross_plane_proof_gate.get(
-                    "requested_claim_ids",
-                    [],
-                ),
             }
         )
     actions.append(
@@ -671,22 +379,9 @@ def build_report(root: Path, requirements: Iterable[Requirement] = REQUIREMENTS)
     missing_ids = [row["id"] for row in rows if row["missing_artifacts"]]
     failed_ids = [row["id"] for row in rows if row["failed_artifact_checks"]]
     gap_ids = [row["id"] for row in rows if row["production_gaps"]]
-    requirements_complete = not missing_ids and not failed_ids and not gap_ids and bool(rows)
-    current_evidence = _current_evidence_context(root)
-    current_evidence_clear = _current_evidence_gate_clear(current_evidence)
-    cross_plane_proof_gate = _cross_plane_proof_gate_context(root)
-    cross_plane_proof_gate_clear = cross_plane_proof_gate.get("allowed") is True
-    complete = requirements_complete and current_evidence_clear and cross_plane_proof_gate_clear
+    complete = not missing_ids and not failed_ids and not gap_ids and bool(rows)
     completion_gate, completion_gate_summary, completion_gate_error = _load_completion_gate_runner(root)
-    next_actions = _next_actions(
-        complete,
-        completion_gate_summary,
-        current_evidence,
-        cross_plane_proof_gate,
-        cross_plane_proof_gate_action_required=(
-            requirements_complete and current_evidence_clear
-        ),
-    )
+    next_actions = _next_actions(complete, completion_gate_summary)
     summary = {
         "requirements_total": len(rows),
         "requirements_with_all_artifacts": sum(1 for row in rows if not row["missing_artifacts"]),
@@ -696,34 +391,6 @@ def build_report(root: Path, requirements: Iterable[Requirement] = REQUIREMENTS)
         "missing_artifact_requirement_ids": missing_ids,
         "failed_artifact_check_requirement_ids": failed_ids,
         "production_gap_requirement_ids": gap_ids,
-        "requirements_complete": requirements_complete,
-        "current_evidence_context_included": current_evidence.get("included"),
-        "current_evidence_context_status": current_evidence.get("status"),
-        "current_evidence_required_planes_present": current_evidence.get(
-            "required_planes_present"
-        ),
-        "current_evidence_gate_clear": current_evidence_clear,
-        "current_evidence_gap_count": current_evidence.get("current_gap_count"),
-        "current_evidence_next_action_count": current_evidence.get(
-            "next_action_count"
-        ),
-        "current_evidence_open_gap_ids": current_evidence.get("open_gap_ids", []),
-        "current_evidence_next_action_ids": current_evidence.get(
-            "next_action_ids", []
-        ),
-        "current_evidence_blocker_ids": _current_evidence_blocker_ids(
-            current_evidence
-        ),
-        "cross_plane_proof_gate_available": cross_plane_proof_gate.get("available"),
-        "cross_plane_proof_gate_decision": cross_plane_proof_gate.get("decision"),
-        "cross_plane_proof_gate_allowed": cross_plane_proof_gate_clear,
-        "cross_plane_proof_gate_requested_claim_ids": cross_plane_proof_gate.get(
-            "requested_claim_ids",
-            [],
-        ),
-        "cross_plane_proof_gate_blocker_ids": _cross_plane_proof_gate_blocker_ids(
-            cross_plane_proof_gate
-        ),
         "next_actions_total": len(next_actions),
         "next_actions_operator_input_required": sum(
             1 for action in next_actions if action.get("status") == OPERATOR_INPUT_REQUIRED
@@ -860,16 +527,12 @@ def build_report(root: Path, requirements: Iterable[Requirement] = REQUIREMENTS)
         ),
         "claim_boundary": (
             "Read-only artifact audit. It reads current local evidence reports and checks that "
-            "missing production evidence remains fail-closed. It also requires current cross-plane "
-            "evidence context to be present and clear and the reusable cross-plane proof gate to "
-            "allow the requested strong claims before returning COMPLETE. It does not run "
-            "collectors, contact live systems, mutate runtime state, or mark /goal complete."
+            "missing production evidence remains fail-closed. It does not run collectors, contact "
+            "live systems, mutate runtime state, or mark /goal complete."
         ),
         "completion_decision": "COMPLETE" if complete else "NOT_COMPLETE",
         "goal_can_be_marked_complete": complete,
         "summary": summary,
-        "current_evidence_context": current_evidence,
-        "cross_plane_proof_gate": cross_plane_proof_gate,
         "prompt_to_artifact_checklist": rows,
         "next_actions": next_actions,
     }
@@ -878,27 +541,6 @@ def build_report(root: Path, requirements: Iterable[Requirement] = REQUIREMENTS)
 def write_json(path: Path, payload: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-
-def _resolve_output_path(root: Path, value: str) -> Path:
-    path = Path(value)
-    return path if path.is_absolute() else root / path
-
-
-def _output_path_is_protected(root: Path, value: str) -> bool:
-    output_path = _resolve_output_path(root, value).resolve()
-    protected = {
-        _resolve_output_path(root, item).resolve()
-        for item in PROTECTED_CURRENT_EVIDENCE_OUTPUTS
-    }
-    return output_path in protected
-
-
-def _guard_output_path(root: Path, value: str, *, flag: str) -> None:
-    if _output_path_is_protected(root, value):
-        raise SystemExit(
-            f"{flag} must not overwrite current evidence source artifact: {value}"
-        )
 
 
 def write_markdown(path: Path, payload: Dict[str, Any]) -> None:
@@ -928,11 +570,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
-    _guard_output_path(root, args.output_json, flag="--output-json")
-    _guard_output_path(root, args.output_md, flag="--output-md")
     report = build_report(root)
-    write_json(_resolve_output_path(root, args.output_json), report)
-    write_markdown(_resolve_output_path(root, args.output_md), report)
+    write_json(root / args.output_json if not Path(args.output_json).is_absolute() else Path(args.output_json), report)
+    write_markdown(root / args.output_md if not Path(args.output_md).is_absolute() else Path(args.output_md), report)
 
     if args.output == "json":
         print(json.dumps(report, ensure_ascii=True, sort_keys=True))

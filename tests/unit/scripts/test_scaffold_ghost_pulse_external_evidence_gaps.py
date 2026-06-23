@@ -163,11 +163,6 @@ def test_external_gap_scaffold_writes_fail_closed_incoming_examples(tmp_path):
         "--write",
         "--json",
     ]
-    dpi_task = manifest["collection_tasks"][1]
-    assert dpi_task["collector_command_shape"] == scaffold.EXTERNAL_DPI_COLLECTOR_COMMAND_SHAPE
-    assert "--output" in dpi_task["collector_command_shape"]
-    assert "docs/verification/incoming/dpi_lab.json" in dpi_task["collector_command_shape"]
-    assert "<authorized target URL; local input only>" in dpi_task["collector_command_shape"]
 
     dpi_example = tmp_path / "docs/verification/incoming/examples/dpi_lab.example.json"
     payload = json.loads(dpi_example.read_text(encoding="utf-8"))

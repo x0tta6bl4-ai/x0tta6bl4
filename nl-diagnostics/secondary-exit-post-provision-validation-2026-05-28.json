@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_secondary_exit_post_provision_validation.py",
-  "generated_at": "2026-06-06T12:58:14.685046+00:00",
+  "generated_at": "2026-05-28T03:42:22.908025+00:00",
   "status": "post_provision_validation_ready_waiting_endpoint",
   "ok": true,
   "summary": {
@@ -91,7 +91,7 @@
       "ok": true,
       "evidence": [
         "manual_probe_allowed=false",
-        "manual_failover_readiness_status=blocked_missing_secondary"
+        "manual_failover_readiness_status=blocked_no_incident_trigger"
       ],
       "next_step": "activate a test-client profile only during a real incident after endpoint probe passes"
     },

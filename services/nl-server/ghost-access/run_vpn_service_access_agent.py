@@ -55,17 +55,6 @@ DEFAULT_TELEGRAM_MEDIA_TARGETS = os.environ.get(
 ).strip()
 DEFAULT_TELEGRAM_ACCESS_LOG = os.environ.get("VPN_AGENT_TELEGRAM_ACCESS_LOG", "/var/log/xray/access.log").strip()
 DEFAULT_TELEGRAM_TARGET_LIMIT = int(os.environ.get("VPN_AGENT_TELEGRAM_TARGET_LIMIT", "4"))
-THINKING_CONTRACT = {
-    "role": "vpn_service_access_probe_agent",
-    "techniques": [
-        "framing",
-        "mape_k",
-        "causal_analysis",
-        "weighted_decision_matrix",
-        "zero_trust_review",
-    ],
-    "safety_boundary": "probe and report only; do not expose subscription tokens or VPN URIs",
-}
 
 
 SERVICE_CATALOG: list[dict[str, str]] = [
@@ -637,24 +626,6 @@ def _top_level_overall_status(
     return "unhealthy"
 
 
-def _thinking_context(task_type: str, goal: str, constraints: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        "contract": THINKING_CONTRACT,
-        "applied": {
-            "framing": {
-                "problem": task_type,
-                "goal": goal,
-                "constraints": constraints or {},
-                "safety_boundary": THINKING_CONTRACT["safety_boundary"],
-            },
-            "mape_k": ["monitor-services", "analyze-paths", "plan-recommendations", "execute-report", "knowledge-latest"],
-            "weighted_decision_matrix": {
-                "criteria": ["availability", "latency", "privacy", "transport-health"],
-            },
-        },
-    }
-
-
 def _build_transport_path_summary(
     *,
     path_id: str,
@@ -866,15 +837,6 @@ def _build_payload(args: argparse.Namespace) -> dict[str, Any]:
         "services": services,
         "global_recommendations": global_recommendations,
         "probe_duration_s": round(time.time() - started, 3),
-        "thinking": _thinking_context(
-            "vpn_service_access_probe",
-            "Compare direct, HTTP proxy, SOCKS, and transport health to recommend VPN improvements.",
-            {
-                "service_count": len(services),
-                "overall_status": overall_status,
-                "subscription_configured": bool(subscription_check_url),
-            },
-        ),
     }
     return payload
 

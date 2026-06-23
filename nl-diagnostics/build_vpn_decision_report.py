@@ -102,15 +102,6 @@ def decide_action(classification: dict[str, Any], blocking_history: dict[str, An
             "inspect NL services/listeners read-only",
             "prepare backup and rollback plan before any future NL write",
         ]
-    elif failure_domain == "monitoring" or blocking_category == "monitoring_gap":
-        decision = "restore_transport_canary_monitor"
-        confidence = "high"
-        reason = "core VPN has live TCP/x-ui evidence, but transport canary evidence is not configured"
-        next_actions = [
-            "run the local dry-run/precheck for restoring ghost-access-vpn-monitor.timer",
-            "apply the monitor restore only after explicit approval",
-            "collect a fresh read-only snapshot after the monitor evidence is refreshed",
-        ]
     elif profile_decision == "manual_profile_review" or blocking_category == "anti_block_candidate":
         decision = "manual_profile_review"
         confidence = "medium"

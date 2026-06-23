@@ -14,6 +14,8 @@ PYTHON_SCAN_DIRS = (
     "src/core",
     "src/network",
     "src/security",
+    "src/self_healing",
+    "src/sales",
     "src/libx0t/core",
     "src/libx0t/security",
 )

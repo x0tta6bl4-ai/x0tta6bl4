@@ -10,9 +10,8 @@ import logging
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
-from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -26,37 +25,6 @@ def _get_pqc_node_identity() -> Any:
 
         PQCNodeIdentity = imported_identity
     return PQCNodeIdentity
-
-
-def _safe_hash(value: object) -> str:
-    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
-
-
-def _safe_count_bucket(value: int) -> str:
-    if value <= 0:
-        return "0"
-    if value <= 3:
-        return "1-3"
-    if value <= 10:
-        return "4-10"
-    if value <= 100:
-        return "11-100"
-    return "100+"
-
-
-def _safe_number_band(value: object) -> str:
-    if not isinstance(value, (int, float)):
-        return "non_numeric"
-    if value < 0:
-        return "negative"
-    if value == 0:
-        return "0"
-    if value <= 30:
-        return "1-30"
-    if value <= 365:
-        return "31-365"
-    return "365+"
-
 
 @dataclass
 class PQCSVID:

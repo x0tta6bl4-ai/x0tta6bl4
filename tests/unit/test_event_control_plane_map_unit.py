@@ -31,13 +31,7 @@ MARKER_REQUIREMENTS = {
         "get_service_event_replay",
     ),
     "safe_actuator": ("SafeActuator",),
-    "safe_actuator_evidence_metadata": ("safe_actuator_evidence_metadata",),
     "async_safe_actuator": ("AsyncSafeActuator",),
-    "bounded_output_metadata": (
-        "_bounded_output_metadata",
-        "stdout_sha256",
-        "stderr_sha256",
-    ),
     "marketplace_event_helper": ("publish_marketplace_escrow_event",),
     "reward_event_helper": ("publish_reward_settlement_event",),
 }
@@ -145,44 +139,6 @@ def test_event_control_plane_surface_markers_match_sources():
         for marker in item["markers"]:
             requirements = MARKER_REQUIREMENTS[marker]
             assert any(text in source for text in requirements), (item["path"], marker)
-
-
-def test_event_control_plane_map_records_token_bridge_safe_actuator_boundary():
-    event_map = _load_map()
-    surfaces = {item["path"]: item for item in event_map["event_surface_files"]}
-
-    token_bridge = surfaces["src/dao/bridge/core.py"]
-    assert "safe_actuator_evidence_metadata" in token_bridge["markers"]
-    assert "typed SafeActuatorEvidenceMetadata" in token_bridge["role"]
-    assert "pending transaction submission" in token_bridge["role"]
-    assert "external settlement finality" in token_bridge["role"]
-    assert "payment-provider settlement" in token_bridge["role"]
-    assert "bank settlement" in token_bridge["role"]
-    assert "live token-settlement finality" in token_bridge["role"]
-    assert "dataplane delivery" in token_bridge["role"]
-    assert "traffic/customer delivery" in token_bridge["role"]
-    assert "revenue recognition" in token_bridge["role"]
-    assert "production readiness" in token_bridge["role"]
-    assert "src/dao/bridge/core.py:605" in token_bridge["source_refs"]
-
-
-def test_event_control_plane_map_records_current_safe_actuator_adoption_state():
-    event_map = _load_map()
-    links = {item["id"]: item for item in event_map["non_obvious_links"]}
-    link = links["safe-actuator-is-cross-layer-not-local"]
-    summary = link["summary"]
-
-    assert "parse-error-free adoption inventory" in summary
-    assert "21/21" in summary
-    assert "63/63" in summary
-    assert "20 EventBus + 5 result-metadata" in summary
-    assert "IntegrationSpine's own completed outcome path" in summary
-    assert "production, dataplane, trust-finality, settlement" in summary
-    assert "customer-traffic claims" in summary
-    assert "still incremental" not in summary
-    assert "src/integration/spine.py:14" in link["source_refs"]
-    assert "src/api/maas/endpoints/governance.py:26" in link["source_refs"]
-    assert "src/network/mptcp_manager.py:16" in link["source_refs"]
 
 
 def test_non_obvious_links_reference_mapped_event_surfaces():

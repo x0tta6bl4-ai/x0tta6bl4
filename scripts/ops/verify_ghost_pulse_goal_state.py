@@ -57,7 +57,6 @@ EXPECTED_PROOF_ROW_CLAIMS = (
     "whitelist_lab",
     "security_review",
     "production_readiness",
-    "current_runtime_attached",
 )
 EXTERNAL_EVIDENCE_CLAIMS = (
     "kernel_attach",
@@ -79,9 +78,6 @@ CLOSURE_CLAIMS = (
     "security_review",
     "production_readiness",
 )
-RUNTIME_CLAIMS = (
-    "current_runtime_attached",
-)
 FALSE_REPORT_BOUNDARY_KEYS = (
     "stealth_verified",
     "whitelist_verified",
@@ -94,7 +90,6 @@ STABLE_REPORT_KEYS = (
     "decision",
     "starter_verified_claims",
     "pending_external_evidence_claims",
-    "pending_runtime_claims",
     "pending_external_evidence_details",
     "candidate_paths",
     "claim_boundary",
@@ -259,7 +254,6 @@ def rows_by_claim(data: dict[str, Any], key: str) -> dict[str, dict[str, Any]]:
 
 def expected_proof_boundary(statuses: dict[str, str]) -> dict[str, bool]:
     return {
-        "current_runtime_attached": statuses.get("current_runtime_attached") == "VERIFIED",
         "kernel_attach_verified": statuses.get("kernel_attach") == "VERIFIED",
         "production_ready": all(statuses.get(claim_id) == "VERIFIED" for claim_id in EXPECTED_PROOF_ROW_CLAIMS),
         "stealth_verified": (
@@ -582,24 +576,16 @@ def build_report(
         for claim_id in CLOSURE_CLAIMS
         if statuses.get(claim_id) != "VERIFIED"
     ]
-    runtime_pending = [
-        claim_id
-        for claim_id in RUNTIME_CLAIMS
-        if statuses.get(claim_id) != "VERIFIED"
-    ]
     unexpected_unverified = [
         claim_id
         for claim_id in EXPECTED_PROOF_ROW_CLAIMS
-        if statuses.get(claim_id) != "VERIFIED"
-        and claim_id not in CLOSURE_CLAIMS
-        and claim_id not in RUNTIME_CLAIMS
+        if statuses.get(claim_id) != "VERIFIED" and claim_id not in CLOSURE_CLAIMS
     ]
     for claim_id in unexpected_unverified:
         proof_failures.append(f"{claim_id}: non-closure claim must not be pending")
-    expected_not_verified = pending + runtime_pending
-    if proof.get("not_verified_yet") != expected_not_verified:
-        proof_failures.append("proof.not_verified_yet must match pending external/runtime claims")
-    expected_proof_decision = PROOF_DECISION_INCOMPLETE if expected_not_verified else PROOF_DECISION_PROVEN
+    if proof.get("not_verified_yet") != pending:
+        proof_failures.append("proof.not_verified_yet must match pending external evidence claims")
+    expected_proof_decision = PROOF_DECISION_INCOMPLETE if pending else PROOF_DECISION_PROVEN
     if proof.get("decision") != expected_proof_decision:
         proof_failures.append(f"proof.decision must be {expected_proof_decision}")
     if proof.get("claim_boundary") != expected_proof_boundary(statuses):
@@ -757,14 +743,12 @@ def build_report(
     )
     failures.extend(detail_failures)
 
-    pending_fail_closed = bool(pending or runtime_pending)
-    decision = DECISION_INVALID if failures else (DECISION_GAPS_RECORDED if pending_fail_closed else DECISION_ALL_PROVEN)
+    decision = DECISION_INVALID if failures else (DECISION_GAPS_RECORDED if pending else DECISION_ALL_PROVEN)
     checks = {
         "proof_gate": {
             "status": "PASS" if not proof_failures else "FAIL",
             "starter_verified_claims": starter_verified,
             "pending_external_evidence_claims": pending,
-            "pending_runtime_claims": runtime_pending,
             "failures": proof_failures,
         },
         "replacement_candidates": {
@@ -804,7 +788,6 @@ def build_report(
         "decision": decision,
         "starter_verified_claims": starter_verified,
         "pending_external_evidence_claims": pending,
-        "pending_runtime_claims": runtime_pending,
         "pending_external_evidence_details": pending_details,
         "candidate_paths": expected_candidate_paths(pending),
         "claim_boundary": proof.get("claim_boundary", {}),
@@ -860,13 +843,6 @@ def render_markdown(report: dict[str, Any]) -> str:
                     f"object_is_ebpf `{object_preflight.get('object_is_ebpf')}`; "
                     f"has_xdp_section `{object_preflight.get('object_has_xdp_section')}`"
                 )
-    else:
-        lines.append("- None")
-    lines.extend(["", "## Pending Runtime Claims"])
-    runtime_pending = report.get("pending_runtime_claims", [])
-    if runtime_pending:
-        for claim_id in runtime_pending:
-            lines.append(f"- `{claim_id}`")
     else:
         lines.append("- None")
     lines.extend(["", "## Claim Boundary"])

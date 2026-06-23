@@ -29,8 +29,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,
 )
 
-from src.core.agent_thinking import AgentThinkingCoach
-
 logger = logging.getLogger(__name__)
 
 
@@ -528,44 +526,18 @@ class DIDManager:
                 return False, f"Unknown proof type: {proof.get('type')}"
 
             if vc_dict.get("issuer") != self.did:
-                self._record_thinking(
-                    "did_credential_verify_failed",
-                    "Reject credential from unexpected issuer",
-                    {
-                        "reason": "issuer_mismatch",
-                        "issuer": _safe_ref(vc_dict.get("issuer")),
-                    },
-                )
                 return False, "Issuer DID does not match local DID document"
 
             verification_method = proof.get("verificationMethod")
             if not verification_method:
-                self._record_thinking(
-                    "did_credential_verify_failed",
-                    "Reject credential without verification method",
-                    {"reason": "missing_verification_method"},
-                )
                 return False, "Missing verification method"
 
             public_key = self._public_key_for_verification_method(verification_method)
             if public_key is None:
-                self._record_thinking(
-                    "did_credential_verify_failed",
-                    "Reject credential with missing or revoked verification method",
-                    {
-                        "reason": "verification_method_unavailable",
-                        "verification_method": _safe_ref(verification_method),
-                    },
-                )
                 return False, "Verification method not found or revoked"
 
             proof_value = proof.get("proofValue")
             if not proof_value:
-                self._record_thinking(
-                    "did_credential_verify_failed",
-                    "Reject credential without proof value",
-                    {"reason": "missing_proof_value"},
-                )
                 return False, "Missing proof value"
 
             signature = DIDGenerator.multibase_decode(proof_value)
@@ -573,26 +545,8 @@ class DIDManager:
             unsigned_vc.pop("proof", None)
             proof_data = json.dumps(unsigned_vc, sort_keys=True).encode()
             if not self.verify_signature(proof_data, signature, public_key):
-                self._record_thinking(
-                    "did_credential_verify_failed",
-                    "Reject credential with invalid signature",
-                    {
-                        "reason": "invalid_signature",
-                        "verification_method": _safe_ref(verification_method),
-                    },
-                )
                 return False, "Invalid credential signature"
 
-            self._record_thinking(
-                "did_credential_verified",
-                "Accept verifiable credential",
-                {
-                    "credential": _safe_ref(vc_dict.get("id")),
-                    "issuer": _safe_ref(vc_dict.get("issuer")),
-                    "verification_method": _safe_ref(verification_method),
-                    "type_count": len(vc_dict.get("type", []) or []),
-                },
-            )
             return True, "Credential valid"
 
         except Exception as e:

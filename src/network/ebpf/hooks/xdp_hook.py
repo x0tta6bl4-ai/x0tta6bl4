@@ -25,85 +25,11 @@ from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
 
-EBPF_XDP_HOOK_SERVICE_NAME = "ebpf-xdp-hook"
-EBPF_XDP_HOOK_LAYER = "network_ebpf_xdp_hook_observed_state"
-EBPF_XDP_HOOK_CLAIM_BOUNDARY = (
-    "Local XDP hook evidence only. Events record sysfs checks and ip link "
-    "attach/detach/verify outcomes with return codes, duration, bounded output "
-    "hashes, and redacted interface/program selectors; they do not prove "
-    "production traffic, remote peer identity, route quality, or kernel datapath "
-    "enforcement beyond the local command and verification result."
-)
-
 _XDP_MODE_FLAGS = {
     "generic": "xdp",
     "native": "xdpdrv",
     "offload": "xdpoffload",
 }
-
-
-def _normalize_text(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return str(value)
-
-
-def _sha256_text(value: str) -> Optional[str]:
-    if not value:
-        return None
-    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
-
-
-def _hash_value(value: Any) -> Optional[str]:
-    if value is None:
-        return None
-    return _sha256_text(str(value))
-
-
-def _bounded_output_metadata(
-    stdout: Optional[Any],
-    stderr: Optional[Any],
-) -> Dict[str, Any]:
-    safe_stdout = _normalize_text(stdout)
-    safe_stderr = _normalize_text(stderr)
-    return {
-        "stdout_chars": len(safe_stdout),
-        "stderr_chars": len(safe_stderr),
-        "stdout_sha256": _sha256_text(safe_stdout),
-        "stderr_sha256": _sha256_text(safe_stderr),
-        "output_bounded": True,
-        "output_redacted": True,
-    }
-
-
-def _redacted_command(
-    command: List[Any],
-    redacted_indices: Tuple[int, ...],
-) -> List[str]:
-    redacted = set(redacted_indices)
-    safe_command: List[str] = []
-    for index, item in enumerate(command):
-        if index == 0:
-            safe_command.append(str(item).split("/")[-1])
-        elif index in redacted:
-            safe_command.append("[redacted]")
-        else:
-            safe_command.append(str(item))
-    return safe_command
-
-
-def _identity_metadata() -> Dict[str, Any]:
-    identity = service_event_identity(service_name=EBPF_XDP_HOOK_SERVICE_NAME)
-    return {
-        "service_name": EBPF_XDP_HOOK_SERVICE_NAME,
-        "layer": EBPF_XDP_HOOK_LAYER,
-        "spiffe_id_configured": bool(identity.get("spiffe_id")),
-        "did_configured": bool(identity.get("did")),
-        "wallet_address_configured": bool(identity.get("wallet_address")),
-        "redacted": True,
-    }
 
 
 class XDPAction(Enum):
@@ -320,21 +246,8 @@ class XDPHook:
         Returns:
             True if the requested mode can be attempted
         """
-        check_start = time.monotonic()
         if mode not in _XDP_MODE_FLAGS:
             logger.error("Unsupported XDP mode requested: %s", mode)
-            self._publish_observation(
-                stage="xdp_driver_support_invalid_mode",
-                operation="check_driver_support",
-                status="failure",
-                source_mode="sysfs-ip-link",
-                start=check_start,
-                parsed_summary={"supported": False, "mode": mode},
-                extra={
-                    "interface_hash": _hash_value(interface),
-                    "interface_redacted": True,
-                },
-            )
             return False
 
         if mode == "generic":
@@ -355,26 +268,11 @@ class XDPHook:
 
         if not self._check_interface_exists(interface):
             logger.error("Cannot check XDP support, interface not found: %s", interface)
-            self._publish_observation(
-                stage="xdp_driver_support_interface_missing",
-                operation="check_driver_support",
-                status="failure",
-                source_mode="sysfs",
-                start=check_start,
-                parsed_summary={"supported": False, "mode": mode},
-                extra={
-                    "interface_hash": _hash_value(interface),
-                    "interface_redacted": True,
-                    "required_flag": _XDP_MODE_FLAGS[mode],
-                },
-            )
             return False
 
         # For native/offload, first verify that the installed iproute2 supports
         # the required mode flag. The actual driver support is still confirmed by
         # the kernel attach attempt below.
-        operstate_present = False
-        operstate_up: Optional[bool] = None
         try:
             operstate_path = Path(f"/sys/class/net/{interface}/operstate")
             if operstate_path.exists():
@@ -388,80 +286,20 @@ class XDPHook:
         except Exception:
             pass
 
-        command = ["ip", "link", "help"]
         try:
             result = subprocess.run(
-                command,
+                ["ip", "link", "help"],
                 capture_output=True,
                 text=True,
                 timeout=2,
             )
-        except subprocess.TimeoutExpired as e:
-            self._publish_observation(
-                stage="xdp_driver_support_check_timeout",
-                operation="check_driver_support",
-                status="failure",
-                source_mode="ip-link",
-                start=check_start,
-                command=command,
-                stdout=getattr(e, "stdout", None) or getattr(e, "output", None),
-                stderr=getattr(e, "stderr", None),
-                error=e,
-                parsed_summary={"supported": False, "mode": mode},
-                extra={
-                    "interface_hash": _hash_value(interface),
-                    "interface_redacted": True,
-                    "required_flag": _XDP_MODE_FLAGS[mode],
-                    "operstate_present": operstate_present,
-                    "operstate_up": operstate_up,
-                },
-            )
-            logger.warning("Cannot verify ip link XDP mode support: %s", e)
-            return False
         except Exception as e:
-            self._publish_observation(
-                stage="xdp_driver_support_check_error",
-                operation="check_driver_support",
-                status="failure",
-                source_mode="ip-link",
-                start=check_start,
-                command=command,
-                error=e,
-                parsed_summary={"supported": False, "mode": mode},
-                extra={
-                    "interface_hash": _hash_value(interface),
-                    "interface_redacted": True,
-                    "required_flag": _XDP_MODE_FLAGS[mode],
-                    "operstate_present": operstate_present,
-                    "operstate_up": operstate_up,
-                },
-            )
             logger.warning("Cannot verify ip link XDP mode support: %s", e)
             return False
 
         help_text = f"{result.stdout}\n{result.stderr}".lower()
         required_flag = _XDP_MODE_FLAGS[mode]
-        supported = required_flag in help_text
-        self._publish_observation(
-            stage="xdp_driver_support_checked",
-            operation="check_driver_support",
-            status="success" if supported else "failure",
-            source_mode="ip-link",
-            start=check_start,
-            command=command,
-            returncode=result.returncode,
-            stdout=result.stdout,
-            stderr=result.stderr,
-            parsed_summary={"supported": supported, "mode": mode},
-            extra={
-                "interface_hash": _hash_value(interface),
-                "interface_redacted": True,
-                "required_flag": required_flag,
-                "operstate_present": operstate_present,
-                "operstate_up": operstate_up,
-            },
-        )
-        if not supported:
+        if required_flag not in help_text:
             logger.debug(
                 "ip link does not advertise %s support for %s mode",
                 required_flag,
@@ -562,20 +400,6 @@ class XDPHook:
                     "Skipping XDP %s mode on %s: support check failed",
                     attempt_mode,
                     interface,
-                )
-                self._publish_observation(
-                    stage="xdp_attach_mode_support_skipped",
-                    operation="attach",
-                    status="failure",
-                    source_mode="sysfs-ip-link",
-                    start=op_start,
-                    read_only=False,
-                    parsed_summary={
-                        "attached": False,
-                        "reason": "mode_support_check_failed",
-                        "attempt_mode": attempt_mode,
-                    },
-                    extra=selector_metadata,
                 )
                 continue
 

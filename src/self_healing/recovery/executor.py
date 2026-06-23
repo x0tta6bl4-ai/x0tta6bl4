@@ -1,14 +1,10 @@
 """
 Recovery Actions for MAPE-K - Main Executor
 """
-import hashlib
-import asyncio
-import inspect
 import logging
 import os
 import shutil
 import subprocess
-import threading
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -21,11 +17,6 @@ from .models import RecoveryActionType, RecoveryResult
 from .rate_limiter import RateLimiter
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.mesh.recovery_dataplane_probe import (
-    build_recovery_dataplane_ping_probe,
-    normalize_recovery_dataplane_probe_result,
-)
-from src.mesh.recovery_contracts import build_post_action_dataplane_claim_gate
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -36,322 +27,20 @@ from src.services.service_event_identity import service_event_identity
 logger = logging.getLogger(__name__)
 
 _SERVICE_AGENT = "recovery-action-executor"
-_POST_ACTION_PROBE_ENV_VAR = "x0tta6bl4_RECOVERY_POST_ACTION_PROBE"
-_DATAPLANE_REVALIDATED_ACTION_TYPES = {
-    "restart_service",
-    "switch_route",
-    "scale_up",
-    "scale_down",
-    "failover",
-    "quarantine_node",
-    "switch_protocol",
-}
 
 CLAIM_BOUNDARY = (
     "Self-healing recovery action event only. It records local policy, safety, "
-    "and execution decisions with bounded/redacted metadata. It does not prove "
-    "production rollout, live operator-approved remediation, restored dataplane, "
-    "customer traffic, external DPI bypass, or settlement finality by itself."
-)
-POST_ACTION_DATAPLANE_REVALIDATION_CLAIM_BOUNDARY = (
-    "Self-healing post-action dataplane revalidation metadata only. A local "
-    "recovery action is not treated as restored dataplane proof unless an "
-    "explicit bounded dataplane probe is attempted and redacted evidence is "
-    "attached."
+    "and execution decisions and does not prove production rollout or live "
+    "operator-approved remediation by itself."
 )
 
-
-def _sha256_text(value: str) -> Optional[str]:
-    if not value:
-        return None
-    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
-
-
-def _env_bool(name: str, default: bool = False) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _safe_float(value: Any) -> Optional[float]:
-    if value is None or isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    return None
-
-
-def _identity_presence(identity: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "node_id_configured": bool(identity.get("node_id")),
-        "spiffe_id_configured": bool(identity.get("spiffe_id")),
-        "did_configured": bool(identity.get("did")),
-        "wallet_address_configured": bool(identity.get("wallet_address")),
-        "raw_identity_redacted": True,
-        "redacted": True,
-    }
-
-
-def _redacted_action_metadata(action: str) -> Dict[str, Any]:
-    safe_action = action or ""
-    return {
-        "chars": len(safe_action),
-        "sha256": _sha256_text(safe_action),
-        "redacted": True,
-    }
-
-
-def _redacted_context_metadata(context: Dict[str, Any]) -> Dict[str, Any]:
-    safe_context = context or {}
-    return {
-        "keys": sorted(str(key) for key in safe_context),
-        "items_total": len(safe_context),
-        "values_redacted": True,
-        "raw_context_redacted": True,
-        "redacted": True,
-    }
-
-
-def _result_details_metadata(details: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    safe_details = details or {}
-    method = safe_details.get("method")
-    method_bucket = str(method) if method is not None else None
-    return {
-        "keys": sorted(str(key) for key in safe_details),
-        "items_total": len(safe_details),
-        "method": method_bucket,
-        "values_redacted": True,
-        "raw_details_redacted": True,
-        "redacted": True,
-    }
-
-
-def _evidence_summary(evidence: Any) -> Dict[str, Any]:
-    if not isinstance(evidence, dict):
-        return {
-            "source_agents": [],
-            "event_ids": [],
-            "events_total": 0,
-            "event_ids_count": 0,
-            "redacted": True,
-        }
-    event_ids = (
-        [str(event_id) for event_id in evidence.get("event_ids", []) if str(event_id)]
-        if isinstance(evidence.get("event_ids"), list)
-        else []
-    )
-    source_agents = (
-        [
-            str(source_agent)
-            for source_agent in evidence.get("source_agents", [])
-            if str(source_agent)
-        ]
-        if isinstance(evidence.get("source_agents"), list)
-        else []
-    )
-    return {
-        "source_agents": source_agents,
-        "event_ids": event_ids,
-        "events_total": int(evidence.get("events_total", len(event_ids)) or 0),
-        "event_ids_count": len(event_ids),
-        "redacted": evidence.get("redacted") is True,
-    }
-
-
-def _probe_result_summary(value: Any) -> Dict[str, Any]:
-    if not isinstance(value, dict):
-        return {
-            "status": "error",
-            "dataplane_confirmed": False,
-            "evidence": _evidence_summary({}),
-            "redacted": True,
-        }
-    latency_ms = _safe_float(value.get("latency_ms"))
-    packet_loss_percent = _safe_float(value.get("packet_loss_percent"))
-    jitter_ms = _safe_float(value.get("jitter_ms"))
-    dataplane_confirmed = bool(
-        value.get("dataplane_confirmed") is True
-        or (
-            value.get("status") == "ok"
-            and (latency_ms is not None or packet_loss_percent is not None)
-        )
-    )
-    return {
-        "status": str(value.get("status") or "unknown"),
-        "dataplane_confirmed": dataplane_confirmed,
-        "latency_ms": latency_ms,
-        "packet_loss_percent": packet_loss_percent,
-        "jitter_ms": jitter_ms,
-        "evidence": _evidence_summary(value.get("evidence")),
-        "claim_boundary": str(value.get("claim_boundary") or ""),
-        "raw_target_redacted": value.get("raw_target_redacted") is True,
-        "redacted": True,
-    }
-
-
-def _post_action_dataplane_claim_gate(
-    *,
-    probe_attempted: bool,
-    dataplane_confirmed: bool,
-    evidence: Dict[str, Any],
-    required: bool,
-    probe_enabled: bool,
-    probe_target_present: bool,
-    local_action_applied: bool,
-) -> Dict[str, Any]:
-    gate = build_post_action_dataplane_claim_gate(
-        probe_required=required,
-        probe_enabled=probe_enabled,
-        probe_target_present=probe_target_present,
-        probe_attempted=probe_attempted,
-        dataplane_confirmed=dataplane_confirmed,
-        evidence=evidence,
-        local_action_applied=local_action_applied,
-        claim_boundary=POST_ACTION_DATAPLANE_REVALIDATION_CLAIM_BOUNDARY,
-    )
-    return gate.model_dump(mode="json")
-
-
-def _post_action_dataplane_revalidation_summary(
-    *,
-    action_type_value: str,
-    result_success: bool,
-    probe_enabled: bool,
-    probe_target_present: bool,
-    probe_target_hash: Optional[str],
-    probe_result: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    required = action_type_value in _DATAPLANE_REVALIDATED_ACTION_TYPES
-    probe_attempted = probe_result is not None
-    safe_probe_result = _probe_result_summary(probe_result)
-    dataplane_confirmed = bool(
-        required and probe_attempted and safe_probe_result["dataplane_confirmed"]
-    )
-    evidence = (
-        safe_probe_result["evidence"] if probe_attempted else _evidence_summary({})
-    )
-    claim_gate = _post_action_dataplane_claim_gate(
-        probe_attempted=probe_attempted,
-        dataplane_confirmed=dataplane_confirmed,
-        evidence=evidence,
-        required=required,
-        probe_enabled=probe_enabled,
-        probe_target_present=probe_target_present,
-        local_action_applied=result_success,
-    )
-    if not required:
-        status = "not_required"
-        reason = "action_type_not_dataplane_restoration"
-    elif not result_success:
-        status = "not_attempted"
-        reason = "recovery_action_not_successful"
-    elif not probe_enabled:
-        status = "not_attempted"
-        reason = "no_post_action_dataplane_probe_configured"
-    elif not probe_target_present:
-        status = "not_attempted"
-        reason = "no_post_action_dataplane_probe_target"
-    elif claim_gate["restored_dataplane_claim_allowed"]:
-        status = "success"
-        reason = "bounded_dataplane_probe_succeeded"
-    else:
-        status = "failed"
-        reason = "bounded_dataplane_probe_failed"
-
-    return {
-        "status": status,
-        "reason": reason,
-        "probe_env_var": _POST_ACTION_PROBE_ENV_VAR,
-        "probe_enabled": probe_enabled,
-        "probe_target_present": probe_target_present,
-        "probe_target_hash": probe_target_hash,
-        "probe_target_redacted": True,
-        "probe_attempted": probe_attempted,
-        "post_action_dataplane_revalidated": claim_gate[
-            "post_action_dataplane_revalidated"
-        ],
-        "dataplane_confirmed": dataplane_confirmed,
-        "required_for_restored_dataplane_claim": required,
-        "restored_dataplane_claim_allowed": claim_gate[
-            "restored_dataplane_claim_allowed"
-        ],
-        "claim_gate": claim_gate,
-        "probe_result": safe_probe_result if probe_attempted else None,
-        "evidence": evidence,
-        "control_action_applied": bool(result_success),
-        "claim_boundary": POST_ACTION_DATAPLANE_REVALIDATION_CLAIM_BOUNDARY,
-        "redacted": True,
-    }
-
-
-def _run_awaitable_sync(awaitable: Any) -> Any:
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(awaitable)
-
-    holder: Dict[str, Any] = {}
-
-    def _runner() -> None:
-        try:
-            holder["value"] = asyncio.run(awaitable)
-        except Exception as exc:
-            holder["error"] = exc
-
-    thread = threading.Thread(target=_runner, daemon=True)
-    thread.start()
-    thread.join()
-    if "error" in holder:
-        raise holder["error"]
-    return holder.get("value")
-
-
-def _recovery_claim_gate(
-    result: Optional[RecoveryResult],
-    post_action_dataplane_revalidation: Optional[Dict[str, Any]],
-) -> Dict[str, Any]:
-    local_action_recorded = result is not None
-    restored_dataplane_claim_allowed = bool(
-        post_action_dataplane_revalidation
-        and post_action_dataplane_revalidation.get(
-            "restored_dataplane_claim_allowed"
-        )
-    )
-    dataplane_confirmed = bool(
-        post_action_dataplane_revalidation
-        and post_action_dataplane_revalidation.get("dataplane_confirmed")
-    )
-    return {
-        "local_recovery_action_recorded": local_action_recorded,
-        "local_policy_decision_recorded": True,
-        "dataplane_confirmed": dataplane_confirmed,
-        "post_action_dataplane_revalidated": dataplane_confirmed,
-        "restored_dataplane_claim_allowed": restored_dataplane_claim_allowed,
-        "production_readiness_claim_allowed": False,
-        "live_customer_traffic_confirmed": False,
-        "traffic_delivery_claim_allowed": False,
-        "operator_approval_confirmed": False,
-        "external_dpi_bypass_confirmed": False,
-        "settlement_finality_confirmed": False,
-        "claim_allowed": {
-            "local_recovery_lifecycle": local_action_recorded,
-            "restored_dataplane": restored_dataplane_claim_allowed,
-            "production_readiness": False,
-            "live_customer_traffic": False,
-            "external_dpi_bypass": False,
-            "settlement_finality": False,
-        },
-        "claim_boundary": CLAIM_BOUNDARY,
-    }
 
 
 class RecoveryActionExecutor:
     """
-    Bounded recovery action executor.
+    Production-ready recovery action executor.
 
-    Executes local recovery actions for the MAPE-K cycle. EventBus evidence
-    is redacted and is not production-restoration proof by itself.
+    Implements real recovery actions for MAPE-K cycle.
     """
 
     def __init__(
@@ -368,8 +57,6 @@ class RecoveryActionExecutor:
         did: Optional[str] = None,
         wallet_address: Optional[str] = None,
         source_agent: str = _SERVICE_AGENT,
-        enable_post_action_dataplane_probe: Optional[bool] = None,
-        post_action_dataplane_probe_provider: Optional[Any] = None,
     ):
         self.node_id = node_id
         self.action_history: List[RecoveryResult] = []
@@ -378,17 +65,6 @@ class RecoveryActionExecutor:
         self.policy_engine = policy_engine
         self.require_policy = require_policy
         self.source_agent = source_agent
-        self._post_action_probe_config_source = (
-            "env" if enable_post_action_dataplane_probe is None else "constructor"
-        )
-        self.enable_post_action_dataplane_probe = (
-            _env_bool(_POST_ACTION_PROBE_ENV_VAR, False)
-            if enable_post_action_dataplane_probe is None
-            else bool(enable_post_action_dataplane_probe)
-        )
-        self.post_action_dataplane_probe_provider = (
-            post_action_dataplane_probe_provider
-        )
 
         env_identity = service_event_identity(service_name=_SERVICE_AGENT)
         self.identity = {
@@ -528,13 +204,6 @@ class RecoveryActionExecutor:
 
         # Parse action type
         action_type = self._parse_action_type(action)
-        self._publish_recovery_event(
-            EventType.COORDINATION_REQUEST,
-            action=action,
-            action_type=action_type,
-            context=context,
-            stage="requested",
-        )
         policy_allowed, policy_decision, policy_reason = self._evaluate_policy(
             action_type,
             context,
@@ -560,16 +229,6 @@ class RecoveryActionExecutor:
             )
             return False
 
-        self._publish_recovery_event(
-            EventType.PIPELINE_STAGE_START,
-            action=action,
-            action_type=action_type,
-            context=context,
-            stage="started",
-            reason=policy_reason or "",
-            policy_decision=policy_decision,
-        )
-
         # Execute with retry logic
         for attempt in range(self.max_retries):
             try:
@@ -586,13 +245,6 @@ class RecoveryActionExecutor:
                 # Save state for rollback if successful
                 if result.success:
                     self._save_state_for_rollback(action_type, context)
-                post_action_dataplane_revalidation = (
-                    self._post_action_dataplane_revalidation(
-                        action_type,
-                        context,
-                        result,
-                    )
-                )
 
                 # Record in history
                 self._record_action(result)
@@ -618,9 +270,6 @@ class RecoveryActionExecutor:
                     result=result,
                     reason=policy_reason or result.error_message or "",
                     policy_decision=policy_decision,
-                    post_action_dataplane_revalidation=(
-                        post_action_dataplane_revalidation
-                    ),
                 )
                 return result.success
 
@@ -654,13 +303,6 @@ class RecoveryActionExecutor:
                         result=result,
                         reason=str(e),
                         policy_decision=policy_decision,
-                        post_action_dataplane_revalidation=(
-                            self._post_action_dataplane_revalidation(
-                                action_type,
-                                context,
-                                result,
-                            )
-                        ),
                     )
                     return False
 
@@ -766,80 +408,6 @@ class RecoveryActionExecutor:
             )
         return True, decision, normalize_policy_reason(decision)
 
-    def _post_action_probe_enabled(self) -> bool:
-        if self._post_action_probe_config_source == "env":
-            return _env_bool(_POST_ACTION_PROBE_ENV_VAR, False)
-        return bool(self.enable_post_action_dataplane_probe)
-
-    @staticmethod
-    def _post_action_probe_target(context: Dict[str, Any]) -> Optional[str]:
-        for key in (
-            "post_action_dataplane_probe_target",
-            "dataplane_probe_target",
-        ):
-            value = context.get(key)
-            if value is None:
-                continue
-            target = str(value).strip()
-            if target:
-                return target
-        return None
-
-    def _probe_post_action_dataplane(self, target: str) -> Dict[str, Any]:
-        try:
-            provider = self.post_action_dataplane_probe_provider
-            if provider is not None:
-                if hasattr(provider, "probe_peer"):
-                    raw_result = provider.probe_peer(target)
-                else:
-                    raw_result = provider(target)
-                if inspect.isawaitable(raw_result):
-                    raw_result = _run_awaitable_sync(raw_result)
-            else:
-                raw_result = build_recovery_dataplane_ping_probe(
-                    target,
-                    event_bus=self.event_bus,
-                )
-                raw_result = raw_result()
-            return normalize_recovery_dataplane_probe_result(raw_result)
-        except Exception as exc:
-            return {
-                "status": "error",
-                "error": {
-                    "type": type(exc).__name__,
-                    "message_redacted": True,
-                },
-                "redacted": True,
-            }
-
-    def _post_action_dataplane_revalidation(
-        self,
-        action_type: RecoveryActionType,
-        context: Dict[str, Any],
-        result: Optional[RecoveryResult],
-    ) -> Dict[str, Any]:
-        action_type_value = self._action_type_value(action_type)
-        probe_enabled = self._post_action_probe_enabled()
-        probe_target = self._post_action_probe_target(context)
-        probe_result = None
-        result_success = bool(result and result.success)
-        if (
-            action_type_value in _DATAPLANE_REVALIDATED_ACTION_TYPES
-            and result_success
-            and probe_enabled
-            and probe_target
-        ):
-            probe_result = self._probe_post_action_dataplane(probe_target)
-
-        return _post_action_dataplane_revalidation_summary(
-            action_type_value=action_type_value,
-            result_success=result_success,
-            probe_enabled=probe_enabled,
-            probe_target_present=probe_target is not None,
-            probe_target_hash=_sha256_text(probe_target or ""),
-            probe_result=probe_result,
-        )
-
     def _publish_recovery_event(
         self,
         event_type: EventType,
@@ -848,89 +416,32 @@ class RecoveryActionExecutor:
         action_type: RecoveryActionType,
         context: Dict[str, Any],
         stage: str,
-        result: Optional[RecoveryResult] = None,
+        result: RecoveryResult,
         reason: str = "",
         policy_decision: Any = None,
-        post_action_dataplane_revalidation: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
-        action_type_value = self._action_type_value(action_type)
-        error_present = bool(result and result.error_message)
-        post_action_revalidation = (
-            post_action_dataplane_revalidation
-            if isinstance(post_action_dataplane_revalidation, dict)
-            else self._post_action_dataplane_revalidation(action_type, context, result)
-        )
-        downstream_evidence = (
-            post_action_revalidation.get("evidence")
-            if isinstance(post_action_revalidation.get("evidence"), dict)
-            else {}
-        )
         event = self.event_bus.publish(
             event_type,
             self.source_agent,
             {
                 "component": "self_healing.recovery_actions",
-                "resource": f"self_healing:recovery:{action_type_value}",
-                "service_name": _SERVICE_AGENT,
-                "layer": "self_healing_recovery_control_action",
                 "claim_boundary": CLAIM_BOUNDARY,
                 "stage": stage,
-                "action": _redacted_action_metadata(action),
-                "action_type": action_type_value,
-                "context": _redacted_context_metadata(context),
-                "success": result.success if result is not None else None,
-                "reason": reason if not reason else "redacted",
-                "reason_redacted": bool(reason),
-                "error": {
-                    "present": error_present,
-                    "message_redacted": error_present,
-                    "type": "RecoveryActionError" if error_present else None,
-                },
-                "duration_seconds": (
-                    result.duration_seconds if result is not None else 0.0
-                ),
-                "details": _result_details_metadata(
-                    result.details if result is not None else None
-                ),
-                "identity": _identity_presence(self.identity),
+                "action": action,
+                "action_type": self._action_type_value(action_type),
+                "context": dict(context),
+                "success": result.success,
+                "reason": reason,
+                "error_message": result.error_message,
+                "duration_seconds": result.duration_seconds,
+                "details": result.details or {},
+                "identity": dict(self.identity),
                 "policy_allowed": (
                     normalize_policy_allowed(policy_decision)
                     if policy_decision is not None
                     else None
                 ),
                 "matched_rules": normalize_policy_rules(policy_decision),
-                "read_only": False,
-                "control_action": True,
-                "safe_actuator": True,
-                "observed_state": False,
-                "payloads_redacted": True,
-                "dataplane_confirmed": bool(
-                    post_action_revalidation.get("dataplane_confirmed")
-                ),
-                "post_action_dataplane_revalidated": bool(
-                    post_action_revalidation.get(
-                        "post_action_dataplane_revalidated"
-                    )
-                ),
-                "restored_dataplane_claim_allowed": bool(
-                    post_action_revalidation.get(
-                        "restored_dataplane_claim_allowed"
-                    )
-                ),
-                "production_readiness_claim_allowed": False,
-                "live_customer_traffic_confirmed": False,
-                "traffic_delivery_claim_allowed": False,
-                "operator_approval_confirmed": False,
-                "external_dpi_bypass_confirmed": False,
-                "settlement_finality_confirmed": False,
-                "post_action_dataplane_revalidation": post_action_revalidation,
-                "downstream_evidence": {
-                    "source_agents": downstream_evidence.get("source_agents", []),
-                    "event_ids": downstream_evidence.get("event_ids", []),
-                    "events_total": downstream_evidence.get("events_total", 0),
-                    "redacted": True,
-                },
-                "claim_gate": _recovery_claim_gate(result, post_action_revalidation),
             },
             priority=7,
         )

@@ -32,35 +32,6 @@ def test_service_identity_status_endpoint_is_registered_and_redacted(monkeypatch
     assert payload["trace_history_ready"] is True
     assert payload["event_bus_surface_ready"] is True
     assert payload["event_type_surface_ready"] is True
-    assert payload["service_identity_claim_gate"]["decision"] == (
-        "redacted_identity_configuration_only"
-    )
-    assert (
-        payload["service_identity_claim_gate"][
-            "local_redacted_identity_registry_claim_allowed"
-        ]
-        is True
-    )
-    assert (
-        payload["service_identity_claim_gate"][
-            "local_trace_filter_surface_claim_allowed"
-        ]
-        is True
-    )
-    assert payload["service_identity_claim_gate"]["live_spiffe_svid_claim_allowed"] is False
-    assert payload["service_identity_claim_gate"]["did_ownership_claim_allowed"] is False
-    assert payload["service_identity_claim_gate"]["wallet_control_claim_allowed"] is False
-    assert (
-        payload["service_identity_claim_gate"]["chain_identity_finality_claim_allowed"]
-        is False
-    )
-    assert (
-        payload["service_identity_claim_gate"]["production_readiness_claim_allowed"]
-        is False
-    )
-    assert payload["service_identity_claim_gate"]["raw_identity_values_redacted"] is True
-    assert payload["cross_plane_claim_gate"]["allowed"] is False
-    assert "production_readiness" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
     assert payload["registry_payload_ready"] is True
     assert payload["redacted"] is True
     assert payload["services_total"] >= 20
@@ -93,16 +64,6 @@ def test_service_identity_status_marks_degraded_runtime_dependencies(monkeypatch
         "event_type_surface",
         "registry_payload",
     }
-    assert payload["service_identity_claim_gate"]["decision"] == (
-        "identity_surface_degraded"
-    )
-    assert (
-        payload["service_identity_claim_gate"][
-            "local_redacted_identity_registry_claim_allowed"
-        ]
-        is False
-    )
-    assert payload["service_identity_claim_gate"]["live_spiffe_svid_claim_allowed"] is False
     assert get_degraded_dependencies(request) == sorted(
         payload["degraded_dependencies"]
     )
@@ -119,19 +80,6 @@ def test_service_event_trace_filter_endpoint_maps_registered_layer():
     payload = response.json()
     assert payload["status"] == "ok"
     assert payload["redacted"] is True
-    assert payload["service_identity_claim_gate"]["decision"] == (
-        "redacted_trace_query_only"
-    )
-    assert payload["service_identity_claim_gate"]["surface"] == (
-        "service_identity.event_trace_filter"
-    )
-    assert (
-        payload["service_identity_claim_gate"]["local_trace_filter_surface_claim_allowed"]
-        is True
-    )
-    assert payload["service_identity_claim_gate"]["live_spiffe_svid_claim_allowed"] is False
-    assert payload["service_identity_claim_gate"]["did_ownership_claim_allowed"] is False
-    assert payload["cross_plane_claim_gate"]["allowed"] is False
     assert payload["source_agents"] == ["swarm-pbft"]
 
 
@@ -163,19 +111,6 @@ def test_service_event_traces_endpoint_filters_and_redacts(monkeypatch, tmp_path
     payload = response.json()
     assert payload["status"] == "ok"
     assert payload["events_total"] == 1
-    assert payload["service_identity_claim_gate"]["decision"] == (
-        "redacted_trace_query_only"
-    )
-    assert payload["service_identity_claim_gate"]["surface"] == (
-        "service_identity.event_traces"
-    )
-    assert (
-        payload["service_identity_claim_gate"]["local_trace_filter_surface_claim_allowed"]
-        is True
-    )
-    assert payload["service_identity_claim_gate"]["wallet_control_claim_allowed"] is False
-    assert payload["service_identity_claim_gate"]["chain_identity_finality_claim_allowed"] is False
-    assert payload["cross_plane_claim_gate"]["allowed"] is False
     assert payload["events"][0]["source_agent"] == "swarm-pbft"
     assert payload["events"][0]["data"]["spiffe_id"] == "[redacted]"
     assert "spiffe://secret" not in response.text

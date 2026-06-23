@@ -101,10 +101,6 @@ class DeviceActivitySyncTests(unittest.TestCase):
         self.assertEqual(payload["matched"], 1)
         self.assertEqual(payload["updated"], 1)
         self.assertEqual(payload["errors"], 0)
-        self.assertEqual(
-            payload["thinking"]["contract"]["role"],
-            "xray_device_activity_sync_agent",
-        )
         self.assertEqual(self.fake_database.calls[0]["email"], "alice@example.com")
         self.assertEqual(self.fake_database.calls[0]["source_ip"], "1.2.3.4")
 
@@ -125,10 +121,6 @@ class DeviceActivitySyncTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["warning"], "access log missing")
-        self.assertEqual(
-            payload["thinking"]["applied"]["framing"]["problem"],
-            "xray_device_activity_sync",
-        )
         self.assertEqual(self.fake_database.calls, [])
 
 

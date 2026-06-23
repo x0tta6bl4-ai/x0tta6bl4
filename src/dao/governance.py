@@ -19,11 +19,7 @@ _NODE_ID_RE = re.compile(r"^[\w\-\.]{1,64}$")
 
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.dao.quadratic_voting import QuadraticVoting
-from src.integration.spine import (
-    SafeActuator,
-    SafeActuatorEvidenceMetadata,
-    SafeActuatorResult,
-)
+from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -34,14 +30,6 @@ from src.services.service_event_identity import service_event_identity
 logger = logging.getLogger(__name__)
 
 _SERVICE_AGENT = "dao-governance"
-_DAO_GOVERNANCE_STRONG_CLAIM_IDS = (
-    "governance_execution_finality",
-    "production_governance_execution",
-    "production_readiness",
-    "dataplane_delivery",
-    "customer_traffic",
-    "external_settlement_finality",
-)
 
 DAO_GOVERNANCE_CLAIM_BOUNDARY = (
     "DAO governance dispatcher event only. It records local identity, policy, "
@@ -219,143 +207,6 @@ class ActionDispatcher:
         }
 
     @staticmethod
-    def _dispatch_cross_plane_claim_gate() -> Dict[str, Any]:
-        return {
-            "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
-            "surface": "dao.governance.dispatch.safe_actuator",
-            "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
-            "allowed": False,
-            "requested_claim_ids": list(_DAO_GOVERNANCE_STRONG_CLAIM_IDS),
-            "blockers": ["dao_governance_dispatch_local_handler_only"],
-            "claim_boundary": (
-                "DAO governance dispatch metadata records one local guarded handler "
-                "attempt only. Governance finality, production execution, dataplane, "
-                "customer traffic, and settlement-finality claims need external "
-                "cross-plane evidence."
-            ),
-        }
-
-    @classmethod
-    def _dispatch_claim_gate(
-        cls,
-        *,
-        action_type: str,
-        action_present: bool,
-        handler_present: bool,
-        success: bool,
-        simulated: bool,
-        result_present: bool,
-    ) -> Dict[str, Any]:
-        local_handler_execution_allowed = (
-            action_present
-            and handler_present
-            and result_present
-            and success
-            and not simulated
-        )
-        blockers = [
-            "governance_execution_finality_requires_vote_and_chain_evidence",
-            "production_governance_execution_requires_runtime_post_action_evidence",
-            "production_readiness_requires_cross_plane_proof",
-            "dataplane_claim_requires_dedicated_dataplane_probe",
-            "settlement_finality_requires_external_chain_evidence",
-        ]
-        if not action_present:
-            blockers.append("dao_governance_action_missing")
-        if not handler_present:
-            blockers.append("dao_governance_handler_missing")
-        if simulated:
-            blockers.append("safe_actuator_result_simulated")
-        if not success:
-            blockers.append("dao_governance_handler_not_successful")
-        if not result_present:
-            blockers.append("dao_governance_action_result_missing")
-        resource = f"dao:governance:{cls._action_resource_name(action_type)}"
-
-        return {
-            "schema": "x0tta6bl4.dao_governance.safe_actuator_claim_gate.v1",
-            "surface": "dao.governance.dispatch",
-            "resource": resource,
-            "action_type": str(action_type or ""),
-            "local_handler_execution_claim_allowed": local_handler_execution_allowed,
-            "safe_actuator_result_recorded": True,
-            "governance_execution_finality_claim_allowed": False,
-            "production_governance_execution_claim_allowed": False,
-            "production_readiness_claim_allowed": False,
-            "dataplane_delivery_claim_allowed": False,
-            "customer_traffic_claim_allowed": False,
-            "external_settlement_finality_claim_allowed": False,
-            "blocked_claim_ids": list(_DAO_GOVERNANCE_STRONG_CLAIM_IDS),
-            "blockers": blockers,
-            "payloads_redacted": True,
-            "redacted": True,
-            "claim_boundary": (
-                "ActionDispatcher SafeActuator metadata proves only a local guarded "
-                "handler attempt and bounded handler result. It does not prove DAO "
-                "governance finality, production governance execution, production "
-                "readiness, dataplane or customer traffic delivery, or external "
-                "settlement finality."
-            ),
-        }
-
-    @classmethod
-    def _dispatch_evidence_metadata(
-        cls,
-        *,
-        action_type: str,
-        context: Dict[str, Any],
-        success: bool,
-        simulated: bool = False,
-        result: Optional[ActionResult] = None,
-        duration_ms: Optional[int] = None,
-    ) -> SafeActuatorEvidenceMetadata:
-        action = context.get("action")
-        handler = context.get("handler")
-        action_present = isinstance(action, dict)
-        handler_present = callable(handler)
-        result_present = result is not None
-        claim_gate = cls._dispatch_claim_gate(
-            action_type=action_type,
-            action_present=action_present,
-            handler_present=handler_present,
-            success=success,
-            simulated=simulated,
-            result_present=result_present,
-        )
-        resource = f"dao:governance:{cls._action_resource_name(action_type)}"
-        evidence = {
-            "source_agents": [_SERVICE_AGENT],
-            "event_ids": [],
-            "resource": resource,
-            "operation": "governance_action_dispatch",
-            "action_type": str(action_type or ""),
-            "action_present": action_present,
-            "handler_present": handler_present,
-            "result_present": result_present,
-            "result_action_type": str(getattr(result, "action_type", "") or ""),
-            "result_success": bool(getattr(result, "success", False)),
-            "duration_ms": int(duration_ms or 0),
-            "action_values_redacted": True,
-            "result_detail_redacted": True,
-            "raw_context_values_redacted": True,
-            "raw_result_values_redacted": True,
-            "raw_values_redacted": True,
-            "payloads_redacted": True,
-            "redacted": True,
-        }
-        return SafeActuatorEvidenceMetadata.from_value(
-            {
-                "claim_gate": claim_gate,
-                "cross_plane_claim_gate": cls._dispatch_cross_plane_claim_gate(),
-                "evidence": evidence,
-                "source_agents": [_SERVICE_AGENT],
-                "event_ids": [],
-                "claim_boundary": claim_gate["claim_boundary"],
-                "redacted": True,
-            }
-        )
-
-    @staticmethod
     def _action_resource_name(action_type: str) -> str:
         action_lower = str(action_type or "unknown_action").lower().strip()
         slug = "".join(
@@ -376,7 +227,6 @@ class ActionDispatcher:
         result: Optional[ActionResult] = None,
         reason: str = "",
         policy_decision: Any = None,
-        safe_actuator_evidence_metadata: Optional[SafeActuatorEvidenceMetadata] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -416,11 +266,6 @@ class ActionDispatcher:
             if policy_decision is not None
             else [],
             "safe_actuator": True,
-            "safe_actuator_evidence_metadata": (
-                safe_actuator_evidence_metadata.to_dict()
-                if safe_actuator_evidence_metadata is not None
-                else SafeActuatorEvidenceMetadata().to_dict()
-            ),
             "claim_boundary": DAO_GOVERNANCE_CLAIM_BOUNDARY,
         }
         try:
@@ -460,40 +305,12 @@ class ActionDispatcher:
         handler = context.get("handler")
         action_type = str(context.get("action_type", ""))
         if not isinstance(action, dict):
-            return SafeActuatorResult(
-                False,
-                "DAO governance action is missing",
-                evidence_metadata=self._dispatch_evidence_metadata(
-                    action_type=action_type,
-                    context=context,
-                    success=False,
-                ),
-            )
+            return SafeActuatorResult(False, "DAO governance action is missing")
         if not callable(handler):
-            return SafeActuatorResult(
-                False,
-                f"unknown DAO governance action type: {action_type}",
-                evidence_metadata=self._dispatch_evidence_metadata(
-                    action_type=action_type,
-                    context=context,
-                    success=False,
-                ),
-            )
-        start = time.monotonic()
+            return SafeActuatorResult(False, f"unknown DAO governance action type: {action_type}")
         result = handler(action)
-        duration_ms = int((time.monotonic() - start) * 1000)
         self._last_dispatch_result = result
-        return SafeActuatorResult(
-            result.success,
-            result.detail,
-            evidence_metadata=self._dispatch_evidence_metadata(
-                action_type=action_type,
-                context=context,
-                success=result.success,
-                result=result,
-                duration_ms=duration_ms,
-            ),
-        )
+        return SafeActuatorResult(result.success, result.detail)
 
     def _register_defaults(self):
         self._handlers["restart_node"] = self._handle_restart_node
@@ -568,19 +385,6 @@ class ActionDispatcher:
             actuator_context = dict(context)
             actuator_context["handler"] = handler
             actuator_result = self.safe_actuator.execute(action_type, actuator_context)
-            if not actuator_result.evidence_metadata.claim_gate:
-                actuator_result = SafeActuatorResult(
-                    success=actuator_result.success,
-                    reason=actuator_result.reason,
-                    simulated=actuator_result.simulated,
-                    evidence_metadata=self._dispatch_evidence_metadata(
-                        action_type=action_type,
-                        context=actuator_context,
-                        success=actuator_result.success,
-                        simulated=actuator_result.simulated,
-                        result=self._last_dispatch_result,
-                    ),
-                )
             if actuator_result.simulated:
                 result = ActionResult(
                     action_type=action_type,
@@ -595,7 +399,6 @@ class ActionDispatcher:
                     result=result,
                     reason=result.detail,
                     policy_decision=policy_decision,
-                    safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
                 )
                 return result
             result = self._last_dispatch_result or ActionResult(
@@ -617,7 +420,6 @@ class ActionDispatcher:
                 result=result,
                 reason=result.detail or policy_reason,
                 policy_decision=policy_decision,
-                safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
             )
             return result
         except Exception as e:

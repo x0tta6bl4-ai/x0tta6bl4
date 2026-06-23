@@ -75,36 +75,6 @@ def test_dao_dispatcher_publishes_identity_policy_and_safe_actuator_events(tmp_p
     assert payload["safe_actuator"] is True
     assert payload["context"]["action"]["api_token"] == "<redacted>"
     assert payload["claim_boundary"]
-    metadata = payload["safe_actuator_evidence_metadata"]
-    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
-    assert metadata["source_agents"] == ["dao-governance"]
-    assert metadata["redacted"] is True
-    claim_gate = metadata["claim_gate"]
-    assert claim_gate["schema"] == "x0tta6bl4.dao_governance.safe_actuator_claim_gate.v1"
-    assert claim_gate["resource"] == "dao:governance:update_config"
-    assert claim_gate["safe_actuator_result_recorded"] is True
-    assert claim_gate["redacted"] is True
-    assert claim_gate["local_handler_execution_claim_allowed"] is True
-    assert claim_gate["governance_execution_finality_claim_allowed"] is False
-    assert claim_gate["production_governance_execution_claim_allowed"] is False
-    assert claim_gate["production_readiness_claim_allowed"] is False
-    assert claim_gate["dataplane_delivery_claim_allowed"] is False
-    assert claim_gate["customer_traffic_claim_allowed"] is False
-    assert claim_gate["external_settlement_finality_claim_allowed"] is False
-    assert metadata["cross_plane_claim_gate"]["allowed"] is False
-    evidence = metadata["evidence"]
-    assert evidence["resource"] == "dao:governance:update_config"
-    assert evidence["operation"] == "governance_action_dispatch"
-    assert evidence["action_type"] == "update_config"
-    assert evidence["action_present"] is True
-    assert evidence["handler_present"] is True
-    assert evidence["result_present"] is True
-    assert evidence["result_success"] is True
-    assert evidence["action_values_redacted"] is True
-    assert evidence["result_detail_redacted"] is True
-    assert evidence["raw_context_values_redacted"] is True
-    assert evidence["raw_result_values_redacted"] is True
-    assert "secret-token" not in str(metadata)
 
 
 def test_dao_dispatcher_policy_denied_blocks_handler(tmp_path):
@@ -219,12 +189,6 @@ def test_dao_dispatcher_simulated_safe_actuator_fails_closed(tmp_path):
         source_agent="dao-governance",
     )
     assert failed[-1].data["stage"] == "actuator_simulated"
-    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
-    claim_gate = metadata["claim_gate"]
-    assert claim_gate["local_handler_execution_claim_allowed"] is False
-    assert "safe_actuator_result_simulated" in claim_gate["blockers"]
-    assert "dao_governance_action_result_missing" in claim_gate["blockers"]
-    assert metadata["cross_plane_claim_gate"]["allowed"] is False
 
 
 def test_dao_dispatcher_safe_actuator_failure_fails_closed(tmp_path):

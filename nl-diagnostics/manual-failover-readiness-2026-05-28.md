@@ -1,18 +1,18 @@
 # Manual Failover Readiness
 
-generated_at: `2026-06-06T12:58:09.994813+00:00`
+generated_at: `2026-05-28T03:42:20.640016+00:00`
 
 ## Status
 
 ```text
-status=blocked_missing_secondary
+status=blocked_no_incident_trigger
 manual_probe_allowed=false
 manual_switch_allowed=false
-decision=provider_ticket
-transport_status=degraded
-failure_domain=provider_host
-provider_status=suspect_active
-manual_failover_status=manual_failover_candidate
+decision=observe
+transport_status=healthy
+failure_domain=external_network
+provider_status=recent_boot_gap
+manual_failover_status=planning_not_active
 secondary_probe_status=planning_template
 candidate_configured=false
 spb_excluded=true
@@ -24,7 +24,7 @@ automatic_failover_allowed=false
 
 | ID | Status | Gate | Next Step |
 |---|---|---|---|
-| `TRIGGER-01` | `pass` | Incident evidence justifies considering failover | stay on observe while NL transport is healthy and no incident trigger exists |
+| `TRIGGER-01` | `blocked` | Incident evidence justifies considering failover | stay on observe while NL transport is healthy and no incident trigger exists |
 | `LOCAL-01` | `pass` | Local client is not the failure domain | fix local route/SOCKS/client before any failover work |
 | `SECONDARY-01` | `blocked` | Secondary exit candidate is configured | choose a new non-SPB provider/region and generate a safe public probe config |
 | `SECONDARY-02` | `blocked` | Secondary exit health is verified enough for the requested action | run probe_secondary_exit.py against the secondary public endpoint before any profile test |
@@ -35,15 +35,15 @@ automatic_failover_allowed=false
 
 ### TRIGGER-01
 
-- decision=provider_ticket
-- failure_domain=provider_host
-- transport_status=degraded
-- provider_status=suspect_active
+- decision=observe
+- failure_domain=external_network
+- transport_status=healthy
+- provider_status=recent_boot_gap
 
 ### LOCAL-01
 
-- decision=provider_ticket
-- failure_domain=provider_host
+- decision=observe
+- failure_domain=external_network
 
 ### SECONDARY-01
 

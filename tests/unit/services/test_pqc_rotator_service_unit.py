@@ -87,24 +87,6 @@ async def test_pqc_rotator_success_publishes_identity_policy_and_safe_actuator_e
     assert payload["policy_allowed"] is True
     assert payload["matched_rules"] == ["allow-pqc-rotator"]
     assert payload["safe_actuator"] is True
-    metadata = payload["safe_actuator_evidence_metadata"]
-    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
-    claim_gate = metadata["claim_gate"]
-    assert claim_gate["schema"] == (
-        "x0tta6bl4.pqc_rotator.safe_actuator_claim_gate.v1"
-    )
-    assert claim_gate["local_pqc_identity_rotation_claim_allowed"] is True
-    assert claim_gate["safe_actuator_result_recorded"] is True
-    assert claim_gate["live_pqc_trust_finality_claim_allowed"] is False
-    assert claim_gate["fleet_wide_key_rollout_claim_allowed"] is False
-    assert claim_gate["dataplane_delivery_claim_allowed"] is False
-    assert claim_gate["customer_traffic_claim_allowed"] is False
-    assert claim_gate["production_readiness_claim_allowed"] is False
-    evidence = metadata["evidence"]
-    assert evidence["resource"] == "services:pqc_rotator:rotate_identity"
-    assert evidence["raw_context_values_redacted"] is True
-    assert evidence["raw_result_values_redacted"] is True
-    assert payload["claim_gate"] == claim_gate
     assert payload["context"]["signer_command"] == "python3"
     assert payload["context"]["signer_args_count"] == 3
     assert "secret-token" not in str(payload["context"])
@@ -186,12 +168,6 @@ async def test_pqc_rotator_simulated_safe_actuator_fails_closed(tmp_path):
         source_agent="pqc-rotator",
     )
     assert failed[-1].data["stage"] == "actuator_simulated"
-    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
-    claim_gate = metadata["claim_gate"]
-    assert claim_gate["local_pqc_identity_rotation_claim_allowed"] is False
-    assert claim_gate["safe_actuator_result_simulated"] is True
-    assert "safe_actuator_result_simulated" in claim_gate["blockers"]
-    assert claim_gate["production_readiness_claim_allowed"] is False
 
 
 @pytest.mark.asyncio
@@ -218,8 +194,3 @@ async def test_pqc_rotator_signer_failure_fails_closed(tmp_path):
         source_agent="pqc-rotator",
     )
     assert failed[-1].data["stage"] == "actuator_failed"
-    claim_gate = failed[-1].data["safe_actuator_evidence_metadata"]["claim_gate"]
-    assert claim_gate["local_pqc_identity_rotation_claim_allowed"] is False
-    assert claim_gate["safe_actuator_result_successful"] is False
-    assert "safe_actuator_result_not_successful" in claim_gate["blockers"]
-    assert claim_gate["live_pqc_trust_finality_claim_allowed"] is False

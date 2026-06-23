@@ -24,13 +24,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src.core.agent_thinking import AgentThinkingCoach
 from ..coordination.events import EventBus, EventType, get_event_bus
-from ..integration.spine import (
-    SafeActuator,
-    SafeActuatorEvidenceMetadata,
-    SafeActuatorResult,
-)
+from ..integration.spine import SafeActuator, SafeActuatorResult
 from ..network.ebpf.bcc_probes import MeshNetworkProbes
 from ..network.ebpf.loader import EBPFLoader
 from src.security.policy_decision_adapter import (
@@ -42,6 +37,12 @@ from ..services.service_event_identity import service_event_identity
 from .mape_k import MAPEKAnalyzer, MAPEKExecutor, MAPEKMonitor, MAPEKPlanner
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "ebpf-self-healing"
+EBPF_CLAIM_BOUNDARY = (
+    "eBPF self-healing recovery event only. It records local policy and safe "
+    "actuator state; it is not production rollout evidence or live throughput evidence."
+)
 
 
 def _safe_hash(value: Any) -> Optional[str]:
@@ -463,44 +464,6 @@ class EBPFExecutor(MAPEKExecutor):
             "wallet_address": wallet_address or service_identity["wallet_address"],
         }
         self.safe_actuator = safe_actuator or SafeActuator(self._execute_action_internal)
-        self.thinking_coach = AgentThinkingCoach(
-            agent_id=source_agent,
-            role="healing",
-            capabilities=("mape_k", "zero-trust", "network"),
-        )
-        self.last_thinking_context: Dict[str, Any] = {}
-
-    def _record_thinking(
-        self,
-        task_type: str,
-        goal: str,
-        extra: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        context: Dict[str, Any] = {
-            "type": task_type,
-            "goal": goal,
-            "policy_required": self.require_policy or self.policy_engine is not None,
-            "safe_actuator_configured": self.safe_actuator is not None,
-            "constraints": {
-                "redact_interfaces": True,
-                "redact_raw_context": True,
-                "safe_actuator_result_is_local_only": True,
-                "does_not_prove_restored_dataplane": True,
-                "does_not_prove_production_readiness": True,
-            },
-            "safety_boundary": EBPF_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-        }
-        if extra:
-            context.update(extra)
-        self.last_thinking_context = self.thinking_coach.prepare_task(context)
-        return self.last_thinking_context
-
-    def get_thinking_status(self) -> Dict[str, Any]:
-        """Expose executor thinking state without raw action context."""
-        return {
-            "thinking": self.thinking_coach.status(),
-            "last_thinking_context": self.last_thinking_context,
-        }
 
     @staticmethod
     def _env_bool(name: str, default: bool) -> bool:
@@ -573,76 +536,6 @@ class EBPFExecutor(MAPEKExecutor):
             slug = slug.replace("__", "_")
         return slug or "unknown_action"
 
-    def _safe_actuator_evidence_metadata_from_flags(
-        self,
-        *,
-        action_type: str,
-        success: bool,
-        simulated: bool,
-        policy_allowed: bool,
-    ) -> SafeActuatorEvidenceMetadata:
-        action_resource = self._action_resource_name(action_type)
-        local_action_succeeded = bool(success and not simulated)
-        claim_gate = {
-            "schema": "x0tta6bl4.self_healing.ebpf.safe_actuator_claim_gate.v1",
-            "surface": "self_healing.ebpf.execute",
-            "action_type": str(action_type),
-            "action_resource": action_resource,
-            "local_ebpf_recovery_action_recorded": True,
-            "local_ebpf_recovery_action_succeeded": local_action_succeeded,
-            "local_policy_decision_recorded": True,
-            "policy_allowed": bool(policy_allowed),
-            "safe_actuator_result_recorded": True,
-            "local_safe_actuator_success": local_action_succeeded,
-            "restored_dataplane_claim_allowed": False,
-            "route_convergence_claim_allowed": False,
-            "kernel_forwarding_correctness_claim_allowed": False,
-            "dataplane_delivery_claim_allowed": False,
-            "traffic_delivery_claim_allowed": False,
-            "live_customer_traffic_confirmed": False,
-            "customer_traffic_claim_allowed": False,
-            "external_dpi_bypass_confirmed": False,
-            "settlement_finality_confirmed": False,
-            "external_settlement_finality_claim_allowed": False,
-            "production_slo_claim_allowed": False,
-            "production_readiness_claim_allowed": False,
-            "claim_boundary": EBPF_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-            "payloads_redacted": True,
-            "redacted": True,
-        }
-        return SafeActuatorEvidenceMetadata(
-            claim_gate=claim_gate,
-            evidence={
-                "component": "self_healing.ebpf_anomaly_detector",
-                "resource": f"self_healing:ebpf:{action_resource}",
-                "action_type": str(action_type),
-                "raw_context_values_redacted": True,
-                "raw_command_output_redacted": True,
-                "payloads_redacted": True,
-                "redacted": True,
-            },
-            source_agents=[self.source_agent],
-            claim_boundary=EBPF_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-            redacted=True,
-        )
-
-    def _safe_actuator_evidence_metadata(
-        self,
-        action_type: str,
-        actuator_result: SafeActuatorResult,
-        *,
-        policy_allowed: bool,
-    ) -> SafeActuatorEvidenceMetadata:
-        metadata = actuator_result.evidence_metadata
-        if metadata.claim_gate:
-            return metadata
-        return self._safe_actuator_evidence_metadata_from_flags(
-            action_type=action_type,
-            success=actuator_result.success,
-            simulated=actuator_result.simulated,
-            policy_allowed=policy_allowed,
-        )
-
     def _publish_recovery_event(
         self,
         event_type: EventType,
@@ -653,9 +546,6 @@ class EBPFExecutor(MAPEKExecutor):
         result: Optional[Dict[str, Any]] = None,
         reason: str = "",
         policy_decision: Any = None,
-        safe_actuator_evidence_metadata: Optional[
-            SafeActuatorEvidenceMetadata
-        ] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -685,25 +575,8 @@ class EBPFExecutor(MAPEKExecutor):
             "matched_rules": self._policy_rules(policy_decision)
             if policy_decision is not None
             else [],
-            "claim_gate": _ebpf_recovery_claim_gate(result),
-            "restored_dataplane_claim_allowed": False,
-            "route_convergence_claim_allowed": False,
-            "kernel_forwarding_correctness_claim_allowed": False,
-            "dataplane_delivery_claim_allowed": False,
-            "traffic_delivery_claim_allowed": False,
-            "live_customer_traffic_confirmed": False,
-            "external_dpi_bypass_confirmed": False,
-            "settlement_finality_confirmed": False,
-            "production_readiness_claim_allowed": False,
             "claim_boundary": EBPF_CLAIM_BOUNDARY,
         }
-        if safe_actuator_evidence_metadata is not None:
-            payload["safe_actuator_evidence_metadata"] = (
-                safe_actuator_evidence_metadata.to_dict()
-            )
-            payload["safe_actuator_claim_gate"] = dict(
-                safe_actuator_evidence_metadata.claim_gate
-            )
         try:
             event = self.event_bus.publish(event_type, self.source_agent, payload, priority=7)
             return event.event_id
@@ -744,28 +617,10 @@ class EBPFExecutor(MAPEKExecutor):
             action_type = str(context.get("action", "unknown_action"))
             interface = str(context.get("interface", ""))
             context["interface"] = interface
-            self._record_thinking(
-                "ebpf_self_healing_execute",
-                "evaluate local eBPF recovery action with policy and SafeActuator",
-                {
-                    "action_type": action_type,
-                    "interface_hash": _safe_hash(interface),
-                    "context_keys": sorted(str(key) for key in context),
-                },
-            )
 
             if not action_type or action_type == "unknown_action" or not interface:
                 reason = "eBPF action and interface are required"
                 result = {"success": False, "reason": reason}
-                self._record_thinking(
-                    "ebpf_self_healing_execute",
-                    "reject invalid eBPF recovery action before execution",
-                    {
-                        "action_type": action_type,
-                        "interface_hash": _safe_hash(interface),
-                        "status": "invalid_action",
-                    },
-                )
                 self._publish_recovery_event(
                     EventType.TASK_FAILED,
                     stage="invalid_action",
@@ -793,15 +648,6 @@ class EBPFExecutor(MAPEKExecutor):
                     "policy_required": True,
                     "matched_rules": self._policy_rules(policy_decision),
                 }
-                self._record_thinking(
-                    "ebpf_self_healing_execute",
-                    "record policy-denied eBPF recovery action",
-                    {
-                        "action_type": action_type,
-                        "interface_hash": _safe_hash(interface),
-                        "status": "policy_denied",
-                    },
-                )
                 self._publish_recovery_event(
                     EventType.TASK_BLOCKED,
                     stage="policy_denied",
@@ -822,11 +668,6 @@ class EBPFExecutor(MAPEKExecutor):
                 policy_decision=policy_decision,
             )
             actuator_result = self.safe_actuator.execute(action_type, context)
-            actuator_metadata = self._safe_actuator_evidence_metadata(
-                action_type,
-                actuator_result,
-                policy_allowed=True,
-            )
             if actuator_result.simulated:
                 reason = actuator_result.reason or "safe actuator returned simulated result"
                 result = {
@@ -834,16 +675,6 @@ class EBPFExecutor(MAPEKExecutor):
                     "reason": reason,
                     "simulated": True,
                 }
-                self._record_thinking(
-                    "ebpf_self_healing_execute",
-                    "reject simulated SafeActuator result as real recovery proof",
-                    {
-                        "action_type": action_type,
-                        "interface_hash": _safe_hash(interface),
-                        "status": "actuator_simulated",
-                        "simulated": True,
-                    },
-                )
                 self._publish_recovery_event(
                     EventType.TASK_FAILED,
                     stage="actuator_simulated",
@@ -852,7 +683,6 @@ class EBPFExecutor(MAPEKExecutor):
                     result=result,
                     reason=reason,
                     policy_decision=policy_decision,
-                    safe_actuator_evidence_metadata=actuator_metadata,
                 )
                 return False
 
@@ -861,17 +691,6 @@ class EBPFExecutor(MAPEKExecutor):
                 "reason": actuator_result.reason,
                 "simulated": actuator_result.simulated,
             }
-            self._record_thinking(
-                "ebpf_self_healing_execute",
-                "record local SafeActuator result without dataplane overclaiming",
-                {
-                    "action_type": action_type,
-                    "interface_hash": _safe_hash(interface),
-                    "status": "success" if actuator_result.success else "failed",
-                    "simulated": bool(actuator_result.simulated),
-                    "restored_dataplane_claim_allowed": False,
-                },
-            )
             self._publish_recovery_event(
                 EventType.PIPELINE_STAGE_END
                 if actuator_result.success
@@ -884,16 +703,10 @@ class EBPFExecutor(MAPEKExecutor):
                 result=result,
                 reason=actuator_result.reason or policy_reason,
                 policy_decision=policy_decision,
-                safe_actuator_evidence_metadata=actuator_metadata,
             )
             return actuator_result.success
 
         except Exception as e:
-            self._record_thinking(
-                "ebpf_self_healing_execute",
-                "record unexpected eBPF recovery execution failure",
-                {"status": "unexpected_failure", "error_type": type(e).__name__},
-            )
             logger.error(f"Failed to execute eBPF action: {e}")
             return False
 
@@ -905,88 +718,25 @@ class EBPFExecutor(MAPEKExecutor):
         interface = str(context.get("interface", ""))
 
         if action_type == "clear_packet_queues":
-            success = self._clear_queues(interface)
-            return SafeActuatorResult(
-                success,
-                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
-                    action_type=action_type,
-                    success=success,
-                    simulated=False,
-                    policy_allowed=True,
-                ),
-            )
+            return SafeActuatorResult(self._clear_queues(interface))
 
         if action_type == "adjust_route_weights":
-            success = self._adjust_routes(interface)
-            return SafeActuatorResult(
-                success,
-                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
-                    action_type=action_type,
-                    success=success,
-                    simulated=False,
-                    policy_allowed=True,
-                ),
-            )
+            return SafeActuatorResult(self._adjust_routes(interface))
 
         if action_type == "optimize_ebpf_program":
-            success = self._reload_ebpf(interface)
-            return SafeActuatorResult(
-                success,
-                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
-                    action_type=action_type,
-                    success=success,
-                    simulated=False,
-                    policy_allowed=True,
-                ),
-            )
+            return SafeActuatorResult(self._reload_ebpf(interface))
 
         if action_type == "enable_hw_offload":
-            success = self._enable_hw_offload(interface)
-            return SafeActuatorResult(
-                success,
-                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
-                    action_type=action_type,
-                    success=success,
-                    simulated=False,
-                    policy_allowed=True,
-                ),
-            )
+            return SafeActuatorResult(self._enable_hw_offload(interface))
 
         if action_type == "increase_queue_size":
-            success = self._increase_queue_size(interface)
-            return SafeActuatorResult(
-                success,
-                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
-                    action_type=action_type,
-                    success=success,
-                    simulated=False,
-                    policy_allowed=True,
-                ),
-            )
+            return SafeActuatorResult(self._increase_queue_size(interface))
 
         if action_type == "throttle_traffic":
-            success = self._throttle_traffic(interface)
-            return SafeActuatorResult(
-                success,
-                evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
-                    action_type=action_type,
-                    success=success,
-                    simulated=False,
-                    policy_allowed=True,
-                ),
-            )
+            return SafeActuatorResult(self._throttle_traffic(interface))
 
         logger.warning(f"Unknown action: {action_type}")
-        return SafeActuatorResult(
-            False,
-            f"unknown eBPF action: {action_type}",
-            evidence_metadata=self._safe_actuator_evidence_metadata_from_flags(
-                action_type=action_type,
-                success=False,
-                simulated=False,
-                policy_allowed=True,
-            ),
-        )
+        return SafeActuatorResult(False, f"unknown eBPF action: {action_type}")
 
     @staticmethod
     def _interface_exists(interface: str) -> bool:

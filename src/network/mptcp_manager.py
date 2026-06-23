@@ -10,16 +10,10 @@ import hashlib
 import logging
 import os
 import subprocess
-import time
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.agent_thinking import AgentThinkingCoach
-from src.integration.spine import (
-    SafeActuator,
-    SafeActuatorEvidenceMetadata,
-    SafeActuatorResult,
-)
+from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -30,32 +24,12 @@ from src.services.service_event_identity import service_event_identity
 logger = logging.getLogger(__name__)
 
 _SERVICE_AGENT = "mptcp-manager"
-_STATUS_SOURCE_AGENT = "mptcp-manager-status-read"
-_STATUS_LAYER = "network_mptcp_observed_state"
 
 MPTCP_MANAGER_CLAIM_BOUNDARY = (
     "MPTCP manager control event only. It records local identity, policy, and "
     "safe actuator state for kernel/network MPTCP configuration; it is not "
     "proof of live production traffic, throughput, or field validation."
 )
-MPTCP_STATUS_CLAIM_BOUNDARY = (
-    "Read-only local MPTCP status observation. It records /proc support checks "
-    "and bounded ip mptcp limits command metadata; it does not prove live "
-    "multipath traffic, throughput, remote path quality, or production field "
-    "validation."
-)
-MPTCP_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
-    "MPTCP SafeActuator metadata records only local kernel/network configuration "
-    "action shape and redacted bounded inputs. It does not prove live multipath "
-    "traffic, throughput, remote path quality, customer traffic delivery, "
-    "production SLOs, or production readiness."
-)
-_MPTCP_THINKING_COACH = AgentThinkingCoach(
-    agent_id=_SERVICE_AGENT,
-    role="security",
-    capabilities=("zero-trust", "ops", "network"),
-)
-_MPTCP_LAST_THINKING_CONTEXT: Dict[str, Any] = {}
 
 
 class MPTCPManager:
@@ -125,47 +99,10 @@ class MPTCPManager:
         return limits
 
     @classmethod
-    def _sha256_text(cls, value: str) -> Optional[str]:
-        if not value:
-            return None
-        return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
-
-    @classmethod
-    def _bounded_output_metadata(
-        cls,
-        stdout: Optional[str],
-        stderr: Optional[str],
-        *,
-        preview_limit: int = 0,
-    ) -> Dict[str, Any]:
-        safe_stdout = stdout or ""
-        safe_stderr = stderr or ""
-        bounded_limit = max(0, preview_limit)
-        return {
-            "stdout_chars": len(safe_stdout),
-            "stderr_chars": len(safe_stderr),
-            "stdout_sha256": cls._sha256_text(safe_stdout),
-            "stderr_sha256": cls._sha256_text(safe_stderr),
-            "stdout_preview_chars": min(len(safe_stdout), bounded_limit),
-            "stderr_preview_chars": min(len(safe_stderr), bounded_limit),
-            "stdout_truncated": len(safe_stdout) > bounded_limit,
-            "stderr_truncated": len(safe_stderr) > bounded_limit,
-            "output_preview_limit": bounded_limit,
-            "output_bounded": True,
-            "output_redacted": True,
-        }
-
-    @classmethod
-    def _read_mptcp_limits_with_metadata(
-        cls,
-        *,
-        output_preview_limit: int = 0,
-    ) -> tuple[Dict[str, int], Dict[str, Any]]:
-        command = ["ip", "mptcp", "limits", "show"]
-        started = time.monotonic()
+    def _read_mptcp_limits(cls) -> Dict[str, int]:
         try:
             result = subprocess.run(
-                command,
+                ["ip", "mptcp", "limits", "show"],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -173,47 +110,12 @@ class MPTCPManager:
             )
         except Exception as exc:
             logger.debug("Unable to read MPTCP limits: %s", exc)
-            duration_ms = (time.monotonic() - started) * 1000.0
-            stdout = getattr(exc, "stdout", None) or getattr(exc, "output", None)
-            stderr = getattr(exc, "stderr", None)
-            returncode = getattr(exc, "returncode", None)
-            return {}, {
-                "command": command,
-                "attempted": True,
-                "returncode": returncode,
-                "duration_ms": round(duration_ms, 3),
-                "output": cls._bounded_output_metadata(
-                    stdout,
-                    stderr,
-                    preview_limit=output_preview_limit,
-                ),
-                "error": {
-                    "type": type(exc).__name__,
-                    "message_redacted": True,
-                },
-            }
+            return {}
 
-        duration_ms = (time.monotonic() - started) * 1000.0
         stdout = getattr(result, "stdout", "") or ""
-        stderr = getattr(result, "stderr", "") or ""
-        limits = cls._parse_mptcp_limits(stdout) if isinstance(stdout, str) else {}
-        return limits, {
-            "command": command,
-            "attempted": True,
-            "returncode": getattr(result, "returncode", None),
-            "duration_ms": round(duration_ms, 3),
-            "parsed_limit_keys": sorted(limits),
-            "output": cls._bounded_output_metadata(
-                stdout if isinstance(stdout, str) else "",
-                stderr if isinstance(stderr, str) else "",
-                preview_limit=output_preview_limit,
-            ),
-        }
-
-    @classmethod
-    def _read_mptcp_limits(cls) -> Dict[str, int]:
-        limits, _metadata = cls._read_mptcp_limits_with_metadata()
-        return limits
+        if not isinstance(stdout, str):
+            return {}
+        return cls._parse_mptcp_limits(stdout)
 
     @staticmethod
     def _default_event_bus(project_root: str) -> Optional[EventBus]:
@@ -231,233 +133,6 @@ class MPTCPManager:
             return get_policy_engine()
         except Exception as exc:
             logger.error("Failed to initialize MPTCP manager policy engine: %s", exc)
-            return None
-
-    @classmethod
-    def _status_identity_metadata(cls) -> Dict[str, Any]:
-        identity = service_event_identity(service_name=_SERVICE_AGENT)
-        return {
-            "service_name": _SERVICE_AGENT,
-            "spiffe_id_configured": bool(identity.get("spiffe_id")),
-            "did_configured": bool(identity.get("did")),
-            "wallet_address_configured": bool(identity.get("wallet_address")),
-            "redacted": True,
-        }
-
-    @classmethod
-    def _status_evidence_metadata(cls, event_id: Optional[str]) -> Dict[str, Any]:
-        event_ids = [event_id] if event_id else []
-        return {
-            "source_agents": [_STATUS_SOURCE_AGENT] if event_ids else [],
-            "layer": _STATUS_LAYER,
-            "event_ids": event_ids,
-            "events_total": len(event_ids),
-            "redacted": True,
-        }
-
-    @classmethod
-    def _with_status_evidence(
-        cls,
-        payload: Dict[str, Any],
-        event_id: Optional[str],
-        *,
-        include_evidence: bool,
-    ) -> Dict[str, Any]:
-        if not include_evidence:
-            return payload
-        return {**payload, "evidence": cls._status_evidence_metadata(event_id)}
-
-    @classmethod
-    def _control_action_claim_gate(
-        cls,
-        *,
-        operation: str,
-        success: bool,
-    ) -> Dict[str, Any]:
-        return {
-            "schema": "x0tta6bl4.network_mptcp.safe_actuator_claim_gate.v1",
-            "operation": operation,
-            "safe_actuator_result_recorded": True,
-            "local_mptcp_configuration_claim_allowed": bool(success),
-            "local_kernel_setting_claim_allowed": bool(
-                success and operation == "enable_mptcp"
-            ),
-            "local_endpoint_limit_claim_allowed": bool(
-                success and operation == "configure_endpoints"
-            ),
-            "dataplane_delivery_claim_allowed": False,
-            "traffic_delivery_claim_allowed": False,
-            "customer_traffic_claim_allowed": False,
-            "remote_path_quality_claim_allowed": False,
-            "throughput_claim_allowed": False,
-            "production_slo_claim_allowed": False,
-            "production_readiness_claim_allowed": False,
-            "blockers": [
-                "live_multipath_traffic_requires_separate_dataplane_proof",
-                "throughput_requires_separate_benchmark_evidence",
-                "customer_traffic_requires_separate_end_to_end_proof",
-            ],
-            "claim_boundary": MPTCP_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-            "redacted": True,
-        }
-
-    @classmethod
-    def _safe_actuator_evidence_metadata(
-        cls,
-        *,
-        operation: str,
-        success: bool,
-        evidence: Dict[str, Any],
-    ) -> SafeActuatorEvidenceMetadata:
-        return SafeActuatorEvidenceMetadata.from_value(
-            {
-                "claim_gate": cls._control_action_claim_gate(
-                    operation=operation,
-                    success=success,
-                ),
-                "evidence": {
-                    "source_agents": [_SERVICE_AGENT],
-                    "event_ids": [],
-                    "events_total": 0,
-                    "resource": f"network:mptcp:{operation}",
-                    "raw_context_values_redacted": True,
-                    "raw_command_output_redacted": True,
-                    **dict(evidence),
-                    "redacted": True,
-                },
-                "source_agents": [_SERVICE_AGENT],
-                "claim_boundary": MPTCP_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-                "redacted": True,
-            }
-        )
-
-    @classmethod
-    def _control_context_summary(
-        cls,
-        operation: str,
-        context: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        summary: Dict[str, Any] = {
-            "operation": operation,
-            "context_keys": sorted(str(key) for key in context),
-            "context_value_count": len(context),
-        }
-        if "enabled" in context:
-            summary["enabled"] = bool(context.get("enabled"))
-        if "interfaces" in context:
-            interfaces = context.get("interfaces") or []
-            summary["interface_count"] = (
-                len(interfaces) if isinstance(interfaces, list) else 0
-            )
-            summary["raw_interfaces_redacted"] = True
-        if "subflow_limit" in context:
-            summary["subflow_limit"] = cls._non_negative_int(
-                context.get("subflow_limit")
-            )
-        if "add_addr_accepted" in context:
-            summary["add_addr_accepted"] = cls._non_negative_int(
-                context.get("add_addr_accepted")
-            )
-        if "sysctl_key" in context:
-            summary["sysctl_key_present"] = bool(context.get("sysctl_key"))
-        return summary
-
-    @classmethod
-    def _prepare_mptcp_thinking_context(
-        cls,
-        *,
-        task_type: str,
-        goal: str,
-        extra: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """Prepare redacted thinking context for local MPTCP decisions."""
-        global _MPTCP_LAST_THINKING_CONTEXT
-        context: Dict[str, Any] = {
-            "type": task_type,
-            "goal": goal,
-            "constraints": {
-                "redact_raw_identity": True,
-                "redact_raw_command_output": True,
-                "redact_raw_interfaces": True,
-                "safe_actuator_required_for_control": True,
-            },
-            "safety_boundary": (
-                "Do not claim live multipath traffic, throughput, remote path quality, "
-                "customer traffic delivery, or production readiness from local MPTCP "
-                "control/status evidence."
-            ),
-        }
-        if extra:
-            context.update(extra)
-        _MPTCP_LAST_THINKING_CONTEXT = _MPTCP_THINKING_COACH.prepare_task(context)
-        return _MPTCP_LAST_THINKING_CONTEXT
-
-    @classmethod
-    def _publish_status_observation(
-        cls,
-        *,
-        event_bus: Optional[EventBus],
-        source_agent: str,
-        status: str,
-        supported: bool,
-        enabled: bool,
-        proc_metadata: Dict[str, Any],
-        limits_metadata: Dict[str, Any],
-        limits: Dict[str, int],
-        duration_ms: float,
-    ) -> Optional[str]:
-        if event_bus is None:
-            return None
-        thinking_context = cls._prepare_mptcp_thinking_context(
-            task_type="mptcp_status_observation",
-            goal=(
-                "observe local MPTCP support and limits without overclaiming "
-                "dataplane proof"
-            ),
-            extra={
-                "status": status,
-                "supported": bool(supported),
-                "enabled": bool(enabled),
-                "parsed_limit_keys": sorted(limits),
-                "limits_returncode": limits_metadata.get("returncode"),
-                "proc_read_succeeded": bool(proc_metadata.get("read_succeeded")),
-                "read_only": True,
-            },
-        )
-        payload = {
-            "component": "network.mptcp_manager",
-            "stage": "observed_state",
-            "operation": "get_status",
-            "resource": "network:mptcp:get_status",
-            "service_name": source_agent,
-            "source_alias": source_agent,
-            "layer": _STATUS_LAYER,
-            "identity": cls._status_identity_metadata(),
-            "status": status,
-            "supported": supported,
-            "enabled": enabled,
-            "max_subflows": limits.get("subflow", 0),
-            "add_addr_accepted": limits.get("add_addr_accepted", 0),
-            "duration_ms": round(duration_ms, 3),
-            "read_only": True,
-            "observed_state": True,
-            "safe_actuator": False,
-            "proc": proc_metadata,
-            "limits_command": limits_metadata,
-            "claim_boundary": MPTCP_STATUS_CLAIM_BOUNDARY,
-            "thinking": _MPTCP_THINKING_COACH.status(),
-            "last_thinking_context": thinking_context,
-        }
-        try:
-            event = event_bus.publish(
-                EventType.PIPELINE_STAGE_END,
-                source_agent,
-                payload,
-                priority=3,
-            )
-            return event.event_id
-        except Exception as exc:
-            logger.error("Failed to publish MPTCP status observation: %s", exc)
             return None
 
     @staticmethod
@@ -491,7 +166,8 @@ class MPTCPManager:
     @classmethod
     def _safe_context(cls, context: Dict[str, Any]) -> Dict[str, Any]:
         return {
-            str(key): cls._safe_value(str(key), value) for key, value in context.items()
+            str(key): cls._safe_value(str(key), value)
+            for key, value in context.items()
         }
 
     @classmethod
@@ -532,28 +208,9 @@ class MPTCPManager:
         policy_decision: Any = None,
         success: Optional[bool] = None,
         simulated: Optional[bool] = None,
-        safe_actuator_evidence_metadata: Optional[SafeActuatorEvidenceMetadata] = None,
     ) -> Optional[str]:
         if event_bus is None:
             return None
-        policy_allowed = (
-            cls._policy_allowed(policy_decision)
-            if policy_decision is not None
-            else None
-        )
-        thinking_context = cls._prepare_mptcp_thinking_context(
-            task_type="mptcp_control_action",
-            goal="gate local MPTCP control action through policy and SafeActuator evidence",
-            extra={
-                "stage": stage,
-                "operation": operation,
-                "success": success,
-                "simulated": simulated,
-                "policy_checked": policy_decision is not None,
-                "policy_allowed": policy_allowed,
-                "context_summary": cls._control_context_summary(operation, context),
-            },
-        )
         payload = {
             "component": "network.mptcp_manager",
             "stage": stage,
@@ -568,26 +225,17 @@ class MPTCPManager:
             "success": success,
             "simulated": simulated,
             "reason": reason,
-            "policy_allowed": policy_allowed,
-            "policy_reason": (
-                cls._policy_reason(policy_decision)
-                if policy_decision is not None
-                else ""
-            ),
-            "matched_rules": (
-                cls._policy_rules(policy_decision)
-                if policy_decision is not None
-                else []
-            ),
+            "policy_allowed": cls._policy_allowed(policy_decision)
+            if policy_decision is not None
+            else None,
+            "policy_reason": cls._policy_reason(policy_decision)
+            if policy_decision is not None
+            else "",
+            "matched_rules": cls._policy_rules(policy_decision)
+            if policy_decision is not None
+            else [],
             "safe_actuator": True,
-            "safe_actuator_evidence_metadata": (
-                safe_actuator_evidence_metadata.to_dict()
-                if safe_actuator_evidence_metadata is not None
-                else SafeActuatorEvidenceMetadata().to_dict()
-            ),
             "claim_boundary": MPTCP_MANAGER_CLAIM_BOUNDARY,
-            "thinking": _MPTCP_THINKING_COACH.status(),
-            "last_thinking_context": thinking_context,
         }
         try:
             event = event_bus.publish(event_type, source_agent, payload, priority=7)
@@ -607,19 +255,11 @@ class MPTCPManager:
     ) -> tuple[bool, Any, str]:
         if policy_engine is None:
             if require_policy:
-                return (
-                    False,
-                    None,
-                    "MPTCP manager policy engine is required but unavailable",
-                )
+                return False, None, "MPTCP manager policy engine is required but unavailable"
             return True, None, ""
         spiffe_id = identity.get("spiffe_id")
         if not spiffe_id:
-            return (
-                False,
-                None,
-                "MPTCP manager SPIFFE identity is required for policy evaluation",
-            )
+            return False, None, "MPTCP manager SPIFFE identity is required for policy evaluation"
         try:
             decision = policy_engine.evaluate(
                 spiffe_id,
@@ -729,28 +369,19 @@ class MPTCPManager:
             event_bus=bus,
             source_agent=source_agent,
             identity=identity,
-            stage=(
-                "actuator_completed"
-                if success and not simulated
-                else "actuator_simulated" if simulated else "actuator_failed"
-            ),
+            stage="actuator_completed"
+            if success and not simulated
+            else "actuator_simulated"
+            if simulated
+            else "actuator_failed",
             operation=operation,
             context=context,
             reason=actuator_result.reason or reason,
             policy_decision=decision,
             success=success and not simulated,
             simulated=simulated,
-            safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
         )
         return success and not simulated
-
-    @classmethod
-    def get_thinking_status(cls) -> Dict[str, Any]:
-        """Expose thinking profile and latest redacted MPTCP decision context."""
-        return {
-            "thinking": _MPTCP_THINKING_COACH.status(),
-            "last_thinking_context": _MPTCP_LAST_THINKING_CONTEXT,
-        }
 
     @staticmethod
     def is_mptcp_supported() -> bool:
@@ -785,16 +416,6 @@ class MPTCPManager:
             return SafeActuatorResult(
                 True,
                 f"MPTCP {'enabled' if enabled else 'disabled'} globally",
-                evidence_metadata=MPTCPManager._safe_actuator_evidence_metadata(
-                    operation="enable_mptcp",
-                    success=True,
-                    evidence={
-                        "action": "sysctl_set",
-                        "sysctl_key_present": True,
-                        "enabled": enabled,
-                        "outputs_redacted": True,
-                    },
-                ),
             )
 
         return MPTCPManager._run_control_action(
@@ -851,21 +472,7 @@ class MPTCPManager:
                 logger.warning(
                     "⚠️ MPTCP not supported by kernel, skipping endpoint config"
                 )
-                return SafeActuatorResult(
-                    False,
-                    "MPTCP not supported by kernel",
-                    evidence_metadata=MPTCPManager._safe_actuator_evidence_metadata(
-                        operation="configure_endpoints",
-                        success=False,
-                        evidence={
-                            "action": "ip_mptcp_limits_set",
-                            "kernel_supported": False,
-                            "interface_count": len(interface_list),
-                            "raw_interfaces_redacted": True,
-                            "outputs_redacted": True,
-                        },
-                    ),
-                )
+                return SafeActuatorResult(False, "MPTCP not supported by kernel")
             # Clear existing limits/endpoints for fresh config
             subprocess.run(["ip", "mptcp", "endpoint", "flush"], capture_output=True)
             subprocess.run(
@@ -888,22 +495,7 @@ class MPTCPManager:
                 # Simplified: assuming 'ip mptcp endpoint add' logic
                 logger.info(f"🔧 Configured {iface} as MPTCP subflow endpoint")
 
-            return SafeActuatorResult(
-                True,
-                "MPTCP endpoints configured",
-                evidence_metadata=MPTCPManager._safe_actuator_evidence_metadata(
-                    operation="configure_endpoints",
-                    success=True,
-                    evidence={
-                        "action": "ip_mptcp_limits_set",
-                        "interface_count": len(interface_list),
-                        "subflow_limit": resolved_subflow_limit,
-                        "add_addr_accepted": resolved_add_addr_accepted,
-                        "raw_interfaces_redacted": True,
-                        "outputs_redacted": True,
-                    },
-                ),
-            )
+            return SafeActuatorResult(True, "MPTCP endpoints configured")
 
         return MPTCPManager._run_control_action(
             operation="configure_endpoints",
@@ -954,34 +546,12 @@ class MPTCPManager:
         if supported:
             try:
                 with open("/proc/sys/net/mptcp/enabled", "r", encoding="utf-8") as f:
-                    raw_value = f.read().strip()
-                    enabled = raw_value == "1"
-                    proc_metadata["read_succeeded"] = True
-                    proc_metadata["value_bucket"] = (
-                        "enabled" if enabled else "disabled_or_unknown"
-                    )
-            except Exception as exc:
-                proc_metadata["read_error_type"] = type(exc).__name__
+                    enabled = f.read().strip() == "1"
+            except Exception:
                 pass
-        limits: Dict[str, int] = {}
-        limits_metadata: Dict[str, Any] = {
-            "command": ["ip", "mptcp", "limits", "show"],
-            "attempted": False,
-            "returncode": None,
-            "duration_ms": 0.0,
-            "parsed_limit_keys": [],
-            "output": MPTCPManager._bounded_output_metadata(
-                None,
-                None,
-                preview_limit=output_preview_limit,
-            ),
-        }
-        if supported:
-            limits, limits_metadata = MPTCPManager._read_mptcp_limits_with_metadata(
-                output_preview_limit=output_preview_limit,
-            )
+        limits = MPTCPManager._read_mptcp_limits() if supported else {}
 
-        payload = {
+        return {
             "supported": supported,
             "enabled": enabled,
             "max_subflows": limits.get("subflow", 0),

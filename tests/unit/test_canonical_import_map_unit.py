@@ -32,15 +32,10 @@ def _source_refs(value: Any) -> list[str]:
     return refs
 
 
-def _top_level_imports_under(
-    root_name: str, *, exclude_prefixes: tuple[str, ...] = ()
-) -> list[dict[str, Any]]:
+def _src_libx0t_top_level_imports() -> list[dict[str, Any]]:
     imports: list[dict[str, Any]] = []
-    for path in sorted((ROOT / root_name).rglob("*.py")):
+    for path in sorted((ROOT / "src/libx0t").rglob("*.py")):
         if "__pycache__" in path.parts:
-            continue
-        rel_path = str(path.relative_to(ROOT))
-        if any(rel_path.startswith(prefix) for prefix in exclude_prefixes):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -52,6 +47,7 @@ def _top_level_imports_under(
 
             for module in modules:
                 if module == "libx0t" or module.startswith("libx0t."):
+                    rel_path = str(path.relative_to(ROOT))
                     imports.append(
                         {
                             "path": rel_path,
@@ -61,33 +57,6 @@ def _top_level_imports_under(
                         }
                     )
     return imports
-
-
-def _src_libx0t_top_level_imports() -> list[dict[str, Any]]:
-    return _top_level_imports_under("src/libx0t")
-
-
-def _src_runtime_top_level_imports() -> list[dict[str, Any]]:
-    return _top_level_imports_under("src", exclude_prefixes=("src/libx0t/",))
-
-
-def _test_top_level_imports() -> list[dict[str, Any]]:
-    return _top_level_imports_under("tests")
-
-
-def _script_top_level_import_refs() -> list[str]:
-    refs: list[str] = []
-    for path in sorted((ROOT / "scripts").rglob("*.py")):
-        if "__pycache__" in path.parts:
-            continue
-        rel_path = str(path.relative_to(ROOT))
-        for line_number, line in enumerate(
-            path.read_text(encoding="utf-8", errors="ignore").splitlines(), start=1
-        ):
-            match = IMPORT_RE.search(line)
-            if match and match.group(1) == "libx0t":
-                refs.append(f"{rel_path}:{line_number}")
-    return refs
 
 
 def _src_libx0t_counterpart_exists(module: str) -> bool:
@@ -170,25 +139,6 @@ def test_remaining_src_libx0t_top_level_imports_match_allowed_exceptions():
     assert observed == expected
 
 
-def test_src_runtime_has_no_direct_top_level_libx0t_imports():
-    assert _src_runtime_top_level_imports() == []
-
-
-def test_top_level_libx0t_import_surface_is_test_compatibility_only():
-    import_map = _load_map()
-    surface = import_map["test_compatibility_import_surface"]
-    observed_test_refs = sorted(
-        item["source_ref"] for item in _test_top_level_imports()
-    )
-
-    assert surface["runtime_src_imports_total"] == 0
-    assert surface["scripts_imports_total"] == 0
-    assert _src_runtime_top_level_imports() == []
-    assert _script_top_level_import_refs() == []
-    assert surface["imports_total"] == len(observed_test_refs)
-    assert observed_test_refs == sorted(surface["source_refs"])
-
-
 def test_allowed_src_libx0t_top_level_imports_resolve_to_real_top_level_modules():
     for item in _load_map()["allowed_top_level_only_imports_in_src_libx0t"]:
         assert not _src_libx0t_counterpart_exists(item["module"]), item
@@ -211,7 +161,7 @@ def test_src_libx0t_runtime_imports_use_network_bridge_modules():
     source_refs = next(
         item["source_refs"]
         for item in _load_map()["repaired_import_holes"]
-        if item["id"] == "src-libx0t-network-canonical-imports"
+        if item["id"] == "src-libx0t-network-top-level-bridges"
     )
 
     for source_ref in source_refs:
@@ -220,39 +170,6 @@ def test_src_libx0t_runtime_imports_use_network_bridge_modules():
             int(line_text) - 1
         ]
         assert "src.libx0t.network" in line, source_ref
-
-
-def test_src_libx0t_network_compat_bridges_target_src_network():
-    source_refs = next(
-        item["source_refs"]
-        for item in _load_map()["repaired_import_holes"]
-        if item["id"] == "src-libx0t-network-compat-bridges-to-src-network"
-    )
-
-    for source_ref in source_refs:
-        path_text, line_text = source_ref.rsplit(":", 1)
-        line = (ROOT / path_text).read_text(encoding="utf-8").splitlines()[
-            int(line_text) - 1
-        ]
-        assert "src.network" in line, source_ref
-        assert "libx0t.network" not in line, source_ref
-
-
-def test_src_runtime_import_repairs_use_src_libx0t():
-    source_refs = next(
-        item["source_refs"]
-        for item in _load_map()["repaired_import_holes"]
-        if item["id"] == "src-runtime-direct-top-level-libx0t-imports-canonicalized"
-    )
-
-    for source_ref in source_refs:
-        path_text, line_text = source_ref.rsplit(":", 1)
-        line = (ROOT / path_text).read_text(encoding="utf-8").splitlines()[
-            int(line_text) - 1
-        ]
-        assert "src.libx0t" in line, source_ref
-        assert "from libx0t" not in line, source_ref
-        assert "import libx0t" not in line, source_ref
 
 
 def test_canonical_import_counts_match_current_scan():

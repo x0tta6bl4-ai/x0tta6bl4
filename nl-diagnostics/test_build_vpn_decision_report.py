@@ -77,31 +77,6 @@ class VpnDecisionReportTests(unittest.TestCase):
         self.assertEqual(decision["decision"], "manual_profile_review")
         self.assertFalse(decision["auto_profile_switch_allowed"])
 
-    def test_monitoring_gap_prioritizes_canary_monitor_restore(self):
-        classification = {
-            "overall_status": "advisory",
-            "failure_domain": "monitoring",
-            "recommended_action": "restore_transport_canary_monitor",
-            "transport_status": "degraded",
-            "provider_status": "historical_incident",
-            "blocking_assessment": {"category": "monitoring_gap"},
-            "profile_switch_policy": {"decision": "observe"},
-        }
-
-        decision = decision_report.decide_action(
-            classification,
-            {
-                "summary": {
-                    "snapshot_count": 15,
-                    "trend": "has_degradation",
-                }
-            },
-        )
-
-        self.assertEqual(decision["decision"], "restore_transport_canary_monitor")
-        self.assertFalse(decision["nl_mutation_allowed"])
-        self.assertIn("explicit approval", " ".join(decision["next_actions"]))
-
 
 if __name__ == "__main__":
     unittest.main()

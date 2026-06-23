@@ -1,6 +1,4 @@
-import json
-
-from src.security.decentralized_identity import DIDGenerator, DIDManager, DIDResolver
+from src.security.decentralized_identity import DIDGenerator, DIDManager
 
 
 def test_multibase_roundtrip_preserves_raw_key_bytes():
@@ -61,43 +59,3 @@ def test_verify_credential_rejects_revoked_verification_method_after_rotation():
         False,
         "Verification method not found or revoked",
     )
-
-
-def test_did_manager_thinking_status_redacts_did_subject_and_claims():
-    manager = DIDManager("issuer-secret-node")
-    credential = manager.issue_credential(
-        subject_did="did:mesh:subject-secret:abc",
-        credential_type="MeshNodeOperatorCredential",
-        claims={"role": "private-operator", "ip": "10.9.8.7"},
-    )
-    assert manager.verify_credential(credential.to_dict()) == (
-        True,
-        "Credential valid",
-    )
-
-    status = json.dumps(manager.get_thinking_status(), sort_keys=True)
-
-    assert "did_credential_verified" in status
-    assert "hash" in status
-    assert "issuer-secret-node" not in status
-    assert "did:mesh:subject-secret:abc" not in status
-    assert "private-operator" not in status
-    assert "10.9.8.7" not in status
-    assert credential.proof["proofValue"] not in status
-
-
-def test_did_resolver_thinking_status_redacts_did_and_peer_endpoint():
-    manager = DIDManager("resolver-secret-node")
-    resolver = DIDResolver()
-    resolver.register_peer_resolver("mesh://peer-secret")
-    resolver.cache_document(manager.did, manager.document)
-
-    assert resolver.resolve(manager.did)["id"] == manager.did
-
-    status = json.dumps(resolver.get_thinking_status(), sort_keys=True)
-
-    assert "did_resolver_cache_hit" in status
-    assert "hash" in status
-    assert manager.did not in status
-    assert "resolver-secret-node" not in status
-    assert "mesh://peer-secret" not in status

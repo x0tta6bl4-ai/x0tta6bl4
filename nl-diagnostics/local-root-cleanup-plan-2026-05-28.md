@@ -1,18 +1,18 @@
 # Local Root Cleanup Plan
 
-generated_at: `2026-06-06T12:58:33.303196+00:00`
-status: `no_cleanup_needed`
+generated_at: `2026-05-28T03:42:29.195424+00:00`
+status: `manual_cleanup_plan_ready`
 ok: `true`
 
 ## Summary
 
 ```text
-root_status=ok
-root_free_gib=18.24
-existing_candidate_count=3
-estimated_reclaim_gib=1.28
-top_candidate_id=JOURNAL-01
-top_candidate_size_gib=0.62
+root_status=critical_full
+root_free_gib=0.0
+existing_candidate_count=5
+estimated_reclaim_gib=3.24
+top_candidate_id=APT-CACHE-01
+top_candidate_size_gib=0.85
 cleanup_execute_allowed=false
 nl_write_allowed=false
 spb_fallback_allowed=false
@@ -21,18 +21,20 @@ automatic_failover_allowed=false
 
 ## Review Order
 
-- `JOURNAL-01`
-- `VARTMP-01`
 - `APT-CACHE-01`
+- `JOURNAL-01`
+- `TMP-ANTIGRAVITY-01`
+- `TMP-ANTIGRAVITY-02`
+- `VARTMP-01`
 
 ## Candidates
 
 | ID | Exists | Size GiB | Risk | Action | Command Preview |
 |---|---:|---:|---|---|---|
-| `TMP-ANTIGRAVITY-01` | false | 0.0 | `medium_manual_review` | `manual_review_before_delete` | `sudo rm -rf /tmp/antigravity_restore` |
-| `TMP-ANTIGRAVITY-02` | false | 0.0 | `medium_manual_review` | `manual_review_before_delete` | `sudo rm -rf /tmp/antigravity_restore_correct` |
-| `APT-CACHE-01` | true | 0.25 | `low_standard_cache` | `command_requires_approval` | `sudo apt-get clean` |
-| `JOURNAL-01` | true | 0.62 | `medium_keep_recent_logs` | `command_requires_approval` | `sudo journalctl --vacuum-size=500M` |
+| `TMP-ANTIGRAVITY-01` | true | 0.67 | `medium_manual_review` | `manual_review_before_delete` | `sudo rm -rf /tmp/antigravity_restore` |
+| `TMP-ANTIGRAVITY-02` | true | 0.6 | `medium_manual_review` | `manual_review_before_delete` | `sudo rm -rf /tmp/antigravity_restore_correct` |
+| `APT-CACHE-01` | true | 0.85 | `low_standard_cache` | `command_requires_approval` | `sudo apt-get clean` |
+| `JOURNAL-01` | true | 0.71 | `medium_keep_recent_logs` | `command_requires_approval` | `sudo journalctl --vacuum-size=500M` |
 | `VARTMP-01` | true | 0.41 | `high_manual_review` | `manual_review_before_delete` | `sudo find /var/tmp -mindepth 1 -maxdepth 1 -mtime +7 -print` |
 
 ## Execution Rules

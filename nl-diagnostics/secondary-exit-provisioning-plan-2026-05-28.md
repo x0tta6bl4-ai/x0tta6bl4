@@ -1,6 +1,6 @@
 # Secondary Exit Provisioning Plan
 
-generated_at: `2026-06-06T12:58:12.394616+00:00`
+generated_at: `2026-05-28T03:42:22.009315+00:00`
 status: `provisioning_plan_ready_no_endpoint`
 ok: `true`
 

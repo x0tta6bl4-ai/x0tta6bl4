@@ -83,6 +83,37 @@ def _extract_http_body(buffer: bytes) -> tuple[Optional[bytes], bytes]:
     return buffer[body_start:body_end], buffer[body_end:]
 
 
+def _parse_content_length(headers: bytes) -> Optional[int]:
+    for line in headers.split(b"\r\n"):
+        if b":" not in line:
+            continue
+        name, value = line.split(b":", 1)
+        if name.strip().lower() != b"content-length":
+            continue
+        try:
+            return max(0, int(value.strip()))
+        except ValueError:
+            return None
+    return None
+
+
+def _extract_http_body(buffer: bytes) -> tuple[Optional[bytes], bytes]:
+    header_end = buffer.find(b"\r\n\r\n")
+    if header_end == -1:
+        return None, buffer
+
+    headers = buffer[:header_end]
+    body_start = header_end + 4
+    content_length = _parse_content_length(headers)
+    if content_length is None:
+        return buffer[body_start:], b""
+
+    body_end = body_start + content_length
+    if len(buffer) < body_end:
+        return None, buffer
+    return buffer[body_start:body_end], buffer[body_end:]
+
+
 class DomainFrontingSocket(socket.socket):
     """
     Socket wrapper that performs Domain Fronting.
@@ -346,7 +377,6 @@ class DomainFrontingTransport(ObfuscationTransport):
         return wrapped
 
     def obfuscate(self, data: bytes) -> bytes:
-        started_at = time.monotonic()
         headers = (
             f"POST /data HTTP/1.1\r\n"
             f"Host: {self.backend_domain}\r\n"
@@ -377,32 +407,5 @@ class DomainFrontingTransport(ObfuscationTransport):
         # Strip headers
         if data.find(b"\r\n\r\n") != -1:
             body, _remaining = _extract_http_body(data)
-            result = body or b""
-            self._publish_evidence(
-                operation="deobfuscate",
-                status_value="decapsulated",
-                started_at=started_at,
-                metadata={
-                    "http": {
-                        "headers_present": True,
-                        "body_bytes_bucket": _byte_count_bucket(len(result)),
-                        "input_bytes_bucket": _byte_count_bucket(len(data)),
-                        "raw_http_redacted": True,
-                    },
-                },
-            )
-            return result
-        self._publish_evidence(
-            operation="deobfuscate",
-            status_value="pass_through",
-            started_at=started_at,
-            metadata={
-                "http": {
-                    "headers_present": False,
-                    "input_bytes_bucket": _byte_count_bucket(len(data)),
-                    "body_bytes_bucket": _byte_count_bucket(len(data)),
-                    "raw_http_redacted": True,
-                },
-            },
-        )
+            return body or b""
         return data

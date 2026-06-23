@@ -260,9 +260,11 @@ class FakeTLSTransport(ObfuscationTransport):
     def _extension(self, extension_type: int, body: bytes) -> bytes:
         return struct.pack("!HH", extension_type, len(body)) + body
 
+    def _extension(self, extension_type: int, body: bytes) -> bytes:
+        return struct.pack("!HH", extension_type, len(body)) + body
+
     def generate_client_hello(self) -> bytes:
         """Generates a realistic TLS 1.3 ClientHello."""
-        started_at = time.monotonic()
         extensions = b""
 
         sni_len = len(self.sni)
@@ -337,21 +339,7 @@ class FakeTLSTransport(ObfuscationTransport):
 
     def obfuscate(self, data: bytes) -> bytes:
         """Wraps data in TLS 1.3 Application Data record."""
-        started_at = time.monotonic()
         if len(data) > 0xFFFF:
-            self._publish_evidence(
-                operation="obfuscate",
-                status_value="failed",
-                started_at=started_at,
-                metadata={
-                    "input_bytes_bucket": _byte_count_bucket(len(data)),
-                    "record": {
-                        "content_type": "application_data",
-                        "raw_record_redacted": True,
-                    },
-                },
-                error_type="ValueError",
-            )
             raise ValueError("FakeTLS record payload exceeds 65535 bytes")
         length = len(data)
         header = struct.pack("!BHH", 0x17, 0x0303, length)
@@ -374,52 +362,9 @@ class FakeTLSTransport(ObfuscationTransport):
 
     def deobfuscate(self, data: bytes) -> bytes:
         """Unwrap an application-data TLS record or pass through raw payload."""
-        started_at = time.monotonic()
         if len(data) >= 5 and data[0] == 0x17:
             _content_type, _version, length = struct.unpack("!BHH", data[:5])
             if len(data) - 5 < length:
-                self._publish_evidence(
-                    operation="deobfuscate",
-                    status_value="failed",
-                    started_at=started_at,
-                    metadata={
-                        "input_bytes_bucket": _byte_count_bucket(len(data)),
-                        "record": {
-                            "content_type": "application_data",
-                            "declared_payload_bucket": _byte_count_bucket(length),
-                            "raw_record_redacted": True,
-                        },
-                    },
-                    error_type="ValueError",
-                )
                 raise ValueError("Incomplete FakeTLS application data record")
-            payload = data[5 : 5 + length]
-            self._publish_evidence(
-                operation="deobfuscate",
-                status_value="unwrapped",
-                started_at=started_at,
-                metadata={
-                    "input_bytes_bucket": _byte_count_bucket(len(data)),
-                    "output_bytes_bucket": _byte_count_bucket(len(payload)),
-                    "record": {
-                        "content_type": "application_data",
-                        "declared_payload_bucket": _byte_count_bucket(length),
-                        "raw_record_redacted": True,
-                    },
-                },
-            )
-            return payload
-        self._publish_evidence(
-            operation="deobfuscate",
-            status_value="pass_through",
-            started_at=started_at,
-            metadata={
-                "input_bytes_bucket": _byte_count_bucket(len(data)),
-                "output_bytes_bucket": _byte_count_bucket(len(data)),
-                "record": {
-                    "content_type": "not_faketls_application_data",
-                    "raw_record_redacted": True,
-                },
-            },
-        )
+            return data[5 : 5 + length]
         return data

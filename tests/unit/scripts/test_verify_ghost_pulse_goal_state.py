@@ -29,7 +29,6 @@ def _sha256(path: Path) -> str:
 
 def _boundary(statuses: dict[str, str]) -> dict[str, bool]:
     return {
-        "current_runtime_attached": statuses.get("current_runtime_attached") == "VERIFIED",
         "kernel_attach_verified": statuses.get("kernel_attach") == "VERIFIED",
         "production_ready": all(status == "VERIFIED" for status in statuses.values()),
         "stealth_verified": (
@@ -137,16 +136,10 @@ def _write_reports(root: Path, goal, statuses: dict[str, str] | None = None):
         "whitelist_lab": "INVALID",
         "security_review": "INVALID",
         "production_readiness": "INVALID",
-        "current_runtime_attached": "INVALID",
     }
     pending = [
         claim_id
         for claim_id in goal.CLOSURE_CLAIMS
-        if statuses.get(claim_id) != "VERIFIED"
-    ]
-    runtime_pending = [
-        claim_id
-        for claim_id in goal.RUNTIME_CLAIMS
         if statuses.get(claim_id) != "VERIFIED"
     ]
     not_verified = [
@@ -175,7 +168,7 @@ def _write_reports(root: Path, goal, statuses: dict[str, str] | None = None):
     ]
     proof = {
         "schema": "x0tta6bl4.ghost_pulse.proof_gate.v1",
-        "decision": goal.PROOF_DECISION_INCOMPLETE if pending or runtime_pending else goal.PROOF_DECISION_PROVEN,
+        "decision": goal.PROOF_DECISION_INCOMPLETE if pending else goal.PROOF_DECISION_PROVEN,
         "proof_rows": proof_rows,
         "not_verified_yet": not_verified,
         "claim_boundary": _boundary(statuses),
@@ -268,6 +261,7 @@ def test_goal_state_accepts_current_latest():
     assert report["pending_external_evidence_claims"] == [
         "dpi_lab",
         "whitelist_lab",
+        "security_review",
         "production_readiness",
     ]
 
@@ -331,7 +325,6 @@ def test_goal_state_records_current_gap_contract(tmp_path):
         "current_evidence_not_verified",
     ]
     assert report["claim_boundary"] == {
-        "current_runtime_attached": False,
         "kernel_attach_verified": False,
         "production_ready": False,
         "stealth_verified": False,
@@ -357,28 +350,6 @@ def test_goal_state_rejects_unverified_starter_claim(tmp_path):
     assert report["status"] == "FAIL"
     assert "packet_capture: starter claim must be VERIFIED" in report["failures"]
     assert "packet_capture: non-closure claim must not be pending" in report["failures"]
-
-
-def test_goal_state_accepts_runtime_pending_as_non_external_closure(tmp_path):
-    goal = _load_script(
-        "verify_ghost_pulse_goal_state_runtime_pending",
-        "scripts/ops/verify_ghost_pulse_goal_state.py",
-    )
-    statuses = {
-        claim_id: "VERIFIED"
-        for claim_id in goal.EXPECTED_PROOF_ROW_CLAIMS
-    }
-    statuses["current_runtime_attached"] = "INVALID"
-    _write_reports(tmp_path, goal, statuses)
-
-    report = goal.build_report(tmp_path)
-
-    assert report["status"] == "PASS"
-    assert report["decision"] == goal.DECISION_GAPS_RECORDED
-    assert report["pending_external_evidence_claims"] == []
-    assert report["pending_runtime_claims"] == ["current_runtime_attached"]
-    assert report["claim_boundary"]["current_runtime_attached"] is False
-    assert report["claim_boundary"]["production_ready"] is False
 
 
 def test_goal_state_accepts_closure_progress_without_unearned_boundaries(tmp_path):

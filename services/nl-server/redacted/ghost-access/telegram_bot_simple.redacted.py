@@ -35,7 +35,7 @@ import onboarding_logic
 from pathlib import Path
 from datetime import UTC, datetime, timedelta
 from typing import Optional, TypedDict
-from urllib.parse import quote, urlencode, urlparse
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 try:
@@ -249,23 +249,6 @@ ENABLE_XHTTP_FALLBACK = os.getenv("ENABLE_XHTTP_FALLBACK", "0").strip() in {
     "yes",
     "on",
 }
-ENABLE_GHOST_HTTPS_WS_FALLBACK = (
-    os.getenv("ENABLE_GHOST_HTTPS_WS_FALLBACK", "0").strip().lower()
-    in {"1", "true", "yes", "on"}
-)
-GHOST_HTTPS_WS_PORT = int(os.getenv("GHOST_HTTPS_WS_PORT", "8443"))
-GHOST_HTTPS_WS_PATH = os.getenv("GHOST_HTTPS_WS_PATH", "/ghost-ws").strip() or "/ghost-ws"
-GHOST_HTTPS_WS_HOST = os.getenv("GHOST_HTTPS_WS_HOST", "").strip()
-GHOST_HTTPS_WS_FINGERPRINT = os.getenv("GHOST_HTTPS_WS_FINGERPRINT", "chrome").strip()
-ENABLE_GHOST_XHTTP_FALLBACK = (
-    os.getenv("ENABLE_GHOST_XHTTP_FALLBACK", "0").strip().lower()
-    in {"1", "true", "yes", "on"}
-)
-GHOST_XHTTP_PORT = int(os.getenv("GHOST_XHTTP_PORT", "8443"))
-GHOST_XHTTP_PATH = os.getenv("GHOST_XHTTP_PATH", "/ghost-xhttp").strip() or "/ghost-xhttp"
-GHOST_XHTTP_HOST = os.getenv("GHOST_XHTTP_HOST", "").strip()
-GHOST_XHTTP_MODE = os.getenv("GHOST_XHTTP_MODE", "auto").strip() or "auto"
-GHOST_XHTTP_FINGERPRINT = os.getenv("GHOST_XHTTP_FINGERPRINT", "chrome").strip()
 ENABLE_SECONDARY_REALITY_FALLBACK = (
     os.getenv("ENABLE_SECONDARY_REALITY_FALLBACK", "0").strip() in {"1", "true", "yes", "on"}
     and SECONDARY_VPN_PORT != VPN_PORT
@@ -328,20 +311,6 @@ V2RAYN_DOWNLOAD_URL = "https://github.com/2dust/v2rayN/releases"
 VPN_SERVICE_AGENT_LATEST_PATH = os.getenv("VPN_SERVICE_AGENT_LATEST_PATH", "").strip()
 VPN_SERVICE_AGENT_STALE_SECONDS = int(os.getenv("VPN_SERVICE_AGENT_STALE_SECONDS", "1800"))
 VPN_SERVICE_AGENT_CACHE_SECONDS = int(os.getenv("VPN_SERVICE_AGENT_CACHE_SECONDS", "30"))
-PROFILE_STATUS_API_URL = os.getenv(
-    "PROFILE_STATUS_API_URL",
-    "http://127.0.0.1:9472",
-).strip().rstrip("/")
-PROFILE_STATUS_API_TIMEOUT_SECONDS = float(
-    os.getenv("PROFILE_STATUS_API_TIMEOUT_SECONDS", "3")
-)
-ROLLBACK_GHOST_FALLBACKS_SCRIPT = os.getenv(
-    "ROLLBACK_GHOST_FALLBACKS_SCRIPT",
-    "/opt/ghost-access-bot/current/scripts/rollback_ghost_fallbacks.py",
-).strip()
-ROLLBACK_GHOST_FALLBACKS_TIMEOUT_SECONDS = int(
-    os.getenv("ROLLBACK_GHOST_FALLBACKS_TIMEOUT_SECONDS", "5")
-)
 WARP_TIMEOUT_SIGNAL_CACHE_SECONDS = int(
     os.getenv("WARP_TIMEOUT_SIGNAL_CACHE_SECONDS", "30")
 )
@@ -1025,7 +994,6 @@ def build_admin_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="Общая сводка", callback_data="admin:stats")
     builder.button(text="Здоровье VPN", callback_data="admin:vpn")
-    builder.button(text="Anti-block", callback_data="admin:anti_block")
     builder.button(text="Техпанель", callback_data="admin:runtime")
     builder.button(text="Anti-Abuse", callback_data="admin:abuse")
     builder.button(text="Пользователи", callback_data="admin:users")
@@ -1039,7 +1007,7 @@ def build_admin_menu() -> InlineKeyboardMarkup:
     builder.button(text="Доходы", callback_data="admin:revenue")
     builder.button(text="Памятка", callback_data="admin:help")
     builder.button(text="Главное меню", callback_data="menu")
-    builder.adjust(2, 2, 2, 2, 2, 2, 2, 2)
+    builder.adjust(2, 2, 2, 2, 2, 2, 1)
     return builder.as_markup()
 
 
@@ -1542,67 +1510,6 @@ def generate_xhttp_link(user_uuid: str, label: str | None = None) -> str:
     )
 
 
-def ghost_https_ws_host() -> str:
-    if GHOST_HTTPS_WS_HOST:
-        return GHOST_HTTPS_WS_HOST
-    if SUBSCRIPTION_BASE_URL:
-        try:
-            parsed = urlparse(SUBSCRIPTION_BASE_URL)
-            if parsed.hostname:
-                return parsed.hostname
-        except Exception:
-            pass
-    return PROFILE_VPN_SERVER
-
-
-def ghost_xhttp_host() -> str:
-    if GHOST_XHTTP_HOST:
-        return GHOST_XHTTP_HOST
-    if SUBSCRIPTION_BASE_URL:
-        try:
-            parsed = urlparse(SUBSCRIPTION_BASE_URL)
-            if parsed.hostname:
-                return parsed.hostname
-        except Exception:
-            pass
-    return PROFILE_VPN_SERVER
-
-
-def generate_ghost_https_ws_link(user_uuid: str, label: str | None = None) -> str:
-    host = ghost_https_ws_host()
-    path = quote(GHOST_HTTPS_WS_PATH, safe="/")
-    fragment = quote(label or "x0tta6bl4-Access-Ghost-HTTPS", safe="")
-    return (
-        f"<REDACTED_VPN_URI>"
-        "?security=tls"
-        "&encryption=none"
-        "&type=ws"
-        f"&path={path}"
-        f"&host={host}"
-        f"&sni={host}"
-        f"&fp={GHOST_HTTPS_WS_FINGERPRINT}"
-        f"#{fragment}"
-    )
-
-
-def generate_ghost_xhttp_link(user_uuid: str, label: str | None = None) -> str:
-    host = ghost_xhttp_host()
-    path = quote(GHOST_XHTTP_PATH, safe="/")
-    fragment = quote(label or "x0tta6bl4-Access-XHTTP", safe="")
-    return (
-        f"<REDACTED_VPN_URI>"
-        "?security=tls"
-        "&encryption=none"
-        "&type=xhttp"
-        f"&path={path}"
-        f"&mode={GHOST_XHTTP_MODE}"
-        f"&host={host}"
-        f"&sni={host}"
-        f"&fp={GHOST_XHTTP_FINGERPRINT}"
-        f"#{fragment}"
-    )
-
-
 def build_transport_catalog(
     user_uuid: str,
     *,
@@ -1630,15 +1537,6 @@ def build_transport_catalog(
                 ),
             }
         )
-    if include_fallbacks and ENABLE_GHOST_XHTTP_FALLBACK:
-        catalog.append(
-            {
-                "kind": "ghost_xhttp",
-                "title": f"Ghost XHTTP {GHOST_XHTTP_PORT}",
-                "port": GHOST_XHTTP_PORT,
-                "link": generate_ghost_xhttp_link(user_uuid, label=f"{root} XHTTP"),
-            }
-        )
     if include_fallbacks and ENABLE_XHTTP_FALLBACK:
         catalog.append(
             {
@@ -1648,34 +1546,7 @@ def build_transport_catalog(
                 "link": generate_xhttp_link(user_uuid, label=f"{root} XHTTP"),
             }
         )
-    if include_fallbacks and ENABLE_GHOST_HTTPS_WS_FALLBACK:
-        catalog.append(
-            {
-                "kind": "ghost_https_ws",
-                "title": f"Ghost HTTPS {GHOST_HTTPS_WS_PORT}",
-                "port": GHOST_HTTPS_WS_PORT,
-                "link": generate_ghost_https_ws_link(user_uuid, label=f"{root} Ghost-HTTPS"),
-            }
-        )
     return catalog
-
-
-def generate_fallback_links(user_uuid: str, label: str | None = None) -> list[str]:
-    if not EXPOSE_FALLBACK_TRANSPORTS:
-        return []
-    links: list[str] = []
-    if ENABLE_GHOST_XHTTP_FALLBACK:
-        links.append(generate_ghost_xhttp_link(user_uuid, label=label))
-    if ENABLE_GHOST_HTTPS_WS_FALLBACK:
-        ws_label = f"{label} WS" if label else None
-        links.append(generate_ghost_https_ws_link(user_uuid, label=ws_label))
-    if ENABLE_SECONDARY_REALITY_FALLBACK:
-        reality_label = f"{label} Reality-{SECONDARY_VPN_PORT}" if label else label
-        links.append(generate_secondary_reality_link(user_uuid, label=reality_label))
-    if ENABLE_XHTTP_FALLBACK:
-        xhttp_label = f"{label} Legacy-XHTTP" if label else label
-        links.append(generate_xhttp_link(user_uuid, label=xhttp_label))
-    return links
 
 
 def render_transport_bundle_text(
@@ -1707,25 +1578,22 @@ def render_transport_bundle_text(
 
 
 def generate_fallback_link(user_uuid: str, label: str | None = None) -> str:
-    links = generate_fallback_links(user_uuid, label=label)
-    return links[0] if links else ""
+    if not EXPOSE_FALLBACK_TRANSPORTS:
+        return ""
+    if ENABLE_SECONDARY_REALITY_FALLBACK:
+        return generate_secondary_reality_link(user_uuid, label=label)
+    if ENABLE_XHTTP_FALLBACK:
+        return generate_xhttp_link(user_uuid, label=label)
+    return ""
 
 
 def fallback_delivery_button_text() -> str:
-    if ENABLE_GHOST_XHTTP_FALLBACK:
-        return f"Ghost XHTTP {GHOST_XHTTP_PORT}"
-    if ENABLE_GHOST_HTTPS_WS_FALLBACK:
-        return f"Ghost HTTPS {GHOST_HTTPS_WS_PORT}"
     if ENABLE_SECONDARY_REALITY_FALLBACK:
         return f"Резерв {SECONDARY_VPN_PORT}"
     return "Если не работает"
 
 
 def fallback_profile_title() -> str:
-    if ENABLE_GHOST_XHTTP_FALLBACK:
-        return "резервный Ghost XHTTP профиль"
-    if ENABLE_GHOST_HTTPS_WS_FALLBACK:
-        return "резервный Ghost HTTPS профиль"
     if ENABLE_SECONDARY_REALITY_FALLBACK:
         return f"резервный профиль {SECONDARY_VPN_PORT}"
     if ENABLE_XHTTP_FALLBACK:
@@ -1735,10 +1603,6 @@ def fallback_profile_title() -> str:
 
 def build_fallback_label(base_label: str | None = None) -> str:
     root = (base_label or "x0tta6bl4-Access").strip()
-    if ENABLE_GHOST_XHTTP_FALLBACK:
-        return f"{root} XHTTP"
-    if ENABLE_GHOST_HTTPS_WS_FALLBACK:
-        return f"{root} Ghost-HTTPS"
     if ENABLE_SECONDARY_REALITY_FALLBACK:
         return f"{root} Reserve-{SECONDARY_VPN_PORT}"
     if ENABLE_XHTTP_FALLBACK:
@@ -1920,11 +1784,13 @@ def create_cardlink_payment(user_id: int, plan_key: str) -> dict:
 
 
 def verify_cardlink_signature(out_sum: str, inv_id: str, signature: str) -> bool:
-    """Verify CardLink webhook signature: MD5(OutSum:InvId:apiToken)."""
-    import hashlib
+    """Fail closed in the redacted review copy.
 
-    expected = hashlib.md5(f"{out_sum}:{inv_id}:{CARDLINK_API_TOKEN}".encode()).hexdigest().upper()
-    return expected == (signature or "").upper()
+    The live source uses a provider-specific legacy signature scheme. This
+    repository file is explicitly non-deployable, so it does not retain that
+    token-bearing implementation.
+    """
+    return False
 
 
 def parse_cardlink_order_id(payment: dict | None) -> str | None:
@@ -2294,8 +2160,8 @@ def apply_transport_mode_choice(user_id: int, mode: str) -> tuple[bool, str]:
             (
                 f"{BOT_BRAND}\n\n"
                 "⚡ Быстрый Telegram включён\n\n"
-                "В подписке резервные профили теперь закреплены первыми. "
-                "Это помогает, когда основной маршрут режется или работает медленно."
+                f"В подписке резерв {SECONDARY_VPN_PORT} теперь закреплён первым. "
+                "Это помогает, когда Telegram медленнее на основном маршруте."
             ),
         )
     if normalized in {"auto", "main", "direct"}:
@@ -2306,7 +2172,7 @@ def apply_transport_mode_choice(user_id: int, mode: str) -> tuple[bool, str]:
             (
                 f"{BOT_BRAND}\n\n"
                 "🌐 Автоматический режим включён\n\n"
-                "Бот снова сам выбирает порядок основного и резервных профилей "
+                f"Бот снова сам выбирает порядок {VPN_PORT}/{SECONDARY_VPN_PORT} "
                 "по состоянию маршрутов."
             ),
         )
@@ -2360,17 +2226,23 @@ def build_subscription_links_for_user(
         )
     links: list[str] = []
     preferred_transport = resolve_user_preferred_transport(user, health_policy)
+    fallback_enabled = ENABLE_SECONDARY_REALITY_FALLBACK or ENABLE_XHTTP_FALLBACK
     for device in ordered:
         label = build_device_subscription_label(device)
         main_link = generate_vless_link(device["vpn_uuid"], label=label)
-        fallback_links = generate_fallback_links(device["vpn_uuid"], label=f"{label} Alt")
-        if preferred_transport == "fallback" and fallback_links:
-            links.extend(fallback_links)
+        fallback_link = (
+            generate_fallback_link(device["vpn_uuid"], label=f"{label} Alt")
+            if fallback_enabled
+            else ""
+        )
+        if preferred_transport == "fallback" and fallback_link:
+            links.append(fallback_link)
             links.append(main_link)
             continue
 
         links.append(main_link)
-        links.extend(fallback_links)
+        if fallback_link:
+            links.append(fallback_link)
     return links
 
 
@@ -2382,12 +2254,17 @@ def build_subscription_links_for_uuid(
     user: dict | None = None,
 ) -> list[str]:
     preferred_transport = resolve_user_preferred_transport(user, health_policy)
+    fallback_enabled = ENABLE_SECONDARY_REALITY_FALLBACK or ENABLE_XHTTP_FALLBACK
     main_link = generate_vless_link(vpn_uuid, label=label_root)
-    fallback_links = generate_fallback_links(vpn_uuid, label=build_fallback_label(label_root))
-    if preferred_transport == "fallback" and fallback_links:
-        return [*fallback_links, main_link]
-    if fallback_links:
-        return [main_link, *fallback_links]
+    fallback_link = (
+        generate_fallback_link(vpn_uuid, label=build_fallback_label(label_root))
+        if fallback_enabled
+        else ""
+    )
+    if preferred_transport == "fallback" and fallback_link:
+        return [fallback_link, main_link]
+    if fallback_link:
+        return [main_link, fallback_link]
     return [main_link]
 
 
@@ -3144,10 +3021,6 @@ def check_xray_ports_health() -> dict[int, bool]:
         ports.append(SECONDARY_VPN_PORT)
     if ENABLE_XHTTP_FALLBACK:
         ports.append(8443)
-    if ENABLE_GHOST_XHTTP_FALLBACK and GHOST_XHTTP_PORT not in ports:
-        ports.append(GHOST_XHTTP_PORT)
-    if ENABLE_GHOST_HTTPS_WS_FALLBACK and GHOST_HTTPS_WS_PORT not in ports:
-        ports.append(GHOST_HTTPS_WS_PORT)
     return {port: check_xray_port_alive(port) for port in ports}
 
 
@@ -4921,7 +4794,6 @@ def render_admin_help_text() -> str:
         "Основные команды:\n"
         "/stats - сводка по пользователям, рефералам и anti-abuse\n"
         "/stats_abuse - отдельная anti-abuse сводка\n"
-        "/anti_block - состояние XHTTP/WS fallback и usage за 60 минут\n"
         "/admin_user <user_id> - открыть карточку пользователя\n"
         "/activate <user_id> <plan_key> - активировать или продлить подписку\n"
         "Кнопка «Выпустить без Telegram» - выдать ссылку и claim-код без user_id\n"
@@ -5840,193 +5712,6 @@ def render_admin_vpn_health_text() -> str:
         )
         + f"\n\nИсточник: {source_path}"
     )
-
-
-def load_profile_status_api(path: str) -> tuple[dict | None, str | None]:
-    if not PROFILE_STATUS_API_URL:
-        return None, "PROFILE_STATUS_API_URL is empty"
-    url = f"{PROFILE_STATUS_API_URL}{path}"
-    request = Request(url, headers={"Accept": "application/json"})
-    try:
-        with urlopen(request, timeout=PROFILE_STATUS_API_TIMEOUT_SECONDS) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except Exception as exc:
-        return None, str(exc)
-    if not isinstance(payload, dict):
-        return None, "response is not a JSON object"
-    return payload, None
-
-
-def load_rollback_dry_run() -> tuple[dict | None, str | None]:
-    if not ROLLBACK_GHOST_FALLBACKS_SCRIPT:
-        return None, "ROLLBACK_GHOST_FALLBACKS_SCRIPT is empty"
-    if not os.path.exists(ROLLBACK_GHOST_FALLBACKS_SCRIPT):
-        return None, f"missing:{ROLLBACK_GHOST_FALLBACKS_SCRIPT}"
-    try:
-        completed = subprocess.run(
-            ["python3", ROLLBACK_GHOST_FALLBACKS_SCRIPT, "--json"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            check=False,
-            timeout=ROLLBACK_GHOST_FALLBACKS_TIMEOUT_SECONDS,
-            env=_sudo_env(),
-        )
-    except Exception as exc:
-        return None, str(exc)
-    output = (completed.stdout or "").strip()
-    try:
-        payload = json.loads(output) if output else None
-    except Exception:
-        payload = None
-    if completed.returncode != 0:
-        return payload if isinstance(payload, dict) else None, f"rc={completed.returncode}: {output[:240]}"
-    if not isinstance(payload, dict):
-        return None, "response is not a JSON object"
-    return payload, None
-
-
-def _usage_count(summary: dict, key: str) -> int:
-    value = summary.get(key)
-    return value if isinstance(value, int) else 0
-
-
-def _usage_time(summary: dict, key: str) -> str:
-    value = summary.get(key)
-    return str(value) if value else "—"
-
-
-def _flag_summary(flags: object) -> str:
-    values = flags if isinstance(flags, dict) else {}
-    return (
-        f"expose={values.get('EXPOSE_FALLBACK_TRANSPORTS', '—')}, "
-        f"xhttp={values.get('ENABLE_GHOST_XHTTP_FALLBACK', '—')}, "
-        f"ws={values.get('ENABLE_GHOST_HTTPS_WS_FALLBACK', '—')}"
-    )
-
-
-def render_rollback_dry_run_block() -> str:
-    payload, error = load_rollback_dry_run()
-    if not payload:
-        detail = (error or "unknown error")[:240]
-        return (
-            "Rollback dry-run:\n"
-            "- status: unavailable\n"
-            f"- error: {detail}\n"
-            "- effect: no rollback was applied"
-        )
-
-    plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
-    safety = plan.get("safety_checks") if isinstance(plan.get("safety_checks"), list) else []
-    safety_ok = all(isinstance(item, dict) and item.get("ok") is True for item in safety)
-    service_stop_confirm = payload.get("service_stop_confirm_required") or "not needed"
-    return "\n".join(
-        [
-            "Rollback dry-run:",
-            f"- decision: {payload.get('decision') or 'unknown'}",
-            f"- mode: {plan.get('mode') or 'unknown'}",
-            f"- safety: {'ok' if safety_ok else 'fail'}",
-            f"- now: {_flag_summary(plan.get('current_env_flags'))}",
-            f"- target: {_flag_summary(plan.get('target_env_flags'))}",
-            f"- apply confirm: {payload.get('confirm_required') or 'missing'}",
-            f"- service-stop confirm: {service_stop_confirm}",
-            "- effect now: no rollback was applied",
-        ]
-    )
-
-
-def _client_evidence_status(completion: dict, key: str) -> str:
-    return "ok" if completion.get(key) is True else "missing"
-
-
-def render_client_compatibility_block() -> str:
-    payload, error = load_profile_status_api("/client-compatibility")
-    if not payload:
-        detail = (error or "unknown error")[:180]
-        return "\n".join(
-            [
-                "Client evidence:",
-                "- status: unavailable",
-                f"- error: {detail}",
-                "- effect: server rollout can be ok, but goal completion is not proven",
-            ]
-        )
-
-    completion = payload.get("completion") if isinstance(payload.get("completion"), dict) else {}
-    missing = payload.get("missing_requirements")
-    missing_text = ", ".join(str(item) for item in missing) if isinstance(missing, list) else "unknown"
-    return "\n".join(
-        [
-            "Client evidence:",
-            f"- status: {payload.get('current_status') or 'unknown'}",
-            f"- desktop v2rayN: {_client_evidence_status(completion, 'desktop_v2rayn')}",
-            f"- Android Happ/Hiddify: {_client_evidence_status(completion, 'android_happ_or_hiddify')}",
-            f"- mobile network: {_client_evidence_status(completion, 'mobile_network')}",
-            f"- work/restricted Wi-Fi: {_client_evidence_status(completion, 'restricted_or_work_wifi')}",
-            f"- missing: {missing_text or 'none'}",
-            f"- checks: {payload.get('passing_real_client_checks', 0)}/{payload.get('real_client_checks', 0)} pass",
-            "- remote intake: use privacy-safe recorder; no raw user IDs, IPs, UUIDs, profile links, handles, phones, or screenshots",
-        ]
-    )
-
-
-def render_admin_anti_block_text() -> str:
-    payload, error = load_profile_status_api("/transport-usage")
-    if not payload:
-        detail = (error or "unknown error")[:240]
-        return (
-            f"{BOT_BRAND} — Anti-block\n\n"
-            "Status API недоступен.\n"
-            f"Endpoint: {PROFILE_STATUS_API_URL}/transport-usage\n"
-            f"Ошибка: {detail}\n\n"
-            "Это не означает, что VPN упал. Это означает, что бот не смог прочитать "
-            "локальную операторскую сводку."
-        )
-
-    summary = payload.get("transport_usage_60m")
-    summary = summary if isinstance(summary, dict) else {}
-    privacy_ok = summary.get("privacy_ok") is True
-    xhttp_ready = bool(payload.get("ghost_xhttp_ready"))
-    ws_ready = bool(payload.get("ghost_https_ws_ready"))
-    api_ok = bool(payload.get("ok"))
-
-    lines = [
-        f"{BOT_BRAND} — Anti-block",
-        "",
-        f"Runtime: {payload.get('runtime_mode') or 'unknown'}",
-        f"Действие: {payload.get('recommended_action') or 'unknown'}",
-        f"Подписка: {payload.get('subscription_health_status') or 'unknown'}",
-        f"XHTTP ready: {'ok' if xhttp_ready else 'fail'}",
-        f"WS ready: {'ok' if ws_ready else 'fail'}",
-        f"Usage evidence: {'ok' if api_ok else 'fail'}",
-        f"Privacy: {'ok' if privacy_ok else 'fail'}",
-        "",
-        "За 60 минут:",
-        (
-            "- XHTTP: "
-            f"{_usage_count(summary, 'ghost_xhttp_dataplane_events')} dataplane, "
-            f"{_usage_count(summary, 'ghost_xhttp_nginx_requests')} nginx, "
-            f"{_usage_count(summary, 'ghost_xhttp_unique_clients')} clients"
-        ),
-        f"  last seen: {_usage_time(summary, 'ghost_xhttp_last_seen_at')}",
-        (
-            "- WS: "
-            f"{_usage_count(summary, 'ghost_https_ws_dataplane_events')} dataplane, "
-            f"{_usage_count(summary, 'ghost_https_ws_nginx_requests')} nginx, "
-            f"{_usage_count(summary, 'ghost_https_ws_unique_clients')} clients"
-        ),
-        f"  last seen: {_usage_time(summary, 'ghost_https_ws_last_seen_at')}",
-        "",
-        f"Runtime generated: {payload.get('runtime_generated_at') or '—'}",
-        f"Usage generated: {payload.get('usage_generated_at') or '—'}",
-        "",
-        render_client_compatibility_block(),
-        "",
-        render_rollback_dry_run_block(),
-        "",
-        "В этом выводе только агрегаты. Сырых IP, email, UUID и ссылок профилей здесь нет.",
-    ]
-    return "\n".join(lines)
 
 
 def render_admin_runtime_text() -> str:
@@ -7792,19 +7477,6 @@ async def cmd_admin(message: Message) -> None:
     await message.answer(render_admin_panel_text(), reply_markup=build_admin_menu())
 
 
-@router.message(Command("anti_block"))
-async def cmd_anti_block(message: Message) -> None:
-    logger.info(
-        "incoming /anti_block from chat_id=%s user_id=%s",
-        message.chat.id,
-        message.from_user.id,
-    )
-    if not is_admin(message.from_user.id):
-        await message.answer("Эта команда доступна только администратору.")
-        return
-    await message.answer(render_admin_anti_block_text(), reply_markup=build_admin_menu())
-
-
 @router.message(Command("admin_user"))
 async def cmd_admin_user(message: Message, command: CommandObject) -> None:
     logger.info(
@@ -9186,15 +8858,6 @@ async def handle_callback(callback: CallbackQuery) -> None:
             await safe_edit(
                 callback,
                 render_admin_vpn_health_text(),
-                reply_markup=build_admin_menu(),
-            )
-    elif callback.data == "admin:anti_block":
-        if not is_admin(callback.from_user.id):
-            await callback.message.answer("Эта команда доступна только администратору.")
-        else:
-            await safe_edit(
-                callback,
-                render_admin_anti_block_text(),
                 reply_markup=build_admin_menu(),
             )
     elif callback.data == "admin:runtime":
@@ -11340,10 +11003,13 @@ def parse_vpn_client_ua(ua: str) -> dict[str, str]:
         if linux_ver:
             result["os_version"] = linux_ver.group(1)
 
-    # Device model (from parentheses, common in mobile UAs)
-    model_match = re.search(r";\s*([A-Za-z][\w\s\-]+?)(?:\s+Build|\))", ua)
-    if model_match:
-        result["device_model"] = model_match.group(1).strip()
+    # Device model (from parentheses, common in mobile UAs). Keep this parser
+    # deliberately simple to avoid regex backtracking on arbitrary user agents.
+    for segment in ua.split(";")[1:]:
+        candidate = segment.split("Build", 1)[0].split(")", 1)[0].strip()
+        if candidate and candidate[0].isalpha():
+            result["device_model"] = candidate[:80]
+            break
 
     # Build display string
     parts = []
@@ -11555,10 +11221,12 @@ async def handle_subscription_request(request):
     allowed, retry_after = check_subscription_rate_limit(rate_limit_token, client_ip)
     if not allowed:
         throttled_user = get_user_by_subscription_token(token) if token else None
-        payload = (
-            "Too many subscription updates.\n"
-            "Retry later or open the support bot.\n"
-            f"@{BOT_USERNAME}\n"
+        payload = _build_stub_profiles(
+            [
+                "⚠️ Слишком много обновлений",
+                "👇 Повторите попытку чуть позже",
+                f"@{BOT_USERNAME}",
+            ]
         )
         headers = _subscription_base_headers(" — лимит")
         if throttled_user:
@@ -11579,7 +11247,12 @@ async def handle_subscription_request(request):
     user = get_user_by_subscription_token(token)
     offline = None if user else get_offline_subscription_by_token(token)
     if not user and not offline:
-        payload = f"Subscription not found. Open @{BOT_USERNAME} to get a current link.\n"
+        payload = _build_stub_profiles(
+            [
+                "⚠️ Подписка не найдена",
+                f"👇 Откройте бота @{BOT_USERNAME}",
+            ]
+        )
         headers = _subscription_base_headers()
         headers["Content-Disposition"] = 'attachment; filename="unknown"'
         return web.Response(text=payload, headers=headers, status=404)
@@ -11588,10 +11261,12 @@ async def handle_subscription_request(request):
     expires_at = parse_expires_at((user or offline or {}).get("expires_at"))
 
     if not expires_at or datetime.now() > expires_at:
-        payload = (
-            "Subscription expired.\n"
-            "Renew it in the bot; access will return after renewal.\n"
-            f"@{BOT_USERNAME}\n"
+        payload = _build_stub_profiles(
+            [
+                "⏰ Подписка истекла",
+                "👇 Продлите в боте — доступ вернётся сразу",
+                f"@{BOT_USERNAME}",
+            ]
         )
         headers = _subscription_base_headers(" — истекла")
         filename = f'tg_{user_id}' if user_id is not None else "offline_expired"
@@ -11604,7 +11279,7 @@ async def handle_subscription_request(request):
         headers["announce"] = (
             f"base64:{base64.b64encode(announce_text.encode('utf-8')).decode('ascii')}"
         )
-        return web.Response(text=payload, headers=headers, status=403)
+        return web.Response(text=payload, headers=headers)
 
     ua = request.headers.get("User-Agent", "")
     ua_lower = ua.lower()
@@ -11620,15 +11295,14 @@ async def handle_subscription_request(request):
             health_policy=health_policy,
         )
     if not payload.strip():
-        payload = (
-            "No active VPN device is attached to this subscription.\n"
-            "Open the bot and connect a device.\n"
-            f"@{BOT_USERNAME}\n"
+        payload = _build_stub_profiles(
+            [
+                "⚠️ Нет активного устройства",
+                "👇 Откройте бота и нажмите «Подключить»",
+                f"@{BOT_USERNAME}",
+            ]
         )
-        headers = _subscription_base_headers(" — no device")
-        filename = f'tg_{user_id}' if user_id is not None else "offline_no_device"
-        headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return web.Response(text=payload, headers=headers, status=409)
+        raw = False
     if user_id is not None:
         filename = f"tg_{user_id}_all"
         primary = get_primary_device(user_id)

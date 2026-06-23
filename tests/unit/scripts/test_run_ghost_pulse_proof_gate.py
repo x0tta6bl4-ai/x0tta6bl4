@@ -88,28 +88,6 @@ def _replacement_candidates_failed(_root: Path, _report_path: Path):
     return payload
 
 
-def _current_runtime_verified(_root: Path, _interface, _bpftool_sudo, _counter_wait_seconds):
-    return {
-        "claim_id": "current_runtime_attached",
-        "title": "Current runtime x0tta6bl4_pulse XDP attach",
-        "status": "VERIFIED",
-        "evidence": "READ_ONLY_KERNEL_OBSERVATION:test0",
-        "errors": [],
-        "sha256": None,
-    }
-
-
-def _current_runtime_invalid(_root: Path, _interface, _bpftool_sudo, _counter_wait_seconds):
-    return {
-        "claim_id": "current_runtime_attached",
-        "title": "Current runtime x0tta6bl4_pulse XDP attach",
-        "status": "INVALID",
-        "evidence": "READ_ONLY_KERNEL_OBSERVATION:test0",
-        "errors": ["current runtime is not attached"],
-        "sha256": None,
-    }
-
-
 def _measurement_value(expectation):
     if expectation in (True, False):
         return expectation
@@ -351,10 +329,8 @@ def test_proof_gate_fails_closed_without_external_evidence(tmp_path):
     assert report["claim_boundary"]["stealth_verified"] is False
     assert report["claim_boundary"]["whitelist_verified"] is False
     assert report["claim_boundary"]["kernel_attach_verified"] is False
-    assert report["claim_boundary"]["current_runtime_attached"] is False
     assert report["claim_boundary"]["production_ready"] is False
     assert "kernel_attach" in report["not_verified_yet"]
-    assert proof.CURRENT_RUNTIME_CLAIM_ID in report["not_verified_yet"]
     assert "production_readiness" in report["not_verified_yet"]
     assert "local_timing_replay" not in report["not_verified_yet"]
 
@@ -915,7 +891,6 @@ def test_proof_gate_can_pass_with_complete_fixture_evidence(tmp_path):
         suite_failure_provider=_suite_failures,
         artifact_chain_provider=_artifact_chain,
         replacement_candidate_provider=_replacement_candidates,
-        current_runtime_provider=_current_runtime_verified,
     )
 
     assert report["decision"] == proof.DECISION_PROVEN
@@ -924,31 +899,7 @@ def test_proof_gate_can_pass_with_complete_fixture_evidence(tmp_path):
     assert report["claim_boundary"]["stealth_verified"] is True
     assert report["claim_boundary"]["whitelist_verified"] is True
     assert report["claim_boundary"]["kernel_attach_verified"] is True
-    assert report["claim_boundary"]["current_runtime_attached"] is True
     assert report["claim_boundary"]["production_ready"] is True
-
-
-def test_proof_gate_blocks_production_when_current_runtime_is_not_attached(tmp_path):
-    proof = _load_module()
-    suite_path = _write_suite(tmp_path)
-    for requirement in proof.EXTERNAL_REQUIREMENTS:
-        _write_external_evidence(tmp_path, proof, requirement)
-
-    report = proof.build_report(
-        root=tmp_path,
-        suite_path=suite_path,
-        suite_failure_provider=_suite_failures,
-        artifact_chain_provider=_artifact_chain,
-        replacement_candidate_provider=_replacement_candidates,
-        current_runtime_provider=_current_runtime_invalid,
-    )
-
-    assert report["decision"] == proof.DECISION_INCOMPLETE
-    assert report["claim_boundary"]["kernel_attach_verified"] is True
-    assert report["claim_boundary"]["current_runtime_attached"] is False
-    assert report["claim_boundary"]["production_ready"] is False
-    assert proof.CURRENT_RUNTIME_CLAIM_ID in report["not_verified_yet"]
-    assert f"{proof.CURRENT_RUNTIME_CLAIM_ID}: current runtime is not attached" in report["failures"]
 
 
 def test_proof_gate_writes_latest_and_bundle_outputs_atomically(tmp_path):
@@ -986,13 +937,11 @@ def test_proof_gate_blocks_all_claims_proven_when_replacement_preflight_is_stale
         suite_failure_provider=_suite_failures,
         artifact_chain_provider=_artifact_chain,
         replacement_candidate_provider=_replacement_candidates_failed,
-        current_runtime_provider=_current_runtime_verified,
     )
 
     assert report["decision"] == proof.DECISION_INCOMPLETE
     assert report["claim_boundary"]["stealth_verified"] is True
     assert report["claim_boundary"]["whitelist_verified"] is True
     assert report["claim_boundary"]["kernel_attach_verified"] is True
-    assert report["claim_boundary"]["current_runtime_attached"] is True
     assert report["claim_boundary"]["production_ready"] is False
     assert "replacement_candidates: saved preflight report is stale" in report["failures"]

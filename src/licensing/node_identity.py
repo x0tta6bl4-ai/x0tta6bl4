@@ -25,8 +25,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from src.core.agent_thinking import AgentThinkingCoach
-
 # Try to import crypto libs
 try:
     from cryptography.hazmat.backends import default_backend
@@ -351,20 +349,7 @@ class NodeLicenseManager:
         server, or from an explicitly injected activation client in tests/tools.
         """
         if not activation_token:
-            self._record_thinking(
-                operation="activate",
-                goal="reject activation because token is missing",
-                constraints={"activation_token_present": False},
-            )
             return False, "Activation token is required."
-        self._record_thinking(
-            operation="activate",
-            goal="activate node license without exposing activation token",
-            constraints={
-                "activation_token_hash": self._hash_value(activation_token),
-                "certificate_loaded": self.certificate is not None,
-            },
-        )
 
         # Verify fingerprint matches certificate (if exists)
         if self.certificate:
@@ -382,27 +367,9 @@ class NodeLicenseManager:
         try:
             self.certificate = self._request_certificate(activation_token)
         except LicenseActivationError as exc:
-            self._record_thinking(
-                operation="activate",
-                goal="record license activation failure without raw error payload",
-                constraints={
-                    "activation_token_hash": self._hash_value(activation_token),
-                    "error_type": type(exc).__name__,
-                    "certificate_loaded": self.certificate is not None,
-                },
-            )
             return False, str(exc)
 
         self._save_certificate()
-        self._record_thinking(
-            operation="activate",
-            goal="record successful local license activation",
-            constraints={
-                "activation_token_hash": self._hash_value(activation_token),
-                "license_tier": self.certificate.license_tier,
-                "certificate_hash": self._hash_value(self.certificate.signature),
-            },
-        )
         return True, f"Activated! Tier: {self.certificate.license_tier}"
 
     def _activation_url(self) -> str:
@@ -414,24 +381,10 @@ class NodeLicenseManager:
             "fingerprint_hash": self.fingerprint.to_hash(),
             "fingerprint": self.fingerprint.to_dict(),
         }
-        self._record_thinking(
-            operation="request_certificate",
-            goal="request signed license certificate without exposing payload",
-            constraints={
-                "activation_token_hash": self._hash_value(activation_token),
-                "activation_client_configured": self.activation_client is not None,
-                "auth_server_configured": bool(self.auth_server_url),
-            },
-        )
         if self.activation_client is not None:
             try:
                 response_payload = self.activation_client(payload)
             except Exception as exc:
-                self._record_thinking(
-                    operation="request_certificate",
-                    goal="record injected activation client failure",
-                    constraints={"error_type": type(exc).__name__},
-                )
                 raise LicenseActivationError("License activation client failed.") from exc
         else:
             response_payload = self._post_activation_request(payload)
@@ -450,30 +403,11 @@ class NodeLicenseManager:
             raise LicenseActivationError("License server returned invalid response.")
 
         if certificate.fingerprint_hash != self.fingerprint.to_hash():
-            self._record_thinking(
-                operation="request_certificate",
-                goal="reject certificate because fingerprint binding differs",
-                constraints={"fingerprint_match": False},
-            )
             raise LicenseActivationError(
                 "License server returned certificate for a different machine."
             )
         if not certificate.is_valid():
-            self._record_thinking(
-                operation="request_certificate",
-                goal="reject expired certificate from license server",
-                constraints={"certificate_valid": False},
-            )
             raise LicenseActivationError("License server returned an expired certificate.")
-        self._record_thinking(
-            operation="request_certificate",
-            goal="accept signed license certificate for this fingerprint",
-            constraints={
-                "fingerprint_match": True,
-                "certificate_valid": True,
-                "license_tier": certificate.license_tier,
-            },
-        )
         return certificate
 
     def _post_activation_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:

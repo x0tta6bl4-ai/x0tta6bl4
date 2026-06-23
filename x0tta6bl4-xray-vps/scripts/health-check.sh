@@ -23,14 +23,11 @@ CHECKS_WARNINGS=0
 # Configuration
 CONFIG_DIR="${CONFIG_DIR:-/usr/local/etc/xray}"
 LOG_DIR="${LOG_DIR:-/var/log/xray}"
-CLIENT_DIR="${CLIENT_DIR:-/root/xray-clients}"
 ALERT_THRESHOLD_ERRORS=50
 ALERT_THRESHOLD_LOAD=80
 XRAY_SERVICE="${XRAY_SERVICE:-}"
 XRAY_CONFIG="${XRAY_CONFIG:-}"
 XRAY_BIN="${XRAY_BIN:-}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DISTRIBUTION_GATE_SCRIPT="${DISTRIBUTION_GATE_SCRIPT:-${SCRIPT_DIR}/check-client-distribution-gate.sh}"
 
 if [[ -z "$XRAY_SERVICE" ]]; then
     if systemctl list-unit-files x-ui.service &>/dev/null; then
@@ -64,43 +61,10 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; ((++CHECKS_WARNINGS)); }
 log_section() { echo -e "\n${CYAN}=== $1 ===${NC}"; }
 xray_version() {
     if [[ -n "$XRAY_BIN" && -x "$XRAY_BIN" ]]; then
-        local output
-        output="$("$XRAY_BIN" version 2>/dev/null || true)"
-        output="${output%%$'\n'*}"
-        echo "${output:-unknown}"
+        "$XRAY_BIN" -version 2>/dev/null | head -1 || echo "unknown"
     else
         echo "unknown"
     fi
-}
-
-xray_config_test() {
-    [[ -n "$XRAY_BIN" && -x "$XRAY_BIN" ]] && "$XRAY_BIN" run -test -config "$XRAY_CONFIG" &>/dev/null
-}
-
-is_ipv4() {
-    local value="${1:-}"
-    [[ "$value" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
-    local IFS=.
-    read -r o1 o2 o3 o4 <<< "$value"
-    for octet in "$o1" "$o2" "$o3" "$o4"; do
-        [[ "$octet" =~ ^[0-9]+$ ]] || return 1
-        ((octet >= 0 && octet <= 255)) || return 1
-    done
-}
-
-detect_public_ipv4() {
-    local endpoint value
-    for endpoint in \
-        "https://api.ipify.org" \
-        "https://ifconfig.co/ip" \
-        "https://ifconfig.me/ip"; do
-        value="$(curl -fsS -4 --max-time 8 "$endpoint" 2>/dev/null | tr -d '[:space:]' || true)"
-        if is_ipv4 "$value"; then
-            printf '%s\n' "$value"
-            return 0
-        fi
-    done
-    return 1
 }
 
 # Check if running as root
@@ -156,7 +120,7 @@ check_config() {
     fi
     
     # Test with Xray
-    if xray_config_test; then
+    if [[ -x "$XRAY_BIN" ]] && "$XRAY_BIN" -test -config "$XRAY_CONFIG" &>/dev/null; then
         log_pass "Xray configuration test passed"
     else
         log_fail "Xray configuration test failed"

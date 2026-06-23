@@ -1,6 +1,6 @@
 # VPN Incident Timeline
 
-event_count: `26`
+event_count: `22`
 
 ## Recent Events
 
@@ -28,10 +28,6 @@ event_count: `26`
 | `2026-05-28T03:15:13.660263+00:00` | `20260528T031418Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
 | `2026-05-28T03:26:59.064905+00:00` | `20260528T032605Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
 | `2026-05-28T03:42:31.196258+00:00` | `20260528T034120Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
-| `2026-05-31T13:46:13.299326+00:00` | `20260531T134449Z` | `observe` | `observe` | `healthy` | `normal` | `None` | observe and refresh evidence during the next visible outage |
-| `2026-06-01T19:18:18.206465+00:00` | `20260601T191625Z` | `provider_watch` | `observe` | `healthy` | `historical_incident` | `8` | keep provider boot gap on watch while transport is healthy |
-| `2026-06-06T06:20:32.920756+00:00` | `20260606T061939Z` | `observe` | `local_fix` | `healthy` | `normal` | `None` | observe and refresh evidence during the next visible outage |
-| `2026-06-06T12:58:41.692822+00:00` | `20260606T125103Z` | `provider_ticket` | `provider_ticket` | `healthy` | `suspect_active` | `9` | open or update provider packet from fresh evidence |
 
 ## Guardrails
 

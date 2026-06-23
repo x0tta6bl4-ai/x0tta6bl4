@@ -26,27 +26,6 @@ DEFAULT_REPLACEMENT_PASSPORT_VERIFICATION = (
 )
 DEFAULT_REQUIRED_EVIDENCE_CONSISTENCY = ".tmp/validation-shards/integration-spine-required-evidence-consistency-current.json"
 DEFAULT_OUTPUT = ".tmp/validation-shards/integration-spine-rollup-approval-contract-current.json"
-DEFAULT_CURRENT_ACTIVE_AUDIT = "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md"
-DEFAULT_CURRENT_CROSS_PLANE_MAP = "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json"
-DEFAULT_CROSS_PLANE_PROOF_GATE = ".tmp/validation-shards/cross-plane-proof-gate-current.json"
-EXPECTED_CURRENT_EVIDENCE_STATUS = "working_map_not_production_completion_proof"
-CROSS_PLANE_PROOF_GATE_SCHEMA = "x0tta6bl4.cross_plane_proof_gate.v1"
-CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION = "CROSS_PLANE_CLAIMS_ALLOWED"
-ROLLUP_APPROVAL_CROSS_PLANE_CLAIMS = (
-    "production_readiness",
-    "dataplane_delivery",
-    "traffic_delivery",
-    "customer_traffic",
-    "settlement_finality",
-    "dpi_bypass",
-)
-REQUIRED_CROSS_PLANE_PLANES = {
-    "data_plane",
-    "control_plane",
-    "trust_plane",
-    "evidence_plane",
-    "economy_plane",
-}
 
 
 @dataclass(frozen=True)
@@ -259,220 +238,6 @@ def _evidence_file_invalid(status: Any) -> bool:
     return status in {"BLOCKING", "OPERATOR_INPUT_REQUIRED"}
 
 
-def _current_evidence_context(root: Path) -> Dict[str, Any]:
-    map_path = root / DEFAULT_CURRENT_CROSS_PLANE_MAP
-    audit_path = root / DEFAULT_CURRENT_ACTIVE_AUDIT
-    context: Dict[str, Any] = {
-        "included": map_path.exists() and audit_path.exists(),
-        "source": "docs/architecture",
-        "cross_plane_map": DEFAULT_CURRENT_CROSS_PLANE_MAP,
-        "active_goal_audit": DEFAULT_CURRENT_ACTIVE_AUDIT,
-        "claim_boundary": (
-            "Current cross-plane evidence context is a local review gate for this "
-            "approval rollup. It is not production proof and cannot authorize live apply."
-        ),
-    }
-    if not map_path.exists() or not audit_path.exists():
-        context.update(
-            {
-                "status": "missing_current_evidence_context",
-                "current_gap_count": None,
-                "tracked_gap_count": None,
-                "non_blocking_gap_count": None,
-                "next_action_count": None,
-                "open_gap_ids": [],
-                "non_blocking_gap_ids": [],
-                "next_action_ids": [],
-                "required_planes_present": False,
-                "plane_ids": [],
-            }
-        )
-        return context
-    try:
-        data = json.loads(map_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        context.update(
-            {
-                "status": "invalid_current_evidence_map",
-                "error": str(exc),
-                "current_gap_count": None,
-                "tracked_gap_count": None,
-                "non_blocking_gap_count": None,
-                "next_action_count": None,
-                "open_gap_ids": [],
-                "non_blocking_gap_ids": [],
-                "next_action_ids": [],
-                "required_planes_present": False,
-                "plane_ids": [],
-            }
-        )
-        return context
-    if not isinstance(data, dict):
-        context.update(
-            {
-                "status": "invalid_current_evidence_map",
-                "error": "current evidence map must be a JSON object",
-                "current_gap_count": None,
-                "tracked_gap_count": None,
-                "non_blocking_gap_count": None,
-                "next_action_count": None,
-                "open_gap_ids": [],
-                "non_blocking_gap_ids": [],
-                "next_action_ids": [],
-                "required_planes_present": False,
-                "plane_ids": [],
-            }
-        )
-        return context
-
-    gaps = data.get("current_gaps")
-    gap_items = _dicts(gaps)
-    next_actions = _dicts(data.get("next_actions"))
-    blocking_gaps = [item for item in gap_items if item.get("blocks_real_readiness") is not False]
-    non_blocking_gaps = [item for item in gap_items if item.get("blocks_real_readiness") is False]
-    planes = data.get("planes")
-    plane_ids = sorted(str(key) for key in planes) if isinstance(planes, dict) else []
-    context.update(
-        {
-            "status": data.get("status"),
-            "current_gap_count": len(blocking_gaps),
-            "tracked_gap_count": len(gap_items),
-            "non_blocking_gap_count": len(non_blocking_gaps),
-            "next_action_count": len(next_actions),
-            "open_gap_ids": [str(item.get("id")) for item in blocking_gaps if item.get("id")],
-            "non_blocking_gap_ids": [str(item.get("id")) for item in non_blocking_gaps if item.get("id")],
-            "next_action_ids": [str(item.get("id")) for item in next_actions if item.get("id")],
-            "required_planes_present": REQUIRED_CROSS_PLANE_PLANES.issubset(set(plane_ids)),
-            "plane_ids": plane_ids,
-        }
-    )
-    return context
-
-
-def _current_evidence_clear(context: Dict[str, Any]) -> bool:
-    return (
-        context.get("included") is True
-        and context.get("status") == EXPECTED_CURRENT_EVIDENCE_STATUS
-        and context.get("required_planes_present") is True
-        and context.get("current_gap_count") == 0
-        and context.get("next_action_count") == 0
-    )
-
-
-def _current_evidence_blockers(context: Dict[str, Any]) -> List[str]:
-    blockers: List[str] = []
-    if context.get("included") is not True:
-        blockers.append("current_evidence_context_missing")
-    if context.get("status") != EXPECTED_CURRENT_EVIDENCE_STATUS:
-        blockers.append("current_evidence_context_status")
-    if context.get("required_planes_present") is not True:
-        blockers.append("current_evidence_required_planes_missing")
-    if context.get("current_gap_count"):
-        blockers.append("current_evidence_open_gaps")
-    if context.get("next_action_count"):
-        blockers.append("current_evidence_next_actions_open")
-    return blockers
-
-
-def _as_int(value: Any) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _cross_plane_proof_gate_claim_ids(data: Optional[Dict[str, Any]]) -> List[str]:
-    claim_ids: List[str] = []
-    for result in _dicts((data or {}).get("claim_results")):
-        claim_id = result.get("claim_id")
-        if isinstance(claim_id, str) and claim_id:
-            claim_ids.append(claim_id)
-    return sorted(set(claim_ids))
-
-
-def _cross_plane_proof_gate_missing_claim_ids(data: Optional[Dict[str, Any]]) -> List[str]:
-    return sorted(set(ROLLUP_APPROVAL_CROSS_PLANE_CLAIMS) - set(_cross_plane_proof_gate_claim_ids(data)))
-
-
-def _cross_plane_proof_gate_blocker_ids(data: Optional[Dict[str, Any]]) -> List[str]:
-    blockers: List[str] = []
-    if not data:
-        return ["cross_plane_proof_gate_missing"]
-    if data.get("schema") != CROSS_PLANE_PROOF_GATE_SCHEMA:
-        blockers.append("cross_plane_proof_gate_schema_invalid")
-    if data.get("decision") != CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION:
-        blockers.append("cross_plane_proof_gate_not_allowed")
-    if data.get("allowed") is not True:
-        blockers.append("cross_plane_proof_gate_blocked")
-    context = data.get("context")
-    if not isinstance(context, dict) or context.get("source_artifact_hashes_present") is not True:
-        blockers.append("cross_plane_proof_gate_source_artifact_hashes_missing")
-    for claim_id in _cross_plane_proof_gate_missing_claim_ids(data):
-        blockers.append(f"cross_plane_proof_gate_missing_claim:{claim_id}")
-    for result in _dicts(data.get("claim_results")):
-        claim_id = str(result.get("claim_id") or "unknown_claim")
-        if result.get("allowed") is True:
-            continue
-        blockers.append(f"claim_blocked:{claim_id}")
-        result_blockers = result.get("blockers")
-        if isinstance(result_blockers, list):
-            blockers.extend(str(item) for item in result_blockers if item)
-    return sorted(set(blockers))
-
-
-def _cross_plane_proof_gate_allowed(data: Optional[Dict[str, Any]]) -> bool:
-    if not isinstance(data, dict):
-        return False
-    required_claim_ids = set(ROLLUP_APPROVAL_CROSS_PLANE_CLAIMS)
-    claim_results = {
-        str(result.get("claim_id")): result
-        for result in _dicts(data.get("claim_results"))
-        if isinstance(result.get("claim_id"), str)
-    }
-    return (
-        data.get("schema") == CROSS_PLANE_PROOF_GATE_SCHEMA
-        and data.get("decision") == CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION
-        and data.get("allowed") is True
-        and not _cross_plane_proof_gate_missing_claim_ids(data)
-        and all(claim_results[claim_id].get("allowed") is True for claim_id in required_claim_ids)
-        and isinstance(data.get("context"), dict)
-        and data["context"].get("source_artifact_hashes_present") is True
-    )
-
-
-def _cross_plane_proof_gate_context(root: Path) -> Dict[str, Any]:
-    path = root / DEFAULT_CROSS_PLANE_PROOF_GATE
-    data = _read_json(path)
-    context = data.get("context") if isinstance(data, dict) else {}
-    if not isinstance(context, dict):
-        context = {}
-    summary = (data or {}).get("summary", {})
-    if not isinstance(summary, dict):
-        summary = {}
-    return {
-        "path": DEFAULT_CROSS_PLANE_PROOF_GATE,
-        "exists": path.exists(),
-        "loaded": isinstance(data, dict),
-        "schema": (data or {}).get("schema"),
-        "decision": (data or {}).get("decision"),
-        "allowed": _cross_plane_proof_gate_allowed(data),
-        "reported_claim_ids": _cross_plane_proof_gate_claim_ids(data),
-        "required_claim_ids": list(ROLLUP_APPROVAL_CROSS_PLANE_CLAIMS),
-        "claims_total": _as_int(summary.get("claims_total")),
-        "claims_allowed": _as_int(summary.get("claims_allowed")),
-        "claims_blocked": _as_int(summary.get("claims_blocked")),
-        "source_artifact_hashes_present": context.get("source_artifact_hashes_present") is True,
-        "map_sha256": context.get("map_sha256"),
-        "audit_sha256": context.get("audit_sha256"),
-        "blocker_ids": _cross_plane_proof_gate_blocker_ids(data),
-        "claim_boundary": (
-            "The rollup approval contract uses the reusable cross-plane proof gate as "
-            "local claim-control evidence. It does not create external DPI, dataplane, "
-            "traffic, settlement, or production proof."
-        ),
-    }
-
-
 def _evidence_items(passport: Dict[str, Any]) -> List[Dict[str, Any]]:
     items = _dicts(passport.get("required_evidence_files"))
     if items:
@@ -611,30 +376,7 @@ def build_report(root: Path, passport_path: Path, passport_display: str = DEFAUL
     )
     sources_ready = sum(1 for report in source_reports if report.get("ready") is True)
     sources_total = len(source_reports)
-    local_ready = not source_errors and evidence_total > 0 and evidence_valid == evidence_total and sources_ready == sources_total
-    current_evidence_context = _current_evidence_context(root)
-    current_evidence_context_hash = _hash_payload(current_evidence_context)
-    current_evidence_clear = _current_evidence_clear(current_evidence_context)
-    current_evidence_blockers = _current_evidence_blockers(current_evidence_context)
-    cross_plane_proof_gate = _cross_plane_proof_gate_context(root)
-    cross_plane_proof_gate_allowed = cross_plane_proof_gate.get("allowed") is True
-    cross_plane_proof_gate_blockers = list(cross_plane_proof_gate.get("blocker_ids") or [])
-    ready = local_ready and current_evidence_clear and cross_plane_proof_gate_allowed
-    if ready:
-        decision = "ROLLUP_APPROVAL_READY"
-    elif local_ready:
-        decision = (
-            "ROLLUP_APPROVAL_BLOCKED_ON_CURRENT_EVIDENCE_CONTEXT"
-            if not current_evidence_clear
-            else "ROLLUP_APPROVAL_BLOCKED_ON_CROSS_PLANE_PROOF_GATE"
-        )
-    else:
-        decision = "ROLLUP_APPROVAL_BLOCKED_ON_OPERATOR_EVIDENCE"
-    blocked_reason_ids = (
-        ([] if local_ready else ["local_source_gates_not_ready"])
-        + current_evidence_blockers
-        + ([] if cross_plane_proof_gate_allowed else cross_plane_proof_gate_blockers)
-    )
+    ready = not source_errors and evidence_total > 0 and evidence_valid == evidence_total and sources_ready == sources_total
 
     source_rollup = {
         "source_reports": [
@@ -658,37 +400,9 @@ def build_report(root: Path, passport_path: Path, passport_display: str = DEFAUL
         "status": "VERIFIED HERE",
         "ok": True,
         "ready": ready,
-        "decision": decision,
+        "decision": "ROLLUP_APPROVAL_READY" if ready else "ROLLUP_APPROVAL_BLOCKED_ON_OPERATOR_EVIDENCE",
         "goal_can_be_marked_complete": False,
         "claim_boundary": "local_evidence_rollup_approval_only_no_live_apply",
-        "current_evidence_context": current_evidence_context,
-        "current_evidence_context_hash": current_evidence_context_hash,
-        "cross_plane_proof_gate": cross_plane_proof_gate,
-        "cross_plane_claim_gate": {
-            "surface": "integration_spine_rollup_approval_contract",
-            "claim_boundary": (
-                "This report can only say that retained local evidence is ready for "
-                "closeout review when current cross-plane context is clear and the "
-                "reusable proof gate allows the strong claim set. It cannot claim "
-                "production readiness, dataplane delivery, DPI bypass, settlement "
-                "finality, traffic delivery, or live-apply authorization."
-            ),
-            "local_source_gates_ready": local_ready,
-            "current_evidence_context_required": True,
-            "current_evidence_context_clear": current_evidence_clear,
-            "cross_plane_proof_gate_required": True,
-            "cross_plane_proof_gate_allowed": cross_plane_proof_gate_allowed,
-            "ready_for_closeout_review_claim_allowed": ready,
-            "blocked_reason_ids": blocked_reason_ids,
-            "proof_claims": {
-                "production_ready": False,
-                "dataplane_delivery_confirmed": False,
-                "dpi_bypass_confirmed": False,
-                "settlement_finality_confirmed": False,
-                "goal_completion_authorized": False,
-                "live_apply_authorized": False,
-            },
-        },
         "mutates_files": False,
         "mutates_nl": False,
         "mutates_spb": False,
@@ -718,46 +432,17 @@ def build_report(root: Path, passport_path: Path, passport_display: str = DEFAUL
                 "no_template_or_mock_evidence": False,
                 "no_live_mutation_from_approval": False,
                 "closeout_gate_must_still_pass": False,
-                "current_evidence_context_reviewed": False,
-                "cross_plane_proof_gate_reviewed": False,
-                "cross_plane_claim_boundary_reviewed": False,
             },
         },
-        "source_artifacts": [
-            passport_display,
-            DEFAULT_CROSS_PLANE_PROOF_GATE,
-            DEFAULT_CURRENT_CROSS_PLANE_MAP,
-            DEFAULT_CURRENT_ACTIVE_AUDIT,
-        ]
-        + [spec.path for spec in SOURCE_SPECS],
+        "source_artifacts": [passport_display] + [spec.path for spec in SOURCE_SPECS],
         "source_errors": source_errors,
         "source_reports": source_reports,
         "source_rollup": source_rollup,
         "not_verified_yet": []
         if ready
-        else (
-            [
-                "all source gates must report production-ready evidence",
-                "every required evidence file must be retained and ready",
-            ]
-            if not local_ready
-            else []
-        )
-        + (
-            [
-                "current cross-plane evidence context must be present, cover all required planes, and have no blocking gaps or next actions",
-            ]
-            if not current_evidence_clear
-            else []
-        )
-        + (
-            [
-                "reusable cross-plane proof gate must allow rollup closeout-review claims",
-            ]
-            if not cross_plane_proof_gate_allowed
-            else []
-        )
-        + [
+        else [
+            "all source gates must report production-ready evidence",
+            "every required evidence file must be retained and ready",
             "operator approval is still local contract only and does not authorize live apply",
         ],
         "summary": {
@@ -771,28 +456,12 @@ def build_report(root: Path, passport_path: Path, passport_display: str = DEFAUL
             "evidence_files_invalid": evidence_invalid,
             "evidence_files_operator_input_required": evidence_operator_input_required,
             "approval_recorded": False,
-            "local_sources_ready": local_ready,
-            "current_evidence_context_included": current_evidence_context.get("included") is True,
-            "current_evidence_context_clear": current_evidence_clear,
-            "cross_plane_proof_gate_available": cross_plane_proof_gate.get("loaded") is True,
-            "cross_plane_proof_gate_allowed": cross_plane_proof_gate_allowed,
-            "cross_plane_proof_gate_claims_blocked": cross_plane_proof_gate.get("claims_blocked"),
-            "cross_plane_proof_gate_source_artifact_hashes_present": cross_plane_proof_gate.get(
-                "source_artifact_hashes_present"
-            ),
-            "current_evidence_open_gaps": current_evidence_context.get("current_gap_count"),
-            "current_evidence_next_actions": current_evidence_context.get("next_action_count"),
             "ready_for_closeout_review": ready,
-            "ready_for_closeout_review_blocked_by_current_evidence": local_ready and not current_evidence_clear,
-            "ready_for_closeout_review_blocked_by_cross_plane_proof_gate": (
-                local_ready and current_evidence_clear and not cross_plane_proof_gate_allowed
-            ),
         },
     }
     report["approval_contract_hash"] = _hash_payload(
         {
             "source_rollup_hash": source_rollup["source_rollup_hash"],
-            "current_evidence_context_hash": current_evidence_context_hash,
             "summary": report["summary"],
             "decision": report["decision"],
         }

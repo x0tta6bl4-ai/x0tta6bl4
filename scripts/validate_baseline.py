@@ -14,7 +14,7 @@ from typing import Any
 
 project_root = Path(__file__).parent.parent
 DEFAULT_BASELINE_FILE = project_root / "baseline_metrics.json"
-CURRENT_METRICS_ENV = "x0tta6bl4_CURRENT_METRICS_JSON"
+CURRENT_METRICS_ENV = "X0TTA6BL4_CURRENT_METRICS_JSON"
 REQUIRED_METRICS = (
     "success_rate_percent",
     "latency_p95_ms",

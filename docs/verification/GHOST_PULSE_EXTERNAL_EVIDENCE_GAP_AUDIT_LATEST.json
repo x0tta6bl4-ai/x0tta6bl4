@@ -1,11 +1,11 @@
 {
   "artifacts": {
-    "audit_bundle_json": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260615T064559Z/audit.json",
-    "audit_bundle_md": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260615T064559Z/summary.md",
+    "audit_bundle_json": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260522T203433Z/audit.json",
+    "audit_bundle_md": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260522T203433Z/summary.md",
     "audit_latest_json": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.json",
     "audit_latest_md": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260615T064559Z",
+  "bundle": "docs/verification/ghost-pulse-external-evidence-gap-audit-20260522T203433Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "note": "Gap audit only; proof-gate claim boundaries are not upgraded by this report.",
@@ -102,7 +102,7 @@
         "candidate_example_path": "docs/verification/incoming/examples/dpi_lab.example.json",
         "candidate_path": "docs/verification/incoming/dpi_lab.json",
         "claim_id": "dpi_lab",
-        "current_sha256": "1b6a6ec305eeb537180d569751a9057606acb707990274e972320bc98e2812d7",
+        "current_sha256": "d64ea7b38c180c3d5b4fb9ab554eee76b107037daf07d04a5057466c17b030a7",
         "current_status": "INVALID",
         "destination": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json",
         "incoming_example_command": [
@@ -200,7 +200,7 @@
         "candidate_example_path": "docs/verification/incoming/examples/whitelist_lab.example.json",
         "candidate_path": "docs/verification/incoming/whitelist_lab.json",
         "claim_id": "whitelist_lab",
-        "current_sha256": "b808569ccba94bb196d27c0bed666ed822d1b90b01a0318d22768afdb19b736c",
+        "current_sha256": "731098b1527639d43882102c8d5a12387dcb8feb6decb0771d7cf5e6d843a051",
         "current_status": "INVALID",
         "destination": "docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json",
         "incoming_example_command": [
@@ -298,7 +298,7 @@
         "candidate_example_path": "docs/verification/incoming/examples/security_review.example.json",
         "candidate_path": "docs/verification/incoming/security_review.json",
         "claim_id": "security_review",
-        "current_sha256": "fb286e1d29a295201b4a93e320da6f908f4648c183b68013f2af3f2a40ba46c5",
+        "current_sha256": "ea6d69e3b4ee4ad0e7a3da922fda7253c3d983f193e1515a28530ecc0c446a29",
         "current_status": "INVALID",
         "destination": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json",
         "incoming_example_command": [
@@ -402,7 +402,7 @@
         "candidate_example_path": "docs/verification/incoming/examples/production_readiness.example.json",
         "candidate_path": "docs/verification/incoming/production_readiness.json",
         "claim_id": "production_readiness",
-        "current_sha256": "21e4082117593e477d7d7a6721dba6a499bccb77b635db50299ba530e73419f9",
+        "current_sha256": "fde275c1d1d01803e2460e3927c7da8febf51d93c9a6d29dc9b7223dabf6bd2b",
         "current_status": "INVALID",
         "destination": "docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json",
         "incoming_example_command": [
@@ -510,51 +510,51 @@
       "artifact_file_audit": {
         "artifacts": [
           {
-            "actual_sha256": "c7381188895eb9cc2c052b07053e469a9d5f4993c0cd65120e521722ce337e86",
+            "actual_sha256": "eef30e2288f9e33dc230b28717e1b9280aa1aa25a63c64217d61c16abf0982aa",
             "exists": true,
-            "expected_sha256": "c7381188895eb9cc2c052b07053e469a9d5f4993c0cd65120e521722ce337e86",
+            "expected_sha256": "eef30e2288f9e33dc230b28717e1b9280aa1aa25a63c64217d61c16abf0982aa",
             "index": 0,
-            "path": "docs/verification/ghost-pulse-kernel-attach-20260607T172005Z/commands.json",
+            "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/commands.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
           },
           {
-            "actual_sha256": "7d369d2295f22a2ec6f76d75b01acbf5e4e92c6ae81794bc03e87eceefd50b6e",
+            "actual_sha256": "03f4f7c199c589ad6b372a414fb6d32a08c74332e6633509072953346687c92e",
             "exists": true,
-            "expected_sha256": "7d369d2295f22a2ec6f76d75b01acbf5e4e92c6ae81794bc03e87eceefd50b6e",
+            "expected_sha256": "03f4f7c199c589ad6b372a414fb6d32a08c74332e6633509072953346687c92e",
             "index": 1,
-            "path": "docs/verification/ghost-pulse-kernel-attach-20260607T172005Z/measurements.json",
+            "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/measurements.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
           },
           {
-            "actual_sha256": "ecadbf716175ff0c45229ac6a0b8a0614bc89e453929e7d608a96ad3c085454e",
+            "actual_sha256": "04782a858f49b9c0019324de21482b55e73432b16b79612112de94f15bcc11c6",
             "exists": true,
-            "expected_sha256": "ecadbf716175ff0c45229ac6a0b8a0614bc89e453929e7d608a96ad3c085454e",
+            "expected_sha256": "04782a858f49b9c0019324de21482b55e73432b16b79612112de94f15bcc11c6",
             "index": 2,
-            "path": "docs/verification/ghost-pulse-kernel-attach-20260607T172005Z/interface-scan.json",
+            "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/interface-scan.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
           },
           {
-            "actual_sha256": "b6829bccb845d7880ce47332b18d6754f710cf236cac4cdecb1c1ff847d7521b",
+            "actual_sha256": "1016344718dddb325f8f2042697c5b197423b4223521a407e5263112890f2b10",
             "exists": true,
-            "expected_sha256": "b6829bccb845d7880ce47332b18d6754f710cf236cac4cdecb1c1ff847d7521b",
+            "expected_sha256": "1016344718dddb325f8f2042697c5b197423b4223521a407e5263112890f2b10",
             "index": 3,
-            "path": "docs/verification/ghost-pulse-kernel-attach-20260607T172005Z/candidate-audit.json",
+            "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/candidate-audit.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
           },
           {
-            "actual_sha256": "da109e5de3b7785e34c4a06636097f2ba1470bda039d8660b186d7b6fa88e210",
+            "actual_sha256": "788caf6aa47e92e0726bb3ba4592f1af16f012a38e5f06fadc998a50ed00c341",
             "exists": true,
-            "expected_sha256": "da109e5de3b7785e34c4a06636097f2ba1470bda039d8660b186d7b6fa88e210",
+            "expected_sha256": "788caf6aa47e92e0726bb3ba4592f1af16f012a38e5f06fadc998a50ed00c341",
             "index": 4,
-            "path": "docs/verification/ghost-pulse-kernel-attach-20260607T172005Z/object-preflight.json",
+            "path": "docs/verification/ghost-pulse-kernel-attach-20260522T201721Z/object-preflight.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
@@ -612,7 +612,7 @@
             "-j",
             "link",
             "show",
-            "docker0"
+            "x0rp021"
           ],
           [
             "ip",
@@ -620,7 +620,7 @@
             "-j",
             "link",
             "show",
-            "docker0"
+            "x0rp021"
           ],
           [
             "bpftool",
@@ -670,7 +670,7 @@
             "-j",
             "link",
             "show",
-            "docker0"
+            "x0rp021"
           ],
           [
             "ip",
@@ -678,7 +678,7 @@
             "-j",
             "link",
             "show",
-            "docker0"
+            "x0rp021"
           ],
           [
             "bpftool",
@@ -744,7 +744,7 @@
         {
           "expected": "nonempty",
           "name": "interface",
-          "observed": "docker0",
+          "observed": "x0rp021",
           "status": "PASS"
         },
         {
@@ -768,7 +768,7 @@
         {
           "expected": "positive_int",
           "name": "map_counter_delta_packets",
-          "observed": 5,
+          "observed": 488,
           "status": "PASS"
         }
       ],
@@ -799,7 +799,7 @@
             "missing_inputs_present": false,
             "mode": "READ_ONLY_KERNEL_OBSERVATION"
           },
-          "observed_at_utc": "2026-06-07T17:20:05.962388+00:00",
+          "observed_at_utc": "2026-05-22T20:17:21.575656+00:00",
           "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
           "status": "VERIFIED"
         },
@@ -935,7 +935,7 @@
         "map_counter_delta_packets": "positive_int",
         "xdp_attached": true
       },
-      "sha256": "3d6ff548e890d4197d7a9bff670f8eacaea4fcfd8e46c58e5938388a65860529",
+      "sha256": "9a484a124d83b08353e80b8e6ffea02e42bf6e864336a873bf4c6649f52db68c",
       "status": "VERIFIED",
       "title": "XDP attach and map-counter evidence"
     },
@@ -1475,11 +1475,11 @@
       "artifact_file_audit": {
         "artifacts": [
           {
-            "actual_sha256": "2a7cac676971d6f5b0a560d4ddf9fe5128c3e0611a825ecd081f47d0b411076e",
+            "actual_sha256": "0d049726909730923946c3433da41cfc54d2c63d2659974f5e765c1db73b2646",
             "exists": true,
-            "expected_sha256": "2a7cac676971d6f5b0a560d4ddf9fe5128c3e0611a825ecd081f47d0b411076e",
+            "expected_sha256": "0d049726909730923946c3433da41cfc54d2c63d2659974f5e765c1db73b2646",
             "index": 0,
-            "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260615T064558Z/dpi_lab-gap-record.json",
+            "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/dpi_lab-gap-record.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
@@ -1700,7 +1700,7 @@
             "missing_inputs_present": true,
             "mode": "EXTERNAL_EVIDENCE_GAP_RECORD"
           },
-          "observed_at_utc": "2026-06-15T06:45:58.722288+00:00",
+          "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
           "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
           "status": "INCOMPLETE"
         },
@@ -1771,7 +1771,7 @@
         "dpi_bypass_verified": true,
         "pulse_result_recorded": true
       },
-      "sha256": "1b6a6ec305eeb537180d569751a9057606acb707990274e972320bc98e2812d7",
+      "sha256": "d64ea7b38c180c3d5b4fb9ab554eee76b107037daf07d04a5057466c17b030a7",
       "status": "INVALID",
       "title": "Authorized DPI lab result"
     },
@@ -1779,11 +1779,11 @@
       "artifact_file_audit": {
         "artifacts": [
           {
-            "actual_sha256": "abc22b42e354ce94326e4411778e45af84d3d6e61dcc87d662adec07a49b3786",
+            "actual_sha256": "6031d2b58ca7868cb0bc111061b79986751e4398734771c57b3a0fbcf48ebbfe",
             "exists": true,
-            "expected_sha256": "abc22b42e354ce94326e4411778e45af84d3d6e61dcc87d662adec07a49b3786",
+            "expected_sha256": "6031d2b58ca7868cb0bc111061b79986751e4398734771c57b3a0fbcf48ebbfe",
             "index": 0,
-            "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260615T064558Z/whitelist_lab-gap-record.json",
+            "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/whitelist_lab-gap-record.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
@@ -2004,7 +2004,7 @@
             "missing_inputs_present": true,
             "mode": "EXTERNAL_EVIDENCE_GAP_RECORD"
           },
-          "observed_at_utc": "2026-06-15T06:45:58.722288+00:00",
+          "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
           "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
           "status": "INCOMPLETE"
         },
@@ -2075,7 +2075,7 @@
         "third_party_baseline_captured": true,
         "whitelist_behavior_verified": true
       },
-      "sha256": "b808569ccba94bb196d27c0bed666ed822d1b90b01a0318d22768afdb19b736c",
+      "sha256": "731098b1527639d43882102c8d5a12387dcb8feb6decb0771d7cf5e6d843a051",
       "status": "INVALID",
       "title": "Authorized whitelist-behavior lab result"
     },
@@ -2083,11 +2083,11 @@
       "artifact_file_audit": {
         "artifacts": [
           {
-            "actual_sha256": "32895626b944a9eee62eda5fc250dbe73e4df0d07386f65331174dbd955a7980",
+            "actual_sha256": "e91965ccc42b9b12475f01d93ae956308c37641d65ecdc852ac0837cae7fe38f",
             "exists": true,
-            "expected_sha256": "32895626b944a9eee62eda5fc250dbe73e4df0d07386f65331174dbd955a7980",
+            "expected_sha256": "e91965ccc42b9b12475f01d93ae956308c37641d65ecdc852ac0837cae7fe38f",
             "index": 0,
-            "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260615T064558Z/security_review-gap-record.json",
+            "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/security_review-gap-record.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
@@ -2302,7 +2302,7 @@
             "missing_inputs_present": true,
             "mode": "EXTERNAL_EVIDENCE_GAP_RECORD"
           },
-          "observed_at_utc": "2026-06-15T06:45:58.722288+00:00",
+          "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
           "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
           "status": "INCOMPLETE"
         },
@@ -2372,7 +2372,7 @@
         "reviewer": "nonempty",
         "scope_includes_pulse_transport": true
       },
-      "sha256": "fb286e1d29a295201b4a93e320da6f908f4648c183b68013f2af3f2a40ba46c5",
+      "sha256": "ea6d69e3b4ee4ad0e7a3da922fda7253c3d983f193e1515a28530ecc0c446a29",
       "status": "INVALID",
       "title": "Security review with no open high-severity findings"
     },
@@ -2380,11 +2380,11 @@
       "artifact_file_audit": {
         "artifacts": [
           {
-            "actual_sha256": "ec5cbd632dd9c96ed80ae55df0e746fc230c81038527e42492c3feec3cafd302",
+            "actual_sha256": "765480051731c4d0d6e8f2729ca6f681f40728d5bbe05491a8015181ed228980",
             "exists": true,
-            "expected_sha256": "ec5cbd632dd9c96ed80ae55df0e746fc230c81038527e42492c3feec3cafd302",
+            "expected_sha256": "765480051731c4d0d6e8f2729ca6f681f40728d5bbe05491a8015181ed228980",
             "index": 0,
-            "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260615T064558Z/production_readiness-gap-record.json",
+            "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/production_readiness-gap-record.json",
             "path_errors": [],
             "sha256_matches": true,
             "status": "PASS"
@@ -2641,7 +2641,7 @@
             "missing_inputs_present": true,
             "mode": "EXTERNAL_EVIDENCE_GAP_RECORD"
           },
-          "observed_at_utc": "2026-06-15T06:45:58.722288+00:00",
+          "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
           "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
           "status": "INCOMPLETE"
         },
@@ -2754,7 +2754,7 @@
         "production_ready": "bool_true",
         "rollback_plan_verified": true
       },
-      "sha256": "21e4082117593e477d7d7a6721dba6a499bccb77b635db50299ba530e73419f9",
+      "sha256": "fde275c1d1d01803e2460e3927c7da8febf51d93c9a6d29dc9b7223dabf6bd2b",
       "status": "INVALID",
       "title": "Production readiness approval and rollback evidence"
     }
@@ -2770,5 +2770,5 @@
     "production_readiness"
   ],
   "status": "EXTERNAL_EVIDENCE_ACTION_REQUIRED",
-  "timestamp_utc": "2026-06-15T06:45:59.066714+00:00"
+  "timestamp_utc": "2026-05-22T20:34:33.769062+00:00"
 }

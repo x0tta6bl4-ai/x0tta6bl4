@@ -1,5 +1,4 @@
 import importlib.util
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -46,200 +45,6 @@ def _write_artifact_json(root: Path, proof, artifact, value):
     artifact_path.parent.mkdir(parents=True, exist_ok=True)
     artifact_path.write_text(json.dumps(value, sort_keys=True), encoding="utf-8")
     artifact["sha256"] = proof.sha256_file(artifact_path)
-
-
-def _h(char: str) -> str:
-    return char * 64
-
-
-def _canonical_json(payload) -> str:
-    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def _sha256_text(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _sync_dpi_proxy_integrity(root: Path, payload: dict) -> None:
-    links = payload.get("evidence_links")
-    if not isinstance(links, dict):
-        return
-    source_artifacts = links.get("source_artifacts")
-    source_hashes = links.setdefault("source_hashes", [])
-    if not isinstance(source_artifacts, list) or not isinstance(source_hashes, list):
-        return
-
-    for artifact in source_artifacts:
-        if not isinstance(artifact, dict) or not isinstance(artifact.get("path"), str):
-            continue
-        artifact_path = root / artifact["path"]
-        artifact_path.parent.mkdir(parents=True, exist_ok=True)
-        text = json.dumps({"fixture": artifact.get("role", "source_artifact")}, sort_keys=True)
-        artifact_path.write_text(text, encoding="utf-8")
-        digest = _sha256_text(text)
-        for item in source_hashes:
-            if isinstance(item, dict) and item.get("path") == artifact["path"]:
-                item["sha256"] = digest
-                break
-        else:
-            source_hashes.append({"path": artifact["path"], "sha256": digest})
-        if artifact.get("role") in {"redacted_capture", "redacted_probe_summary"}:
-            payload["packet_flow_summary"]["capture_artifact_hashes"] = [digest]
-            payload["raw_capture_redaction"]["redacted_capture_sha256"] = digest
-
-    identity = payload.get("artifact_identity")
-    if isinstance(identity, dict):
-        normalized = json.loads(_canonical_json(payload))
-        normalized["artifact_identity"]["artifact_sha256"] = "0" * 64
-        identity["artifact_sha256"] = _sha256_text(_canonical_json(normalized))
-
-
-def _dpi_proxy_sections() -> dict:
-    return {
-        "artifact_identity": {
-            "artifact_id": "external-dpi-proxy-reachability-20260522T000000Z",
-            "schema_version": "x0tta6bl4.external_dpi_proxy_reachability_evidence.v1",
-            "claim_id": "dpi_lab",
-            "captured_at_utc": "2026-05-22T00:00:00Z",
-            "collector_kind": "authorized_lab",
-            "operator_or_lab_hash": _h("a"),
-            "artifact_sha256": _h("b"),
-        },
-        "authorization_scope": {
-            "authorization_present": True,
-            "scope_id_hash": _h("c"),
-            "scope_summary": "authorized bounded lab fixture",
-            "consent_or_legal_basis_present": True,
-            "collection_boundaries": ["no customer traffic", "no raw targets retained"],
-        },
-        "environment": {
-            "network_region_bucket": "coarse-region-1",
-            "network_type": "authorized-lab-network",
-            "isp_or_lab_profile_hash": _h("d"),
-            "egress_location_bucket": "coarse-egress-1",
-            "time_window_utc": "2026-05-22T00:00:00Z/2026-05-22T00:10:00Z",
-            "tool_versions": {"collector": "test"},
-            "policy_context": "authorized external DPI fixture",
-            "clock_sync_status": "ntp-synced",
-        },
-        "methodology": {
-            "control_path_description": "plain control path",
-            "treatment_path_description": "obfuscated treatment path",
-            "external_dpi_or_blocking_middlebox_observed": True,
-            "probe_payload_class": "synthetic reachability probe",
-            "success_criteria": "treatment succeeds while control is blocked",
-            "failure_criteria": "treatment fails or leaks raw target metadata",
-            "anti_replay_controls": ["bounded nonce class"],
-        },
-        "probe_matrix": {
-            "probe_pairs": [
-                {
-                    "pair_id": "pair-1",
-                    "transport": "faketls",
-                    "proxy_or_fronting_mode": "fronted-proxy",
-                    "target_category": "controlled-endpoint",
-                    "probe_target_hash": _h("e"),
-                    "control_result_bucket": "http_blocked",
-                    "treatment_result_bucket": "http_200",
-                    "attempts": 3,
-                    "successes": 3,
-                    "failure_buckets": ["http_blocked"],
-                }
-            ],
-            "attempt_count": 6,
-            "success_count": 3,
-            "failure_buckets": ["http_blocked"],
-            "control_probe_ids": ["control-1"],
-            "treatment_probe_ids": ["treatment-1"],
-        },
-        "packet_flow_summary": {
-            "flows_observed": 2,
-            "bytes_bucket": "1k-10k",
-            "duration_ms_bucket": "1000-5000",
-            "rtt_ms_bucket": "50-100",
-            "loss_bucket": "0",
-            "dns_result_bucket": "resolved",
-            "tls_handshake_bucket": "completed",
-            "http_status_bucket": "2xx",
-            "capture_artifact_hashes": [_h("f")],
-            "packet_payloads_redacted": True,
-        },
-        "raw_capture_redaction": {
-            "redaction_performed": True,
-            "redaction_tool": "x0t-redactor-test",
-            "redaction_tool_version": "1",
-            "redacted_fields": ["addresses", "hosts", "payloads", "headers"],
-            "forbidden_raw_fields_absent": True,
-            "raw_capture_retention_policy": "raw captures quarantined outside repository",
-            "redacted_capture_sha256": _h("1"),
-        },
-        "repeatability_limits": {
-            "sample_window_utc": "2026-05-22T00:00:00Z/2026-05-22T00:10:00Z",
-            "sample_count": 6,
-            "locations_count": 1,
-            "networks_count": 1,
-            "known_confounders": ["middlebox policy can change", "CDN routing can change"],
-            "not_generalizable_beyond_environment": True,
-            "refresh_after_utc": "2026-05-29T00:00:00Z",
-        },
-        "result_summary": {
-            "external_dpi_tested": True,
-            "baseline_blocked_or_detected": True,
-            "treatment_reachability_observed": True,
-            "reachability_observed": True,
-            "dpi_bypass_confirmed": True,
-            "bypass_confirmed": True,
-            "dataplane_confirmed": True,
-            "production_ready": False,
-            "confidence_bucket": "bounded-lab-single-region",
-            "decision": "bounded_external_dpi_bypass_observed",
-        },
-        "evidence_links": {
-            "source_artifacts": [
-                {
-                    "path": "docs/verification/incoming/artifacts/dpi/redacted.json",
-                    "role": "redacted_capture",
-                }
-            ],
-            "artifact_roles": ["redacted_capture", "lab_summary"],
-            "source_hashes": [
-                {
-                    "path": "docs/verification/incoming/artifacts/dpi/redacted.json",
-                    "sha256": _h("2"),
-                }
-            ],
-            "related_local_evidence_refs": [],
-        },
-    }
-
-
-def _dpi_proxy_claim_boundary() -> dict:
-    return {
-        "summary": "Bounded external lab observation only.",
-        "not_proven": [
-            "production readiness",
-            "durable censorship bypass",
-            "anonymity",
-            "provider health",
-            "customer traffic",
-        ],
-        "proof_claims": {
-            "external_dpi_tested": True,
-            "baseline_blocked_or_detected": True,
-            "treatment_reachability_observed": True,
-            "reachability_observed": True,
-            "dpi_bypass_confirmed": True,
-            "bypass_confirmed": True,
-            "dataplane_confirmed": True,
-            "production_ready": False,
-            "customer_traffic_confirmed": False,
-            "durable_policy_confirmed": False,
-            "anonymity_confirmed": False,
-            "provider_health_confirmed": False,
-            "payment_or_token_settlement_finality_confirmed": False,
-        },
-        "upgrade_rule": "Only bounded DPI/proxy evidence can raise DPI flags, never production flags.",
-    }
 
 
 def _sync_linked_json_artifacts(root: Path, proof, requirement, payload):
@@ -342,14 +147,7 @@ def _write_candidate(root: Path, proof, requirement):
         for payload_keys in requirement.get("json_artifact_object_field_links", {}).values():
             for key in payload_keys:
                 payload.setdefault(key, {"fixture": requirement["claim_id"]})
-    if requirement["claim_id"] == "dpi_lab":
-        payload.update(_dpi_proxy_sections())
-        payload.setdefault("claim_boundary", {})
-        payload["claim_boundary"].update(_dpi_proxy_claim_boundary())
-        _sync_dpi_proxy_integrity(root, payload)
     _sync_linked_json_artifacts(root, proof, requirement, payload)
-    if requirement["claim_id"] == "dpi_lab":
-        _sync_dpi_proxy_integrity(root, payload)
     candidate.write_text(json.dumps(payload), encoding="utf-8")
     return candidate
 
@@ -471,8 +269,6 @@ def test_replacement_candidates_accepts_ready_incoming_candidate(tmp_path):
     assert row["read_only_import_report"]["candidate_sha256"] == proof.sha256_file(candidate)
     assert row["read_only_import_report"]["written"] is False
     assert row["read_only_import_report"]["validation"]["status"] == "VERIFIED"
-    assert row["read_only_import_report"]["external_dpi_proxy_validation"]["decision"] == "READY_TO_IMPORT"
-    assert row["read_only_import_report"]["external_dpi_proxy_validation"]["summary"]["production_ready"] is False
     assert row["read_only_import_report"]["claim_boundary"]["production_ready"] is False
 
 
@@ -851,12 +647,9 @@ def test_external_evidence_intake_reports_action_required_from_preflight(tmp_pat
                     "--json",
                 ]
             ],
-            "collector_command_shape": intake.expected_collector_command_shape("dpi_lab"),
-            "safe_local_runner_command": intake.expected_safe_local_runner_command("dpi_lab"),
             "ready_to_import": False,
             "import_decision": "REJECTED",
             "validation_status": None,
-            "external_dpi_proxy_validation": None,
             "failures": [
                 "candidate evidence is missing: docs/verification/incoming/dpi_lab.json"
             ],
@@ -895,18 +688,6 @@ def test_external_evidence_intake_reports_ready_not_written(tmp_path):
     assert report["incoming_examples_verification"]["status"] == "PASS"
     assert report["collection_tasks"][0]["status"] == "READY_TO_IMPORT"
     assert report["collection_tasks"][0]["ready_to_import"] is True
-    assert report["collection_tasks"][0]["external_dpi_proxy_validation"]["status"] == "PASS"
-    assert report["collection_tasks"][0]["external_dpi_proxy_validation"]["decision"] == "READY_TO_IMPORT"
-    assert report["collection_tasks"][0]["collector_command_shape"] == (
-        intake.expected_collector_command_shape("dpi_lab")
-    )
-    assert report["collection_tasks"][0]["safe_local_runner_command"] == (
-        intake.expected_safe_local_runner_command("dpi_lab")
-    )
-    assert (
-        report["collection_tasks"][0]["external_dpi_proxy_validation"]["summary"]["production_ready"]
-        is False
-    )
     assert report["collection_tasks"][0]["blocking_reasons"] == []
     assert report["currently_ready_write_commands"] == [
         [
@@ -921,120 +702,6 @@ def test_external_evidence_intake_reports_ready_not_written(tmp_path):
         ]
     ]
     assert report["claim_boundary"]["production_ready"] is False
-
-
-def test_external_evidence_intake_surfaces_rejected_dpi_proxy_validation(tmp_path):
-    intake = _load_script(
-        "verify_ghost_pulse_external_evidence_intake_dpi_rejected",
-        "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
-    )
-    importer = _load_script(
-        "import_ghost_pulse_external_evidence_for_intake_dpi_rejected",
-        "scripts/ops/import_ghost_pulse_external_evidence.py",
-    )
-    proof = importer.load_proof_gate(tmp_path)
-    requirement = proof.EXTERNAL_REQUIREMENTS[3]
-    audit_path = _write_gap_audit(tmp_path)
-    candidate = _write_candidate(tmp_path, proof, requirement)
-    payload = json.loads(candidate.read_text(encoding="utf-8"))
-    payload["result_summary"]["dpi_bypass_confirmed"] = False
-    payload["claim_boundary"]["proof_claims"]["dpi_bypass_confirmed"] = False
-    _sync_linked_json_artifacts(tmp_path, proof, requirement, payload)
-    candidate.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
-    _, preflight_path = _write_replacement_preflight(tmp_path, audit_path)
-
-    report = intake.build_report(tmp_path, preflight_path)
-
-    task = report["collection_tasks"][0]
-    assert report["status"] == "PASS"
-    assert report["decision"] == intake.DECISION_ACTION_REQUIRED
-    assert report["ready"] == []
-    assert report["not_ready"] == ["dpi_lab"]
-    assert task["status"] == "CANDIDATE_REJECTED"
-    assert task["validation_status"] == "VERIFIED"
-    assert task["external_dpi_proxy_validation"]["status"] == "FAIL"
-    assert task["external_dpi_proxy_validation"]["decision"] == "REJECTED"
-    assert task["external_dpi_proxy_validation"]["summary"]["dpi_bypass_confirmed"] is False
-    assert task["collector_command_shape"] == intake.expected_collector_command_shape("dpi_lab")
-    assert task["safe_local_runner_command"] == intake.expected_safe_local_runner_command("dpi_lab")
-    assert "external_dpi_proxy_validation_failed" in task["blocking_reasons"]
-    assert report["collection_tasks_verification"] == {"status": "PASS", "failures": []}
-
-
-def test_external_evidence_intake_plain_output_surfaces_dpi_proxy_validation(tmp_path, capsys):
-    intake = _load_script(
-        "verify_ghost_pulse_external_evidence_intake_plain_dpi_rejected",
-        "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
-    )
-    importer = _load_script(
-        "import_ghost_pulse_external_evidence_for_intake_plain_dpi_rejected",
-        "scripts/ops/import_ghost_pulse_external_evidence.py",
-    )
-    proof = importer.load_proof_gate(tmp_path)
-    requirement = proof.EXTERNAL_REQUIREMENTS[3]
-    audit_path = _write_gap_audit(tmp_path)
-    candidate = _write_candidate(tmp_path, proof, requirement)
-    payload = json.loads(candidate.read_text(encoding="utf-8"))
-    payload["result_summary"]["dpi_bypass_confirmed"] = False
-    payload["claim_boundary"]["proof_claims"]["dpi_bypass_confirmed"] = False
-    _sync_linked_json_artifacts(tmp_path, proof, requirement, payload)
-    candidate.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
-    _, preflight_path = _write_replacement_preflight(tmp_path, audit_path)
-
-    rc = intake.main(["--root", str(tmp_path), "--preflight", str(preflight_path)])
-
-    output = capsys.readouterr().out
-    assert rc == 0
-    assert "task=dpi_lab status=CANDIDATE_REJECTED" in output
-    assert "blockers=candidate_validation_failed,preflight_failures_present,external_dpi_proxy_validation_failed" in output
-    assert "external_dpi_proxy_validation=FAIL/REJECTED" in output
-    assert "collector_command_shape=present" in output
-
-
-def test_external_evidence_intake_markdown_surfaces_safe_dpi_operator_commands(tmp_path):
-    intake = _load_script(
-        "verify_ghost_pulse_external_evidence_intake_markdown_dpi_commands",
-        "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
-    )
-    importer = _load_script(
-        "import_ghost_pulse_external_evidence_for_intake_markdown_dpi_commands",
-        "scripts/ops/import_ghost_pulse_external_evidence.py",
-    )
-    proof = importer.load_proof_gate(tmp_path)
-    requirement = proof.EXTERNAL_REQUIREMENTS[3]
-    audit_path = _write_gap_audit(tmp_path)
-    candidate = _write_candidate(tmp_path, proof, requirement)
-    payload = json.loads(candidate.read_text(encoding="utf-8"))
-    payload["result_summary"]["dpi_bypass_confirmed"] = False
-    payload["claim_boundary"]["proof_claims"]["dpi_bypass_confirmed"] = False
-    _sync_linked_json_artifacts(tmp_path, proof, requirement, payload)
-    candidate.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
-    _, preflight_path = _write_replacement_preflight(tmp_path, audit_path)
-
-    report = intake.build_report(tmp_path, preflight_path)
-    markdown = intake.render_markdown(report)
-
-    assert "## Operator Command Shapes" in markdown
-    assert "Do not paste target URLs, proxy URLs, operator IDs, authorization scope, or policy context into chat." in markdown
-    assert "docs/verification/ghost-pulse-external-dpi-intake-runbook.md" in markdown
-    assert "collect_external_dpi_proxy_reachability_evidence.py" in markdown
-    assert "Safe local runner (preferred):" in markdown
-    assert "scripts/ops/run_external_dpi_intake_local.py --json --write-ready" in markdown
-    assert "<authorized target URL; local input only>" in markdown
-    assert "<authorized proxy URL; local input only>" in markdown
-    assert (
-        "scripts/ops/import_ghost_pulse_external_evidence.py --claim dpi_lab "
-        "--candidate docs/verification/incoming/dpi_lab.json --require-ready --json"
-    ) in markdown
-    assert (
-        "scripts/ops/import_ghost_pulse_external_evidence.py --claim dpi_lab "
-        "--candidate docs/verification/incoming/dpi_lab.json --write --json"
-    ) in markdown
-    assert (
-        "scripts/ops/verify_ghost_pulse_external_evidence.py --claim dpi_lab "
-        "--require-pass --json"
-    ) in markdown
-    assert "External evidence intake readiness only" in markdown
 
 
 def test_external_evidence_intake_writes_and_verifies_latest_bundle(tmp_path):

@@ -205,45 +205,6 @@ async def test_get_vpn_status_online_and_offline(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_vpn_status_publishes_observed_state_evidence(
-    monkeypatch,
-    tmp_path,
-) -> None:
-    bus = EventBus(str(tmp_path))
-    monkeypatch.setenv("VPN_SERVER", "private-status.vpn.example")
-    monkeypatch.setenv("VPN_PORT_EXPERIMENTAL", "8443")
-    monkeypatch.setattr(vpn, "_get_active_users_count", lambda: 3)
-    monkeypatch.setattr(vpn, "_read_system_uptime", lambda: 88.0)
-
-    class GoodSock:
-        def settimeout(self, _):
-            return None
-
-        def connect(self, _addr):
-            return None
-
-        def close(self):
-            return None
-
-    monkeypatch.setattr("socket.socket", lambda *_a, **_k: GoodSock())
-
-    status = await _raw(vpn.get_vpn_status)(_request_with_bus(bus))
-    payload = _latest_event_payload(bus, "vpn-experimental-status-read")
-    payload_text = str(payload)
-
-    assert status.status == "online"
-    assert payload["operation"] == "read_experimental_vpn_status"
-    assert payload["observed_state"] is True
-    assert payload["control_action"] is False
-    assert payload["tcp_connect_attempted"] is True
-    assert payload["tcp_connect_success"] is True
-    assert payload["active_users"] == 3
-    assert payload["dataplane_confirmed"] is False
-    assert payload["bypass_confirmed"] is False
-    assert "private-status.vpn.example" not in payload_text
-
-
-@pytest.mark.asyncio
 async def test_get_vpn_users_reads_configured_file(monkeypatch, tmp_path) -> None:
     users_file = tmp_path / "vpn-users.json"
     users_file.write_text(
@@ -266,46 +227,6 @@ async def test_get_vpn_users_reads_configured_file(monkeypatch, tmp_path) -> Non
     users = await _raw(vpn.get_vpn_users)(SimpleNamespace(), admin=None)
     assert users["total"] == 1
     assert users["users"][0]["username"] == "experimental_user1"
-
-
-@pytest.mark.asyncio
-async def test_get_vpn_users_publishes_redacted_evidence(monkeypatch, tmp_path) -> None:
-    bus = EventBus(str(tmp_path))
-    users_file = tmp_path / "vpn-users.json"
-    users_file.write_text(
-        json.dumps(
-            {
-                "users": [
-                    {
-                        "user_id": 1001,
-                        "username": "private-user",
-                        "email": "private@example.test",
-                        "vless_link": "vless://private-user@secret-vpn",
-                    }
-                ]
-            }
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.setenv("VPN_USERS_FILE", str(users_file))
-
-    users = await _raw(vpn.get_vpn_users)(_request_with_bus(bus), admin=object())
-    payload = _latest_event_payload(bus, "vpn-experimental-users-read")
-    payload_text = str(payload)
-
-    assert users["total"] == 1
-    assert payload["operation"] == "read_experimental_vpn_users"
-    assert payload["observed_state"] is True
-    assert payload["users_total"] == 1
-    assert payload["vless_link_present_count"] == 1
-    assert payload["admin_dependency_present"] is True
-    for raw_value in [
-        "private-user",
-        "private@example.test",
-        "vless://private-user@secret-vpn",
-        "1001",
-    ]:
-        assert raw_value not in payload_text
 
 
 @pytest.mark.asyncio

@@ -143,32 +143,6 @@ def test_operator_handoff_is_verified_but_blocked_without_settlement_evidence(tm
     assert report["summary"]["operator_sequence_ready"] is True
     assert report["summary"]["missing_inputs_operator_input_required"] == 5
     assert report["summary"]["missing_inputs_generic_operator_required"] == 0
-    assert report["summary"]["claim_gate_present"] is True
-    assert report["summary"]["external_settlement_finality_claim_allowed"] is False
-    assert report["summary"]["economy_finality_claim_allowed"] is False
-    assert report["summary"]["dataplane_delivery_claim_allowed"] is False
-    assert report["summary"]["customer_traffic_claim_allowed"] is False
-    assert report["summary"]["revenue_recognition_claim_allowed"] is False
-    assert report["summary"]["production_readiness_claim_allowed"] is False
-    assert report["claim_gate"]["schema"] == (
-        "x0tta6bl4.external_settlement.operator_handoff.claim_gate.v1"
-    )
-    assert report["claim_gate"]["external_settlement_finality_claim_allowed"] is False
-    assert report["claim_gate"]["economy_finality_claim_allowed"] is False
-    assert report["claim_gate"]["retained_evidence_claim_allowed"] is False
-    assert report["claim_gate"]["live_rpc_receipt_claim_allowed"] is False
-    assert report["claim_gate"]["dataplane_delivery_claim_allowed"] is False
-    assert report["claim_gate"]["customer_traffic_claim_allowed"] is False
-    assert report["claim_gate"]["customer_dataplane_delivery_claim_allowed"] is False
-    assert report["claim_gate"]["bank_settlement_claim_allowed"] is False
-    assert report["claim_gate"]["revenue_recognition_claim_allowed"] is False
-    assert report["claim_gate"]["production_slo_claim_allowed"] is False
-    assert report["claim_gate"]["production_readiness_claim_allowed"] is False
-    assert report["claim_gate"]["mutates_chain"] is False
-    assert report["claim_gate"]["runs_live_rpc"] is False
-    assert report["claim_gate"]["submits_transaction"] is False
-    assert report["claim_gate"]["redacted"] is True
-    assert "retained_settlement_receipt" in report["claim_gate"]["blockers"]
     assert {
         item["status"]
         for item in report["missing_inputs"]
@@ -208,67 +182,7 @@ def test_operator_handoff_can_be_ready_when_all_sources_are_ready(tmp_path):
     assert report["summary"]["missing_inputs_generic_operator_required"] == 0
     assert report["summary"]["operator_command_surface_ready"] is True
     assert report["summary"]["operator_command_shell_surface_ready"] is True
-    assert report["summary"]["claim_gate_present"] is True
-    assert report["summary"]["external_settlement_finality_claim_allowed"] is True
-    assert report["summary"]["economy_finality_claim_allowed"] is True
-    assert report["summary"]["dataplane_delivery_claim_allowed"] is False
-    assert report["summary"]["customer_traffic_claim_allowed"] is False
-    assert report["summary"]["revenue_recognition_claim_allowed"] is False
-    assert report["summary"]["production_readiness_claim_allowed"] is False
-    assert report["claim_gate"]["external_settlement_finality_claim_allowed"] is True
-    assert report["claim_gate"]["economy_finality_claim_allowed"] is True
-    assert report["claim_gate"]["retained_evidence_claim_allowed"] is True
-    assert report["claim_gate"]["live_rpc_receipt_claim_allowed"] is True
-    assert report["claim_gate"]["dataplane_delivery_claim_allowed"] is False
-    assert report["claim_gate"]["customer_traffic_claim_allowed"] is False
-    assert report["claim_gate"]["revenue_recognition_claim_allowed"] is False
-    assert report["claim_gate"]["production_readiness_claim_allowed"] is False
-    assert report["claim_gate"]["blockers"] == []
     assert report["operator_next_actions"][0]["status"] == "DONE"
-
-
-def test_operator_handoff_finality_gate_does_not_wait_for_completion_import(tmp_path):
-    _base_sources(tmp_path, ready=True)
-    _write_json(
-        tmp_path,
-        ".tmp/validation-shards/integration-spine-production-evidence-import-current.json",
-        {
-            "schema_version": "x0tta6bl4-integration-spine-production-evidence-import-v1",
-            "status": "VERIFIED HERE",
-            "ok": True,
-            "summary": {"production_evidence_complete": False},
-        },
-    )
-    _write_json(
-        tmp_path,
-        ".tmp/validation-shards/integration-spine-completion-gate-runner-current.json",
-        {
-            "schema_version": "x0tta6bl4-integration-spine-completion-gate-runner-v4-repo-generated",
-            "status": "VERIFIED HERE",
-            "ok": True,
-            "completion_decision": "NOT_COMPLETE",
-            "summary": {
-                "external_settlement_ready": False,
-                "external_settlement_live_rpc_ready": False,
-            },
-        },
-    )
-
-    report = build_report(tmp_path)
-
-    assert report["handoff_decision"] == "X0T_EXTERNAL_SETTLEMENT_HANDOFF_BLOCKED_ON_OPERATOR"
-    assert report["ready_for_completion_rerun"] is False
-    assert report["summary"]["settlement_finality_ready"] is True
-    assert report["summary"]["external_settlement_finality_claim_allowed"] is True
-    assert report["summary"]["economy_finality_claim_allowed"] is True
-    assert report["claim_gate"]["retained_evidence_claim_allowed"] is True
-    assert report["claim_gate"]["live_rpc_receipt_claim_allowed"] is True
-    assert report["claim_gate"]["dataplane_delivery_claim_allowed"] is False
-    assert report["claim_gate"]["customer_traffic_claim_allowed"] is False
-    assert report["claim_gate"]["production_readiness_claim_allowed"] is False
-    assert report["claim_gate"]["blockers"] == []
-    assert "production_evidence_import" in report["claim_gate"]["operator_blockers"]
-    assert "completion_gate_external_settlement" in report["claim_gate"]["operator_blockers"]
 
 
 def test_operator_handoff_blocks_when_operator_command_entrypoint_is_missing(tmp_path):
@@ -279,10 +193,6 @@ def test_operator_handoff_blocks_when_operator_command_entrypoint_is_missing(tmp
 
     assert report["handoff_decision"] == "X0T_EXTERNAL_SETTLEMENT_HANDOFF_BLOCKED_ON_OPERATOR"
     assert report["ready_for_completion_rerun"] is False
-    assert report["summary"]["settlement_finality_ready"] is True
-    assert report["claim_gate"]["external_settlement_finality_claim_allowed"] is True
-    assert report["claim_gate"]["blockers"] == []
-    assert "operator_command_entrypoints" in report["claim_gate"]["operator_blockers"]
     assert report["summary"]["operator_command_surface_ready"] is False
     assert report["summary"]["operator_command_entrypoints_missing"] == 1
     assert report["missing_inputs"][0]["id"] == "operator_command_entrypoints"

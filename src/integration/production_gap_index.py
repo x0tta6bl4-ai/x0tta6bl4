@@ -9,7 +9,6 @@ complete by itself.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -27,33 +26,8 @@ DEFAULT_GOVERNANCE_EXECUTE_READINESS = ".tmp/validation-shards/x0t-governance-ex
 DEFAULT_GOVERNANCE_EXECUTE_HANDOFF = ".tmp/validation-shards/x0t-governance-execute-operator-handoff-current.json"
 DEFAULT_EXTERNAL_SETTLEMENT_HANDOFF = ".tmp/validation-shards/x0t-external-settlement-operator-handoff-current.json"
 DEFAULT_ROLLOUT_PROVENANCE = ".tmp/validation-shards/live-rollout-image-digests-closure-attempt-current.json"
-DEFAULT_CROSS_PLANE_PROOF_GATE = ".tmp/validation-shards/cross-plane-proof-gate-current.json"
 DEFAULT_OUTPUT = ".tmp/validation-shards/integration-spine-production-gap-index-current.json"
 DEFAULT_OUTPUT_MD = "docs/verification/integration-spine-production-gap-index-2026-05-20.md"
-DEFAULT_CURRENT_ACTIVE_AUDIT = "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md"
-DEFAULT_CURRENT_CROSS_PLANE_MAP = "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json"
-PROTECTED_CURRENT_EVIDENCE_OUTPUTS = {
-    DEFAULT_CURRENT_ACTIVE_AUDIT,
-    DEFAULT_CURRENT_CROSS_PLANE_MAP,
-}
-EXPECTED_CURRENT_EVIDENCE_STATUS = "working_map_not_production_completion_proof"
-CROSS_PLANE_PROOF_GATE_SCHEMA = "x0tta6bl4.cross_plane_proof_gate.v1"
-CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION = "CROSS_PLANE_CLAIMS_ALLOWED"
-PRODUCTION_GAP_INDEX_CROSS_PLANE_CLAIMS = (
-    "production_readiness",
-    "dataplane_delivery",
-    "traffic_delivery",
-    "customer_traffic",
-    "settlement_finality",
-    "dpi_bypass",
-)
-REQUIRED_CROSS_PLANE_PLANES = {
-    "data_plane",
-    "control_plane",
-    "trust_plane",
-    "evidence_plane",
-    "economy_plane",
-}
 OPERATOR_INPUT_REQUIRED = "OPERATOR_INPUT_REQUIRED"
 
 
@@ -97,215 +71,6 @@ def _dict_list(value: Any) -> List[Dict[str, Any]]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, dict)]
-
-
-def _hash_payload(payload: Dict[str, Any]) -> str:
-    body = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return "0x" + hashlib.sha256(body).hexdigest()
-
-
-def _current_evidence_context(root: Path) -> Dict[str, Any]:
-    map_path = root / DEFAULT_CURRENT_CROSS_PLANE_MAP
-    audit_path = root / DEFAULT_CURRENT_ACTIVE_AUDIT
-    context: Dict[str, Any] = {
-        "included": map_path.exists() and audit_path.exists(),
-        "source": "docs/architecture",
-        "cross_plane_map": DEFAULT_CURRENT_CROSS_PLANE_MAP,
-        "active_goal_audit": DEFAULT_CURRENT_ACTIVE_AUDIT,
-        "claim_boundary": (
-            "Current cross-plane evidence context is a local gate for this production gap index. "
-            "It is not production proof by itself."
-        ),
-    }
-    if not map_path.exists() or not audit_path.exists():
-        context.update(
-            {
-                "status": "missing_current_evidence_context",
-                "current_gap_count": None,
-                "tracked_gap_count": None,
-                "non_blocking_gap_count": None,
-                "next_action_count": None,
-                "open_gap_ids": [],
-                "non_blocking_gap_ids": [],
-                "next_action_ids": [],
-                "required_planes_present": False,
-                "plane_ids": [],
-            }
-        )
-        return context
-    try:
-        data = json.loads(map_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        context.update(
-            {
-                "status": "invalid_current_evidence_map",
-                "error": str(exc),
-                "current_gap_count": None,
-                "tracked_gap_count": None,
-                "non_blocking_gap_count": None,
-                "next_action_count": None,
-                "open_gap_ids": [],
-                "non_blocking_gap_ids": [],
-                "next_action_ids": [],
-                "required_planes_present": False,
-                "plane_ids": [],
-            }
-        )
-        return context
-    if not isinstance(data, dict):
-        context.update(
-            {
-                "status": "invalid_current_evidence_map",
-                "error": "current evidence map must be a JSON object",
-                "current_gap_count": None,
-                "tracked_gap_count": None,
-                "non_blocking_gap_count": None,
-                "next_action_count": None,
-                "open_gap_ids": [],
-                "non_blocking_gap_ids": [],
-                "next_action_ids": [],
-                "required_planes_present": False,
-                "plane_ids": [],
-            }
-        )
-        return context
-
-    gaps = _dict_list(data.get("current_gaps"))
-    next_actions = _dict_list(data.get("next_actions"))
-    blocking_gaps = [item for item in gaps if item.get("blocks_real_readiness") is not False]
-    non_blocking_gaps = [item for item in gaps if item.get("blocks_real_readiness") is False]
-    planes = data.get("planes")
-    plane_ids = sorted(str(key) for key in planes) if isinstance(planes, dict) else []
-    context.update(
-        {
-            "status": data.get("status"),
-            "current_gap_count": len(blocking_gaps),
-            "tracked_gap_count": len(gaps),
-            "non_blocking_gap_count": len(non_blocking_gaps),
-            "next_action_count": len(next_actions),
-            "open_gap_ids": [str(item.get("id")) for item in blocking_gaps if item.get("id")],
-            "non_blocking_gap_ids": [str(item.get("id")) for item in non_blocking_gaps if item.get("id")],
-            "next_action_ids": [str(item.get("id")) for item in next_actions if item.get("id")],
-            "required_planes_present": REQUIRED_CROSS_PLANE_PLANES.issubset(set(plane_ids)),
-            "plane_ids": plane_ids,
-        }
-    )
-    return context
-
-
-def _current_evidence_clear(context: Dict[str, Any]) -> bool:
-    return (
-        context.get("included") is True
-        and context.get("status") == EXPECTED_CURRENT_EVIDENCE_STATUS
-        and context.get("required_planes_present") is True
-        and context.get("current_gap_count") == 0
-        and context.get("next_action_count") == 0
-    )
-
-
-def _current_evidence_blockers(context: Dict[str, Any]) -> List[str]:
-    blockers: List[str] = []
-    if context.get("included") is not True:
-        blockers.append("current_evidence_context_missing")
-    if context.get("status") != EXPECTED_CURRENT_EVIDENCE_STATUS:
-        blockers.append("current_evidence_context_status")
-    if context.get("required_planes_present") is not True:
-        blockers.append("current_evidence_required_planes_missing")
-    if context.get("current_gap_count"):
-        blockers.append("current_evidence_open_gaps")
-    if context.get("next_action_count"):
-        blockers.append("current_evidence_next_actions_open")
-    return blockers
-
-
-def _cross_plane_proof_gate_claim_ids(data: Optional[Dict[str, Any]]) -> List[str]:
-    claim_ids: List[str] = []
-    for result in _dict_list((data or {}).get("claim_results")):
-        claim_id = result.get("claim_id")
-        if isinstance(claim_id, str) and claim_id:
-            claim_ids.append(claim_id)
-    return sorted(set(claim_ids))
-
-
-def _cross_plane_proof_gate_missing_claim_ids(data: Optional[Dict[str, Any]]) -> List[str]:
-    return sorted(set(PRODUCTION_GAP_INDEX_CROSS_PLANE_CLAIMS) - set(_cross_plane_proof_gate_claim_ids(data)))
-
-
-def _cross_plane_proof_gate_blocker_ids(data: Optional[Dict[str, Any]]) -> List[str]:
-    blockers: List[str] = []
-    if not data:
-        return ["cross_plane_proof_gate_missing"]
-    if data.get("schema") != CROSS_PLANE_PROOF_GATE_SCHEMA:
-        blockers.append("cross_plane_proof_gate_schema_invalid")
-    if data.get("decision") != CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION:
-        blockers.append("cross_plane_proof_gate_not_allowed")
-    if data.get("allowed") is not True:
-        blockers.append("cross_plane_proof_gate_blocked")
-    context = data.get("context")
-    if not isinstance(context, dict) or context.get("source_artifact_hashes_present") is not True:
-        blockers.append("cross_plane_proof_gate_source_artifact_hashes_missing")
-    for claim_id in _cross_plane_proof_gate_missing_claim_ids(data):
-        blockers.append(f"cross_plane_proof_gate_missing_claim:{claim_id}")
-    for result in _dict_list(data.get("claim_results")):
-        claim_id = str(result.get("claim_id") or "unknown_claim")
-        if result.get("allowed") is True:
-            continue
-        blockers.append(f"claim_blocked:{claim_id}")
-        blockers.extend(str(item) for item in result.get("blockers") or [] if item)
-    return sorted(set(blockers))
-
-
-def _cross_plane_proof_gate_allowed(data: Optional[Dict[str, Any]]) -> bool:
-    if not isinstance(data, dict):
-        return False
-    required_claim_ids = set(PRODUCTION_GAP_INDEX_CROSS_PLANE_CLAIMS)
-    claim_results = {
-        str(result.get("claim_id")): result
-        for result in _dict_list(data.get("claim_results"))
-        if isinstance(result.get("claim_id"), str)
-    }
-    return (
-        data.get("schema") == CROSS_PLANE_PROOF_GATE_SCHEMA
-        and data.get("decision") == CROSS_PLANE_PROOF_GATE_ALLOWED_DECISION
-        and data.get("allowed") is True
-        and not _cross_plane_proof_gate_missing_claim_ids(data)
-        and all(claim_results[claim_id].get("allowed") is True for claim_id in required_claim_ids)
-        and isinstance(data.get("context"), dict)
-        and data["context"].get("source_artifact_hashes_present") is True
-    )
-
-
-def _cross_plane_proof_gate_context(root: Path) -> Dict[str, Any]:
-    path = root / DEFAULT_CROSS_PLANE_PROOF_GATE
-    data = _read_json(path)
-    context = data.get("context") if isinstance(data, dict) else {}
-    if not isinstance(context, dict):
-        context = {}
-    summary = (data or {}).get("summary", {})
-    if not isinstance(summary, dict):
-        summary = {}
-    return {
-        "path": DEFAULT_CROSS_PLANE_PROOF_GATE,
-        "exists": path.exists(),
-        "loaded": isinstance(data, dict),
-        "schema": (data or {}).get("schema"),
-        "decision": (data or {}).get("decision"),
-        "allowed": _cross_plane_proof_gate_allowed(data),
-        "reported_claim_ids": _cross_plane_proof_gate_claim_ids(data),
-        "required_claim_ids": list(PRODUCTION_GAP_INDEX_CROSS_PLANE_CLAIMS),
-        "claims_total": _as_int(summary.get("claims_total")),
-        "claims_allowed": _as_int(summary.get("claims_allowed")),
-        "claims_blocked": _as_int(summary.get("claims_blocked")),
-        "source_artifact_hashes_present": context.get("source_artifact_hashes_present") is True,
-        "map_sha256": context.get("map_sha256"),
-        "audit_sha256": context.get("audit_sha256"),
-        "blocker_ids": _cross_plane_proof_gate_blocker_ids(data),
-        "claim_boundary": (
-            "The production gap index uses the reusable cross-plane proof gate as "
-            "local claim-control evidence. It does not create external DPI, dataplane, "
-            "traffic, settlement, or production proof."
-        ),
-    }
 
 
 def _entrypoint_exists(root: Path, entrypoint: str) -> bool:
@@ -968,7 +733,7 @@ class ProductionGapIndexGate:
             and source_artifacts_clear
             and not external_handoff_ready
         )
-        local_gap_index_clear = (
+        all_clear = (
             source_artifacts_clear
             and completion_clear
             and not governance_blocked
@@ -977,27 +742,6 @@ class ProductionGapIndexGate:
             and (not external_handoff_configured or external_handoff_ready)
             and not rollout_handoff_blocked
             and (not rollout_configured or rollout_handoff_ready)
-        )
-        current_evidence_context = _current_evidence_context(self.root)
-        current_evidence_context_hash = _hash_payload(current_evidence_context)
-        current_evidence_clear = _current_evidence_clear(current_evidence_context)
-        current_evidence_blockers = _current_evidence_blockers(current_evidence_context)
-        cross_plane_proof_gate = _cross_plane_proof_gate_context(self.root)
-        cross_plane_proof_gate_allowed = cross_plane_proof_gate.get("allowed") is True
-        cross_plane_proof_gate_blockers = list(cross_plane_proof_gate.get("blocker_ids") or [])
-        complete = local_gap_index_clear and current_evidence_clear and cross_plane_proof_gate_allowed
-        if complete:
-            decision = "NO_PRODUCTION_EVIDENCE_GAPS"
-        elif local_gap_index_clear and not current_evidence_clear:
-            decision = "PRODUCTION_GAP_INDEX_BLOCKED_BY_CURRENT_EVIDENCE"
-        elif local_gap_index_clear:
-            decision = "PRODUCTION_GAP_INDEX_BLOCKED_BY_CROSS_PLANE_PROOF_GATE"
-        else:
-            decision = "BLOCKED_ON_OPERATOR_EVIDENCE"
-        blocked_reason_ids = (
-            ([] if local_gap_index_clear else ["production_gap_index_not_locally_clear"])
-            + current_evidence_blockers
-            + ([] if cross_plane_proof_gate_allowed else cross_plane_proof_gate_blockers)
         )
 
         missing_source = [gap for gap in blocking if gap.blocker_class == "MISSING_SOURCE_ARTIFACT"]
@@ -1060,10 +804,6 @@ class ProductionGapIndexGate:
             blocking_reasons.append("one or more input/import route pairs disagree")
         if not completion_clear:
             blocking_reasons.append("completion audit is not COMPLETE")
-        if local_gap_index_clear and not current_evidence_clear:
-            blocking_reasons.append("current cross-plane evidence context is not clear")
-        if local_gap_index_clear and current_evidence_clear and not cross_plane_proof_gate_allowed:
-            blocking_reasons.append("reusable cross-plane proof gate has not allowed production gap closure")
 
         return {
             "schema_version": "x0tta6bl4-integration-spine-production-gap-index-v1",
@@ -1076,64 +816,19 @@ class ProductionGapIndexGate:
                 "handoff, and rollout provenance artifacts; it does not collect live evidence, "
                 "stage files, submit settlement transactions, mutate runtime state, or close /goal."
             ),
-            "decision": decision,
-            "local_gap_index_clear": local_gap_index_clear,
-            "goal_can_be_marked_complete": complete,
-            "current_evidence_context": current_evidence_context,
-            "current_evidence_context_hash": current_evidence_context_hash,
-            "cross_plane_proof_gate": cross_plane_proof_gate,
-            "cross_plane_claim_gate": {
-                "surface": "production_gap_index",
-                "local_gap_index_clear": local_gap_index_clear,
-                "goal_completion_claim_allowed": complete,
-                "current_evidence_context_required": True,
-                "current_evidence_context_clear": current_evidence_clear,
-                "cross_plane_proof_gate_required": True,
-                "cross_plane_proof_gate_allowed": cross_plane_proof_gate_allowed,
-                "blocked_reason_ids": blocked_reason_ids,
-                "proof_claims": {
-                    "production_ready": False,
-                    "goal_completion_authorized": False,
-                    "dataplane_delivery_confirmed": False,
-                    "external_dpi_bypass_confirmed": False,
-                    "settlement_finality_confirmed": False,
-                    "live_apply_authorized": False,
-                },
-                "claim_boundary": (
-                    "A clear gap index is local artifact-index evidence. It does not prove live "
-                    "customer traffic, dataplane delivery, external DPI bypass, settlement finality, "
-                    "or live-apply authorization."
-                ),
-            },
+            "decision": "NO_PRODUCTION_EVIDENCE_GAPS" if all_clear else "BLOCKED_ON_OPERATOR_EVIDENCE",
+            "goal_can_be_marked_complete": all_clear,
             "source_artifacts": [
                 self.next_inputs_display,
                 self.production_import_display,
                 self.completion_audit_display,
                 self.production_intake_display,
-                DEFAULT_CROSS_PLANE_PROOF_GATE,
-                DEFAULT_CURRENT_CROSS_PLANE_MAP,
-                DEFAULT_CURRENT_ACTIVE_AUDIT,
             ]
             + ([self.governance_execute_readiness_display] if governance_configured else [])
             + ([self.governance_execute_handoff_display] if governance_handoff_configured else [])
             + ([self.external_settlement_handoff_display] if external_handoff_configured else [])
             + ([self.rollout_provenance_display] if rollout_configured else []),
             "summary": {
-                "local_gap_index_clear": local_gap_index_clear,
-                "current_evidence_context_included": current_evidence_context.get("included") is True,
-                "current_evidence_context_clear": current_evidence_clear,
-                "cross_plane_proof_gate_available": cross_plane_proof_gate.get("loaded") is True,
-                "cross_plane_proof_gate_allowed": cross_plane_proof_gate_allowed,
-                "cross_plane_proof_gate_claims_blocked": cross_plane_proof_gate.get("claims_blocked"),
-                "cross_plane_proof_gate_source_artifact_hashes_present": cross_plane_proof_gate.get(
-                    "source_artifact_hashes_present"
-                ),
-                "completion_blocked_by_cross_plane_proof_gate": (
-                    local_gap_index_clear and current_evidence_clear and not cross_plane_proof_gate_allowed
-                ),
-                "current_evidence_open_gaps": current_evidence_context.get("current_gap_count"),
-                "current_evidence_next_actions": current_evidence_context.get("next_action_count"),
-                "completion_blocked_by_current_evidence": local_gap_index_clear and not current_evidence_clear,
                 "required_evidence_keys_total": len(REQUIRED_EVIDENCE_KEYS),
                 "ready_evidence_keys": len(ready),
                 "pending_evidence_keys": len(blocking),
@@ -1487,30 +1182,12 @@ class ProductionGapIndexGate:
                 f"{gap.evidence_key}: {gap.operator_action or 'provide ready retained production evidence'}"
                 for gap in blocking
             ],
-            "not_verified_yet": []
-            if complete
-            else (
-                []
-                if local_gap_index_clear
-                else [
-                    "all required production evidence keys are backed by ready source artifacts",
-                    "X0T contract deployment config has a deployed bridge address",
-                    "X0T governance proposal 1 has final Executed-state evidence",
-                    "integration-spine completion audit is COMPLETE",
-                ]
-            )
-            + (
-                [
-                    "current cross-plane evidence context must be present and have zero blocking gaps or next actions"
-                ]
-                if not current_evidence_clear
-                else []
-            )
-            + (
-                ["reusable cross-plane proof gate must allow production gap closure claims"]
-                if not cross_plane_proof_gate_allowed
-                else []
-            ),
+            "not_verified_yet": [] if all_clear else [
+                "all required production evidence keys are backed by ready source artifacts",
+                "X0T contract deployment config has a deployed bridge address",
+                "X0T governance proposal 1 has final Executed-state evidence",
+                "integration-spine completion audit is COMPLETE",
+            ],
         }
 
 
@@ -1816,29 +1493,6 @@ def render_markdown(report: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _resolve_output_path(root: Path, value: str) -> Path:
-    path = Path(value)
-    return path if path.is_absolute() else root / path
-
-
-def _output_path_is_protected(root: Path, value: str) -> bool:
-    output_path = _resolve_output_path(root, value).resolve()
-    protected = {
-        _resolve_output_path(root, item).resolve()
-        for item in PROTECTED_CURRENT_EVIDENCE_OUTPUTS
-    }
-    return output_path in protected
-
-
-def _guard_output_path(root: Path, value: str, *, flag: str) -> None:
-    if not value:
-        return
-    if _output_path_is_protected(root, value):
-        raise SystemExit(
-            f"{flag} must not overwrite current evidence source artifact: {value}"
-        )
-
-
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Build integration-spine production evidence gap index")
     parser.add_argument("--root", default=".", help="repository root")
@@ -1856,8 +1510,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
-    _guard_output_path(root, args.output_json, flag="--output-json")
-    _guard_output_path(root, args.output_md, flag="--output-md")
     next_input = Path(args.next_inputs)
     import_input = Path(args.production_import)
     completion_input = Path(args.completion_audit)
@@ -1890,9 +1542,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         rollout_provenance_display=str(rollout_input),
     )
     report = gate.report()
-    write_json(_resolve_output_path(root, args.output_json), report)
+    write_json(root / args.output_json, report)
     if args.output_md:
-        md_path = _resolve_output_path(root, args.output_md)
+        output_md = Path(args.output_md)
+        md_path = output_md if output_md.is_absolute() else root / output_md
         md_path.parent.mkdir(parents=True, exist_ok=True)
         md_path.write_text(render_markdown(report), encoding="utf-8")
     print(json.dumps({

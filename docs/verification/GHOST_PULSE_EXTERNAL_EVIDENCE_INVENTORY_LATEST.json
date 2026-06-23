@@ -1,43 +1,36 @@
 {
   "artifacts": {
-    "inventory_bundle_json": "docs/verification/ghost-pulse-external-evidence-inventory-20260615T080110Z/inventory.json",
-    "inventory_bundle_md": "docs/verification/ghost-pulse-external-evidence-inventory-20260615T080110Z/summary.md",
+    "inventory_bundle_json": "docs/verification/ghost-pulse-external-evidence-inventory-20260525T044336Z/inventory.json",
+    "inventory_bundle_md": "docs/verification/ghost-pulse-external-evidence-inventory-20260525T044336Z/summary.md",
     "inventory_latest_json": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
     "inventory_latest_md": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-external-evidence-inventory-20260615T080110Z",
+  "bundle": "docs/verification/ghost-pulse-external-evidence-inventory-20260525T044336Z",
   "claim_boundary": {
     "note": "External evidence inventory only; this report does not promote proof-gate claims.",
     "proof_claim_boundary": {
-      "current_runtime_attached": false,
       "kernel_attach_verified": true,
       "production_ready": false,
-      "stealth_verified": true,
+      "stealth_verified": false,
       "whitelist_verified": false
     }
   },
-  "failures": [
-    "proof verifier: proof stable fields do not match current suite/external evidence state",
-    "proof verifier: replacement_candidates verifier status must be PASS",
-    "proof verifier: replacement_candidates saved preflight verifier is not PASS",
-    "gap audit verifier: audit stable fields do not match current external evidence state",
-    "gap audit replacement_required does not match external inventory gaps"
-  ],
+  "failures": [],
   "gap_audit": {
     "contract_mismatches": [],
     "covered_replacement_required": [
+      "dpi_lab",
       "whitelist_lab",
       "security_review",
       "production_readiness"
     ],
     "expected_replacement_required": [
+      "dpi_lab",
       "whitelist_lab",
       "security_review",
       "production_readiness"
     ],
-    "failures": [
-      "audit stable fields do not match current external evidence state"
-    ],
+    "failures": [],
     "missing_replacement_rows": [],
     "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.json",
     "replacement_required": [
@@ -46,14 +39,15 @@
       "security_review",
       "production_readiness"
     ],
-    "status": "FAIL"
+    "status": "PASS"
   },
   "invalid": [
+    "dpi_lab",
     "whitelist_lab",
     "security_review",
     "production_readiness"
   ],
-  "inventory_status": "EXTERNAL_EVIDENCE_INVENTORY_INCOMPLETE",
+  "inventory_status": "EXTERNAL_EVIDENCE_INVENTORY_COMPLETE_WITH_GAPS",
   "missing": [],
   "proof": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json",
   "rows": [
@@ -66,7 +60,7 @@
       "markdown_exists": true,
       "proof_errors": [],
       "proof_status": "VERIFIED",
-      "sha256": "3d6ff548e890d4197d7a9bff670f8eacaea4fcfd8e46c58e5938388a65860529",
+      "sha256": "9a484a124d83b08353e80b8e6ffea02e42bf6e864336a873bf4c6649f52db68c",
       "title": "XDP attach and map-counter evidence",
       "validation_errors": [],
       "validation_status": "VERIFIED"
@@ -106,12 +100,42 @@
       "json_exists": true,
       "markdown": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.md",
       "markdown_exists": true,
-      "proof_errors": [],
-      "proof_status": "VERIFIED",
-      "sha256": "6e0b609abc51bcbf5542ef4f1e6184e258b77318d5caaaeee39f9e0c624051a4",
+      "proof_errors": [
+        "status must be VERIFIED",
+        "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+        "missing_inputs must be absent or empty for VERIFIED evidence",
+        "failures must be absent or empty for VERIFIED evidence",
+        "claim_boundary.claim_verified must not be false for VERIFIED evidence",
+        "required artifact role missing: lab_scope",
+        "required artifact role missing: baseline_result",
+        "required artifact role missing: pulse_result",
+        "required artifact role missing: lab_conclusion",
+        "measurements.authorized_lab must be True",
+        "measurements.baseline_detected_or_blocked must be True",
+        "measurements.pulse_result_recorded must be True",
+        "measurements.dpi_bypass_verified must be True",
+        "artifact role missing for content check: lab_conclusion"
+      ],
+      "proof_status": "INVALID",
+      "sha256": "d64ea7b38c180c3d5b4fb9ab554eee76b107037daf07d04a5057466c17b030a7",
       "title": "Authorized DPI lab result",
-      "validation_errors": [],
-      "validation_status": "VERIFIED"
+      "validation_errors": [
+        "status must be VERIFIED",
+        "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+        "missing_inputs must be absent or empty for VERIFIED evidence",
+        "failures must be absent or empty for VERIFIED evidence",
+        "claim_boundary.claim_verified must not be false for VERIFIED evidence",
+        "required artifact role missing: lab_scope",
+        "required artifact role missing: baseline_result",
+        "required artifact role missing: pulse_result",
+        "required artifact role missing: lab_conclusion",
+        "measurements.authorized_lab must be True",
+        "measurements.baseline_detected_or_blocked must be True",
+        "measurements.pulse_result_recorded must be True",
+        "measurements.dpi_bypass_verified must be True",
+        "artifact role missing for content check: lab_conclusion"
+      ],
+      "validation_status": "INVALID"
     },
     {
       "claim_id": "whitelist_lab",
@@ -137,7 +161,7 @@
         "artifact role missing for content check: whitelist_conclusion"
       ],
       "proof_status": "INVALID",
-      "sha256": "b808569ccba94bb196d27c0bed666ed822d1b90b01a0318d22768afdb19b736c",
+      "sha256": "731098b1527639d43882102c8d5a12387dcb8feb6decb0771d7cf5e6d843a051",
       "title": "Authorized whitelist-behavior lab result",
       "validation_errors": [
         "status must be VERIFIED",
@@ -180,7 +204,7 @@
         "artifact role missing for content check: findings_report"
       ],
       "proof_status": "INVALID",
-      "sha256": "fb286e1d29a295201b4a93e320da6f908f4648c183b68013f2af3f2a40ba46c5",
+      "sha256": "ea6d69e3b4ee4ad0e7a3da922fda7253c3d983f193e1515a28530ecc0c446a29",
       "title": "Security review with no open high-severity findings",
       "validation_errors": [
         "status must be VERIFIED",
@@ -225,7 +249,7 @@
         "references must be a non-empty list"
       ],
       "proof_status": "INVALID",
-      "sha256": "21e4082117593e477d7d7a6721dba6a499bccb77b635db50299ba530e73419f9",
+      "sha256": "fde275c1d1d01803e2460e3927c7da8febf51d93c9a6d29dc9b7223dabf6bd2b",
       "title": "Production readiness approval and rollback evidence",
       "validation_errors": [
         "status must be VERIFIED",
@@ -249,12 +273,11 @@
     }
   ],
   "schema": "x0tta6bl4.ghost_pulse.external_evidence_inventory.v1",
-  "status": "FAIL",
-  "timestamp_utc": "2026-06-15T08:01:10.711087+00:00",
+  "status": "PASS",
+  "timestamp_utc": "2026-05-25T04:43:36.974825+00:00",
   "verified": [
     "kernel_attach",
     "packet_capture",
-    "baseline_timing_comparison",
-    "dpi_lab"
+    "baseline_timing_comparison"
   ]
 }

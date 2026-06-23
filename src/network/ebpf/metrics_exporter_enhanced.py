@@ -227,8 +227,6 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
         max_queue_size: int = 1000,
         validation_rules: Optional[Dict[str, Any]] = None,
         stale_metric_ttl_seconds: float = 300.0,
-        event_bus: Optional[EventBus] = None,
-        event_project_root: str = ".",
     ):
         """Initialize enhanced metrics exporter."""
         super().__init__(
@@ -242,19 +240,7 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
         self.metric_queue = []
         self.metric_last_updated: Dict[str, float] = {}
         self.stale_metric_ttl_seconds = stale_metric_ttl_seconds
-        self.performance_stats = {
-            "export_time": [],
-            "parse_time": [],
-            "read_time": [],
-        }
-        self.enhanced_source_agent = EBPF_METRICS_EXPORTER_ENHANCED_SERVICE_NAME
-        self.enhanced_thinking_coach = AgentThinkingCoach(
-            agent_id=self.enhanced_source_agent,
-            role="monitoring",
-            capabilities=("security", "zero-trust"),
-            extra_techniques=("mape_k", "causal_analysis", "chaos_driven_design"),
-        )
-        self._last_enhanced_thinking_context: Optional[Dict[str, Any]] = None
+        self.performance_stats = {"export_time": [], "parse_time": [], "read_time": []}
 
         logger.info("Enhanced eBPF Metrics Exporter initialized")
 

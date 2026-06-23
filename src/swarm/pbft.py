@@ -17,11 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 import json
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.integration.spine import (
-    SafeActuator,
-    SafeActuatorEvidenceMetadata,
-    SafeActuatorResult,
-)
+from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -35,12 +31,6 @@ _SERVICE_AGENT = "swarm-pbft"
 PBFT_CLAIM_BOUNDARY = (
     "PBFT execution event only. It records local consensus callback policy and "
     "safe actuator state; it is not production rollout or settlement evidence."
-)
-PBFT_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
-    "PBFT SafeActuator metadata records only local callback execution for one "
-    "replica log entry. It does not prove cluster-wide consensus finality, "
-    "external settlement finality, customer traffic delivery, production SLOs, "
-    "or production readiness."
 )
 
 
@@ -275,81 +265,6 @@ class PBFTNode:
             for key, value in context.items()
         }
 
-    @staticmethod
-    def _operation_type(operation: Any) -> str:
-        if isinstance(operation, dict):
-            return str(operation.get("type") or operation.get("action") or "dict")
-        return type(operation).__name__
-
-    @classmethod
-    def _execution_claim_gate(
-        cls,
-        *,
-        success: bool,
-        callback_configured: bool,
-    ) -> Dict[str, Any]:
-        blockers: List[str] = [
-            "cluster_consensus_finality_requires_quorum_evidence",
-            "settlement_finality_requires_external_chain_evidence",
-            "production_readiness_requires_cross_plane_proof",
-        ]
-        if not callback_configured:
-            blockers.append("no_pbft_execution_callback_configured")
-        if not success:
-            blockers.append("local_pbft_callback_failed")
-        return {
-            "schema": "x0tta6bl4.swarm_pbft.safe_actuator_claim_gate.v1",
-            "safe_actuator_result_recorded": True,
-            "local_safe_actuator_success": bool(success),
-            "local_pbft_callback_execution_claim_allowed": bool(
-                success and callback_configured
-            ),
-            "cluster_consensus_finality_claim_allowed": False,
-            "external_settlement_finality_claim_allowed": False,
-            "dataplane_delivery_claim_allowed": False,
-            "traffic_delivery_claim_allowed": False,
-            "customer_traffic_claim_allowed": False,
-            "production_slo_claim_allowed": False,
-            "production_readiness_claim_allowed": False,
-            "blockers": blockers,
-            "claim_boundary": PBFT_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-            "redacted": True,
-        }
-
-    @classmethod
-    def _safe_actuator_evidence_metadata(
-        cls,
-        *,
-        context: Dict[str, Any],
-        success: bool,
-        callback_configured: bool,
-    ) -> SafeActuatorEvidenceMetadata:
-        return SafeActuatorEvidenceMetadata.from_value(
-            {
-                "claim_gate": cls._execution_claim_gate(
-                    success=success,
-                    callback_configured=callback_configured,
-                ),
-                "evidence": {
-                    "source_agents": [_SERVICE_AGENT],
-                    "event_ids": [],
-                    "events_total": 0,
-                    "resource": "swarm:pbft:execute",
-                    "sequence": context.get("sequence"),
-                    "view": context.get("view"),
-                    "digest_present": bool(context.get("digest")),
-                    "operation_type": cls._operation_type(context.get("operation")),
-                    "operation_redacted": True,
-                    "raw_context_values_redacted": True,
-                    "raw_result_values_redacted": True,
-                    "redacted": True,
-                },
-                "source_agents": [_SERVICE_AGENT],
-                "claim_boundary": PBFT_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-                "redacted": True,
-            }
-        )
-
     def _execution_context(self, entry: PBFTLogEntry, operation: Any) -> Dict[str, Any]:
         return {
             "node_id": self.node_id,
@@ -369,7 +284,6 @@ class PBFTNode:
         result: Optional[Dict[str, Any]] = None,
         reason: str = "",
         policy_decision: Any = None,
-        safe_actuator_evidence_metadata: Optional[SafeActuatorEvidenceMetadata] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -397,12 +311,6 @@ class PBFTNode:
             "matched_rules": self._policy_rules(policy_decision)
             if policy_decision is not None
             else [],
-            "safe_actuator": True,
-            "safe_actuator_evidence_metadata": (
-                safe_actuator_evidence_metadata.to_dict()
-                if safe_actuator_evidence_metadata is not None
-                else SafeActuatorEvidenceMetadata().to_dict()
-            ),
             "claim_boundary": PBFT_CLAIM_BOUNDARY,
         }
         try:
@@ -439,60 +347,20 @@ class PBFTNode:
     ) -> SafeActuatorResult:
         if self._on_execute is None:
             self._last_actuator_payload = None
-            return SafeActuatorResult(
-                True,
-                "no PBFT execution callback configured",
-                evidence_metadata=self._safe_actuator_evidence_metadata(
-                    context=context,
-                    success=True,
-                    callback_configured=False,
-                ),
-            )
+            return SafeActuatorResult(True, "no PBFT execution callback configured")
         raw = self._on_execute(context.get("operation"))
         self._last_actuator_payload = raw
         if isinstance(raw, SafeActuatorResult):
-            if raw.evidence_metadata.claim_gate:
-                return raw
-            return SafeActuatorResult(
-                raw.success,
-                raw.reason,
-                raw.simulated,
-                evidence_metadata=self._safe_actuator_evidence_metadata(
-                    context=context,
-                    success=bool(raw.success),
-                    callback_configured=True,
-                ),
-            )
+            return raw
         if isinstance(raw, dict) and ("success" in raw or "ok" in raw):
-            success = bool(raw.get("success", raw.get("ok")))
             return SafeActuatorResult(
-                success=success,
+                success=bool(raw.get("success", raw.get("ok"))),
                 reason=str(raw.get("reason", raw.get("error", "")) or ""),
                 simulated=bool(raw.get("simulated", False)),
-                evidence_metadata=self._safe_actuator_evidence_metadata(
-                    context=context,
-                    success=success,
-                    callback_configured=True,
-                ),
             )
         if raw is False:
-            return SafeActuatorResult(
-                False,
-                "PBFT execution callback returned false",
-                evidence_metadata=self._safe_actuator_evidence_metadata(
-                    context=context,
-                    success=False,
-                    callback_configured=True,
-                ),
-            )
-        return SafeActuatorResult(
-            True,
-            evidence_metadata=self._safe_actuator_evidence_metadata(
-                context=context,
-                success=True,
-                callback_configured=True,
-            ),
-        )
+            return SafeActuatorResult(False, "PBFT execution callback returned false")
+        return SafeActuatorResult(True)
     
     def _get_primary(self, view: int) -> str:
         """Get the primary for a given view."""
@@ -841,7 +709,6 @@ class PBFTNode:
                     result=result,
                     reason=result["error"],
                     policy_decision=policy_decision,
-                    safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
                 )
             elif actuator_result.success:
                 result = self._last_actuator_payload
@@ -858,7 +725,6 @@ class PBFTNode:
                     result=event_result,
                     reason=actuator_result.reason or policy_reason,
                     policy_decision=policy_decision,
-                    safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
                 )
             else:
                 result = {"success": False, "error": actuator_result.reason}
@@ -869,7 +735,6 @@ class PBFTNode:
                     result=result,
                     reason=actuator_result.reason or policy_reason,
                     policy_decision=policy_decision,
-                    safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
                 )
         except Exception as e:
             logger.error(f"Execution failed: {e}")

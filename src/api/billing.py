@@ -29,11 +29,7 @@ except ImportError:
 
 from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
 from src.core.reliability_policy import mark_degraded_dependency
-from src.coordination.events import EventBus, EventType, get_event_bus
-from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
 from src.database import BillingWebhookEvent, Invoice, License, Payment, User, get_db
-from src.repositories import InvoiceRepository, PaymentRepository, UserRepository
-from src.services.service_event_identity import service_event_identity_status
 from src.services.xray_manager import XrayManager
 
 logger = logging.getLogger(__name__)
@@ -859,16 +855,6 @@ def _billing_api_readiness_status(db: Any) -> Dict[str, Any]:
                 "ProvisioningSource, and TokenGenerator at processing time."
             ),
         },
-        "cross_plane_claim_gate": cross_plane_claim_gate_metadata(
-            (
-                "production_readiness",
-                "settlement_finality",
-                "dataplane_delivery",
-                "traffic_delivery",
-                "customer_traffic",
-            ),
-            surface="billing_api_readiness",
-        ),
         "claim_boundary": (
             "Billing API readiness proves route availability and local dependency "
             "surfaces only. It does not call Stripe, query the database, verify a "

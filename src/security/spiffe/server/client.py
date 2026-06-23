@@ -16,11 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.integration.spine import (
-    SafeActuator,
-    SafeActuatorEvidenceMetadata,
-    SafeActuatorResult,
-)
+from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -37,23 +33,6 @@ SPIRE_SERVER_CLIENT_CLAIM_BOUNDARY = (
     "and safe actuator state for SPIRE server CLI entry/status actions; it is "
     "not proof of live production SPIRE mTLS, workload traffic, or operator raw "
     "evidence."
-)
-
-SPIRE_SERVER_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
-    "SPIRE server SafeActuator metadata proves only a local policy-gated SPIRE "
-    "server CLI attempt. It is not proof of live SPIFFE/SPIRE trust finality, "
-    "workload SVID possession, mTLS dataplane delivery, customer traffic, or "
-    "production readiness."
-)
-
-_SPIRE_SERVER_STRONG_CLAIM_IDS = (
-    "live_spire_mtls_claim_allowed",
-    "workload_svid_possession_claim_allowed",
-    "workload_identity_trust_finality_claim_allowed",
-    "dataplane_delivery_claim_allowed",
-    "customer_traffic_claim_allowed",
-    "production_identity_readiness_claim_allowed",
-    "production_readiness_claim_allowed",
 )
 
 
@@ -213,143 +192,6 @@ class SPIREServerClient:
             for key, value in context.items()
         }
 
-    def _safe_actuator_claim_gate(
-        self,
-        *,
-        operation: str,
-        success: bool,
-        simulated: bool,
-        policy_decision: Any = None,
-    ) -> Dict[str, Any]:
-        claim_gate = {
-            "schema": "x0tta6bl4.spire_server.safe_actuator_claim_gate.v1",
-            "operation": operation,
-            "local_spire_server_cli_action_succeeded": success and not simulated,
-            "safe_actuator_result_recorded": True,
-            "safe_actuator_simulated": simulated,
-            "policy_required": self.require_policy or self.policy_engine is not None,
-            "policy_allowed": self._policy_allowed(policy_decision)
-            if policy_decision is not None
-            else None,
-            "policy_reason": self._policy_reason(policy_decision)
-            if policy_decision is not None
-            else "",
-            "live_spire_mtls_claim_allowed": False,
-            "workload_svid_possession_claim_allowed": False,
-            "workload_identity_trust_finality_claim_allowed": False,
-            "dataplane_delivery_claim_allowed": False,
-            "customer_traffic_claim_allowed": False,
-            "production_identity_readiness_claim_allowed": False,
-            "production_readiness_claim_allowed": False,
-            "claim_boundary": SPIRE_SERVER_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-            "redacted": True,
-        }
-        claim_gate.update(
-            {
-                claim_id: False
-                for claim_id in _SPIRE_SERVER_STRONG_CLAIM_IDS
-            }
-        )
-        return claim_gate
-
-    @staticmethod
-    def _safe_actuator_cross_plane_claim_gate() -> Dict[str, Any]:
-        return {
-            "schema": "x0tta6bl4.spire_server.safe_actuator_cross_plane_claim_gate.v1",
-            "trust_plane_evidence_type": "local_spire_server_cli_attempt",
-            "control_plane_evidence_type": "policy_gated_safe_actuator_attempt",
-            "requires_live_workload_svid_evidence_for_trust_finality": True,
-            "requires_dataplane_probe_for_delivery_claim": True,
-            "requires_customer_traffic_proof_for_customer_claim": True,
-            "requires_production_attestation_for_production_claim": True,
-            "allowed": False,
-            "redacted": True,
-        }
-
-    def _safe_actuator_evidence_metadata(
-        self,
-        *,
-        operation: str,
-        context: Dict[str, Any],
-        actuator_result: SafeActuatorResult,
-        policy_decision: Any = None,
-        event_ids: Optional[List[str]] = None,
-    ) -> SafeActuatorEvidenceMetadata:
-        upstream = actuator_result.evidence_metadata
-        evidence_event_ids = list(upstream.event_ids or event_ids or [])
-        evidence = {
-            **dict(upstream.evidence),
-            "source_agents": list(upstream.source_agents or [self.source_agent]),
-            "event_ids": evidence_event_ids,
-            "operation": operation,
-            "resource": f"identity:spire_server:{operation}",
-            "context_keys": sorted(str(key) for key in context),
-            "local_spire_server_cli_action_succeeded": bool(actuator_result.success)
-            and not bool(actuator_result.simulated),
-            "safe_actuator_simulated": bool(actuator_result.simulated),
-            "upstream_claim_gate_present": bool(upstream.claim_gate),
-            "raw_context_values_redacted": True,
-            "raw_command_output_redacted": True,
-        }
-        return SafeActuatorEvidenceMetadata.from_value(
-            {
-                "claim_gate": self._safe_actuator_claim_gate(
-                    operation=operation,
-                    success=bool(actuator_result.success),
-                    simulated=bool(actuator_result.simulated),
-                    policy_decision=policy_decision,
-                ),
-                "cross_plane_claim_gate": self._safe_actuator_cross_plane_claim_gate(),
-                "evidence": evidence,
-                "source_agents": list(upstream.source_agents or [self.source_agent]),
-                "event_ids": evidence_event_ids,
-                "claim_boundary": SPIRE_SERVER_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-                "redacted": True,
-            }
-        )
-
-    def _local_cli_result(
-        self,
-        *,
-        operation: str,
-        success: bool,
-        reason: str,
-        simulated: bool = False,
-        evidence: Optional[Dict[str, Any]] = None,
-    ) -> SafeActuatorResult:
-        local_evidence = {
-            "operation": operation,
-            "resource": f"identity:spire_server:{operation}",
-            "local_spire_server_cli_action_succeeded": bool(success)
-            and not bool(simulated),
-            "safe_actuator_simulated": bool(simulated),
-            "raw_context_values_redacted": True,
-            "raw_command_output_redacted": True,
-            "local_only": True,
-        }
-        if evidence:
-            local_evidence.update(self._safe_context(evidence))
-        metadata = SafeActuatorEvidenceMetadata.from_value(
-            {
-                "claim_gate": self._safe_actuator_claim_gate(
-                    operation=operation,
-                    success=success,
-                    simulated=simulated,
-                ),
-                "cross_plane_claim_gate": self._safe_actuator_cross_plane_claim_gate(),
-                "evidence": local_evidence,
-                "source_agents": [self.source_agent],
-                "claim_boundary": SPIRE_SERVER_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-                "redacted": True,
-            }
-        )
-        return SafeActuatorResult(
-            success,
-            reason,
-            simulated=simulated,
-            evidence_metadata=metadata,
-        )
-
     def _publish_control_event(
         self,
         event_type: EventType,
@@ -361,9 +203,6 @@ class SPIREServerClient:
         policy_decision: Any = None,
         success: Optional[bool] = None,
         simulated: Optional[bool] = None,
-        safe_actuator_evidence_metadata: Optional[
-            SafeActuatorEvidenceMetadata
-        ] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -391,11 +230,6 @@ class SPIREServerClient:
             if policy_decision is not None
             else [],
             "safe_actuator": True,
-            "safe_actuator_evidence_metadata": (
-                safe_actuator_evidence_metadata.to_dict()
-                if safe_actuator_evidence_metadata is not None
-                else SafeActuatorEvidenceMetadata().to_dict()
-            ),
             "policy_required": self.require_policy or self.policy_engine is not None,
             "claim_boundary": SPIRE_SERVER_CLIENT_CLAIM_BOUNDARY,
         }
@@ -451,26 +285,14 @@ class SPIREServerClient:
         context: Dict[str, Any],
         executor: Any,
     ) -> SafeActuatorResult:
-        event_ids: List[str] = []
-        received_event_id = self._publish_control_event(
+        self._publish_control_event(
             EventType.COORDINATION_REQUEST,
             stage="received",
             operation=operation,
             context=context,
         )
-        if received_event_id:
-            event_ids.append(received_event_id)
         allowed, decision, reason = self._evaluate_control_policy(operation)
         if not allowed:
-            blocked_result = self._local_cli_result(
-                operation=operation,
-                success=False,
-                reason=reason,
-                evidence={
-                    "policy_denied": True,
-                    "local_spire_server_cli_invoked": False,
-                },
-            )
             self._publish_control_event(
                 EventType.TASK_BLOCKED,
                 stage="policy_denied",
@@ -480,11 +302,10 @@ class SPIREServerClient:
                 policy_decision=decision,
                 success=False,
                 simulated=False,
-                safe_actuator_evidence_metadata=blocked_result.evidence_metadata,
             )
-            return blocked_result
+            return SafeActuatorResult(False, reason)
 
-        start_event_id = self._publish_control_event(
+        self._publish_control_event(
             EventType.PIPELINE_STAGE_START,
             stage="actuator_start",
             operation=operation,
@@ -492,25 +313,10 @@ class SPIREServerClient:
             reason=reason,
             policy_decision=decision,
         )
-        if start_event_id:
-            event_ids.append(start_event_id)
         actuator = self.safe_actuator or SafeActuator(executor)
         actuator_result = actuator.execute(operation, context)
         success = bool(actuator_result.success)
         simulated = bool(actuator_result.simulated)
-        actuator_metadata = self._safe_actuator_evidence_metadata(
-            operation=operation,
-            context=context,
-            actuator_result=actuator_result,
-            policy_decision=decision,
-            event_ids=event_ids,
-        )
-        actuator_result = SafeActuatorResult(
-            success=success,
-            reason=actuator_result.reason,
-            simulated=simulated,
-            evidence_metadata=actuator_metadata,
-        )
         self._publish_control_event(
             (
                 EventType.PIPELINE_STAGE_END
@@ -530,7 +336,6 @@ class SPIREServerClient:
             policy_decision=decision,
             success=success and not simulated,
             simulated=simulated,
-            safe_actuator_evidence_metadata=actuator_metadata,
         )
         return actuator_result
 
@@ -560,30 +365,17 @@ class SPIREServerClient:
                 text=True,
                 timeout=5,
             )
-            success = result.returncode == 0
-            return self._local_cli_result(
-                operation="health_check",
-                success=success,
-                reason=(
-                    "SPIRE server healthcheck passed"
-                    if success
-                    else "SPIRE server healthcheck returned non-zero"
-                ),
-                evidence={
-                    "command": "spire-server healthcheck",
-                    "returncode": result.returncode,
-                },
+            return SafeActuatorResult(
+                result.returncode == 0,
+                "SPIRE server healthcheck passed"
+                if result.returncode == 0
+                else "SPIRE server healthcheck returned non-zero",
             )
         except (FileNotFoundError, subprocess.TimeoutExpired) as e:
             logger.warning(f"SPIRE Server health check failed: {e}")
-            return self._local_cli_result(
-                operation="health_check",
-                success=False,
-                reason=f"SPIRE server health check failed: {e}",
-                evidence={
-                    "command": "spire-server healthcheck",
-                    "exception_class": type(e).__name__,
-                },
+            return SafeActuatorResult(
+                False,
+                f"SPIRE server health check failed: {e}",
             )
 
     def create_entry(
@@ -666,37 +458,12 @@ class SPIREServerClient:
                 )
                 holder["entry_id"] = entry_id
                 logger.info(f"Created SPIRE entry: {spiffe_id} (ID: {entry_id})")
-                return self._local_cli_result(
-                    operation="create_entry",
-                    success=True,
-                    reason="SPIRE entry created",
-                    evidence={
-                        "entry_id_recorded": bool(entry_id),
-                        "selector_count": len(selectors),
-                        "admin": admin,
-                        "ttl": ttl,
-                    },
-                )
+                return SafeActuatorResult(True, "SPIRE entry created")
             logger.error(f"Failed to create entry: {result.stderr}")
-            return self._local_cli_result(
-                operation="create_entry",
-                success=False,
-                reason="SPIRE entry creation failed",
-                evidence={
-                    "returncode": result.returncode,
-                    "selector_count": len(selectors),
-                    "admin": admin,
-                    "ttl": ttl,
-                },
-            )
+            return SafeActuatorResult(False, "SPIRE entry creation failed")
         except Exception as e:
             logger.error(f"Error creating SPIRE entry: {e}")
-            return self._local_cli_result(
-                operation="create_entry",
-                success=False,
-                reason=f"Error creating SPIRE entry: {e}",
-                evidence={"exception_class": type(e).__name__},
-            )
+            return SafeActuatorResult(False, f"Error creating SPIRE entry: {e}")
 
     def list_entries(self) -> List[SPIREServerEntry]:
         """
@@ -731,12 +498,7 @@ class SPIREServerClient:
 
             if result.returncode != 0:
                 logger.warning(f"Failed to list entries: {result.stderr}")
-                return self._local_cli_result(
-                    operation="list_entries",
-                    success=False,
-                    reason="SPIRE entry list failed",
-                    evidence={"returncode": result.returncode},
-                )
+                return SafeActuatorResult(False, "SPIRE entry list failed")
 
             entries = []
             current_entry = {}
@@ -758,20 +520,10 @@ class SPIREServerClient:
 
             holder["entries"] = entries
             logger.info(f"Listed {len(entries)} SPIRE entries")
-            return self._local_cli_result(
-                operation="list_entries",
-                success=True,
-                reason="SPIRE entries listed",
-                evidence={"entry_count": len(entries)},
-            )
+            return SafeActuatorResult(True, "SPIRE entries listed")
         except Exception as e:
             logger.error(f"Error listing SPIRE entries: {e}")
-            return self._local_cli_result(
-                operation="list_entries",
-                success=False,
-                reason=f"Error listing SPIRE entries: {e}",
-                evidence={"exception_class": type(e).__name__},
-            )
+            return SafeActuatorResult(False, f"Error listing SPIRE entries: {e}")
 
     def delete_entry(self, entry_id: str) -> bool:
         """
@@ -803,33 +555,12 @@ class SPIREServerClient:
 
             if result.returncode == 0:
                 logger.info(f"Deleted SPIRE entry: {entry_id}")
-                return self._local_cli_result(
-                    operation="delete_entry",
-                    success=True,
-                    reason="SPIRE entry deleted",
-                    evidence={"entry_id_redacted": True},
-                )
+                return SafeActuatorResult(True, "SPIRE entry deleted")
             logger.error(f"Failed to delete entry: {result.stderr}")
-            return self._local_cli_result(
-                operation="delete_entry",
-                success=False,
-                reason="SPIRE entry deletion failed",
-                evidence={
-                    "returncode": result.returncode,
-                    "entry_id_redacted": True,
-                },
-            )
+            return SafeActuatorResult(False, "SPIRE entry deletion failed")
         except Exception as e:
             logger.error(f"Error deleting SPIRE entry: {e}")
-            return self._local_cli_result(
-                operation="delete_entry",
-                success=False,
-                reason=f"Error deleting SPIRE entry: {e}",
-                evidence={
-                    "exception_class": type(e).__name__,
-                    "entry_id_redacted": True,
-                },
-            )
+            return SafeActuatorResult(False, f"Error deleting SPIRE entry: {e}")
 
     def _parse_entry(self, entry_dict: Dict[str, str]) -> SPIREServerEntry:
         """Parse entry dictionary into SPIREServerEntry"""
@@ -896,20 +627,11 @@ class SPIREServerClient:
                     else result.stderr.strip()
                 ),
             }
-            success = result.returncode == 0
-            return self._local_cli_result(
-                operation="get_server_status",
-                success=success,
-                reason=(
-                    "SPIRE server shallow healthcheck passed"
-                    if success
-                    else "SPIRE server shallow healthcheck returned non-zero"
-                ),
-                evidence={
-                    "command": "spire-server healthcheck -shallow",
-                    "returncode": result.returncode,
-                    "status_recorded": True,
-                },
+            return SafeActuatorResult(
+                result.returncode == 0,
+                "SPIRE server shallow healthcheck passed"
+                if result.returncode == 0
+                else "SPIRE server shallow healthcheck returned non-zero",
             )
         except Exception as e:
             logger.error(f"Error getting server status: {e}")
@@ -918,12 +640,4 @@ class SPIREServerClient:
                 "address": self.server_address,
                 "error": str(e),
             }
-            return self._local_cli_result(
-                operation="get_server_status",
-                success=False,
-                reason=f"Error getting server status: {e}",
-                evidence={
-                    "exception_class": type(e).__name__,
-                    "status_recorded": True,
-                },
-            )
+            return SafeActuatorResult(False, f"Error getting server status: {e}")

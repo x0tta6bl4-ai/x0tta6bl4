@@ -44,8 +44,6 @@ def test_swarm_orchestration_readiness_ready_when_agents_are_available(monkeypat
     assert payload["orchestrator_surface_ready"] is True
     assert payload["orchestrator_state_ready"] is True
     assert payload["task_scheduler_ready"] is True
-    assert payload["cross_plane_claim_gate"]["allowed"] is False
-    assert "traffic_delivery" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
     assert payload["agents_ready"] is True
     assert payload["active_agents"] == 2
     assert payload["tracked_tasks"] == 0

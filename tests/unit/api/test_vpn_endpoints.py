@@ -184,13 +184,6 @@ class TestVPNReadiness:
         assert payload["zkp_attestor_ready"] is True
         assert payload["production_env_ready"] is True
         assert payload["route_precedence"]["shadowed_by_legacy"] == []
-        assert payload["cross_plane_claim_gate"]["allowed"] is False
-        assert payload["cross_plane_claim_gate"]["requested_claim_ids"] == [
-            "production_readiness",
-            "dataplane_delivery",
-            "dpi_bypass",
-            "customer_traffic",
-        ]
         assert payload["degraded_dependencies"] == []
 
     def test_degraded_when_dependencies_are_missing(self, monkeypatch):
@@ -226,7 +219,6 @@ class TestVPNReadiness:
         assert payload["zkp_legacy_db_ready"] is False
         assert payload["zkp_attestor_ready"] is False
         assert payload["production_env_ready"] is False
-        assert payload["cross_plane_claim_gate"]["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
         assert payload["degraded_dependencies"] == [
             "database",
             "user_model",
@@ -253,131 +245,6 @@ class TestVPNReadiness:
 
         assert payload["status"] == "degraded"
         assert request.state.degraded_dependencies == {"database"}
-
-
-class TestVPNStatusEvidence:
-    @pytest.mark.asyncio
-    async def test_status_event_links_leak_protector_evidence_and_redacts_raw_values(
-        self,
-        monkeypatch,
-        tmp_path,
-    ):
-        bus = EventBus(str(tmp_path))
-        request = Request(
-            {
-                "type": "http",
-                "method": "GET",
-                "path": "/vpn/status",
-                "headers": [],
-                "client": ("127.0.0.1", 12345),
-            }
-        )
-        request.state.event_bus = bus
-
-        monkeypatch.setenv(
-            "VPN_API_STATUS_READ_SPIFFE_ID",
-            "spiffe://secret/vpn-api-status",
-        )
-        monkeypatch.setenv("VPN_API_STATUS_READ_DID", "did:mesh:vpn-api-secret")
-        monkeypatch.setenv(
-            "VPN_API_STATUS_READ_WALLET_ADDRESS",
-            "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        )
-
-        async def _status_payload():
-            return {
-                "status": "online",
-                "server": "vpn.secret.example",
-                "port": 443,
-                "protocol": "VLESS+Reality",
-                "active_users": 7,
-                "uptime": 123.4,
-            }
-
-        class _Protector:
-            doh_resolver = None
-            event_bus = None
-            event_project_root = "."
-
-            async def get_status(self):
-                return {
-                    "protection_enabled": True,
-                    "kill_switch_enabled": False,
-                    "vpn_interface": "tun-secret",
-                    "original_dns_servers": ["10.0.0.2"],
-                    "resolver_info": {
-                        "current_server": {
-                            "name": "SecretResolver",
-                            "url": "https://secret-dns.example/query",
-                        }
-                    },
-                }
-
-            def get_last_event_evidence(self):
-                return {
-                    "event_id": "evt-vpn-leak-status",
-                    "source_agent": "vpn-leak-protector",
-                    "layer": "network_vpn_leak_protection_observed_state",
-                    "operation": "get_status",
-                    "stage": "status_read",
-                    "status": "success",
-                    "observed_state": True,
-                    "control_action": False,
-                    "claim_boundary": "bounded leak-protector status evidence",
-                    "raw_identifiers_redacted": True,
-                    "payloads_redacted": True,
-                }
-
-        async def _protector():
-            return _Protector()
-
-        monkeypatch.setattr(vpn_mod, "_get_vpn_status_cached", _status_payload)
-        monkeypatch.setattr(vpn_mod, "get_vpn_protector", _protector)
-
-        response = await vpn_mod.get_vpn_status(
-            request=request,
-            db=SimpleNamespace(),
-        )
-
-        assert response.status == "online"
-        events = bus.get_event_history(
-            event_type=EventType.PIPELINE_STAGE_END,
-            source_agent="vpn-api-status-read",
-            limit=10,
-        )
-        payload = events[-1].data
-        payload_text = repr(payload)
-        log_path = tmp_path / EventBus.EVENT_LOG
-        log_text = log_path.read_text() if log_path.exists() else ""
-
-        assert payload["operation"] == "get_vpn_status"
-        assert payload["vpn_status"] == "online"
-        assert payload["vpn_server_hash"] == vpn_mod._redacted_sha256_prefix(
-            "vpn.secret.example"
-        )
-        assert payload["active_user_count"] == 7
-        leak_evidence = payload["leak_protection_status_evidence"]
-        assert leak_evidence["available"] is True
-        assert leak_evidence["status_summary"]["protection_enabled"] is True
-        assert leak_evidence["status_summary"]["original_dns_server_count"] == 1
-        assert leak_evidence["event_reference"]["event_id"] == "evt-vpn-leak-status"
-        assert leak_evidence["event_reference"]["source_agent"] == "vpn-leak-protector"
-        assert payload["service_identity"]["spiffe_id_present"] is True
-        assert payload["raw_identifiers_redacted"] is True
-        assert payload["payloads_redacted"] is True
-
-        for raw_value in [
-            "vpn.secret.example",
-            "tun-secret",
-            "10.0.0.2",
-            "SecretResolver",
-            "https://secret-dns.example/query",
-            "spiffe://secret/vpn-api-status",
-            "did:mesh:vpn-api-secret",
-            "0xbbbbbb",
-        ]:
-            assert raw_value not in payload_text
-            assert raw_value not in log_text
 
 
 # ---------------------------------------------------------------------------

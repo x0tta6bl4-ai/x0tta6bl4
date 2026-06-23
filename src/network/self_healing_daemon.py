@@ -358,6 +358,50 @@ def discover_socks_port() -> int | None:
     return None
 
 
+DEFAULT_SOCKS_PORT_CANDIDATES = (10918, 10808, 10809, 10924, 40467, 1080, 7890, 7891)
+
+
+def _truthy(value: str | None) -> bool:
+    return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_ports(*values: str | None) -> tuple[int, ...]:
+    ports: list[int] = []
+    for value in values:
+        if not value:
+            continue
+        for raw in value.replace(";", ",").split(","):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                port = int(raw)
+            except ValueError:
+                continue
+            if 0 < port < 65536 and port not in ports:
+                ports.append(port)
+    for port in DEFAULT_SOCKS_PORT_CANDIDATES:
+        if port not in ports:
+            ports.append(port)
+    return tuple(ports)
+
+
+def _socks_handshake(host: str, port: int, timeout: float = 1.0) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout) as s:
+            s.send(b"\x05\x01\x00")
+            return s.recv(2) == b"\x05\x00"
+    except OSError:
+        return False
+
+
+def discover_socks_port() -> int | None:
+    for port in SOCKS_PORT_CANDIDATES:
+        if _socks_handshake(SOCKS_HOST, port):
+            return port
+    return None
+
+
 # Configuration
 INTERFACE = os.getenv("INTERFACE", "singbox_tun")
 TEST_TARGET = os.getenv("TEST_TARGET", "8.8.8.8")
@@ -402,68 +446,13 @@ _HEAL_COOLDOWN = int(os.getenv("VPN_HEAL_COOLDOWN_SEC", os.getenv("VPN_SELF_HEAL
 
 
 def provider_guard_allows_heal() -> tuple[bool, str]:
-    start = time.monotonic()
     if PROVIDER_GUARD_DISABLED:
         if PROVIDER_GUARD_REQUIRE_FRESH:
-            _publish_observation(
-                stage="network_self_healing_provider_guard_disabled_blocked",
-                operation="provider_guard",
-                status="blocked",
-                source_mode="config",
-                start=start,
-                returncode=1,
-                parsed_summary={
-                    "provider_guard_disabled": True,
-                    "require_fresh": True,
-                    "allowed": False,
-                },
-            )
             return False, "provider guard disabled; fresh snapshot required"
-        _publish_observation(
-            stage="network_self_healing_provider_guard_disabled_allowed",
-            operation="provider_guard",
-            status="skipped",
-            source_mode="config",
-            start=start,
-            returncode=0,
-            parsed_summary={
-                "provider_guard_disabled": True,
-                "require_fresh": False,
-                "allowed": True,
-            },
-        )
         return True, "provider guard disabled"
     if not os.path.exists(PROVIDER_GUARD_SCRIPT):
         if PROVIDER_GUARD_REQUIRE_FRESH:
-            _publish_observation(
-                stage="network_self_healing_provider_guard_unavailable_blocked",
-                operation="provider_guard",
-                status="blocked",
-                source_mode="filesystem",
-                start=start,
-                returncode=1,
-                parsed_summary={
-                    "provider_guard_script_present": False,
-                    "require_fresh": True,
-                    "allowed": False,
-                },
-                extra=_selector_metadata(script_path=PROVIDER_GUARD_SCRIPT),
-            )
             return False, "provider guard unavailable; fresh snapshot required"
-        _publish_observation(
-            stage="network_self_healing_provider_guard_unavailable_allowed",
-            operation="provider_guard",
-            status="skipped",
-            source_mode="filesystem",
-            start=start,
-            returncode=0,
-            parsed_summary={
-                "provider_guard_script_present": False,
-                "require_fresh": False,
-                "allowed": True,
-            },
-            extra=_selector_metadata(script_path=PROVIDER_GUARD_SCRIPT),
-        )
         return True, "provider guard unavailable"
     cmd = [
         sys.executable,
@@ -474,15 +463,6 @@ def provider_guard_allows_heal() -> tuple[bool, str]:
     ]
     if PROVIDER_GUARD_REQUIRE_FRESH:
         cmd.append("--require-fresh")
-    command_shape = [
-        "<python>",
-        "<provider_guard_script>",
-        "--check",
-        "--max-age-seconds",
-        "<seconds>",
-    ]
-    if PROVIDER_GUARD_REQUIRE_FRESH:
-        command_shape.append("--require-fresh")
     try:
         result = subprocess.run(
             cmd,
@@ -491,78 +471,10 @@ def provider_guard_allows_heal() -> tuple[bool, str]:
             timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        _publish_observation(
-            stage="network_self_healing_provider_guard_inconclusive_error",
-            operation="provider_guard",
-            status="blocked" if PROVIDER_GUARD_REQUIRE_FRESH else "warning",
-            source_mode="subprocess",
-            start=start,
-            returncode=124 if isinstance(exc, subprocess.TimeoutExpired) else 1,
-            parsed_summary={
-                "provider_guard_script_present": True,
-                "require_fresh": PROVIDER_GUARD_REQUIRE_FRESH,
-                "allowed": not PROVIDER_GUARD_REQUIRE_FRESH,
-                "inconclusive": True,
-            },
-            error=exc,
-            extra={
-                "command_shape": command_shape,
-                "command_hash": _hash_value(" ".join(cmd)),
-                **_selector_metadata(script_path=PROVIDER_GUARD_SCRIPT),
-                "stdout_metadata": _output_metadata(
-                    getattr(exc, "stdout", None)
-                ),
-                "stderr_metadata": _output_metadata(
-                    getattr(exc, "stderr", None)
-                ),
-            },
-        )
         if PROVIDER_GUARD_REQUIRE_FRESH:
             return False, f"provider guard inconclusive while fresh snapshot is required: {exc}"
         return True, f"provider guard inconclusive: {exc}"
     output = (result.stdout or result.stderr or "").strip()
-    if result.returncode == 10:
-        stage = "network_self_healing_provider_guard_blocked"
-        status = "blocked"
-        allowed = False
-        inconclusive = False
-    elif result.returncode != 0:
-        stage = (
-            "network_self_healing_provider_guard_inconclusive_blocked"
-            if PROVIDER_GUARD_REQUIRE_FRESH
-            else "network_self_healing_provider_guard_inconclusive_allowed"
-        )
-        status = "blocked" if PROVIDER_GUARD_REQUIRE_FRESH else "warning"
-        allowed = not PROVIDER_GUARD_REQUIRE_FRESH
-        inconclusive = True
-    else:
-        stage = "network_self_healing_provider_guard_allowed"
-        status = "success"
-        allowed = True
-        inconclusive = False
-
-    _publish_observation(
-        stage=stage,
-        operation="provider_guard",
-        status=status,
-        source_mode="subprocess",
-        start=start,
-        returncode=result.returncode,
-        parsed_summary={
-            "provider_guard_script_present": True,
-            "require_fresh": PROVIDER_GUARD_REQUIRE_FRESH,
-            "allowed": allowed,
-            "inconclusive": inconclusive,
-            "output_present": bool(output),
-        },
-        extra={
-            "command_shape": command_shape,
-            "command_hash": _hash_value(" ".join(cmd)),
-            **_selector_metadata(script_path=PROVIDER_GUARD_SCRIPT),
-            "stdout_metadata": _output_metadata(result.stdout),
-            "stderr_metadata": _output_metadata(result.stderr),
-        },
-    )
     if result.returncode == 10:
         return False, output or "provider guard blocked local heal"
     if result.returncode != 0:
@@ -674,50 +586,13 @@ def check_proxy_health() -> bool:
     """Quick TCP check that SOCKS5 proxy is alive."""
     global SOCKS_PORT
 
-    start = time.monotonic()
-    previous_port = SOCKS_PORT
     port = discover_socks_port()
     if port is None:
-        _publish_observation(
-            stage="network_self_healing_proxy_unavailable",
-            operation="check_proxy_health",
-            status="failure",
-            source_mode="socket",
-            start=start,
-            returncode=1,
-            parsed_summary={
-                "proxy_ok": False,
-                "candidates_total": len(SOCKS_PORT_CANDIDATES),
-                "port_changed": False,
-            },
-            extra=_selector_metadata(
-                socks_host=SOCKS_HOST,
-                socks_port=previous_port,
-            ),
-        )
         return False
 
     if port != SOCKS_PORT:
-        logging.info("Detected active SOCKS5 proxy on configured host")
+        logging.info(f"Detected active SOCKS5 proxy at {SOCKS_HOST}:{port}")
         SOCKS_PORT = port
-    _publish_observation(
-        stage="network_self_healing_proxy_available",
-        operation="check_proxy_health",
-        status="success",
-        source_mode="socket",
-        start=start,
-        returncode=0,
-        parsed_summary={
-            "proxy_ok": True,
-            "candidates_total": len(SOCKS_PORT_CANDIDATES),
-            "port_changed": port != previous_port,
-        },
-        extra={
-            **_selector_metadata(socks_host=SOCKS_HOST, socks_port=port),
-            "previous_socks_port_hash": _hash_value(previous_port),
-            "previous_socks_port_redacted": True,
-        },
-    )
     return True
 
 
@@ -775,41 +650,12 @@ def trigger_healing(reason: str):
     """Multi-stage healing: force-close stale connections, SIGHUP, then Rotate Keys."""
     global _last_heal_time, _healing_attempts_count
 
-    op_start = time.monotonic()
     if not ENABLE_HEAL:
-        _publish_observation(
-            stage="network_self_healing_trigger_disabled",
-            operation="trigger_healing",
-            status="skipped",
-            source_mode="config",
-            start=op_start,
-            returncode=0,
-            read_only=False,
-            control_action=False,
-            parsed_summary={"heal_enabled": False},
-            extra=_reason_metadata(reason),
-        )
         logging.warning(f"Healing disabled by VPN_SELF_HEAL_ENABLE=false: {reason}")
         return
 
     guard_ok, guard_reason = provider_guard_allows_heal()
     if not guard_ok:
-        _publish_observation(
-            stage="network_self_healing_trigger_provider_blocked",
-            operation="trigger_healing",
-            status="blocked",
-            source_mode="provider_guard",
-            start=op_start,
-            returncode=1,
-            read_only=False,
-            control_action=False,
-            parsed_summary={"heal_enabled": True, "provider_guard_allowed": False},
-            extra={
-                **_reason_metadata(reason),
-                "guard_reason_hash": _hash_value(guard_reason),
-                "guard_reason_redacted": True,
-            },
-        )
         logging.warning(f"Healing blocked by provider guard: {guard_reason}; reason={reason}")
         return
 
@@ -928,6 +774,27 @@ def trigger_healing(reason: str):
             parsed_summary={"pulse_shift_enabled": False},
             extra=_reason_metadata(reason),
         )
+        logging.info("Pulse shift skipped; set VPN_ENABLE_PULSE_SHIFT=true to allow it.")
+
+    # Stage 0: optional pulse adaptation. Disabled by default because VPN
+    # recovery must not mutate traffic profiles on a single local symptom.
+    if _healing_attempts_count == 1 and ENABLE_PULSE_SHIFT:
+        logging.info("🧠 MAPE-K: Phase 0 - Transitioning x0tta6bl4_pulse mimicry profile (Dynamic Pulse Shift)...")
+        try:
+            import json
+            cmd_file = "/mnt/projects/.tmp/pulse_cmd.json"
+            os.makedirs(os.path.dirname(cmd_file), exist_ok=True)
+            with open(cmd_file, "w") as f:
+                json.dump({"action": "switch_profile", "target": "vk", "reason": reason}, f)
+            logging.info("✅ Pulse shift command issued to mesh daemon.")
+            time.sleep(5)
+            # Check if pulse shift fixed it
+            if ping_target(TEST_TARGET, INTERFACE) != float('inf'):
+                logging.info("💪 Pulse Shift SUCCESSFUL. Latency restored via VK-Mimicry.")
+                return
+        except Exception as e:
+            logging.error(f"Pulse shift failed: {e}")
+    elif _healing_attempts_count == 1:
         logging.info("Pulse shift skipped; set VPN_ENABLE_PULSE_SHIFT=true to allow it.")
 
     # Stage 1: force-close stale TCP connections
@@ -1057,21 +924,6 @@ def trigger_healing(reason: str):
     # Stage 4: CRITICAL - Rotate Reality Keys (Possible IP blocking/GFW detection)
     if _healing_attempts_count >= 4:
         if not ENABLE_REALITY_ROTATION:
-            _publish_observation(
-                stage="network_self_healing_reality_rotation_skipped",
-                operation="rotate_reality_credentials",
-                status="skipped",
-                source_mode="config",
-                start=op_start,
-                returncode=0,
-                read_only=False,
-                control_action=False,
-                parsed_summary={
-                    "healing_stage": current_stage,
-                    "reality_rotation_enabled": False,
-                },
-                extra=_reason_metadata(reason),
-            )
             logging.error(
                 "Reality key rotation skipped; set VPN_ENABLE_REALITY_ROTATION=true "
                 "to allow this destructive recovery step."
@@ -1142,7 +994,6 @@ def check_once():
     global _consecutive_proxy_failures
     global _consecutive_fin_wait2_failures
 
-    check_start = time.monotonic()
     latency = ping_target(TEST_TARGET, INTERFACE)
     proxy_ok = check_proxy_health()
     fw2 = get_fin_wait2_count()
@@ -1191,41 +1042,6 @@ def check_once():
             )
     else:
         _consecutive_fin_wait2_failures = 0
-
-    _publish_observation(
-        stage=(
-            "network_self_healing_check_ok"
-            if latency != float("inf") and latency <= MAX_LATENCY_MS and proxy_ok and fw2 < 50
-            else "network_self_healing_check_degraded"
-        ),
-        operation="check_once",
-        status=(
-            "success"
-            if latency != float("inf") and latency <= MAX_LATENCY_MS and proxy_ok and fw2 < 50
-            else "warning"
-        ),
-        source_mode="daemon",
-        start=check_start,
-        returncode=0,
-        parsed_summary={
-            "latency_ms": None if latency == float("inf") else latency,
-            "packet_loss": latency == float("inf"),
-            "max_latency_ms": MAX_LATENCY_MS,
-            "proxy_ok": proxy_ok,
-            "fin_wait2_count": fw2,
-            "packet_loss_failures": _consecutive_failures,
-            "latency_failures": _consecutive_latency_failures,
-            "proxy_failures": _consecutive_proxy_failures,
-            "fin_wait2_failures": _consecutive_fin_wait2_failures,
-        },
-        extra=_selector_metadata(
-            target=TEST_TARGET,
-            interface=INTERFACE,
-            vpn_server=VPN_SERVER,
-            socks_host=SOCKS_HOST,
-            socks_port=SOCKS_PORT,
-        ),
-    )
 
 
 def run_daemon():

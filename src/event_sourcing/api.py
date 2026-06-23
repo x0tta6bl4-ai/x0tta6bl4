@@ -188,20 +188,6 @@ _command_bus: Optional[CommandBus] = None
 _query_bus: Optional[QueryBus] = None
 _projection_manager: Optional[ProjectionManager] = None
 _startup_hook_completed: bool = False
-_api_thinking_coach = AgentThinkingCoach(
-    agent_id="event-sourcing-api",
-    role="coordination",
-    capabilities=("mape_k", "event-sourcing", "api-security"),
-    extra_techniques=(
-        "mape_k",
-        "mind_maps",
-        "causal_analysis",
-        "graphsage",
-        "zero_trust_review",
-        "reverse_planning",
-    ),
-)
-_last_api_thinking_context: Optional[Dict[str, Any]] = None
 
 # Resilience patterns
 _api_rate_limiter = TokenBucket(capacity=200, refill_rate=50.0, name="events_api")

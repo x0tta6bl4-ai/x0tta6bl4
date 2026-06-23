@@ -94,44 +94,6 @@ def _status_counts(items: List[Dict[str, Any]]) -> Dict[str, int]:
     return counts
 
 
-def _claim_gate(
-    *,
-    settlement_finality_ready: bool,
-    retained_evidence_ready: bool,
-    live_rpc_ready: bool,
-    finality_blockers: List[str],
-    operator_blockers: List[str],
-) -> Dict[str, Any]:
-    return {
-        "schema": "x0tta6bl4.external_settlement.operator_handoff.claim_gate.v1",
-        "external_settlement_finality_claim_allowed": settlement_finality_ready,
-        "economy_finality_claim_allowed": settlement_finality_ready,
-        "retained_evidence_claim_allowed": retained_evidence_ready,
-        "live_rpc_receipt_claim_allowed": live_rpc_ready,
-        "dataplane_delivery_claim_allowed": False,
-        "customer_traffic_claim_allowed": False,
-        "customer_dataplane_delivery_claim_allowed": False,
-        "bank_settlement_claim_allowed": False,
-        "revenue_recognition_claim_allowed": False,
-        "production_slo_claim_allowed": False,
-        "production_readiness_claim_allowed": False,
-        "mutates_chain": False,
-        "runs_live_rpc": False,
-        "submits_transaction": False,
-        "redacted": True,
-        "blockers": finality_blockers,
-        "operator_blockers": operator_blockers,
-        "claim_boundary": (
-            "Operator handoff claim gate. It can allow only external settlement "
-            "finality/economy finality after retained evidence, live RPC, and the "
-            "current settlement blocker all agree. Production import and completion "
-            "gate state remain operator handoff state only. It never allows dataplane "
-            "delivery, customer traffic, bank settlement, revenue recognition, "
-            "production SLO, or production readiness claims."
-        ),
-    }
-
-
 def _operator_command_checks(root: Path, actions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     checks: List[Dict[str, Any]] = []
     for action in actions:
@@ -215,12 +177,6 @@ def build_report(root: Path, paths: Optional[Dict[str, str]] = None) -> Dict[str
     source_errors = [
         error
         for report in source_reports
-        for error in report.get("errors", [])
-    ]
-    settlement_source_errors = [
-        error
-        for report in source_reports
-        if report.get("label") in {"evidence_gate", "live_rpc_gate", "current_blocker"}
         for error in report.get("errors", [])
     ]
 
@@ -367,30 +323,6 @@ def build_report(root: Path, paths: Optional[Dict[str, str]] = None) -> Dict[str
         and operator_command_surface_ready
         and operator_command_shell_surface_ready
     )
-    finality_blockers: List[str] = []
-    finality_blockers.extend(
-        f"source_error:{index}" for index, _ in enumerate(settlement_source_errors)
-    )
-    if not evidence_ready:
-        finality_blockers.append("retained_settlement_receipt")
-    if not live_rpc_ready:
-        finality_blockers.append("live_rpc_receipt_verification")
-    if not blocker_ready:
-        finality_blockers.append("current_settlement_blocker_ready")
-    settlement_finality_ready = not finality_blockers
-    operator_blockers = [
-        str(item.get("id", "missing_input"))
-        for item in missing_inputs
-        if isinstance(item, dict)
-    ]
-    operator_blockers.extend(f"source_error:{index}" for index, _ in enumerate(source_errors))
-    claim_gate = _claim_gate(
-        settlement_finality_ready=settlement_finality_ready,
-        retained_evidence_ready=evidence_ready,
-        live_rpc_ready=live_rpc_ready,
-        finality_blockers=finality_blockers,
-        operator_blockers=operator_blockers,
-    )
     missing_input_status_counts = _status_counts(missing_inputs)
     return {
         "schema_version": "x0tta6bl4-x0t-external-settlement-operator-handoff-v6-repo-generated",
@@ -416,7 +348,6 @@ def build_report(root: Path, paths: Optional[Dict[str, str]] = None) -> Dict[str
         "source_errors": source_errors,
         "operator_command_checks": operator_command_checks,
         "missing_inputs": missing_inputs,
-        "claim_gate": claim_gate,
         "operator_next_actions": operator_next_actions,
         "not_verified_yet": []
         if ready
@@ -457,26 +388,6 @@ def build_report(root: Path, paths: Optional[Dict[str, str]] = None) -> Dict[str
             "operator_sequence_ready": operator_command_surface_ready and operator_command_shell_surface_ready,
             "safety_flags_ready": True,
             "source_alignment_ready": not source_errors,
-            "claim_gate_present": True,
-            "settlement_finality_ready": settlement_finality_ready,
-            "external_settlement_finality_claim_allowed": claim_gate[
-                "external_settlement_finality_claim_allowed"
-            ],
-            "economy_finality_claim_allowed": claim_gate[
-                "economy_finality_claim_allowed"
-            ],
-            "dataplane_delivery_claim_allowed": claim_gate[
-                "dataplane_delivery_claim_allowed"
-            ],
-            "customer_traffic_claim_allowed": claim_gate[
-                "customer_traffic_claim_allowed"
-            ],
-            "revenue_recognition_claim_allowed": claim_gate[
-                "revenue_recognition_claim_allowed"
-            ],
-            "production_readiness_claim_allowed": claim_gate[
-                "production_readiness_claim_allowed"
-            ],
         },
     }
 

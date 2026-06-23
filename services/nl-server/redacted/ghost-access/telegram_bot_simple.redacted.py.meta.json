@@ -1,11 +1,10 @@
 {
-  "created_utc": "2026-06-01T20:48:20.234831+00:00",
+  "created_utc": "2026-05-27T06:41:56.237316+00:00",
   "deployable": false,
   "host": "nl",
-  "local_formatting_note": "anti-block operator status now includes rollback dry-run summary; raw secrets remain remote-only",
   "raw_saved_locally": false,
-  "raw_sha256": "799e7640c0bb5c49e8fea7d3fa10fc6d5e9184d4a72f0e4528ca1530ef0edb9f",
-  "redacted_sha256": "4a6f269593b99645b90a1c606ad91dcd8a731298c848cef6e7abcd361f8bbc0a",
+  "raw_sha256": "b593ddd82b3542e02e8a6fc17b558d957d780326ab86b5f7bd203d8d1d5b2f93",
+  "redacted_sha256": "8b04072e8f9ab785ead08b4d08c4e27102ffda463060edfb77761a6931923d61",
   "redaction_counts": {
     "private_key_assignment": 0,
     "private_key_block": 0,
@@ -14,8 +13,9 @@
     "subscription_url_assignment": 0,
     "token_assignment": 0,
     "uuid": 0,
-    "vpn_uri": 6
+    "vpn_uri": 4
   },
   "remote_path": "/opt/ghost-access-bot/current/telegram_bot_simple.py",
-  "target_path": "redacted/ghost-access/telegram_bot_simple.redacted.py"
+  "target_path": "redacted/ghost-access/telegram_bot_simple.redacted.py",
+  "local_formatting_note": "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
 }

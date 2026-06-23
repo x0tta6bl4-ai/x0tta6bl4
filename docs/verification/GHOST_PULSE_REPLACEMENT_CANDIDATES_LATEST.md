@@ -6,7 +6,7 @@ Decision: `REPLACEMENT_CANDIDATES_NOT_READY`
 
 Audit: `docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_GAP_AUDIT_LATEST.json`
 
-Audit sha256: `7ba9fc90cb2353140b48dcff331ba40fa99139b68d7a7564aab9b52bcf4eb749`
+Audit sha256: `ab612ccf4d2d514f2d06d6ebe5275757fdf3ab895105fcfa6bfbbe911fd24a5b`
 
 ## Claim Boundary
 
@@ -19,8 +19,8 @@ Audit sha256: `7ba9fc90cb2353140b48dcff331ba40fa99139b68d7a7564aab9b52bcf4eb749`
 ## Summary
 
 - replacement_required: `dpi_lab, whitelist_lab, security_review, production_readiness`
-- ready: `dpi_lab`
-- not_ready: `whitelist_lab, security_review, production_readiness`
+- ready: `none`
+- not_ready: `dpi_lab, whitelist_lab, security_review, production_readiness`
 - missing_candidates: `none`
 - non_file_candidates: `none`
 - unsafe_candidates: `none`
@@ -28,17 +28,17 @@ Audit sha256: `7ba9fc90cb2353140b48dcff331ba40fa99139b68d7a7564aab9b52bcf4eb749`
 ## Candidate Intake Plan
 
 - status: `ACTION_REQUIRED`
-- ready_claims: `dpi_lab`
-- not_ready_claims: `whitelist_lab, security_review, production_readiness`
+- ready_claims: `none`
+- not_ready_claims: `dpi_lab, whitelist_lab, security_review, production_readiness`
 - missing_candidate_paths: `none`
-- currently_ready_write_commands: `1`
+- currently_ready_write_commands: `0`
 - post_import_refresh_commands: `9`
 
 ## Rows
 
 | Claim | Candidate | Exists | Is File | Symlink | Import Decision | Ready |
 | --- | --- | --- | --- | --- | --- | --- |
-| dpi_lab | `docs/verification/incoming/dpi_lab.json` | `True` | `True` | `False` | `READY_TO_IMPORT` | `True` |
+| dpi_lab | `docs/verification/incoming/dpi_lab.json` | `True` | `True` | `False` | `REJECTED` | `False` |
 | whitelist_lab | `docs/verification/incoming/whitelist_lab.json` | `True` | `True` | `False` | `REJECTED` | `False` |
 | security_review | `docs/verification/incoming/security_review.json` | `True` | `True` | `False` | `REJECTED` | `False` |
 | production_readiness | `docs/verification/incoming/production_readiness.json` | `True` | `True` | `False` | `REJECTED` | `False` |

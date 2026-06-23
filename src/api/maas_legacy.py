@@ -23,40 +23,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from src.api.cross_plane_claim_gate import (
-    cross_plane_claim_gate_metadata,
-    readiness_cross_plane_claim_gate_metadata,
-)
-from src.api.maas.auth import get_current_user, require_permission, require_role
-from src.api.maas.endpoints.compat import router as compat_router
-from src.api.maas.endpoints.mesh import router as mesh_router
-from src.api.maas.endpoints.nodes_legacy import router as nodes_legacy_router
-from src.api.maas.models import (
-    BillingWebhookRequest,
-    BillingWebhookResponse,
-    LegacyBillingResponse,
-    MeshDeployRequest,
-    MeshDeployResponse,
-    MeshMetricsResponse,
-    MeshStatusResponse,
-    NodeApproveRequest,
-    NodeApproveResponse,
-    NodeHeartbeatRequest,
-    NodeRegisterRequest,
-    NodeRegisterResponse,
-    NodeReissueTokenRequest,
-    NodeReissueTokenResponse,
-    NodeRevokeRequest,
-    NodeRevokeResponse,
-    PolicyRequest,
-    PolicyResponse,
-    ScaleRequest,
-    TokenRotateResponse,
-)
-from src.api.maas.mesh_instance import MeshInstance
-from src.api.maas.services import BillingService as ModularBillingService
-from src.api.maas.services import UsageMeteringService as ModularUsageMeteringService
-from src.api.maas_auth import get_current_user_from_maas
+from src.api.maas_auth_models import (ApiKeyResponse, TokenResponse,
+                                      UserLoginRequest, UserRegisterRequest)
+from src.core.reliability_policy import mark_degraded_dependency
+from src.database import BillingWebhookEvent, User, get_db, MeshInstance as DBMeshInstance
 from src.api.maas_security import api_key_manager, oidc_validator, token_signer
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.database import (
@@ -370,6 +340,219 @@ mesh_provisioner = MeshProvisioner()
 billing_service = BillingService()
 usage_metering_service = UsageMeteringService()
 auth_service = AuthService()
+
+
+def _legacy_db_session_available(db: Any) -> bool:
+    return all(hasattr(db, attr) for attr in ("query", "add", "commit", "rollback"))
+
+
+def _legacy_registries_available() -> bool:
+    registry_surfaces = (
+        _mesh_registry,
+        _pending_nodes,
+        _node_telemetry,
+        _mesh_policies,
+        _mesh_audit_log,
+        _mesh_mapek_events,
+        _revoked_nodes,
+        _mesh_reissue_tokens,
+    )
+    return all(isinstance(surface, dict) for surface in registry_surfaces) and all(
+        callable(getattr(_registry_lock, attr, None))
+        for attr in ("acquire", "release", "locked")
+    )
+
+
+def _legacy_services_available() -> bool:
+    return (
+        all(
+            callable(getattr(mesh_provisioner, attr, None))
+            for attr in ("create", "terminate", "get", "list_for_owner")
+        )
+        and all(
+            callable(getattr(billing_service, attr, None))
+            for attr in ("normalize_plan", "plan_catalog", "check_quota")
+        )
+        and all(
+            callable(getattr(usage_metering_service, attr, None))
+            for attr in ("get_mesh_usage", "get_account_usage")
+        )
+        and all(
+            callable(getattr(auth_service, attr, None))
+            for attr in ("register", "login", "rotate_api_key")
+        )
+    )
+
+
+def _legacy_auth_dependencies_available() -> bool:
+    return (
+        callable(get_current_user_from_maas)
+        and callable(get_current_user)
+        and callable(require_permission)
+        and callable(require_role)
+        and callable(getattr(api_key_manager, "generate", None))
+        and callable(getattr(oidc_validator, "get_config", None))
+        and callable(getattr(oidc_validator, "validate", None))
+    )
+
+
+def _legacy_security_helpers_available() -> bool:
+    return (
+        callable(getattr(token_signer, "sign_token", None))
+        and callable(getattr(AttestationService, "validate_node", None))
+        and (not PQC_AVAILABLE or callable(PQCNodeIdentity))
+    )
+
+
+def _legacy_db_models_available() -> bool:
+    required_model_attrs = (
+        (User, ("id", "email", "api_key", "plan", "role")),
+        (
+            BillingWebhookEvent,
+            ("event_id", "event_type", "payload_hash", "status", "created_at"),
+        ),
+        (DBMeshInstance, ("id", "name", "owner_id", "status", "plan", "created_at")),
+    )
+    return all(
+        hasattr(model, attr)
+        for model, attrs in required_model_attrs
+        for attr in attrs
+    )
+
+
+def _legacy_readiness_status(db: Any) -> Dict[str, Any]:
+    legacy_db_ready = _legacy_db_session_available(db)
+    legacy_registries_ready = _legacy_registries_available()
+    legacy_services_ready = _legacy_services_available()
+    legacy_auth_ready = _legacy_auth_dependencies_available()
+    legacy_security_ready = _legacy_security_helpers_available()
+    legacy_models_ready = _legacy_db_models_available()
+    maas_legacy_runtime_ready = (
+        legacy_db_ready
+        and legacy_registries_ready
+        and legacy_services_ready
+        and legacy_auth_ready
+        and legacy_security_ready
+        and legacy_models_ready
+    )
+
+    degraded_dependencies = []
+    if not legacy_db_ready:
+        degraded_dependencies.append("database")
+    if not legacy_registries_ready:
+        degraded_dependencies.append("registries")
+    if not legacy_services_ready:
+        degraded_dependencies.append("legacy_services")
+    if not legacy_auth_ready:
+        degraded_dependencies.append("auth_dependencies")
+    if not legacy_security_ready:
+        degraded_dependencies.append("security_helpers")
+    if not legacy_models_ready:
+        degraded_dependencies.append("db_models")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "always",
+        "route_present_in_light_mode": True,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "maas_legacy_runtime_ready": maas_legacy_runtime_ready,
+        "legacy_db_ready": legacy_db_ready,
+        "legacy_registries_ready": legacy_registries_ready,
+        "legacy_services_ready": legacy_services_ready,
+        "legacy_auth_ready": legacy_auth_ready,
+        "legacy_security_ready": legacy_security_ready,
+        "legacy_models_ready": legacy_models_ready,
+        "pqc_identity_available": PQC_AVAILABLE,
+        "registry_counts": {
+            "meshes": len(_mesh_registry) if isinstance(_mesh_registry, dict) else None,
+            "pending_node_meshes": (
+                len(_pending_nodes) if isinstance(_pending_nodes, dict) else None
+            ),
+            "telemetry_nodes": (
+                len(_node_telemetry) if isinstance(_node_telemetry, dict) else None
+            ),
+            "revoked_node_meshes": (
+                len(_revoked_nodes) if isinstance(_revoked_nodes, dict) else None
+            ),
+        },
+        "route_precedence": {
+            "fixed_prefix": "/api/v1/maas",
+            "catch_all_owner": True,
+            "known_shadowing_boundary": (
+                "The legacy MaaS router is registered before modular MaaS routers "
+                "and owns broad /api/v1/maas/{mesh_id}/... paths. Readiness is a "
+                "static /api/v1/maas/readiness path registered before dynamic "
+                "mesh routes in this router."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": (
+                "Legacy auth, DB mesh persistence, billing webhook idempotency, "
+                "and user lookup require SQLAlchemy query/add/commit/rollback."
+            ),
+            "registries": (
+                "Mesh runtime state, pending nodes, telemetry, policies, audit "
+                "logs, MAPE-K events, revocations, and reissue tokens are held in "
+                "module-level dictionaries guarded by _registry_lock."
+            ),
+            "legacy_services": (
+                "MeshProvisioner, BillingService, UsageMeteringService, and "
+                "AuthService back the legacy route implementations."
+            ),
+            "auth_dependencies": (
+                "Legacy routes use both local X-API-Key auth and MaaS auth "
+                "require_permission/require_role dependencies plus OIDC helpers."
+            ),
+            "security_helpers": (
+                "Node approval/reissue paths require token_signer and hardware "
+                "attestation; PQC identity is reported separately because the "
+                "legacy router can still run without that optional import."
+            ),
+            "db_models": (
+                "Legacy DB-backed paths depend on User, BillingWebhookEvent, and "
+                "DBMeshInstance model fields."
+            ),
+        },
+        "claim_boundary": (
+            "Legacy MaaS readiness proves the monolith route and local dependency "
+            "surfaces are present. It does not deploy a mesh, mutate registries, "
+            "query billing state, validate a node attestation, or prove every "
+            "dynamic /{mesh_id}/... route is semantically healthy."
+        ),
+    }
+
+
+@router.get("/readiness")
+async def maas_legacy_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _legacy_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
+
+
+# ---------------------------------------------------------------------------
+# Auth Dependencies
+# ---------------------------------------------------------------------------
+
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def get_current_user(
+    api_key: str = Depends(api_key_header),
+    db: Session = Depends(get_db),
+) -> User:
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Missing X-API-Key header")
+    user = db.query(User).filter(User.api_key == api_key).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    return user
 
 
 def validate_customer(api_key: str, db: Session) -> User:

@@ -16,44 +16,6 @@ from src.core.agent_thinking import AgentThinkingCoach
 logger = logging.getLogger(__name__)
 SIMULATED_PQC_ENV = "X0TTA6BL4_ALLOW_SIMULATED_PQC"
 _TRUE_VALUES = {"1", "true", "yes", "on"}
-PQC_TUNNEL_CLAIM_BOUNDARY = (
-    "Local PQC tunnel decision evidence only. It records algorithm names, feature "
-    "availability, hashed node/peer identifiers, session counts, and payload-size "
-    "buckets without copying private keys, public keys, shared secrets, ciphertext, "
-    "plaintext payloads, nonces, or raw node identifiers."
-)
-
-
-def _hash_value(value: Optional[Any]) -> Optional[str]:
-    if value is None:
-        return None
-    if isinstance(value, bytes):
-        payload = value
-    else:
-        text = str(value)
-        if not text:
-            return None
-        payload = text.encode("utf-8")
-    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
-
-
-def _byte_count_bucket(value: int) -> str:
-    if value <= 0:
-        return "zero"
-    if value <= 64:
-        return "tiny"
-    if value <= 512:
-        return "small"
-    if value <= 1500:
-        return "mtu"
-    if value <= 8192:
-        return "chunk"
-    return "large"
-
-
-def _agent_id(prefix: str, raw_id: str) -> str:
-    digest = hashlib.sha256(raw_id.encode("utf-8")).hexdigest()[:16]
-    return f"{prefix}-{digest}"
 
 
 def _simulated_pqc_allowed() -> bool:

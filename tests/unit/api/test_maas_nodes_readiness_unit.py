@@ -36,22 +36,13 @@ def test_node_readiness_ready_when_core_and_optional_dependencies_are_available(
     assert payload["audit_log_ready"] is True
     assert payload["telemetry_bridge_ready"] is True
     assert payload["healing_service_ready"] is True
-    assert payload["cross_plane_claim_gate"]["allowed"] is False
-    assert "dataplane_delivery" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
     assert payload["legacy_route_shadowing"]["shadowed_by_legacy"] == [
         "POST /{mesh_id}/nodes/register",
         "GET /{mesh_id}/nodes/pending",
+        "GET /{mesh_id}/nodes/all",
+        "GET /{mesh_id}/node-config/{node_id}",
         "POST /{mesh_id}/nodes/{node_id}/approve",
         "POST /{mesh_id}/nodes/{node_id}/revoke",
-    ]
-    assert payload["legacy_route_shadowing"]["db_backed_routes_active"] == [
-        "POST /{mesh_id}/nodes/{node_id}/heartbeat",
-        "GET /{mesh_id}/nodes/{node_id}/telemetry",
-        "POST /{mesh_id}/nodes/check-access",
-        "GET /{mesh_id}/node-config/{node_id}",
-        "GET /{mesh_id}/nodes/all",
-        "DELETE /{mesh_id}/nodes/{node_id}",
-        "POST /{mesh_id}/nodes/{node_id}/heal",
     ]
     assert payload["degraded_dependencies"] == []
 

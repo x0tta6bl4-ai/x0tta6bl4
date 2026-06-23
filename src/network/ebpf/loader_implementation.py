@@ -309,34 +309,10 @@ class EBPFLoaderImplementation(EBPFLoader):
 
         # Check if still attached via ip link. If this check cannot run, fail
         # closed because returning success would hide a possibly attached program.
-        cmd = ["ip", "link", "show", "dev", attached_to]
-        safe_command = _redacted_command(cmd, redacted_indices=(4,))
-        start = time.monotonic()
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode != 0:
-                self._publish_observation(
-                    stage="ebpf_loader_detach_verify_failed",
-                    operation="verify_program_detached",
-                    status="failure",
-                    source_mode="ip_link",
-                    start=start,
-                    returncode=result.returncode,
-                    stdout=result.stdout,
-                    stderr=result.stderr,
-                    command=safe_command,
-                    parsed_summary={
-                        "detached": False,
-                        "attachment_detected": None,
-                    },
-                    extra={
-                        "program_id_hash": _hash_value(program_id),
-                        "interface_hash": _hash_value(attached_to),
-                        "program_id_redacted": True,
-                        "interface_redacted": True,
-                    },
-                )
                 logger.warning(
                     "Failed to verify eBPF detachment for %s on %s: %s",
                     program_id,
@@ -347,98 +323,11 @@ class EBPFLoaderImplementation(EBPFLoader):
 
             output = result.stdout.lower()
             if "xdp off" in output:
-                self._publish_observation(
-                    stage="ebpf_loader_detach_verify_detached",
-                    operation="verify_program_detached",
-                    status="success",
-                    source_mode="ip_link",
-                    start=start,
-                    returncode=result.returncode,
-                    stdout=result.stdout,
-                    stderr=result.stderr,
-                    command=safe_command,
-                    parsed_summary={
-                        "detached": True,
-                        "attachment_detected": False,
-                        "xdp_off_seen": True,
-                    },
-                    extra={
-                        "program_id_hash": _hash_value(program_id),
-                        "interface_hash": _hash_value(attached_to),
-                        "program_id_redacted": True,
-                        "interface_redacted": True,
-                    },
-                )
                 return True
             if "xdp" in output:
-                self._publish_observation(
-                    stage="ebpf_loader_detach_verify_attached",
-                    operation="verify_program_detached",
-                    status="failure",
-                    source_mode="ip_link",
-                    start=start,
-                    returncode=result.returncode,
-                    stdout=result.stdout,
-                    stderr=result.stderr,
-                    command=safe_command,
-                    parsed_summary={
-                        "detached": False,
-                        "attachment_detected": True,
-                        "xdp_off_seen": False,
-                    },
-                    extra={
-                        "program_id_hash": _hash_value(program_id),
-                        "interface_hash": _hash_value(attached_to),
-                        "program_id_redacted": True,
-                        "interface_redacted": True,
-                    },
-                )
                 return False  # Still attached
-            self._publish_observation(
-                stage="ebpf_loader_detach_verify_detached",
-                operation="verify_program_detached",
-                status="success",
-                source_mode="ip_link",
-                start=start,
-                returncode=result.returncode,
-                stdout=result.stdout,
-                stderr=result.stderr,
-                command=safe_command,
-                parsed_summary={
-                    "detached": True,
-                    "attachment_detected": False,
-                    "xdp_off_seen": False,
-                },
-                extra={
-                    "program_id_hash": _hash_value(program_id),
-                    "interface_hash": _hash_value(attached_to),
-                    "program_id_redacted": True,
-                    "interface_redacted": True,
-                },
-            )
             return True  # Not attached
         except Exception as e:
-            self._publish_observation(
-                stage="ebpf_loader_detach_verify_error",
-                operation="verify_program_detached",
-                status="failure",
-                source_mode="ip_link",
-                start=start,
-                stdout=getattr(e, "stdout", None) or getattr(e, "output", None),
-                stderr=getattr(e, "stderr", None),
-                command=safe_command,
-                error=e,
-                parsed_summary={
-                    "detached": False,
-                    "attachment_detected": None,
-                },
-                extra={
-                    "program_id_hash": _hash_value(program_id),
-                    "interface_hash": _hash_value(attached_to),
-                    "program_id_redacted": True,
-                    "interface_redacted": True,
-                },
-            )
             logger.warning(
                 "Error verifying eBPF detachment for %s on %s: %s",
                 program_id,

@@ -37,7 +37,7 @@ ABORT_MARKERS = (
     "broken pipe",
 )
 DELAY_RE = re.compile(r"the delay:\s*(\d+)\s*ms", re.IGNORECASE)
-DEFAULT_SOCKS_PORT_CANDIDATES = (10818, 10918, 10808, 10809, 10924, 40467, 1080)
+DEFAULT_SOCKS_PORT_CANDIDATES = (10918, 10808, 10809, 10924, 40467, 1080, 7890, 7891)
 
 
 def _utc_now() -> str:

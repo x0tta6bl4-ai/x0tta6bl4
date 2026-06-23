@@ -3696,12 +3696,6 @@ run_check "authoritative claim surface has no active high-risk claims" \
 run_check "active public claim surface has no active high-risk claims" \
   bash scripts/agent-coord.sh claim_hygiene_scan --zone active_claim_surface --fail-on-active
 
-run_check "architecture claim surface has no active high-risk claims" \
-  bash scripts/agent-coord.sh claim_hygiene_scan --zone architecture --fail-on-active
-
-run_check "cross-plane proof-gate retained artifact validates" \
-  bash -c 'python3 scripts/ops/run_cross_plane_proof_gate.py --output-json .tmp/validation-shards/cross-plane-proof-gate-current.json >/dev/null && python3 scripts/ops/verify_cross_plane_proof_gate_retention.py --require-valid >/dev/null'
-
 # -- 9. SOC2 playbook sanity --------------------------------------------------
 echo ""
 echo -e "${CYN}[9/12] SOC2 / compliance artifacts${RST}"

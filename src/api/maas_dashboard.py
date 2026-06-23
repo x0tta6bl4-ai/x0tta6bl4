@@ -8,16 +8,12 @@ Uses DB-backed data for all statistics including hardware attestation.
 
 import logging
 import importlib
-import hashlib
-import time
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from src.coordination.events import EventBus, EventType, get_event_bus
-from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
 from src.core.reliability_policy import mark_degraded_dependency
 from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, get_db
 from src.api.maas_auth import require_permission
@@ -451,9 +447,6 @@ def _dashboard_readiness_status(db: Any) -> Dict[str, Any]:
                 "and CircuitState lazily at request time."
             ),
         },
-        "cross_plane_claim_gate": readiness_cross_plane_claim_gate_metadata(
-            surface="maas_dashboard_readiness"
-        ),
         "claim_boundary": (
             "Dashboard readiness proves route availability and local dependency "
             "surfaces only. It does not query dashboard data, validate user "

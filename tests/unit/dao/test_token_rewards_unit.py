@@ -12,7 +12,7 @@ from decimal import Decimal
 
 
 from src.coordination.events import EventBus, EventType
-from src.dao.token_rewards import GasGuard, TokenRewards
+from src.dao.token_rewards import TokenRewards
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -165,93 +165,6 @@ class TestRewardRelay:
         assert event.data["status"] == "local_accounting_only"
         assert event.data["simulated"] is True
         assert event.data["submitted_transaction"] is False
-        metadata = event.data["evidence_metadata"]
-        metadata_text = str(metadata)
-        assert metadata["component"] == "dao.token_rewards"
-        assert metadata["calculator"] == "TokenRewards.reward_relay"
-        assert metadata["packets"] == 100
-        assert metadata["amount_xot"] == "0.0100"
-        assert metadata["reward_rate_xot_per_packet"] == "0.0001"
-        assert metadata["node_address_hash"] == TokenRewards._hash_value(NODE_ADDR)
-        assert metadata["contract_address_hash"] == TokenRewards._hash_value(CONTRACT_ADDR)
-        assert metadata["local_accounting_recorded"] is True
-        assert metadata["submitted_transaction"] is False
-        assert event.data["evidence_metadata_values_redacted"] is True
-        assert NODE_ADDR not in metadata_text
-        assert CONTRACT_ADDR not in metadata_text
-
-    def test_reward_relay_preserves_upstream_event_ids_without_payload(self, tmp_path):
-        bus = EventBus(project_root=str(tmp_path))
-        tr = TokenRewards(
-            CONTRACT_ADDR,
-            private_key=None,
-            event_bus=bus,
-            source_agent="token-rewards-test",
-            node_id="node-1",
-            wallet_address=NODE_ADDR,
-        )
-
-        result = tr.reward_relay(
-            NODE_ADDR,
-            100,
-            upstream_event_ids=["evt-spine-1", "evt-spine-2"],
-            upstream_source_agents=["integration-spine"],
-        )
-
-        event = bus.get_event_history(event_type=EventType.REWARD_RELAY_RECORDED)[0]
-        assert result["event_id"] == event.event_id
-        assert event.data["upstream_evidence"]["source_agents"] == [
-            "integration-spine"
-        ]
-        assert event.data["upstream_evidence"]["event_ids"] == [
-            "evt-spine-1",
-            "evt-spine-2",
-        ]
-        assert event.data["upstream_evidence"]["claim_gate_summary"]["present"] is False
-        assert event.data["upstream_evidence"]["payloads_redacted"] is True
-
-    def test_reward_relay_preserves_upstream_claim_gate_summary(self, tmp_path):
-        bus = EventBus(project_root=str(tmp_path))
-        tr = TokenRewards(
-            CONTRACT_ADDR,
-            private_key=None,
-            event_bus=bus,
-            source_agent="token-rewards-test",
-            node_id="node-1",
-            wallet_address=NODE_ADDR,
-        )
-
-        tr.reward_relay(
-            NODE_ADDR,
-            100,
-            upstream_event_ids=["evt-spine-1"],
-            upstream_source_agents=["integration-spine"],
-            upstream_claim_gate={
-                "surface": "integration_spine.reward_context",
-                "local_actuator_execution_claim_allowed": True,
-                "external_settlement_finality_claim_allowed": False,
-                "blocked_claim_ids": ["settlement_finality"],
-                "raw_payload": "must-not-copy",
-            },
-            upstream_cross_plane_claim_gate={
-                "surface": "integration_spine.reward_context",
-                "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
-                "allowed": False,
-                "requested_claim_ids": ["settlement_finality"],
-                "blockers": ["integration_spine_local_contract_only"],
-                "raw_payload": "must-not-copy",
-            },
-        )
-
-        event = bus.get_event_history(event_type=EventType.REWARD_RELAY_RECORDED)[0]
-        upstream = event.data["upstream_evidence"]
-
-        assert upstream["claim_gate_summary"]["present"] is True
-        assert upstream["claim_gate_summary"]["local_actuator_execution_claim_allowed"] is True
-        assert upstream["claim_gate_summary"]["external_settlement_finality_claim_allowed"] is False
-        assert upstream["cross_plane_claim_gate_summary"]["present"] is True
-        assert upstream["cross_plane_claim_gate_summary"]["allowed"] is False
-        assert "must-not-copy" not in str(upstream)
 
 
 # ===========================================================================
@@ -409,7 +322,6 @@ class TestBlockchainIntegration:
         tr.web3 = object()
         tr.contract = object()
         tr.account = object()
-        tr.gas_guard = _ViableGasGuard()
         tr.pending_rewards = Decimal("1.25")
         tx_hash = "0x" + "d" * 64
         tr._send_blockchain_reward = lambda node_address, amount: tx_hash
@@ -445,7 +357,6 @@ class TestBlockchainIntegration:
         tr.web3 = object()
         tr.contract = object()
         tr.account = object()
-        tr.gas_guard = _ViableGasGuard()
         tr.pending_rewards = Decimal("1.25")
         tr._send_blockchain_reward = lambda node_address, amount: None
 
@@ -461,59 +372,3 @@ class TestBlockchainIntegration:
         assert event.data["submitted_transaction"] is False
         assert event.data["simulated"] is False
         assert event.data["reason"] == "blockchain transaction hash was not returned"
-
-    def test_settle_rewards_blocks_when_blockchain_configured_without_gas_guard(self):
-        """Configured blockchain settlement must fail closed if gas guard is missing."""
-        tr = _make_rewards()
-        tr.web3 = object()
-        tr.contract = object()
-        tr.account = object()
-        tr.pending_rewards = Decimal("1.25")
-
-        result = tr._settle_rewards(NODE_ADDR)
-
-        assert result["ok"] is False
-        assert result["status"] == "gas_guard_unavailable"
-        assert result["submitted_transaction"] is False
-        assert result["settlement_recorded"] is False
-        assert result["simulated"] is False
-        assert tr.pending_rewards == Decimal("1.25")
-
-    def test_settle_rewards_defers_when_gas_guard_rejects_cost(self):
-        """High gas keeps pending rewards queued and avoids transaction submission."""
-        tr = _make_rewards()
-        tr.web3 = object()
-        tr.contract = object()
-        tr.account = object()
-        tr.gas_guard = _HighGasGuard()
-        tr.pending_rewards = Decimal("1.25")
-
-        result = tr._settle_rewards(NODE_ADDR)
-
-        assert result["ok"] is False
-        assert result["status"] == "deferred_high_gas"
-        assert result["submitted_transaction"] is False
-        assert result["settlement_recorded"] is False
-        assert result["error"] == "gas too high in test"
-        assert tr.pending_rewards == Decimal("1.25")
-
-
-class TestGasGuard:
-    def test_allows_local_mode_without_web3(self):
-        guard = GasGuard(None)
-
-        assert guard.is_viable(Decimal("1.0")) == (True, "No blockchain connected")
-
-    def test_rejects_gas_above_absolute_cap(self):
-        class _Eth:
-            gas_price = 20_000_000_000
-
-        class _Web3:
-            eth = _Eth()
-
-        guard = GasGuard(_Web3())
-
-        ok, reason = guard.is_viable(Decimal("1.0"))
-
-        assert ok is False
-        assert "Gas too high" in reason

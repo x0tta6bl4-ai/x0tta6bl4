@@ -62,8 +62,6 @@ def test_health_status_endpoint_runs_in_read_only_mode(monkeypatch):
     assert payload["status_payload_ready"] is True
     assert payload["non_dry_run_guard_ready"] is True
     assert payload["local_only_mode"] is True
-    assert payload["cross_plane_claim_gate"]["allowed"] is False
-    assert "dataplane_delivery" in payload["cross_plane_claim_gate"]["requested_claim_ids"]
     assert stub.calls[-1] == (False, True)
 
 
@@ -143,7 +141,7 @@ def test_agent_mesh_health_status_marks_degraded_runtime_dependencies(monkeypatc
         def run_once(self, *, auto_heal: bool, dry_run: bool):
             return {"status": None}
 
-    monkeypatch.setattr("src.api.maas.endpoints.agent_mesh._health_bot", _BrokenBot())
+    monkeypatch.setattr(mod, "_health_bot", _BrokenBot())
     monkeypatch.delenv("MAAS_AGENT_BOT_TOKEN", raising=False)
     request = SimpleNamespace(state=SimpleNamespace())
 

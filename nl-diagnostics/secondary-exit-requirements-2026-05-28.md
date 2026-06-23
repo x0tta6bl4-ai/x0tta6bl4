@@ -1,6 +1,6 @@
 # Secondary Exit Requirements
 
-generated_at: `2026-06-06T12:58:10.980259+00:00`
+generated_at: `2026-05-28T03:42:21.104955+00:00`
 
 ## Status
 
@@ -9,7 +9,7 @@ status=requirements_ready_no_candidate
 requirement_count=8
 candidate_configured=false
 secondary_probe_status=planning_template
-manual_failover_readiness_status=blocked_missing_secondary
+manual_failover_readiness_status=blocked_no_incident_trigger
 manual_switch_allowed=false
 missing_items=NET-01
 blocked_items=none
@@ -37,8 +37,8 @@ automatic_failover_allowed=false
 
 Acceptance: candidate provider, region, account, and host are documented as non-NL/non-SPB public metadata
 
-- decision=provider_ticket
-- failure_domain=provider_host
+- decision=observe
+- failure_domain=external_network
 - spb_excluded=true
 
 ### SEL-02
@@ -84,7 +84,7 @@ Acceptance: client exit probe is disabled until a manual test profile is activat
 
 Acceptance: manual approval, rollback path, and return-to-NL verification are documented before any switch
 
-- manual_failover_readiness_status=blocked_missing_secondary
+- manual_failover_readiness_status=blocked_no_incident_trigger
 - manual_probe_allowed=false
 - manual_switch_allowed=false
 

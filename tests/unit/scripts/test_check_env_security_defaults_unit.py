@@ -94,3 +94,27 @@ def test_scan_shell_file_ignores_heredoc_content(tmp_path):
     )
     findings = mod.scan_shell_file(shell_file, tmp_path)
     assert findings == []
+
+
+def test_scan_repo_covers_self_healing_and_sales_dirs(tmp_path):
+    mod = _load_module()
+    self_healing_file = tmp_path / "src" / "self_healing" / "bad.py"
+    sales_file = tmp_path / "src" / "sales" / "bad.py"
+    self_healing_file.parent.mkdir(parents=True)
+    sales_file.parent.mkdir(parents=True)
+    self_healing_file.write_text(
+        'import os\njoin_token = os.getenv("X0TTA6BL4_SPIRE_JOIN_TOKEN", "dev-join-token")\n',
+        encoding="utf-8",
+    )
+    sales_file.write_text(
+        'import os\nbot_token = os.getenv("TELEGRAM_BOT_TOKEN", "123456:abcdef")\n',
+        encoding="utf-8",
+    )
+
+    findings = mod.scan_repo(tmp_path)
+
+    formatted = "\n".join(item.format() for item in findings)
+    assert "src/self_healing/bad.py" in formatted
+    assert "X0TTA6BL4_SPIRE_JOIN_TOKEN uses hardcoded non-empty default literal" in formatted
+    assert "src/sales/bad.py" in formatted
+    assert "TELEGRAM_BOT_TOKEN uses hardcoded non-empty default literal" in formatted

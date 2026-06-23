@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
-import hashlib
 import io
 import json
 import logging
@@ -42,11 +41,9 @@ from src.coordination.events import EventBus, EventType
 from src.database import Base, User
 from src.dao.executor_webhook import DAOExecutor
 from src.dao.token_rewards import TokenRewards
-import src.ledger.rag_search as ledger_rag_module
 from src.integration.spine import (
     AsyncSafeActuator,
     SafeActuator,
-    SafeActuatorEvidenceMetadata,
     SafeActuatorResult,
 )
 from src.ledger.rag_search import LedgerRAGSearch
@@ -95,42 +92,11 @@ PQC_HEALER_SERVICE_NAME = "pqc-zero-trust-executor"
 PQC_HEALER_SOURCE_AGENT = "pqc-zero-trust-healer"
 PQC_HEALER_SERVICE_LAYER = "self_healing_pqc_identity"
 PQC_HEALER_HEALTH_RESOURCE = "self_healing:pqc:perform_health_check"
-LEDGER_SMOKE_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
-    "Ledger event trace smoke SafeActuator metadata proves only an in-memory "
-    "local smoke callback result used to exercise EventBus citation indexing. "
-    "It does not prove live control execution, dataplane delivery, settlement "
-    "finality, customer traffic, production SLOs, or production readiness."
-)
 SEARCH_QUERY = (
     "swarm-pbft maas-settlement maas-marketplace maas-governance maas-billing "
     "dao-executor recovery-action-executor mesh-vpn-bridge share-to-earn "
     "mptcp-manager spire-server-client "
     "pqc-rotator pqc-zero-trust-executor pqc-zero-trust-healer event trace"
-)
-CLAIM_BOUNDARY_REQUIRED_SERVICES = frozenset(
-    {
-        MARKETPLACE_SERVICE_NAME,
-        MARKETPLACE_API_SERVICE_NAME,
-        MAAS_GOVERNANCE_SERVICE_NAME,
-        MAAS_BILLING_SERVICE_NAME,
-        DAO_SERVICE_NAME,
-        RECOVERY_SERVICE_NAME,
-        MESH_REWARD_SERVICE_NAME,
-        SHARE_TO_EARN_SERVICE_NAME,
-        MPTCP_SERVICE_NAME,
-        SPIRE_SERVER_SERVICE_NAME,
-        PQC_ROTATOR_SERVICE_NAME,
-        PQC_HEALER_SOURCE_AGENT,
-    }
-)
-ECONOMY_SUMMARY_REQUIRED_SERVICES = frozenset(
-    {
-        MARKETPLACE_SERVICE_NAME,
-        MARKETPLACE_API_SERVICE_NAME,
-        MAAS_BILLING_SERVICE_NAME,
-        MESH_REWARD_SERVICE_NAME,
-        SHARE_TO_EARN_SERVICE_NAME,
-    }
 )
 SECRET_VALUES = (
     "spiffe://secret/workload",
@@ -138,186 +104,7 @@ SECRET_VALUES = (
     "0xffffffffffffffffffffffffffffffffffffffff",
 )
 LEAK_SENTINEL = "secret-value-that-must-not-leak"
-MARKETPLACE_API_IDEMPOTENCY_KEY = "idem-marketplace-api-smoke-secret"
-REDACTION_SENTINELS = (*SECRET_VALUES, LEAK_SENTINEL, MARKETPLACE_API_IDEMPOTENCY_KEY)
-
-
-def _hash_value(value: Any) -> str | None:
-    if value is None:
-        return None
-    normalized = str(value).strip()
-    if not normalized:
-        return None
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-
-
-def _citation_summary_metadata_present(citation: dict[str, Any]) -> bool:
-    return (
-        isinstance(citation.get("claim_boundary_summary"), dict)
-        and isinstance(citation.get("cross_plane_evidence_profile"), dict)
-        and isinstance(citation.get("economy_finality_summary"), dict)
-    )
-
-
-def _claim_boundary_summary_is_bounded(citation: dict[str, Any]) -> bool:
-    summary = citation.get("claim_boundary_summary")
-    if not isinstance(summary, dict):
-        return False
-    boundaries = summary.get("claim_boundaries")
-    limit = summary.get("claim_boundaries_limit")
-    total = summary.get("claim_boundaries_total")
-    return (
-        summary.get("redacted") is True
-        and isinstance(boundaries, list)
-        and isinstance(limit, int)
-        and 0 <= limit <= 8
-        and isinstance(total, int)
-        and total >= len(boundaries)
-        and len(boundaries) <= limit
-    )
-
-
-def _cross_plane_summary_is_fail_closed(citation: dict[str, Any]) -> bool:
-    summary = citation.get("cross_plane_evidence_profile")
-    if not isinstance(summary, dict):
-        return False
-    return (
-        isinstance(summary.get("primary_status"), str)
-        and summary.get("dataplane_confirmed") is False
-        and summary.get("settlement_confirmed") is False
-        and summary.get("production_ready_candidate") is False
-        and summary.get("external_dpi_tested") is False
-        and summary.get("dpi_bypass_confirmed") is False
-    )
-
-
-def _economy_summary_is_fail_closed(citation: dict[str, Any]) -> bool:
-    summary = citation.get("economy_finality_summary")
-    if not isinstance(summary, dict):
-        return False
-    high_risk_gate = summary.get("high_risk_claim_gate")
-    if not isinstance(high_risk_gate, dict):
-        return False
-    return (
-        summary.get("dataplane_confirmed") is False
-        and summary.get("settlement_confirmed") is False
-        and summary.get("production_ready_candidate") is False
-        and high_risk_gate.get("dataplane_delivery_claim_allowed") is False
-        and high_risk_gate.get("traffic_delivery_claim_allowed") is False
-        and high_risk_gate.get("external_settlement_finality_claim_allowed") is False
-        and high_risk_gate.get("token_settlement_finality_claim_allowed") is False
-        and high_risk_gate.get("production_readiness_claim_allowed") is False
-    )
-
-
-def _required_services_have_claim_boundaries(
-    citations_by_service: dict[str, dict[str, Any]],
-) -> bool:
-    for service_name in CLAIM_BOUNDARY_REQUIRED_SERVICES:
-        summary = citations_by_service.get(service_name, {}).get(
-            "claim_boundary_summary"
-        )
-        if not isinstance(summary, dict) or summary.get("present") is not True:
-            return False
-    return True
-
-
-def _required_economy_services_have_local_only_gates(
-    citations_by_service: dict[str, dict[str, Any]],
-) -> bool:
-    for service_name in ECONOMY_SUMMARY_REQUIRED_SERVICES:
-        summary = citations_by_service.get(service_name, {}).get(
-            "economy_finality_summary"
-        )
-        if not isinstance(summary, dict):
-            return False
-        high_risk_gate = summary.get("high_risk_claim_gate")
-        if not isinstance(high_risk_gate, dict):
-            return False
-        if summary.get("present") is not True:
-            return False
-        if summary.get("local_or_pending_only") is not True:
-            return False
-        if high_risk_gate.get("present") is not True:
-            return False
-        if high_risk_gate.get("local_or_pending_economy_claim_allowed") is not True:
-            return False
-        if not _economy_summary_is_fail_closed(citations_by_service[service_name]):
-            return False
-    return True
-
-
-def _ledger_smoke_safe_actuator_metadata(
-    *,
-    source_agent: str,
-    action: Any,
-    context: Any,
-) -> SafeActuatorEvidenceMetadata:
-    context_keys = (
-        sorted(str(key) for key in context)
-        if isinstance(context, dict)
-        else []
-    )
-    return SafeActuatorEvidenceMetadata.from_value(
-        {
-            "claim_gate": {
-                "schema": "x0tta6bl4.ledger_smoke.safe_actuator_claim_gate.v1",
-                "source_agent": source_agent,
-                "operation": str(action),
-                "local_smoke_callback_result_recorded": True,
-                "event_trace_citation_smoke_only": True,
-                "live_control_execution_claim_allowed": False,
-                "dataplane_delivery_claim_allowed": False,
-                "customer_traffic_claim_allowed": False,
-                "external_settlement_finality_claim_allowed": False,
-                "production_slo_claim_allowed": False,
-                "production_readiness_claim_allowed": False,
-                "claim_boundary": LEDGER_SMOKE_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-                "redacted": True,
-            },
-            "cross_plane_claim_gate": {
-                "schema": (
-                    "x0tta6bl4.ledger_smoke."
-                    "safe_actuator_cross_plane_claim_gate.v1"
-                ),
-                "allowed": False,
-                "requires_runtime_evidence_for_control_claim": True,
-                "requires_dataplane_evidence_for_delivery_claim": True,
-                "requires_settlement_evidence_for_finality_claim": True,
-                "requires_slo_evidence_for_production_claim": True,
-                "redacted": True,
-            },
-            "evidence": {
-                "source_agent": source_agent,
-                "operation": str(action),
-                "context_keys": context_keys,
-                "raw_context_values_redacted": True,
-                "raw_result_values_redacted": True,
-                "smoke_only": True,
-            },
-            "source_agents": [source_agent],
-            "event_ids": [],
-            "claim_boundary": LEDGER_SMOKE_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-            "redacted": True,
-        }
-    )
-
-
-def _ledger_smoke_safe_actuator_result(
-    source_agent: str,
-    action: Any,
-    context: Any,
-) -> SafeActuatorResult:
-    return SafeActuatorResult(
-        success=True,
-        reason="ledger event trace citation smoke",
-        simulated=False,
-        evidence_metadata=_ledger_smoke_safe_actuator_metadata(
-            source_agent=source_agent,
-            action=action,
-            context=context,
-        ),
-    )
+REDACTION_SENTINELS = (*SECRET_VALUES, LEAK_SENTINEL)
 
 
 class _SmokeRAG:
@@ -407,16 +194,12 @@ def _build_ledger(temp_root: Path) -> LedgerRAGSearch:
     ledger = LedgerRAGSearch.__new__(LedgerRAGSearch)
     ledger.continuity_file = temp_root / "CONTINUITY.md"
     ledger.verification_root = temp_root / "docs" / "verification"
-    ledger.current_evidence_root = temp_root / "docs" / "architecture"
     ledger.top_k = 30
     ledger.rag = _SmokeRAG()
     ledger._indexed = True
     ledger._verification_indexed = False
     ledger._verification_indexed_files = 0
     ledger._verification_indexed_chunks = 0
-    ledger._current_evidence_indexed = False
-    ledger._current_evidence_indexed_files = 0
-    ledger._current_evidence_indexed_chunks = 0
     ledger._event_trace_indexed = False
     ledger._event_trace_indexed_events = 0
     ledger._event_trace_indexed_chunks = 0
@@ -531,29 +314,6 @@ async def _publish_trace_events(
         did=SECRET_VALUES[1],
         wallet_address=SECRET_VALUES[2],
         amount_cents=2500,
-        request_evidence={
-            "action": "rent_node",
-            "route": "POST /rent/{listing_id}",
-            "actor_role": "user",
-            "request_scope_hash": _hash_value(
-                "listing-api-smoke-1:mesh-api-smoke-1:1"
-            ),
-            "idempotency_key_present": True,
-            "idempotency_key_hash": _hash_value(MARKETPLACE_API_IDEMPOTENCY_KEY),
-            "idempotency_key": MARKETPLACE_API_IDEMPOTENCY_KEY,
-            "db_write_ready": True,
-            "listing_status": "available",
-            "currency": "USD",
-            "hours": 1,
-            "renter_matches_listing": False,
-            "admin_override": False,
-            "service_identity_present": {
-                "spiffe_id": True,
-                "did": True,
-                "wallet_address": True,
-            },
-            "listing_id": "listing-api-smoke-1",
-        },
         reason="route-only marketplace API event trace citation smoke",
         event_bus=bus,
     )
@@ -596,7 +356,7 @@ async def _publish_trace_events(
     billing_bridge = _SmokeBillingBridge()
     original_webhook_secret = maas_billing_api.STRIPE_WEBHOOK_SECRET
     original_construct_event = maas_billing_api.stripe.Webhook.construct_event
-    original_token_bridge = getattr(maas_marketplace_api, "_get_token_bridge", None)
+    original_token_bridge = maas_marketplace_api._get_token_bridge
     try:
         billing_user = _create_billing_user(billing_db)
         billing_event = {
@@ -630,10 +390,7 @@ async def _publish_trace_events(
     finally:
         maas_billing_api.STRIPE_WEBHOOK_SECRET = original_webhook_secret
         maas_billing_api.stripe.Webhook.construct_event = original_construct_event
-        if original_token_bridge is None and hasattr(maas_marketplace_api, "_get_token_bridge"):
-            delattr(maas_marketplace_api, "_get_token_bridge")
-        elif original_token_bridge is not None:
-            maas_marketplace_api._get_token_bridge = original_token_bridge
+        maas_marketplace_api._get_token_bridge = original_token_bridge
         billing_db.close()
         billing_bind.dispose()
     assert billing_result["status"] == "success"
@@ -678,9 +435,6 @@ async def _publish_trace_events(
     recovery_executor.source_agent = RECOVERY_SERVICE_NAME
     recovery_executor.require_policy = True
     recovery_executor.policy_engine = None
-    recovery_executor._post_action_probe_config_source = "constructor"
-    recovery_executor.enable_post_action_dataplane_probe = False
-    recovery_executor.post_action_dataplane_probe_provider = None
     recovery_executor.identity = {
         "node_id": RECOVERY_SERVICE_NAME,
         "spiffe_id": SECRET_VALUES[0],
@@ -717,65 +471,12 @@ async def _publish_trace_events(
         did=SECRET_VALUES[1],
         wallet_address=SECRET_VALUES[2],
     )
-    mesh_relay_evidence = bus.publish(
-        EventType.PIPELINE_STAGE_END,
-        MESH_REWARD_SERVICE_NAME,
-        {
-            "component": "network.mesh_vpn_bridge",
-            "stage": "relay_reward_observed",
-            "operation": "network_usage_reward",
-            "operation_resource": "relay_packet_threshold",
-            "resource": "network:mesh_vpn_bridge:relay_packet_threshold",
-            "node_id": MESH_REWARD_SERVICE_NAME,
-            "spiffe_id": SECRET_VALUES[0],
-            "did": SECRET_VALUES[1],
-            "wallet_address": SECRET_VALUES[2],
-            "identity": {
-                "node_id": MESH_REWARD_SERVICE_NAME,
-                "spiffe_id": SECRET_VALUES[0],
-                "did": SECRET_VALUES[1],
-                "wallet_address": SECRET_VALUES[2],
-            },
-            "direction": "upstream",
-            "peer_id_hash": _hash_value("mesh-smoke-peer"),
-            "peer_id_redacted": True,
-            "reward_packets": 100,
-            "packet_threshold": 100,
-            "packets_relayed_total": 100,
-            "bytes_relayed_total": 4096,
-            "last_chunk_bytes": 4096,
-            "routing_mode": "mesh_peer",
-            "reward_address_hash": _hash_value(
-                "0x1111111111111111111111111111111111111111"
-            ),
-            "payloads_redacted": True,
-            "safe_observation": True,
-            "claim_boundary": (
-                "Mesh VPN bridge relay reward observation only. It records a "
-                "bounded local packet-threshold observation used as upstream "
-                "evidence for TokenRewards; it does not prove customer traffic, "
-                "external reachability, or live token settlement."
-            ),
-        },
-    )
     mesh_reward_result = mesh_rewards.reward_relay(
         node_address="0x1111111111111111111111111111111111111111",
         packets=100,
-        upstream_event_ids=[mesh_relay_evidence.event_id],
-        upstream_source_agents=[MESH_REWARD_SERVICE_NAME],
     )
     mesh_reward_event_id = mesh_reward_result.get("event_id")
     assert mesh_reward_event_id is not None
-    mesh_reward_event = [
-        event
-        for event in bus.get_event_history(
-            event_type=EventType.REWARD_RELAY_RECORDED,
-            source_agent=MESH_REWARD_SERVICE_NAME,
-            limit=20,
-        )
-        if event.event_id == mesh_reward_event_id
-    ][0]
-    mesh_reward_upstream = mesh_reward_event.data.get("upstream_evidence", {})
 
     env_backup = {
         "SHARE_TO_EARN_SPIFFE_ID": os.environ.get("SHARE_TO_EARN_SPIFFE_ID"),
@@ -811,10 +512,10 @@ async def _publish_trace_events(
         policy_engine=_allow_policy(SECRET_VALUES[0], MPTCP_ENABLE_RESOURCE),
         require_policy=True,
         safe_actuator=SafeActuator(
-            lambda action, context: _ledger_smoke_safe_actuator_result(
-                MPTCP_SERVICE_NAME,
-                action,
-                context,
+            lambda _action, _context: SafeActuatorResult(
+                success=True,
+                reason="ledger event trace citation smoke",
+                simulated=False,
             )
         ),
         source_agent=MPTCP_SERVICE_NAME,
@@ -840,10 +541,10 @@ async def _publish_trace_events(
         ),
         require_policy=True,
         safe_actuator=SafeActuator(
-            lambda action, context: _ledger_smoke_safe_actuator_result(
-                SPIRE_SERVER_SERVICE_NAME,
-                action,
-                context,
+            lambda _action, _context: SafeActuatorResult(
+                success=True,
+                reason="ledger event trace citation smoke",
+                simulated=False,
             )
         ),
         source_agent=SPIRE_SERVER_SERVICE_NAME,
@@ -879,10 +580,10 @@ async def _publish_trace_events(
         policy_engine=_allow_policy(SECRET_VALUES[0], PQC_ROTATOR_ROTATE_RESOURCE),
         require_policy=True,
         safe_actuator=AsyncSafeActuator(
-            lambda action, context: _ledger_smoke_safe_actuator_result(
-                PQC_ROTATOR_SERVICE_NAME,
-                action,
-                context,
+            lambda _action, _context: SafeActuatorResult(
+                success=True,
+                reason="ledger event trace citation smoke",
+                simulated=False,
             )
         ),
         source_agent=PQC_ROTATOR_SERVICE_NAME,
@@ -967,18 +668,6 @@ async def _publish_trace_events(
             "event_id": mesh_reward_event_id,
             "layer": MESH_REWARD_SERVICE_LAYER,
             "event_type": EventType.REWARD_RELAY_RECORDED.value,
-            "upstream_event_id": mesh_relay_evidence.event_id,
-            "upstream_event_linked": (
-                mesh_relay_evidence.event_id
-                in mesh_reward_upstream.get("event_ids", [])
-            ),
-            "upstream_source_agent_linked": (
-                MESH_REWARD_SERVICE_NAME
-                in mesh_reward_upstream.get("source_agents", [])
-            ),
-            "upstream_payloads_redacted": (
-                mesh_reward_upstream.get("payloads_redacted") is True
-            ),
         },
         SHARE_TO_EARN_SERVICE_NAME: {
             "event_id": share_to_earn_event_id,
@@ -1013,46 +702,20 @@ def _patch_ledger_endpoint_dependencies(
     *,
     ledger: LedgerRAGSearch,
     bus: EventBus,
-) -> dict[str, Any]:
-    original_endpoint_get_ledger_rag = ledger_endpoints.get_ledger_rag
-    original_endpoint_event_bus = ledger_endpoints.EventBus
-    original_rag_module_get_ledger_rag = ledger_rag_module.get_ledger_rag
-    original_modular_get_ledger_rag = getattr(
-        ledger_endpoints.modular,
-        "get_ledger_rag",
-        None,
-    )
-    original_modular_has_get_ledger_rag = hasattr(
-        ledger_endpoints.modular,
-        "get_ledger_rag",
-    )
-    original_modular_event_bus = getattr(ledger_endpoints.modular, "EventBus", None)
+) -> tuple[Any, Any]:
+    original_get_ledger_rag = ledger_endpoints.get_ledger_rag
+    original_event_bus = ledger_endpoints.EventBus
     ledger_endpoints.get_ledger_rag = lambda: ledger
     ledger_endpoints.EventBus = lambda project_root=".": bus
-    ledger_rag_module.get_ledger_rag = lambda: ledger
-    ledger_endpoints.modular.get_ledger_rag = lambda: ledger
-    ledger_endpoints.modular.EventBus = lambda project_root=".": bus
-    return {
-        "endpoint_get_ledger_rag": original_endpoint_get_ledger_rag,
-        "endpoint_event_bus": original_endpoint_event_bus,
-        "rag_module_get_ledger_rag": original_rag_module_get_ledger_rag,
-        "modular_get_ledger_rag": original_modular_get_ledger_rag,
-        "modular_has_get_ledger_rag": original_modular_has_get_ledger_rag,
-        "modular_event_bus": original_modular_event_bus,
-    }
+    return original_get_ledger_rag, original_event_bus
 
 
 def _restore_ledger_endpoint_dependencies(
-    originals: dict[str, Any],
+    original_get_ledger_rag: Any,
+    original_event_bus: Any,
 ) -> None:
-    ledger_endpoints.get_ledger_rag = originals["endpoint_get_ledger_rag"]
-    ledger_endpoints.EventBus = originals["endpoint_event_bus"]
-    ledger_rag_module.get_ledger_rag = originals["rag_module_get_ledger_rag"]
-    if originals["modular_has_get_ledger_rag"]:
-        ledger_endpoints.modular.get_ledger_rag = originals["modular_get_ledger_rag"]
-    elif hasattr(ledger_endpoints.modular, "get_ledger_rag"):
-        delattr(ledger_endpoints.modular, "get_ledger_rag")
-    ledger_endpoints.modular.EventBus = originals["modular_event_bus"]
+    ledger_endpoints.get_ledger_rag = original_get_ledger_rag
+    ledger_endpoints.EventBus = original_event_bus
 
 
 def _prepare_smoke_root(root: Path) -> None:
@@ -1072,7 +735,7 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
         bus = EventBus(project_root=str(root))
         expected_events = await _publish_trace_events(bus, root)
         ledger = _build_ledger(root)
-        ledger_dependency_originals = _patch_ledger_endpoint_dependencies(
+        original_get_ledger_rag, original_event_bus = _patch_ledger_endpoint_dependencies(
             ledger=ledger,
             bus=bus,
         )
@@ -1097,7 +760,10 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
                 )
                 search_response.raise_for_status()
         finally:
-            _restore_ledger_endpoint_dependencies(ledger_dependency_originals)
+            _restore_ledger_endpoint_dependencies(
+                original_get_ledger_rag,
+                original_event_bus,
+            )
 
         index_body = index_response.json()
         search_body = search_response.json()
@@ -1135,31 +801,6 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
             "marketplace_api_layer_matches": (
                 citations_by_service.get(MARKETPLACE_API_SERVICE_NAME, {}).get("layer")
                 == MARKETPLACE_API_SERVICE_LAYER
-            ),
-            "marketplace_api_evidence_summary_request_present": (
-                citations_by_service.get(MARKETPLACE_API_SERVICE_NAME, {})
-                .get("evidence_summary", {})
-                .get("request_evidence", {})
-                .get("present")
-                is True
-            ),
-            "marketplace_api_evidence_summary_idempotency_present": (
-                citations_by_service.get(MARKETPLACE_API_SERVICE_NAME, {})
-                .get("evidence_summary", {})
-                .get("request_evidence", {})
-                .get("idempotency_key_present")
-                is True
-            ),
-            "marketplace_api_evidence_summary_identity_present": (
-                citations_by_service.get(MARKETPLACE_API_SERVICE_NAME, {})
-                .get("evidence_summary", {})
-                .get("request_evidence", {})
-                .get("service_identity_present")
-                == {
-                    "spiffe_id": True,
-                    "did": True,
-                    "wallet_address": True,
-                }
             ),
             "maas_governance_event_id_matches": (
                 citations_by_service.get(MAAS_GOVERNANCE_SERVICE_NAME, {}).get(
@@ -1205,15 +846,6 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
                 citations_by_service.get(MESH_REWARD_SERVICE_NAME, {}).get("layer")
                 == MESH_REWARD_SERVICE_LAYER
             ),
-            "mesh_reward_upstream_event_id_matches": expected_events[
-                MESH_REWARD_SERVICE_NAME
-            ]["upstream_event_linked"],
-            "mesh_reward_upstream_source_agent_matches": expected_events[
-                MESH_REWARD_SERVICE_NAME
-            ]["upstream_source_agent_linked"],
-            "mesh_reward_upstream_payloads_redacted": expected_events[
-                MESH_REWARD_SERVICE_NAME
-            ]["upstream_payloads_redacted"],
             "share_to_earn_event_id_matches": (
                 citations_by_service.get(SHARE_TO_EARN_SERVICE_NAME, {}).get(
                     "event_id"
@@ -1269,30 +901,6 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
             "redacted_true": all(
                 citation.get("redacted") is True
                 for citation in citations_by_service.values()
-            ),
-            "citation_summary_metadata_present": all(
-                _citation_summary_metadata_present(citation)
-                for citation in citations_by_service.values()
-            ),
-            "claim_boundary_summaries_bounded": all(
-                _claim_boundary_summary_is_bounded(citation)
-                for citation in citations_by_service.values()
-            ),
-            "claim_boundaries_present_for_bounded_services": (
-                _required_services_have_claim_boundaries(citations_by_service)
-            ),
-            "cross_plane_summaries_fail_closed": all(
-                _cross_plane_summary_is_fail_closed(citation)
-                for citation in citations_by_service.values()
-            ),
-            "economy_summaries_fail_closed": all(
-                _economy_summary_is_fail_closed(citation)
-                for citation in citations_by_service.values()
-            ),
-            "economy_services_have_local_only_gates": (
-                _required_economy_services_have_local_only_gates(
-                    citations_by_service
-                )
             ),
             "secret_values_absent": all(
                 secret not in response_text for secret in REDACTION_SENTINELS

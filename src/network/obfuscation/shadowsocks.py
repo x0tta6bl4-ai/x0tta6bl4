@@ -25,40 +25,6 @@ from .base import ObfuscationTransport
 logger = logging.getLogger(__name__)
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 MAX_FRAME_SIZE = 16 * 1024 * 1024
-_SERVICE_AGENT = "shadowsocks-transport"
-_SERVICE_LAYER = "network_shadowsocks_transport_local_evidence"
-SHADOWSOCKS_TRANSPORT_CLAIM_BOUNDARY = (
-    "Local Shadowsocks-style AEAD transport evidence only. It records local "
-    "encrypt/decrypt/frame/wrap metadata, byte-count buckets, duration, and "
-    "redacted service identity presence; it does not expose payload bytes, "
-    "passwords, derived keys, salts, nonces, ciphertext, socket peer addresses, "
-    "or prove DPI bypass, censorship bypass, remote reachability, packet "
-    "delivery, anonymity, provider health, client installation, or production "
-    "customer traffic use."
-)
-
-
-def _sha256_prefix(value: Any) -> Optional[str]:
-    text = str(value or "").strip()
-    if not text:
-        return None
-    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:16]
-
-
-def _byte_count_bucket(value: Any) -> str:
-    if not isinstance(value, int) or value <= 0:
-        return "zero"
-    if value <= 64:
-        return "tiny"
-    if value <= 512:
-        return "small"
-    if value <= 1500:
-        return "mtu"
-    if value <= 8192:
-        return "chunk"
-    if value <= MAX_FRAME_SIZE:
-        return "large_frame"
-    return "too_large"
 
 
 def _production_mode_enabled() -> bool:
@@ -312,6 +278,11 @@ class ShadowsocksTransport(ObfuscationTransport):
             },
         )
         return frame
+
+    def frame(self, data: bytes) -> bytes:
+        """Encrypt and length-prefix one plaintext message for stream sockets."""
+        packet = self.obfuscate(data)
+        return struct.pack("!I", len(packet)) + packet
 
     def obfuscate(self, data: bytes) -> bytes:
         """

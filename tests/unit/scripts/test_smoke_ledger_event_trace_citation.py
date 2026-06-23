@@ -23,34 +23,6 @@ def _load_module():
     return module
 
 
-def test_ledger_smoke_safe_actuator_result_carries_bounded_metadata():
-    smoke = _load_module()
-
-    result = smoke._ledger_smoke_safe_actuator_result(
-        "mptcp-manager",
-        "enable_mptcp",
-        {"secret_target": "do-not-leak"},
-    )
-
-    metadata = result.evidence_metadata.to_dict()
-    assert result.success is True
-    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
-    assert metadata["redacted"] is True
-    claim_gate = metadata["claim_gate"]
-    assert claim_gate["schema"] == "x0tta6bl4.ledger_smoke.safe_actuator_claim_gate.v1"
-    assert claim_gate["source_agent"] == "mptcp-manager"
-    assert claim_gate["local_smoke_callback_result_recorded"] is True
-    assert claim_gate["event_trace_citation_smoke_only"] is True
-    assert claim_gate["live_control_execution_claim_allowed"] is False
-    assert claim_gate["dataplane_delivery_claim_allowed"] is False
-    assert claim_gate["external_settlement_finality_claim_allowed"] is False
-    assert claim_gate["production_readiness_claim_allowed"] is False
-    assert metadata["cross_plane_claim_gate"]["allowed"] is False
-    assert metadata["evidence"]["context_keys"] == ["secret_target"]
-    assert metadata["evidence"]["raw_context_values_redacted"] is True
-    assert "do-not-leak" not in str(metadata)
-
-
 @pytest.mark.asyncio
 async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     smoke = _load_module()
@@ -73,9 +45,6 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
         "marketplace_layer_matches": True,
         "marketplace_api_event_id_matches": True,
         "marketplace_api_layer_matches": True,
-        "marketplace_api_evidence_summary_request_present": True,
-        "marketplace_api_evidence_summary_idempotency_present": True,
-        "marketplace_api_evidence_summary_identity_present": True,
         "maas_governance_event_id_matches": True,
         "maas_governance_layer_matches": True,
         "maas_billing_event_id_matches": True,
@@ -86,9 +55,6 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
         "recovery_layer_matches": True,
         "mesh_reward_event_id_matches": True,
         "mesh_reward_layer_matches": True,
-        "mesh_reward_upstream_event_id_matches": True,
-        "mesh_reward_upstream_source_agent_matches": True,
-        "mesh_reward_upstream_payloads_redacted": True,
         "share_to_earn_event_id_matches": True,
         "share_to_earn_layer_matches": True,
         "mptcp_event_id_matches": True,
@@ -102,12 +68,6 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
         "pqc_healer_service_name_matches": True,
         "source_class_matches": True,
         "redacted_true": True,
-        "citation_summary_metadata_present": True,
-        "claim_boundary_summaries_bounded": True,
-        "claim_boundaries_present_for_bounded_services": True,
-        "cross_plane_summaries_fail_closed": True,
-        "economy_summaries_fail_closed": True,
-        "economy_services_have_local_only_gates": True,
         "secret_values_absent": True,
     }
     citations = payload["citations_by_service"]
@@ -133,11 +93,6 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     assert swarm["source_class"] == "event_trace"
     assert swarm["event_id"] == payload["events"]["swarm-pbft"]["event_id"]
     assert swarm["layer"] == "swarm_consensus_to_control_plane"
-    assert swarm["claim_boundary_summary"]["present"] is False
-    assert swarm["claim_boundary_summary"]["redacted"] is True
-    assert swarm["cross_plane_evidence_profile"]["primary_status"] == "local_only"
-    assert swarm["cross_plane_evidence_profile"]["dataplane_confirmed"] is False
-    assert swarm["economy_finality_summary"]["production_ready_candidate"] is False
     assert swarm["redacted"] is True
 
     marketplace = citations["maas-settlement"]
@@ -147,21 +102,6 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     assert marketplace["event_type"] == "marketplace.escrow.released"
     assert marketplace["layer"] == "commerce_settlement_to_events"
     assert marketplace["entrypoint"] == "src/services/marketplace_settlement.py"
-    assert marketplace["claim_boundary_summary"]["present"] is True
-    assert marketplace["cross_plane_evidence_profile"]["local_only"] is True
-    assert marketplace["economy_finality_summary"]["local_or_pending_only"] is True
-    assert (
-        marketplace["economy_finality_summary"]["high_risk_claim_gate"][
-            "external_settlement_finality_claim_allowed"
-        ]
-        is False
-    )
-    assert (
-        marketplace["economy_finality_summary"]["high_risk_claim_gate"][
-            "production_readiness_claim_allowed"
-        ]
-        is False
-    )
     assert marketplace["redacted"] is True
 
     marketplace_api = citations["maas-marketplace"]
@@ -173,20 +113,6 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     assert marketplace_api["event_type"] == "marketplace.escrow.held"
     assert marketplace_api["layer"] == "api_to_commerce"
     assert marketplace_api["entrypoint"] == "src/api/maas_marketplace.py"
-    marketplace_api_summary = marketplace_api["evidence_summary"]
-    assert marketplace_api_summary["request_evidence"]["present"] is True
-    assert (
-        marketplace_api_summary["request_evidence"]["idempotency_key_present"]
-        is True
-    )
-    assert marketplace_api_summary["request_evidence"]["service_identity_present"] == {
-        "spiffe_id": True,
-        "did": True,
-        "wallet_address": True,
-    }
-    assert marketplace_api["claim_boundary_summary"]["present"] is True
-    assert marketplace_api["cross_plane_evidence_profile"]["local_only"] is True
-    assert marketplace_api["economy_finality_summary"]["local_or_pending_only"] is True
     assert marketplace_api["redacted"] is True
 
     maas_governance = citations["maas-governance"]
@@ -237,11 +163,6 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     assert mesh_reward["layer"] == "network_to_rewards"
     assert mesh_reward["entrypoint"] == "src/network/mesh_vpn_bridge.py"
     assert mesh_reward["redacted"] is True
-    mesh_reward_event = payload["events"]["mesh-vpn-bridge"]
-    assert mesh_reward_event["upstream_event_linked"] is True
-    assert mesh_reward_event["upstream_source_agent_linked"] is True
-    assert mesh_reward_event["upstream_payloads_redacted"] is True
-    assert mesh_reward_event["upstream_event_id"] != mesh_reward_event["event_id"]
 
     share_to_earn = citations["share-to-earn"]
     assert share_to_earn["source"] == "EventBus"

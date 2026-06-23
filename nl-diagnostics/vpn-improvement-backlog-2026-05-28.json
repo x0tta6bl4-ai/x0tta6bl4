@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_vpn_improvement_backlog.py",
-  "generated_at": "2026-06-06T12:58:07.475755+00:00",
+  "generated_at": "2026-05-28T03:42:17.995694+00:00",
   "summary": {
-    "decision": "provider_ticket",
+    "decision": "observe",
     "decision_confidence": "high",
-    "overall_status": "provider_outage",
-    "transport_status": "degraded",
-    "telegram_media_status": "healthy",
-    "provider_status": "suspect_active",
-    "failure_domain": "provider_host",
-    "blocking_history_trend": "has_degradation",
-    "blocking_history_snapshot_count": 15,
+    "overall_status": "advisory",
+    "transport_status": "healthy",
+    "telegram_media_status": "degraded",
+    "provider_status": "recent_boot_gap",
+    "failure_domain": "external_network",
+    "blocking_history_trend": "stable_no_probe_evidence",
+    "blocking_history_snapshot_count": 11,
     "source_gap_summary": {
       "accepted_local_delta": 5,
       "redacted_review_only": 2,
@@ -20,7 +20,7 @@
       "server_backup_only": 4,
       "server_runtime_artifact": 4
     },
-    "promoted_source_count": 43,
+    "promoted_source_count": 22,
     "nl_write_allowed": false,
     "deployable_to_nl": false,
     "spb_fallback_allowed": false
@@ -31,7 +31,7 @@
       "phase": "local_now",
       "priority": "P0",
       "title": "Keep one-command read-only evidence collection as the first response",
-      "status": "watch",
+      "status": "ready",
       "allowed_now": true,
       "mutation_allowed": false,
       "nl_mutation_allowed": false,
@@ -39,8 +39,8 @@
       "spb_fallback_allowed": false,
       "reason": "Fresh evidence prevents restarting NL for app-only or provider symptoms.",
       "evidence": [
-        "decision=provider_ticket",
-        "transport_status=degraded",
+        "decision=observe",
+        "transport_status=healthy",
         "collector=nl-diagnostics/collect_vpn_readonly_snapshot.sh"
       ],
       "next_steps": [
@@ -59,7 +59,7 @@
       "phase": "local_now",
       "priority": "P0",
       "title": "Keep blocking/app probes as trend evidence, not restart triggers",
-      "status": "watch",
+      "status": "ready",
       "allowed_now": true,
       "mutation_allowed": false,
       "nl_mutation_allowed": false,
@@ -67,8 +67,8 @@
       "spb_fallback_allowed": false,
       "reason": "Current app/path probe history does not prove an x-ui outage.",
       "evidence": [
-        "blocking_history_trend=has_degradation",
-        "blocking_history_snapshot_count=15"
+        "blocking_history_trend=stable_no_probe_evidence",
+        "blocking_history_snapshot_count=11"
       ],
       "next_steps": [
         "keep nl-diagnostics/blocking_probe_targets.json as the default target set",
@@ -94,7 +94,7 @@
       "spb_fallback_allowed": false,
       "reason": "Local source must match or explain current NL before any future deploy.",
       "evidence": [
-        "promoted_source_count=43",
+        "promoted_source_count=22",
         "nl_write_allowed=False",
         "deployable_to_nl=False"
       ],
@@ -114,7 +114,7 @@
       "phase": "local_now",
       "priority": "P1",
       "title": "Treat provider boot gaps as watch evidence until transport degrades",
-      "status": "ready",
+      "status": "watch",
       "allowed_now": true,
       "mutation_allowed": false,
       "nl_mutation_allowed": false,
@@ -122,8 +122,8 @@
       "spb_fallback_allowed": false,
       "reason": "A boot gap with current healthy transport is a provider-watch signal, not a restart signal.",
       "evidence": [
-        "provider_status=suspect_active",
-        "failure_domain=provider_host"
+        "provider_status=recent_boot_gap",
+        "failure_domain=external_network"
       ],
       "next_steps": [
         "build a provider packet if transport becomes degraded or critical",

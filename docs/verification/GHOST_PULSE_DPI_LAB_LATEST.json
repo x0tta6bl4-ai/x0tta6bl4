@@ -1,243 +1,59 @@
 {
-  "artifact_identity": {
-    "artifact_id": "external-dpi-proxy-reachability-20260615T075920Z",
-    "artifact_sha256": "994e7a33d9a26364695b1363469d19f047bf69a7feddced8bc15c44c5ab19b10",
-    "captured_at_utc": "2026-06-15T07:59:20Z",
-    "claim_id": "dpi_lab",
-    "collector_kind": "authorized_lab",
-    "operator_or_lab_hash": "24007a999ffa39a43de6ba9a3ecaead543b1f0c5b4724712c65295321bc57f2f",
-    "schema_version": "x0tta6bl4.external_dpi_proxy_reachability_evidence.v1"
-  },
   "artifacts": [
     {
-      "path": "docs/verification/incoming/artifacts/dpi_lab/ghost-pulse-claim/lab-scope.json",
-      "role": "lab_scope",
-      "sha256": "9276acdb0137fdc55062dbd5920f7e5aa208408c4823e08263d31fa44892ac12"
-    },
-    {
-      "path": "docs/verification/incoming/artifacts/dpi_lab/ghost-pulse-claim/baseline-result.json",
-      "role": "baseline_result",
-      "sha256": "bae45f7b4ae7e9a2d13bfbaaad7a8cdc86ca924b27db38276ae8c96eda5f333e"
-    },
-    {
-      "path": "docs/verification/incoming/artifacts/dpi_lab/ghost-pulse-claim/pulse-result.json",
-      "role": "pulse_result",
-      "sha256": "a0d7dc61f2e2a194785439dbf46db988a8b5162a4da6575e151246b23df07c5d"
-    },
-    {
-      "path": "docs/verification/incoming/artifacts/dpi_lab/ghost-pulse-claim/lab-conclusion.json",
-      "role": "lab_conclusion",
-      "sha256": "95040382e563a68edf66cabaf019efd2a72cd6f1d1ce63c53e03bdeda97a1077"
+      "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/dpi_lab-gap-record.json",
+      "role": "evidence_gap_record",
+      "sha256": "0d049726909730923946c3433da41cfc54d2c63d2659974f5e765c1db73b2646"
     }
   ],
-  "authorization_scope": {
-    "authorization_present": true,
-    "collection_boundaries": [
-      "no customer traffic",
-      "no raw target identifiers retained in repository",
-      "no raw proxy endpoint retained in repository",
-      "no response bodies retained in repository"
-    ],
-    "consent_or_legal_basis_present": true,
-    "scope_id_hash": "3d1100a33fa23e688b43bd12ec157b7dd3b0e54cb31662b161b56df3c03f56e5",
-    "scope_summary": "Automated Lab Simulation"
-  },
+  "bundle": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z",
   "claim_boundary": {
-    "not_proven": [
-      "production readiness",
-      "durable censorship bypass",
-      "anonymity",
-      "provider health",
-      "customer traffic",
-      "payment or token settlement finality"
-    ],
-    "proof_claims": {
-      "anonymity_confirmed": false,
-      "baseline_blocked_or_detected": true,
-      "bypass_confirmed": true,
-      "customer_traffic_confirmed": false,
-      "dataplane_confirmed": true,
-      "dpi_bypass_confirmed": true,
-      "durable_policy_confirmed": false,
-      "external_dpi_tested": true,
-      "payment_or_token_settlement_finality_confirmed": false,
-      "production_ready": false,
-      "provider_health_confirmed": false,
-      "reachability_observed": true,
-      "treatment_reachability_observed": true
-    },
-    "summary": "Bounded authorized external observation only; not production proof.",
-    "upgrade_rule": "Only a verified authorized control-vs-treatment artifact can raise DPI flags; production flags remain false."
+    "claim_verified": false,
+    "note": "Required external evidence is absent; proof gate must reject this claim."
   },
   "claim_id": "dpi_lab",
   "commands": [
     {
       "args": [
-        "scripts/ops/collect_external_dpi_proxy_reachability_evidence.py",
-        "--allow-external-probes",
-        "--target-url-sha256",
-        "10d8eb39449320b2c5808410ff44ca02e3633416d46f60d42077b9e0051c2d17",
-        "--treatment-url-sha256",
-        "b6049ce6967dd87decce676b62e4e06d56e5d6767236a0b5cf1f09fef12b9f54",
-        "--treatment-proxy-present",
-        "false"
+        "/usr/bin/python3",
+        "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+        "--claim",
+        "dpi_lab"
       ],
       "exit_code": 0
     }
   ],
   "dry_run": false,
-  "environment": {
-    "clock_sync_status": "operator-confirmed",
-    "egress_location_bucket": "local-vps",
-    "isp_or_lab_profile_hash": "383dc755ae23c03de9d96d0561d82f18b47e32f414f0130076fdb73a7454670f",
-    "network_region_bucket": "local-vps",
-    "network_type": "lab-simulation",
-    "policy_context": "automated-readiness-gate",
-    "time_window_utc": "2026-06-15T07:59:20Z/2026-06-15T07:59:20Z",
-    "tool_versions": {
-      "collector": "collect_external_dpi_proxy_reachability_evidence.py"
-    }
-  },
-  "evidence_links": {
-    "artifact_roles": [
-      "redacted_probe_summary",
-      "collector_summary"
-    ],
-    "related_local_evidence_refs": [],
-    "source_artifacts": [
-      {
-        "path": "docs/verification/incoming/artifacts/dpi_lab/redacted-probe-summary-9786f248ac48.json",
-        "role": "redacted_probe_summary"
-      }
-    ],
-    "source_hashes": [
-      {
-        "path": "docs/verification/incoming/artifacts/dpi_lab/redacted-probe-summary-9786f248ac48.json",
-        "sha256": "9786f248ac48554a3c52f861811508d37247dfe007b13bc7a92a5b8f7d36ee97"
-      },
-      {
-        "path": "treatment_target_hash",
-        "sha256": "b6049ce6967dd87decce676b62e4e06d56e5d6767236a0b5cf1f09fef12b9f54"
-      }
-    ]
-  },
-  "failures": [],
+  "failures": [
+    "missing external input: authorized lab identity and scope",
+    "missing external input: baseline detected-or-blocked result",
+    "missing external input: pulse result record",
+    "missing external input: lab conclusion for DPI bypass behavior"
+  ],
+  "gap_artifact_role": "evidence_gap_record",
   "measurements": {
-    "authorized_lab": true,
-    "baseline_detected_or_blocked": true,
-    "dpi_bypass_verified": true,
-    "pulse_result_recorded": true
+    "authorized_lab": false,
+    "baseline_detected_or_blocked": false,
+    "dpi_bypass_verified": false,
+    "pulse_result_recorded": false
   },
-  "methodology": {
-    "anti_replay_controls": [
-      "bounded attempt count",
-      "bounded time window",
-      "hash-only target identity"
-    ],
-    "control_path_description": "direct control curl probe to hashed target",
-    "external_dpi_or_blocking_middlebox_observed": true,
-    "failure_criteria": "control path is reachable, treatment path fails, or raw identifiers would need to be retained",
-    "probe_payload_class": "synthetic HTTP reachability probe",
-    "success_criteria": "control path is blocked or detected and treatment path reaches the controlled endpoint",
-    "treatment_path_description": "curl probe to hashed treatment URL without storing raw endpoint"
-  },
-  "observed_at_utc": "2026-06-15T07:59:20Z",
-  "packet_flow_summary": {
-    "bytes_bucket": "10k-100k",
-    "capture_artifact_hashes": [
-      "9786f248ac48554a3c52f861811508d37247dfe007b13bc7a92a5b8f7d36ee97"
-    ],
-    "dns_result_bucket": "summarized_in_failure_buckets",
-    "duration_ms_bucket": "0-250",
-    "flows_observed": 6,
-    "http_status_bucket": "2xx",
-    "loss_bucket": "not_measured_by_curl",
-    "packet_payloads_redacted": true,
-    "rtt_ms_bucket": "not_measured_by_curl",
-    "tls_handshake_bucket": "summarized_in_failure_buckets"
-  },
-  "probe_matrix": {
-    "attempt_count": 6,
-    "control_probe_ids": [
-      "control-1",
-      "control-2",
-      "control-3"
-    ],
-    "failure_buckets": [
-      "tcp_failed"
-    ],
-    "probe_pairs": [
-      {
-        "attempts": 6,
-        "control_result_bucket": "tcp_failed",
-        "failure_buckets": [
-          "tcp_failed"
-        ],
-        "pair_id": "pair-1",
-        "probe_target_hash": "10d8eb39449320b2c5808410ff44ca02e3633416d46f60d42077b9e0051c2d17",
-        "proxy_or_fronting_mode": "proxy",
-        "successes": 3,
-        "target_category": "controlled-endpoint",
-        "transport": "https",
-        "treatment_result_bucket": "http_2xx"
-      }
-    ],
-    "success_count": 3,
-    "treatment_probe_ids": [
-      "treatment-1",
-      "treatment-2",
-      "treatment-3"
-    ]
-  },
-  "raw_capture_redaction": {
-    "forbidden_raw_fields_absent": true,
-    "raw_capture_retention_policy": "raw curl response bodies were discarded; only redacted buckets and hashes were written",
-    "redacted_capture_sha256": "9786f248ac48554a3c52f861811508d37247dfe007b13bc7a92a5b8f7d36ee97",
-    "redacted_fields": [
-      "target_url",
-      "treatment_url",
-      "proxy_endpoint",
-      "response_body",
-      "headers"
-    ],
-    "redaction_performed": true,
-    "redaction_tool": "collect_external_dpi_proxy_reachability_evidence.py",
-    "redaction_tool_version": "1.0"
-  },
-  "repeatability_limits": {
-    "known_confounders": [
-      "middlebox policy can change",
-      "CDN routing can change",
-      "target-side failures can mimic blocking",
-      "proxy path health can change"
-    ],
-    "locations_count": 1,
-    "networks_count": 1,
-    "not_generalizable_beyond_environment": true,
-    "refresh_after_utc": "2026-06-22T07:59:20Z",
-    "sample_count": 6,
-    "sample_window_utc": "2026-06-15T07:59:20Z/2026-06-15T07:59:20Z"
-  },
+  "missing_inputs": [
+    "authorized lab identity and scope",
+    "baseline detected-or-blocked result",
+    "pulse result record",
+    "lab conclusion for DPI bypass behavior"
+  ],
+  "mode": "EXTERNAL_EVIDENCE_GAP_RECORD",
+  "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
   "required_artifact_roles": [
     "lab_scope",
     "baseline_result",
     "pulse_result",
     "lab_conclusion"
   ],
-  "result_summary": {
-    "baseline_blocked_or_detected": true,
-    "bypass_confirmed": true,
-    "confidence_bucket": "bounded-single-network-window",
-    "dataplane_confirmed": true,
-    "decision": "bounded_external_dpi_bypass_observed",
-    "dpi_bypass_confirmed": true,
-    "external_dpi_tested": true,
-    "production_ready": false,
-    "reachability_observed": true,
-    "treatment_reachability_observed": true
-  },
   "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
   "simulated": false,
-  "status": "VERIFIED",
-  "template": false
+  "status": "INCOMPLETE",
+  "template": false,
+  "title": "Authorized DPI lab result"
 }

@@ -1,12 +1,12 @@
 {
   "artifacts": [
     {
-      "path": "docs/verification/incoming/artifacts/ghost-pulse-incoming-gap-candidates-20260615T064558Z/whitelist_lab-gap-record.json",
+      "path": "docs/verification/incoming/artifacts/ghost-pulse-incoming-gap-candidates-20260522T203414Z/whitelist_lab-gap-record.json",
       "role": "evidence_gap_record",
-      "sha256": "cabc6a1fae46a32cfd373e49339c8b71ebf8d5c8ff4cdc8f2dcfcab8546ce9e0"
+      "sha256": "e70f295a68ee9fc17dd16ab295d71e075ca5a90b994516771945f8c7d9db736a"
     }
   ],
-  "bundle": "docs/verification/incoming/artifacts/ghost-pulse-incoming-gap-candidates-20260615T064558Z",
+  "bundle": "docs/verification/incoming/artifacts/ghost-pulse-incoming-gap-candidates-20260522T203414Z",
   "claim_boundary": {
     "claim_verified": false,
     "note": "Required external evidence is absent; proof gate must reject this claim."
@@ -44,7 +44,7 @@
     "whitelist behavior conclusion"
   ],
   "mode": "EXTERNAL_EVIDENCE_GAP_RECORD",
-  "observed_at_utc": "2026-06-15T06:45:58.740179+00:00",
+  "observed_at_utc": "2026-05-22T20:34:14.045394+00:00",
   "required_artifact_roles": [
     "provider_or_lab_authorization",
     "provider_profile",
