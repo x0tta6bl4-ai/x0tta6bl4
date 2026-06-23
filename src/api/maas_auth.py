@@ -13,11 +13,15 @@ from typing import Any, Dict, Union
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from types import SimpleNamespace
 from src.api.maas_auth_models import (ApiKeyResponse, UserLoginRequest,
                                       UserRegisterRequest, TokenResponse)
 from src.core.reliability_policy import mark_degraded_dependency
 from src.database import User, Session as UserSession, get_db
 from src.api.maas_security import oidc_validator, ApiKeyManager
+
+# Legacy compatibility namespace
+_legacy = SimpleNamespace()
 from src.services.maas_auth_service import MaaSAuthService
 from src.utils.audit import record_audit_log
 
