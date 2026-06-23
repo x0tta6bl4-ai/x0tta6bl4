@@ -1,10 +1,13 @@
 #!/bin/bash
-# Complete production validation suite for x0tta6bl4
-# Runs all validation tests and checks
+# Local production-claim preflight for x0tta6bl4.
+# This runs local checks, but it is not production readiness proof.
 
 set -e
 
-echo "🔍 Running Complete Production Validation Suite..."
+echo "🔍 Running local production-claim preflight..."
+echo "Claim boundary: this suite runs local checks and delegates readiness to the"
+echo "fail-closed real-readiness gate; it does not prove live customer traffic,"
+echo "external DPI bypass, settlement finality, production SLOs, or production readiness."
 echo ""
 
 # 1. Production Readiness
@@ -43,6 +46,7 @@ python3 -m pytest tests/unit/test_health.py -v --tb=short -q
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Production Validation Suite Complete"
+echo "✅ Local production-claim preflight complete"
+echo "Production readiness still requires a passing real-readiness gate and separate"
+echo "current evidence for live traffic, DPI, settlement, and SLO claims."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-

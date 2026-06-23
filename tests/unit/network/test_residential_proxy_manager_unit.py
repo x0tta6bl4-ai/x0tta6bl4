@@ -9,6 +9,7 @@ os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
+from src.coordination.events import EventBus, EventType
 import src.network.residential_proxy_manager as mod
 
 
@@ -65,9 +66,32 @@ def _proxy(proxy_id: str, *, status=mod.ProxyStatus.HEALTHY, region="us"):
     )
 
 
+def _clear_residential_proxy_identity(monkeypatch):
+    for name in (
+        "RESIDENTIAL_PROXY_MANAGER_SPIFFE_ID",
+        "RESIDENTIAL_PROXY_MANAGER_DID",
+        "RESIDENTIAL_PROXY_MANAGER_WALLET_ADDRESS",
+        "X0TTA6BL4_SERVICE_SPIFFE_ID",
+        "X0TTA6BL4_SERVICE_DID",
+        "X0TTA6BL4_SERVICE_WALLET_ADDRESS",
+        "SERVICE_SPIFFE_ID",
+        "SERVICE_DID",
+        "SERVICE_WALLET_ADDRESS",
+        "SPIFFE_ID",
+        "DID",
+        "GHOST_WALLET_ADDRESS",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 def test_proxy_endpoint_url_and_rate_limit(monkeypatch):
     p_with_auth = mod.ProxyEndpoint(
-        id="p1", host="h", port=80, username="u", password="p", max_requests_per_minute=2
+        id="p1",
+        host="h",
+        port=80,
+        username="u",
+        password="p",
+        max_requests_per_minute=2,
     )
     p_without_auth = mod.ProxyEndpoint(id="p2", host="h2", port=81)
     assert p_with_auth.to_url() == "http://u:p@h:80"
@@ -237,6 +261,58 @@ async def test_check_proxy_health_success_and_recovery(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_check_proxy_health_publishes_redacted_eventbus_evidence(
+    tmp_path,
+    monkeypatch,
+):
+    _clear_residential_proxy_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    manager = mod.ResidentialProxyManager(max_failures=2, event_bus=bus)
+    proxy = _proxy("proxy-secret-1", status=mod.ProxyStatus.UNHEALTHY)
+    proxy.failure_count = 1
+
+    session = _Session(get_ctx=_ResponseContext(response=SimpleNamespace(status=200)))
+    monkeypatch.setattr(mod.aiohttp, "ClientSession", lambda: session)
+
+    await manager._check_proxy_health(proxy)
+
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="residential-proxy-manager",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["component"] == "network.residential_proxy_manager"
+    assert payload["operation"] == "health_check"
+    assert payload["thinking"]["profile"]["role"] == "security"
+    assert "zero_trust_review" in payload["thinking"]["techniques"]
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "residential_proxy_health_check"
+    )
+    assert payload["service_name"] == "residential-proxy-manager"
+    assert payload["layer"] == "network_residential_proxy_manager_observed_state"
+    assert payload["status"] == "health_check_ok"
+    assert payload["success"] is True
+    assert payload["service_identity_present"] == {
+        "spiffe_id": False,
+        "did": False,
+        "wallet_address": False,
+    }
+    assert payload["proxy"]["proxy_id_hash"].startswith("sha256:")
+    assert payload["proxy"]["has_auth"] is True
+    assert payload["previous_status"] == "unhealthy"
+    assert payload["new_status"] == "healthy"
+    assert payload["status_code"] == 200
+    assert payload["health_check"]["target"] == "google_homepage_probe"
+    assert "customer traffic delivery" in payload["claim_boundary"]
+    text = str(payload)
+    assert "proxy-secret-1" not in text
+    assert "proxy.example" not in text
+    assert "https://www.google.com" not in text
+
+
+@pytest.mark.asyncio
 async def test_check_proxy_health_failure_status_and_exception(monkeypatch):
     manager = mod.ResidentialProxyManager(max_failures=1)
     proxy_non_200 = _proxy("p2")
@@ -295,6 +371,55 @@ async def test_get_domain_reputation_and_get_proxy_branches(monkeypatch, caplog)
     )
     assert selected is not None
     assert selected.region == "de"
+
+
+@pytest.mark.asyncio
+async def test_get_proxy_publishes_redacted_selection_evidence(tmp_path, monkeypatch):
+    _clear_residential_proxy_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    manager = mod.ResidentialProxyManager(event_bus=bus)
+    p1 = _proxy("proxy-secret-1", status=mod.ProxyStatus.HEALTHY, region="us")
+    p2 = _proxy("proxy-secret-2", status=mod.ProxyStatus.HEALTHY, region="de")
+    manager.proxies = [p1, p2]
+    p1.is_rate_limited = lambda: False
+    p2.is_rate_limited = lambda: False
+    manager.get_domain_reputation("secret.example").score = 0.1
+    monkeypatch.setattr(mod.random, "random", lambda: 0.99)
+
+    selected = await manager.get_proxy(
+        target_domain="secret.example",
+        preferred_region="de",
+        require_healthy=False,
+    )
+
+    assert selected is p2
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="residential-proxy-manager",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["operation"] == "select_proxy"
+    assert payload["status"] == "proxy_selected"
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "residential_proxy_selection"
+    )
+    assert payload["success"] is True
+    assert payload["target_domain_hash"].startswith("sha256:")
+    assert payload["preferred_region_hash"].startswith("sha256:")
+    assert payload["candidate_counts"] == {
+        "pool_total": 2,
+        "after_health_filter": 2,
+        "after_region_filter": 1,
+        "rate_limited": 0,
+        "after_rate_limit_filter": 1,
+    }
+    assert payload["reputation_bucket"] == "low"
+    assert payload["selected_proxy"]["proxy_id_hash"].startswith("sha256:")
+    text = str(payload)
+    assert "secret.example" not in text
+    assert "proxy-secret" not in text
 
 
 @pytest.mark.asyncio
@@ -364,6 +489,64 @@ async def test_request_success_403_ban_and_retry(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_request_publishes_redacted_attempt_evidence(tmp_path, monkeypatch):
+    _clear_residential_proxy_identity(monkeypatch)
+    bus = EventBus(project_root=str(tmp_path))
+    manager = mod.ResidentialProxyManager(event_bus=bus)
+    proxy = _proxy("proxy-secret-1")
+
+    async def _get_proxy(*args, **kwargs):
+        return proxy
+
+    manager.get_proxy = _get_proxy
+    manager.tls_randomizer.create_ssl_context = lambda: "ssl_ctx"
+    manager.tls_randomizer.get_headers = lambda: {"User-Agent": "ua"}
+
+    session_403 = _Session(
+        request_ctx=_ResponseContext(response=SimpleNamespace(status=403))
+    )
+    monkeypatch.setattr(mod.aiohttp, "ClientSession", lambda: session_403)
+
+    response = await manager.request(
+        "https://secret.example/path",
+        method="POST",
+        headers={"Authorization": "secret-header"},
+        data="payload-secret",
+    )
+
+    assert response.status == 403
+    assert proxy.ban_count == 1
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="residential-proxy-manager",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["operation"] == "request"
+    assert payload["status"] == "response_observed"
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "residential_proxy_request"
+    )
+    assert payload["success"] is False
+    assert payload["target_domain_hash"].startswith("sha256:")
+    assert payload["request"] == {
+        "method": "POST",
+        "attempt": 1,
+        "max_retries": 3,
+        "headers_present": True,
+        "body_present": True,
+    }
+    assert payload["response"] == {"status_code": 403, "blocked_status": True}
+    assert payload["selected_proxy"]["proxy_id_hash"].startswith("sha256:")
+    text = str(payload)
+    assert "secret.example" not in text
+    assert "proxy-secret-1" not in text
+    assert "payload-secret" not in text
+    assert "secret-header" not in text
+
+
+@pytest.mark.asyncio
 async def test_request_raises_when_no_proxy_available():
     manager = mod.ResidentialProxyManager()
 
@@ -394,12 +577,19 @@ async def test_xray_integration_generate_and_update_config(tmp_path: Path, caplo
         json.dumps(
             {
                 "outbounds": [{"tag": "existing"}, {"tag": "residential-old"}],
-                "routing": {"rules": [{"outboundTag": "residential-old"}, {"outboundTag": "existing"}]},
+                "routing": {
+                    "rules": [
+                        {"outboundTag": "residential-old"},
+                        {"outboundTag": "existing"},
+                    ]
+                },
             }
         )
     )
 
-    integration = mod.XrayResidentialIntegration(manager, xray_config_path=str(cfg_path))
+    integration = mod.XrayResidentialIntegration(
+        manager, xray_config_path=str(cfg_path)
+    )
     outbound = integration.generate_xray_outbound(healthy)
     assert outbound["protocol"] == "socks"
     assert outbound["tag"] == "residential-h1"
@@ -407,7 +597,9 @@ async def test_xray_integration_generate_and_update_config(tmp_path: Path, caplo
 
     await integration.update_xray_config(["example.com"])
     payload = json.loads(cfg_path.read_text())
-    res_outbounds = [ob for ob in payload["outbounds"] if ob["tag"].startswith("residential-")]
+    res_outbounds = [
+        ob for ob in payload["outbounds"] if ob["tag"].startswith("residential-")
+    ]
     assert len(res_outbounds) == 3
     assert payload["routing"]["rules"][0]["domain"] == ["example.com"]
 

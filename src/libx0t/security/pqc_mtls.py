@@ -6,6 +6,7 @@ secure communication.
 """
 
 import logging
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple
@@ -16,9 +17,41 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 from .pqc_core import PQCKeyPair, PQCSignature, get_pqc_hybrid
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 30:
+        return "1-30"
+    if value <= 365:
+        return "31-365"
+    return "365+"
 
 
 @dataclass
@@ -54,8 +87,63 @@ class PQCmTLSController:
         self.certificates: Dict[str, PQCCertificate] = {}
         self.pqc_keys: Dict[str, PQCKeyPair] = {}
         self.enabled = self.pqc_hybrid is not None and self.pqc_hybrid.enable_pqc
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"pqc-mtls-controller:{_safe_hash(enable_hybrid)}",
+            role="security",
+            capabilities=("zero-trust", "ops"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "pqc_mtls_controller_init",
+                "goal": "Initialize PQC mTLS controller safely",
+                "signals": {
+                    "hybrid_mode": enable_hybrid,
+                    "enabled": self.enabled,
+                    "key_count_bucket": "0",
+                    "certificate_count_bucket": "0",
+                },
+                "safety_boundary": (
+                    "Keep raw request data, response data, signatures, private keys, "
+                    "public keys, common names, certificate PEM, and key IDs out of "
+                    "thinking context."
+                ),
+            }
+        )
 
         logger.info(f"PQC mTLS: {'enabled' if self.enabled else 'disabled'}")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_request_data": True,
+                    "redact_response_data": True,
+                    "redact_signatures": True,
+                    "redact_private_keys": True,
+                    "redact_public_keys": True,
+                    "redact_common_names": True,
+                    "redact_certificates": True,
+                    "redact_key_ids": True,
+                    "preserve_pqc_channel_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, booleans, algorithms, statuses, and size bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def initialize_pqc_keys(self, validity_days: int = 365) -> Dict[str, Any]:
         """
@@ -68,6 +156,11 @@ class PQCmTLSController:
             Initialization status
         """
         if not self.enabled:
+            self._record_thinking(
+                "pqc_mtls_keys_init_skipped",
+                "Skip PQC mTLS key initialization when disabled",
+                {"enabled": False, "validity_days_band": _safe_number_band(validity_days)},
+            )
             return {"status": "disabled", "reason": "PQC not available"}
 
         try:
@@ -85,16 +178,34 @@ class PQCmTLSController:
 
             logger.info("Initialized PQC keypairs for mTLS")
 
-            return {
+            result = {
                 "status": "success",
                 "kem_key_id": kem_keypair.key_id,
                 "dsa_key_id": dsa_keypair.key_id,
                 "expires_at": kem_keypair.expires_at.isoformat(),
                 "algorithms": ["ML-KEM-768", "ML-DSA-65"],
             }
+            self._record_thinking(
+                "pqc_mtls_keys_initialized",
+                "Initialize PQC mTLS keypairs safely",
+                {
+                    "enabled": True,
+                    "validity_days_band": _safe_number_band(validity_days),
+                    "kem_key_hash": _safe_hash(kem_keypair.key_id),
+                    "dsa_key_hash": _safe_hash(dsa_keypair.key_id),
+                    "key_count_bucket": _safe_count_bucket(len(self.pqc_keys)),
+                    "algorithms": result["algorithms"],
+                },
+            )
+            return result
 
         except Exception as e:
             logger.error(f"Failed to initialize PQC keys: {e}")
+            self._record_thinking(
+                "pqc_mtls_keys_init_failed",
+                "Record PQC mTLS key initialization failure safely",
+                {"enabled": self.enabled, "error_type": type(e).__name__},
+            )
             return {"status": "error", "error": str(e)}
 
     def establish_pqc_channel(self) -> Dict[str, Any]:
@@ -105,12 +216,16 @@ class PQCmTLSController:
             Channel establishment status
         """
         if not self.enabled:
+            self._record_thinking(
+                "pqc_mtls_channel_disabled",
+                "Use classical TLS when PQC mTLS is disabled",
+                {"enabled": False, "method": "classical_tls_1_3"},
+            )
             return {"status": "disabled", "method": "classical_tls_1_3"}
 
         try:
             setup = self.pqc_hybrid.setup_secure_channel()
-
-            return {
+            result = {
                 "status": "success",
                 "method": "hybrid_pqc_tls",
                 "key_exchange": "ML-KEM-768",
@@ -118,9 +233,28 @@ class PQCmTLSController:
                 "shared_secret_bits": setup.get("shared_secret_len", 0) * 8,
                 "timestamp": datetime.utcnow().isoformat(),
             }
+            self._record_thinking(
+                "pqc_mtls_channel_established",
+                "Establish PQC-protected channel safely",
+                {
+                    "enabled": True,
+                    "method": result["method"],
+                    "key_exchange": result["key_exchange"],
+                    "signature": result["signature"],
+                    "shared_secret_bits_band": _safe_number_band(
+                        result["shared_secret_bits"]
+                    ),
+                },
+            )
+            return result
 
         except Exception as e:
             logger.error(f"Failed to establish PQC channel: {e}")
+            self._record_thinking(
+                "pqc_mtls_channel_failed",
+                "Record PQC channel establishment failure safely",
+                {"enabled": self.enabled, "error_type": type(e).__name__},
+            )
             return {"status": "error", "fallback": "tls_1_3", "error": str(e)}
 
     def sign_request(self, request_data: bytes) -> Tuple[bytes, PQCSignature]:
@@ -134,6 +268,15 @@ class PQCmTLSController:
             (signed_data, signature)
         """
         if not self.enabled or "dsa" not in self.pqc_keys:
+            self._record_thinking(
+                "pqc_mtls_sign_blocked",
+                "Block PQC signing without DSA key safely",
+                {
+                    "enabled": self.enabled,
+                    "has_dsa_key": "dsa" in self.pqc_keys,
+                    "request_data_length_band": _safe_number_band(len(request_data)),
+                },
+            )
             raise RuntimeError("PQC signature not available")
 
         dsa_keypair = self.pqc_keys["dsa"]
@@ -141,6 +284,16 @@ class PQCmTLSController:
             request_data, dsa_keypair.secret_key, dsa_keypair.key_id
         )
 
+        self._record_thinking(
+            "pqc_mtls_request_signed",
+            "Sign mTLS request with PQC safely",
+            {
+                "request_data_hash": _safe_hash(request_data),
+                "request_data_length_band": _safe_number_band(len(request_data)),
+                "dsa_key_hash": _safe_hash(dsa_keypair.key_id),
+                "signature_type": type(signature).__name__,
+            },
+        )
         return request_data, signature
 
     def verify_response(
@@ -157,13 +310,36 @@ class PQCmTLSController:
             Verification result
         """
         if not self.enabled or "dsa" not in self.pqc_keys:
+            self._record_thinking(
+                "pqc_mtls_response_verify_blocked",
+                "Block PQC response verification without DSA key safely",
+                {
+                    "enabled": self.enabled,
+                    "has_dsa_key": "dsa" in self.pqc_keys,
+                    "response_data_length_band": _safe_number_band(len(response_data)),
+                    "signature_length_band": _safe_number_band(len(signature_bytes)),
+                },
+            )
             return False
 
         dsa_keypair = self.pqc_keys["dsa"]
 
-        return self.pqc_hybrid.dsa.verify(
+        verified = self.pqc_hybrid.dsa.verify(
             response_data, signature_bytes, dsa_keypair.public_key
         )
+        self._record_thinking(
+            "pqc_mtls_response_verified",
+            "Verify PQC-signed response safely",
+            {
+                "response_data_hash": _safe_hash(response_data),
+                "response_data_length_band": _safe_number_band(len(response_data)),
+                "signature_hash": _safe_hash(signature_bytes),
+                "signature_length_band": _safe_number_band(len(signature_bytes)),
+                "dsa_key_hash": _safe_hash(dsa_keypair.key_id),
+                "verified": verified,
+            },
+        )
+        return verified
 
     def _generate_classical_cert_bundle(
         self, common_name: str, validity_days: int
@@ -211,6 +387,15 @@ class PQCmTLSController:
             PQCCertificate
         """
         if not self.enabled:
+            self._record_thinking(
+                "pqc_certificate_create_blocked",
+                "Block PQC certificate creation when disabled",
+                {
+                    "enabled": False,
+                    "common_name_hash": _safe_hash(common_name),
+                    "validity_days_band": _safe_number_band(validity_days),
+                },
+            )
             raise RuntimeError("PQC not available")
 
         try:
@@ -239,10 +424,34 @@ class PQCmTLSController:
 
             logger.info(f"Created PQC certificate: {cert_id}")
 
+            self._record_thinking(
+                "pqc_certificate_created",
+                "Create PQC-enhanced certificate safely",
+                {
+                    "common_name_hash": _safe_hash(common_name),
+                    "certificate_id_hash": _safe_hash(cert_id),
+                    "validity_days_band": _safe_number_band(validity_days),
+                    "certificate_count_bucket": _safe_count_bucket(
+                        len(self.certificates)
+                    ),
+                    "pqc_public_key_length_band": _safe_number_band(
+                        len(pqc_cert.pqc_public_key)
+                    ),
+                    "has_signature": pqc_cert.pqc_signature is not None,
+                },
+            )
             return pqc_cert
 
         except Exception as e:
             logger.error(f"Failed to create PQC certificate: {e}")
+            self._record_thinking(
+                "pqc_certificate_create_failed",
+                "Record PQC certificate creation failure safely",
+                {
+                    "common_name_hash": _safe_hash(common_name),
+                    "error_type": type(e).__name__,
+                },
+            )
             raise
 
     def rotate_pqc_keys(self, validity_days: int = 365) -> Dict[str, Any]:
@@ -256,6 +465,11 @@ class PQCmTLSController:
             Rotation status
         """
         if not self.enabled:
+            self._record_thinking(
+                "pqc_mtls_key_rotation_skipped",
+                "Skip PQC mTLS key rotation when disabled",
+                {"enabled": False, "validity_days_band": _safe_number_band(validity_days)},
+            )
             return {"status": "disabled"}
 
         try:
@@ -285,7 +499,7 @@ class PQCmTLSController:
                 f"DSA {old_dsa_id} -> {dsa_keypair.key_id}"
             )
 
-            return {
+            result = {
                 "status": "success",
                 "old_kem_key_id": old_kem_id,
                 "new_kem_key_id": kem_keypair.key_id,
@@ -293,14 +507,32 @@ class PQCmTLSController:
                 "new_dsa_key_id": dsa_keypair.key_id,
                 "rotated_at": datetime.utcnow().isoformat(),
             }
+            self._record_thinking(
+                "pqc_mtls_keys_rotated",
+                "Rotate PQC mTLS keys safely",
+                {
+                    "old_kem_key_hash": _safe_hash(old_kem_id),
+                    "new_kem_key_hash": _safe_hash(kem_keypair.key_id),
+                    "old_dsa_key_hash": _safe_hash(old_dsa_id),
+                    "new_dsa_key_hash": _safe_hash(dsa_keypair.key_id),
+                    "validity_days_band": _safe_number_band(validity_days),
+                    "key_count_bucket": _safe_count_bucket(len(self.pqc_keys)),
+                },
+            )
+            return result
 
         except Exception as e:
             logger.error(f"Failed to rotate PQC keys: {e}")
+            self._record_thinking(
+                "pqc_mtls_key_rotation_failed",
+                "Record PQC mTLS key rotation failure safely",
+                {"enabled": self.enabled, "error_type": type(e).__name__},
+            )
             return {"status": "error", "error": str(e)}
 
     def get_status(self) -> Dict[str, Any]:
         """Get current PQC mTLS status."""
-        return {
+        status = {
             "enabled": self.enabled,
             "hybrid_mode": self.enable_hybrid,
             "algorithms": ["ML-KEM-768", "ML-DSA-65"] if self.enabled else [],
@@ -309,6 +541,20 @@ class PQCmTLSController:
             "fallback": "TLS 1.3 classical" if not self.enabled else "none",
             "timestamp": datetime.utcnow().isoformat(),
         }
+        self._record_thinking(
+            "pqc_mtls_status_reported",
+            "Report PQC mTLS status safely",
+            {
+                "enabled": self.enabled,
+                "hybrid_mode": self.enable_hybrid,
+                "key_count_bucket": _safe_count_bucket(len(self.pqc_keys)),
+                "certificate_count_bucket": _safe_count_bucket(
+                    len(self.certificates)
+                ),
+                "fallback": status["fallback"],
+            },
+        )
+        return status
 
 
 # Global instance

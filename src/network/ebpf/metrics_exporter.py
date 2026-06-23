@@ -17,6 +17,7 @@ Supports:
 - Histogram maps
 """
 
+import hashlib
 import json
 import logging
 import signal
@@ -28,6 +29,10 @@ from enum import Enum
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
+from src.services.service_event_identity import service_event_identity
 
 
 # Enhanced error handling and validation components
@@ -158,6 +163,66 @@ class MetricSanitizer:
 
 # Configure structured logging
 logger = logging.getLogger(__name__)
+
+EBPF_METRICS_EXPORTER_SERVICE_NAME = "ebpf-metrics-exporter"
+EBPF_METRICS_EXPORTER_LAYER = "network_ebpf_metrics_observed_state"
+EBPF_METRICS_EXPORTER_CLAIM_BOUNDARY = (
+    "Local eBPF metrics exporter observation only. Events record bpftool map "
+    "lookup/dump outcomes, return codes, duration, bounded output hashes, and "
+    "redacted map selectors; they do not prove production traffic, packet "
+    "forwarding, Prometheus delivery, or attached kernel program correctness."
+)
+
+
+def _normalize_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (bytes, bytearray)):
+        return value.decode("utf-8", errors="replace")
+    return ""
+
+
+def _sha256_text(value: Any) -> Optional[str]:
+    value = _normalize_text(value)
+    if not value:
+        return None
+    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return _sha256_text(str(value))
+
+
+def _bounded_output_metadata(
+    stdout: Optional[str],
+    stderr: Optional[str],
+) -> Dict[str, Any]:
+    safe_stdout = _normalize_text(stdout)
+    safe_stderr = _normalize_text(stderr)
+    return {
+        "stdout_chars": len(safe_stdout),
+        "stderr_chars": len(safe_stderr),
+        "stdout_sha256": _sha256_text(safe_stdout),
+        "stderr_sha256": _sha256_text(safe_stderr),
+        "output_bounded": True,
+        "output_redacted": True,
+    }
+
+
+def _identity_metadata() -> Dict[str, Any]:
+    identity = service_event_identity(service_name=EBPF_METRICS_EXPORTER_SERVICE_NAME)
+    return {
+        "service_name": EBPF_METRICS_EXPORTER_SERVICE_NAME,
+        "layer": EBPF_METRICS_EXPORTER_LAYER,
+        "spiffe_id_configured": bool(identity.get("spiffe_id")),
+        "did_configured": bool(identity.get("did")),
+        "wallet_address_configured": bool(identity.get("wallet_address")),
+        "redacted": True,
+    }
 
 
 # ==================== Custom Exception Classes ====================
@@ -632,12 +697,27 @@ class EBPFMetricsExporter:
         >>> exporter.export_metrics()
     """
 
-    def __init__(self, prometheus_port: int = 9090):
+    def __init__(
+        self,
+        prometheus_port: int = 9090,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+    ):
         self.registered_maps: Dict[str, Dict] = {}
         self.prometheus = PrometheusExporter(prometheus_port)
         self.shutdown = GracefulShutdown()
         self.slog = StructuredLogger(__name__)
         self.retry_config = RetryConfig()
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
+        self.source_agent = EBPF_METRICS_EXPORTER_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="monitoring",
+            capabilities=("security", "zero-trust"),
+            extra_techniques=("mape_k", "causal_analysis", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
         # Metric validation and sanitization
         self.sanitizer = MetricSanitizer()
@@ -655,6 +735,129 @@ class EBPFMetricsExporter:
         self.slog.set_context(component="EBPFMetricsExporter")
 
         self.slog.info("EBPFMetricsExporter initialized")
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        try:
+            return EventBus(project_root=self.event_project_root)
+        except Exception as exc:
+            self.slog.error("Failed to initialize eBPF metrics EventBus", error=exc)
+            return None
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_metrics_export",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local eBPF metrics evidence, redacted map "
+                "selectors, hashes, result shapes, and bounded output metadata; "
+                "do not expose map names, map payloads, stdout, or stderr."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose metrics-exporter thinking state without task secrets."""
+
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
+
+    def _publish_bpftool_observation(
+        self,
+        *,
+        stage: str,
+        status: str,
+        map_name: str,
+        start: float,
+        reason: str = "",
+        show_returncode: Optional[int] = None,
+        dump_returncode: Optional[int] = None,
+        show_stdout: Optional[str] = None,
+        show_stderr: Optional[str] = None,
+        dump_stdout: Optional[str] = None,
+        dump_stderr: Optional[str] = None,
+        map_id: Optional[Any] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+
+        thinking = self._record_thinking_context(
+            operation="read_map_via_bpftool",
+            goal=f"read_map_via_bpftool:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "reason": reason,
+                "backend": "bpftool",
+                "map_name_hash": _hash_value(map_name),
+                "map_name_redacted": True,
+                "map_id_hash": _hash_value(map_id),
+                "map_id_redacted": map_id is not None,
+                "show_returncode_present": show_returncode is not None,
+                "dump_returncode_present": dump_returncode is not None,
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
+        payload: Dict[str, Any] = {
+            "component": "network.ebpf.metrics_exporter",
+            "stage": stage,
+            "operation": "read_map_via_bpftool",
+            "operation_resource": "ebpf_metrics_bpftool_map_read",
+            "resource": "network:ebpf:metrics_exporter",
+            "service_name": self.source_agent,
+            "layer": EBPF_METRICS_EXPORTER_LAYER,
+            "identity": _identity_metadata(),
+            "status": status,
+            "reason": reason,
+            "backend": "bpftool",
+            "duration_ms": round((time.monotonic() - start) * 1000, 3),
+            "map_name_hash": _hash_value(map_name),
+            "map_name_redacted": True,
+            "map_id_hash": _hash_value(map_id),
+            "map_id_redacted": map_id is not None,
+            "show_returncode": show_returncode,
+            "dump_returncode": dump_returncode,
+            "bpftool_available": self.prometheus.degradation.bpftool_available,
+            "payloads_redacted": True,
+            "read_only": True,
+            "observed_state": True,
+            "safe_observation": True,
+            "thinking": thinking,
+            "claim_boundary": EBPF_METRICS_EXPORTER_CLAIM_BOUNDARY,
+            "show_output": _bounded_output_metadata(show_stdout, show_stderr),
+            "dump_output": _bounded_output_metadata(dump_stdout, dump_stderr),
+        }
+        if extra:
+            payload.update(extra)
+
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                self.source_agent,
+                payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception:
+            self.slog.error("Failed to publish eBPF metrics observation")
+            return None
 
     def _on_shutdown(self):
         """Cleanup on shutdown"""
@@ -736,7 +939,15 @@ class EBPFMetricsExporter:
             BpftoolError: If bpftool command fails
             TimeoutError: If command times out
         """
+        start = time.monotonic()
         if self.shutdown.is_shutdown_requested():
+            self._publish_bpftool_observation(
+                stage="metrics_map_read_skipped",
+                status="empty",
+                map_name=map_name,
+                start=start,
+                reason="shutdown_requested",
+            )
             return None
 
         try:
@@ -750,12 +961,32 @@ class EBPFMetricsExporter:
                     map_name=map_name,
                     stderr=result.stderr,
                 )
+                self._publish_bpftool_observation(
+                    stage="metrics_map_lookup_missing",
+                    status="empty",
+                    map_name=map_name,
+                    start=start,
+                    reason="map_show_failed",
+                    show_returncode=result.returncode,
+                    show_stdout=result.stdout,
+                    show_stderr=result.stderr,
+                )
                 return None
 
             # Parse JSON output
             try:
                 map_info = json.loads(result.stdout)
                 if not map_info:
+                    self._publish_bpftool_observation(
+                        stage="metrics_map_lookup_empty",
+                        status="empty",
+                        map_name=map_name,
+                        start=start,
+                        reason="map_show_empty",
+                        show_returncode=result.returncode,
+                        show_stdout=result.stdout,
+                        show_stderr=result.stderr,
+                    )
                     return None
 
                 map_id = (
@@ -765,27 +996,79 @@ class EBPFMetricsExporter:
                 )
 
             except json.JSONDecodeError:
+                self._publish_bpftool_observation(
+                    stage="metrics_map_lookup_parse_failed",
+                    status="failure",
+                    map_name=map_name,
+                    start=start,
+                    reason="map_show_json_decode_error",
+                    show_returncode=result.returncode,
+                    show_stdout=result.stdout,
+                    show_stderr=result.stderr,
+                    extra={
+                        "error_type": "JSONDecodeError",
+                        "error_message_redacted": True,
+                    },
+                )
                 raise ParseError(
                     f"Failed to parse bpftool output for map '{map_name}'",
                     {"map_name": map_name, "output": result.stdout[:200]},
                 )
 
             if not map_id:
+                self._publish_bpftool_observation(
+                    stage="metrics_map_lookup_no_id",
+                    status="empty",
+                    map_name=map_name,
+                    start=start,
+                    reason="map_id_missing",
+                    show_returncode=result.returncode,
+                    show_stdout=result.stdout,
+                    show_stderr=result.stderr,
+                )
                 return None
 
             # Dump map contents
             cmd = ["bpftool", "map", "dump", "id", str(map_id), "-j"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            dump_result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
 
-            if result.returncode != 0:
+            if dump_result.returncode != 0:
+                self._publish_bpftool_observation(
+                    stage="metrics_map_dump_failed",
+                    status="failure",
+                    map_name=map_name,
+                    start=start,
+                    reason="map_dump_failed",
+                    show_returncode=result.returncode,
+                    dump_returncode=dump_result.returncode,
+                    show_stdout=result.stdout,
+                    show_stderr=result.stderr,
+                    dump_stdout=dump_result.stdout,
+                    dump_stderr=dump_result.stderr,
+                    map_id=map_id,
+                )
                 raise BpftoolError(
                     f"Failed to dump map '{map_name}'",
                     cmd,
-                    result.stderr,
-                    result.returncode,
+                    dump_result.stderr,
+                    dump_result.returncode,
                 )
 
-            return {"raw_output": result.stdout, "map_id": map_id}
+            self._publish_bpftool_observation(
+                stage="metrics_map_read_succeeded",
+                status="success",
+                map_name=map_name,
+                start=start,
+                reason="map_show_and_dump_succeeded",
+                show_returncode=result.returncode,
+                dump_returncode=dump_result.returncode,
+                show_stdout=result.stdout,
+                show_stderr=result.stderr,
+                dump_stdout=dump_result.stdout,
+                dump_stderr=dump_result.stderr,
+                map_id=map_id,
+            )
+            return {"raw_output": dump_result.stdout, "map_id": map_id}
 
         except FileNotFoundError:
             self.prometheus.degradation.bpftool_available = False
@@ -794,9 +1077,28 @@ class EBPFMetricsExporter:
                 "bpftool not found",
                 degradation_level=self.prometheus.degradation.level.value,
             )
+            self._publish_bpftool_observation(
+                stage="metrics_bpftool_unavailable",
+                status="empty",
+                map_name=map_name,
+                start=start,
+                reason="bpftool_unavailable",
+                extra={"error_type": "FileNotFoundError"},
+            )
             return None
 
         except subprocess.TimeoutExpired:
+            self._publish_bpftool_observation(
+                stage="metrics_map_read_timeout",
+                status="failure",
+                map_name=map_name,
+                start=start,
+                reason="bpftool_timeout",
+                extra={
+                    "error_type": "TimeoutExpired",
+                    "error_message_redacted": True,
+                },
+            )
             raise TimeoutError(
                 f"bpftool command timed out for map '{map_name}'",
                 {"map_name": map_name, "timeout": 5},

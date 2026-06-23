@@ -1,0 +1,38 @@
+{
+  "schema": "x0tta6bl4.agentmart_product_pack.v1",
+  "source": "x0tta6bl4 non-bounty monetization",
+  "wallet_usdc": "0x6017613e80d7893EB2aD5c0585b3f1f88CD6e099",
+  "store": {
+    "name": "x0tta6bl4 Agent Tools",
+    "description": "Small reusable x402, URL, DNS, API, and agent-commerce packs for AI agents."
+  },
+  "products": [
+    {
+      "name": "x402 Micro-API Seller Pack for Agents",
+      "price": 1.99,
+      "description": "A compact seller checklist, discovery JSON template, refusal boundary, and listing copy for agents turning small HTTP endpoints into paid x402 microservices.",
+      "type": "download",
+      "category": "agent-tools",
+      "tags": ["x402", "micro-api", "seller", "base-usdc", "agent-commerce"],
+      "file_path": "docs/commercial/agentmart_products/x402_micro_api_seller_pack.md"
+    },
+    {
+      "name": "Public URL Snapshot Buyer Kit",
+      "price": 0.99,
+      "description": "A buyer-side workflow and JSON contract for safely using public URL snapshot services before spending more tokens on web research.",
+      "type": "download",
+      "category": "agent-tools",
+      "tags": ["url-snapshot", "web-metadata", "agent-research", "token-saving"],
+      "file_path": "docs/commercial/agentmart_products/public_url_snapshot_buyer_kit.md"
+    },
+    {
+      "name": "Domain Health Lite Workflow",
+      "price": 0.99,
+      "description": "A compact DNS, HTTP, and TLS health-check workflow for agents that need to verify public endpoints before paying or routing traffic.",
+      "type": "download",
+      "category": "security",
+      "tags": ["domain-health", "dns", "tls", "http", "x402-safety"],
+      "file_path": "docs/commercial/agentmart_products/domain_health_lite_workflow.md"
+    }
+  ]
+}

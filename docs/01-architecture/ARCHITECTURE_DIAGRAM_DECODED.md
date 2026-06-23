@@ -1,5 +1,12 @@
 # 🏗️ РАСШИФРОВКА АРХИТЕКТУРНОЙ ДИАГРАММЫ (5 СЛОЁВ)
 
+> Статус доказательств на 2026-05-30: это расшифровка диаграммы и инвентарь
+> claims, а не текущее production proof. Числа вроде `<100ms`, `94-98%`,
+> `99.2%`, `<1ms failover` и `20s MTTD` ниже не являются доказанными
+> runtime-фактами без current verification artifact. Актуальные границы
+> доказательств: `docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md` и
+> `docs/architecture/CURRENT_EVENT_CONTROL_PLANE_MAP.json`.
+
 **Дата:** 28 декабря 2025  
 **Источник:** Детальная архитектурная диаграмма системы x0tta6bl4
 
@@ -115,20 +122,20 @@ Mesh Network
    - Источник: Prometheus
    - Unsupervised детектор (не требует меток)
 
-2. **GraphSAGE v2 (94-98% accuracy)**
+2. **GraphSAGE v2 (diagram claim: 94-98% accuracy)**
    - Источники: Prometheus + Log Collector
    - Graph Neural Network для топологии сети
-   - Точность: 94-98%
+   - Точность: 94-98% как claim, needs current artifact
 
 3. **Ensemble Detector**
    - Источник: GraphSAGE v2
    - Multi-model консенсус
-   - Повышает точность до 99.2%
+   - Повышает точность до 99.2% как claim, needs current artifact
 
-4. **Causal Analysis (>90% accuracy)**
+4. **Causal Analysis (diagram claim: >90% accuracy)**
    - Источник: eBPF
    - Определение root cause
-   - Точность: >90%
+   - Точность: >90% как claim, needs current artifact
 
 **Поток данных:**
 ```
@@ -180,15 +187,15 @@ Anomaly Detection
 
 **Компоненты:**
 
-1. **Mesh AI Router (<1ms failover)**
+1. **Mesh AI Router (diagram claim: <1ms failover)**
    - Источник: FL Coordinator
    - Multi-LLM routing (Local/P2P/Cloud)
-   - Failover: <1ms
+   - Failover: <1ms как claim, needs current artifact
 
-2. **MAPE-K Loop (MTTD: 20s)**
+2. **MAPE-K Loop (diagram claim: MTTD 20s)**
    - Источник: PPO Agent
    - Monitor → Analyze → Plan → Execute → Knowledge
-   - MTTD: 20 секунд
+   - MTTD: 20 секунд как claim, needs current artifact
 
 3. **eBPF-GraphSAGE (<100ms stream)**
    - Источники: Byzantine Agg + Diff Privacy
@@ -324,7 +331,7 @@ Feedback Loop
    eBPF (<100ms) → Causal Analysis
 
 3. AI/ML PROCESSING
-   GraphSAGE v2 (94-98%) → Обнаружена аномалия
+   GraphSAGE v2 (diagram claim: 94-98%) → Обнаружена аномалия
    Causal Analysis (>90%) → Root cause: высокая latency
    Ensemble Detector → Подтверждение (99.2%)
    
@@ -332,8 +339,8 @@ Feedback Loop
    PPO Agent → Оптимизация маршрута
    Byzantine Agg → Защита от злых узлов
    
-   MAPE-K Loop (20s MTTD) → План действий
-   Mesh AI Router (<1ms) → Выбор LLM провайдера
+   MAPE-K Loop (diagram claim: 20s MTTD) → План действий
+   Mesh AI Router (diagram claim: <1ms) → Выбор LLM провайдера
    eBPF-GraphSAGE (<100ms) → Real-time streaming
    
    QAOA Optimizer → Оптимизация топологии
@@ -353,24 +360,24 @@ Feedback Loop
 ```
 
 **Результат:**
-- Аномалия обнаружена за 20 секунд (MTTD)
-- Root cause определён с >90% точностью
-- Маршрут изменён автоматически
-- Система обучилась на инциденте
+- Диаграмма заявляет обнаружение аномалии за 20 секунд (MTTD); current proof не приложен
+- Диаграмма заявляет root cause с >90% точностью; current proof не приложен
+- Диаграмма заявляет автоматическое изменение маршрута; current dataplane proof не приложен
+- Диаграмма заявляет обучение на инциденте; current runtime proof не приложен
 
 ---
 
-## 📊 КЛЮЧЕВЫЕ МЕТРИКИ ИЗ ДИАГРАММЫ
+## 📊 КЛЮЧЕВЫЕ CLAIM-МЕТРИКИ ИЗ ДИАГРАММЫ
 
-| Метрика | Значение | Компонент |
-|---------|----------|-----------|
-| **Data Collection Latency** | <100ms | Prometheus, Log Collector, eBPF |
-| **Anomaly Accuracy** | 94-98% | GraphSAGE v2 |
-| **Root Cause Accuracy** | >90% | Causal Analysis |
-| **Ensemble Precision** | 99.2% | Ensemble Detector |
-| **MTTD** | 20s | MAPE-K Loop |
-| **Failover Time** | <1ms | Mesh AI Router |
-| **Streaming Latency** | <100ms | eBPF-GraphSAGE |
+| Метрика | Значение из диаграммы | Компонент | Evidence status |
+|---------|----------|-----------|---|
+| **Data Collection Latency** | <100ms | Prometheus, Log Collector, eBPF | claim, needs current artifact |
+| **Anomaly Accuracy** | 94-98% | GraphSAGE v2 | claim, needs current artifact |
+| **Root Cause Accuracy** | >90% | Causal Analysis | claim, needs current artifact |
+| **Ensemble Precision** | 99.2% | Ensemble Detector | claim, needs current artifact |
+| **MTTD** | 20s | MAPE-K Loop | claim, needs current artifact |
+| **Failover Time** | <1ms | Mesh AI Router | claim, needs current artifact |
+| **Streaming Latency** | <100ms | eBPF-GraphSAGE | claim, needs current artifact |
 
 ---
 
@@ -400,4 +407,3 @@ Feedback Loop
 **Документ:** ARCHITECTURE_DIAGRAM_DECODED.md  
 **Версия:** 1.0  
 **Дата:** 28 декабря 2025
-

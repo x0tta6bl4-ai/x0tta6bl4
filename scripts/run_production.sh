@@ -4,7 +4,7 @@
 # 1. Environment Configuration
 export PYTHONPATH=$PYTHONPATH:.
 export DATABASE_URL="sqlite:///./x0tta6bl4_enterprise.db"
-export X0TTA6BL4_PRODUCTION="true"
+export x0tta6bl4_PRODUCTION="true"
 export PORT=8010
 
 # Secret placeholders (should be set in shell or .env)

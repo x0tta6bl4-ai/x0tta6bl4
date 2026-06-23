@@ -1,9 +1,17 @@
 import logging
 from sqlalchemy.orm import Session
+from src.core.agent_thinking import AgentThinkingCoach
 from src.database import MarketplaceListing, MeshInstance
 from src.api.maas_playbooks import PlaybookCreateRequest, PlaybookAction
 
 logger = logging.getLogger(__name__)
+maas_thinking_coach = AgentThinkingCoach(
+    agent_id="maas_orchestrator",
+    role="maas-dev",
+    capabilities=("marketplace", "zero-trust"),
+    extra_techniques=("mape_k",),
+)
+last_maas_thinking_context: dict = {}
 
 class MaaSOrchestrator:
     """
@@ -17,6 +25,18 @@ class MaaSOrchestrator:
         Generates a signed playbook to move a rented node into the renter's mesh.
         Checks for unpaid invoices before provisioning.
         """
+        global last_maas_thinking_context
+        last_maas_thinking_context = maas_thinking_coach.prepare_task(
+            {
+                "task_type": "maas_rented_node_provisioning",
+                "goal": "Provision a rented node into the renter mesh through a signed playbook.",
+                "constraints": {
+                    "billing_guardrail": "block unpaid invoices older than 3 days",
+                    "playbook_expiry_seconds": 3600,
+                    "do_not_log_join_token": True,
+                },
+            }
+        )
         from src.database import Invoice
         from datetime import datetime, timedelta
         

@@ -1,0 +1,36 @@
+{
+  "collection": {
+    "dedupe": "latest_reply_per_pseudonymous_reporter",
+    "since": "2026-06-05 13:01:20 UTC",
+    "source": "systemd_journal",
+    "stats": {}
+  },
+  "done_updated_count": 0,
+  "events": [],
+  "failure_count": 0,
+  "generated_at": "2026-06-08T04:39:14Z",
+  "operator_action": "collect_legacy_migration_replies",
+  "packet": {
+    "decision": "LEGACY_CLIENT_MIGRATION_PACKET_READY",
+    "sha256": "974534b6e0ae5f9b1e7809f4978e3483401c97bc0bfeee59692cc395566a2b79",
+    "source": "/var/lib/ghost-access/legacy-migration/latest.json",
+    "target_active_subscription_count": 14
+  },
+  "privacy": {
+    "raw_chat_ids_stored": false,
+    "raw_ip_stored": false,
+    "raw_subscription_urls_stored": false,
+    "raw_telegram_handle_stored": false,
+    "raw_tokens_stored": false,
+    "raw_user_ids_stored": false,
+    "raw_uuid_stored": false,
+    "raw_vpn_uris_stored": false
+  },
+  "reply_counts": {},
+  "result_counts": {},
+  "schema_version": 1,
+  "source": "collect_legacy_migration_replies_from_bot_journal.py",
+  "status": "no_client_replies",
+  "symptom_counts": {},
+  "total_replies": 0
+}

@@ -6,12 +6,15 @@ for distributed edge computing infrastructure.
 """
 
 import asyncio
+import hashlib
 import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -545,6 +548,65 @@ class EdgeNodeManager:
         self._nodes: Dict[str, EdgeNode] = {}
         self._node_health: Dict[str, datetime] = {}
         self._running = False
+        self.source_agent = "edge-node-manager"
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="coordination",
+            capabilities=("mape_k", "edge", "zero-trust"),
+            extra_techniques=("reverse_planning",),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
+        self._record_thinking(
+            operation="init",
+            goal="initialize edge node manager without exposing node endpoints",
+            constraints={"node_count": 0, "running": self._running},
+        )
+
+    @staticmethod
+    def _hash_value(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            return hashlib.sha256(value).hexdigest()
+        return hashlib.sha256(
+            str(value).encode("utf-8", errors="replace")
+        ).hexdigest()
+
+    def _record_thinking(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "edge_node_manager_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                "raw_node_ids_redacted": True,
+                "raw_endpoints_redacted": True,
+                "raw_task_payloads_redacted": True,
+                "selection_is_local_scheduler_decision": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local edge scheduling metadata, hashes, counts, "
+                "capability counts, and status. Do not expose raw node IDs, "
+                "endpoints, tags, or task payloads. A selected node is not proof "
+                "of remote execution or dataplane delivery."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose edge manager thinking state without raw node IDs or endpoints."""
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
     
     def register_node(
         self,
@@ -557,6 +619,17 @@ class EdgeNodeManager:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> EdgeNode:
         """Register an edge node (object or API-style kwargs)."""
+        self._record_thinking(
+            operation="register_node",
+            goal="register edge node without exposing endpoint or metadata",
+            constraints={
+                "provided_node_object": node is not None,
+                "endpoint_hash": self._hash_value(endpoint),
+                "capability_count": len(capabilities or []),
+                "metadata_count": len(metadata or {}),
+                "max_concurrent_tasks": max_concurrent_tasks,
+            },
+        )
         if node is None:
             if not endpoint or "://" not in endpoint:
                 raise ValueError("Invalid endpoint")
@@ -577,6 +650,16 @@ class EdgeNodeManager:
 
         self._nodes[node.config.node_id] = node
         self._node_health[node.config.node_id] = datetime.utcnow()
+        self._record_thinking(
+            operation="register_node",
+            goal="record registered edge node summary",
+            constraints={
+                "node_id_hash": self._hash_value(node.config.node_id),
+                "region_hash": self._hash_value(node.config.region),
+                "capability_count": len(node.config.capabilities),
+                "node_count": len(self._nodes),
+            },
+        )
         logger.info(f"Registered edge node: {node.config.node_id}")
         return node
     
@@ -585,6 +668,14 @@ class EdgeNodeManager:
         if node_id in self._nodes:
             del self._nodes[node_id]
             del self._node_health[node_id]
+            self._record_thinking(
+                operation="unregister_node",
+                goal="remove edge node without exposing node ID",
+                constraints={
+                    "node_id_hash": self._hash_value(node_id),
+                    "node_count": len(self._nodes),
+                },
+            )
             logger.info(f"Unregistered edge node: {node_id}")
 
     def deregister_node(self, node_id: str) -> bool:
@@ -648,6 +739,16 @@ class EdgeNodeManager:
     ) -> Optional[EdgeNode]:
         """Get the best node for a task."""
         candidates = self.get_healthy_nodes()
+        self._record_thinking(
+            operation="get_best_node",
+            goal="start local edge node selection",
+            constraints={
+                "candidate_count": len(candidates),
+                "required_capability_count": len(required_capabilities or set()),
+                "preferred_region_hash": self._hash_value(preferred_region),
+                "preferred_region_redacted": preferred_region is not None,
+            },
+        )
         
         # Filter by capabilities
         if required_capabilities:
@@ -666,6 +767,16 @@ class EdgeNodeManager:
                 candidates = region_candidates
         
         if not candidates:
+            self._record_thinking(
+                operation="get_best_node",
+                goal="record no eligible edge node after filters",
+                constraints={
+                    "candidate_count": 0,
+                    "required_capability_count": len(required_capabilities or set()),
+                    "preferred_region_hash": self._hash_value(preferred_region),
+                    "preferred_region_redacted": preferred_region is not None,
+                },
+            )
             return None
         
         # Sort by load (prefer nodes with more available slots)
@@ -673,8 +784,21 @@ class EdgeNodeManager:
             key=lambda n: n._resources.available_slots,
             reverse=True
         )
-        
-        return candidates[0]
+        selected = candidates[0]
+        self._record_thinking(
+            operation="get_best_node",
+            goal="record selected edge node without exposing node ID",
+            constraints={
+                "candidate_count": len(candidates),
+                "selected_node_id_hash": self._hash_value(selected.config.node_id),
+                "selected_available_slots": selected._resources.available_slots,
+                "selected_region_hash": self._hash_value(selected.config.region),
+                "required_capability_count": len(required_capabilities or set()),
+                "preferred_region_hash": self._hash_value(preferred_region),
+                "preferred_region_redacted": preferred_region is not None,
+            },
+        )
+        return selected
     
     async def start_all(self) -> None:
         """Start all registered nodes."""

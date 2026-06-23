@@ -3,11 +3,15 @@ Comprehensive unit tests for src.network.batman.node_manager
 Covers: NodeMetrics, NodeManager, HealthMonitor, create_incident_workflow_for_node_manager
 """
 
+import json
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.libx0t.network.batman.node_manager import (
+    NodeManager as LibX0TBatmanNodeManager,
+)
 from src.network.batman.node_manager import (
     AttestationStrategy,
     HealthMonitor,
@@ -161,6 +165,46 @@ class TestNodeManagerInit:
         mgr = _make_manager(traffic_profile="invalid_profile")
         assert mgr.traffic_shaper is None
 
+    def test_thinking_status_is_available_without_raw_identity(self):
+        mgr = _make_manager(mesh_id="mesh-secret", node_id="local-secret")
+
+        status = json.dumps(mgr.get_thinking_status(), sort_keys=True)
+
+        assert "thinking" in status
+        assert "last_thinking_context" in status
+        assert "mesh-secret" not in status
+        assert "local-secret" not in status
+
+
+class TestLibX0TNodeManagerThinking:
+    def test_libx0t_registration_thinking_redacts_sensitive_values(self):
+        with patch("src.libx0t.network.batman.node_manager.DAO_AVAILABLE", False):
+            mgr = LibX0TBatmanNodeManager(
+                mesh_id="lib-mesh-sensitive",
+                local_node_id="lib-local-sensitive",
+                enable_optimizations=False,
+            )
+
+        assert (
+            mgr.register_node(
+                "lib-node-sensitive",
+                "11:22:33:44:55:66",
+                "172.16.1.9",
+                spiffe_id="spiffe://mesh/lib-node-sensitive",
+            )
+            is True
+        )
+
+        status = json.dumps(mgr.get_thinking_status(), sort_keys=True)
+        assert "libx0t_batman_node_registered" in status
+        assert "hash" in status
+        assert "lib-node-sensitive" not in status
+        assert "lib-local-sensitive" not in status
+        assert "lib-mesh-sensitive" not in status
+        assert "172.16.1.9" not in status
+        assert "11:22:33:44:55:66" not in status
+        assert "spiffe://mesh/lib-node-sensitive" not in status
+
 
 # ===========================================================================
 # NodeManager - Registration & Attestation
@@ -174,6 +218,29 @@ class TestNodeRegistration:
         assert "node-1" in mgr.nodes
         assert mgr.nodes["node-1"]["ip_address"] == "10.0.0.1"
         assert mgr.nodes["node-1"]["status"] == "online"
+
+    def test_registration_thinking_redacts_node_network_and_spiffe_values(self):
+        mgr = _make_manager(mesh_id="mesh-sensitive", node_id="local-sensitive")
+
+        assert (
+            mgr.register_node(
+                "node-sensitive",
+                "aa:bb:cc:dd:ee:ff",
+                "10.44.55.66",
+                spiffe_id="spiffe://mesh/node-sensitive",
+            )
+            is True
+        )
+
+        status = json.dumps(mgr.get_thinking_status(), sort_keys=True)
+        assert "batman_node_registered" in status
+        assert "hash" in status
+        assert "node-sensitive" not in status
+        assert "local-sensitive" not in status
+        assert "mesh-sensitive" not in status
+        assert "10.44.55.66" not in status
+        assert "aa:bb:cc:dd:ee:ff" not in status
+        assert "spiffe://mesh/node-sensitive" not in status
 
     def test_register_duplicate_node(self):
         mgr = _make_manager()

@@ -15,12 +15,16 @@ import math
 import os
 import random
 import struct
+import time
 import warnings
 import zlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
+
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.services.service_event_identity import service_event_identity
 
 # Try to import cryptography library for secure stream cipher
 try:
@@ -46,6 +50,58 @@ class SteganographyType(Enum):
     TEXT = "text"
     VIDEO = "video"
     PROTOCOL = "protocol"
+
+
+_SERVICE_AGENT = "anti-censorship-steganography-engine"
+_SERVICE_LAYER = "anti_censorship_steganography_local_evidence"
+STEGANOGRAPHY_ENGINE_CLAIM_BOUNDARY = (
+    "Local steganography engine evidence only. It records local carrier "
+    "capacity, embed/extract/auto-detect/covert-channel outcomes, duration, "
+    "carrier-type buckets, byte-count buckets, encryption/configuration "
+    "presence, and service identity presence; it does not expose carrier bytes, "
+    "hidden payload bytes, encryption keys, generated covert domains, HTTP "
+    "headers, zero-width text, audio/image contents, extracted payloads, or "
+    "prove DPI bypass, censorship bypass, remote reachability, packet delivery, "
+    "anonymity, provider health, client installation, or production customer "
+    "traffic use."
+)
+
+
+def _byte_count_bucket(value: Any) -> str:
+    if not isinstance(value, int) or value <= 0:
+        return "zero"
+    if value <= 64:
+        return "tiny"
+    if value <= 512:
+        return "small"
+    if value <= 1500:
+        return "mtu"
+    if value <= 8192:
+        return "chunk"
+    return "large"
+
+
+def _carrier_type_bucket(carrier_type: Any) -> str:
+    value = getattr(carrier_type, "value", carrier_type)
+    text = str(value or "").strip().lower()
+    if text in {item.value for item in SteganographyType}:
+        return text
+    return "unsupported"
+
+
+def _safe_result_metadata(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    safe: Dict[str, Any] = {}
+    for key in ("method", "bits_embedded", "chunks", "headers_added", "detected_type"):
+        item = value.get(key)
+        if isinstance(item, bool):
+            safe[key] = item
+        elif isinstance(item, int):
+            safe[key] = item
+        elif isinstance(item, str):
+            safe[key] = item[:64]
+    return safe
 
 
 @dataclass
@@ -795,14 +851,110 @@ class SteganographyEngine:
     Unified steganography engine supporting multiple carrier types.
     """
     
-    def __init__(self, config: Optional[SteganographyConfig] = None):
+    def __init__(
+        self,
+        config: Optional[SteganographyConfig] = None,
+        *,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: Optional[str] = None,
+    ):
         self.config = config or SteganographyConfig()
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
         self._carriers: Dict[SteganographyType, SteganographyCarrier] = {
             SteganographyType.IMAGE: ImageSteganography(self.config),
             SteganographyType.TEXT: TextSteganography(self.config),
             SteganographyType.PROTOCOL: ProtocolSteganography(self.config),
             SteganographyType.AUDIO: AudioSteganography(self.config),
         }
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        if self.event_project_root is None:
+            return None
+        try:
+            self.event_bus = get_event_bus(self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize steganography EventBus: %s", exc)
+            return None
+
+    def _identity_presence(self) -> Dict[str, bool]:
+        identity = service_event_identity(service_name=_SERVICE_AGENT)
+        return {
+            "spiffe_id_present": bool(identity.get("spiffe_id")),
+            "did_present": bool(identity.get("did")),
+            "wallet_address_present": bool(identity.get("wallet_address")),
+            "raw_identity_redacted": True,
+        }
+
+    def _config_metadata(self) -> Dict[str, Any]:
+        return {
+            "use_encryption": bool(self.config.use_encryption),
+            "encryption_key_present": bool(self.config.encryption_key),
+            "raw_encryption_key_redacted": True,
+            "adaptive_embedding": bool(self.config.adaptive_embedding),
+            "random_seed_source": str(self.config.random_seed_source)[:64],
+            "redundancy": self.config.redundancy,
+        }
+
+    def _publish_evidence(
+        self,
+        *,
+        operation: str,
+        status_value: str,
+        started_at: float,
+        metadata: Optional[Dict[str, Any]] = None,
+        error_type: Optional[str] = None,
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+
+        payload: Dict[str, Any] = {
+            "component": "anti_censorship.steganography",
+            "operation": operation,
+            "service_name": _SERVICE_AGENT,
+            "source_alias": _SERVICE_AGENT,
+            "layer": _SERVICE_LAYER,
+            "status": status_value,
+            "duration_ms": round((time.monotonic() - started_at) * 1000.0, 3),
+            "config": self._config_metadata(),
+            "service_identity": self._identity_presence(),
+            "control_action": False,
+            "observed_state": True,
+            "payloads_redacted": True,
+            "carrier_bytes_redacted": True,
+            "hidden_data_redacted": True,
+            "extracted_data_redacted": True,
+            "raw_identifiers_redacted": True,
+            "crypto_material_redacted": True,
+            "dataplane_confirmed": False,
+            "dpi_bypass_confirmed": False,
+            "bypass_confirmed": False,
+            "external_dpi_tested": False,
+            "claim_boundary": STEGANOGRAPHY_ENGINE_CLAIM_BOUNDARY,
+        }
+        if metadata:
+            payload.update(metadata)
+        if error_type:
+            payload["error"] = {
+                "type": error_type,
+                "message_redacted": True,
+            }
+
+        event_type = (
+            EventType.TASK_FAILED
+            if status_value.endswith("failed") or status_value == "unsupported"
+            else EventType.PIPELINE_STAGE_END
+        )
+        try:
+            event = bus.publish(event_type, _SERVICE_AGENT, payload, priority=4)
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish steganography evidence: %s", exc)
+            return None
     
     def get_capacity(
         self,
@@ -810,9 +962,31 @@ class SteganographyEngine:
         carrier_type: SteganographyType = SteganographyType.IMAGE
     ) -> int:
         """Get capacity for a carrier."""
+        started_at = time.monotonic()
         carrier = self._carriers.get(carrier_type)
         if carrier:
-            return carrier.get_capacity(carrier_data)
+            capacity = carrier.get_capacity(carrier_data)
+            self._publish_evidence(
+                operation="get_capacity",
+                status_value="measured",
+                started_at=started_at,
+                metadata={
+                    "carrier_type": _carrier_type_bucket(carrier_type),
+                    "carrier_bytes_bucket": _byte_count_bucket(len(carrier_data)),
+                    "capacity_bytes_bucket": _byte_count_bucket(capacity),
+                },
+            )
+            return capacity
+        self._publish_evidence(
+            operation="get_capacity",
+            status_value="unsupported",
+            started_at=started_at,
+            metadata={
+                "carrier_type": _carrier_type_bucket(carrier_type),
+                "carrier_bytes_bucket": _byte_count_bucket(len(carrier_data)),
+                "capacity_bytes_bucket": "zero",
+            },
+        )
         return 0
     
     def embed(
@@ -822,13 +996,43 @@ class SteganographyEngine:
         carrier_type: SteganographyType = SteganographyType.IMAGE
     ) -> EmbeddingResult:
         """Embed data in carrier."""
+        started_at = time.monotonic()
         carrier = self._carriers.get(carrier_type)
         if not carrier:
+            self._publish_evidence(
+                operation="embed",
+                status_value="unsupported",
+                started_at=started_at,
+                metadata={
+                    "carrier_type": _carrier_type_bucket(carrier_type),
+                    "carrier_bytes_bucket": _byte_count_bucket(len(carrier_data)),
+                    "hidden_bytes_bucket": _byte_count_bucket(len(hidden_data)),
+                },
+            )
             return EmbeddingResult(
                 success=False,
                 error_message=f"Unsupported carrier type: {carrier_type}"
             )
-        return carrier.embed(carrier_data, hidden_data)
+        result = carrier.embed(carrier_data, hidden_data)
+        self._publish_evidence(
+            operation="embed",
+            status_value="embedded" if result.success else "embed_failed",
+            started_at=started_at,
+            metadata={
+                "carrier_type": _carrier_type_bucket(carrier_type),
+                "carrier_bytes_bucket": _byte_count_bucket(len(carrier_data)),
+                "hidden_bytes_bucket": _byte_count_bucket(len(hidden_data)),
+                "output_carrier_present": bool(result.carrier_data),
+                "output_carrier_bytes_bucket": _byte_count_bucket(
+                    len(result.carrier_data or b"")
+                ),
+                "capacity_used_bucket": _byte_count_bucket(result.capacity_used),
+                "capacity_total_bucket": _byte_count_bucket(result.capacity_total),
+                "result_metadata": _safe_result_metadata(result.metadata),
+                "error_message_redacted": bool(result.error_message),
+            },
+        )
+        return result
     
     def extract(
         self,
@@ -836,25 +1040,80 @@ class SteganographyEngine:
         carrier_type: SteganographyType = SteganographyType.IMAGE
     ) -> ExtractionResult:
         """Extract data from carrier."""
+        started_at = time.monotonic()
         carrier = self._carriers.get(carrier_type)
         if not carrier:
+            self._publish_evidence(
+                operation="extract",
+                status_value="unsupported",
+                started_at=started_at,
+                metadata={
+                    "carrier_type": _carrier_type_bucket(carrier_type),
+                    "carrier_bytes_bucket": _byte_count_bucket(len(carrier_data)),
+                },
+            )
             return ExtractionResult(
                 success=False,
                 error_message=f"Unsupported carrier type: {carrier_type}"
             )
-        return carrier.extract(carrier_data)
+        result = carrier.extract(carrier_data)
+        self._publish_evidence(
+            operation="extract",
+            status_value="extracted" if result.success else "extract_failed",
+            started_at=started_at,
+            metadata={
+                "carrier_type": _carrier_type_bucket(carrier_type),
+                "carrier_bytes_bucket": _byte_count_bucket(len(carrier_data)),
+                "hidden_data_present": bool(result.hidden_data),
+                "hidden_data_bytes_bucket": _byte_count_bucket(result.data_length),
+                "integrity_valid": bool(result.integrity_valid),
+                "error_message_redacted": bool(result.error_message),
+            },
+        )
+        return result
     
     def auto_detect_and_extract(self, carrier_data: bytes) -> ExtractionResult:
         """Try all carrier types to extract data."""
+        started_at = time.monotonic()
+        attempts = 0
         for stego_type, carrier in self._carriers.items():
             try:
+                attempts += 1
                 result = carrier.extract(carrier_data)
                 if result.success:
                     result.metadata = {"detected_type": stego_type.value}
+                    self._publish_evidence(
+                        operation="auto_detect_and_extract",
+                        status_value="detected",
+                        started_at=started_at,
+                        metadata={
+                            "carrier_bytes_bucket": _byte_count_bucket(
+                                len(carrier_data)
+                            ),
+                            "attempts": attempts,
+                            "detected_type": stego_type.value,
+                            "hidden_data_present": bool(result.hidden_data),
+                            "hidden_data_bytes_bucket": _byte_count_bucket(
+                                result.data_length
+                            ),
+                            "integrity_valid": bool(result.integrity_valid),
+                        },
+                    )
                     return result
             except Exception:
                 continue
-        
+
+        self._publish_evidence(
+            operation="auto_detect_and_extract",
+            status_value="not_detected",
+            started_at=started_at,
+            metadata={
+                "carrier_bytes_bucket": _byte_count_bucket(len(carrier_data)),
+                "attempts": attempts,
+                "hidden_data_present": False,
+                "hidden_data_bytes_bucket": "zero",
+            },
+        )
         return ExtractionResult(
             success=False,
             error_message="No hidden data detected with any method"
@@ -871,26 +1130,63 @@ class SteganographyEngine:
         
         Generates appropriate carrier if template not provided.
         """
+        started_at = time.monotonic()
         if carrier_type == SteganographyType.PROTOCOL:
             # Use DNS tunneling
             dns = ProtocolSteganography(self.config)
-            return dns.embed_dns("covert.example.com", data)
+            result = dns.embed_dns("covert.example.com", data)
         
         elif carrier_type == SteganographyType.TEXT:
             # Generate cover text
             if template is None:
                 template = self._generate_cover_text(len(data))
-            return self.embed(template, data, carrier_type)
+            result = self.embed(template, data, carrier_type)
         
         elif carrier_type == SteganographyType.IMAGE:
             if template is None:
                 template = self._generate_cover_image(len(data))
-            return self.embed(template, data, carrier_type)
+            result = self.embed(template, data, carrier_type)
         
-        return EmbeddingResult(
-            success=False,
-            error_message=f"Cannot auto-generate carrier for {carrier_type}"
+        else:
+            self._publish_evidence(
+                operation="create_covert_channel",
+                status_value="unsupported",
+                started_at=started_at,
+                metadata={
+                    "carrier_type": _carrier_type_bucket(carrier_type),
+                    "hidden_bytes_bucket": _byte_count_bucket(len(data)),
+                    "template_present": template is not None,
+                    "template_bytes_bucket": _byte_count_bucket(
+                        len(template or b"")
+                    ),
+                },
+            )
+            return EmbeddingResult(
+                success=False,
+                error_message=f"Cannot auto-generate carrier for {carrier_type}"
+            )
+
+        self._publish_evidence(
+            operation="create_covert_channel",
+            status_value="created" if result.success else "create_failed",
+            started_at=started_at,
+            metadata={
+                "carrier_type": _carrier_type_bucket(carrier_type),
+                "hidden_bytes_bucket": _byte_count_bucket(len(data)),
+                "template_present": template is not None,
+                "template_bytes_bucket": _byte_count_bucket(len(template or b"")),
+                "output_carrier_present": bool(result.carrier_data),
+                "output_carrier_bytes_bucket": _byte_count_bucket(
+                    len(result.carrier_data or b"")
+                ),
+                "capacity_used_bucket": _byte_count_bucket(result.capacity_used),
+                "capacity_total_bucket": _byte_count_bucket(result.capacity_total),
+                "result_metadata": _safe_result_metadata(result.metadata),
+                "generated_cover_redacted": True,
+                "error_message_redacted": bool(result.error_message),
+            },
         )
+        return result
     
     def _generate_cover_text(self, data_length: int) -> bytes:
         """Generate innocuous cover text."""

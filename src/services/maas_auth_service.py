@@ -11,8 +11,19 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.api.maas_auth_models import UserLoginRequest, UserRegisterRequest
+from src.api.maas_security import ApiKeyManager
+from src.database import Session as UserSession
 from src.database import User
 from src.security.password_auth import hash_password, verify_password
+
+
+def find_user_by_api_key(db: Session, api_key: str | None) -> User | None:
+    if not api_key:
+        return None
+    api_key = api_key.strip()
+    if not api_key:
+        return None
+    return db.query(User).filter(User.api_key_hash == ApiKeyManager.hash_key(api_key)).first()
 
 
 class MaaSAuthService:
@@ -31,6 +42,19 @@ class MaaSAuthService:
     def _normalize_email(email: str) -> str:
         return (email or "").strip().lower()
 
+    @staticmethod
+    def issued_api_key(user: User) -> str | None:
+        return getattr(user, "_issued_api_key", None)
+
+    def issue_api_key(self, db: Session, user: User, *, commit: bool = True) -> str:
+        api_key = self._api_key_factory()
+        user.api_key = None
+        user.api_key_hash = ApiKeyManager.hash_key(api_key)
+        user._issued_api_key = api_key
+        if commit:
+            db.commit()
+        return api_key
+
     def register(self, db: Session, req: UserRegisterRequest) -> User:
         normalized_email = self._normalize_email(req.email)
         if not normalized_email:
@@ -39,19 +63,30 @@ class MaaSAuthService:
         if db.query(User).filter(func.lower(User.email) == normalized_email).first():
             raise HTTPException(status_code=400, detail="Email already registered")
 
+        api_key = self._api_key_factory()
+        plan_limits = {
+            "enterprise": 10000000,
+            "pro": 1000000,
+            "starter": 10000,
+            "free": 1000,
+        }
         user = User(
             id=str(uuid.uuid4()),
             email=normalized_email,
             password_hash=hash_password(req.password),
             full_name=req.full_name,
             company=req.company,
-            api_key=self._api_key_factory(),
+            api_key=None,
+            api_key_hash=ApiKeyManager.hash_key(api_key),
             role="user",
             plan=self._default_plan,
+            requests_limit=plan_limits.get(self._default_plan, 10000),
         )
+        user._issued_api_key = api_key
         db.add(user)
         db.commit()
         db.refresh(user)
+        user._issued_api_key = api_key
         return user
 
     def login(self, db: Session, req: UserLoginRequest) -> str:
@@ -68,14 +103,28 @@ class MaaSAuthService:
 
         if should_rehash:
             user.password_hash = hash_password(req.password)
-            db.commit()
 
-        return user.api_key
+        return self.issue_api_key(db, user)
+
+    def validate_session(self, db: Session, token: str | None) -> User | None:
+        """Return the DB user for a valid non-expired session token."""
+        if not token:
+            return None
+        token = token.strip()
+        if not token:
+            return None
+
+        session = (
+            db.query(UserSession)
+            .filter(UserSession.token == token, UserSession.expires_at > datetime.utcnow())
+            .first()
+        )
+        if session is None:
+            return None
+        return db.query(User).filter(User.id == session.user_id).first()
 
     def rotate_api_key(self, db: Session, user: User) -> tuple[str, datetime]:
         """Rotate user's API key and return (new_key, rotated_at)."""
-        new_key = self._api_key_factory()
         rotated_at = datetime.utcnow()
-        user.api_key = new_key
-        db.commit()
+        new_key = self.issue_api_key(db, user)
         return new_key, rotated_at

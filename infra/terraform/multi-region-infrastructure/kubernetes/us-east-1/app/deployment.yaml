@@ -68,7 +68,7 @@ spec:
     spec:
       containers:
       - name: x0tta6bl4-app
-        image: x0tta6bl4/app:latest
+        image: x0tta6bl4/app:3.4.0
         imagePullPolicy: Always
 
         ports:

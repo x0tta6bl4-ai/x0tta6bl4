@@ -322,7 +322,7 @@ finally:
 PY
 
   info "Starting API (full mode for Marketplace/Telemetry/Nodes) on ${APP_HOST}:${APP_PORT}"
-  bash -lc "cd '$REPO_ROOT' && DATABASE_URL='$PROFILE_DATABASE_URL' TESTING=true MAAS_LIGHT_MODE=false X0TTA6BL4_FAIL_OPEN_STARTUP=true uvicorn src.core.app:app --host '$APP_HOST' --port '$APP_PORT'" >"$APP_LOG" 2>&1 &
+  bash -lc "cd '$REPO_ROOT' && DATABASE_URL='$PROFILE_DATABASE_URL' TESTING=true MAAS_LIGHT_MODE=false x0tta6bl4_FAIL_OPEN_STARTUP=true uvicorn src.core.app:app --host '$APP_HOST' --port '$APP_PORT'" >"$APP_LOG" 2>&1 &
   APP_PID=$!
 
   deadline=$((SECONDS + STARTUP_TIMEOUT_SECONDS))

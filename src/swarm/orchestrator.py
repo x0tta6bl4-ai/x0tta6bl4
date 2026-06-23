@@ -11,8 +11,9 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.swarm.agent import Agent, AgentCapabilities
 from src.swarm.agents.pricing_agent import DynamicPricingAgent
 
@@ -69,17 +70,61 @@ class SwarmOrchestrator:
     Central orchestrator for Kimi K2.5 Agent Swarm.
     """
 
-    def __init__(self, config: Optional[SwarmConfig] = None):
+    def __init__(
+        self,
+        config: Optional[SwarmConfig] = None,
+        node_id: Optional[str] = None,
+        peers: Optional[Set[str]] = None,
+    ):
         self.config = config or SwarmConfig(name="default-swarm")
+        self.node_id = node_id or self.config.name
+        self.peers: Set[str] = set(peers or set())
+        self._pending_decisions: Dict[str, Any] = {}
+        self._decision_history: list[Any] = []
         self.status = SwarmStatus.INITIALIZING
         self.agents: Dict[str, Agent] = {}
         self.tasks: Dict[str, Task] = {}
         self.metrics = SwarmMetrics()
         self.parl_controller = None
         self._running = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.node_id,
+            role="coordinator",
+            capabilities=("swarm", "orchestration", "parl"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
+
+    def add_node(self, node_id: str) -> None:
+        """Backward-compatible peer registration helper."""
+        self.peers.add(node_id)
+
+    def remove_node(self, node_id: str) -> None:
+        """Backward-compatible peer removal helper."""
+        self.peers.discard(node_id)
+
+    def get_active_nodes(self) -> Set[str]:
+        """Return currently known active peers.
+
+        This legacy API treats every known peer as active because this
+        orchestrator does not maintain per-peer liveness state.
+        """
+        return set(self.peers)
 
     async def start(self):
         """Start the swarm and its initial agents."""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "swarm_start",
+                "goal": "initialize the swarm and required baseline agents",
+                "constraints": {
+                    "swarm_name": self.config.name,
+                    "max_agents": self.config.max_agents,
+                    "min_agents": self.config.min_agents,
+                    "enable_parl": self.config.enable_parl,
+                    "peer_count": len(self.peers),
+                },
+            }
+        )
         logger.info(f"🚀 Starting swarm: {self.config.name}")
         self._running = True
         
@@ -119,6 +164,18 @@ class SwarmOrchestrator:
 
     async def spawn_agent(self, agent_type: str, agent_id: str) -> Optional[Agent]:
         """Spawns an agent of a specific class."""
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "swarm_spawn_agent",
+                "goal": "spawn the right agent type for swarm capacity",
+                "constraints": {
+                    "agent_type": agent_type,
+                    "current_agents": len(self.agents),
+                    "max_agents": self.config.max_agents,
+                    "known_agent_id": agent_id in self.agents,
+                },
+            }
+        )
         if agent_type == "base":
             agent = Agent(agent_id, "monitor", AgentCapabilities(can_read_metrics=True))
         elif agent_type == "pricing":
@@ -137,6 +194,18 @@ class SwarmOrchestrator:
         task = Task(task_id=task_id, agent_type=agent_type, payload=payload)
         self.tasks[task_id] = task
         started = time.time()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "swarm_task_delegation",
+                "goal": "delegate a task to the best available swarm agent",
+                "constraints": {
+                    "agent_type": agent_type,
+                    "available_agents": len(self.agents),
+                    "payload_keys": sorted((payload or {}).keys()),
+                    "task_id_present": bool(task_id),
+                },
+            }
+        )
         # Find appropriate agent
         target_agent = None
         for agent in self.agents.values():
@@ -181,6 +250,8 @@ class SwarmOrchestrator:
                 "tasks_failed": self.metrics.tasks_failed,
                 "avg_task_time_ms": round(self.metrics.avg_task_time_ms, 3),
             },
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
 
 

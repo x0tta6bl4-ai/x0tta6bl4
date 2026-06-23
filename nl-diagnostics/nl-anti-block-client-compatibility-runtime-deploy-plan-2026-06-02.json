@@ -1,0 +1,206 @@
+{
+  "applied_to_nl": false,
+  "apply_required": false,
+  "confirm_required": "DEPLOY_CLIENT_COMPAT_RUNTIME",
+  "current_blocker": "none",
+  "decision": "CLIENT_COMPAT_RUNTIME_ALREADY_APPLIED",
+  "dry_run_mutated_nl": false,
+  "files": [
+    {
+      "component": "profile_status_api",
+      "local_exists": true,
+      "local_path": "services/nl-server/mesh-runtime/profile_status_api.py",
+      "local_sha256": "2efbfcd0e959b6bbecddcb3dac539bcb90ca51cbfe5527c1ea31ef9794ef7e6b",
+      "mode": "0644",
+      "remote_matches_local": true,
+      "remote_ok": true,
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/profile_status_api.py",
+      "remote_present": true,
+      "remote_sha256_known": true,
+      "runtime_generated": false
+    },
+    {
+      "component": "client_compat_runtime_summary_builder",
+      "local_exists": true,
+      "local_path": "services/nl-server/ghost-access/build_client_compatibility_runtime_summary.py",
+      "local_sha256": "31763837881492e8f384abb0a6efd956dcec0f5c0bd1759dbe365f779764ad4c",
+      "mode": "0644",
+      "remote_matches_local": true,
+      "remote_ok": true,
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/build_client_compatibility_runtime_summary.py",
+      "remote_present": true,
+      "remote_sha256_known": true,
+      "runtime_generated": false
+    },
+    {
+      "component": "client_compat_matrix",
+      "local_exists": true,
+      "local_path": "nl-diagnostics/nl-anti-block-client-compatibility-matrix-2026-06-02.json",
+      "local_sha256": "197c82fc3e600114b9954a43c1ff6343554a11cd4f984ca4f03603f69810f56e",
+      "mode": "0600",
+      "remote_matches_local": true,
+      "remote_ok": true,
+      "remote_path": "/var/lib/ghost-access/client-compatibility/matrix.json",
+      "remote_present": true,
+      "remote_sha256_known": true,
+      "runtime_generated": false
+    },
+    {
+      "component": "client_compat_summary_seed",
+      "local_exists": true,
+      "local_path": "nl-diagnostics/nl-anti-block-client-compatibility-runtime-summary-2026-06-02.json",
+      "local_sha256": "2b2044b63f1c1d76f43ccd5dad081d2a99db05a37fec4a7de6917996b45d475d",
+      "mode": "0600",
+      "remote_matches_local": false,
+      "remote_ok": true,
+      "remote_path": "/var/lib/ghost-access/client-compatibility/latest.json",
+      "remote_present": true,
+      "remote_sha256_known": true,
+      "runtime_generated": true
+    },
+    {
+      "component": "client_compat_systemd_service",
+      "local_exists": true,
+      "local_path": "services/nl-server/systemd/ghost-access-client-compatibility-summary.service",
+      "local_sha256": "fbd93ba480cb67e656b81632432d7caba31f3ff71fbd971249d41c3e18a63660",
+      "mode": "0644",
+      "remote_matches_local": true,
+      "remote_ok": true,
+      "remote_path": "/etc/systemd/system/ghost-access-client-compatibility-summary.service",
+      "remote_present": true,
+      "remote_sha256_known": true,
+      "runtime_generated": false
+    },
+    {
+      "component": "client_compat_systemd_timer",
+      "local_exists": true,
+      "local_path": "services/nl-server/systemd/ghost-access-client-compatibility-summary.timer",
+      "local_sha256": "b3accd74d2e136a41477ef415e6ebef2b677c7f9442fb0cc250dfc7ef05baacc",
+      "mode": "0644",
+      "remote_matches_local": true,
+      "remote_ok": true,
+      "remote_path": "/etc/systemd/system/ghost-access-client-compatibility-summary.timer",
+      "remote_present": true,
+      "remote_sha256_known": true,
+      "runtime_generated": false
+    }
+  ],
+  "generated_at": "2026-06-02T02:38:51Z",
+  "local_missing_files": [],
+  "mutation_policy": {
+    "allowed_mutation_units": [
+      "x0tta6bl4-profile-status-api.service",
+      "ghost-access-client-compatibility-summary.service",
+      "ghost-access-client-compatibility-summary.timer"
+    ],
+    "allowed_target_paths": [
+      "/opt/x0tta6bl4-mesh/scripts/profile_status_api.py",
+      "/opt/x0tta6bl4-mesh/scripts/build_client_compatibility_runtime_summary.py",
+      "/var/lib/ghost-access/client-compatibility/matrix.json",
+      "/var/lib/ghost-access/client-compatibility/latest.json",
+      "/etc/systemd/system/ghost-access-client-compatibility-summary.service",
+      "/etc/systemd/system/ghost-access-client-compatibility-summary.timer"
+    ],
+    "apply_requires_confirm": "DEPLOY_CLIENT_COMPAT_RUNTIME",
+    "default_mode": "dry_run",
+    "dry_run_mutates_nl": false,
+    "forbidden_service_restarts": [
+      "x-ui",
+      "nginx",
+      "telegram-bot-simple.service",
+      "ghost-access-nl-xhttp.service",
+      "ghost-access-nl-https-ws.service",
+      "ghost-access-nl-xhttp-sync.timer",
+      "ghost-access-nl-https-ws-sync.timer"
+    ],
+    "status_api_restart_requires_confirm": "RESTART_PROFILE_STATUS_API",
+    "will_not_touch": [
+      "x-ui config/database",
+      "nginx config",
+      "telegram bot service/env",
+      "Ghost XHTTP fallback service",
+      "Ghost HTTPS WS fallback service",
+      "subscription tokens or VPN profile URIs"
+    ]
+  },
+  "ok": true,
+  "plan_id": "nl-anti-block-client-compatibility-runtime-deploy-plan-2026-06-02",
+  "privacy": {
+    "output_privacy_ok": true,
+    "raw_client_rows_stored": false,
+    "raw_commands_stored": false,
+    "raw_email_stored": false,
+    "raw_ip_stored": false,
+    "raw_phone_stored": false,
+    "raw_ssh_config_stored": false,
+    "raw_subscription_url_stored": false,
+    "raw_telegram_handle_stored": false,
+    "raw_uuid_stored": false,
+    "raw_vpn_uri_stored": false
+  },
+  "remote_state": {
+    "observed_units": {
+      "ghost-access-nl-https-ws.service": "active",
+      "ghost-access-nl-xhttp.service": "active",
+      "nginx": "active",
+      "telegram-bot-simple.service": "active",
+      "x-ui": "active",
+      "x0tta6bl4-profile-status-api.service": "active"
+    },
+    "status_api_endpoints": {
+      "client_compatibility_http_code": 200,
+      "transport_usage_http_code": 200
+    }
+  },
+  "ssh_host_label": "nl",
+  "status_api_restart_confirm_required": "RESTART_PROFILE_STATUS_API",
+  "steps": [
+    {
+      "action": "read current unit state and endpoint HTTP codes",
+      "mutates_nl": false,
+      "step": "preflight"
+    },
+    {
+      "action": "create timestamped remote backups for changed target files",
+      "mutates_nl": true,
+      "scope": "allowed target files only",
+      "step": "backup"
+    },
+    {
+      "action": "copy reviewed local source/artifacts into their target paths",
+      "mutates_nl": true,
+      "scope": "profile status API, client compatibility publisher, matrix, summary, systemd unit/timer",
+      "step": "install_files"
+    },
+    {
+      "action": "reload systemd manager configuration",
+      "mutates_nl": true,
+      "scope": "systemd metadata only",
+      "step": "systemd_reload"
+    },
+    {
+      "action": "enable and start client compatibility summary timer",
+      "mutates_nl": true,
+      "scope": "ghost-access-client-compatibility-summary.timer",
+      "step": "enable_timer"
+    },
+    {
+      "action": "clear old failed state and run the client compatibility summary publisher once",
+      "mutates_nl": true,
+      "scope": "ghost-access-client-compatibility-summary.service",
+      "step": "run_summary_once"
+    },
+    {
+      "action": "restart profile status API so /client-compatibility route becomes live",
+      "extra_confirmation_required": "RESTART_PROFILE_STATUS_API",
+      "mutates_nl": true,
+      "scope": "x0tta6bl4-profile-status-api.service",
+      "step": "restart_status_api"
+    },
+    {
+      "action": "read /transport-usage and /client-compatibility HTTP codes",
+      "mutates_nl": false,
+      "step": "postflight"
+    }
+  ]
+}

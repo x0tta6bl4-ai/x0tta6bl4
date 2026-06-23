@@ -1,0 +1,37 @@
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    iproute2 iptables curl chrony \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/x0tta6bl4
+
+# Copy VPN server code
+COPY services/nl-server/ghost-vpn/ ./ghost-vpn/
+COPY services/nl-server/mesh-runtime/ ./mesh-runtime/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    cryptography \
+    prometheus-client \
+    aiohttp
+
+# Copy Go agent binary (pre-built)
+COPY agent/x0t-agent /usr/local/bin/x0t-agent
+
+# Copy deploy scripts
+COPY scripts/deploy_multi_node.sh /opt/x0tta6bl4/deploy.sh
+RUN chmod +x /opt/x0tta6bl4/deploy.sh
+
+# Copy systemd templates
+COPY infra/systemd/x0tta-ghost-vpn.service /etc/systemd/system/
+COPY infra/systemd/x0tta-ghost-watchdog.service /etc/systemd/system/
+
+# Expose ports
+EXPOSE 9999/udp 9001/tcp 8080/tcp
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost:8080/healthz || exit 1
+
+ENTRYPOINT ["python3", "-m", "ghost_vpn_server"]

@@ -8,21 +8,41 @@ const basicAuth = require('express-basic-auth');
 const { Pool } = require('pg');
 
 const app = express();
-const PORT = 8081;
-const CORE_API_PORT = 8083;
+
+function requiredEnv(name) {
+  const value = process.env[name];
+  if (!value || !value.trim()) throw new Error(`${name} is required; set it via environment or secret manager`);
+  return value;
+}
+
+function parsePort(name, defaultValue) {
+  const raw = process.env[name] || defaultValue;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isInteger(value) || value < 1 || value > 65535) throw new Error(`${name} must be a TCP port between 1 and 65535`);
+  return value;
+}
+
+function poolConfigFromEnv() {
+  if (process.env.DATABASE_URL && process.env.DATABASE_URL.trim()) return { connectionString: process.env.DATABASE_URL };
+  return {
+    host: requiredEnv('PGHOST'),
+    port: parsePort('PGPORT', '5432'),
+    database: requiredEnv('PGDATABASE'),
+    user: requiredEnv('PGUSER'),
+    password: requiredEnv('PGPASSWORD'),
+  };
+}
+
+const PORT = parsePort('PORT', '8081');
+const CORE_API_HOST = process.env.CORE_API_HOST || 'localhost';
+const CORE_API_PORT = parsePort('CORE_API_PORT', '8083');
 
 // DB Pool
-const pool = new Pool({
-  user: 'x0tta6bl4',
-  host: 'localhost',
-  database: 'x0tta6bl4',
-  password: 'x0tta6bl4_password',
-  port: 5432,
-});
+const pool = new Pool(poolConfigFromEnv());
 
 // Auth Config
-const USER = process.env.ADMIN_USER || 'x0tta6bl4';
-const PASS = process.env.ADMIN_PASS || 'mesh-ready-2026';
+const USER = requiredEnv('ADMIN_USER');
+const PASS = requiredEnv('ADMIN_PASS');
 
 app.use(cors());
 app.use(express.json());
@@ -66,7 +86,7 @@ const auth = basicAuth({
 });
 
 // 1. PROXY: Core API
-app.use('/api/v1', proxy(`localhost:${CORE_API_PORT}`, {
+app.use('/api/v1', proxy(`${CORE_API_HOST}:${CORE_API_PORT}`, {
   proxyReqPathResolver: req => `/api/v1${req.url}`
 }));
 
@@ -93,14 +113,17 @@ app.get('/api/status', async (req, res) => {
   });
 });
 
-// 3. CONTROL
-app.post('/api/vpn/toggle', auth, (req, res) => {
+// 3. CONTROL: local TUN mesh protection
+function toggleMeshProtection(req, res) {
   const { active } = req.body;
   const script = active ? 'stop_vpn_protection.py' : 'start_vpn_protection.py';
   exec(`python3 ${path.join(ROOT, script)}`, (err, stdout) => {
     res.json({ success: true, output: stdout });
   });
-});
+}
+
+app.post('/api/mesh/toggle', auth, toggleMeshProtection);
+app.post('/api/vpn/toggle', auth, toggleMeshProtection);
 
 // 4. WALLET & MARKETPLACE (Real DB calls)
 app.get('/api/wallet/balance', auth, async (req, res) => {

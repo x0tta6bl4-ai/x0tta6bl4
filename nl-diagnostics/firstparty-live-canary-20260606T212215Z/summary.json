@@ -1,0 +1,39 @@
+{
+  "captured_at_utc": "2026-06-06T21:23:39.966595+00:00",
+  "checks": {
+    "admission_ok": true,
+    "dataplane_readiness_ok": true,
+    "dataplane_validation_passed": true,
+    "generate_ok": true,
+    "mtu_validation_passed": true,
+    "probe_ok": true,
+    "server_ok": true,
+    "source_audit_allowed": true,
+    "source_audit_ok": true,
+    "tun_dataplane_validation_passed": true
+  },
+  "dataplane_failed_reasons": [],
+  "deployment_epoch": "local-firstparty-canary-20260606T212215Z",
+  "evidence_dir": "/mnt/projects/nl-diagnostics/firstparty-live-canary-20260606T212215Z",
+  "host": "127.0.0.1",
+  "mode": "firstparty-live-canary-summary",
+  "mtu_failed_reasons": [],
+  "nl_vpn_services_touched": false,
+  "ok": true,
+  "os_mutation_performed": false,
+  "port": 38425,
+  "return_codes": {
+    "admission": 0,
+    "dataplane_readiness": 0,
+    "probe": 0,
+    "source_audit": 0
+  },
+  "scanned_files": 37,
+  "server_bind_addr": [
+    "127.0.0.1",
+    38425
+  ],
+  "source_tree_hash": "74ae83244208bd720e3d8dd967b5630a5571aab968a878a919da22d6df31aa26",
+  "transport": "tcp",
+  "tun_dataplane_failed_reasons": []
+}

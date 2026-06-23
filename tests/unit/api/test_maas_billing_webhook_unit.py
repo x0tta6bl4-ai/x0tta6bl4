@@ -9,6 +9,7 @@ import src.api.maas_billing as billing_mod
 import src.api.maas_marketplace as marketplace_mod
 from src.coordination.events import EventBus, EventType
 from src.database import Base, Invoice, User
+from src.services.service_event_trace import event_trace_evidence_summary
 
 
 class _DummyRequest:

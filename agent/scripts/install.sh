@@ -1,5 +1,5 @@
 #!/bin/bash
-# x0tta6bl4 Mesh Agent Installer (Python Edition)
+# x0tta6bl4 Mesh Agent Installer (Go Data Plane Edition)
 # Usage: curl -sL maas.x0tta6bl4.io/install | sudo bash -s -- --token <KEY>
 set -e
 
@@ -47,36 +47,13 @@ else
 fi
 
 # Create dirs
-mkdir -p "$CONFIG_DIR" "$DATA_DIR" "$INSTALL_DIR"
+mkdir -p "$CONFIG_DIR" "$DATA_DIR" "/usr/local/bin"
 
-# Download minimal agent code (For MVP, we assume a direct download of the script)
-log "Setting up Agent Environment..."
-cd "$INSTALL_DIR"
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -q httpx websockets cryptography
-
-# In a real release, we fetch the package. Here we create a wrapper for the headless agent.
-cat > "$INSTALL_DIR/run_agent.py" << 'EOF'
-import os
-import sys
-import asyncio
-import logging
-
-# Fallback basic agent runner
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("AgentRunner")
-
-async def main():
-    logger.info("x0tta6bl4 Headless Agent Started")
-    token = os.getenv("X0T_JOIN_TOKEN")
-    logger.info(f"Connected to Mesh with token: {token[:8]}...")
-    while True:
-        await asyncio.sleep(60)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-EOF
+log "Installing Agent Binary..."
+# In a real environment, we'd curl this from a release URL.
+# For this workspace, we copy from the local build path.
+cp "agent/bin/x0t-agent" "/usr/local/bin/x0t-agent"
+chmod +x "/usr/local/bin/x0t-agent"
 
 # Generate config
 NODE_ID="x0t-$(head -c 4 /dev/urandom | xxd -p)"
@@ -86,6 +63,8 @@ node_id: "$NODE_ID"
 api_endpoint: "$API_URL"
 join_token: "$TOKEN"
 data_dir: "$DATA_DIR"
+listen_port: 8080
+pqc_enabled: true
 EOF
 
 log "Config written to $CONFIG_DIR/agent.yaml"
@@ -93,19 +72,23 @@ log "Config written to $CONFIG_DIR/agent.yaml"
 # Install systemd service
 cat > /etc/systemd/system/$SERVICE_NAME.service <<UNIT
 [Unit]
-Description=x0tta6bl4 Mesh Agent (Python Data Plane)
+Description=x0tta6bl4 Mesh Agent (Go Data Plane)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-Environment="X0T_JOIN_TOKEN=$TOKEN"
-Environment="X0T_API_URL=$API_URL"
-Environment="X0T_NODE_ID=$NODE_ID"
-ExecStart=$INSTALL_DIR/.venv/bin/python3 $INSTALL_DIR/run_agent.py
+ExecStart=/usr/local/bin/x0t-agent --config $CONFIG_DIR/agent.yaml
 Restart=always
-RestartSec=10
+RestartSec=5
 LimitNOFILE=65535
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$DATA_DIR $CONFIG_DIR
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target

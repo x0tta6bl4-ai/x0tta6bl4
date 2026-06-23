@@ -316,6 +316,9 @@ def test_auth_service_shared_api_keys_work_across_instances():
     assert validated["user_id"] == "u1"
     assert validated["plan"] == "pro"
     assert validated["request_count"] == 1
+    assert api_key not in auth_a._api_keys
+    assert api_key not in auth_b._api_keys
+    assert all(api_key not in key for key in shared._store)
 
 
 def test_auth_service_shared_sessions_work_across_instances():

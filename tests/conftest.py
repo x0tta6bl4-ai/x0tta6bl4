@@ -189,6 +189,10 @@ except Exception:
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
+SRC_ROOT = os.path.join(PROJECT_ROOT, "src")
+if SRC_ROOT not in sys.path:
+    root_index = sys.path.index(PROJECT_ROOT) if PROJECT_ROOT in sys.path else -1
+    sys.path.insert(root_index + 1, SRC_ROOT)
 
 # Python 3.12 compatibility for legacy tests still using asyncio.coroutine.
 if not hasattr(asyncio, "coroutine"):

@@ -12,6 +12,9 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
+from starlette.requests import Request
+
+from src.coordination.events import EventBus, EventType
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")

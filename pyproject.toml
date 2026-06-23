@@ -53,7 +53,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "idna>=3.15",
     "protobuf>=6.33.5",
-    "pyasn1>=0.6.2",
+    "pyasn1>=0.6.3",
     "pynacl>=1.6.2",
     "werkzeug>=3.1.5",
     "oqs>=0.8.0.0",
@@ -127,6 +127,21 @@ bots = [
     "qrcode[pil]==8.2",
 ]
 
+# Dependencies for eBPF observability and security
+ebpf = [
+    "bcc>=0.1.10",
+]
+
+# Dependencies for Blockchain / DAO integration
+blockchain = [
+    "web3>=7.15.0",
+]
+
+# Dependencies for x402 paid API and agent-to-agent micropayments
+monetization = [
+    "x402[fastapi,evm,httpx]==2.12.0",
+]
+
 # Group to install all optional dependencies
 all = [
     "x0tta6bl4[dev]",
@@ -134,6 +149,9 @@ all = [
     "x0tta6bl4[lora]",
     "x0tta6bl4[monitoring]",
     "x0tta6bl4[bots]",
+    "x0tta6bl4[ebpf]",
+    "x0tta6bl4[blockchain]",
+    "x0tta6bl4[monetization]",
 ]
 
 [project.urls]

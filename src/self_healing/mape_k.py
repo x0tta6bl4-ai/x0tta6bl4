@@ -1,6 +1,5 @@
 """
-MAPE-K Self-Healing Core for x0tta6bl4
-Implements Monitor, Analyze, Plan, Execute, Knowledge loop
+Compatibility shim for MAPE-K.
 """
 
 import logging

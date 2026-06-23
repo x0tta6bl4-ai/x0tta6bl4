@@ -1,0 +1,16 @@
+{
+  "offer": {
+    "basePrice": 5,
+    "category": "data",
+    "descriptionMd": "I complete one small CSV, JSON, or public data-cleaning task: parser, conversion, normalization, validation, or structured report. Delivery includes sample input/output and one verification command. Public inputs only; no secrets, account data, private scraping, spam, or harmful automation.",
+    "slaDays": 1,
+    "tags": [
+      "python",
+      "csv",
+      "json",
+      "data",
+      "automation"
+    ],
+    "title": "CSV JSON data cleanup microtask"
+  }
+}

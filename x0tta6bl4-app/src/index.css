@@ -69,8 +69,10 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
+  overflow-y: auto;
+  padding: 24px 0 20px;
 }
 
 .power-button {
@@ -107,11 +109,11 @@ body {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
   width: 100%;
-  max-width: 400px;
-  margin-top: 50px;
+  max-width: 520px;
+  margin-top: 30px;
 }
 
 .stat-card {
@@ -134,17 +136,427 @@ body {
   font-weight: bold;
 }
 
+.runtime-panel {
+  width: 100%;
+  max-width: 520px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.runtime-panel > div {
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.runtime-value {
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.runtime-error {
+  max-width: 520px;
+  margin-top: 14px;
+  color: var(--error-color);
+  font-size: 0.78rem;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.capability-card,
+.readiness-card {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.capability-card.ok {
+  border-color: rgba(0, 255, 157, 0.45);
+}
+
+.capability-card.warn {
+  border-color: rgba(255, 196, 87, 0.35);
+}
+
+.capability-card.bad {
+  border-color: rgba(255, 62, 62, 0.35);
+}
+
+.capability-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--accent-color);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.capability-detail {
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.capability-paths {
+  margin-top: 10px;
+  color: rgba(0, 255, 157, 0.72);
+  font-size: 0.68rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.api-summary {
+  margin-top: 10px;
+  display: grid;
+  gap: 5px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.68rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.data-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.data-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+}
+
+.data-row.compact {
+  margin-bottom: 0;
+  padding: 10px;
+}
+
+.data-title {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.82rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.data-subtitle {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.66rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.data-side {
+  min-width: 96px;
+  text-align: right;
+}
+
+.data-value {
+  color: var(--accent-color);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.readiness-grid > div {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+}
+
+.readiness-grid span {
+  display: block;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.readiness-grid strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-color);
+  font-size: 0.78rem;
+}
+
+.action-button {
+  margin-top: 12px;
+  width: 100%;
+  min-height: 34px;
+  background: rgba(0, 255, 157, 0.12);
+  border: 1px solid rgba(0, 255, 157, 0.6);
+  border-radius: 6px;
+  color: var(--accent-color);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.button-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.button-row.two {
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 12px;
+}
+
+.button-row .action-button {
+  margin-top: 12px;
+}
+
+.panel-action {
+  max-width: 520px;
+}
+
+.action-button.secondary {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.action-button.danger {
+  background: rgba(255, 62, 62, 0.08);
+  border-color: rgba(255, 62, 62, 0.4);
+  color: var(--error-color);
+}
+
+.action-button.compact-action {
+  min-height: 28px;
+  margin-top: 8px;
+  padding: 0 10px;
+  font-size: 0.66rem;
+}
+
+.action-button:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
+.action-result-card {
+  width: 100%;
+  max-width: 600px;
+  box-sizing: border-box;
+  margin-top: 14px;
+  padding: 14px;
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(0, 255, 157, 0.22);
+  border-radius: 8px;
+}
+
+.action-result-card.bad {
+  border-color: rgba(255, 62, 62, 0.42);
+}
+
+.action-result-card.ok {
+  border-color: rgba(0, 255, 157, 0.34);
+}
+
+.secret-result-card {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(255, 196, 87, 0.045);
+  border: 1px solid rgba(255, 196, 87, 0.28);
+  border-radius: 8px;
+}
+
+.lifecycle-card,
+.lifecycle-result-card {
+  border-color: rgba(0, 255, 157, 0.26);
+  background: rgba(0, 255, 157, 0.035);
+}
+
+.lifecycle-result-card {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(0, 255, 157, 0.22);
+  border-radius: 8px;
+}
+
+.payload-preview-card {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(0, 255, 157, 0.035);
+  border: 1px solid rgba(0, 255, 157, 0.18);
+  border-radius: 8px;
+}
+
+.payload-preview-card pre {
+  max-height: 260px;
+  margin: 10px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: rgba(255, 255, 255, 0.76);
+  font-family: inherit;
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.secret-label {
+  margin-top: 12px;
+  color: rgba(255, 196, 87, 0.85);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.secret-output {
+  width: 100%;
+  min-height: 86px;
+  box-sizing: border-box;
+  margin-top: 6px;
+  padding: 10px;
+  resize: vertical;
+  background: rgba(0, 0, 0, 0.48);
+  border: 1px solid rgba(255, 196, 87, 0.24);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.86);
+  font-family: inherit;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.auth-panel,
+.control-form {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+}
+
+.control-input {
+  width: 100%;
+  min-height: 34px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(0, 255, 157, 0.2);
+  border-radius: 6px;
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 0.74rem;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.control-input:focus {
+  border-color: rgba(0, 255, 157, 0.55);
+}
+
+.control-input.textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+
+.control-checkbox-row {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.control-checkbox-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-color);
+  flex: 0 0 auto;
+}
+
+.endpoint-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.endpoint-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.7rem;
+}
+
+.endpoint-row strong,
+.endpoint-row span {
+  display: block;
+}
+
+.endpoint-row strong {
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 600;
+}
+
+.endpoint-row div span {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.42);
+  overflow-wrap: anywhere;
+}
+
+.endpoint-row > span {
+  color: var(--accent-color);
+  text-transform: uppercase;
+}
+
+.endpoint-row.bad > span {
+  color: var(--error-color);
+}
+
 .nav-bar {
   display: flex;
   justify-content: space-around;
+  gap: 8px;
+  flex-wrap: wrap;
   padding: 20px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .nav-item {
+  min-width: 70px;
+  text-align: center;
   cursor: pointer;
   color: rgba(255, 255, 255, 0.4);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   transition: color 0.3s;
 }
 
@@ -160,4 +572,23 @@ body {
 
 .pulse {
   animation: pulse 2s infinite ease-in-out;
+}
+
+@media (max-width: 720px) {
+  .stats-grid,
+  .runtime-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .readiness-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .data-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .data-side {
+    text-align: left;
+  }
 }

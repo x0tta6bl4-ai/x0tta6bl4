@@ -7,17 +7,33 @@ Version: 1.0
 """
 
 import logging
+import hashlib
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
+from src.services.service_event_identity import service_event_identity
+
 logger = logging.getLogger(__name__)
+
+EBPF_LOADER_SERVICE_NAME = "ebpf-loader"
+EBPF_LOADER_CLAIM_BOUNDARY = (
+    "Local eBPF loader state evidence only. Events distinguish stub program "
+    "objects from kernel-loaded BPF programs and record bounded redacted loader "
+    "metadata; they do not prove kernel attach, packet filtering, or live map "
+    "telemetry by themselves."
+)
 
 # Try to import BCC (BPF Compiler Collection)
 BCC_AVAILABLE = False
+BPF: Optional[Any] = None
 try:
-    from bcc import BPF
+    from bcc import BPF as _BCCBPF
+
+    BPF = _BCCBPF
 
     BCC_AVAILABLE = True
     logger.info("✅ BCC available - eBPF programs can be loaded")
@@ -26,6 +42,7 @@ except ImportError as e:
         f"⚠️ BCC not available ({e}). Install with: apt-get install bpfcc-tools"
     )
     BCC_AVAILABLE = False
+    BPF = None
 
 
 @dataclass
@@ -55,7 +72,11 @@ class EBPFLoader:
     - Manage program lifecycle
     """
 
-    def __init__(self, bcc_path: Optional[str] = None):
+    def __init__(
+        self,
+        bcc_path: Optional[str] = None,
+        event_bus: Optional[EventBus] = None,
+    ):
         """
         Initialize eBPF loader.
 
@@ -63,12 +84,162 @@ class EBPFLoader:
             bcc_path: Optional path to BCC installation
         """
         self.bcc_path = bcc_path
+        self.event_bus = event_bus
+        self.source_agent = EBPF_LOADER_SERVICE_NAME
+        self.identity = {
+            "node_id": self.source_agent,
+            **service_event_identity(service_name=EBPF_LOADER_SERVICE_NAME),
+        }
         self.loaded_programs: Dict[str, EBPFProgram] = {}
         self.program_stats: Dict[str, Dict[str, Any]] = {}
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "monitoring"),
+            extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
 
-        # DEV MODE: BCC_STUB_MODE env allows stub without failing
-        if not BCC_AVAILABLE and os.getenv("BCC_STUB_MODE", "false").lower() != "true":
-            raise RuntimeError("BCC not available - eBPF programs cannot be loaded. Set BCC_STUB_MODE=true for dev.")
+        # DEV MODE: BCC_STUB_MODE env allows stub loads without failing.
+        if not BCC_AVAILABLE and not self._bcc_stub_mode_enabled():
+            self._publish_loader_event(
+                stage="loader_init_blocked",
+                operation="loader_init",
+                result="blocked",
+                mode="unavailable",
+                reason="bcc_unavailable_stub_mode_disabled",
+                program_path=None,
+                kernel_loaded=False,
+                program_loaded_flag=False,
+            )
+
+    @staticmethod
+    def _bcc_stub_mode_enabled() -> bool:
+        return os.getenv("BCC_STUB_MODE", "false").lower() == "true"
+
+    @staticmethod
+    def _hash_value(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_bcc_loader_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local BCC loader evidence, redacted selectors, "
+                "hashes, and bounded metadata; do not expose program paths, "
+                "program names, compiler flags, hook arguments, or raw errors."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose BCC-loader thinking state without task secrets."""
+
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
+
+    def _publish_loader_event(
+        self,
+        *,
+        stage: str,
+        operation: str,
+        result: str,
+        mode: str,
+        reason: str,
+        program_path: Optional[str],
+        kernel_loaded: bool,
+        program_loaded_flag: bool,
+        program_name: Optional[str] = None,
+        cflags: Optional[List[str]] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        if self.event_bus is None:
+            return None
+
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{result}",
+            constraints={
+                "stage": stage,
+                "result": result,
+                "mode": mode,
+                "reason": reason,
+                "bcc_available": BCC_AVAILABLE,
+                "bcc_stub_mode_enabled": self._bcc_stub_mode_enabled(),
+                "kernel_loaded": kernel_loaded,
+                "program_loaded_flag": program_loaded_flag,
+                "program_name_hash": self._hash_value(program_name),
+                "program_name_redacted": program_name is not None,
+                "program_path_hash": self._hash_value(program_path),
+                "program_path_redacted": program_path is not None,
+                "cflags_count": len(cflags or []),
+                "cflags_redacted": bool(cflags),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
+
+        payload: Dict[str, Any] = {
+            "component": "network.ebpf.ebpf_loader",
+            "stage": stage,
+            "operation": operation,
+            "operation_resource": "ebpf_program_load",
+            "resource": "network:ebpf:loader",
+            "node_id": self.identity["node_id"],
+            "spiffe_id": self.identity.get("spiffe_id"),
+            "did": self.identity.get("did"),
+            "wallet_address": self.identity.get("wallet_address"),
+            "identity": dict(self.identity),
+            "result": result,
+            "mode": mode,
+            "reason": reason,
+            "bcc_available": BCC_AVAILABLE,
+            "bcc_stub_mode_enabled": self._bcc_stub_mode_enabled(),
+            "kernel_loaded": kernel_loaded,
+            "program_loaded_flag": program_loaded_flag,
+            "program_name_hash": self._hash_value(program_name),
+            "program_name_redacted": program_name is not None,
+            "program_path_hash": self._hash_value(program_path),
+            "program_path_redacted": program_path is not None,
+            "cflags_count": len(cflags or []),
+            "cflags_hash": self._hash_value(tuple(cflags or [])),
+            "cflags_redacted": bool(cflags),
+            "loaded_program_count": len(self.loaded_programs),
+            "thinking": thinking,
+            "payloads_redacted": True,
+            "safe_observation": True,
+            "claim_boundary": EBPF_LOADER_CLAIM_BOUNDARY,
+        }
+        if extra:
+            payload.update(extra)
+
+        try:
+            event = self.event_bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                self.source_agent,
+                payload,
+                priority=6,
+            )
+            return event.event_id
+        except Exception:
+            logger.exception("Failed to publish eBPF loader evidence")
+            return None
 
     def load_program(
         self, program_path: str, cflags: Optional[List[str]] = None
@@ -86,13 +257,61 @@ class EBPFLoader:
         Raises:
             RuntimeError: If loading fails with BCC available
         """
+        self._record_thinking_context(
+            operation="load_program",
+            goal="load local BCC eBPF program",
+            constraints={
+                "program_path_hash": self._hash_value(program_path),
+                "program_path_redacted": True,
+                "cflags_count": len(cflags or []),
+                "cflags_redacted": bool(cflags),
+                "bcc_available": BCC_AVAILABLE,
+            },
+        )
         if not BCC_AVAILABLE:
+            if not self._bcc_stub_mode_enabled():
+                program_name = Path(program_path).stem
+                self._publish_loader_event(
+                    stage="program_load_blocked",
+                    operation="load_program",
+                    result="blocked",
+                    mode="unavailable",
+                    reason="bcc_unavailable_stub_mode_disabled",
+                    program_path=program_path,
+                    program_name=program_name,
+                    cflags=cflags,
+                    kernel_loaded=False,
+                    program_loaded_flag=False,
+                )
+                raise RuntimeError(
+                    "BCC not available - eBPF programs cannot be loaded. "
+                    "Set BCC_STUB_MODE=true for dev stubs."
+                )
+
             program_name = Path(program_path).stem
             program = EBPFProgram(
-                name=program_name, bpf=StubEBPFProgram(program_name), program_path=program_path, loaded=True
+                name=program_name,
+                bpf=StubEBPFProgram(program_name),
+                program_path=program_path,
+                loaded=True,
             )
             self.loaded_programs[program_name] = program
-            logger.warning(f"⚠️ BCC not available - returning stub EBPFProgram for {program_name}")
+            logger.warning(
+                "⚠️ BCC not available - returning stub EBPFProgram for %s",
+                program_name,
+            )
+            self._publish_loader_event(
+                stage="program_stub_created",
+                operation="load_program",
+                result="success",
+                mode="stub",
+                reason="bcc_unavailable_stub_mode_enabled",
+                program_path=program_path,
+                program_name=program_name,
+                cflags=cflags,
+                kernel_loaded=False,
+                program_loaded_flag=program.loaded,
+            )
             return program
 
         try:
@@ -124,10 +343,42 @@ class EBPFLoader:
             }
 
             logger.info(f"✅ Loaded eBPF program: {program_name}")
+            self._publish_loader_event(
+                stage="program_loaded",
+                operation="load_program",
+                result="success",
+                mode="bcc",
+                reason="bcc_load_succeeded",
+                program_path=program_path,
+                program_name=program_name,
+                cflags=cflags,
+                kernel_loaded=True,
+                program_loaded_flag=program.loaded,
+                extra={
+                    "map_count": len(self.program_stats[program_name]["maps"]),
+                },
+            )
             return program
 
         except Exception as e:
             logger.error(f"❌ Failed to load eBPF program {program_path}: {e}")
+            self._publish_loader_event(
+                stage="program_load_failed",
+                operation="load_program",
+                result="failure",
+                mode="bcc",
+                reason="bcc_load_failed",
+                program_path=program_path,
+                program_name=Path(program_path).stem,
+                cflags=cflags,
+                kernel_loaded=False,
+                program_loaded_flag=False,
+                extra={
+                    "error_type": type(e).__name__,
+                    "error_message_hash": self._hash_value(str(e)),
+                    "error_message_redacted": True,
+                },
+            )
             raise RuntimeError(f"Failed to load eBPF program: {e}")
 
     def attach_hook(self, program: EBPFProgram, hook: str, **kwargs) -> bool:
@@ -142,6 +393,21 @@ class EBPFLoader:
         Returns:
             True if successful, False otherwise
         """
+        self._record_thinking_context(
+            operation="attach_hook",
+            goal="attach local BCC eBPF program hook",
+            constraints={
+                "program_name_hash": self._hash_value(program.name),
+                "program_name_redacted": True,
+                "hook": hook,
+                "interface_hash": self._hash_value(kwargs.get("interface")),
+                "interface_redacted": "interface" in kwargs,
+                "direction": kwargs.get("direction"),
+                "kwargs_keys": sorted(kwargs.keys()),
+                "bcc_available": BCC_AVAILABLE,
+                "program_has_bpf": bool(program.bpf),
+            },
+        )
         if not BCC_AVAILABLE or not program.bpf:
             logger.warning(
                 f"⚠️ Cannot attach hook {hook} - BCC not available or program not loaded"
@@ -277,6 +543,17 @@ class EBPFLoader:
         Returns:
             True if successful, False otherwise
         """
+        self._record_thinking_context(
+            operation="detach_hook",
+            goal="detach local BCC eBPF program hook",
+            constraints={
+                "program_name_hash": self._hash_value(program.name),
+                "program_name_redacted": True,
+                "hook": hook,
+                "bcc_available": BCC_AVAILABLE,
+                "program_has_bpf": bool(program.bpf),
+            },
+        )
         if not BCC_AVAILABLE or not program.bpf:
             logger.warning(
                 f"⚠️ Cannot detach hook {hook} - BCC not available or program not loaded"
@@ -338,6 +615,17 @@ class EBPFLoader:
         Returns:
             True if successful, False otherwise
         """
+        self._record_thinking_context(
+            operation="unload_program",
+            goal="unload local BCC eBPF program",
+            constraints={
+                "program_name_hash": self._hash_value(program.name),
+                "program_name_redacted": True,
+                "attached_hook_count": len(program.attached_hooks or []),
+                "bcc_available": BCC_AVAILABLE,
+                "program_has_bpf": bool(program.bpf),
+            },
+        )
         if not BCC_AVAILABLE or not program.bpf:
             logger.warning(
                 "⚠️ Cannot unload program - BCC not available or program not loaded"

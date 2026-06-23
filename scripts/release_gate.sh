@@ -8,6 +8,10 @@
 
 set -e
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REAL_READINESS_JSON=".tmp/validation-shards/real-readiness-current.json"
+REAL_READINESS_MD=".tmp/validation-shards/real-readiness-current.md"
+
 echo "🚀 Starting Release Gate..."
 
 # 1. Security Scan
@@ -58,4 +62,15 @@ fi
 
 echo ""
 echo "✨ RELEASE GATE: PASSED"
-echo "Code is ready for production."
+echo "Local release checks passed. Production claim now requires the fail-closed real-readiness gate."
+
+if python3 "$ROOT_DIR/scripts/ops/check_real_readiness.py" \
+    --write-json "$REAL_READINESS_JSON" \
+    --write-md "$REAL_READINESS_MD" >/dev/null; then
+    echo "✅ REAL READINESS GATE: PASSED"
+else
+    echo "❌ REAL READINESS GATE: BLOCKED"
+    echo "Release checks passed, but production readiness is not allowed yet."
+    echo "Report: $REAL_READINESS_JSON"
+    exit 1
+fi

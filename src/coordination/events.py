@@ -53,6 +53,9 @@ class EventType(str, Enum):
     PIPELINE_STAGE_START = "pipeline.stage_start"
     PIPELINE_STAGE_END = "pipeline.stage_end"
     PIPELINE_HANDOFF = "pipeline.handoff"
+
+    # Self-healing events
+    HEALING_VERIFIED = "healing.verified"
     
     # Conflict events
     CONFLICT_DETECTED = "conflict.detected"

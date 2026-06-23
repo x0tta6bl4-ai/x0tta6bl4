@@ -6,10 +6,12 @@ Federated Learning с Differential Privacy
 с дифференциальной приватностью для защиты данных узлов.
 """
 
+import hashlib
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,41 @@ except ImportError:
     OPACUS_AVAILABLE = False
     PrivacyEngine = None
     logger.debug("Opacus not available, Differential Privacy disabled")
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    if value <= 1000:
+        return "100-1000"
+    return "1000+"
+
 
 class FederatedGraphSAGE(nn.Module):
     """
@@ -252,7 +289,54 @@ class KnowledgeAggregator:
     def __init__(self, vector_dim: int = 384):
         self.global_knowledge_base = []
         self.vector_dim = vector_dim
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="semantic-knowledge-aggregator",
+            role="fl",
+            capabilities=("rag", "monitoring", "privacy"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "knowledge_aggregator_init",
+                "goal": "Initialize semantic incident aggregation safely",
+                "signals": {
+                    "vector_dim": vector_dim,
+                    "knowledge_count_bucket": "0",
+                },
+                "safety_boundary": (
+                    "Keep raw incident details, recovery action text, node data, and "
+                    "client identifiers out of thinking context."
+                ),
+            }
+        )
         logger.info(f"KnowledgeAggregator initialized with dimension {vector_dim}")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_incident_details": True,
+                    "redact_recovery_actions": True,
+                    "redact_client_identifiers": True,
+                    "preserve_aggregate_quality": True,
+                },
+                "safety_boundary": "Use hashes, counts, confidence bands, and success flags.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def aggregate_incidents(self, client_incidents: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -260,6 +344,11 @@ class KnowledgeAggregator:
         Выделяет наиболее эффективные стратегии восстановления.
         """
         if not client_incidents:
+            self._record_thinking(
+                "knowledge_incidents_aggregated",
+                "Skip semantic aggregation without incidents",
+                {"incident_count_bucket": "0"},
+            )
             return {}
 
         summary = {
@@ -287,6 +376,20 @@ class KnowledgeAggregator:
             "summary": summary
         })
 
+        self._record_thinking(
+            "knowledge_incidents_aggregated",
+            "Aggregate semantic incident knowledge safely",
+            {
+                "incident_count_bucket": _safe_count_bucket(len(client_incidents)),
+                "successful_action_count_bucket": _safe_count_bucket(
+                    len(summary["top_recovery_actions"])
+                ),
+                "avg_confidence_band": _safe_number_band(summary["avg_confidence"]),
+                "knowledge_count_bucket": _safe_count_bucket(
+                    len(self.global_knowledge_base)
+                ),
+            },
+        )
         return summary
 
 class FederatedLearningCoordinator:
@@ -316,11 +419,63 @@ class FederatedLearningCoordinator:
         self.target_epsilon = target_epsilon
         self.clients = []
         self.knowledge_aggregator = KnowledgeAggregator()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="graphsage-fl-coordinator",
+            role="fl",
+            capabilities=("coordinator", "privacy", "graphsage"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "graphsage_fl_coordinator_init",
+                "goal": "Initialize GraphSAGE federated learning safely",
+                "signals": {
+                    "client_count_target_bucket": _safe_count_bucket(num_clients),
+                    "round_count_bucket": _safe_count_bucket(num_rounds),
+                    "target_epsilon_band": _safe_number_band(target_epsilon),
+                    "flower_available": FLOWER_AVAILABLE,
+                    "opacus_available": OPACUS_AVAILABLE,
+                },
+                "safety_boundary": (
+                    "Keep client data, model parameters, node identifiers, and local "
+                    "incident details out of thinking context."
+                ),
+            }
+        )
 
         logger.info(
             f"Federated Learning Coordinator initialized: "
             f"{num_clients} clients, {num_rounds} rounds, ε={target_epsilon}"
         )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_training_data": True,
+                    "redact_model_parameters": True,
+                    "redact_client_identifiers": True,
+                    "redact_incident_details": True,
+                    "preserve_fl_strategy_decision": True,
+                },
+                "safety_boundary": "Use counts, privacy bands, booleans, and strategy names.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+            "knowledge_aggregator": self.knowledge_aggregator.get_thinking_status(),
+        }
 
     def create_hw_strategy(self) -> fl.server.strategy.FedAvg:
         """
@@ -348,11 +503,21 @@ class FederatedLearningCoordinator:
                 
                 return super().aggregate_fit(server_round, weighted_results, failures)
 
-        return HWFedAvg(
+        strategy = HWFedAvg(
             fraction_fit=1.0,
             min_fit_clients=self.num_clients,
             min_available_clients=self.num_clients,
         )
+        self._record_thinking(
+            "graphsage_fl_strategy_created",
+            "Create heterogeneous weighted FedAvg strategy",
+            {
+                "strategy": "HWFedAvg",
+                "client_count_bucket": _safe_count_bucket(self.num_clients),
+                "round_count_bucket": _safe_count_bucket(self.num_rounds),
+            },
+        )
+        return strategy
 
     def create_client(
         self,
@@ -382,6 +547,16 @@ class FederatedLearningCoordinator:
         )
 
         self.clients.append(client)
+        self._record_thinking(
+            "graphsage_fl_client_created",
+            "Create differentially-private FL client safely",
+            {
+                "train_sample_count_bucket": _safe_count_bucket(len(train_data)),
+                "validation_sample_count_bucket": _safe_count_bucket(len(val_data)),
+                "client_count_bucket": _safe_count_bucket(len(self.clients)),
+                "target_epsilon_band": _safe_number_band(self.target_epsilon),
+            },
+        )
         return client
 
     def start_training(self, strategy=None):
@@ -395,6 +570,11 @@ class FederatedLearningCoordinator:
             Результаты обучения
         """
         if not self.clients:
+            self._record_thinking(
+                "graphsage_fl_training_started",
+                "Reject FL training without clients",
+                {"client_count_bucket": "0", "started": False},
+            )
             raise ValueError("No clients created. Use create_client() first.")
 
         # Используем стратегию по умолчанию если не указана
@@ -423,4 +603,14 @@ class FederatedLearningCoordinator:
             if hasattr(client, "local_incidents"):
                 all_client_incidents.extend(client.local_incidents)
         self.knowledge_aggregator.aggregate_incidents(all_client_incidents)
+        self._record_thinking(
+            "graphsage_fl_training_started",
+            "Complete federated learning simulation",
+            {
+                "client_count_bucket": _safe_count_bucket(len(self.clients)),
+                "round_count_bucket": _safe_count_bucket(self.num_rounds),
+                "incident_count_bucket": _safe_count_bucket(len(all_client_incidents)),
+                "started": True,
+            },
+        )
         return history

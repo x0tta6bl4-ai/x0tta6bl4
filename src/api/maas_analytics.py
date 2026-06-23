@@ -1,11 +1,6 @@
-"""
-MaaS Advanced Analytics (Production) — x0tta6bl4
-================================================
+"""Compatibility wrapper for the modular MaaS analytics endpoint."""
 
-DB-backed metrics: node health, cost comparison, and time-series aggregation.
-All values are derived from real DB state (MeshNode.last_seen, invoices).
-Redis telemetry is used for real-time traffic/latency when available.
-"""
+import sys
 
 import logging
 import os

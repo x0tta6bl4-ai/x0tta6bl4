@@ -7,17 +7,98 @@ attachment, and lifecycle management for x0tta6bl4.
 All TODO items from loader.py are implemented here.
 """
 
+import hashlib
 import logging
 import shutil
 import subprocess
+import time
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
+from src.network.ebpf.loader import (EBPFAttachError, EBPFAttachMode,
+                                     EBPFLoader)
+from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
 
-# Import base classes
-from src.network.ebpf.loader import (EBPFAttachError, EBPFAttachMode,
-                                     EBPFLoader)
+
+EBPF_LOADER_IMPLEMENTATION_SERVICE_NAME = "ebpf-loader-implementation"
+EBPF_LOADER_IMPLEMENTATION_LAYER = "network_ebpf_loader_implementation_observed_state"
+EBPF_LOADER_IMPLEMENTATION_CLAIM_BOUNDARY = (
+    "Local eBPF loader implementation evidence only. Events record ip/bpftool "
+    "verification command outcomes, return codes, duration, bounded output hashes, "
+    "and redacted selectors; they do not prove production traffic, remote peer "
+    "reachability, or attached kernel program correctness beyond the local command "
+    "result."
+)
+
+
+def _normalize_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
+def _sha256_text(value: str) -> Optional[str]:
+    if not value:
+        return None
+    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return _sha256_text(str(value))
+
+
+def _bounded_output_metadata(
+    stdout: Optional[Any],
+    stderr: Optional[Any],
+) -> Dict[str, Any]:
+    safe_stdout = _normalize_text(stdout)
+    safe_stderr = _normalize_text(stderr)
+    return {
+        "stdout_chars": len(safe_stdout),
+        "stderr_chars": len(safe_stderr),
+        "stdout_sha256": _sha256_text(safe_stdout),
+        "stderr_sha256": _sha256_text(safe_stderr),
+        "output_bounded": True,
+        "output_redacted": True,
+    }
+
+
+def _identity_metadata() -> Dict[str, Any]:
+    identity = service_event_identity(
+        service_name=EBPF_LOADER_IMPLEMENTATION_SERVICE_NAME
+    )
+    return {
+        "service_name": EBPF_LOADER_IMPLEMENTATION_SERVICE_NAME,
+        "layer": EBPF_LOADER_IMPLEMENTATION_LAYER,
+        "spiffe_id_configured": bool(identity.get("spiffe_id")),
+        "did_configured": bool(identity.get("did")),
+        "wallet_address_configured": bool(identity.get("wallet_address")),
+        "redacted": True,
+    }
+
+
+def _redacted_command(
+    command: List[Any],
+    redacted_indices: Tuple[int, ...],
+) -> List[str]:
+    redacted = set(redacted_indices)
+    safe_command: List[str] = []
+    for index, item in enumerate(command):
+        if index == 0:
+            safe_command.append(Path(str(item)).name)
+        elif index in redacted:
+            safe_command.append("[redacted]")
+        else:
+            safe_command.append(str(item))
+    return safe_command
 
 
 class EBPFLoaderImplementation(EBPFLoader):
@@ -29,6 +110,150 @@ class EBPFLoaderImplementation(EBPFLoader):
     - Program verification
     - Resource cleanup
     """
+
+    def __init__(
+        self,
+        programs_dir: Optional[Path] = None,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+    ):
+        super().__init__(programs_dir=programs_dir)
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
+        self.source_agent = EBPF_LOADER_IMPLEMENTATION_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "monitoring"),
+            extra_techniques=("mape_k", "reverse_planning", "chaos_driven_design"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        try:
+            self.event_bus = EventBus(project_root=self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error(
+                "Failed to initialize eBPF loader implementation EventBus: %s",
+                exc,
+            )
+            return None
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_loader_implementation_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local eBPF loader implementation evidence, "
+                "redacted selectors, hashes, and bounded metadata; do not expose "
+                "program IDs, interface names, program paths, pinned paths, "
+                "stdout, or stderr."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose loader-implementation thinking state without task secrets."""
+
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
+
+    def _publish_observation(
+        self,
+        *,
+        stage: str,
+        operation: str,
+        status: str,
+        source_mode: str,
+        start: float,
+        returncode: Optional[int] = None,
+        stdout: Optional[Any] = None,
+        stderr: Optional[Any] = None,
+        command: Optional[List[str]] = None,
+        read_only: bool = True,
+        parsed_summary: Optional[Dict[str, Any]] = None,
+        error: Optional[BaseException] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "returncode_present": returncode is not None,
+                "read_only": read_only,
+                "command_shape": command or [],
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+            },
+        )
+
+        payload: Dict[str, Any] = {
+            "component": "network.ebpf.loader_implementation",
+            "stage": stage,
+            "operation": operation,
+            "operation_resource": f"network:ebpf:loader_implementation:{operation}",
+            "service_name": self.source_agent,
+            "layer": EBPF_LOADER_IMPLEMENTATION_LAYER,
+            "identity": _identity_metadata(),
+            "status": status,
+            "source_mode": source_mode,
+            "returncode": returncode,
+            "duration_ms": round((time.monotonic() - start) * 1000, 3),
+            "command": command or [],
+            "read_only": read_only,
+            "observed_state": True,
+            "safe_observation": True,
+            "safe_actuator": False,
+            "parsed_summary": parsed_summary or {},
+            "thinking": thinking,
+            "output": _bounded_output_metadata(stdout, stderr),
+            "payloads_redacted": True,
+            "claim_boundary": EBPF_LOADER_IMPLEMENTATION_CLAIM_BOUNDARY,
+        }
+        if error is not None:
+            payload["error"] = {
+                "type": type(error).__name__,
+                "message_hash": _hash_value(str(error)),
+                "message_redacted": True,
+            }
+        if extra:
+            payload.update(extra)
+
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                self.source_agent,
+                payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish eBPF loader observation: %s", exc)
+            return None
 
     def _verify_interface_exists(self, interface: str) -> bool:
         """
@@ -85,7 +310,6 @@ class EBPFLoaderImplementation(EBPFLoader):
         # Check if still attached via ip link. If this check cannot run, fail
         # closed because returning success would hide a possibly attached program.
         try:
-            cmd = ["ip", "link", "show", "dev", attached_to]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode != 0:
@@ -284,8 +508,10 @@ class EBPFLoaderImplementation(EBPFLoader):
             return False
 
         # Try to verify via bpftool
+        cmd = ["bpftool", "prog", "list"]
+        safe_command = _redacted_command(cmd, redacted_indices=())
+        start = time.monotonic()
         try:
-            cmd = ["bpftool", "prog", "list"]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode == 0:
@@ -294,9 +520,88 @@ class EBPFLoaderImplementation(EBPFLoader):
                 program_info = self.loaded_programs[program_id]
                 program_path = program_info.get("path", "")
 
-                if program_path and Path(program_path).name in result.stdout:
+                program_seen = bool(
+                    program_path and Path(program_path).name in result.stdout
+                )
+                self._publish_observation(
+                    stage=(
+                        "ebpf_loader_program_loaded_verified"
+                        if program_seen
+                        else "ebpf_loader_program_loaded_not_observed"
+                    ),
+                    operation="verify_program_loaded",
+                    status="success" if program_seen else "empty",
+                    source_mode="bpftool",
+                    start=start,
+                    returncode=result.returncode,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    command=safe_command,
+                    parsed_summary={
+                        "program_seen": program_seen,
+                        "fallback_metadata_present": True,
+                    },
+                    extra={
+                        "program_id_hash": _hash_value(program_id),
+                        "program_path_hash": _hash_value(program_path),
+                        "program_id_redacted": True,
+                        "program_path_redacted": bool(program_path),
+                    },
+                )
+                if program_seen:
                     return True
+            else:
+                self._publish_observation(
+                    stage="ebpf_loader_program_loaded_verify_failed",
+                    operation="verify_program_loaded",
+                    status="failure",
+                    source_mode="bpftool",
+                    start=start,
+                    returncode=result.returncode,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    command=safe_command,
+                    parsed_summary={
+                        "program_seen": False,
+                        "fallback_metadata_present": True,
+                    },
+                    extra={
+                        "program_id_hash": _hash_value(program_id),
+                        "program_path_hash": _hash_value(
+                            self.loaded_programs[program_id].get("path", "")
+                        ),
+                        "program_id_redacted": True,
+                        "program_path_redacted": bool(
+                            self.loaded_programs[program_id].get("path", "")
+                        ),
+                    },
+                )
         except Exception as e:
+            self._publish_observation(
+                stage="ebpf_loader_program_loaded_verify_error",
+                operation="verify_program_loaded",
+                status="failure",
+                source_mode="bpftool",
+                start=start,
+                stdout=getattr(e, "stdout", None) or getattr(e, "output", None),
+                stderr=getattr(e, "stderr", None),
+                command=safe_command,
+                error=e,
+                parsed_summary={
+                    "program_seen": False,
+                    "fallback_metadata_present": True,
+                },
+                extra={
+                    "program_id_hash": _hash_value(program_id),
+                    "program_path_hash": _hash_value(
+                        self.loaded_programs[program_id].get("path", "")
+                    ),
+                    "program_id_redacted": True,
+                    "program_path_redacted": bool(
+                        self.loaded_programs[program_id].get("path", "")
+                    ),
+                },
+            )
             logger.debug(f"Error verifying program: {e}")
 
         # Fallback: check if program is in our loaded_programs dict
@@ -335,20 +640,93 @@ class EBPFLoaderImplementation(EBPFLoader):
         }
 
         # Try to get runtime stats from kernel
+        cmd = ["bpftool", "prog", "show", "id", program_id]
+        safe_command = _redacted_command(cmd, redacted_indices=(4,))
+        start = time.monotonic()
         try:
-            cmd = ["bpftool", "prog", "show", "id", program_id]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode == 0:
                 # Parse bpftool output (simplified)
                 stats["kernel_info"] = result.stdout.strip()
+                self._publish_observation(
+                    stage="ebpf_loader_program_stats_observed",
+                    operation="get_program_stats",
+                    status="success",
+                    source_mode="bpftool",
+                    start=start,
+                    returncode=result.returncode,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    command=safe_command,
+                    parsed_summary={"kernel_info_observed": True},
+                    extra={
+                        "program_id_hash": _hash_value(program_id),
+                        "program_path_hash": _hash_value(program_info.get("path", "")),
+                        "attached_to_hash": _hash_value(program_info.get("attached_to")),
+                        "pinned_path_hash": _hash_value(program_info.get("pinned_path")),
+                        "program_id_redacted": True,
+                        "program_path_redacted": bool(program_info.get("path")),
+                        "attached_to_redacted": bool(program_info.get("attached_to")),
+                        "pinned_path_redacted": bool(program_info.get("pinned_path")),
+                    },
+                )
+            else:
+                self._publish_observation(
+                    stage="ebpf_loader_program_stats_failed",
+                    operation="get_program_stats",
+                    status="failure",
+                    source_mode="bpftool",
+                    start=start,
+                    returncode=result.returncode,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    command=safe_command,
+                    parsed_summary={"kernel_info_observed": False},
+                    extra={
+                        "program_id_hash": _hash_value(program_id),
+                        "program_path_hash": _hash_value(program_info.get("path", "")),
+                        "attached_to_hash": _hash_value(program_info.get("attached_to")),
+                        "pinned_path_hash": _hash_value(program_info.get("pinned_path")),
+                        "program_id_redacted": True,
+                        "program_path_redacted": bool(program_info.get("path")),
+                        "attached_to_redacted": bool(program_info.get("attached_to")),
+                        "pinned_path_redacted": bool(program_info.get("pinned_path")),
+                    },
+                )
         except Exception as e:
+            self._publish_observation(
+                stage="ebpf_loader_program_stats_error",
+                operation="get_program_stats",
+                status="failure",
+                source_mode="bpftool",
+                start=start,
+                stdout=getattr(e, "stdout", None) or getattr(e, "output", None),
+                stderr=getattr(e, "stderr", None),
+                command=safe_command,
+                error=e,
+                parsed_summary={"kernel_info_observed": False},
+                extra={
+                    "program_id_hash": _hash_value(program_id),
+                    "program_path_hash": _hash_value(program_info.get("path", "")),
+                    "attached_to_hash": _hash_value(program_info.get("attached_to")),
+                    "pinned_path_hash": _hash_value(program_info.get("pinned_path")),
+                    "program_id_redacted": True,
+                    "program_path_redacted": bool(program_info.get("path")),
+                    "attached_to_redacted": bool(program_info.get("attached_to")),
+                    "pinned_path_redacted": bool(program_info.get("pinned_path")),
+                },
+            )
             logger.debug(f"Error getting kernel stats: {e}")
 
         return stats
 
 
-def create_ebpf_loader(programs_dir: Optional[Path] = None) -> EBPFLoaderImplementation:
+def create_ebpf_loader(
+    programs_dir: Optional[Path] = None,
+    event_bus: Optional[EventBus] = None,
+    event_project_root: str = ".",
+) -> EBPFLoaderImplementation:
     """
     Factory function to create a fully implemented eBPF loader.
 
@@ -358,4 +736,8 @@ def create_ebpf_loader(programs_dir: Optional[Path] = None) -> EBPFLoaderImpleme
     Returns:
         EBPFLoaderImplementation instance
     """
-    return EBPFLoaderImplementation(programs_dir=programs_dir)
+    return EBPFLoaderImplementation(
+        programs_dir=programs_dir,
+        event_bus=event_bus,
+        event_project_root=event_project_root,
+    )

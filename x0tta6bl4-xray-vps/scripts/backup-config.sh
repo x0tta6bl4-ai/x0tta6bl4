@@ -20,6 +20,7 @@ CONFIG_DIR="/usr/local/etc/xray"
 SSL_DIR="/etc/ssl/xray"
 LOG_DIR="/var/log/xray"
 RETENTION_DAYS=30
+XRAY_RESTORE_CONFIRM="${XRAY_RESTORE_CONFIRM:-}"
 
 # Logging
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
@@ -44,9 +45,13 @@ OPTIONS:
 EXAMPLES:
     $0                      Create standard backup
     $0 -p                   Create pre-deployment backup
-    $0 -r backup-20260131.tar.gz    Restore from backup
+    XRAY_RESTORE_CONFIRM=STOP_AND_RESTART_XRAY $0 -r backup-20260131.tar.gz
     $0 -l                   List all backups
     $0 -c                   Clean old backups
+
+SAFETY:
+    Restore stops and starts xray. It refuses to run unless
+    XRAY_RESTORE_CONFIRM=STOP_AND_RESTART_XRAY is set.
 EOF
 }
 
@@ -106,12 +111,56 @@ backup_service() {
 # Backup client configurations
 backup_clients() {
     local backup_path="$1"
+    local clients_src="/root/xray-clients"
+    local clients_dst="$backup_path/xray-clients"
     
     log_info "Backing up client configurations..."
     
-    if [[ -d /root/xray-clients ]]; then
-        cp -r /root/xray-clients "$backup_path/"
-        log_success "Client configurations backed up"
+    if [[ -d "$clients_src" ]]; then
+        mkdir -p "$clients_dst"
+
+        local copied=0
+        local client_file
+        while IFS= read -r -d '' client_file; do
+            cp -a "$client_file" "$clients_dst/"
+            ((copied+=1))
+        done < <(find "$clients_src" -maxdepth 1 -type f -print0)
+
+        if [[ "$copied" -eq 0 ]]; then
+            log_warn "No active top-level client files found in $clients_src"
+        fi
+
+        local bad_files
+        bad_files=$(grep -RIlE '<html|403 Forbidden|Error: Forbidden' "$clients_dst" 2>/dev/null || true)
+        if [[ -n "$bad_files" ]]; then
+            log_error "Active client backup contains HTTP error text:"
+            printf '%s\n' "$bad_files"
+            return 1
+        fi
+
+        if command -v jq >/dev/null 2>&1; then
+            local json_file
+            while IFS= read -r -d '' json_file; do
+                if ! jq empty "$json_file" >/dev/null 2>&1; then
+                    log_error "Invalid JSON client profile: $json_file"
+                    return 1
+                fi
+            done < <(find "$clients_dst" -maxdepth 1 -type f -name '*.json' -print0)
+        else
+            log_warn "jq not found; skipping JSON validation for client backup"
+        fi
+
+        cat > "$clients_dst/README_BACKUP_POLICY.txt" << 'EOF'
+This backup contains only active top-level client profiles from /root/xray-clients.
+disabled-* client archives are intentionally excluded because they may contain old,
+corrupted, or non-distributable profiles.
+EOF
+
+        if find "$clients_src" -mindepth 1 -maxdepth 1 -type d -name 'disabled-*' -print -quit | grep -q .; then
+            log_warn "Disabled client archives were intentionally excluded from backup"
+        fi
+
+        log_success "Active client configurations backed up"
     else
         log_warn "Client configurations not found"
     fi
@@ -145,14 +194,14 @@ create_metadata() {
   "backup_type": "$backup_type",
   "created_at": "$(date -Iseconds)",
   "hostname": "$(hostname)",
-  "xray_version": "$(xray -version 2>/dev/null | head -1 || echo 'unknown')",
+  "xray_version": "$(VERSION_OUTPUT="$(xray version 2>/dev/null || true)"; VERSION_OUTPUT="${VERSION_OUTPUT%%$'\n'*}"; echo "${VERSION_OUTPUT:-unknown}")",
   "kernel_version": "$(uname -r)",
   "os_info": "$(lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)",
   "files_included": [
     "xray configuration",
     "ssl certificates",
     "service file",
-    "client configurations",
+    "active client configurations",
     "system settings"
   ]
 }
@@ -167,17 +216,17 @@ create_archive() {
     local archive_name="$(basename $backup_path).tar.gz"
     local archive_path="${BACKUP_DIR}/${archive_name}"
     
-    log_info "Creating compressed archive..."
+    log_info "Creating compressed archive..." >&2
     
     cd "$BACKUP_DIR"
     tar -czf "$archive_name" "$(basename $backup_path)"
     rm -rf "$backup_path"
     
-    log_success "Archive created: $archive_path"
+    log_success "Archive created: $archive_path" >&2
     
     # Display archive info
     local size=$(du -h "$archive_path" | cut -f1)
-    log_info "Archive size: $size"
+    log_info "Archive size: $size" >&2
     
     echo "$archive_path"
 }
@@ -185,6 +234,13 @@ create_archive() {
 # Restore from backup
 restore_backup() {
     local archive_file="$1"
+
+    if [[ "$XRAY_RESTORE_CONFIRM" != "STOP_AND_RESTART_XRAY" ]]; then
+        log_error "Refusing restore: this action stops and starts xray."
+        log_error "Current production profiles can be regenerated without restart via scripts/generate-live-client-profiles.sh."
+        log_error "Set XRAY_RESTORE_CONFIRM=STOP_AND_RESTART_XRAY to intentionally restore and restart."
+        exit 2
+    fi
     
     if [[ ! -f "$archive_file" ]]; then
         log_error "Backup file not found: $archive_file"

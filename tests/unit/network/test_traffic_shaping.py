@@ -4,6 +4,7 @@ import time
 
 import pytest
 
+from src.coordination.events import EventBus
 from src.network.obfuscation.traffic_shaping import (TRAFFIC_PROFILES,
                                                      TrafficAnalyzer,
                                                      TrafficProfile,
@@ -172,3 +173,56 @@ async def test_async_send_shaped():
     # Verify we can unshape
     unshaped = shaper.unshape_packet(sent_data[0])
     assert unshaped == original
+
+
+def test_traffic_shaper_event_evidence_redacts_payload_and_claims(tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    shaper = TrafficShaper(TrafficProfile.VIDEO_STREAMING, event_bus=bus)
+
+    shaped = shaper.shape_packet(b"raw-payload-secret")
+    assert shaper.unshape_packet(shaped) == b"raw-payload-secret"
+
+    events = bus.get_event_history(source_agent="traffic-shaper")
+    operations = [event.data["operation"] for event in events]
+    assert operations == ["shape_packet", "unshape_packet"]
+
+    for event in events:
+        payload = event.data
+        assert payload["payloads_redacted"] is True
+        assert payload["timing_trace_redacted"] is True
+        assert payload["dataplane_confirmed"] is False
+        assert payload["dpi_bypass_confirmed"] is False
+        assert payload["bypass_confirmed"] is False
+        assert payload["thinking"]["profile"]["role"] == "security"
+        assert "zero_trust_review" in payload["thinking"]["techniques"]
+        assert payload["last_thinking_context"]["applied"]["framing"]["problem"] in {
+            "traffic_shaping_shape_packet",
+            "traffic_shaping_unshape_packet",
+        }
+        assert payload["claim_boundary"]
+        assert "raw-payload-secret" not in repr(payload)
+
+
+@pytest.mark.asyncio
+async def test_send_shaped_event_is_local_not_dataplane_proof(tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    shaper = TrafficShaper(TrafficProfile.GAMING, event_bus=bus)
+    sent = []
+
+    await shaper.send_shaped(b"raw-game-secret", sent.append)
+
+    assert sent
+    events = bus.get_event_history(source_agent="traffic-shaper")
+    send_event = [event for event in events if event.data["operation"] == "send_shaped"][
+        -1
+    ]
+    payload = send_event.data
+    assert payload["status"] == "sent"
+    assert payload["send_callback_invoked"] is True
+    assert payload["dataplane_confirmed"] is False
+    assert payload["dpi_bypass_confirmed"] is False
+    assert (
+        payload["last_thinking_context"]["applied"]["framing"]["problem"]
+        == "traffic_shaping_send_shaped"
+    )
+    assert "raw-game-secret" not in repr(payload)

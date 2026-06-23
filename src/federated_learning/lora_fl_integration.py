@@ -19,6 +19,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.federated_learning.coordinator import (
     CoordinatorConfig,
     FederatedCoordinator,
@@ -305,6 +306,12 @@ class LoRAWeightAggregator:
         self.aggregation_method = aggregation_method
         self.byzantine_tolerance = byzantine_tolerance
         self.clip_norm = clip_norm
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="lora_weight_aggregator",
+            role="fl",
+            capabilities=("coordinator",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
     def clip_weights(
         self, weights: Dict[str, Dict[str, List[float]]], max_norm: float
@@ -398,6 +405,19 @@ class LoRAWeightAggregator:
             Tuple of (aggregated_weights, aggregation_result)
         """
         start_time = time.time()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "lora_weight_aggregation",
+                "goal": "aggregate LoRA adapter updates with privacy bounds",
+                "constraints": {
+                    "update_count": len(updates),
+                    "previous_weights_present": previous_weights is not None,
+                    "aggregation_method": self.aggregation_method,
+                    "byzantine_tolerance": self.byzantine_tolerance,
+                    "clip_norm": self.clip_norm,
+                },
+            }
+        )
 
         if not updates:
             return previous_weights or {}, AggregationResult(
@@ -556,6 +576,12 @@ class FederatedLoRATrainer:
         # Current round state
         self.current_round: Optional[LoRAFLRound] = None
         self.round_history: List[LoRAFLRound] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="federated_lora_trainer",
+            role="fl",
+            capabilities=("coordinator", "privacy"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Global LoRA weights
         self.global_lora_weights: Optional[Dict[str, Dict[str, List[float]]]] = None
@@ -615,6 +641,19 @@ class FederatedLoRATrainer:
         Returns:
             LoRAFLRound if started successfully
         """
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "lora_fl_round_start",
+                "goal": "start a federated LoRA training round",
+                "constraints": {
+                    "round_number": round_number,
+                    "registered_nodes": len(self.coordinator.nodes),
+                    "min_participants": self.config.min_participants,
+                    "target_participants": self.config.target_participants,
+                    "privacy_enabled": self.config.enable_privacy,
+                },
+            }
+        )
         # Start round in coordinator
         coord_round = self.coordinator.start_round(round_number)
         if not coord_round:
@@ -655,6 +694,19 @@ class FederatedLoRATrainer:
         if not self.current_round:
             logger.warning("No active round for update")
             return False
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "lora_update_submission",
+                "goal": "validate and accept a LoRA update for the active round",
+                "constraints": {
+                    "round_number": self.current_round.round_number,
+                    "status": self.current_round.status.value,
+                    "selected_node_count": len(self.current_round.selected_nodes),
+                    "updates_received": len(self.current_round.lora_updates),
+                    "privacy_enabled": self.config.enable_privacy,
+                },
+            }
+        )
 
         if self.current_round.status not in (
             LoRAFLRoundStatus.TRAINING,
@@ -719,6 +771,19 @@ class FederatedLoRATrainer:
             return
 
         self.current_round.status = LoRAFLRoundStatus.AGGREGATING
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "lora_round_aggregation",
+                "goal": "aggregate LoRA updates and update privacy accounting",
+                "constraints": {
+                    "round_number": self.current_round.round_number,
+                    "updates_received": len(self.current_round.lora_updates),
+                    "min_participants": self.current_round.min_participants,
+                    "privacy_enabled": self.config.enable_privacy,
+                    "privacy_epsilon": self.config.privacy_epsilon,
+                },
+            }
+        )
 
         try:
             updates = list(self.current_round.lora_updates.values())
@@ -785,6 +850,8 @@ class FederatedLoRATrainer:
             "total_rounds": len(self.round_history),
             "registered_nodes": len(self.coordinator.nodes),
             "eligible_nodes": len(self.coordinator.get_eligible_nodes()),
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
 
     async def run_federated_training(
@@ -808,6 +875,18 @@ class FederatedLoRATrainer:
         }
 
         start_time = time.time()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "lora_federated_training",
+                "goal": "run complete federated LoRA training",
+                "constraints": {
+                    "num_rounds": self.config.num_rounds,
+                    "min_participants": self.config.min_participants,
+                    "local_train_fn_present": local_train_fn is not None,
+                    "privacy_enabled": self.config.enable_privacy,
+                },
+            }
+        )
 
         for round_num in range(1, self.config.num_rounds + 1):
             # Start round

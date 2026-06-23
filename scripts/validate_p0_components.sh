@@ -6,6 +6,9 @@ set -e
 NAMESPACE="x0tta6bl4-staging"
 BASE_URL="http://localhost:8080"
 LOG_FILE="/tmp/p0_validation_$(date +%Y%m%d_%H%M%S).log"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REAL_READINESS_JSON=".tmp/validation-shards/real-readiness-current.json"
+REAL_READINESS_MD=".tmp/validation-shards/real-readiness-current.md"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║     P0 Components Validation                                  ║"
@@ -259,7 +262,17 @@ generate_summary() {
     
     if [ "$failed_tests" -eq 0 ]; then
         echo "🎉 ALL CRITICAL TESTS PASSED!"
-        echo "✅ P0 Components are ready for production validation"
+        echo "Local P0 checks passed. Production validation claim requires the fail-closed real-readiness gate."
+        if python3 "$ROOT_DIR/scripts/ops/check_real_readiness.py" \
+            --write-json "$REAL_READINESS_JSON" \
+            --write-md "$REAL_READINESS_MD" >/dev/null; then
+            echo "✅ REAL READINESS GATE: PASSED"
+        else
+            echo "❌ REAL READINESS GATE: BLOCKED"
+            echo "P0 checks passed, but production validation is not allowed yet."
+            echo "Report: $REAL_READINESS_JSON"
+            return 1
+        fi
     else
         echo "⚠️ SOME TESTS FAILED!"
         echo "❌ P0 Components require fixes before production"

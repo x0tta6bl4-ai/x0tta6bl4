@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.core.mape_orchestrator import (
     MAPEOrchestrator,
     HealingAction,
@@ -85,6 +86,13 @@ class AgentMAPEIntegrator:
         self._state = UnifiedState()
         self._running = False
         self._lock = asyncio.Lock()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="agent_mape_integrator",
+            role="healing",
+            capabilities=("coordinator", "monitoring"),
+            extra_techniques=("mape_k", "causal_loops_system_dynamics"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
         
         logger.info("Agent-MAPE Integrator initialized")
     
@@ -193,6 +201,17 @@ class AgentMAPEIntegrator:
         """Forward MAPE-K healing actions to AI Agents for processing."""
         if not self.agents or not self.agents.auto_healer:
             return
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mape_forward_to_agents",
+                "goal": "Forward bounded MAPE-K actions to AI healing agents.",
+                "action_count": len(actions),
+                "constraints": {
+                    "preserve_action_payloads": True,
+                    "source": "mape-k",
+                },
+            }
+        )
         
         for action in actions:
             # Convert MAPE-K action to agent-compatible format
@@ -223,6 +242,17 @@ class AgentMAPEIntegrator:
             True if healing was successful
         """
         logger.info(f"Manual healing triggered: {issue}")
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "manual_integrated_healing",
+                "goal": issue,
+                "context": context,
+                "constraints": {
+                    "try_mape": self.mape is not None,
+                    "try_agent_healer": bool(self.agents and self.agents.auto_healer),
+                },
+            }
+        )
         
         success = False
         
@@ -276,6 +306,8 @@ class AgentMAPEIntegrator:
                 "mttr_seconds": self._state.mttr_seconds,
             },
             "mape_k": mape_metrics,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
             "timestamps": {
                 "last_mape_update": self._state.last_mape_update.isoformat() if self._state.last_mape_update else None,
                 "last_agent_sync": self._state.last_agent_sync.isoformat() if self._state.last_agent_sync else None,

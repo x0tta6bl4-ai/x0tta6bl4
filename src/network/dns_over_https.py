@@ -6,13 +6,90 @@ to privacy-focused DNS servers.
 """
 
 import asyncio
+import hashlib
 import logging
+import time
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
 
 import aiohttp
 
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.services.service_event_identity import service_event_identity
+
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "doh-resolver"
+_SERVICE_LAYER = "network_dns_over_https_observed_state"
+DOH_RESOLVER_CLAIM_BOUNDARY = (
+    "DNS-over-HTTPS resolver evidence records local resolver choice, HTTP status "
+    "buckets, parser outcomes, timeout/error classes, and bounded result counts "
+    "only. It does not prove upstream DNS privacy, remote resolver honesty, VPN "
+    "dataplane routing, browser DNS behavior, or that the host avoided every DNS leak."
+)
+
+
+def _normalize_evidence_value(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _redacted_sha256_prefix(value: Any) -> Optional[str]:
+    normalized = _normalize_evidence_value(value)
+    if not normalized:
+        return None
+    return hashlib.sha256(
+        normalized.encode("utf-8", errors="replace")
+    ).hexdigest()[:16]
+
+
+def _identity_evidence() -> Dict[str, Any]:
+    identity = service_event_identity(service_name=_SERVICE_AGENT)
+    return {
+        "spiffe_id_present": bool(_normalize_evidence_value(identity.get("spiffe_id"))),
+        "spiffe_id_hash": _redacted_sha256_prefix(identity.get("spiffe_id")),
+        "did_present": bool(_normalize_evidence_value(identity.get("did"))),
+        "did_hash": _redacted_sha256_prefix(identity.get("did")),
+        "wallet_address_present": bool(
+            _normalize_evidence_value(identity.get("wallet_address"))
+        ),
+        "wallet_address_hash": _redacted_sha256_prefix(identity.get("wallet_address")),
+        "raw_identity_redacted": True,
+    }
+
+
+def _server_evidence(server: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "name_hash": _redacted_sha256_prefix(server.get("name")),
+        "url_hash": _redacted_sha256_prefix(server.get("url")),
+        "param_keys": sorted(str(key) for key in server.get("params", {}).keys()),
+        "raw_server_redacted": True,
+    }
+
+
+def _resolution_evidence_reference(
+    event_id: Optional[str],
+    payload: Dict[str, Any],
+) -> Dict[str, Any]:
+    return {
+        "event_id": event_id,
+        "source_agent": _SERVICE_AGENT,
+        "layer": _SERVICE_LAYER,
+        "operation": payload.get("operation"),
+        "stage": payload.get("stage"),
+        "status": payload.get("status"),
+        "reason": payload.get("reason"),
+        "record_type": payload.get("record_type"),
+        "domain_hash": payload.get("domain_hash"),
+        "resolver_mode": payload.get("resolver_mode"),
+        "answer_count": payload.get("answer_count"),
+        "attempt_count": payload.get("attempt_count"),
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+        "claim_boundary": payload.get("claim_boundary"),
+    }
+
 
 # Privacy-focused DoH servers (rotating list for better anonymity)
 DOH_SERVERS = [
@@ -43,11 +120,105 @@ DOH_SERVERS = [
 class DoHResolver:
     """DNS-over-HTTPS resolver with rotating server support."""
 
-    def __init__(self, servers: List[Dict] = None):
+    def __init__(
+        self,
+        servers: List[Dict] = None,
+        *,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+    ):
         self.servers = servers or DOH_SERVERS
         self.current_server_index = 0
         self.session: Optional[aiohttp.ClientSession] = None
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
+        self._last_resolution_evidence: Optional[Dict[str, Any]] = None
         logger.info(f"DoH resolver initialized with {len(self.servers)} servers")
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        if self.event_bus is not None:
+            return self.event_bus
+        try:
+            self.event_bus = get_event_bus(self.event_project_root)
+            return self.event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize doh-resolver EventBus: %s", exc)
+            return None
+
+    def _publish_resolver_event(
+        self,
+        *,
+        operation: str,
+        stage: str,
+        status: str,
+        started_at: float,
+        domain: Optional[str],
+        record_type: str,
+        timeout: Optional[float] = None,
+        resolver_mode: str,
+        attempts: Optional[List[Dict[str, Any]]] = None,
+        answer_count: int = 0,
+        reason: Optional[str] = None,
+        event_type: Optional[EventType] = None,
+    ) -> Optional[str]:
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+
+        payload = {
+            "component": "network.dns_over_https",
+            "operation": operation,
+            "service_name": _SERVICE_AGENT,
+            "source_alias": _SERVICE_AGENT,
+            "layer": _SERVICE_LAYER,
+            "stage": stage,
+            "status": status,
+            "reason": reason,
+            "duration_ms": round((time.monotonic() - started_at) * 1000.0, 3),
+            "record_type": _normalize_evidence_value(record_type).upper(),
+            "domain_hash": _redacted_sha256_prefix(domain),
+            "domain_present": bool(_normalize_evidence_value(domain)),
+            "resolver_mode": resolver_mode,
+            "timeout_seconds": timeout,
+            "server_count": len(self.servers),
+            "current_server_index": self.current_server_index,
+            "attempt_count": len(attempts or []),
+            "attempts": attempts or [],
+            "answer_count": int(answer_count or 0),
+            "observed_state": True,
+            "control_action": False,
+            "service_identity": _identity_evidence(),
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+            "claim_boundary": DOH_RESOLVER_CLAIM_BOUNDARY,
+        }
+        try:
+            event = bus.publish(
+                event_type
+                or (
+                    EventType.TASK_BLOCKED
+                    if status in {"failed", "error", "timeout"}
+                    else EventType.PIPELINE_STAGE_END
+                ),
+                _SERVICE_AGENT,
+                payload,
+                priority=4,
+            )
+            self._last_resolution_evidence = _resolution_evidence_reference(
+                event.event_id,
+                payload,
+            )
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish doh-resolver event: %s", exc)
+            self._last_resolution_evidence = None
+            return None
+
+    def get_last_resolution_evidence(self) -> Optional[Dict[str, Any]]:
+        """Return a redacted reference to the latest resolution evidence event."""
+        if self._last_resolution_evidence is None:
+            return None
+        return dict(self._last_resolution_evidence)
 
     async def _init_session(self):
         """Initialize aiohttp session if not already initialized."""
@@ -111,34 +282,83 @@ class DoHResolver:
         Returns:
             List of resolved IP addresses or other record data
         """
+        started_at = time.monotonic()
+        normalized_record_type = _normalize_evidence_value(record_type).upper() or "A"
+        self._last_resolution_evidence = None
         # Use system DNS for Google Cloud domains to avoid conflicts
         if self._should_use_system_dns(domain):
             logger.debug(f"Using system DNS for {domain} (Google Cloud/Spotify domain)")
-            return await self._system_dns_resolve(domain, record_type)
+            try:
+                results = await self._system_dns_resolve(domain, record_type)
+                self._publish_resolver_event(
+                    operation="resolve",
+                    stage="system_dns_fallback",
+                    status="success" if results else "failed",
+                    started_at=started_at,
+                    domain=domain,
+                    record_type=normalized_record_type,
+                    timeout=timeout,
+                    resolver_mode="system_dns_fallback",
+                    answer_count=len(results),
+                    reason=None if results else "system_dns_empty_result",
+                )
+                return results
+            except Exception as exc:
+                self._publish_resolver_event(
+                    operation="resolve",
+                    stage="system_dns_fallback",
+                    status="error",
+                    started_at=started_at,
+                    domain=domain,
+                    record_type=normalized_record_type,
+                    timeout=timeout,
+                    resolver_mode="system_dns_fallback",
+                    reason="system_dns_exception",
+                    attempts=[
+                        {
+                            "error_hash": _redacted_sha256_prefix(exc),
+                            "payloads_redacted": True,
+                        }
+                    ],
+                )
+                raise
 
         await self._init_session()
 
+        attempts: List[Dict[str, Any]] = []
         # Try multiple servers if first fails
         for attempt in range(len(self.servers)):
             server = self.servers[self.current_server_index]
+            attempt_evidence: Dict[str, Any] = {
+                "attempt_index": attempt,
+                "server": _server_evidence(server),
+                "http_status": None,
+                "dns_status": None,
+                "answer_count": 0,
+                "outcome": "started",
+                "payloads_redacted": True,
+            }
             try:
                 params = server["params"].copy()
-                params.update({"name": domain, "type": record_type})
+                params.update({"name": domain, "type": normalized_record_type})
 
                 url = f"{server['url']}?{urlencode(params)}"
 
-                logger.debug(f"Resolving {domain} ({record_type}) via {server['name']}")
+                logger.debug(f"Resolving {domain} ({normalized_record_type}) via {server['name']}")
 
                 async with self.session.get(
                     url,
                     headers={"Accept": "application/dns-json"},
                     timeout=aiohttp.ClientTimeout(total=timeout),
                 ) as response:
+                    attempt_evidence["http_status"] = response.status
                     if response.status == 200:
                         # Handle case where response might have unexpected mimetype
                         try:
                             data = await response.json()
                         except Exception as e:
+                            attempt_evidence["outcome"] = "json_parse_failed"
+                            attempt_evidence["error_hash"] = _redacted_sha256_prefix(e)
                             logger.warning(
                                 f"Failed to parse JSON from {server['name']}: {e}"
                             )
@@ -148,6 +368,7 @@ class DoHResolver:
                                 f"Raw response from {server['name']}: {raw_content}"
                             )
                             self._rotate_server()
+                            attempts.append(attempt_evidence)
                             continue
 
                         if data.get("Status") == 0:  # NOERROR
@@ -156,40 +377,76 @@ class DoHResolver:
 
                             for ans in answers:
                                 if (
-                                    ans.get("type") == 1 and record_type == "A"
+                                    ans.get("type") == 1 and normalized_record_type == "A"
                                 ):  # A record
                                     results.append(ans.get("data"))
                                 elif (
-                                    ans.get("type") == 28 and record_type == "AAAA"
+                                    ans.get("type") == 28 and normalized_record_type == "AAAA"
                                 ):  # AAAA record
                                     results.append(ans.get("data"))
-                                elif record_type in ["MX", "CNAME", "TXT"]:
+                                elif normalized_record_type in ["MX", "CNAME", "TXT"]:
                                     results.append(ans.get("data"))
 
                             logger.debug(f"Resolved {domain} to {len(results)} records")
+                            attempt_evidence["dns_status"] = data.get("Status")
+                            attempt_evidence["answer_count"] = len(results)
+                            attempt_evidence["outcome"] = "success"
+                            attempts.append(attempt_evidence)
 
                             # Rotate server for next request
                             self._rotate_server()
 
+                            self._publish_resolver_event(
+                                operation="resolve",
+                                stage="doh_resolve",
+                                status="success",
+                                started_at=started_at,
+                                domain=domain,
+                                record_type=normalized_record_type,
+                                timeout=timeout,
+                                resolver_mode="doh",
+                                attempts=attempts,
+                                answer_count=len(results),
+                            )
                             return results
                         else:
+                            attempt_evidence["dns_status"] = data.get("Status")
+                            attempt_evidence["outcome"] = "dns_status_failed"
                             logger.warning(
                                 f"DNS resolution failed for {domain}: {data.get('Status')}"
                             )
                     else:
+                        attempt_evidence["outcome"] = "http_status_failed"
                         logger.warning(
                             f"HTTP {response.status} from {server['name']} for {domain}"
                         )
 
             except asyncio.TimeoutError:
+                attempt_evidence["outcome"] = "timeout"
                 logger.warning(f"Timeout from {server['name']} for {domain}")
             except Exception as e:
+                attempt_evidence["outcome"] = "exception"
+                attempt_evidence["error_hash"] = _redacted_sha256_prefix(e)
                 logger.warning(f"Error resolving {domain} via {server['name']}: {e}")
 
+            attempts.append(attempt_evidence)
             # Rotate to next server for next attempt
             self._rotate_server()
 
         logger.error(f"All {len(self.servers)} DNS servers failed for {domain}")
+        self._publish_resolver_event(
+            operation="resolve",
+            stage="doh_resolve",
+            status="failed",
+            started_at=started_at,
+            domain=domain,
+            record_type=normalized_record_type,
+            timeout=timeout,
+            resolver_mode="doh",
+            attempts=attempts,
+            answer_count=0,
+            reason="all_servers_failed",
+        )
         return []
 
     async def resolve_a(self, domain: str) -> List[str]:

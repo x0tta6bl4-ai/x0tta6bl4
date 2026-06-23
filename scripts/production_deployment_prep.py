@@ -2,15 +2,23 @@
 """
 Production Deployment Preparation
 
-Validates all prerequisites before production deployment.
+Validates local deployment-preparation prerequisites.
+This is not production deployment readiness proof.
 """
 
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 project_root = Path(__file__).parent.parent
+PRODUCTION_DEPLOYMENT_PREP_CLAIM_BOUNDARY = (
+    "This script checks local preparation prerequisites such as baseline files, "
+    "documentation, helper scripts, and a local security audit command. It does "
+    "not prove release approval, live deployment safety, canary success, customer "
+    "traffic, external DPI bypass, settlement finality, production SLOs, or "
+    "production deployment readiness."
+)
 
 
 def check_file_exists(filepath: Path) -> Tuple[bool, str]:
@@ -80,69 +88,86 @@ def run_security_audit() -> Tuple[bool, str]:
         return False, f"❌ Security audit error: {str(e)[:100]}"
 
 
+def deployment_preparation_report() -> Dict[str, Any]:
+    """Return bounded local deployment-preparation evidence."""
+    baseline_ok, baseline_msg = check_baseline()
+    doc_results = check_documentation()
+    script_results = check_scripts()
+    audit_ok, audit_msg = run_security_audit()
+    local_prerequisites_passed = all(
+        [baseline_ok, audit_ok]
+        + [passed for passed, _msg in doc_results]
+        + [passed for passed, _msg in script_results]
+    )
+    return {
+        "baseline": {"passed": baseline_ok, "message": baseline_msg},
+        "documentation": [
+            {"passed": passed, "message": message}
+            for passed, message in doc_results
+        ],
+        "scripts": [
+            {"passed": passed, "message": message}
+            for passed, message in script_results
+        ],
+        "security_audit": {"passed": audit_ok, "message": audit_msg},
+        "local_prerequisites_passed": local_prerequisites_passed,
+        "production_deployment_ready": False,
+        "production_deployment_claim_allowed": False,
+        "claim_boundary": PRODUCTION_DEPLOYMENT_PREP_CLAIM_BOUNDARY,
+    }
+
+
 def main():
     """Main validation function."""
     print("\n" + "=" * 60)
     print("🚀 PRODUCTION DEPLOYMENT PREPARATION")
     print("=" * 60 + "\n")
 
-    all_passed = True
+    report = deployment_preparation_report()
 
     # Check baseline
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print("BASELINE CHECK")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    baseline_ok, baseline_msg = check_baseline()
-    print(baseline_msg)
-    if not baseline_ok:
-        all_passed = False
+    print(report["baseline"]["message"])
     print()
 
     # Check documentation
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print("DOCUMENTATION CHECK")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    doc_results = check_documentation()
-    for passed, msg in doc_results:
-        print(msg)
-        if not passed:
-            all_passed = False
+    for item in report["documentation"]:
+        print(item["message"])
     print()
 
     # Check scripts
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print("SCRIPTS CHECK")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    script_results = check_scripts()
-    for passed, msg in script_results:
-        print(msg)
-        if not passed:
-            all_passed = False
+    for item in report["scripts"]:
+        print(item["message"])
     print()
 
     # Run security audit
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print("SECURITY AUDIT")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    audit_ok, audit_msg = run_security_audit()
-    print(audit_msg)
-    if not audit_ok:
-        all_passed = False
+    print(report["security_audit"]["message"])
     print()
 
     # Summary
     print("=" * 60)
-    if all_passed:
-        print("✅ PRODUCTION DEPLOYMENT: READY")
-        print("\nAll prerequisites met. Ready for production deployment!")
+    if report["local_prerequisites_passed"]:
+        print("✅ DEPLOYMENT PREPARATION: LOCAL CHECKS PASSED")
+        print(f"\nClaim boundary: {report['claim_boundary']}")
         print("\nNext steps:")
-        print("  1. Final executive approval (Jan 6-7)")
-        print("  2. Canary deployment 5% (Jan 8)")
-        print("  3. Monitor and scale gradually")
+        print("  1. Run scripts/ops/check_real_readiness.py")
+        print("  2. Attach release approval, rollout, traffic, settlement, and SLO evidence")
+        print("  3. Keep canary/go-live decisions behind current evidence gates")
         sys.exit(0)
     else:
-        print("❌ PRODUCTION DEPLOYMENT: NOT READY")
-        print("\nPlease fix missing prerequisites before deployment.")
+        print("❌ DEPLOYMENT PREPARATION: LOCAL CHECKS INCOMPLETE")
+        print("\nPlease fix missing local prerequisites before release review.")
         sys.exit(1)
 
 

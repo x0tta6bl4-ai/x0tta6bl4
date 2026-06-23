@@ -16,7 +16,7 @@ class TestVPNServerConfiguration:
 
     def test_get_vpn_server_from_env(self):
         """Test getting VPN server from environment."""
-        from src.api.vpn import _get_vpn_server
+        from src.api.maas.endpoints.vpn import _get_vpn_server
 
         with patch.dict(os.environ, {"VPN_SERVER": "vpn.example.com"}):
             server = _get_vpn_server()
@@ -24,7 +24,7 @@ class TestVPNServerConfiguration:
 
     def test_get_vpn_server_development_fallback(self):
         """Test development fallback when VPN_SERVER not set."""
-        from src.api.vpn import _get_vpn_server
+        from src.api.maas.endpoints.vpn import _get_vpn_server
 
         with patch.dict(os.environ, {"VPN_SERVER": "", "ENVIRONMENT": "development"}, clear=False):
             # Remove VPN_SERVER if present
@@ -35,7 +35,7 @@ class TestVPNServerConfiguration:
 
     def test_get_vpn_server_production_required(self):
         """Test production requires VPN_SERVER to be set."""
-        from src.api.vpn import _get_vpn_server
+        from src.api.maas.endpoints.vpn import _get_vpn_server
 
         # Clear VPN_SERVER and set ENVIRONMENT to production
         env = os.environ.copy()
@@ -49,7 +49,7 @@ class TestVPNServerConfiguration:
 
     def test_get_vpn_port_from_env(self):
         """Test getting VPN port from environment."""
-        from src.api.vpn import _get_vpn_port
+        from src.api.maas.endpoints.vpn import _get_vpn_port
 
         with patch.dict(os.environ, {"VPN_PORT": "443"}):
             port = _get_vpn_port()
@@ -57,7 +57,7 @@ class TestVPNServerConfiguration:
 
     def test_get_vpn_port_development_fallback(self):
         """Test development fallback when VPN_PORT not set."""
-        from src.api.vpn import _get_vpn_port
+        from src.api.maas.endpoints.vpn import _get_vpn_port
 
         with patch.dict(os.environ, {"ENVIRONMENT": "development"}):
             os.environ.pop("VPN_PORT", None)
@@ -66,7 +66,7 @@ class TestVPNServerConfiguration:
 
     def test_get_vpn_port_production_required(self):
         """Test production requires VPN_PORT to be set."""
-        from src.api.vpn import _get_vpn_port
+        from src.api.maas.endpoints.vpn import _get_vpn_port
 
         env = os.environ.copy()
         env.pop("VPN_PORT", None)
@@ -84,7 +84,7 @@ class TestVPNConfigGeneration:
     @pytest.fixture
     def mock_xui(self):
         """Mock XUI client."""
-        with patch("src.api.vpn.xui") as mock:
+        with patch("src.api.maas.endpoints.vpn.xui") as mock:
             mock.create_user.return_value = {
                 "uuid": "test-uuid-123",
                 "server": "vpn.example.com",
@@ -95,7 +95,7 @@ class TestVPNConfigGeneration:
     @pytest.mark.asyncio
     async def test_build_vpn_config_with_env_vars(self, mock_xui):
         """Test config generation uses environment variables."""
-        from src.api.vpn import _build_vpn_config
+        from src.api.maas.endpoints.vpn import _build_vpn_config
 
         with patch.dict(os.environ, {
             "VPN_SERVER": "vpn.example.com",
@@ -103,7 +103,7 @@ class TestVPNConfigGeneration:
             "ENVIRONMENT": "production",
         }):
             with patch(
-                "src.api.vpn._check_vpn_connectivity",
+                "src.api.maas.endpoints.vpn._check_vpn_connectivity",
                 new=AsyncMock(return_value="online"),
             ):
                 response = await _build_vpn_config(
@@ -121,7 +121,7 @@ class TestVPNConfigGeneration:
     @pytest.mark.asyncio
     async def test_build_vpn_config_custom_server_port(self, mock_xui):
         """Test config generation with custom server/port override."""
-        from src.api.vpn import _build_vpn_config
+        from src.api.maas.endpoints.vpn import _build_vpn_config
 
         with patch.dict(os.environ, {
             "VPN_SERVER": "default.vpn.com",
@@ -129,7 +129,7 @@ class TestVPNConfigGeneration:
             "ENVIRONMENT": "production",
         }):
             with patch(
-                "src.api.vpn._check_vpn_connectivity",
+                "src.api.maas.endpoints.vpn._check_vpn_connectivity",
                 new=AsyncMock(return_value="online"),
             ):
                 response = await _build_vpn_config(
@@ -145,9 +145,9 @@ class TestVPNConfigGeneration:
     @pytest.mark.asyncio
     async def test_build_vpn_config_fallback_on_xui_failure(self):
         """Test config generation falls back gracefully on XUI failure."""
-        from src.api.vpn import _build_vpn_config
+        from src.api.maas.endpoints.vpn import _build_vpn_config
 
-        with patch("src.api.vpn.xui") as mock_xui:
+        with patch("src.api.maas.endpoints.vpn.xui") as mock_xui:
             mock_xui.create_user.side_effect = Exception("XUI unavailable")
 
             with patch.dict(os.environ, {
@@ -156,7 +156,7 @@ class TestVPNConfigGeneration:
                 "ENVIRONMENT": "production",
             }):
                 with patch(
-                    "src.api.vpn._check_vpn_connectivity",
+                    "src.api.maas.endpoints.vpn._check_vpn_connectivity",
                     new=AsyncMock(return_value="online"),
                 ):
                     response = await _build_vpn_config(

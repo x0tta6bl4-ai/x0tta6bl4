@@ -25,8 +25,9 @@ def test_generate_api_key_evicts_oldest_when_limit_exceeded():
     key_3 = auth.generate_api_key("u3", "enterprise")
 
     assert key_1 not in auth._api_keys
-    assert key_2 in auth._api_keys
-    assert key_3 in auth._api_keys
+    assert auth._api_key_hash(key_1) not in auth._api_keys
+    assert auth._api_key_hash(key_2) in auth._api_keys
+    assert auth._api_key_hash(key_3) in auth._api_keys
     assert len(auth._api_keys) == 2
 
 
@@ -43,9 +44,10 @@ def test_validate_api_key_refreshes_lru_order():
 
     key_3 = auth.generate_api_key("u3", "enterprise")
 
-    assert key_1 in auth._api_keys
-    assert key_2 not in auth._api_keys
-    assert key_3 in auth._api_keys
+    assert key_1 not in auth._api_keys
+    assert auth._api_key_hash(key_1) in auth._api_keys
+    assert auth._api_key_hash(key_2) not in auth._api_keys
+    assert auth._api_key_hash(key_3) in auth._api_keys
 
 
 def test_create_session_evicts_oldest_when_limit_exceeded():

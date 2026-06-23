@@ -1,0 +1,19 @@
+services:
+  ghost-pulse-vpn:
+    image: projects-ghost-vpn-server:latest
+    container_name: x0tta-ghost-pulse
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    environment:
+      VPN_ENCRYPTION_KEY: ${VPN_ENCRYPTION_KEY:?set encryption key}
+      VPN_PORT: 9999
+      PULSE_MODE: ${PULSE_MODE:-corporate}
+      PULSE_SEED: ${PULSE_SEED:-20260521}
+    volumes:
+      - ./ghost_pulse_vpn.py:/app/ghost_pulse_vpn.py
+      - ./src/network/transport/ghost_pulse_transport.py:/app/src/network/transport/ghost_pulse_transport.py
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    command: python3 ghost_pulse_vpn.py server

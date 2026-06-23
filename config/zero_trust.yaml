@@ -1,5 +1,5 @@
 # Zero Trust Enforcement Configuration
-# Production-ready configuration for Zero Trust enforcement
+# Tuned example for Zero Trust enforcement; not production readiness evidence.
 
 zero_trust:
   # Trust scoring configuration
@@ -60,4 +60,3 @@ zero_trust:
     track_peers: true
     track_history: true
     max_tracked_peers: 10000
-

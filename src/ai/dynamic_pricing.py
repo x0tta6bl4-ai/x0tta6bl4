@@ -10,6 +10,8 @@ import logging
 from typing import Any
 
 from sqlalchemy.orm import Session
+
+from src.core.agent_thinking import AgentThinkingCoach
 from src.database import MarketplaceListing
 
 try:
@@ -33,6 +35,12 @@ class PricingAgent:
     
     def __init__(self, target_utilization: float = 0.7):
         self.target_utilization = target_utilization # Goal: 70% of network busy
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="ai-dynamic-pricing",
+            role="pricing",
+            capabilities=("marketplace", "weighted_decision_matrix", "governance"),
+        )
+        self.last_thinking_context: dict[str, Any] = {}
 
     def analyze_and_propose(self, db: Session):
         """
@@ -43,6 +51,18 @@ class PricingAgent:
         rented_listings = db.query(MarketplaceListing).filter(MarketplaceListing.status == "rented").count()
         
         utilization = rented_listings / total_listings if total_listings > 0 else 0
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "dynamic_pricing",
+                "goal": "decide whether marketplace pricing needs DAO adjustment",
+                "metrics": {
+                    "total_listings": total_listings,
+                    "rented_listings": rented_listings,
+                    "utilization": utilization,
+                    "target_utilization": self.target_utilization,
+                },
+            }
+        )
         
         logger.info(f"🤖 AI Pricing: Current network utilization: {utilization:.1%}")
         

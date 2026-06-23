@@ -244,6 +244,34 @@ class TestPQCTokenSigner:
         s2 = signer.sign_token("tok", "mesh-x")
         assert s1["signature"] == s2["signature"]
 
+    def test_hmac_fallback_thinking_redacts_inputs_and_marks_non_pqc(self, signer):
+        result = signer.sign_token("secret-join-token", "secret-mesh-id")
+
+        assert result["pqc_secured"] is False
+        assert result["pqc_fallback"] is True
+        assert "not PQC-secured" in result["security_claim_boundary"]
+
+        status = signer.get_thinking_status()
+        techniques = set(status["techniques"])
+        assert status["profile"]["role"] == "security"
+        assert "zero_trust_review" in techniques
+        assert "reverse_planning" in techniques
+
+        context = status["last_context"]
+        assert context["applied"]["framing"]["problem"] == (
+            "maas_pqc_token_signer_operation"
+        )
+        constraints = context["applied"]["framing"]["constraints"]
+        assert constraints["operation"] == "sign_token"
+        assert constraints["algorithm"] == "HMAC-SHA256"
+        assert constraints["pqc_secured"] is False
+        assert constraints["hmac_fallback_is_not_pqc_secured"] is True
+
+        rendered = str(status)
+        assert "secret-join-token" not in rendered
+        assert "secret-mesh-id" not in rendered
+        assert "test-unit-secret-key" not in rendered
+
 
 # ---------------------------------------------------------------------------
 # OIDCValidator
@@ -777,9 +805,19 @@ class TestPQCSuccessPaths:
         result = signer.sign_token("tok1", "mesh-xyz")
 
         assert result["pqc_secured"] is True
+        assert result["pqc_fallback"] is False
         assert result["algorithm"] == "ML-DSA-65"
         assert result["token"] == "tok1"
+        assert "external trust finality" in result["security_claim_boundary"]
         mock_pqc.sign.assert_called_once()
+
+        status = signer.get_thinking_status()
+        constraints = status["last_context"]["applied"]["framing"]["constraints"]
+        assert constraints["operation"] == "sign_token"
+        assert constraints["algorithm"] == "ML-DSA-65"
+        assert constraints["pqc_secured"] is True
+        assert "tok1" not in str(status)
+        assert "mesh-xyz" not in str(status)
 
     def test_verify_token_pqc_success_returns_true(self):
         """PQC signer present, verify() returns True → verify_token returns True."""

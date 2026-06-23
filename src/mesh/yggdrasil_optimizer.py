@@ -6,14 +6,73 @@ for Yggdrasil-based mesh networks.
 """
 
 import asyncio
+import hashlib
 import logging
 import math
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
+from urllib.parse import urlparse
+
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "mesh-yggdrasil-optimizer"
+_SERVICE_LAYER = "mesh_yggdrasil_optimizer_observed_state"
+_RESOURCE = "mesh:yggdrasil_optimizer:optimize_routes"
+_HASH_LIMIT = 20
+_YGGDRASIL_PEER_SCHEMES = {
+    "tcp",
+    "tls",
+    "ws",
+    "wss",
+    "quic",
+    "unix",
+    "socks",
+    "http",
+    "https",
+}
+YGGDRASIL_OPTIMIZER_CLAIM_BOUNDARY = (
+    "Local Yggdrasil route-optimizer evidence only. It summarizes in-memory "
+    "route metrics, quality buckets, and recommendation counts with hashed route, "
+    "destination, and peer selectors. It does not expose raw route IDs, peer URIs, "
+    "route tables, or prove live dataplane reachability, remote peer identity, or "
+    "that a recommendation was applied."
+)
+
+
+def _identity_metadata() -> Dict[str, Any]:
+    identity = service_event_identity(service_name=_SERVICE_AGENT)
+    return {
+        "service_name": _SERVICE_AGENT,
+        "spiffe_id_configured": bool(identity.get("spiffe_id")),
+        "did_configured": bool(identity.get("did")),
+        "wallet_address_configured": bool(identity.get("wallet_address")),
+        "redacted": True,
+    }
+
+
+def _event_bus_or_none(
+    event_bus: Optional[EventBus],
+    event_project_root: str,
+) -> Optional[EventBus]:
+    if event_bus is not None:
+        return event_bus
+    try:
+        return get_event_bus(event_project_root)
+    except Exception as exc:
+        logger.error("Failed to initialize mesh-yggdrasil-optimizer EventBus: %s", exc)
+        return None
+
+
+def _sha256_text(value: str) -> Optional[str]:
+    if not value:
+        return None
+    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
 
 
 class RouteQuality(Enum):
@@ -73,6 +132,171 @@ class RouteMetrics:
             return RouteQuality.POOR
         else:
             return RouteQuality.CRITICAL
+
+
+def _peer_uri_from_next_hop(next_hop: str) -> str:
+    """Return a Yggdrasil peer URI only when next_hop is already URI-shaped."""
+    value = str(next_hop or "").strip()
+    if not value:
+        return ""
+    parsed = urlparse(value)
+    if parsed.scheme in _YGGDRASIL_PEER_SCHEMES and (
+        parsed.netloc or parsed.scheme == "unix"
+    ):
+        return value
+    return ""
+
+
+def _recommendation_for_route(
+    route: RouteMetrics,
+    *,
+    action: str,
+    reason: str,
+    metrics: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    recommendation: Dict[str, Any] = {
+        "route_id": route.route_id,
+        "destination": route.destination,
+        "action": action,
+        "reason": reason,
+    }
+    peer_uri = _peer_uri_from_next_hop(route.next_hop)
+    if peer_uri:
+        recommendation["peer_uri"] = peer_uri
+    if metrics is not None:
+        recommendation["metrics"] = metrics
+    return recommendation
+
+
+def _recommendation_evidence_summary(result: Dict[str, Any]) -> Dict[str, Any]:
+    recommendations = result.get("recommendations", []) or []
+    action_counts: Dict[str, int] = {}
+    route_hashes: List[str] = []
+    destination_hashes: List[str] = []
+    peer_uri_hashes: List[str] = []
+    metric_fields = set()
+
+    for recommendation in recommendations:
+        if not isinstance(recommendation, dict):
+            action = "invalid"
+        else:
+            action = str(recommendation.get("action", "unknown"))
+            route_hash = _sha256_text(str(recommendation.get("route_id", "")))
+            destination_hash = _sha256_text(
+                str(recommendation.get("destination", ""))
+            )
+            peer_uri_hash = _sha256_text(str(recommendation.get("peer_uri", "")))
+            if route_hash:
+                route_hashes.append(route_hash)
+            if destination_hash:
+                destination_hashes.append(destination_hash)
+            if peer_uri_hash:
+                peer_uri_hashes.append(peer_uri_hash)
+            metrics = recommendation.get("metrics")
+            if isinstance(metrics, dict):
+                metric_fields.update(str(key) for key in metrics)
+        action_counts[action] = action_counts.get(action, 0) + 1
+
+    return {
+        "recommendation_count": len(recommendations),
+        "action_counts": dict(sorted(action_counts.items())),
+        "route_id_hashes": route_hashes[-_HASH_LIMIT:],
+        "route_id_hashes_total": len(route_hashes),
+        "route_id_hashes_limit": _HASH_LIMIT,
+        "route_id_hashes_truncated": len(route_hashes) > _HASH_LIMIT,
+        "destination_hashes": destination_hashes[-_HASH_LIMIT:],
+        "destination_hashes_total": len(destination_hashes),
+        "destination_hashes_limit": _HASH_LIMIT,
+        "destination_hashes_truncated": len(destination_hashes) > _HASH_LIMIT,
+        "peer_uri_hashes": peer_uri_hashes[-_HASH_LIMIT:],
+        "peer_uri_hashes_total": len(peer_uri_hashes),
+        "peer_uri_hashes_limit": _HASH_LIMIT,
+        "peer_uri_hashes_truncated": len(peer_uri_hashes) > _HASH_LIMIT,
+        "metric_fields": sorted(metric_fields),
+        "values_redacted": True,
+    }
+
+
+def _optimizer_evidence_metadata(event_id: Optional[str]) -> Dict[str, Any]:
+    event_ids = [event_id] if event_id else []
+    return {
+        "source_agents": [_SERVICE_AGENT] if event_id else [],
+        "event_ids": event_ids,
+        "events_total": len(event_ids),
+        "layer": _SERVICE_LAYER,
+        "payloads_redacted": True,
+        "redacted": True,
+        "claim_boundary": YGGDRASIL_OPTIMIZER_CLAIM_BOUNDARY,
+    }
+
+
+def _publish_optimizer_observation(
+    *,
+    event_bus: Optional[EventBus],
+    event_project_root: str,
+    result: Dict[str, Any],
+    duration_ms: float,
+    callback_error_types: List[str],
+) -> Optional[str]:
+    bus = _event_bus_or_none(event_bus, event_project_root)
+    if bus is None:
+        return None
+
+    statistics = result.get("statistics", {})
+    payload: Dict[str, Any] = {
+        "component": "mesh.yggdrasil_optimizer",
+        "stage": "observed_state",
+        "operation": "optimize_routes",
+        "resource": _RESOURCE,
+        "service_name": _SERVICE_AGENT,
+        "layer": _SERVICE_LAYER,
+        "identity": _identity_metadata(),
+        "status": (
+            "success_with_callback_errors"
+            if callback_error_types
+            else "success"
+        ),
+        "source_mode": "local_optimizer_state",
+        "duration_ms": round(duration_ms, 3),
+        "read_only": True,
+        "observed_state": True,
+        "control_action": False,
+        "safe_actuator": False,
+        "routes": {
+            "total_routes": int(result.get("total_routes", 0) or 0),
+            "destinations": int(result.get("destinations", 0) or 0),
+            "quality_distribution": (
+                statistics.get("quality_distribution", {})
+                if isinstance(statistics, dict)
+                else {}
+            ),
+            "statistics_fields": (
+                sorted(str(key) for key in statistics)
+                if isinstance(statistics, dict)
+                else []
+            ),
+            "values_redacted": True,
+        },
+        "recommendations": _recommendation_evidence_summary(result),
+        "callback_errors": [
+            {"type": error_type, "message_redacted": True}
+            for error_type in sorted(set(callback_error_types))
+        ],
+        "input_redacted": True,
+        "claim_boundary": YGGDRASIL_OPTIMIZER_CLAIM_BOUNDARY,
+    }
+
+    try:
+        event = bus.publish(
+            EventType.PIPELINE_STAGE_END,
+            _SERVICE_AGENT,
+            payload,
+            priority=4,
+        )
+        return event.event_id
+    except Exception as exc:
+        logger.error("Failed to publish mesh-yggdrasil-optimizer event: %s", exc)
+        return None
 
 
 @dataclass
@@ -422,12 +646,19 @@ class YggdrasilOptimizer:
         """Get confidence in latency prediction."""
         return self._latency_predictor.get_confidence(route_id)
     
-    def optimize_routes(self) -> Dict[str, Any]:
+    def optimize_routes(
+        self,
+        *,
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+        include_evidence: bool = False,
+    ) -> Dict[str, Any]:
         """
         Perform route optimization analysis.
         
         Returns optimization recommendations and statistics.
         """
+        started = time.monotonic()
         optimization_result = {
             "timestamp": datetime.utcnow().isoformat(),
             "total_routes": len(self._routes),
@@ -447,17 +678,18 @@ class YggdrasilOptimizer:
         # Find routes needing attention
         for route in self._routes.values():
             if route.classify_quality() in (RouteQuality.POOR, RouteQuality.CRITICAL):
-                optimization_result["recommendations"].append({
-                    "route_id": route.route_id,
-                    "destination": route.destination,
-                    "action": "investigate",
-                    "reason": f"Route quality is {route.classify_quality().value}",
-                    "metrics": {
-                        "latency_ms": route.latency_ms,
-                        "packet_loss": route.packet_loss,
-                        "quality_score": route.quality_score,
-                    }
-                })
+                optimization_result["recommendations"].append(
+                    _recommendation_for_route(
+                        route,
+                        action="investigate",
+                        reason=f"Route quality is {route.classify_quality().value}",
+                        metrics={
+                            "latency_ms": route.latency_ms,
+                            "packet_loss": route.packet_loss,
+                            "quality_score": route.quality_score,
+                        },
+                    )
+                )
         
         # Check for stale routes
         now = datetime.utcnow()
@@ -466,12 +698,15 @@ class YggdrasilOptimizer:
         for route in self._routes.values():
             age = now - route.last_updated
             if age > stale_threshold:
-                optimization_result["recommendations"].append({
-                    "route_id": route.route_id,
-                    "destination": route.destination,
-                    "action": "refresh",
-                    "reason": f"Route data is stale ({age.total_seconds():.0f}s old)",
-                })
+                optimization_result["recommendations"].append(
+                    _recommendation_for_route(
+                        route,
+                        action="refresh",
+                        reason=(
+                            f"Route data is stale ({age.total_seconds():.0f}s old)"
+                        ),
+                    )
+                )
         
         # Compute aggregate statistics
         if self._routes:
@@ -486,11 +721,25 @@ class YggdrasilOptimizer:
         self._last_optimization = datetime.utcnow()
         
         # Notify callbacks
+        callback_error_types: List[str] = []
         for callback in self._optimization_callbacks:
             try:
                 callback(optimization_result)
             except Exception as e:
+                callback_error_types.append(type(e).__name__)
                 logger.warning(f"Optimization callback failed: {e}")
+
+        event_id = None
+        if event_bus is not None or include_evidence:
+            event_id = _publish_optimizer_observation(
+                event_bus=event_bus,
+                event_project_root=event_project_root,
+                result=optimization_result,
+                duration_ms=(time.monotonic() - started) * 1000.0,
+                callback_error_types=callback_error_types,
+            )
+        if include_evidence:
+            optimization_result["evidence"] = _optimizer_evidence_metadata(event_id)
         
         return optimization_result
     

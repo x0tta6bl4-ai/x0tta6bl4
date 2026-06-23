@@ -37,12 +37,14 @@ def _make_listing(
     status: str = "rented",
     renter_id: str = "user-42",
     mesh_id: str = "mesh-1",
+    node_id: str = "node-1",
 ) -> MagicMock:
     lst = MagicMock()
     lst.id = listing_id
     lst.status = status
     lst.renter_id = renter_id
     lst.mesh_id = mesh_id
+    lst.node_id = node_id
     return lst
 
 
@@ -51,6 +53,52 @@ def _setup_db(mock_db: MagicMock, escrows, listing=None):
     query_result = mock_db.query.return_value.filter.return_value
     query_result.all.return_value = escrows
     query_result.first.return_value = listing
+
+
+def _assert_janitor_evidence(
+    evidence,
+    *,
+    bridge_attempted: bool,
+    bridge_status: str,
+    db_write_attempted: bool,
+    db_committed: bool,
+    escrow_status_after: str,
+    listing_status_after: str | None,
+):
+    assert evidence["decision_basis"] == "escrow_timeout_without_release"
+    assert evidence["source_quality"] == "local_db_expiry_scan_without_heartbeat_event_link"
+    assert evidence["dataplane_confirmed"] is False
+    assert evidence["threshold_met"] is True
+    assert evidence["measurement_window_hours"] == 1
+    assert evidence["telemetry_evidence"] == {
+        "source_agents": [],
+        "event_ids": [],
+        "events_total": 0,
+        "payloads_redacted": True,
+    }
+    assert evidence["settlement_action"] == "janitor_refund"
+    assert evidence["duration_ms"] >= 0
+    assert evidence["bridge_evidence"] == {
+        "attempted": bridge_attempted,
+        "status": bridge_status,
+        "source_agent": "token-bridge" if bridge_attempted else None,
+        "payloads_redacted": True,
+    }
+    assert evidence["db_write_evidence"] == {
+        "storage_backend": "sqlalchemy",
+        "attempted": db_write_attempted,
+        "committed": db_committed,
+        "payloads_redacted": True,
+    }
+    assert evidence["output_summary"] == {
+        "escrow_status_after": escrow_status_after,
+        "listing_status_after": listing_status_after,
+        "raw_identifiers_redacted": True,
+        "payloads_redacted": True,
+    }
+    assert evidence["raw_identifiers_redacted"] is True
+    assert evidence["payloads_redacted"] is True
+    assert "dataplane failure" in evidence["claim_boundary"]
 
 
 # ---------------------------------------------------------------------------

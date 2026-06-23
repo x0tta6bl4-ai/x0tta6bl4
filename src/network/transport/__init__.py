@@ -7,6 +7,7 @@ from .udp_shaped import (PacketType, PeerInfo, ShapedUDPTransport,
                          UDPHolePuncher, UDPPacket)
 from .websocket_shaped import (ConnectionState, ShapedMessage,
                                ShapedWebSocketClient, ShapedWebSocketServer)
+from .ghost_pulse_transport import GhostPulseTransport
 
 __all__ = [
     # WebSocket
@@ -20,4 +21,5 @@ __all__ = [
     "UDPPacket",
     "PacketType",
     "PeerInfo",
+    "GhostPulseTransport",
 ]

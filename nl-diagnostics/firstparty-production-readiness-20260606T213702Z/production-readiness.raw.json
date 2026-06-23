@@ -1,0 +1,693 @@
+{
+  "allowed": false,
+  "collected": {
+    "dataplane": true,
+    "external_policy_source": true,
+    "identity_signer": true,
+    "leak_protection": true,
+    "linux_preflight": true,
+    "pqc": true,
+    "rekey_policy": true,
+    "rollout_gate": true,
+    "source_audit": true,
+    "zero_trust_policy": true
+  },
+  "dataplane": {
+    "dataplane_validation": {
+      "captured_at": 1780781822,
+      "covered_path_labels": [
+        "local-loopback"
+      ],
+      "failed_reasons": [],
+      "min_successful_probes": 1,
+      "passed": true,
+      "plan_hash": "6102c86ac0dd81c242b55b4cebd4e6a4cc79b7ae2141063eeb5b6f8a2d8ae477",
+      "probe_matrix_hash": "61a3f5c593088d9ded16936a1f69cbd2cef69749368ec1bfb89c2e77598055e8",
+      "required_path_labels": [
+        "local-loopback"
+      ],
+      "results": [
+        {
+          "latency_millis": 2897,
+          "path_label": "local-loopback",
+          "probe_id": "local-loopback-tcp-53847",
+          "remote_hash": "b5c4557ed87cdab7d55c1e99499297456b79a9af1036eb9e37396983deb128f9",
+          "rx_bytes": 124,
+          "rx_frames": 1,
+          "success": true,
+          "transport": "tcp",
+          "tx_bytes": 124,
+          "tx_frames": 1
+        }
+      ],
+      "successful_probe_count": 1
+    },
+    "mtu_validation": {
+      "captured_at": 1780781822,
+      "covered_path_labels": [
+        "local-loopback"
+      ],
+      "failed_reasons": [],
+      "min_successful_paths": 1,
+      "passed": true,
+      "plan_hash": "46eb0aa91bdfdb9812f5ae26c90c23dabab3cec07bf402296d717f93257f487a",
+      "probe_matrix_hash": "61a3f5c593088d9ded16936a1f69cbd2cef69749368ec1bfb89c2e77598055e8",
+      "required_path_labels": [
+        "local-loopback"
+      ],
+      "results": [
+        {
+          "attempted_payload_sizes": [
+            512
+          ],
+          "failed_attempt_count": 0,
+          "path_label": "local-loopback",
+          "probe_id": "local-loopback-tcp-53847",
+          "remote_hash": "b5c4557ed87cdab7d55c1e99499297456b79a9af1036eb9e37396983deb128f9",
+          "selected_fragment_payload_size": 448,
+          "selected_payload_size": 512,
+          "success": true,
+          "transport": "tcp"
+        }
+      ],
+      "successful_path_count": 1
+    },
+    "tun_dataplane_validation": {
+      "captured_at": 1780781822,
+      "covered_path_labels": [
+        "local-loopback"
+      ],
+      "failed_reasons": [],
+      "min_successful_paths": 1,
+      "passed": true,
+      "plan_hash": "45203b40dedb86a87e9db3c52509ca754bfa8f919426a3a6400760e0505e0fe7",
+      "probe_matrix_hash": "61a3f5c593088d9ded16936a1f69cbd2cef69749368ec1bfb89c2e77598055e8",
+      "required_path_labels": [
+        "local-loopback"
+      ],
+      "results": [
+        {
+          "bytes_from_tun": 60,
+          "bytes_to_tun": 60,
+          "packets_from_tun": 1,
+          "packets_to_tun": 1,
+          "path_label": "local-loopback",
+          "probe_id": "local-loopback-tcp-53847",
+          "remote_hash": "b5c4557ed87cdab7d55c1e99499297456b79a9af1036eb9e37396983deb128f9",
+          "rx_fragments": 1,
+          "success": true,
+          "transport": "tcp",
+          "tx_fragments": 1
+        }
+      ],
+      "successful_path_count": 1
+    }
+  },
+  "evidence_hash": "39da39b5e9e0287f738b797bdd141da70d206986418d7d0e03313289fce504d0",
+  "external_policy_source": {
+    "issued_at": 1780781822,
+    "loaded_at": 1780781822,
+    "policy_epoch_hash": "fd54c80bdb2558f317c0065653c983ec7ac979051ff834e96f257a0036226d9b",
+    "policy_snapshot_hash": "1ee81a03fcbfe34fcae48f69d1a4cf5385654965ab10a13a29364d606b7f14c4",
+    "snapshot_hash": "1ee81a03fcbfe34fcae48f69d1a4cf5385654965ab10a13a29364d606b7f14c4",
+    "source_document_hash": "11e6e7d4c6226388c7986bcf764b31c7d8d063d58f5f7cd8207505b28c6d059f",
+    "source_id_hash": "c1cb5ada57738cfee380aa8eb197e2d1ca984fbce4cde6097726a9a59c7438c4",
+    "source_path_hash": "39f30a9d2b3de5fd1b2b11b3bd38f1c9255f75a172cc99ef86ee4d3a5f18e1a1"
+  },
+  "identity_signer": {
+    "conformance": {
+      "evidence_hash": "d5e51988fecb7022a9a40ae10a660b8a5a6d103282af9ca3219677e4cf16f196",
+      "implementation_hash": "1b530aea8128134e69e99efc376061a878f8a3d2023f63d2aecaed30252ecb45",
+      "kat_suite_hash": "e67a4e1d9bef9c54a64ac8d995e55cbe0fc44e266539b541419825ea35b387f9",
+      "key_id_hash": "0850c95b090258a3ccb6d9aa58528d7a964799d70258439465799a1f9ba644fd",
+      "manifest_hash": "95defad61731c79263a15e2a7e6442148cfc3097e7d84a7edb7c829904178cd5",
+      "passed": true,
+      "profile": "fips204-production",
+      "provider_id_hash": "2e048ebe89df7be44e8ed879a89b0be1c0e69802de2897ea2270338eed20336b",
+      "reasons": [],
+      "review_evidence_hash": "d239408f6ff8642eeaf89e9884a6060bbccbaed9a64d6545c89ddf82cda2b4e6",
+      "signature_algorithm": "ML-DSA-65",
+      "vector_count": 1,
+      "version": 1
+    },
+    "gate": {
+      "allowed": true,
+      "attestation_hash": "cf91bcdeffca2733e1016d55a848f2277a39710df834146bf466979485af82f6",
+      "implementation_hash": "1b530aea8128134e69e99efc376061a878f8a3d2023f63d2aecaed30252ecb45",
+      "key_id_hash": "69b7fbc75a1de60e4516a2b79c5a9a0fe717d60eb0020346d2186459d9b54ae0",
+      "provider_id_hash": "b9cd810e0f11edb26426f762ad002d59b22dcb4550c017b540db422e03be6758",
+      "reasons": [],
+      "signature_algorithm": "ML-DSA-65"
+    },
+    "kat": {
+      "captured_at": 1780781822,
+      "implementation_hash": "1b530aea8128134e69e99efc376061a878f8a3d2023f63d2aecaed30252ecb45",
+      "key_id_hash": "e8dfde4689d2b271dc67aad0cef12a63eaebb71a270ab5015dc0d8b149345bbf",
+      "passed": true,
+      "provider_id_hash": "4e7763099bfe1e2e6de440e662b63bef623c7200c57476aca8eefd4334059340",
+      "reasons": [],
+      "signature_algorithm": "ML-DSA-65",
+      "suite_hash": "e67a4e1d9bef9c54a64ac8d995e55cbe0fc44e266539b541419825ea35b387f9",
+      "vector_count": 1
+    },
+    "manifest": {
+      "expires_at": 1780785483,
+      "implementation_hash": "1b530aea8128134e69e99efc376061a878f8a3d2023f63d2aecaed30252ecb45",
+      "issued_at": 1780781763,
+      "kat_hashes": [
+        "e67a4e1d9bef9c54a64ac8d995e55cbe0fc44e266539b541419825ea35b387f9"
+      ],
+      "key_id": "nl-production-identity-key-1",
+      "manifest_hash": "95defad61731c79263a15e2a7e6442148cfc3097e7d84a7edb7c829904178cd5",
+      "mode": "production",
+      "provider_id": "reviewed-firstparty-identity-signer",
+      "review_evidence_hash": "d239408f6ff8642eeaf89e9884a6060bbccbaed9a64d6545c89ddf82cda2b4e6",
+      "reviewed": true,
+      "signature_algorithm": "ML-DSA-65",
+      "source_hashes": [
+        "174c92b528a696564c12ee65adc4a2bf0ff7ec165ec47c266daaa3626c444709",
+        "74ae83244208bd720e3d8dd967b5630a5571aab968a878a919da22d6df31aa26"
+      ],
+      "version": 1
+    }
+  },
+  "leak_protection": {
+    "command_plan": {
+      "command_count": 10,
+      "command_hashes": [
+        "b6f7f1689b064b4044541c45c9b15158e97a428d54b03a59084609e683bdf5ab",
+        "bd482a01521fb2d939db299e84f813a20517f5dc10b56ef1a2e5fe1e4017fc87",
+        "ab9f107d02b1f5be688d1715bd981f2b2f8b3c0ef69c0124bb26066e01b61b22",
+        "53176aa11ba3c032bc36bb6a93f01999a78083c86032eae7e57e6ee57f0d5f34",
+        "b4b016cfd2092af94134873744b68058c546f4a2dd25f36cfc88574c9e319995",
+        "64ef3735d01f92407ab7ea042fa942f85a0055fa2a5e5119d29e0d5c75204f2e",
+        "8f33b49b6a1e775b3721fb19dcb248c28d350f17fa7c20a78d3cb7fd36ff9105",
+        "768b5489d3cf1ec75bb39fb22a2f90d0bd10fe3fa40456fabbe4afe3bfb3b158",
+        "5986736447a1998c7929b31ec4fa187ed50b24f9f4c1cbf1c5331f430ae238b4",
+        "06ca7b66834ead30a0d9110efdfc7be6356da5f032a69b75658a2d238c9b7e4c"
+      ],
+      "redacted_commands": [
+        [
+          "ip",
+          "route",
+          "replace",
+          "<network-redacted>",
+          "via",
+          "<ip-redacted>",
+          "dev",
+          "eth0"
+        ],
+        [
+          "ip",
+          "route",
+          "replace",
+          "default",
+          "dev",
+          "x0vpn0"
+        ],
+        [
+          "resolvectl",
+          "dns",
+          "x0vpn0",
+          "<ip-redacted>",
+          "<ip-redacted>"
+        ],
+        [
+          "resolvectl",
+          "domain",
+          "x0vpn0",
+          "~."
+        ],
+        [
+          "resolvectl",
+          "default-route",
+          "x0vpn0",
+          "yes"
+        ],
+        [
+          "nft",
+          "add",
+          "table",
+          "inet",
+          "x0vpn"
+        ],
+        [
+          "nft",
+          "add",
+          "chain",
+          "inet",
+          "x0vpn",
+          "output",
+          "{",
+          "type",
+          "filter",
+          "hook",
+          "output",
+          "priority",
+          "0",
+          ";",
+          "policy",
+          "drop",
+          ";",
+          "}"
+        ],
+        [
+          "nft",
+          "add",
+          "rule",
+          "inet",
+          "x0vpn",
+          "output",
+          "oifname",
+          "lo",
+          "accept"
+        ],
+        [
+          "nft",
+          "add",
+          "rule",
+          "inet",
+          "x0vpn",
+          "output",
+          "oifname",
+          "x0vpn0",
+          "accept"
+        ],
+        [
+          "nft",
+          "add",
+          "rule",
+          "inet",
+          "x0vpn",
+          "output",
+          "ip",
+          "daddr",
+          "<ip-redacted>",
+          "tcp",
+          "dport",
+          "53847",
+          "accept"
+        ]
+      ]
+    },
+    "controls": [
+      "full_tunnel_default_route",
+      "tun_dns_servers",
+      "tun_dns_domain",
+      "tun_dns_default_route",
+      "kill_switch_table",
+      "kill_switch_output_drop_policy",
+      "kill_switch_loopback_allow",
+      "kill_switch_tun_allow",
+      "underlay_endpoint_route",
+      "underlay_endpoint_kill_switch_allow"
+    ],
+    "deployment_epoch": "local-firstparty-production-readiness-20260606T213702Z",
+    "kill_switch_enabled": true,
+    "passed": true,
+    "reasons": [],
+    "route_all_traffic": true,
+    "tun": "x0vpn0",
+    "underlay_interface": "eth0"
+  },
+  "linux_preflight": {
+    "apply_plan": {
+      "command_count": 13,
+      "command_hashes": [
+        "699eafe4752242210edb4ddd81fc3ca5e69a3621860d1327e39288c2fec52e87",
+        "1bef51645813b3be0f760dec8923be874b36e96d3a153b509cd5f090e198900f",
+        "72c4fb501b09c60e8f9313c58a11142862f5f6abbcc06b45b5858b141971ef85",
+        "b6f7f1689b064b4044541c45c9b15158e97a428d54b03a59084609e683bdf5ab",
+        "bd482a01521fb2d939db299e84f813a20517f5dc10b56ef1a2e5fe1e4017fc87",
+        "ab9f107d02b1f5be688d1715bd981f2b2f8b3c0ef69c0124bb26066e01b61b22",
+        "53176aa11ba3c032bc36bb6a93f01999a78083c86032eae7e57e6ee57f0d5f34",
+        "b4b016cfd2092af94134873744b68058c546f4a2dd25f36cfc88574c9e319995",
+        "64ef3735d01f92407ab7ea042fa942f85a0055fa2a5e5119d29e0d5c75204f2e",
+        "8f33b49b6a1e775b3721fb19dcb248c28d350f17fa7c20a78d3cb7fd36ff9105",
+        "768b5489d3cf1ec75bb39fb22a2f90d0bd10fe3fa40456fabbe4afe3bfb3b158",
+        "5986736447a1998c7929b31ec4fa187ed50b24f9f4c1cbf1c5331f430ae238b4",
+        "06ca7b66834ead30a0d9110efdfc7be6356da5f032a69b75658a2d238c9b7e4c"
+      ],
+      "redacted_commands": [
+        [
+          "ip",
+          "link",
+          "set",
+          "dev",
+          "x0vpn0",
+          "mtu",
+          "1280"
+        ],
+        [
+          "ip",
+          "addr",
+          "add",
+          "<network-redacted>",
+          "peer",
+          "<ip-redacted>",
+          "dev",
+          "x0vpn0"
+        ],
+        [
+          "ip",
+          "link",
+          "set",
+          "dev",
+          "x0vpn0",
+          "up"
+        ],
+        [
+          "ip",
+          "route",
+          "replace",
+          "<network-redacted>",
+          "via",
+          "<ip-redacted>",
+          "dev",
+          "eth0"
+        ],
+        [
+          "ip",
+          "route",
+          "replace",
+          "default",
+          "dev",
+          "x0vpn0"
+        ],
+        [
+          "resolvectl",
+          "dns",
+          "x0vpn0",
+          "<ip-redacted>",
+          "<ip-redacted>"
+        ],
+        [
+          "resolvectl",
+          "domain",
+          "x0vpn0",
+          "~."
+        ],
+        [
+          "resolvectl",
+          "default-route",
+          "x0vpn0",
+          "yes"
+        ],
+        [
+          "nft",
+          "add",
+          "table",
+          "inet",
+          "x0vpn"
+        ],
+        [
+          "nft",
+          "add",
+          "chain",
+          "inet",
+          "x0vpn",
+          "output",
+          "{",
+          "type",
+          "filter",
+          "hook",
+          "output",
+          "priority",
+          "0",
+          ";",
+          "policy",
+          "drop",
+          ";",
+          "}"
+        ],
+        [
+          "nft",
+          "add",
+          "rule",
+          "inet",
+          "x0vpn",
+          "output",
+          "oifname",
+          "lo",
+          "accept"
+        ],
+        [
+          "nft",
+          "add",
+          "rule",
+          "inet",
+          "x0vpn",
+          "output",
+          "oifname",
+          "x0vpn0",
+          "accept"
+        ],
+        [
+          "nft",
+          "add",
+          "rule",
+          "inet",
+          "x0vpn",
+          "output",
+          "ip",
+          "daddr",
+          "<ip-redacted>",
+          "tcp",
+          "dport",
+          "53847",
+          "accept"
+        ]
+      ]
+    },
+    "checks": [
+      {
+        "name": "linux_os",
+        "passed": true
+      },
+      {
+        "name": "required_binaries",
+        "passed": true
+      },
+      {
+        "name": "apply_plan",
+        "passed": true
+      },
+      {
+        "name": "rollback_plan",
+        "passed": true
+      }
+    ],
+    "deployment_epoch": "local-firstparty-production-readiness-20260606T213702Z",
+    "host_fingerprint": "8ccab986b61ac9b87d03c029cf2d38a2010ec81e9dc7097759e6835057729719",
+    "optional_missing": [],
+    "passed": true,
+    "rollback_plan": {
+      "command_count": 4,
+      "command_hashes": [
+        "cd2a95b25c0c464cf85d57d78cfb96477806bc65a67141d18b83d45e25179d09",
+        "5b5461290c02ace9bc3ce4822ba2d2cfd09fa8d6c7482af512ea5885c1ab40c8",
+        "dec2fba2c2ea9f5e122f7000d5a0e3baad2a71b7090ba5550935d97b183b8d16",
+        "dd71b53eb61d872ca9fb4e31e9b93453457f41ede913332b2f31e17e1548a445"
+      ],
+      "redacted_commands": [
+        [
+          "ip",
+          "route",
+          "replace",
+          "default",
+          "via",
+          "<ip-redacted>",
+          "dev",
+          "eth0"
+        ],
+        [
+          "ip",
+          "route",
+          "delete",
+          "<network-redacted>",
+          "via",
+          "<ip-redacted>",
+          "dev",
+          "eth0"
+        ],
+        [
+          "resolvectl",
+          "revert",
+          "x0vpn0"
+        ],
+        [
+          "nft",
+          "delete",
+          "table",
+          "inet",
+          "x0vpn"
+        ]
+      ]
+    },
+    "tun": "x0vpn0",
+    "underlay_interface": "eth0"
+  },
+  "mode": "production-readiness",
+  "ok": false,
+  "os_mutation_performed": false,
+  "pqc": {
+    "kat": {
+      "captured_at": 1780781822,
+      "implementation_hash": "e5859f89c2e08e7f0979027153c3b0979c799bd6cb2c2ae765a5f3e58208305e",
+      "kem_algorithm": "ML-KEM-768",
+      "passed": true,
+      "provider_id": "x0tta6bl4-firstparty-mlkem",
+      "reasons": [],
+      "signature_algorithm": "ML-DSA-65",
+      "suite_hash": "b57f324259e379bb1b1a8eaad4b957be115d56195a02e4eb3feb7cebf3befa15",
+      "vector_count": 1
+    },
+    "manifest": {
+      "expires_at": 1780785423,
+      "implementation_hash": "e5859f89c2e08e7f0979027153c3b0979c799bd6cb2c2ae765a5f3e58208305e",
+      "issued_at": 1780781823,
+      "kat_hashes": [
+        "b57f324259e379bb1b1a8eaad4b957be115d56195a02e4eb3feb7cebf3befa15"
+      ],
+      "kem_algorithm": "ML-KEM-768",
+      "manifest_hash": "b0a1e2a9a52b2564a13fd92389d85c7dfcc1493ff338571027a00c0d717aa656",
+      "mode": "production",
+      "provider_id": "x0tta6bl4-firstparty-mlkem",
+      "review_evidence_hash": "ea16d643a17e83769a3f6c8d76bcf970421fb2d671fce32f863ba691607b41b1",
+      "reviewed": true,
+      "signature_algorithm": "ML-DSA-65",
+      "source_hashes": [
+        "174c92b528a696564c12ee65adc4a2bf0ff7ec165ec47c266daaa3626c444709",
+        "74ae83244208bd720e3d8dd967b5630a5571aab968a878a919da22d6df31aa26"
+      ],
+      "version": 1
+    },
+    "provider_gate": {
+      "allowed": false,
+      "attestation_hash": "b2fb0c3b87cb59a3fe197887a4d5e5ef16550f2678418ff26f2f4aa2e421ac8e",
+      "implementation_hash": "e5859f89c2e08e7f0979027153c3b0979c799bd6cb2c2ae765a5f3e58208305e",
+      "kem_algorithm": "ML-KEM-768",
+      "provider_id": "x0tta6bl4-firstparty-mlkem",
+      "reasons": [
+        "pqc_provider_attestation_not_active"
+      ],
+      "signature_algorithm": "ML-DSA-65"
+    },
+    "runtime_metadata_matches_manifest": true
+  },
+  "reasons": [
+    "pqc_provider_gate_failed"
+  ],
+  "rekey_policy": {
+    "decision": {
+      "allowed": true,
+      "block_reasons": [],
+      "evidence_hash": "0c83480595883458210f4b4e721bda2c2fe85f27bd268ea3d6757bbdc38007e3",
+      "required": true,
+      "rollback_evidence_hash": "09e0c3065bb3f6178d721a714b5990f86ca33410c2cb2659d7937002370b97e1",
+      "rollback_plan_hash": "d9d3495e0643e60320d1fd1e86886b5e8a73340b35553e0ae9ca9e2d654bbfec",
+      "trigger_reasons": [
+        "session_age_exceeded"
+      ]
+    },
+    "rollback_evidence": {
+      "generated_at": 1780781822,
+      "next_session_hash": "1aeaf0c574c5bcea9d44947e231d2d83d66547cfb2623e24e403f92bc05839f5",
+      "previous_session_hash": "a456bf22c0e827ed3d5d639fa044a33a1cfabbed3221959f1db49d28e7030195",
+      "rollback_id_hash": "4c2e7ecf472e44ec9a8b7d85ade2e7fadcf0b0be7a78e009e5aada97543af681",
+      "rollback_plan_hash": "d9d3495e0643e60320d1fd1e86886b5e8a73340b35553e0ae9ca9e2d654bbfec"
+    }
+  },
+  "requirements": {
+    "evaluated_at": 1780781822,
+    "max_identity_lifetime_seconds": 3600,
+    "max_identity_signer_kat_age_seconds": 3600,
+    "max_policy_snapshot_age_seconds": 3600,
+    "max_policy_source_load_age_seconds": 3600,
+    "max_pqc_kat_age_seconds": 3600,
+    "max_source_audit_age_seconds": 3600,
+    "max_validation_evidence_age_seconds": 3600,
+    "required_apply_plan_hash": "a774514e79f59975052e1c6cfeaacc27759bc5d3598c70473e57358e6f8cf594",
+    "required_dataplane_paths": [
+      "local-loopback"
+    ],
+    "required_dataplane_probe_matrix_hash": "61a3f5c593088d9ded16936a1f69cbd2cef69749368ec1bfb89c2e77598055e8",
+    "required_dataplane_transports": [
+      {
+        "path_label": "local-loopback",
+        "transport": "tcp"
+      }
+    ],
+    "required_external_policy_source_hash": "085fa657849a3e37db26ff1bbc52b56a1c9a685925a908039483cfa0279bd152",
+    "required_identity_signer_manifest_hash": "95defad61731c79263a15e2a7e6442148cfc3097e7d84a7edb7c829904178cd5",
+    "required_leak_protection_plan_hash": "e1f74945b8218faf85a8a15ffb1137194ebe60c1114bd018abffca272a76a3ec",
+    "required_linux_host_fingerprint": "8ccab986b61ac9b87d03c029cf2d38a2010ec81e9dc7097759e6835057729719",
+    "required_policy_snapshot_hash": "1ee81a03fcbfe34fcae48f69d1a4cf5385654965ab10a13a29364d606b7f14c4",
+    "required_pqc_manifest_hash": "b0a1e2a9a52b2564a13fd92389d85c7dfcc1493ff338571027a00c0d717aa656",
+    "required_rekey_rollback_plan_hash": "d9d3495e0643e60320d1fd1e86886b5e8a73340b35553e0ae9ca9e2d654bbfec",
+    "required_rollback_plan_hash": "c18c4396138c5aaab4ab728d203f2028d8418675b1f5bbb16f76c387ffe01109",
+    "required_rollout_gate_hash": "e00c6ba4687dad43ab36a9ef1dff1531890697c6ee47d1d63c7bb3bacac0ad82",
+    "required_source_audit_root_hash": "174c92b528a696564c12ee65adc4a2bf0ff7ec165ec47c266daaa3626c444709",
+    "required_source_audit_tree_hash": "74ae83244208bd720e3d8dd967b5630a5571aab968a878a919da22d6df31aa26",
+    "required_zero_trust_policy_hash": "e61632390ba6772855cd50328b09fbaed544bf27acfb33295cb59e2be99adf8a",
+    "required_zero_trust_workloads": [
+      "vpn-client",
+      "vpn-server"
+    ],
+    "target_hash": "5b66b171418dbb6ba7ff817d58838ad8f692215f1983d921adbed04978f18ef1"
+  },
+  "rollout_gate": {
+    "approval": {
+      "approval_id_hash": "091df41114eb28e76b6bc3571ebe0ffc994d3c12a3ec9c5e53e85f1729680de4",
+      "approved_by_hash": "cf83a37bfcc74de69f955b48e38635683c38b7797de79e9043472b7f1acf33ba",
+      "expires_at": 1780785422,
+      "issued_at": 1780781762,
+      "scope_hash": "363f9a8234341a85fdf611177493ad40aa4b8e210ce2ca0374d586fd62c69c26"
+    },
+    "decision": {
+      "allowed": true,
+      "decision_hash": "e00c6ba4687dad43ab36a9ef1dff1531890697c6ee47d1d63c7bb3bacac0ad82",
+      "evidence_hash": "2335080348d4377f969bab910c309612d09d432db788e3932f8ccb094291b55b",
+      "reasons": []
+    },
+    "test_evidence": {
+      "collected": 5,
+      "command_hash": "7e71787e74eb78848d3e31d9f80c94ff647e5b1fec33fbd7aef819ad61fadd64",
+      "failed": 0,
+      "generated_at": 1780781822,
+      "passed": 5
+    }
+  },
+  "source_audit": {
+    "allowed": true,
+    "captured_at": 1780781822,
+    "external_import_hashes": [],
+    "forbidden_import_hashes": [],
+    "forbidden_marker_hashes": [],
+    "reasons": [],
+    "root_hash": "174c92b528a696564c12ee65adc4a2bf0ff7ec165ec47c266daaa3626c444709",
+    "scanned_files": 37,
+    "source_tree_hash": "74ae83244208bd720e3d8dd967b5630a5571aab968a878a919da22d6df31aa26",
+    "version": 1
+  },
+  "zero_trust_policy": {
+    "allowed_tenant_count": 1,
+    "allowed_tenants_hash": "5aa97368595cb7434b0cad4e61dec3587ccf6a52d42ed046279e23c663a2ebdf",
+    "allowed_workloads": [
+      "vpn-client",
+      "vpn-server"
+    ],
+    "did_prefix_hash": "778440d8e005ed9c9882fba1365a65ef02e9ae81c6955e704bd1157e053b1c09",
+    "max_identity_lifetime_seconds": 3600,
+    "policy_hash": "e61632390ba6772855cd50328b09fbaed544bf27acfb33295cb59e2be99adf8a",
+    "required_kem_algorithms": [
+      "ML-KEM-1024",
+      "ML-KEM-768"
+    ],
+    "required_signature_algorithms": [
+      "ML-DSA-65",
+      "ML-DSA-87"
+    ],
+    "trust_domain_hash": "a15d2ce2358030e7de57d2d58d7edadc4c4953e4fb312445d3a377f4aa47b28a"
+  }
+}

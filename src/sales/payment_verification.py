@@ -1,10 +1,13 @@
 # src/sales/payment_verification.py
 
+import logging
+import os
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 import requests
 
+logger = logging.getLogger(__name__)
 
 class TronScanVerifier:
     """TronScan API integration for USDT payment verification"""
@@ -20,7 +23,7 @@ class TronScanVerifier:
         expected_amount: float,
         order_id: str,
         amount_tolerance: float = 0.01,
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         try:
             headers = {"TRON-PRO-API-KEY": self.api_key} if self.api_key else {}
             params = {
@@ -76,79 +79,97 @@ class TronScanVerifier:
             return {"verified": False, "error": f"Failed to parse API response: {e}"}
 
 
-class TONVerifier:
-    """TON API integration for TON payment verification"""
+class BaseUSDCVerifier:
+    """Base Network USDC payment verification using Web3"""
 
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key
-        self.base_url = "https://tonapi.io/v2"
-        self.timeout = 30
+    USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    DECIMALS = 6
+    DEFAULT_RPC = "https://mainnet.base.org"
+
+    def __init__(self, rpc_url: Optional[str] = None):
+        self.rpc_url = rpc_url or os.getenv("BASE_RPC_URL", self.DEFAULT_RPC)
+        self._w3 = None
+
+    @property
+    def w3(self):
+        if self._w3 is None:
+            try:
+                from web3 import Web3
+                self._w3 = Web3(Web3.HTTPProvider(self.rpc_url))
+            except ImportError:
+                logger.error("web3 package not installed")
+        return self._w3
 
     def verify_payment(
         self,
-        wallet_address: str,
+        tx_hash: str,
         expected_amount: float,
-        order_id: str,
-        amount_tolerance: float = 0.01,
-    ) -> Dict[str, any]:
-        """Verify TON payment via TON API"""
+        expected_recipient: str,
+        min_confirmations: int = 2,
+    ) -> Dict[str, Any]:
+        """
+        Verify a USDC payment on Base network.
+        """
+        w3 = self.w3
+        if not w3:
+            return {"verified": False, "error": "Web3 not available"}
+
         try:
-            headers = (
-                {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-            )
-            params = {"limit": 100}
+            # 1. Fetch transaction and receipt
+            # Use w3.to_hex and other helpers if needed, but strings are usually fine
+            receipt = w3.eth.get_transaction_receipt(tx_hash)
 
-            response = requests.get(
-                f"{self.base_url}/accounts/{wallet_address}/transactions",
-                headers=headers,
-                params=params,
-                timeout=self.timeout,
-            )
-            response.raise_for_status()
-            data = response.json()
+            if not receipt:
+                return {"verified": False, "error": "Transaction not found"}
 
-            if not data.get("transactions"):
-                return {"verified": False, "error": "No transactions found"}
+            # 2. Check status
+            if receipt["status"] != 1:
+                return {"verified": False, "error": "Transaction failed"}
 
-            for tx in data["transactions"]:
-                if not tx.get("success"):
-                    continue
+            # 3. Check confirmations
+            latest_block = w3.eth.block_number
+            confirmations = latest_block - receipt["blockNumber"]
+            if confirmations < min_confirmations:
+                return {
+                    "verified": False, 
+                    "error": f"Insufficient confirmations ({confirmations}/{min_confirmations})"
+                }
 
-                is_recent = datetime.now() - datetime.fromtimestamp(
-                    tx["utime"]
-                ) < timedelta(hours=24)
-                if not is_recent:
-                    continue
+            # 4. Parse ERC-20 Transfer event
+            transfer_topic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+            
+            usdc_transfers = []
+            for log in receipt["logs"]:
+                if (log["address"].lower() == self.USDC_CONTRACT.lower() and 
+                    len(log["topics"]) >= 3 and
+                    log["topics"][0].hex() == transfer_topic):
+                    
+                    to_address = "0x" + log["topics"][2].hex()[-40:]
+                    amount_raw = int(log["data"].hex(), 16)
+                    amount = amount_raw / (10 ** self.DECIMALS)
+                    
+                    usdc_transfers.append({
+                        "to": to_address.lower(),
+                        "amount": amount
+                    })
 
-                in_msg = tx.get("in_msg")
-                if not in_msg:
-                    continue
+            # 5. Validate recipient and amount
+            for transfer in usdc_transfers:
+                if transfer["to"] == expected_recipient.lower():
+                    if abs(transfer["amount"] - expected_amount) < 0.000001:
+                        return {
+                            "verified": True,
+                            "transaction_hash": tx_hash,
+                            "amount": transfer["amount"],
+                            "confirmations": confirmations,
+                            "error": None
+                        }
 
-                # Check destination
-                if in_msg.get("destination", {}).get("address") != wallet_address:
-                    continue
+            return {
+                "verified": False, 
+                "error": f"No valid USDC transfer to {expected_recipient} found in transaction",
+                "detected_transfers": usdc_transfers
+            }
 
-                comment = in_msg.get("message")
-                if not comment or order_id not in comment:
-                    continue
-
-                amount = int(in_msg["value"]) / 1e9  # TON has 9 decimal places
-
-                lower_bound = expected_amount * (1 - amount_tolerance)
-                upper_bound = expected_amount * (1 + amount_tolerance)
-
-                if lower_bound <= amount <= upper_bound:
-                    return {
-                        "verified": True,
-                        "transaction_hash": tx["hash"],
-                        "amount": amount,
-                        "timestamp": tx["utime"],
-                        "error": None,
-                    }
-
-            return {"verified": False, "error": "No matching transaction found"}
-
-        except requests.exceptions.RequestException as e:
-            return {"verified": False, "error": f"API request failed: {e}"}
-        except (KeyError, ValueError) as e:
-            return {"verified": False, "error": f"Failed to parse API response: {e}"}
+        except Exception as e:
+            return {"verified": False, "error": f"Blockchain verification error: {str(e)}"}

@@ -1,6 +1,9 @@
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta
+from typing import Any, Optional
+
 from src.database import MarketplaceEscrow, MarketplaceListing, SessionLocal
 from src.dao.token_bridge import TokenBridge, BridgeConfig
 from src.dao.token import MeshToken
@@ -41,13 +44,15 @@ async def marketplace_janitor_loop():
             db = SessionLocal()
             try:
                 # 1. Find held escrows older than 1 hour without release
-                expiry_limit = datetime.utcnow() - timedelta(hours=1)
+                expiry_limit = datetime.utcnow() - timedelta(hours=_ESCROW_EXPIRY_HOURS)
                 expired_escrows = db.query(MarketplaceEscrow).filter(
                     MarketplaceEscrow.status == "held",
                     MarketplaceEscrow.created_at < expiry_limit
                 ).all()
 
                 for escrow in expired_escrows:
+                    attempt_started = time.monotonic()
+                    timeout_evidence = _janitor_timeout_evidence()
                     listing = db.query(MarketplaceListing).filter(
                         MarketplaceListing.id == escrow.listing_id
                     ).first()

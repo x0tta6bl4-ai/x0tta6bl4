@@ -330,6 +330,33 @@ class TestEBPFTelemetryCollector:
         assert "security" in stats
         assert "perf_reader" in stats
         assert "programs" in stats
+
+    def test_health_status_fails_closed_when_perf_events_dropped(self):
+        """Dropped perf events are telemetry blind spots, not healthy coverage."""
+        collector = EBPFTelemetryCollector()
+        collector.perf_reader.stats["events_received"] = 10
+        collector.perf_reader.stats["events_dropped"] = 1
+
+        health = collector.get_health_status()
+
+        assert health["overall"] == "unhealthy"
+        assert health["degradation"]["perf_reader_event_loss"]["event_loss_detected"] is True
+        assert health["claim_gate"]["observability_integrity_claim_allowed"] is False
+        assert health["claim_gate"]["complete_attack_absence_claim_allowed"] is False
+        assert health["claim_gate"]["production_security_coverage_claim_allowed"] is False
+        assert "perf_buffer_events_dropped" in health["claim_gate"]["blockers"]
+
+    def test_health_status_allows_local_integrity_when_no_loss_seen(self):
+        """No local loss seen allows only bounded local observability integrity."""
+        collector = EBPFTelemetryCollector()
+        collector.perf_reader.stats["events_received"] = 10
+
+        health = collector.get_health_status()
+
+        assert health["overall"] == "healthy"
+        assert health["claim_gate"]["observability_integrity_claim_allowed"] is True
+        assert health["claim_gate"]["complete_attack_absence_claim_allowed"] is False
+        assert health["claim_gate"]["production_security_coverage_claim_allowed"] is False
     
     def test_context_manager(self):
         """Test context manager usage."""

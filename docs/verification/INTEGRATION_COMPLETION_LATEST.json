@@ -1,0 +1,2091 @@
+{
+  "blocking_items": [
+    {
+      "artifacts": [
+        "scripts/verify-v1.1.sh",
+        "tests/unit/test_integration_spine.py",
+        "src/dao/token_bridge.py",
+        "tests/unit/dao/test_token_bridge_unit.py",
+        "tests/unit/test_integration_current_evidence_rollup.py",
+        "tests/unit/test_integration_semantic_production_blocker_queue.py",
+        "tests/unit/test_integration_raw_evidence_inventory.py",
+        "tests/unit/test_integration_evidence_source_candidates.py",
+        "tests/unit/test_integration_operator_bundle_gate.py",
+        "tests/unit/test_integration_operator_bundle_identity.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        "tests/unit/test_x0t_governance_execute_readiness.py",
+        "tests/unit/test_x0t_governance_execute_handoff.py",
+        ".tmp/validation-shards/integration-spine-code-wiring-current.json"
+      ],
+      "evidence": {
+        "verify_entrypoint_integration": null
+      },
+      "gaps": [
+        "scripts/verify-v1.1.sh must include integration spine, current rollup, semantic queue, raw evidence inventory, source candidate, operator bundle gate, operator bundle identity, operator packet, completion audit, production evidence intake, evidence readiness, TokenBridge BridgeDeposit coverage, external settlement, X0T governance execute-readiness/handoff, rollout provenance, rollup approval contract, production input return acceptance, and production closeout review unit tests"
+      ],
+      "id": "verify_entrypoint_includes_spine",
+      "passed": false,
+      "requirement": "The non-fast local verification entrypoint includes integration spine, current rollup, semantic queue, raw evidence inventory, source-candidate, operator-bundle-gate, operator-bundle-identity, operator-packet, completion-audit, production-evidence-intake, evidence-readiness, X0T token bridge, X0T settlement-gate, X0T governance execute-readiness/handoff, and rollout-provenance unit tests.",
+      "status": "BLOCKING"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-production-evidence-replacement-passport-current.json",
+        ".tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json",
+        "src/integration/production_evidence_replacement_passport.py",
+        "tests/unit/test_integration_production_evidence_replacement_passport.py",
+        ".tmp/validation-shards/integration-spine-production-input-return-acceptance-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "coverage_raw_files_reported_installed": 0,
+        "current_raw_files_installed": 0,
+        "decision": "PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_READY_FOR_OPERATOR",
+        "items_blocking": 64,
+        "items_ready": 0,
+        "items_total": 64,
+        "production_ready": false,
+        "raw_install_claim_source": "return_acceptance",
+        "required_evidence_files_ready": 0,
+        "required_evidence_files_total": 64,
+        "return_acceptance_raw_files_local_observation": 30,
+        "return_acceptance_raw_files_staged": 0,
+        "source_errors_total": 0,
+        "test_in_verify_entrypoint": true,
+        "verification_checks_failed": 0,
+        "verification_decision": "VALID_PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_READY_FOR_OPERATOR",
+        "verification_valid": true
+      },
+      "gaps": [
+        "production evidence replacement passport is missing, stale, not covered by scripts/verify-v1.1.sh, or still blocked on scaffold/template/mock/local-observation replacement"
+      ],
+      "id": "production_evidence_replacement_passport_clear",
+      "passed": false,
+      "requirement": "Every scaffold, template, mock, or local-observation evidence input has a reproducible replacement passport and is backed by retained production evidence.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-production-evidence-intake-current.json"
+      ],
+      "evidence": {
+        "decision": "BLOCKED_OPERATOR_EVIDENCE_REQUIRED",
+        "pending_evidence_keys": [
+          "billing-provisioning",
+          "ebpf-observability",
+          "external_settlement",
+          "live_spire_mtls",
+          "multi_host_mesh",
+          "paid_client_path",
+          "safe_rollout_rollback",
+          "signed-release-provenance",
+          "sla-telemetry",
+          "stable-deploy"
+        ],
+        "ready_for_install": false,
+        "required_evidence_keys_pending": 10,
+        "required_evidence_keys_ready": 0,
+        "required_evidence_keys_total": 10
+      },
+      "gaps": [
+        "production evidence intake is not ready for install"
+      ],
+      "id": "production_evidence_intake_ready",
+      "passed": false,
+      "requirement": "Operator-supplied production evidence is ready to install for all required integration-spine evidence keys.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-production-gap-index-current.json"
+      ],
+      "evidence": {
+        "blocked_source_artifacts": 9,
+        "blocking_evidence_keys": [
+          "external_settlement",
+          "billing-provisioning",
+          "ebpf-observability",
+          "live_spire_mtls",
+          "multi_host_mesh",
+          "paid_client_path",
+          "safe_rollout_rollback",
+          "signed-release-provenance",
+          "sla-telemetry",
+          "stable-deploy"
+        ],
+        "completion_audit_clear": false,
+        "decision": "BLOCKED_ON_OPERATOR_EVIDENCE",
+        "external_settlement_capture_preflight_decision": "CAPTURE_INPUTS_BLOCKED",
+        "external_settlement_handoff_clear": true,
+        "external_settlement_handoff_decision": "X0T_EXTERNAL_SETTLEMENT_HANDOFF_BLOCKED_ON_OPERATOR",
+        "external_settlement_handoff_operator_command_entrypoints_missing": 0,
+        "external_settlement_handoff_operator_command_shell_surface_ready": true,
+        "external_settlement_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+        "external_settlement_handoff_ready_for_completion_rerun": false,
+        "goal_can_be_marked_complete": false,
+        "import_mismatches": 0,
+        "missing_source_artifacts": 1,
+        "operator_priority_order": [
+          "external_settlement",
+          "billing-provisioning",
+          "ebpf-observability",
+          "live_spire_mtls",
+          "multi_host_mesh",
+          "paid_client_path",
+          "safe_rollout_rollback",
+          "signed-release-provenance",
+          "sla-telemetry",
+          "stable-deploy"
+        ],
+        "pending_evidence_keys": 10,
+        "primary_blocker_evidence_key": "external_settlement",
+        "raw_operator_packet_readiness_collectors_blocked": 9,
+        "raw_operator_packet_readiness_collectors_ready": 0,
+        "raw_operator_packet_readiness_collectors_total": 9,
+        "raw_operator_packet_readiness_decision": "BLOCKED_ON_OPERATOR_PRODUCTION_EVIDENCE",
+        "raw_operator_packet_readiness_raw_files_local_observation": 63,
+        "raw_operator_packet_readiness_raw_files_ready": 0,
+        "raw_operator_packet_readiness_raw_files_total": 63,
+        "raw_operator_packet_readiness_ready_for_collectors": false,
+        "route_missing": 0,
+        "source_artifacts_clear": false
+      },
+      "gaps": [
+        "production gap index still has source-artifact, route, or import mismatch blockers"
+      ],
+      "id": "production_gap_index_sources_clear",
+      "passed": false,
+      "requirement": "The production gap index has no source-artifact, route, or import mismatch blockers for required evidence keys.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-semantic-production-blocker-queue-current.json",
+        ".tmp/validation-shards/integration-spine-evidence-readiness-current.json"
+      ],
+      "evidence": {
+        "blocking_items_total": 121,
+        "by_collector": {
+          "external-settlement": 1,
+          "live-rollout": 24,
+          "paid-client-serviceability": 32,
+          "self-healing-pqc-mesh": 32,
+          "zero-trust-pqc": 32
+        },
+        "by_layer": {
+          "identity": 72,
+          "policy_engine": 32,
+          "production_closeout": 121,
+          "safe_actuator": 88,
+          "settlement_reward_loop": 33
+        },
+        "completion_decision": "NOT_COMPLETE",
+        "goal_can_be_marked_complete": false,
+        "readiness_gate": false,
+        "semantic_preflight_errors_total": 120
+      },
+      "gaps": [
+        "semantic queue still has blockers or does not allow completion"
+      ],
+      "id": "semantic_production_blockers_closed",
+      "passed": false,
+      "requirement": "Semantic production blocker queue is empty and the integration objective can be marked complete.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/x0t-external-settlement-current-blocker-current.json"
+      ],
+      "evidence": {
+        "decision": "BLOCKED_ON_REAL_SETTLEMENT_RECEIPT",
+        "expected_evidence_file_exists": false,
+        "expected_evidence_path": ".tmp/external-settlement-evidence/settlement-submit.json",
+        "fake_prevention_enforced": true,
+        "live_rpc_ready": false,
+        "x0t_external_settlement_ready": false
+      },
+      "gaps": [
+        "real settlement receipt and live RPC verification are not ready"
+      ],
+      "id": "external_x0t_settlement_ready",
+      "passed": false,
+      "requirement": "A real external X0T settlement receipt is retained and verified against live Base RPC.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/x0t-governance-execute-proposal-1-readiness-current.json"
+      ],
+      "evidence": {
+        "decision": "READY_TO_EXECUTE",
+        "execute_ready_now": true,
+        "next_executable_after_utc": "2026-05-21T04:45:22Z",
+        "not_verified_yet": [
+          "execute(1) with explicit operator approval after proposal state becomes Ready",
+          "execution transaction receipt and final Executed proposal state"
+        ],
+        "proposal_executed": false,
+        "proposal_vetoed": false,
+        "seconds_until_earliest_execution_by_block_time": 0,
+        "state_label": "Ready"
+      },
+      "gaps": [
+        "governance proposal execution is not complete; rerun the read-only readiness check first and execute only with explicit operator approval when the contract state is Ready"
+      ],
+      "id": "x0t_governance_proposal_executed",
+      "passed": false,
+      "requirement": "X0T governance proposal 1 has final executed-state evidence before production closeout.",
+      "status": "OPERATOR_APPROVAL_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/x0t-contract-readiness-current.json",
+        ".tmp/validation-shards/x0t-bridge-config-current.json"
+      ],
+      "evidence": {
+        "bridge_address_input_ready": false,
+        "bridge_config_decision": "X0T_BRIDGE_CONFIG_BLOCKED_ON_OPERATOR",
+        "bridge_config_ready": false,
+        "bridge_contract_source_ready": true,
+        "bridge_missing_inputs": [
+          {
+            "environment": "X0T_BRIDGE_CONTRACT_ADDRESS",
+            "id": "bridge_contract_address",
+            "reason": "bridge contract address must not equal X0TToken",
+            "status": "OPERATOR_INPUT_REQUIRED"
+          },
+          {
+            "id": "bridge_config_write",
+            "reason": "bridge address input is not ready",
+            "status": "BLOCKED"
+          }
+        ],
+        "bridge_missing_inputs_total": 2,
+        "configured_bridge_ready": false,
+        "contract_missing_inputs": [],
+        "contract_missing_inputs_total": 0,
+        "contract_readiness_clear": true,
+        "contract_readiness_decision": "CONTRACT_READINESS_CLEAR",
+        "deployment_config_ready": true,
+        "operator_configs_ready": true
+      },
+      "gaps": [
+        "X0T contract/deployment config is not production_readiness_requirement; a deployed bridge contract address is still missing or not applied"
+      ],
+      "id": "x0t_contract_deployment_ready",
+      "passed": false,
+      "requirement": "X0T contract package and operator deployment config are production_readiness_requirement, including the deployed bridge contract address.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/live-rollout-image-digests-closure-attempt-current.json"
+      ],
+      "evidence": {
+        "can_close_image_digests_blocker": false,
+        "decision": "CANNOT_CLOSE_WITH_CURRENT_RETAINED_ARTIFACTS",
+        "raw_deploy_images_digest_pinned": 0,
+        "raw_deploy_images_total": 7,
+        "runtime_image_provenance_artifacts_retained_here": false
+      },
+      "gaps": [
+        "runtime image digests/provenance are not ready"
+      ],
+      "id": "live_rollout_digest_and_provenance_ready",
+      "passed": false,
+      "requirement": "Production rollout evidence has digest-pinned runtime images and retained provenance artifacts.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-raw-evidence-inventory-current.json",
+        ".tmp/validation-shards/integration-spine-evidence-readiness-current.json"
+      ],
+      "evidence": {
+        "classification_counts": {
+          "RETAINED_COMPONENT_EVIDENCE_NOT_PRODUCTION_GRADE": 30
+        },
+        "files_total": 30,
+        "readiness_gate": false,
+        "semantic_blockers_total": 120,
+        "usable_for_goal_completion_files": 0
+      },
+      "gaps": [
+        "retained raw evidence is still component evidence or has semantic blockers"
+      ],
+      "id": "raw_evidence_is_production_grade",
+      "passed": false,
+      "requirement": "All retained raw evidence files are production-grade and usable for goal completion.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-current-evidence-rollup-current.json"
+      ],
+      "evidence": {
+        "completion_decision": "NOT_COMPLETE",
+        "goal_can_be_marked_complete": false,
+        "summary": {
+          "external_settlement_capture_inputs_ready": false,
+          "external_settlement_capture_preflight_decision": "CAPTURE_INPUTS_BLOCKED",
+          "external_settlement_decision": "BLOCKED_ON_REAL_SETTLEMENT_RECEIPT",
+          "external_settlement_expected_evidence_file_exists": false,
+          "external_settlement_fake_prevention_enforced": true,
+          "external_settlement_handoff_available": true,
+          "external_settlement_handoff_clear": true,
+          "external_settlement_handoff_decision": "X0T_EXTERNAL_SETTLEMENT_HANDOFF_BLOCKED_ON_OPERATOR",
+          "external_settlement_handoff_missing_inputs_total": 5,
+          "external_settlement_handoff_operator_actions_total": 6,
+          "external_settlement_handoff_operator_command_entrypoints_missing": 0,
+          "external_settlement_handoff_operator_command_shell_surface_ready": true,
+          "external_settlement_handoff_operator_command_surface_ready": true,
+          "external_settlement_handoff_operator_commands_total": 5,
+          "external_settlement_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+          "external_settlement_handoff_operator_sequence_ready": true,
+          "external_settlement_handoff_ready_for_completion_rerun": false,
+          "external_settlement_ready": false,
+          "image_digests_can_close": false,
+          "image_digests_decision": "CANNOT_CLOSE_WITH_CURRENT_RETAINED_ARTIFACTS",
+          "image_digests_deploy_images_digest_pinned": 0,
+          "image_digests_deploy_images_total": 7,
+          "image_digests_missing_inputs_total": 1,
+          "image_digests_operator_actions_total": 5,
+          "image_digests_operator_command_entrypoints_missing": 0,
+          "image_digests_operator_command_shell_surface_ready": true,
+          "image_digests_operator_command_surface_ready": true,
+          "image_digests_operator_commands_total": 4,
+          "image_digests_operator_commands_with_shell_redirection_placeholders": 0,
+          "image_digests_operator_handoff_decision": "LIVE_ROLLOUT_IMAGE_DIGESTS_BLOCKED_ON_OPERATOR",
+          "image_digests_ready_for_completion_rerun": false,
+          "semantic_blocking_items_total": 121,
+          "semantic_goal_can_be_marked_complete": false,
+          "semantic_preflight_errors_total": 120,
+          "source_errors_total": 0,
+          "top_blockers_blocking": 0,
+          "top_blockers_operator_approval_required": 1,
+          "top_blockers_operator_input_required": 4,
+          "top_blockers_total": 5,
+          "x0t_bridge_address_input_ready": false,
+          "x0t_bridge_config_available": true,
+          "x0t_bridge_config_decision": "X0T_BRIDGE_CONFIG_BLOCKED_ON_OPERATOR",
+          "x0t_bridge_config_ready": false,
+          "x0t_bridge_configured_bridge_ready": false,
+          "x0t_bridge_missing_inputs_total": 1,
+          "x0t_contract_bridge_source_ready": true,
+          "x0t_contract_build_env_ready": true,
+          "x0t_contract_build_verification_ready": true,
+          "x0t_contract_deployment_config_ready": false,
+          "x0t_contract_deployment_ready": false,
+          "x0t_contract_missing_inputs_total": 1,
+          "x0t_contract_operator_configs_ready": false,
+          "x0t_contract_readiness_available": true,
+          "x0t_contract_readiness_clear": false,
+          "x0t_contract_readiness_decision": "BLOCKED_ON_DEPLOYMENT_CONFIG",
+          "x0t_contract_surface_clear": true,
+          "x0t_governance_execute_decision": "READY_TO_EXECUTE",
+          "x0t_governance_execute_handoff_actionable": true,
+          "x0t_governance_execute_handoff_available": true,
+          "x0t_governance_execute_handoff_clear": true,
+          "x0t_governance_execute_handoff_decision": "X0T_GOVERNANCE_EXECUTE_HANDOFF_READY_FOR_OPERATOR_APPROVAL",
+          "x0t_governance_execute_readiness_available": true,
+          "x0t_governance_execute_readiness_clear": true,
+          "x0t_governance_execute_ready_now": true,
+          "x0t_governance_handoff_missing_inputs_total": 2,
+          "x0t_governance_handoff_operator_actions_total": 5,
+          "x0t_governance_handoff_operator_command_entrypoints_missing": 0,
+          "x0t_governance_handoff_operator_command_shell_surface_ready": true,
+          "x0t_governance_handoff_operator_command_surface_ready": true,
+          "x0t_governance_handoff_operator_commands_total": 5,
+          "x0t_governance_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+          "x0t_governance_handoff_operator_sequence_ready": true,
+          "x0t_governance_next_executable_after_utc": "2026-05-21T04:45:22Z",
+          "x0t_governance_proposal_executed": false,
+          "x0t_governance_ready_for_operator_execute": true,
+          "x0t_governance_seconds_until_earliest_execution_by_block_time": 0,
+          "x0t_governance_state_label": "Ready"
+        }
+      },
+      "gaps": [
+        "current rollup still reports NOT_COMPLETE or false completion flag"
+      ],
+      "id": "current_rollup_complete",
+      "passed": false,
+      "requirement": "The current rollup agrees that production objective completion is ready.",
+      "status": "AFTER_BLOCKERS"
+    }
+  ],
+  "checklist": [
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-code-wiring-current.json",
+        "src/integration/code_wiring.py",
+        "tests/unit/test_integration_spine.py",
+        "src/integration/spine.py",
+        "tests/unit/test_integration_spine.py"
+      ],
+      "evidence": {
+        "canonical_identity_consistent": true,
+        "ok": true,
+        "policy_before_actuator_verified": true,
+        "required_wiring": [
+          "event_bus",
+          "identity",
+          "policy_engine",
+          "safe_actuator",
+          "settlement_reward_loop"
+        ],
+        "schema_version": "x0tta6bl4-integration-spine-code-wiring-evidence-v2-repo-generated",
+        "settlement_failure_fails_closed": true,
+        "simulated_actuator_blocks_settlement": true,
+        "simulated_settlement_fails_closed": true,
+        "status": "VERIFIED HERE",
+        "token_rewards_local_only_fails_closed": true,
+        "trace_cases_failed": 0,
+        "trace_cases_passed": 7,
+        "trace_cases_total": 7,
+        "wiring_covered": [
+          "event_bus",
+          "identity",
+          "policy_engine",
+          "safe_actuator",
+          "settlement_reward_loop"
+        ]
+      },
+      "gaps": [],
+      "id": "local_spine_code_wiring",
+      "passed": true,
+      "requirement": "Local spine code connects the required identity, event, policy, actuator, and settlement adapters.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-code-wiring-current.json",
+        "src/integration/spine.py",
+        "tests/unit/test_integration_spine.py"
+      ],
+      "evidence": {
+        "wiring_entry": "SpineIdentity carries node_id, spiffe_id, DID, and wallet through every emitted event."
+      },
+      "gaps": [],
+      "id": "single_identity_contract",
+      "passed": true,
+      "requirement": "Every spine request carries one canonical identity with node_id, SPIFFE ID, optional DID, and optional reward wallet.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-code-wiring-current.json",
+        "src/integration/spine.py",
+        "tests/unit/test_integration_spine.py"
+      ],
+      "evidence": {
+        "wiring_entry": "IntegrationSpine publishes the same request identity through EventBus stage/block/fail events."
+      },
+      "gaps": [],
+      "id": "event_bus_contract",
+      "passed": true,
+      "requirement": "The spine emits auditable events through the project EventBus.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-code-wiring-current.json",
+        "src/integration/spine.py",
+        "tests/unit/test_integration_spine.py"
+      ],
+      "evidence": {
+        "wiring_entry": "A real zero-trust PolicyEngine allow/deny decision gates actuator execution."
+      },
+      "gaps": [],
+      "id": "policy_engine_contract",
+      "passed": true,
+      "requirement": "Policy evaluation happens before any actuator or settlement side effect and fails closed.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-code-wiring-current.json",
+        "src/integration/spine.py",
+        "tests/unit/test_integration_spine.py"
+      ],
+      "evidence": {
+        "wiring_entry": "SafeActuator blocks failed or simulated execution before settlement."
+      },
+      "gaps": [],
+      "id": "safe_actuator_contract",
+      "passed": true,
+      "requirement": "The actuator blocks missing, failed, exception, or simulated execution before settlement.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-code-wiring-current.json",
+        "src/integration/spine.py",
+        "tests/unit/test_integration_spine.py"
+      ],
+      "evidence": {
+        "wiring_entry": "reward_manager.reward_relay is called only after identity, policy, and actuator success; TokenRewards can publish canonical reward events on the same EventBus and fails closed on backend false/error/simulated status."
+      },
+      "gaps": [],
+      "id": "settlement_reward_contract",
+      "passed": true,
+      "requirement": "Reward settlement is called only after identity validation, policy allow, and successful non-simulated action.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        "scripts/verify-v1.1.sh",
+        "tests/unit/test_integration_spine.py",
+        "src/dao/token_bridge.py",
+        "tests/unit/dao/test_token_bridge_unit.py",
+        "tests/unit/test_integration_current_evidence_rollup.py",
+        "tests/unit/test_integration_semantic_production_blocker_queue.py",
+        "tests/unit/test_integration_raw_evidence_inventory.py",
+        "tests/unit/test_integration_evidence_source_candidates.py",
+        "tests/unit/test_integration_operator_bundle_gate.py",
+        "tests/unit/test_integration_operator_bundle_identity.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        "tests/unit/test_x0t_governance_execute_readiness.py",
+        "tests/unit/test_x0t_governance_execute_handoff.py",
+        ".tmp/validation-shards/integration-spine-code-wiring-current.json"
+      ],
+      "evidence": {
+        "verify_entrypoint_integration": null
+      },
+      "gaps": [
+        "scripts/verify-v1.1.sh must include integration spine, current rollup, semantic queue, raw evidence inventory, source candidate, operator bundle gate, operator bundle identity, operator packet, completion audit, production evidence intake, evidence readiness, TokenBridge BridgeDeposit coverage, external settlement, X0T governance execute-readiness/handoff, rollout provenance, rollup approval contract, production input return acceptance, and production closeout review unit tests"
+      ],
+      "id": "verify_entrypoint_includes_spine",
+      "passed": false,
+      "requirement": "The non-fast local verification entrypoint includes integration spine, current rollup, semantic queue, raw evidence inventory, source-candidate, operator-bundle-gate, operator-bundle-identity, operator-packet, completion-audit, production-evidence-intake, evidence-readiness, X0T token bridge, X0T settlement-gate, X0T governance execute-readiness/handoff, and rollout-provenance unit tests.",
+      "status": "BLOCKING"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/x0t-bridge-config-current.json",
+        "src/integration/x0t_bridge_config.py",
+        "scripts/ops/apply_x0t_bridge_contract_address.py",
+        "tests/unit/dao/test_x0t_bridge_config.py",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "approval_env": "X0T_APPLY_BRIDGE_ADDRESS_APPROVAL",
+        "approval_value_required": "apply-bridge-address-base-sepolia",
+        "bridge_address_input_ready": false,
+        "bridge_config_ready": false,
+        "configured_bridge_ready": false,
+        "decision": "X0T_BRIDGE_CONFIG_BLOCKED_ON_OPERATOR",
+        "missing_inputs_total": 2,
+        "smoke_in_verify_entrypoint": true,
+        "test_in_verify_entrypoint": true,
+        "write_performed": false
+      },
+      "gaps": [],
+      "id": "x0t_bridge_config_handoff_actionable",
+      "passed": true,
+      "requirement": "X0T bridge contract address configuration has a repo-generated fail-closed operator path that rejects placeholders and governance/token addresses before config mutation.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/x0t-contract-readiness-current.json",
+        "src/integration/x0t_contract_readiness.py",
+        "scripts/ops/check_x0t_contract_readiness.py",
+        "tests/unit/dao/test_x0t_contract_readiness.py",
+        ".tmp/validation-shards/x0t-contract-build-verification-current.json",
+        "src/integration/x0t_contract_build_verification.py",
+        "scripts/ops/verify_x0t_contract_build.py",
+        "tests/unit/dao/test_x0t_contract_build_verification.py",
+        "src/dao/contracts/contracts/X0TBridge.sol",
+        "src/dao/contracts/scripts/deploy_bridge.js",
+        "src/dao/contracts/test/X0TBridge.test.js",
+        ".tmp/validation-shards/x0t-bridge-config-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "bridge_contract_source_ready": true,
+        "build_env_ready": true,
+        "contract_build_verification_ready": true,
+        "contract_build_verified": true,
+        "contract_readiness_clear": true,
+        "decision": "CONTRACT_READINESS_CLEAR",
+        "deployment_config_ready": true,
+        "hardhat_compile_ready": true,
+        "hardhat_test_ready": true,
+        "missing_inputs": [],
+        "operator_configs_ready": true,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "x0t_contract_readiness_reproducible",
+      "passed": true,
+      "requirement": "X0T contract/deployment readiness is generated by repo code, includes Node 22 Hardhat compile/test evidence, and exposes bridge config commands without submitting transactions.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/x0t-governance-execute-proposal-1-readiness-current.json",
+        "src/integration/x0t_governance_execute_readiness.py",
+        "scripts/ops/check_x0t_governance_execute_readiness.py",
+        "tests/unit/test_x0t_governance_execute_readiness.py",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "decision": "READY_TO_EXECUTE",
+        "execute_ready_now": true,
+        "mutates_chain": false,
+        "next_executable_after_utc": "2026-05-21T04:45:22Z",
+        "proposal_executed": false,
+        "proposal_id": 1,
+        "proposal_vetoed": false,
+        "runs_live_rpc": true,
+        "seconds_until_earliest_execution_by_block_time": 0,
+        "state_label": "Ready",
+        "submits_transaction": false,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "x0t_governance_execute_readiness_reproducible",
+      "passed": true,
+      "requirement": "X0T governance proposal execute-readiness is generated by a read-only local wrapper, covered by unit tests, and never submits transactions.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/x0t-governance-execute-operator-handoff-current.json",
+        "src/integration/x0t_governance_execute_handoff.py",
+        "scripts/ops/run_x0t_governance_execute_handoff.py",
+        "tests/unit/test_x0t_governance_execute_handoff.py",
+        ".tmp/validation-shards/x0t-governance-execute-proposal-1-readiness-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "approval_env": "X0T_EXECUTE_PROPOSAL_APPROVAL",
+        "approval_value_required": "execute-proposal-1-base-sepolia",
+        "can_submit_without_operator_approval": false,
+        "handoff_actionable": true,
+        "handoff_decision": "X0T_GOVERNANCE_EXECUTE_HANDOFF_READY_FOR_OPERATOR_APPROVAL",
+        "mutates_chain": false,
+        "operator_actions_total": 5,
+        "operator_command_entrypoints_missing": 0,
+        "operator_command_shell_surface_ready": true,
+        "operator_command_surface_ready": true,
+        "operator_commands_total": 5,
+        "operator_commands_with_shell_redirection_placeholders": 0,
+        "operator_sequence_ready": true,
+        "readiness_decision": "READY_TO_EXECUTE",
+        "ready_for_operator_execute": true,
+        "runs_live_rpc": false,
+        "smoke_in_verify_entrypoint": true,
+        "submits_transaction": false,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "x0t_governance_execute_handoff_actionable",
+      "passed": true,
+      "requirement": "X0T governance proposal execution has a repo-generated read-only operator handoff with explicit approval and receipt boundaries.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-current-evidence-rollup-current.json",
+        "src/integration/current_evidence_rollup.py",
+        "tests/unit/test_integration_current_evidence_rollup.py",
+        ".tmp/validation-shards/x0t-external-settlement-current-blocker-current.json",
+        ".tmp/validation-shards/live-rollout-image-digests-closure-attempt-current.json",
+        ".tmp/validation-shards/integration-spine-semantic-production-blocker-queue-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "completion_decision": "NOT_COMPLETE",
+        "external_settlement_decision": "BLOCKED_ON_REAL_SETTLEMENT_RECEIPT",
+        "goal_can_be_marked_complete": false,
+        "image_digests_decision": "CANNOT_CLOSE_WITH_CURRENT_RETAINED_ARTIFACTS",
+        "semantic_blocking_items_total": 121,
+        "source_errors_total": 0,
+        "test_in_verify_entrypoint": true,
+        "top_blockers_total": 5
+      },
+      "gaps": [],
+      "id": "current_evidence_rollup_reproducible",
+      "passed": true,
+      "requirement": "The current evidence rollup is generated by repo code, covered by unit tests, and composes external settlement, rollout provenance, and semantic readiness without mutating live state.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-semantic-production-blocker-queue-current.json",
+        "src/integration/semantic_production_blocker_queue.py",
+        "tests/unit/test_integration_semantic_production_blocker_queue.py",
+        ".tmp/validation-shards/integration-spine-production-input-return-acceptance-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "blocking_items_total": 121,
+        "completion_decision": "NOT_COMPLETE",
+        "current_raw_files_installed": 0,
+        "goal_can_be_marked_complete": false,
+        "pipeline_raw_files_reported_installed": 0,
+        "return_acceptance_raw_files_local_observation": 30,
+        "semantic_preflight_errors_total": 120,
+        "source_errors_total": 0,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "semantic_production_blocker_queue_reproducible",
+      "passed": true,
+      "requirement": "The semantic production blocker queue is generated by repo code, covered by unit tests, and exposes source-read errors separately from production blockers.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-raw-evidence-inventory-current.json",
+        "src/integration/raw_evidence_inventory.py",
+        "tests/unit/test_integration_raw_evidence_inventory.py",
+        ".tmp/validation-shards/integration-spine-semantic-production-blocker-queue-current.json",
+        ".tmp/validation-shards/integration-spine-production-input-return-acceptance-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "classification_counts": {
+          "RETAINED_COMPONENT_EVIDENCE_NOT_PRODUCTION_GRADE": 30
+        },
+        "completion_decision": "NOT_COMPLETE",
+        "files_total": 30,
+        "goal_can_be_marked_complete": false,
+        "pipeline_raw_files_reported_installed": 0,
+        "raw_install_claim_source": "return_acceptance",
+        "return_acceptance_raw_files_expected": 63,
+        "return_acceptance_raw_files_local_observation": 30,
+        "return_acceptance_raw_files_staged": 0,
+        "semantic_blockers_total": 120,
+        "source_errors_total": 0,
+        "test_in_verify_entrypoint": true,
+        "usable_for_goal_completion_files": 0
+      },
+      "gaps": [],
+      "id": "raw_evidence_inventory_reproducible",
+      "passed": true,
+      "requirement": "The raw evidence inventory is generated by repo code, covered by unit tests, and classifies retained raw files without upgrading local/component evidence.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/live-rollout-image-digests-closure-attempt-current.json",
+        "src/integration/rollout_provenance.py",
+        "tests/unit/test_integration_rollout_provenance.py",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "can_close_image_digests_blocker": false,
+        "collector_image_digest_preflight_errors": 7,
+        "decision": "CANNOT_CLOSE_WITH_CURRENT_RETAINED_ARTIFACTS",
+        "raw_deploy_images_digest_pinned": 0,
+        "raw_deploy_images_total": 7,
+        "runtime_image_provenance_artifacts_retained_here": false,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "rollout_provenance_gate_reproducible",
+      "passed": true,
+      "requirement": "The live-rollout image digest/provenance gate is generated by repo code, covered by unit tests, and fails closed on tag-based or missing provenance artifacts.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/live-rollout-image-provenance-scaffold-current.json",
+        "scripts/ops/scaffold_live_rollout_image_provenance_evidence.py",
+        "tests/unit/test_ops_production_evidence_validation_wrappers.py",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "current_runtime_tag_refs_total": 7,
+        "scaffold_decision": "TEMPLATE_ONLY_NOT_EVIDENCE",
+        "smoke_in_verify_entrypoint": true,
+        "template_files_total": 4,
+        "template_validation_rejects_as_rollout_evidence": true,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "rollout_image_provenance_scaffold_available",
+      "passed": true,
+      "requirement": "The live-rollout image digest/provenance blocker has a template-only operator scaffold that is covered by tests and rejected as evidence.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-evidence-source-candidate-audit-current.json",
+        "src/integration/evidence_source_candidates.py",
+        "tests/unit/test_integration_evidence_source_candidates.py"
+      ],
+      "evidence": {
+        "decision": "NO_PRODUCTION_SOURCE_CANDIDATES_OPERATOR_REQUIRED",
+        "ready_source_candidates_total": 0,
+        "required_evidence_keys": [
+          "billing-provisioning",
+          "ebpf-observability",
+          "external_settlement",
+          "live_spire_mtls",
+          "multi_host_mesh",
+          "paid_client_path",
+          "safe_rollout_rollback",
+          "signed-release-provenance",
+          "sla-telemetry",
+          "stable-deploy"
+        ],
+        "required_inputs_ready": 0,
+        "required_inputs_total": 10,
+        "routes_total": 10
+      },
+      "gaps": [],
+      "id": "source_candidate_audit_reproducible",
+      "passed": true,
+      "requirement": "The source-candidate audit is generated by repo code and covers all required production evidence keys before intake consumes it.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/zero-trust-pqc-evidence-gate-current.json",
+        ".tmp/validation-shards/self-healing-pqc-mesh-evidence-gate-current.json",
+        ".tmp/validation-shards/paid-client-serviceability-evidence-gate-current.json",
+        ".tmp/validation-shards/live-rollout-evidence-gate-current.json",
+        "src/integration/operator_bundle_gate.py",
+        "tests/unit/test_integration_operator_bundle_gate.py",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "gate_decisions": {
+          "live_rollout_gate": "BLOCKED",
+          "paid_client_serviceability_gate": "BLOCKED",
+          "self_healing_pqc_mesh_gate": "BLOCKED",
+          "zero_trust_pqc_gate": "BLOCKED"
+        },
+        "gate_ready": {
+          "live_rollout_gate": false,
+          "paid_client_serviceability_gate": false,
+          "self_healing_pqc_mesh_gate": false,
+          "zero_trust_pqc_gate": false
+        },
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "operator_bundle_gates_fail_closed",
+      "passed": true,
+      "requirement": "Raw production blocker bundle gates are generated by repo code, covered by unit tests, and either fail closed on partial bundles or declare READY_TO_INSTALL for real production bundles.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/zero-trust-pqc-evidence-gate-current.json",
+        ".tmp/validation-shards/self-healing-pqc-mesh-evidence-gate-current.json",
+        ".tmp/validation-shards/paid-client-serviceability-evidence-gate-current.json",
+        ".tmp/validation-shards/live-rollout-evidence-gate-current.json",
+        "src/integration/operator_bundle_gate.py",
+        "tests/unit/test_integration_operator_bundle_gate.py",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "gate_manifest_identity_counters": {
+          "live_rollout_gate": {
+            "bundle_collector_id_mismatches": 0,
+            "bundle_file_name_mismatches": 0,
+            "bundle_files_available": 6,
+            "bundle_files_total": 6,
+            "bundle_manifest_identity_mismatches_total": 0,
+            "bundle_raw_id_mismatches": 0
+          },
+          "paid_client_serviceability_gate": {
+            "bundle_collector_id_mismatches": 0,
+            "bundle_file_name_mismatches": 0,
+            "bundle_files_available": 8,
+            "bundle_files_total": 8,
+            "bundle_manifest_identity_mismatches_total": 0,
+            "bundle_raw_id_mismatches": 0
+          },
+          "self_healing_pqc_mesh_gate": {
+            "bundle_collector_id_mismatches": 0,
+            "bundle_file_name_mismatches": 0,
+            "bundle_files_available": 8,
+            "bundle_files_total": 8,
+            "bundle_manifest_identity_mismatches_total": 0,
+            "bundle_raw_id_mismatches": 0
+          },
+          "zero_trust_pqc_gate": {
+            "bundle_collector_id_mismatches": 0,
+            "bundle_file_name_mismatches": 0,
+            "bundle_files_available": 8,
+            "bundle_files_total": 8,
+            "bundle_manifest_identity_mismatches_total": 0,
+            "bundle_raw_id_mismatches": 0
+          }
+        },
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "operator_bundle_manifest_identity_audited",
+      "passed": true,
+      "requirement": "Raw production blocker bundle gates expose manifest identity binding counters for collector_id, raw_id, and file_name.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-bundle-identity-current.json",
+        "src/integration/operator_bundle_identity.py",
+        "tests/unit/test_integration_operator_bundle_identity.py",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "collector_id_mismatches": 0,
+        "decision": "OPERATOR_BUNDLE_IDENTITY_CLEAN",
+        "file_name_mismatches": 0,
+        "files_available": 63,
+        "files_needing_identity_update": 0,
+        "files_total": 63,
+        "identity_patch_entries_total": 0,
+        "identity_patch_operations_total": 0,
+        "manifest_identity_mismatches_total": 0,
+        "raw_id_mismatches": 0,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "operator_bundle_identity_plan_available",
+      "passed": true,
+      "requirement": "The raw operator bundle manifest identity gap has a generated read-only remediation plan covered by unit tests.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-bundle-identity-current.json",
+        ".tmp/validation-shards/integration-spine-operator-bundle-identity-patch-current.json",
+        "scripts/ops/apply_operator_bundle_identity_patch.py",
+        "tests/unit/scripts/test_apply_operator_bundle_identity_patch.py",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "apply_requested": false,
+        "decision": "IDENTITY_PATCH_NOT_NEEDED",
+        "plan_entries_total": 0,
+        "test_in_verify_entrypoint": true,
+        "unsafe_operations_total": 0,
+        "updated_files": 0,
+        "would_update_files": 0
+      },
+      "gaps": [],
+      "id": "operator_bundle_identity_patch_entrypoint_available",
+      "passed": true,
+      "requirement": "The raw operator bundle manifest identity plan has a safe dry-run/apply entrypoint that only touches collector_id/raw_id/file_name.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        ".tmp/validation-shards/integration-spine-production-gap-index-current.json"
+      ],
+      "evidence": {
+        "actionable": true,
+        "commands_missing_entrypoints": 0,
+        "commands_total": 17,
+        "decision": "OPERATOR_ACTION_REQUIRED",
+        "expected_packet_key": "external_settlement",
+        "operator_action_required": true,
+        "required_artifacts_total": 4,
+        "selected_evidence_key": "external_settlement"
+      },
+      "gaps": [],
+      "id": "operator_evidence_packet_actionable",
+      "passed": true,
+      "requirement": "The next production blocker has a generated operator evidence packet with existing verifier entrypoints and fail-closed instructions.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        ".tmp/validation-shards/integration-spine-production-gap-index-current.json"
+      ],
+      "evidence": {
+        "actionable_packets": 10,
+        "all_packets_actionable": true,
+        "commands_missing_entrypoints_total": 0,
+        "decision": "ALL_OPERATOR_PACKETS_ACTIONABLE",
+        "packets_total": 10,
+        "packets_with_missing_entrypoints": 0
+      },
+      "gaps": [],
+      "id": "operator_evidence_packet_index_complete",
+      "passed": true,
+      "requirement": "Every current production evidence blocker has an actionable operator evidence packet with existing collector and verifier entrypoints.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        ".tmp/validation-shards/integration-spine-operator-bundle-identity-current.json"
+      ],
+      "evidence": {
+        "pending_evidence_keys": 10,
+        "raw_packet_identity_updates": {
+          "billing-provisioning": {
+            "identity_update_plan_total": 0,
+            "identity_updates_total": 0
+          },
+          "ebpf-observability": {
+            "identity_update_plan_total": 0,
+            "identity_updates_total": 0
+          },
+          "live_spire_mtls": {
+            "identity_update_plan_total": 0,
+            "identity_updates_total": 0
+          },
+          "multi_host_mesh": {
+            "identity_update_plan_total": 0,
+            "identity_updates_total": 0
+          },
+          "paid_client_path": {
+            "identity_update_plan_total": 0,
+            "identity_updates_total": 0
+          },
+          "safe_rollout_rollback": {
+            "identity_update_plan_total": 0,
+            "identity_updates_total": 0
+          },
+          "signed-release-provenance": {
+            "identity_update_plan_total": 0,
+            "identity_updates_total": 0
+          },
+          "sla-telemetry": {
+            "identity_update_plan_total": 0,
+            "identity_updates_total": 0
+          },
+          "stable-deploy": {
+            "identity_update_plan_total": 0,
+            "identity_updates_total": 0
+          }
+        }
+      },
+      "gaps": [],
+      "id": "operator_packet_identity_suggestions_available",
+      "passed": true,
+      "requirement": "Raw production blocker operator packets expose per-file manifest identity suggestions for collector_id, raw_id, and file_name.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        "scripts/ops/apply_operator_bundle_identity_patch.py"
+      ],
+      "evidence": {
+        "raw_packets_with_identity_patch_dry_run_pair": 9,
+        "raw_priority_keys": [
+          "billing-provisioning",
+          "ebpf-observability",
+          "live_spire_mtls",
+          "multi_host_mesh",
+          "paid_client_path",
+          "safe_rollout_rollback",
+          "signed-release-provenance",
+          "sla-telemetry",
+          "stable-deploy"
+        ]
+      },
+      "gaps": [],
+      "id": "operator_packet_identity_patch_dry_run_command_available",
+      "passed": true,
+      "requirement": "Raw production blocker operator packets expose an identity-only dry-run patch command before the guarded --apply command.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        ".tmp/validation-shards/integration-spine-production-evidence-replacement-passport-current.json"
+      ],
+      "evidence": {
+        "packets_total": 10,
+        "packets_with_replacement_passport_command": 10,
+        "pending_evidence_keys": 10
+      },
+      "gaps": [],
+      "id": "operator_packet_replacement_passport_command_available",
+      "passed": true,
+      "requirement": "Every current production blocker packet tells the operator to rerun the production evidence replacement passport before intake/completion.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        "src/integration/production_input_return_acceptance.py",
+        "src/integration/production_input_pipeline.py",
+        "src/integration/production_closeout_review.py"
+      ],
+      "evidence": {
+        "packets_total": 10,
+        "packets_with_post_intake_commands": 10,
+        "pending_evidence_keys": 10
+      },
+      "gaps": [],
+      "id": "operator_packet_post_intake_commands_available",
+      "passed": true,
+      "requirement": "Every current production blocker packet tells the operator to rerun return acceptance, input pipeline, and closeout review before final completion/gap gates.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        "scripts/ops/generate_production_raw_evidence_template_pack.py"
+      ],
+      "evidence": {
+        "raw_priority_keys": [
+          "billing-provisioning",
+          "ebpf-observability",
+          "live_spire_mtls",
+          "multi_host_mesh",
+          "paid_client_path",
+          "safe_rollout_rollback",
+          "signed-release-provenance",
+          "sla-telemetry",
+          "stable-deploy"
+        ],
+        "raw_template_pack_command_present": true
+      },
+      "gaps": [],
+      "id": "operator_packet_raw_template_pack_command_available",
+      "passed": true,
+      "requirement": "Raw production blocker operator packets expose the template-only raw evidence template-pack command and an explicit fail-closed rule.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py"
+      ],
+      "evidence": {
+        "raw_priority_keys": [
+          "billing-provisioning",
+          "ebpf-observability",
+          "live_spire_mtls",
+          "multi_host_mesh",
+          "paid_client_path",
+          "safe_rollout_rollback",
+          "signed-release-provenance",
+          "sla-telemetry",
+          "stable-deploy"
+        ],
+        "raw_required_inputs_present": true
+      },
+      "gaps": [],
+      "id": "operator_packet_raw_required_inputs_available",
+      "passed": true,
+      "requirement": "Raw production blocker operator packets expose the required production inputs, required raw evidence fields, and an explicit operator JSON write step.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        "scripts/ops/verify_x0t_external_settlement_evidence.py",
+        "scripts/ops/verify_x0t_external_settlement_live_rpc.py"
+      ],
+      "evidence": {
+        "external_settlement_commands": [
+          "python3 scripts/ops/scaffold_x0t_external_settlement_evidence.py --write-template-files --force",
+          "export X0T_BASE_RPC_URL='<read-only Base RPC URL for the matching chain>'",
+          "export X0T_SETTLEMENT_TX_HASH='<0x-prefixed submitted settlement transaction hash>'",
+          "export X0T_DESTINATION_CHAIN='<base-sepolia|base|base-mainnet>'",
+          "export X0T_SETTLEMENT_ID='<non-placeholder settlement id>'",
+          "python3 -m src.integration.external_settlement --root . --preflight-capture-inputs --transaction-hash \"$X0T_SETTLEMENT_TX_HASH\" --destination-chain \"$X0T_DESTINATION_CHAIN\" --settlement-id \"$X0T_SETTLEMENT_ID\" --rpc-url \"$X0T_BASE_RPC_URL\" --evidence .tmp/external-settlement-evidence/settlement-submit.json --require-preflight-ready",
+          "python3 -m src.integration.external_settlement --root . --capture-from-rpc --transaction-hash \"$X0T_SETTLEMENT_TX_HASH\" --destination-chain \"$X0T_DESTINATION_CHAIN\" --settlement-id \"$X0T_SETTLEMENT_ID\" --rpc-url \"$X0T_BASE_RPC_URL\" --evidence .tmp/external-settlement-evidence/settlement-submit.json --write-evidence --require-ready",
+          "python3 scripts/ops/verify_x0t_external_settlement_evidence.py --evidence .tmp/external-settlement-evidence/settlement-submit.json --require-ready",
+          "python3 scripts/ops/verify_x0t_external_settlement_live_rpc.py --evidence .tmp/external-settlement-evidence/settlement-submit.json --rpc-url \"$X0T_BASE_RPC_URL\" --require-ready",
+          "python3 -m src.integration.evidence_source_candidates --root . --require-ready",
+          "python3 -m src.integration.production_evidence_replacement_passport --root . --verification-output-json .tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json --require-valid --require-ready",
+          "python3 -m src.integration.production_evidence_intake --root . --require-ready",
+          "python3 -m src.integration.production_input_return_acceptance --root . --require-ready",
+          "python3 -m src.integration.production_input_pipeline --root . --require-ready",
+          "python3 -m src.integration.production_closeout_review --root . --require-ready",
+          "python3 -m src.integration.completion_audit --root . --require-complete",
+          "python3 -m src.integration.production_gap_index --root . --require-clear"
+        ],
+        "pending_evidence_keys": 10
+      },
+      "gaps": [],
+      "id": "operator_packet_external_settlement_wrapper_commands_available",
+      "passed": true,
+      "requirement": "The external settlement operator packet includes both retained-evidence and live-RPC wrapper verifiers before source-candidate/intake promotion.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py"
+      ],
+      "evidence": {
+        "pending_evidence_keys": 10,
+        "required_fields_total": 14,
+        "required_operator_inputs": [
+          "real submitted X0T transaction hash",
+          "destination Base chain",
+          "settlement_id tied to the integration-spine reward/settlement loop",
+          "read-only RPC URL for the same Base chain",
+          "retained source commands and explorer URL proving the receipt"
+        ]
+      },
+      "gaps": [],
+      "id": "operator_packet_external_settlement_operator_inputs_available",
+      "passed": true,
+      "requirement": "The external settlement operator packet exposes the required operator inputs, required receipt fields, and X0T environment exports before any capture or verifier command.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        "src/integration/external_settlement.py",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "capture_inputs_blocked_assertion_in_verify_entrypoint": true,
+        "capture_preflight_smoke_in_verify_entrypoint": true,
+        "external_settlement_commands": [
+          "python3 -m src.integration.external_settlement --root . --preflight-capture-inputs --transaction-hash \"$X0T_SETTLEMENT_TX_HASH\" --destination-chain \"$X0T_DESTINATION_CHAIN\" --settlement-id \"$X0T_SETTLEMENT_ID\" --rpc-url \"$X0T_BASE_RPC_URL\" --evidence .tmp/external-settlement-evidence/settlement-submit.json --require-preflight-ready",
+          "python3 -m src.integration.external_settlement --root . --capture-from-rpc --transaction-hash \"$X0T_SETTLEMENT_TX_HASH\" --destination-chain \"$X0T_DESTINATION_CHAIN\" --settlement-id \"$X0T_SETTLEMENT_ID\" --rpc-url \"$X0T_BASE_RPC_URL\" --evidence .tmp/external-settlement-evidence/settlement-submit.json --write-evidence --require-ready"
+        ],
+        "pending_evidence_keys": 10
+      },
+      "gaps": [],
+      "id": "operator_packet_external_settlement_capture_commands_available",
+      "passed": true,
+      "requirement": "The external settlement operator packet exposes fail-closed capture-input preflight and live read-only RPC capture commands, and the fast verifier proves the preflight blocks without operator inputs.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py",
+        "scripts/ops/scaffold_x0t_external_settlement_evidence.py"
+      ],
+      "evidence": {
+        "pending_evidence_keys": 10,
+        "scaffold_command_present": true
+      },
+      "gaps": [],
+      "id": "operator_packet_external_settlement_scaffold_command_available",
+      "passed": true,
+      "requirement": "The external settlement operator packet exposes the template-only settlement scaffold command and an explicit fail-closed rule.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        "scripts/verify-v1.1.sh",
+        "scripts/ops/scaffold_x0t_external_settlement_evidence.py",
+        "scripts/ops/verify_x0t_external_settlement_evidence.py",
+        "tests/unit/test_ops_production_evidence_validation_wrappers.py"
+      ],
+      "evidence": {
+        "retained_evidence_verifier_in_verify_entrypoint": true,
+        "smoke_in_verify_entrypoint": true,
+        "template_rejection_assertion_in_verify_entrypoint": true,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "external_settlement_template_rejection_smoke_available",
+      "passed": true,
+      "requirement": "The fast verification entrypoint proves that an external settlement template copied to the retained evidence path is rejected.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        "scripts/verify-v1.1.sh",
+        "scripts/ops/generate_production_raw_evidence_template_pack.py",
+        "scripts/ops/import_production_raw_evidence_bundle.py",
+        "tests/unit/test_ops_production_evidence_validation_wrappers.py"
+      ],
+      "evidence": {
+        "raw_bundle_import_in_verify_entrypoint": true,
+        "raw_template_pack_in_verify_entrypoint": true,
+        "smoke_in_verify_entrypoint": true,
+        "template_rejection_assertion_in_verify_entrypoint": true,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "raw_evidence_template_rejection_smoke_available",
+      "passed": true,
+      "requirement": "The fast verification entrypoint proves that generated raw-evidence templates copied into an operator bundle are rejected.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        "scripts/verify-v1.1.sh",
+        "scripts/ops/scaffold_live_rollout_image_provenance_evidence.py",
+        "scripts/ops/import_production_raw_evidence_bundle.py",
+        "tests/unit/test_ops_production_evidence_validation_wrappers.py"
+      ],
+      "evidence": {
+        "raw_bundle_import_in_verify_entrypoint": true,
+        "rollout_scaffold_in_verify_entrypoint": true,
+        "smoke_in_verify_entrypoint": true,
+        "template_rejection_assertion_in_verify_entrypoint": true,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "live_rollout_image_template_rejection_smoke_available",
+      "passed": true,
+      "requirement": "The fast verification entrypoint proves that a live-rollout image provenance template copied into an operator bundle is rejected.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "src/integration/operator_evidence_packet.py",
+        "tests/unit/test_integration_operator_evidence_packet.py"
+      ],
+      "evidence": {
+        "priority_order": [
+          "external_settlement",
+          "billing-provisioning",
+          "ebpf-observability",
+          "live_spire_mtls",
+          "multi_host_mesh",
+          "paid_client_path",
+          "safe_rollout_rollback",
+          "signed-release-provenance",
+          "sla-telemetry",
+          "stable-deploy"
+        ],
+        "safe_rollout_in_priority_order": true,
+        "scaffold_command_present": true
+      },
+      "gaps": [],
+      "id": "operator_packet_rollout_image_scaffold_command_available",
+      "passed": true,
+      "requirement": "The safe rollout operator packet exposes the template-only image digest/provenance scaffold command and an explicit fail-closed rule.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-production-evidence-replacement-passport-current.json",
+        "src/integration/production_evidence_replacement_passport.py",
+        "tests/unit/test_integration_production_evidence_replacement_passport.py",
+        "scripts/ops/import_production_raw_evidence_bundle.py",
+        "scripts/ops/verify_x0t_external_settlement_evidence.py",
+        "scripts/ops/verify_x0t_external_settlement_live_rpc.py",
+        "tests/unit/test_ops_production_evidence_validation_wrappers.py",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "test_in_verify_entrypoint": true,
+        "validation_commands": [
+          "python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready",
+          "python3 scripts/ops/verify_x0t_external_settlement_live_rpc.py --require-ready",
+          "python3 scripts/ops/verify_x0t_external_settlement_evidence.py --require-ready",
+          "python3 scripts/ops/verify_stable_deploy_evidence_gate.py --require-ready",
+          "python3 scripts/ops/verify_ebpf_observability_evidence_gate.py --require-ready",
+          "python3 scripts/ops/verify_signed_release_provenance_evidence_gate.py --require-ready",
+          "python3 scripts/ops/verify_billing_provisioning_evidence_gate.py --require-ready",
+          "python3 scripts/ops/verify_sla_telemetry_evidence_gate.py --require-ready"
+        ],
+        "validation_commands_total": 8
+      },
+      "gaps": [],
+      "id": "replacement_passport_validation_commands_available",
+      "passed": true,
+      "requirement": "Every validation command emitted by the production evidence replacement passport has a local fail-closed entrypoint covered by tests.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-production-evidence-replacement-passport-current.json",
+        "src/integration/production_evidence_replacement_passport.py",
+        "tests/unit/test_integration_production_evidence_replacement_passport.py",
+        "scripts/ops/scaffold_x0t_external_settlement_evidence.py",
+        "tests/unit/test_ops_production_evidence_validation_wrappers.py",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "scaffold_commands": [
+          "python3 scripts/ops/scaffold_x0t_external_settlement_evidence.py --write-template-files --force"
+        ],
+        "scaffold_commands_total": 1,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "replacement_passport_external_scaffold_command_available",
+      "passed": true,
+      "requirement": "The production evidence replacement passport exposes an external settlement scaffold entrypoint that writes templates only and is covered by tests.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-production-evidence-replacement-passport-current.json",
+        ".tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json",
+        "src/integration/production_evidence_replacement_passport.py",
+        "tests/unit/test_integration_production_evidence_replacement_passport.py",
+        ".tmp/validation-shards/integration-spine-production-input-return-acceptance-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "coverage_raw_files_reported_installed": 0,
+        "current_raw_files_installed": 0,
+        "decision": "PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_READY_FOR_OPERATOR",
+        "items_blocking": 64,
+        "items_ready": 0,
+        "items_total": 64,
+        "production_ready": false,
+        "raw_install_claim_source": "return_acceptance",
+        "required_evidence_files_ready": 0,
+        "required_evidence_files_total": 64,
+        "return_acceptance_raw_files_local_observation": 30,
+        "return_acceptance_raw_files_staged": 0,
+        "source_errors_total": 0,
+        "test_in_verify_entrypoint": true,
+        "verification_checks_failed": 0,
+        "verification_decision": "VALID_PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_READY_FOR_OPERATOR",
+        "verification_valid": true
+      },
+      "gaps": [
+        "production evidence replacement passport is missing, stale, not covered by scripts/verify-v1.1.sh, or still blocked on scaffold/template/mock/local-observation replacement"
+      ],
+      "id": "production_evidence_replacement_passport_clear",
+      "passed": false,
+      "requirement": "Every scaffold, template, mock, or local-observation evidence input has a reproducible replacement passport and is backed by retained production evidence.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-required-evidence-consistency-current.json",
+        "src/integration/required_evidence_consistency.py",
+        "tests/unit/test_integration_required_evidence_consistency.py",
+        ".tmp/validation-shards/integration-spine-production-evidence-replacement-passport-current.json",
+        ".tmp/validation-shards/integration-spine-operator-evidence-packet-index-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "decision": "VALID_REQUIRED_EVIDENCE_CONSISTENCY_BLOCKED_ON_OPERATOR",
+        "errors_total": 0,
+        "packet_passport_item_coverage_ready": true,
+        "packet_required_evidence_files_total": 64,
+        "production_ready": false,
+        "raw_operator_packet_production_ready_blocked_by_raw_readiness": false,
+        "raw_operator_packet_readiness_collectors_blocked": 9,
+        "raw_operator_packet_readiness_collectors_ready": 0,
+        "raw_operator_packet_readiness_collectors_total": 9,
+        "raw_operator_packet_readiness_decision": "BLOCKED_ON_OPERATOR_PRODUCTION_EVIDENCE",
+        "raw_operator_packet_readiness_raw_files_local_observation": 63,
+        "raw_operator_packet_readiness_raw_files_ready": 0,
+        "raw_operator_packet_readiness_raw_files_total": 63,
+        "raw_operator_packet_readiness_ready_for_collectors": false,
+        "required_evidence_files_total": 64,
+        "test_in_verify_entrypoint": true,
+        "valid": true
+      },
+      "gaps": [],
+      "id": "required_evidence_consistency_valid",
+      "passed": true,
+      "requirement": "Passport, operator packet index, input manifest, return acceptance, pipeline, rollup, and closeout reports agree on the required evidence file set.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-rollup-approval-contract-current.json",
+        "src/integration/rollup_approval_contract.py",
+        "tests/unit/test_integration_rollup_approval_contract.py",
+        ".tmp/validation-shards/integration-spine-production-evidence-replacement-passport-current.json",
+        ".tmp/validation-shards/integration-spine-required-evidence-consistency-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "decision": "ROLLUP_APPROVAL_BLOCKED_ON_OPERATOR_EVIDENCE",
+        "evidence_files_total": 64,
+        "evidence_files_valid": 0,
+        "ready": false,
+        "required_evidence_files_ready": 0,
+        "required_evidence_files_total": 64,
+        "source_errors_total": 0,
+        "sources_ready": 0,
+        "sources_total": 13,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "rollup_approval_contract_reproducible",
+      "passed": true,
+      "requirement": "The rollup approval contract is generated by repo code, covered by unit tests, and reports source-read errors separately from operator evidence blockers.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-production-input-return-acceptance-current.json",
+        "src/integration/production_input_return_acceptance.py",
+        "tests/unit/test_integration_production_input_return_acceptance.py",
+        ".tmp/validation-shards/integration-spine-required-evidence-consistency-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "decision": "RETURN_ACCEPTANCE_BLOCKED_ON_OPERATOR_EVIDENCE",
+        "evidence_keys_ready_to_stage": 0,
+        "evidence_keys_total": 10,
+        "external_artifacts_expected": 1,
+        "external_settlement_live_rpc_ready": false,
+        "raw_files_expected": 63,
+        "ready_for_pipeline_install": false,
+        "ready_to_stage": false,
+        "source_errors_total": 0,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "production_input_return_acceptance_reproducible",
+      "passed": true,
+      "requirement": "The production input return acceptance report is generated by repo code, covered by unit tests, and exposes stage blockers with a stable decision.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-production-input-pipeline-current.json",
+        "src/integration/production_input_pipeline.py",
+        "tests/unit/test_integration_production_input_pipeline.py",
+        ".tmp/validation-shards/integration-spine-production-input-return-acceptance-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "pipeline_decision": "PARTIAL_RAW_COLLECTOR_BLOCKED_ON_EVIDENCE",
+        "raw_files_install_claim_source": "return_acceptance",
+        "raw_files_installed": 0,
+        "raw_files_local_observation": 30,
+        "raw_files_preflight_reported_installed": 0,
+        "raw_files_staged": 0,
+        "ready": false,
+        "return_acceptance_raw_files_staged": 0,
+        "schema_version": "x0tta6bl4-integration-spine-production-input-pipeline-v4-repo-generated",
+        "source_errors_total": 0,
+        "test_in_verify_entrypoint": true
+      },
+      "gaps": [],
+      "id": "production_input_pipeline_reproducible",
+      "passed": true,
+      "requirement": "The production input pipeline report is repo-generated, covered by unit tests, and reports installed raw files from return-acceptance rather than stale local observations.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-production-closeout-review-current.json",
+        "src/integration/production_closeout_review.py",
+        "tests/unit/test_integration_production_closeout_review.py",
+        ".tmp/validation-shards/integration-spine-rollup-approval-contract-current.json",
+        ".tmp/validation-shards/integration-spine-required-evidence-consistency-current.json",
+        "scripts/verify-v1.1.sh"
+      ],
+      "evidence": {
+        "blocking_inputs_total": 10,
+        "decision": "CLOSEOUT_REVIEW_BLOCKED_ON_OPERATOR_EVIDENCE",
+        "live_rollout_handoff_available": true,
+        "live_rollout_handoff_can_close_image_digests_blocker": false,
+        "live_rollout_handoff_decision": "LIVE_ROLLOUT_IMAGE_DIGESTS_BLOCKED_ON_OPERATOR",
+        "live_rollout_handoff_missing_inputs_total": 1,
+        "live_rollout_handoff_operator_actions_total": 5,
+        "live_rollout_handoff_operator_command_entrypoints_missing": 0,
+        "live_rollout_handoff_operator_command_shell_surface_ready": true,
+        "live_rollout_handoff_operator_command_surface_ready": true,
+        "live_rollout_handoff_operator_commands_total": 4,
+        "live_rollout_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+        "live_rollout_handoff_operator_input_required_actions_total": 2,
+        "live_rollout_handoff_operator_sequence_ready": true,
+        "live_rollout_handoff_ready_for_completion_rerun": false,
+        "raw_files_existing_or_retained": 30,
+        "raw_files_install_claim_source": "return_acceptance",
+        "raw_files_installed": 0,
+        "raw_files_pipeline_reported_installed": 0,
+        "ready": false,
+        "required_evidence_files_total": 64,
+        "rollup_evidence_files_total": 64,
+        "source_errors_total": 0,
+        "sources_ready": 0,
+        "sources_total": 6,
+        "test_in_verify_entrypoint": true,
+        "x0t_contract_handoff_approval_value_required": "apply-bridge-address-base-sepolia",
+        "x0t_contract_handoff_available": true,
+        "x0t_contract_handoff_decision": "X0T_CONTRACT_DEPLOYMENT_CONFIG_BLOCKED_ON_OPERATOR",
+        "x0t_contract_handoff_deployment_ready": false,
+        "x0t_contract_handoff_missing_inputs_total": 1,
+        "x0t_contract_handoff_operator_actions_total": 6,
+        "x0t_contract_handoff_operator_approval_required_actions_total": 1,
+        "x0t_contract_handoff_operator_command_entrypoints_missing": 0,
+        "x0t_contract_handoff_operator_command_shell_surface_ready": true,
+        "x0t_contract_handoff_operator_command_surface_ready": true,
+        "x0t_contract_handoff_operator_commands_total": 5,
+        "x0t_contract_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+        "x0t_contract_handoff_operator_sequence_ready": true
+      },
+      "gaps": [],
+      "id": "production_closeout_review_reproducible",
+      "passed": true,
+      "requirement": "The production closeout review is generated by repo code, covered by unit tests, and summarizes closeout blockers without closing the goal.",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-production-evidence-intake-current.json"
+      ],
+      "evidence": {
+        "decision": "BLOCKED_OPERATOR_EVIDENCE_REQUIRED",
+        "pending_evidence_keys": [
+          "billing-provisioning",
+          "ebpf-observability",
+          "external_settlement",
+          "live_spire_mtls",
+          "multi_host_mesh",
+          "paid_client_path",
+          "safe_rollout_rollback",
+          "signed-release-provenance",
+          "sla-telemetry",
+          "stable-deploy"
+        ],
+        "ready_for_install": false,
+        "required_evidence_keys_pending": 10,
+        "required_evidence_keys_ready": 0,
+        "required_evidence_keys_total": 10
+      },
+      "gaps": [
+        "production evidence intake is not ready for install"
+      ],
+      "id": "production_evidence_intake_ready",
+      "passed": false,
+      "requirement": "Operator-supplied production evidence is ready to install for all required integration-spine evidence keys.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-production-gap-index-current.json"
+      ],
+      "evidence": {
+        "blocked_source_artifacts": 9,
+        "blocking_evidence_keys": [
+          "external_settlement",
+          "billing-provisioning",
+          "ebpf-observability",
+          "live_spire_mtls",
+          "multi_host_mesh",
+          "paid_client_path",
+          "safe_rollout_rollback",
+          "signed-release-provenance",
+          "sla-telemetry",
+          "stable-deploy"
+        ],
+        "completion_audit_clear": false,
+        "decision": "BLOCKED_ON_OPERATOR_EVIDENCE",
+        "external_settlement_capture_preflight_decision": "CAPTURE_INPUTS_BLOCKED",
+        "external_settlement_handoff_clear": true,
+        "external_settlement_handoff_decision": "X0T_EXTERNAL_SETTLEMENT_HANDOFF_BLOCKED_ON_OPERATOR",
+        "external_settlement_handoff_operator_command_entrypoints_missing": 0,
+        "external_settlement_handoff_operator_command_shell_surface_ready": true,
+        "external_settlement_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+        "external_settlement_handoff_ready_for_completion_rerun": false,
+        "goal_can_be_marked_complete": false,
+        "import_mismatches": 0,
+        "missing_source_artifacts": 1,
+        "operator_priority_order": [
+          "external_settlement",
+          "billing-provisioning",
+          "ebpf-observability",
+          "live_spire_mtls",
+          "multi_host_mesh",
+          "paid_client_path",
+          "safe_rollout_rollback",
+          "signed-release-provenance",
+          "sla-telemetry",
+          "stable-deploy"
+        ],
+        "pending_evidence_keys": 10,
+        "primary_blocker_evidence_key": "external_settlement",
+        "raw_operator_packet_readiness_collectors_blocked": 9,
+        "raw_operator_packet_readiness_collectors_ready": 0,
+        "raw_operator_packet_readiness_collectors_total": 9,
+        "raw_operator_packet_readiness_decision": "BLOCKED_ON_OPERATOR_PRODUCTION_EVIDENCE",
+        "raw_operator_packet_readiness_raw_files_local_observation": 63,
+        "raw_operator_packet_readiness_raw_files_ready": 0,
+        "raw_operator_packet_readiness_raw_files_total": 63,
+        "raw_operator_packet_readiness_ready_for_collectors": false,
+        "route_missing": 0,
+        "source_artifacts_clear": false
+      },
+      "gaps": [
+        "production gap index still has source-artifact, route, or import mismatch blockers"
+      ],
+      "id": "production_gap_index_sources_clear",
+      "passed": false,
+      "requirement": "The production gap index has no source-artifact, route, or import mismatch blockers for required evidence keys.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-semantic-production-blocker-queue-current.json",
+        ".tmp/validation-shards/integration-spine-evidence-readiness-current.json"
+      ],
+      "evidence": {
+        "blocking_items_total": 121,
+        "by_collector": {
+          "external-settlement": 1,
+          "live-rollout": 24,
+          "paid-client-serviceability": 32,
+          "self-healing-pqc-mesh": 32,
+          "zero-trust-pqc": 32
+        },
+        "by_layer": {
+          "identity": 72,
+          "policy_engine": 32,
+          "production_closeout": 121,
+          "safe_actuator": 88,
+          "settlement_reward_loop": 33
+        },
+        "completion_decision": "NOT_COMPLETE",
+        "goal_can_be_marked_complete": false,
+        "readiness_gate": false,
+        "semantic_preflight_errors_total": 120
+      },
+      "gaps": [
+        "semantic queue still has blockers or does not allow completion"
+      ],
+      "id": "semantic_production_blockers_closed",
+      "passed": false,
+      "requirement": "Semantic production blocker queue is empty and the integration objective can be marked complete.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/x0t-external-settlement-current-blocker-current.json"
+      ],
+      "evidence": {
+        "decision": "BLOCKED_ON_REAL_SETTLEMENT_RECEIPT",
+        "expected_evidence_file_exists": false,
+        "expected_evidence_path": ".tmp/external-settlement-evidence/settlement-submit.json",
+        "fake_prevention_enforced": true,
+        "live_rpc_ready": false,
+        "x0t_external_settlement_ready": false
+      },
+      "gaps": [
+        "real settlement receipt and live RPC verification are not ready"
+      ],
+      "id": "external_x0t_settlement_ready",
+      "passed": false,
+      "requirement": "A real external X0T settlement receipt is retained and verified against live Base RPC.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/x0t-governance-execute-proposal-1-readiness-current.json"
+      ],
+      "evidence": {
+        "decision": "READY_TO_EXECUTE",
+        "execute_ready_now": true,
+        "next_executable_after_utc": "2026-05-21T04:45:22Z",
+        "not_verified_yet": [
+          "execute(1) with explicit operator approval after proposal state becomes Ready",
+          "execution transaction receipt and final Executed proposal state"
+        ],
+        "proposal_executed": false,
+        "proposal_vetoed": false,
+        "seconds_until_earliest_execution_by_block_time": 0,
+        "state_label": "Ready"
+      },
+      "gaps": [
+        "governance proposal execution is not complete; rerun the read-only readiness check first and execute only with explicit operator approval when the contract state is Ready"
+      ],
+      "id": "x0t_governance_proposal_executed",
+      "passed": false,
+      "requirement": "X0T governance proposal 1 has final executed-state evidence before production closeout.",
+      "status": "OPERATOR_APPROVAL_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/x0t-contract-readiness-current.json",
+        ".tmp/validation-shards/x0t-bridge-config-current.json"
+      ],
+      "evidence": {
+        "bridge_address_input_ready": false,
+        "bridge_config_decision": "X0T_BRIDGE_CONFIG_BLOCKED_ON_OPERATOR",
+        "bridge_config_ready": false,
+        "bridge_contract_source_ready": true,
+        "bridge_missing_inputs": [
+          {
+            "environment": "X0T_BRIDGE_CONTRACT_ADDRESS",
+            "id": "bridge_contract_address",
+            "reason": "bridge contract address must not equal X0TToken",
+            "status": "OPERATOR_INPUT_REQUIRED"
+          },
+          {
+            "id": "bridge_config_write",
+            "reason": "bridge address input is not ready",
+            "status": "BLOCKED"
+          }
+        ],
+        "bridge_missing_inputs_total": 2,
+        "configured_bridge_ready": false,
+        "contract_missing_inputs": [],
+        "contract_missing_inputs_total": 0,
+        "contract_readiness_clear": true,
+        "contract_readiness_decision": "CONTRACT_READINESS_CLEAR",
+        "deployment_config_ready": true,
+        "operator_configs_ready": true
+      },
+      "gaps": [
+        "X0T contract/deployment config is not production_readiness_requirement; a deployed bridge contract address is still missing or not applied"
+      ],
+      "id": "x0t_contract_deployment_ready",
+      "passed": false,
+      "requirement": "X0T contract package and operator deployment config are production_readiness_requirement, including the deployed bridge contract address.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/live-rollout-image-digests-closure-attempt-current.json"
+      ],
+      "evidence": {
+        "can_close_image_digests_blocker": false,
+        "decision": "CANNOT_CLOSE_WITH_CURRENT_RETAINED_ARTIFACTS",
+        "raw_deploy_images_digest_pinned": 0,
+        "raw_deploy_images_total": 7,
+        "runtime_image_provenance_artifacts_retained_here": false
+      },
+      "gaps": [
+        "runtime image digests/provenance are not ready"
+      ],
+      "id": "live_rollout_digest_and_provenance_ready",
+      "passed": false,
+      "requirement": "Production rollout evidence has digest-pinned runtime images and retained provenance artifacts.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-raw-evidence-inventory-current.json",
+        ".tmp/validation-shards/integration-spine-evidence-readiness-current.json"
+      ],
+      "evidence": {
+        "classification_counts": {
+          "RETAINED_COMPONENT_EVIDENCE_NOT_PRODUCTION_GRADE": 30
+        },
+        "files_total": 30,
+        "readiness_gate": false,
+        "semantic_blockers_total": 120,
+        "usable_for_goal_completion_files": 0
+      },
+      "gaps": [
+        "retained raw evidence is still component evidence or has semantic blockers"
+      ],
+      "id": "raw_evidence_is_production_grade",
+      "passed": false,
+      "requirement": "All retained raw evidence files are production-grade and usable for goal completion.",
+      "status": "OPERATOR_INPUT_REQUIRED"
+    },
+    {
+      "artifacts": [
+        ".tmp/validation-shards/integration-spine-current-evidence-rollup-current.json"
+      ],
+      "evidence": {
+        "completion_decision": "NOT_COMPLETE",
+        "goal_can_be_marked_complete": false,
+        "summary": {
+          "external_settlement_capture_inputs_ready": false,
+          "external_settlement_capture_preflight_decision": "CAPTURE_INPUTS_BLOCKED",
+          "external_settlement_decision": "BLOCKED_ON_REAL_SETTLEMENT_RECEIPT",
+          "external_settlement_expected_evidence_file_exists": false,
+          "external_settlement_fake_prevention_enforced": true,
+          "external_settlement_handoff_available": true,
+          "external_settlement_handoff_clear": true,
+          "external_settlement_handoff_decision": "X0T_EXTERNAL_SETTLEMENT_HANDOFF_BLOCKED_ON_OPERATOR",
+          "external_settlement_handoff_missing_inputs_total": 5,
+          "external_settlement_handoff_operator_actions_total": 6,
+          "external_settlement_handoff_operator_command_entrypoints_missing": 0,
+          "external_settlement_handoff_operator_command_shell_surface_ready": true,
+          "external_settlement_handoff_operator_command_surface_ready": true,
+          "external_settlement_handoff_operator_commands_total": 5,
+          "external_settlement_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+          "external_settlement_handoff_operator_sequence_ready": true,
+          "external_settlement_handoff_ready_for_completion_rerun": false,
+          "external_settlement_ready": false,
+          "image_digests_can_close": false,
+          "image_digests_decision": "CANNOT_CLOSE_WITH_CURRENT_RETAINED_ARTIFACTS",
+          "image_digests_deploy_images_digest_pinned": 0,
+          "image_digests_deploy_images_total": 7,
+          "image_digests_missing_inputs_total": 1,
+          "image_digests_operator_actions_total": 5,
+          "image_digests_operator_command_entrypoints_missing": 0,
+          "image_digests_operator_command_shell_surface_ready": true,
+          "image_digests_operator_command_surface_ready": true,
+          "image_digests_operator_commands_total": 4,
+          "image_digests_operator_commands_with_shell_redirection_placeholders": 0,
+          "image_digests_operator_handoff_decision": "LIVE_ROLLOUT_IMAGE_DIGESTS_BLOCKED_ON_OPERATOR",
+          "image_digests_ready_for_completion_rerun": false,
+          "semantic_blocking_items_total": 121,
+          "semantic_goal_can_be_marked_complete": false,
+          "semantic_preflight_errors_total": 120,
+          "source_errors_total": 0,
+          "top_blockers_blocking": 0,
+          "top_blockers_operator_approval_required": 1,
+          "top_blockers_operator_input_required": 4,
+          "top_blockers_total": 5,
+          "x0t_bridge_address_input_ready": false,
+          "x0t_bridge_config_available": true,
+          "x0t_bridge_config_decision": "X0T_BRIDGE_CONFIG_BLOCKED_ON_OPERATOR",
+          "x0t_bridge_config_ready": false,
+          "x0t_bridge_configured_bridge_ready": false,
+          "x0t_bridge_missing_inputs_total": 1,
+          "x0t_contract_bridge_source_ready": true,
+          "x0t_contract_build_env_ready": true,
+          "x0t_contract_build_verification_ready": true,
+          "x0t_contract_deployment_config_ready": false,
+          "x0t_contract_deployment_ready": false,
+          "x0t_contract_missing_inputs_total": 1,
+          "x0t_contract_operator_configs_ready": false,
+          "x0t_contract_readiness_available": true,
+          "x0t_contract_readiness_clear": false,
+          "x0t_contract_readiness_decision": "BLOCKED_ON_DEPLOYMENT_CONFIG",
+          "x0t_contract_surface_clear": true,
+          "x0t_governance_execute_decision": "READY_TO_EXECUTE",
+          "x0t_governance_execute_handoff_actionable": true,
+          "x0t_governance_execute_handoff_available": true,
+          "x0t_governance_execute_handoff_clear": true,
+          "x0t_governance_execute_handoff_decision": "X0T_GOVERNANCE_EXECUTE_HANDOFF_READY_FOR_OPERATOR_APPROVAL",
+          "x0t_governance_execute_readiness_available": true,
+          "x0t_governance_execute_readiness_clear": true,
+          "x0t_governance_execute_ready_now": true,
+          "x0t_governance_handoff_missing_inputs_total": 2,
+          "x0t_governance_handoff_operator_actions_total": 5,
+          "x0t_governance_handoff_operator_command_entrypoints_missing": 0,
+          "x0t_governance_handoff_operator_command_shell_surface_ready": true,
+          "x0t_governance_handoff_operator_command_surface_ready": true,
+          "x0t_governance_handoff_operator_commands_total": 5,
+          "x0t_governance_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+          "x0t_governance_handoff_operator_sequence_ready": true,
+          "x0t_governance_next_executable_after_utc": "2026-05-21T04:45:22Z",
+          "x0t_governance_proposal_executed": false,
+          "x0t_governance_ready_for_operator_execute": true,
+          "x0t_governance_seconds_until_earliest_execution_by_block_time": 0,
+          "x0t_governance_state_label": "Ready"
+        }
+      },
+      "gaps": [
+        "current rollup still reports NOT_COMPLETE or false completion flag"
+      ],
+      "id": "current_rollup_complete",
+      "passed": false,
+      "requirement": "The current rollup agrees that production objective completion is ready.",
+      "status": "AFTER_BLOCKERS"
+    }
+  ],
+  "completion_decision": "NOT_COMPLETE",
+  "generated_at": "2026-06-15T06:16:53Z",
+  "goal_can_be_marked_complete": false,
+  "objective": "Connect all x0tta6bl4 layers and components into one system through a single identity, event bus, policy engine, safe actuator, and settlement/reward loop, then bring that system to production.",
+  "ok": true,
+  "schema_version": "x0tta6bl4-integration-spine-completion-audit-v1",
+  "status": "VERIFIED HERE",
+  "summary": {
+    "blocking_items_after_blockers": 1,
+    "blocking_items_generic_blocking": 1,
+    "blocking_items_operator_approval_required": 1,
+    "blocking_items_operator_input_required": 8,
+    "checklist_after_blockers": 1,
+    "checklist_blocking": 11,
+    "checklist_generic_blocking": 1,
+    "checklist_operator_approval_required": 1,
+    "checklist_operator_input_required": 8,
+    "checklist_passed": 43,
+    "checklist_status_counts": {
+      "AFTER_BLOCKERS": 1,
+      "BLOCKING": 1,
+      "OPERATOR_APPROVAL_REQUIRED": 1,
+      "OPERATOR_INPUT_REQUIRED": 8,
+      "PASS": 43
+    },
+    "checklist_total": 54,
+    "external_settlement_capture_preflight_decision": "CAPTURE_INPUTS_BLOCKED",
+    "external_settlement_handoff_clear": true,
+    "external_settlement_handoff_decision": "X0T_EXTERNAL_SETTLEMENT_HANDOFF_BLOCKED_ON_OPERATOR",
+    "external_settlement_handoff_operator_command_entrypoints_missing": 0,
+    "external_settlement_handoff_operator_command_shell_surface_ready": true,
+    "external_settlement_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+    "external_settlement_handoff_ready_for_completion_rerun": false,
+    "live_rollout_handoff_available": true,
+    "live_rollout_handoff_can_close_image_digests_blocker": false,
+    "live_rollout_handoff_decision": "LIVE_ROLLOUT_IMAGE_DIGESTS_BLOCKED_ON_OPERATOR",
+    "live_rollout_handoff_missing_inputs_total": 1,
+    "live_rollout_handoff_operator_actions_total": 5,
+    "live_rollout_handoff_operator_command_entrypoints_missing": 0,
+    "live_rollout_handoff_operator_command_shell_surface_ready": true,
+    "live_rollout_handoff_operator_command_surface_ready": true,
+    "live_rollout_handoff_operator_commands_total": 4,
+    "live_rollout_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+    "live_rollout_handoff_operator_input_required_actions_total": 2,
+    "live_rollout_handoff_operator_sequence_ready": true,
+    "live_rollout_handoff_ready_for_completion_rerun": false,
+    "local_wiring_passed": false,
+    "production_gap_raw_operator_packet_readiness_decision": "BLOCKED_ON_OPERATOR_PRODUCTION_EVIDENCE",
+    "production_readiness_passed": false,
+    "raw_operator_packet_production_ready_blocked_by_raw_readiness": false,
+    "raw_operator_packet_readiness_collectors_blocked": 9,
+    "raw_operator_packet_readiness_collectors_ready": 0,
+    "raw_operator_packet_readiness_collectors_total": 9,
+    "raw_operator_packet_readiness_decision": "BLOCKED_ON_OPERATOR_PRODUCTION_EVIDENCE",
+    "raw_operator_packet_readiness_raw_files_local_observation": 63,
+    "raw_operator_packet_readiness_raw_files_ready": 0,
+    "raw_operator_packet_readiness_raw_files_total": 63,
+    "raw_operator_packet_readiness_ready_for_collectors": false,
+    "x0t_bridge_address_input_ready": false,
+    "x0t_bridge_config_decision": "X0T_BRIDGE_CONFIG_BLOCKED_ON_OPERATOR",
+    "x0t_bridge_config_ready": false,
+    "x0t_bridge_configured_bridge_ready": false,
+    "x0t_contract_bridge_source_ready": true,
+    "x0t_contract_build_env_ready": true,
+    "x0t_contract_build_verification_ready": true,
+    "x0t_contract_deployment_ready": false,
+    "x0t_contract_handoff_approval_value_required": "apply-bridge-address-base-sepolia",
+    "x0t_contract_handoff_available": true,
+    "x0t_contract_handoff_decision": "X0T_CONTRACT_DEPLOYMENT_CONFIG_BLOCKED_ON_OPERATOR",
+    "x0t_contract_handoff_deployment_ready": false,
+    "x0t_contract_handoff_missing_inputs_total": 1,
+    "x0t_contract_handoff_operator_actions_total": 6,
+    "x0t_contract_handoff_operator_approval_required_actions_total": 1,
+    "x0t_contract_handoff_operator_command_entrypoints_missing": 0,
+    "x0t_contract_handoff_operator_command_shell_surface_ready": true,
+    "x0t_contract_handoff_operator_command_surface_ready": true,
+    "x0t_contract_handoff_operator_commands_total": 5,
+    "x0t_contract_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+    "x0t_contract_handoff_operator_sequence_ready": true,
+    "x0t_contract_missing_inputs_total": 0,
+    "x0t_contract_operator_configs_ready": true,
+    "x0t_contract_readiness_clear": true,
+    "x0t_contract_readiness_decision": "CONTRACT_READINESS_CLEAR",
+    "x0t_governance_approval_value_required": "execute-proposal-1-base-sepolia",
+    "x0t_governance_execute_decision": "READY_TO_EXECUTE",
+    "x0t_governance_execute_handoff_actionable": true,
+    "x0t_governance_execute_handoff_decision": "X0T_GOVERNANCE_EXECUTE_HANDOFF_READY_FOR_OPERATOR_APPROVAL",
+    "x0t_governance_execute_ready_now": true,
+    "x0t_governance_handoff_operator_actions_total": 5,
+    "x0t_governance_handoff_operator_command_entrypoints_missing": 0,
+    "x0t_governance_handoff_operator_command_shell_surface_ready": true,
+    "x0t_governance_handoff_operator_command_surface_ready": true,
+    "x0t_governance_handoff_operator_commands_total": 5,
+    "x0t_governance_handoff_operator_commands_with_shell_redirection_placeholders": 0,
+    "x0t_governance_handoff_operator_sequence_ready": true,
+    "x0t_governance_next_executable_after_utc": "2026-05-21T04:45:22Z",
+    "x0t_governance_proposal_executed": false,
+    "x0t_governance_ready_for_operator_execute": true,
+    "x0t_governance_seconds_until_earliest_execution_by_block_time": 0,
+    "x0t_governance_state_label": "Ready"
+  }
+}

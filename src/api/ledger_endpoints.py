@@ -1,7 +1,8 @@
-"""
-API Endpoints для Continuity Ledger
+"""Compatibility shim for legacy ``src.api.ledger_endpoints`` imports.
 
-Semantic search и другие операции с ledger через API
+The canonical implementation lives in ``src.api.maas.endpoints.ledger``.  This
+module keeps old monkeypatch-based tests and callers working by routing the
+patchable globals here into the canonical endpoint functions before delegation.
 """
 
 import logging
@@ -17,7 +18,6 @@ from src.core.reliability_policy import mark_degraded_dependency
 from src.ledger.rag_search import get_ledger_rag
 from src.services.service_event_trace import service_event_trace_history
 
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/ledger", tags=["ledger"])
 
@@ -329,19 +329,19 @@ async def search_ledger(request: SearchRequest):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/search", response_model=SearchResponse)
+@router.get("/search", response_model=modular.SearchResponse)
 async def search_ledger_get(
-    q: str = Query(..., description="Поисковый запрос"),
-    top_k: int = Query(10, description="Количество результатов"),
+    q: str = Query(..., description="Search query"),
+    top_k: int = Query(10, ge=1, le=50),
+    include_verification: bool = Query(False),
+    include_current_evidence: bool = Query(False),
 ):
-    """
-    Semantic search в Continuity Ledger (GET версия).
-
-    Параметры:
-    - q: Поисковый запрос
-    - top_k: Количество результатов (по умолчанию 10)
-    """
-    request = SearchRequest(query=q, top_k=top_k)
+    request = modular.SearchRequest(
+        query=q,
+        top_k=top_k,
+        include_verification=include_verification,
+        include_current_evidence=include_current_evidence,
+    )
     return await search_ledger(request)
 
 

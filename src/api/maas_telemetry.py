@@ -1,29 +1,15 @@
+"""Compatibility module for MaaS telemetry.
+
+Expose ``src.api.maas.endpoints.telemetry`` under the historical
+``src.api.maas_telemetry`` import path, including underscored helper functions
+used by MaaS node heartbeat/readback code.
 """
-MaaS Telemetry (Production - Redis backed) — x0tta6bl4
-======================================================
 
-High-frequency telemetry storage using Redis for scalability.
-"""
+from __future__ import annotations
 
-import logging
-import json
-import os
-import threading
-import time
-from collections import OrderedDict
-from datetime import datetime
-from typing import Dict, Any, List, Optional
+import sys
 
-import redis
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-
-from src.database import MeshNode, get_db
-from src.api.maas_auth import get_current_user_from_maas
-from src.core.reliability_policy import mark_degraded_dependency
-from src.monitoring.maas_metrics import record_heartbeat as _record_heartbeat_metric
-from src.network.reputation_scoring import ReputationScoringSystem
+from src.api.maas.endpoints import telemetry as _telemetry
 
 logger = logging.getLogger(__name__)
 

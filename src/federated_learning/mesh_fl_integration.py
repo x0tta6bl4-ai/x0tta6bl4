@@ -35,6 +35,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 from .topology_aware_aggregator import (
     AggregationResult,
     BatmanAdvMetricsProvider,
@@ -119,6 +121,13 @@ class MeshFLIntegration:
         self.mesh_router = mesh_router
         self.config = config or MeshFLConfig()
         self.node_id = node_id
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=node_id,
+            role="fl",
+            capabilities=("coordinator", "monitoring"),
+            extra_techniques=("mape_k",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
         
         # Components
         self._aggregator: Optional[TopologyAwareAggregator] = None
@@ -248,6 +257,19 @@ class MeshFLIntegration:
             return None
         
         round_number = self._metrics["total_rounds"] + 1
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mesh_fl_training_round",
+                "goal": "Run one topology-aware federated-learning round.",
+                "round_number": round_number,
+                "num_samples": num_samples,
+                "constraints": {
+                    "min_participants": self.config.min_participants,
+                    "link_quality_threshold": self.config.link_quality_threshold,
+                    "byzantine_robust": self.config.byzantine_robust,
+                },
+            }
+        )
         
         # Create round object
         training_round = TrainingRound(round_number=round_number)
@@ -420,6 +442,8 @@ class MeshFLIntegration:
             "node_count": (
                 len(self._aggregator.get_node_status()) if self._aggregator else 0
             ),
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }
     
     def get_node_status(self) -> Dict[str, Dict[str, Any]]:

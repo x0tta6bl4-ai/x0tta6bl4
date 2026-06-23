@@ -3,6 +3,9 @@ Tests for refactored MAPE-K module.
 
 Tests the decomposed MAPE-K components.
 """
+
+import json
+
 import pytest
 from unittest.mock import Mock, AsyncMock
 
@@ -309,6 +312,7 @@ class TestMAPEKCoordinator:
         )
 
         result = await coordinator.run_full_cycle({"type": "test"})
+        thinking_status = coordinator.get_thinking_status()
 
         assert "meta_plan" in result
         assert "metrics" in result
@@ -316,6 +320,15 @@ class TestMAPEKCoordinator:
         assert "plan" in result
         assert "execution_log" in result
         assert "knowledge" in result
+        assert thinking_status["thinking"]["profile"]["role"] == "coordinator"
+        assert "reverse_planning" in thinking_status["thinking"]["techniques"]
+        assert (
+            thinking_status["last_thinking_context"]["applied"]["framing"]["problem"]
+            == "mapek_full_cycle"
+        )
+        assert "default" not in json.dumps(
+            thinking_status["last_thinking_context"], sort_keys=True
+        )
 
     @pytest.mark.asyncio
     async def test_coordinator_stats(self):

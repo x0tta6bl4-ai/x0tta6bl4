@@ -18,6 +18,8 @@ import httpx
 import jwt
 from fastapi import HTTPException
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,7 +63,17 @@ class ApiKeyManager:
     @staticmethod
     def hash_key(key: str) -> str:
         """Hash API key for storage (never store plaintext)."""
-        return hashlib.sha256(key.encode()).hexdigest()
+        return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def verify_key(key: str, stored_hash: str | None) -> bool:
+        if not key or not stored_hash:
+            return False
+        return secrets.compare_digest(ApiKeyManager.hash_key(key), stored_hash)
+
+    @staticmethod
+    def fingerprint_from_hash(stored_hash: str | None) -> str:
+        return (stored_hash or "")[:12]
 
 
 class RateLimiter:
@@ -126,6 +138,62 @@ class PQCTokenSigner:
         self.vault_token = os.getenv("VAULT_TOKEN", "")
         self._ephemeral_hmac_secret: Optional[str] = None
         self._pqc_initialized = False
+        self.source_agent = "maas-pqc-token-signer"
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="security",
+            capabilities=("zero-trust", "pqc", "api-security"),
+            extra_techniques=("reverse_planning",),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
+
+    @staticmethod
+    def _hash_value(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            return hashlib.sha256(value).hexdigest()
+        return hashlib.sha256(
+            str(value).encode("utf-8", errors="replace")
+        ).hexdigest()
+
+    def _record_thinking(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "maas_pqc_token_signer_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                "raw_join_token_redacted": True,
+                "raw_mesh_id_redacted": True,
+                "raw_secret_redacted": True,
+                "hmac_fallback_is_not_pqc_secured": True,
+                "local_signature_is_not_external_trust_finality": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local MaaS token signing decisions, algorithm choice, "
+                "fallback reason, and hashed identifiers. HMAC-SHA256 fallback is "
+                "not PQC-secured and no returned token proves external trust finality."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose token signer thinking state without tokens, mesh IDs, or secrets."""
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+            "pqc_initialized": self._pqc_initialized,
+            "pqc_signer_available": self._pqc_signer is not None,
+        }
 
     def _get_hmac_secret(self) -> str:
         """Retrieve HMAC secret from Vault with env fallback for dev."""
@@ -133,13 +201,38 @@ class PQCTokenSigner:
             client = hvac.Client(url=self.vault_url, token=self.vault_token)
             # Use 'maas' mount, 'signing-key' path
             read_response = client.secrets.kv.v2.read_secret_version(path='signing-key', mount_point='maas')
+            self._record_thinking(
+                operation="get_hmac_secret",
+                goal="load MaaS HMAC fallback secret from Vault",
+                constraints={
+                    "secret_source": "vault",
+                    "vault_url_hash": self._hash_value(self.vault_url),
+                },
+            )
             return read_response['data']['data']['secret']
         except Exception as e:
             logger.debug(f"[MaaS Security] Vault access failed, using fallback: {e}")
             env_secret = os.getenv("MAAS_TOKEN_SECRET", "").strip()
             if env_secret:
+                self._record_thinking(
+                    operation="get_hmac_secret",
+                    goal="use configured environment HMAC fallback secret",
+                    constraints={
+                        "secret_source": "env",
+                        "vault_error_type": type(e).__name__,
+                    },
+                )
                 return env_secret
             if _is_production_mode():
+                self._record_thinking(
+                    operation="get_hmac_secret",
+                    goal="fail closed because production HMAC fallback secret is missing",
+                    constraints={
+                        "secret_source": "missing",
+                        "production_mode": True,
+                        "vault_error_type": type(e).__name__,
+                    },
+                )
                 raise RuntimeError(
                     "MAAS_TOKEN_SECRET must be configured when Vault is unavailable in production"
                 ) from e
@@ -149,6 +242,15 @@ class PQCTokenSigner:
                     "[MaaS Security] Vault unavailable and MAAS_TOKEN_SECRET is unset. "
                     "Using ephemeral in-memory fallback secret for non-production mode."
                 )
+            self._record_thinking(
+                operation="get_hmac_secret",
+                goal="use ephemeral non-production HMAC fallback secret",
+                constraints={
+                    "secret_source": "ephemeral_non_production",
+                    "production_mode": False,
+                    "vault_error_type": type(e).__name__,
+                },
+            )
             return self._ephemeral_hmac_secret
 
     def _init_pqc(self):
@@ -164,17 +266,40 @@ class PQCTokenSigner:
             )
             self._pqc_initialized = True
             logger.info("[MaaS Security] PQC ML-DSA-65 token signing initialized")
+            self._record_thinking(
+                operation="init_pqc",
+                goal="initialize local PQC token signer",
+                constraints={"pqc_signer_available": True, "algorithm": "ML-DSA-65"},
+            )
         except (ImportError, Exception) as e:
             logger.warning(
                 f"[MaaS Security] PQC not available, using HMAC-SHA256: {e}"
             )
             self._pqc_signer = None
             self._pqc_initialized = True
+            self._record_thinking(
+                operation="init_pqc",
+                goal="record PQC signer unavailable and require explicit HMAC fallback label",
+                constraints={
+                    "pqc_signer_available": False,
+                    "fallback_algorithm": "HMAC-SHA256",
+                    "error_type": type(e).__name__,
+                },
+            )
 
     def sign_token(self, token: str, mesh_id: str) -> Dict:
         """Sign a join token with PQC or dynamic HMAC fallback."""
         self._init_pqc()
         payload = f"{mesh_id}:{token}".encode()
+        self._record_thinking(
+            operation="sign_token",
+            goal="sign MaaS mesh join token without exposing token or mesh ID",
+            constraints={
+                "token_hash": self._hash_value(token),
+                "mesh_id_hash": self._hash_value(mesh_id),
+                "pqc_signer_available": self._pqc_signer is not None,
+            },
+        )
 
         if self._pqc_signer and self._signing_keypair:
             try:
@@ -183,6 +308,16 @@ class PQCTokenSigner:
                     self._signing_keypair.secret_key,
                     key_id="maas-token-signer",
                 )
+                self._record_thinking(
+                    operation="sign_token",
+                    goal="return local PQC token signature with explicit claim boundary",
+                    constraints={
+                        "token_hash": self._hash_value(token),
+                        "mesh_id_hash": self._hash_value(mesh_id),
+                        "algorithm": "ML-DSA-65",
+                        "pqc_secured": True,
+                    },
+                )
                 return {
                     "token": token,
                     "algorithm": "ML-DSA-65",
@@ -190,9 +325,23 @@ class PQCTokenSigner:
                     "signature": sig.signature_bytes.hex(),
                     "signer_key_id": sig.signer_key_id,
                     "pqc_secured": True,
+                    "pqc_fallback": False,
+                    "security_claim_boundary": (
+                        "Local ML-DSA-65 signature only; not external trust finality."
+                    ),
                 }
             except Exception as e:
                 logger.error(f"[MaaS Security] PQC signing failed: {e}")
+                self._record_thinking(
+                    operation="sign_token",
+                    goal="record PQC signing failure before HMAC fallback",
+                    constraints={
+                        "token_hash": self._hash_value(token),
+                        "mesh_id_hash": self._hash_value(mesh_id),
+                        "error_type": type(e).__name__,
+                        "fallback_algorithm": "HMAC-SHA256",
+                    },
+                )
 
         # Dynamic HMAC-SHA256 from Vault
         import hmac
@@ -200,12 +349,26 @@ class PQCTokenSigner:
         sig = hmac.new(
             secret.encode(), payload, hashlib.sha256
         ).hexdigest()
+        self._record_thinking(
+            operation="sign_token",
+            goal="return HMAC fallback token signature with non-PQC claim boundary",
+            constraints={
+                "token_hash": self._hash_value(token),
+                "mesh_id_hash": self._hash_value(mesh_id),
+                "algorithm": "HMAC-SHA256",
+                "pqc_secured": False,
+            },
+        )
 
         return {
             "token": token,
             "algorithm": "HMAC-SHA256",
             "signature": sig[:64],
             "pqc_secured": False,
+            "pqc_fallback": True,
+            "security_claim_boundary": (
+                "HMAC-SHA256 fallback only; not PQC-secured or external trust finality."
+            ),
         }
 
     def verify_token(self, token: str, mesh_id: str, signature: str) -> bool:
@@ -213,14 +376,33 @@ class PQCTokenSigner:
         self._init_pqc()
         payload = f"{mesh_id}:{token}".encode()
         signature_hex = (signature or "").strip()
+        self._record_thinking(
+            operation="verify_token",
+            goal="verify MaaS mesh join token signature without exposing inputs",
+            constraints={
+                "token_hash": self._hash_value(token),
+                "mesh_id_hash": self._hash_value(mesh_id),
+                "signature_hash": self._hash_value(signature_hex),
+                "pqc_signer_available": self._pqc_signer is not None,
+            },
+        )
 
         if self._pqc_signer and self._signing_keypair:
             try:
-                return self._pqc_signer.verify(
+                result = self._pqc_signer.verify(
                     payload,
                     bytes.fromhex(signature_hex),
                     self._signing_keypair.public_key,
                 )
+                self._record_thinking(
+                    operation="verify_token",
+                    goal="record local PQC token verification result",
+                    constraints={
+                        "algorithm": "ML-DSA-65",
+                        "verification_result": bool(result),
+                    },
+                )
+                return result
             except Exception:
                 pass
 
@@ -230,7 +412,17 @@ class PQCTokenSigner:
         expected = hmac.new(
             secret.encode(), payload, hashlib.sha256
         ).hexdigest()
-        return hmac.compare_digest(signature_hex[:64], expected[:64])
+        result = hmac.compare_digest(signature_hex[:64], expected[:64])
+        self._record_thinking(
+            operation="verify_token",
+            goal="record HMAC fallback token verification result",
+            constraints={
+                "algorithm": "HMAC-SHA256",
+                "pqc_secured": False,
+                "verification_result": bool(result),
+            },
+        )
+        return result
 
 
 class OIDCClaims:

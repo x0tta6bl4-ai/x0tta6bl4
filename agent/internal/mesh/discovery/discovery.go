@@ -167,6 +167,33 @@ func (d *Discovery) Stop() {
 	d.logger.Info("discovery stopped")
 }
 
+// Restart stops and re-initializes discovery without destroying the struct.
+// Safe to call from the healing executor loop.
+func (d *Discovery) Restart() error {
+	d.Stop()
+	d.stopCh = make(chan struct{})
+	return d.Start()
+}
+
+// RemovePeer explicitly removes a peer from the discovery table.
+// Used by the healing executor to drop unhealthy peers before restart.
+func (d *Discovery) RemovePeer(nodeID string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	peer, exists := d.peers[nodeID]
+	if !exists {
+		return false
+	}
+	delete(d.peers, nodeID)
+
+	d.logger.Info("peer removed by healing", "node_id", nodeID)
+	if d.OnPeerLost != nil {
+		d.OnPeerLost(*peer)
+	}
+	return true
+}
+
 // GetPeers returns all known live peers.
 func (d *Discovery) GetPeers() []PeerInfo {
 	d.mu.RLock()

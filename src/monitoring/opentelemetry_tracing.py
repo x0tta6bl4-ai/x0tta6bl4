@@ -10,10 +10,13 @@ Provides distributed tracing for x0tta6bl4 with spans for:
 - eBPF program execution
 """
 
+import hashlib
 import logging
 from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +24,12 @@ logger = logging.getLogger(__name__)
 OTEL_AVAILABLE = False
 JAEGER_AVAILABLE = False
 PROMETHEUS_EXPORTER_AVAILABLE = False
+metrics = None  # type: ignore
+trace = None  # type: ignore
+MeterProvider = None  # type: ignore
+PeriodicExportingMetricReader = None  # type: ignore
+TracerProvider = None  # type: ignore
+BatchSpanProcessor = None  # type: ignore
 
 try:
     from opentelemetry import metrics, trace
@@ -75,6 +84,36 @@ except ImportError:
     SQLAlchemyInstrumentor = None  # type: ignore
 
 
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_attributes_summary(attributes: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    values = attributes or {}
+    return {
+        "attribute_count_bucket": _safe_count_bucket(len(values)),
+        "attribute_key_hashes": sorted(_safe_hash(key) for key in values.keys()),
+        "value_type_counts": {
+            type(value).__name__: sum(
+                1 for item in values.values() if type(item).__name__ == type(value).__name__
+            )
+            for value in values.values()
+        },
+    }
+
+
 class OTelTracingManager:
     """
     Manages OpenTelemetry tracing configuration and span creation.
@@ -106,10 +145,40 @@ class OTelTracingManager:
         self.enabled = OTEL_AVAILABLE
         self.tracer = None
         self.meter = None
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"otel-tracing-manager:{_safe_hash(service_name)}",
+            role="monitoring",
+            capabilities=("ops", "quality"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "otel_tracing_manager_init",
+                "goal": "Initialize OpenTelemetry tracing without raw endpoint data",
+                "signals": {
+                    "service_hash": _safe_hash(service_name),
+                    "jaeger_host_hash": _safe_hash(jaeger_host),
+                    "jaeger_port": jaeger_port,
+                    "metrics_requested": enable_metrics,
+                    "otel_available": OTEL_AVAILABLE,
+                    "jaeger_available": JAEGER_AVAILABLE,
+                    "prometheus_exporter_available": PROMETHEUS_EXPORTER_AVAILABLE,
+                    "otlp_available": OTLP_AVAILABLE,
+                },
+                "safety_boundary": (
+                    "Keep service names, hosts, span names, attribute values, and "
+                    "operation identifiers out of thinking context."
+                ),
+            }
+        )
 
         if not OTEL_AVAILABLE:
             logger.warning(
                 "OpenTelemetry disabled - install dependencies to enable tracing"
+            )
+            self._record_thinking(
+                "otel_tracing_disabled",
+                "Disable OpenTelemetry tracing when SDK is unavailable",
+                {"otel_available": False, "enabled": False},
             )
             return
 
@@ -137,42 +206,147 @@ class OTelTracingManager:
 
             logger.info(f"✅ OpenTelemetry initialized for {service_name}")
             self.enabled = True
+            self._record_thinking(
+                "otel_tracing_initialized",
+                "Complete OpenTelemetry tracing initialization",
+                {
+                    "service_hash": _safe_hash(service_name),
+                    "metrics_enabled": self.meter is not None,
+                    "tracer_configured": self.tracer is not None,
+                    "enabled": self.enabled,
+                },
+            )
 
         except Exception as e:
             logger.error(f"Failed to initialize OpenTelemetry: {e}")
             self.enabled = False
+            self._record_thinking(
+                "otel_tracing_init_failed",
+                "Disable OpenTelemetry tracing after initialization failure",
+                {
+                    "service_hash": _safe_hash(service_name),
+                    "error_type": type(e).__name__,
+                    "enabled": False,
+                },
+            )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_service_names": True,
+                    "redact_hosts": True,
+                    "redact_span_names": True,
+                    "redact_attribute_values": True,
+                    "preserve_tracing_decision": True,
+                },
+                "safety_boundary": "Use hashes, booleans, counts, and error types only.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def instrument_fastapi(self, app):
         """Instrument FastAPI application."""
         if not self.enabled:
+            self._record_thinking(
+                "otel_fastapi_instrumentation",
+                "Skip FastAPI instrumentation while tracing is disabled",
+                {"enabled": False, "instrumented": False},
+            )
             return
 
         try:
             FastAPIInstrumentor.instrument_app(app)
+            self._record_thinking(
+                "otel_fastapi_instrumentation",
+                "Instrument FastAPI application with tracing",
+                {"enabled": True, "instrumented": True},
+            )
             logger.info("✅ FastAPI instrumented with OpenTelemetry")
         except Exception as e:
+            self._record_thinking(
+                "otel_fastapi_instrumentation",
+                "Record FastAPI instrumentation failure",
+                {
+                    "enabled": True,
+                    "instrumented": False,
+                    "error_type": type(e).__name__,
+                },
+            )
             logger.warning(f"Failed to instrument FastAPI: {e}")
 
     def instrument_requests(self):
         """Instrument requests library."""
         if not self.enabled:
+            self._record_thinking(
+                "otel_requests_instrumentation",
+                "Skip requests instrumentation while tracing is disabled",
+                {"enabled": False, "instrumented": False},
+            )
             return
 
         try:
             RequestsInstrumentor().instrument()
+            self._record_thinking(
+                "otel_requests_instrumentation",
+                "Instrument requests library with tracing",
+                {"enabled": True, "instrumented": True},
+            )
             logger.info("✅ Requests library instrumented")
         except Exception as e:
+            self._record_thinking(
+                "otel_requests_instrumentation",
+                "Record requests instrumentation failure",
+                {
+                    "enabled": True,
+                    "instrumented": False,
+                    "error_type": type(e).__name__,
+                },
+            )
             logger.warning(f"Failed to instrument requests: {e}")
 
     def instrument_sqlalchemy(self, engine):
         """Instrument SQLAlchemy."""
         if not self.enabled:
+            self._record_thinking(
+                "otel_sqlalchemy_instrumentation",
+                "Skip SQLAlchemy instrumentation while tracing is disabled",
+                {"enabled": False, "instrumented": False},
+            )
             return
 
         try:
             SQLAlchemyInstrumentor().instrument(engine=engine)
+            self._record_thinking(
+                "otel_sqlalchemy_instrumentation",
+                "Instrument SQLAlchemy engine with tracing",
+                {"enabled": True, "instrumented": True},
+            )
             logger.info("✅ SQLAlchemy instrumented")
         except Exception as e:
+            self._record_thinking(
+                "otel_sqlalchemy_instrumentation",
+                "Record SQLAlchemy instrumentation failure",
+                {
+                    "enabled": True,
+                    "instrumented": False,
+                    "error_type": type(e).__name__,
+                },
+            )
             logger.warning(f"Failed to instrument SQLAlchemy: {e}")
 
     @contextmanager
@@ -185,16 +359,49 @@ class OTelTracingManager:
                 # operation code
         """
         if not self.enabled:
+            self._record_thinking(
+                "otel_span",
+                "Skip span creation while tracing is disabled",
+                {
+                    "span_hash": _safe_hash(name),
+                    "attributes": _safe_attributes_summary(attributes),
+                    "enabled": False,
+                },
+            )
             yield
             return
 
         with self.tracer.start_as_current_span(name) as span:
             if attributes:
+                failed_attribute_count = 0
                 for key, value in attributes.items():
                     try:
                         span.set_attribute(key, value)
                     except Exception as e:
+                        failed_attribute_count += 1
                         logger.debug(f"Failed to set span attribute {key}: {e}")
+                self._record_thinking(
+                    "otel_span",
+                    "Create OpenTelemetry span with redacted attribute summary",
+                    {
+                        "span_hash": _safe_hash(name),
+                        "attributes": _safe_attributes_summary(attributes),
+                        "failed_attribute_count_bucket": _safe_count_bucket(
+                            failed_attribute_count
+                        ),
+                        "enabled": True,
+                    },
+                )
+            else:
+                self._record_thinking(
+                    "otel_span",
+                    "Create OpenTelemetry span without attributes",
+                    {
+                        "span_hash": _safe_hash(name),
+                        "attributes": _safe_attributes_summary(attributes),
+                        "enabled": True,
+                    },
+                )
             yield span
 
     def span_decorator(self, span_name: Optional[str] = None, **static_attributes):
@@ -209,6 +416,15 @@ class OTelTracingManager:
 
         def decorator(func: Callable):
             name = span_name or func.__name__
+            self._record_thinking(
+                "otel_span_decorator",
+                "Prepare tracing decorator safely",
+                {
+                    "span_hash": _safe_hash(name),
+                    "function_hash": _safe_hash(func.__name__),
+                    "attributes": _safe_attributes_summary(static_attributes),
+                },
+            )
 
             @wraps(func)
             def wrapper(*args, **kwargs):

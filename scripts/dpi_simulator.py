@@ -28,7 +28,7 @@ class DPISimulator:
         self.allowed_protocols = {
             "HTTP": re.compile(b"^(GET|POST|HEAD) .* HTTP/1.1"),
             "DNS": re.compile(b"^.{2}[\x01\x00].*\x05stego\x08x0tta6bl4"), # Refined DNS
-            "ICMP": re.compile(b"^\x08\x00.*X0TTA6BL4_STEGO") # Adjusted ICMP signature
+            "ICMP": re.compile(b"^\x08\x00.*x0tta6bl4_STEGO") # Adjusted ICMP signature
         }
 
     def estimate_entropy(self, data: bytes) -> float:

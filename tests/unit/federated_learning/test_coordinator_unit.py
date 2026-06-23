@@ -679,6 +679,18 @@ class TestMetrics:
         assert m["current_round"] is not None
         assert m["current_round"]["status"] == "started"
 
+    def test_get_metrics_exposes_thinking_context(self):
+        coord = _make_coordinator(min_participants=3)
+        _register_nodes(coord, 5)
+        coord.start_round()
+
+        m = coord.get_metrics()
+
+        assert m["thinking"]["profile"]["role"] == "fl"
+        assert m["last_thinking_context"]["applied"]["framing"]["problem"] == (
+            "fl_round_participant_selection"
+        )
+
     def test_get_metrics_banned_count(self):
         coord = _make_coordinator()
         _register_nodes(coord, 3)

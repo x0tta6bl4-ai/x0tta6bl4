@@ -26,6 +26,8 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -387,6 +389,13 @@ class FLOrchestrator(ABC):
         self.byzantine_detector = ByzantineDetector()
         self.convergence_detector = ConvergenceDetector()
         self.round_stats: List[TrainingRoundStats] = []
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.__class__.__name__,
+            role="fl",
+            capabilities=("security", "coordinator"),
+            extra_techniques=("mape_k", "chaos_driven_design"),
+        )
+        self.last_thinking_context: Dict[str, object] = {}
 
     @abstractmethod
     def aggregate_updates(self, updates: List[ModelUpdate]) -> np.ndarray:
@@ -408,6 +417,23 @@ class FLOrchestrator(ABC):
 
         self.convergence_detector.update(
             stats.loss, stats.accuracy, stats.gradient_norm
+        )
+
+    def _prepare_thinking_context(
+        self, task_type: str, goal: str, updates: List[ModelUpdate] | None = None
+    ) -> None:
+        updates = updates or []
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "updates_received": len(updates),
+                "model_shape": tuple(self.model.shape),
+                "constraints": {
+                    "preserve_numpy_shape": True,
+                    "byzantine_detector": self.byzantine_detector.__class__.__name__,
+                },
+            }
         )
 
 
@@ -445,6 +471,11 @@ class BatchAsyncOrchestrator(FLOrchestrator):
         Returns:
             Aggregated gradient ready for model update
         """
+        self._prepare_thinking_context(
+            "batch_async_fl_aggregation",
+            "Aggregate a batch of FL model updates with Byzantine filtering.",
+            updates,
+        )
 
         if not updates:
             logger.warning("No updates to aggregate")
@@ -500,6 +531,11 @@ class StreamingOrchestrator(FLOrchestrator):
         Returns:
             Aggregated update (for single node case, just return gradient)
         """
+        self._prepare_thinking_context(
+            "streaming_fl_aggregation",
+            "Apply a streaming FL update while tracking momentum.",
+            updates,
+        )
 
         if not updates:
             return np.zeros_like(self.model)
@@ -548,6 +584,11 @@ class HierarchicalOrchestrator(FLOrchestrator):
     def aggregate_zone(self, zone_id: int) -> np.ndarray:
         """Aggregate updates within a zone"""
         zone_updates = self.zone_updates.get(zone_id, [])
+        self._prepare_thinking_context(
+            "hierarchical_fl_zone_aggregation",
+            f"Aggregate FL updates for zone {zone_id}.",
+            zone_updates,
+        )
 
         if not zone_updates:
             return np.zeros_like(self.model)
@@ -568,6 +609,11 @@ class HierarchicalOrchestrator(FLOrchestrator):
         Returns:
             Final aggregated gradient
         """
+        self._prepare_thinking_context(
+            "hierarchical_fl_global_aggregation",
+            "Aggregate zone-level FL gradients into a global gradient.",
+            updates,
+        )
 
         # Collect zone aggregates
         zone_grads = [

@@ -6,6 +6,7 @@ with the SwarmOrchestrator for distributed AI agent coordination.
 """
 
 import asyncio
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -19,6 +20,7 @@ from .consensus import (
 )
 from .paxos import PaxosNode, MultiPaxos
 from .pbft import PBFTNode
+from src.core.agent_thinking import AgentThinkingCoach
 
 try:
     from src.coordination.consensus_transport import (
@@ -156,6 +158,71 @@ class SwarmConsensusManager:
 
         # Lifecycle state
         self._started = False
+        self.source_agent = "swarm-consensus-manager"
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"{self.source_agent}:{self._hash_value(node_id)[:12]}",
+            role="coordination",
+            capabilities=("mape_k", "consensus", "zero-trust"),
+            extra_techniques=("reverse_planning",),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
+        self._record_thinking(
+            operation="init",
+            goal="initialize swarm consensus manager without exposing node IDs",
+            constraints={
+                "node_id_hash": self._hash_value(node_id),
+                "agent_count": len(self.agents),
+                "default_mode": self.default_mode.value,
+                "transport_configured": self._transport is not None,
+            },
+        )
+
+    @staticmethod
+    def _hash_value(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            return hashlib.sha256(value).hexdigest()
+        return hashlib.sha256(
+            str(value).encode("utf-8", errors="replace")
+        ).hexdigest()
+
+    def _record_thinking(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "swarm_consensus_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                "node_id_hash": self._hash_value(getattr(self, "node_id", None)),
+                "raw_node_ids_redacted": True,
+                "raw_topic_redacted": True,
+                "raw_proposals_redacted": True,
+                "consensus_result_is_local_observation": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local swarm consensus decision metadata, counts, "
+                "mode, hashes, and status. Do not expose raw node IDs, topics, "
+                "proposal payloads, votes, or transport message bodies. A local "
+                "decision record is not proof of external network finality."
+            ),
+        }
+        self._last_thinking_context = self.thinking_coach.prepare_task(safe_task)
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose consensus decision thinking state without raw swarm inputs."""
+        return {
+            **self.thinking_coach.status(),
+            "last_context": self._last_thinking_context,
+        }
     
     def set_callbacks(
         self,
@@ -215,12 +282,31 @@ class SwarmConsensusManager:
         """Add an agent to the swarm."""
         self.agents[agent.agent_id] = agent
         self._update_consensus_nodes()
+        self._record_thinking(
+            operation="add_agent",
+            goal="register swarm agent for future consensus decisions",
+            constraints={
+                "agent_id_hash": self._hash_value(agent.agent_id),
+                "agent_capability_count": len(agent.capabilities),
+                "agent_weight": agent.weight,
+                "agent_marked_byzantine": agent.is_byzantine,
+                "agent_count": len(self.agents),
+            },
+        )
     
     def remove_agent(self, agent_id: str) -> None:
         """Remove an agent from the swarm."""
         if agent_id in self.agents:
             del self.agents[agent_id]
             self._update_consensus_nodes()
+            self._record_thinking(
+                operation="remove_agent",
+                goal="remove swarm agent from future consensus decisions",
+                constraints={
+                    "agent_id_hash": self._hash_value(agent_id),
+                    "agent_count": len(self.agents),
+                },
+            )
     
     def _update_consensus_nodes(self) -> None:
         """Update consensus nodes when agents change."""
@@ -452,6 +538,17 @@ class SwarmConsensusManager:
         start_time = datetime.utcnow()
         decision_id = str(uuid.uuid4())[:8]
         mode = mode or self.default_mode
+        self._record_thinking(
+            operation="decide",
+            goal="choose proposal through configured swarm consensus mode",
+            constraints={
+                "topic_hash": self._hash_value(topic),
+                "proposal_count": len(proposals),
+                "mode": mode.value,
+                "timeout_seconds": timeout,
+                "agent_count": len(self.agents),
+            },
+        )
         
         decision = SwarmDecision(
             decision_id=decision_id,
@@ -459,6 +556,7 @@ class SwarmConsensusManager:
             proposals=proposals,
             mode=mode,
         )
+        failure_type: Optional[str] = None
         
         try:
             if mode == ConsensusMode.SIMPLE:
@@ -482,12 +580,34 @@ class SwarmConsensusManager:
         except asyncio.TimeoutError:
             logger.warning(f"Decision {decision_id} timed out")
             decision.success = False
+            failure_type = "TimeoutError"
         except Exception as e:
             logger.error(f"Decision {decision_id} failed: {e}")
             decision.success = False
+            failure_type = type(e).__name__
         
         decision.duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
         self._decisions[decision_id] = decision
+        winner_index: Optional[int] = None
+        if decision.success:
+            winner_index = next(
+                (idx for idx, proposal in enumerate(proposals) if proposal == decision.winner),
+                None,
+            )
+        self._record_thinking(
+            operation="decide",
+            goal="record local swarm consensus decision result without proposal payload",
+            constraints={
+                "decision_id_hash": self._hash_value(decision_id),
+                "topic_hash": self._hash_value(topic),
+                "proposal_count": len(proposals),
+                "mode": mode.value,
+                "success": decision.success,
+                "winner_index": winner_index,
+                "failure_type": failure_type,
+                "duration_ms": decision.duration_ms,
+            },
+        )
 
         # Prune old decisions to prevent memory leak
         if len(self._decisions) % 100 == 0:

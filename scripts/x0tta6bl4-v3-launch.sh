@@ -4,7 +4,7 @@
 
 set -e
 
-echo "🚀 ЗАПУСКАЕМ X0TTA6BL4 V3.0 С ЭФФЕКТОМ 'ОХУЕТЬ'"
+echo "🚀 ЗАПУСКАЕМ x0tta6bl4 V3.0 С ЭФФЕКТОМ 'ОХУЕТЬ'"
 echo "=" | head -c 60 && echo ""
 
 # 1. Аудит
@@ -81,7 +81,7 @@ fi
 echo ""
 
 # 6. Итоги
-echo "🎉 X0TTA6BL4 V3.0 ЗАПУЩЕН!"
+echo "🎉 x0tta6bl4 V3.0 ЗАПУЩЕН!"
 echo "=" | head -c 60 && echo ""
 echo "📊 МЕТРИКИ:"
 echo "   - GraphSAGE-MAPE-K: ✅ Интегрирован"

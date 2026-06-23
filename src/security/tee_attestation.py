@@ -9,6 +9,8 @@ from typing import Any, Callable, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
+COMMAND_VERIFIER_PROVIDERS = {"sgx", "sev", "nitro"}
+
 @dataclass
 class TEEAttestation:
     """Represents a TEE (Trusted Execution Environment) report."""
@@ -16,6 +18,16 @@ class TEEAttestation:
     report_data: bytes
     quote: Optional[bytes] = None
     signature: Optional[bytes] = None
+
+@dataclass
+class TEEVerificationResult:
+    """Redacted verifier result for attestation evidence and claim gates."""
+    verified: bool
+    provider: str
+    verifier_backend: str
+    verifier_provenance: dict[str, Any]
+    production_verifier_claim_allowed: bool = False
+    reason: str = ""
 
 class TEEValidator:
     """Validates hardware-rooted attestation reports."""
@@ -46,6 +58,9 @@ class TEEValidator:
         return shlex.split(env_command) if env_command else []
 
     def verify_report(self, attestation: TEEAttestation) -> bool:
+        return self.verify_report_with_context(attestation).verified
+
+    def verify_report_with_context(self, attestation: TEEAttestation) -> TEEVerificationResult:
         """
         Main entry point for TEE verification.
         In production, this would call Intel/AMD/AWS attestation services.
@@ -54,14 +69,30 @@ class TEEValidator:
         if provider == "mock":
             if not self.allow_mock:
                 logger.warning("Mock TEE provider rejected: mock attestation disabled")
-                return False
-            return self._verify_mock(attestation)
+                return self._result(
+                    False,
+                    provider,
+                    verifier_backend="mock_disabled",
+                    reason="mock_attestation_disabled",
+                )
+            verified = self._verify_mock(attestation)
+            return self._result(
+                verified,
+                provider,
+                verifier_backend="mock_local_allowlist",
+                reason="" if verified else "mock_attestation_rejected",
+            )
         
-        if provider == "sgx":
-            return self._verify_sgx(attestation)
+        if provider in COMMAND_VERIFIER_PROVIDERS:
+            return self._verify_provider_with_context(attestation, provider)
             
         logger.warning("Unknown TEE provider: %s", attestation.provider)
-        return False
+        return self._result(
+            False,
+            provider,
+            verifier_backend="unsupported_provider",
+            reason="unsupported_tee_provider",
+        )
 
     def _verify_mock(self, attestation: TEEAttestation) -> bool:
         """Mock verification for development and CI."""

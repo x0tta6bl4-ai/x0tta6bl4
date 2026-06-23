@@ -79,10 +79,19 @@ class TestProductionSystem:
         assert "readiness_level" in report
         assert report["readiness_level"] in [
             "PRODUCTION_READY",
+            "PRODUCTION_READY_BLOCKED_BY_CURRENT_EVIDENCE",
+            "PRODUCTION_READY_BLOCKED_BY_CROSS_PLANE_PROOF_GATE",
             "NEAR_PRODUCTION",
             "STAGING_READY",
             "DEVELOPMENT",
         ]
+        if report["readiness_level"] == "PRODUCTION_READY":
+            assert report["production_readiness_claim_allowed"] is True
+        else:
+            assert report["production_readiness_claim_allowed"] is False
+        assert "current_evidence_context" in report
+        assert "cross_plane_proof_gate" in report
+        assert "claim_boundary" in report
 
     def test_components_integrated(self):
         system = ProductionSystem()

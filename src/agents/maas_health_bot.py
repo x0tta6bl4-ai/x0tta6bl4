@@ -1,3 +1,5 @@
+from __future__ import annotations
+import tempfile
 """Local-first health bot for MaaS Agent Mesh.
 
 This bot intentionally avoids external AI providers and internet APIs.
@@ -7,7 +9,6 @@ It uses only local signals:
  - local proxy log analysis (delay + connection abort markers)
 """
 
-from __future__ import annotations
 
 import os
 import re
@@ -24,6 +25,8 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+
+from src.core.agent_thinking import AgentThinkingCoach
 
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -131,7 +134,7 @@ class HealthBotConfig:
             enable_socks_probe=_parse_bool(
                 os.getenv("MAAS_HEALTH_BOT_ENABLE_SOCKS_PROBE"), True
             ),
-            proxy_log_path=os.getenv("MAAS_HEALTH_BOT_PROXY_LOG", "/tmp/xray.log"),
+            proxy_log_path=os.getenv("MAAS_HEALTH_BOT_PROXY_LOG", os.path.join(tempfile.gettempdir(), "xray.log")),
             log_tail_lines=max(10, int(os.getenv("MAAS_HEALTH_BOT_LOG_TAIL_LINES", "500"))),
             max_delay_ms=max(1, int(os.getenv("MAAS_HEALTH_BOT_MAX_DELAY_MS", "250"))),
             max_abort_events=max(
@@ -168,6 +171,12 @@ class MaasHealthBot:
         self._history: deque[dict[str, Any]] = deque(maxlen=config.history_size)
         self._lock = Lock()
         self._last_action_at: dict[str, float] = {}
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="maas-health-bot",
+            role="monitoring",
+            capabilities=("monitoring", "healing", "local-rule-engine"),
+        )
+        self.last_thinking_context: dict[str, Any] = {}
 
     def _tail_log_lines(self) -> list[str]:
         path = Path(self.config.proxy_log_path)
@@ -396,6 +405,20 @@ class MaasHealthBot:
 
         failing = [item for item in signals if item.get("status") == "fail"]
         status = "healthy" if not failing else "degraded"
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "maas_health_check",
+                "goal": "classify local health and propose safe recovery actions",
+                "signals": signals,
+                "auto_heal": auto_heal,
+                "dry_run": dry_run,
+                "constraints": {
+                    "external_ai_providers_used": False,
+                    "enable_execute": self.config.enable_execute,
+                    "local_only": not self.config.allow_external_urls,
+                },
+            }
+        )
         proposed = self._proposed_actions(signals)
 
         executed_actions: list[dict[str, Any]] = []
@@ -417,6 +440,7 @@ class MaasHealthBot:
             "dry_run": dry_run,
             "proposed_actions": proposed,
             "executed_actions": executed_actions,
+            "thinking": self.last_thinking_context,
         }
         with self._lock:
             self._history.append(report)

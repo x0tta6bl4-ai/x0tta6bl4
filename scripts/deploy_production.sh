@@ -1,9 +1,12 @@
-#!/bin/bash
-# Production Deployment Script
+#!/usr/bin/env bash
+# Gated deployment command script
 # Дата: 2026-01-07
 # Версия: 3.4.0-fixed2
 
 set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
 # Configuration
 NAMESPACE="${NAMESPACE:-x0tta6bl4-production}"
@@ -12,6 +15,10 @@ HELM_CHART="./helm/x0tta6bl4"
 VALUES_FILE="${VALUES_FILE:-./helm/x0tta6bl4/values-production.yaml}"
 IMAGE_TAG="${IMAGE_TAG:-3.4.0-fixed2}"
 DRY_RUN="${DRY_RUN:-false}"
+ALLOW_LIVE_DEPLOY="${x0tta6bl4_ALLOW_LIVE_DEPLOY:-}"
+REAL_READINESS_JSON="${REAL_READINESS_JSON:-$ROOT_DIR/REAL_READINESS_REPORT.json}"
+REAL_READINESS_MD="${REAL_READINESS_MD:-$ROOT_DIR/REAL_READINESS_REPORT.md}"
+CLAIM_BOUNDARY="This script can run a Kubernetes deployment command sequence. A successful rollout/health observation is not production readiness, live customer traffic, external DPI bypass, settlement finality, or production SLO proof without separate current evidence."
 
 # Colors
 GREEN='\033[0;32m'
@@ -34,6 +41,36 @@ warn() {
 
 info() {
     echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+claim_boundary() {
+    warn "$CLAIM_BOUNDARY"
+}
+
+require_live_deploy_preflight() {
+    if [ "$DRY_RUN" = "true" ]; then
+        warn "DRY_RUN=true: live deploy gate skipped because no cluster changes should be made."
+        claim_boundary
+        return
+    fi
+
+    log "Running real-readiness gate before live deployment..."
+    if ! python3 scripts/ops/check_real_readiness.py \
+        --write-json "$REAL_READINESS_JSON" \
+        --write-md "$REAL_READINESS_MD"; then
+        error "REAL READINESS GATE: BLOCKED"
+        error "Report: $REAL_READINESS_JSON"
+        error "Live deployment is not allowed yet."
+        claim_boundary
+        exit 1
+    fi
+
+    if [ "$ALLOW_LIVE_DEPLOY" != "yes" ]; then
+        error "LIVE DEPLOY AUTHORIZATION: BLOCKED"
+        error "Set x0tta6bl4_ALLOW_LIVE_DEPLOY=yes only after reviewing the real-readiness report."
+        claim_boundary
+        exit 1
+    fi
 }
 
 # Pre-flight checks
@@ -107,7 +144,7 @@ deploy_helm() {
     eval "$helm_cmd"
     
     if [ "$DRY_RUN" != "true" ]; then
-        log "✅ Helm deployment completed"
+        log "✅ Helm command completed"
     fi
 }
 
@@ -117,7 +154,7 @@ wait_for_deployment() {
         return
     fi
     
-    log "Waiting for deployment to be ready..."
+    log "Waiting for Kubernetes deployment availability observation..."
     
     kubectl wait --for=condition=available \
       --timeout=300s \
@@ -128,7 +165,7 @@ wait_for_deployment() {
         exit 1
     }
     
-    log "✅ Deployment is ready"
+    log "✅ Deployment availability observation passed"
 }
 
 # Verify health
@@ -167,7 +204,7 @@ verify_health() {
         
         while [ $attempt -lt $max_attempts ]; do
             if curl -sf "http://$service_url/health" > /dev/null 2>&1; then
-                log "✅ Health check passed"
+                log "✅ Local service health check returned success"
                 if [ -n "${pf_pid:-}" ]; then
                     kill $pf_pid 2>/dev/null || true
                 fi
@@ -217,8 +254,10 @@ display_info() {
 # Main execution
 main() {
     log "╔══════════════════════════════════════════════════════════════╗"
-    log "║     Production Deployment Script                             ║"
+    log "║     Gated Deployment Command Script                          ║"
     log "╚══════════════════════════════════════════════════════════════╝"
+    echo ""
+    claim_boundary
     echo ""
     
     info "Configuration:"
@@ -230,6 +269,7 @@ main() {
     echo ""
     
     preflight_checks
+    require_live_deploy_preflight
     create_namespace
     deploy_helm
     wait_for_deployment
@@ -237,8 +277,9 @@ main() {
     display_info
     
     log "╔══════════════════════════════════════════════════════════════╗"
-    log "║     Deployment Completed Successfully                        ║"
+    log "║     Deployment Command Sequence Completed                    ║"
     log "╚══════════════════════════════════════════════════════════════╝"
+    claim_boundary
 }
 
 # Run if executed directly

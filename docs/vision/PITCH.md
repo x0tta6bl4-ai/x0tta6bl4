@@ -1,3 +1,11 @@
+> Truth-surface note: investor pitch / vision document.
+> Superseded for current readiness claims by `STATUS_REALITY.md`,
+> `docs/05-operations/REAL_READINESS_GATE.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`.
+> Production-ready, market-validation, compliance, uptime, MTTR, and
+> benchmark wording below is historical/aspirational pitch language, not current
+> production deployment evidence.
+
 # x0tta6bl4: The First Post-Quantum Self-Healing Network for AI Agents
 
 [![NIST Compliance](https://img.shields.io/badge/NIST-FIPS%20203%2F204%20Compliant-blue.svg)](https://csrc.nist.gov/projects/post-quantum-cryptography)
@@ -415,4 +423,3 @@ We've built what the market needs but doesn't have yet:
 *Status: ✅ Production-Ready | ✅ Market-Validated | ⚠️ Pre-Revenue*  
 *Date: December 30, 2025*  
 *Version: 1.0*
-

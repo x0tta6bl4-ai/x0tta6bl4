@@ -21,6 +21,8 @@ VPS_PASS="${2:-}"
 VPS_USER="root"
 LOCAL_CONFIG="xray_config_warp.json"
 REMOTE_CONFIG="/usr/local/etc/xray/config.json"
+EXPECTED_XRAY_PORT="${EXPECTED_XRAY_PORT:-443}"
+XRAY_CONFIG_UPDATE_CONFIRM="${XRAY_CONFIG_UPDATE_CONFIRM:-}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Цвета
@@ -34,6 +36,13 @@ log_info()  { echo -e "${BLUE}[INFO]${NC}  $1"; }
 log_ok()    { echo -e "${GREEN}[OK]${NC}    $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+if [ "$XRAY_CONFIG_UPDATE_CONFIRM" != "APPLY_AND_RESTART_XRAY" ]; then
+    log_error "Отказ от запуска: этот legacy-скрипт заменяет Xray config и перезапускает Xray/x-ui."
+    log_error "Текущий рабочий профиль: VLESS Reality на TCP 443; профили генерируются через x0tta6bl4-xray-vps/scripts/generate-live-client-profiles.sh."
+    log_error "Для осознанного запуска установи XRAY_CONFIG_UPDATE_CONFIRM=APPLY_AND_RESTART_XRAY."
+    exit 2
+fi
 
 # SSH helper — поддержка пароля или SSH-ключей
 ssh_exec() {
@@ -89,13 +98,13 @@ log_ok "SSH подключение установлено"
 # --- Step 2: Проверка текущего состояния Xray ---
 log_info "Проверка текущего состояния Xray..."
 XRAY_STATUS=$(ssh_exec "systemctl is-active xray 2>/dev/null || echo 'не systemd'")
-PORT_STATUS=$(ssh_exec "ss -tlnp | grep -c ':39829' 2>/dev/null || echo '0'")
+PORT_STATUS=$(ssh_exec "ss -tlnp | grep -c ':${EXPECTED_XRAY_PORT}' 2>/dev/null || echo '0'")
 
 log_info "Xray сервис: $XRAY_STATUS"
-log_info "Порт 39829 слушает: ${PORT_STATUS} процесс(ов)"
+log_info "Порт ${EXPECTED_XRAY_PORT} слушает: ${PORT_STATUS} процесс(ов)"
 
 if [ "$PORT_STATUS" -eq 0 ] 2>/dev/null; then
-    log_warn "Порт 39829 не слушает — возможно Xray управляется через x-ui или Docker"
+    log_warn "Порт ${EXPECTED_XRAY_PORT} не слушает — возможно Xray управляется через x-ui или Docker"
 fi
 
 # --- Step 3: Бэкап текущего конфига ---
@@ -166,12 +175,12 @@ fi
 log_info "Проверка после перезагрузки..."
 sleep 2
 
-PORT_CHECK=$(ssh_exec "ss -tlnp | grep -c ':39829' 2>/dev/null || echo '0'")
+PORT_CHECK=$(ssh_exec "ss -tlnp | grep -c ':${EXPECTED_XRAY_PORT}' 2>/dev/null || echo '0'")
 
 if [ "$PORT_CHECK" -gt 0 ] 2>/dev/null; then
-    log_ok "✅ Xray слушает на порту 39829 — всё работает!"
+    log_ok "✅ Xray слушает на порту ${EXPECTED_XRAY_PORT} — всё работает!"
 else
-    log_warn "⚠️  Порт 39829 пока не слушает..."
+    log_warn "⚠️  Порт ${EXPECTED_XRAY_PORT} пока не слушает..."
     log_info "Проверяем лог ошибок..."
     ssh_exec "journalctl -u xray --no-pager -n 10 2>/dev/null || tail -5 /var/log/xray/error.log 2>/dev/null || echo 'логи недоступны'"
 
@@ -188,7 +197,7 @@ else
     fi
 
     sleep 3
-    ROLLBACK_CHECK=$(ssh_exec "ss -tlnp | grep -c ':39829' 2>/dev/null || echo '0'")
+    ROLLBACK_CHECK=$(ssh_exec "ss -tlnp | grep -c ':${EXPECTED_XRAY_PORT}' 2>/dev/null || echo '0'")
     if [ "$ROLLBACK_CHECK" -gt 0 ] 2>/dev/null; then
         log_ok "Откат успешен — Xray работает на старом конфиге"
     else

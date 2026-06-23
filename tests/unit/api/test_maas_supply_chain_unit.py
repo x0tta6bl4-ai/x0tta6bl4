@@ -19,8 +19,8 @@ from src.api.maas_supply_chain import (
     ComponentEntry,
     SBOMRegisterRequest,
     SBOMResponse,
-    _coerce_components,
     _db_session_available,
+    _coerce_components,
     _legacy_verify,
     _lookup_in_memory_sbom,
     _safe_record_audit,
@@ -270,7 +270,7 @@ class TestSafeRecordAudit:
 
     def test_calls_record_audit_log_when_db_available(self):
         db = _fake_db()
-        with patch("src.api.maas_supply_chain.record_audit_log") as mock_ral:
+        with patch("src.api.maas.endpoints.supply_chain.record_audit_log") as mock_ral:
             _safe_record_audit(
                 db,
                 action="SBOM_REGISTERED",
@@ -283,7 +283,7 @@ class TestSafeRecordAudit:
 
     def test_rollback_on_audit_exception(self):
         db = _fake_db()
-        with patch("src.api.maas_supply_chain.record_audit_log", side_effect=RuntimeError("db down")):
+        with patch("src.api.maas.endpoints.supply_chain.record_audit_log", side_effect=RuntimeError("db down")):
             # Should not propagate exception
             _safe_record_audit(
                 db,

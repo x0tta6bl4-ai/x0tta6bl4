@@ -1,15 +1,51 @@
 """Unit tests for src/api/maas/endpoints/auth.py security behavior."""
 
+import json
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.api.maas.endpoints import auth as auth_module
 from src.api.maas.auth import UserContext, get_current_user, set_auth_service, AuthService
+from src.coordination.events import EventBus, EventType
+from src.database import Base, get_db
 
 
-def _build_client(user: UserContext | None = None) -> TestClient:
+def _build_client(
+    user: UserContext | None = None,
+    event_bus: EventBus | None = None,
+) -> TestClient:
     app = FastAPI()
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    testing_session_local = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=engine,
+    )
+    Base.metadata.create_all(bind=engine)
+
+    def override_get_db():
+        db = testing_session_local()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    if event_bus is not None:
+        @app.middleware("http")
+        async def _inject_event_bus(request, call_next):
+            request.state.event_bus = event_bus
+            return await call_next(request)
+
     app.include_router(auth_module.router, prefix="/api/v1/maas")
+    app.dependency_overrides[get_db] = override_get_db
     if user:
         app.dependency_overrides[get_current_user] = lambda: user
     return TestClient(app)
@@ -26,6 +62,150 @@ def _make_user(user_id: str = "u-1", plan: str = "pro") -> UserContext:
     return UserContext(user_id=user_id, plan=plan)
 
 
+def _auth_payloads(bus: EventBus, source_agent: str):
+    return [
+        event.data
+        for event in bus.get_event_history(source_agent=source_agent, limit=20)
+    ]
+
+
+def test_modular_auth_register_and_login_publish_redacted_evidence(tmp_path):
+    _reset_auth_state()
+    bus = EventBus(project_root=str(tmp_path))
+    client = _build_client(event_bus=bus)
+
+    email = "Modular-Auth-Secret@example.test"
+    password = "PrivatePassword123!"
+    name = "Private Auth Name"
+    register_response = client.post(
+        "/api/v1/maas/auth/register",
+        json={"email": email, "password": password, "name": name},
+    )
+    login_response = client.post(
+        "/api/v1/maas/auth/login",
+        json={"email": email.lower(), "password": password},
+    )
+
+    assert register_response.status_code == 200, register_response.text
+    assert login_response.status_code == 200, login_response.text
+
+    register_payload = _auth_payloads(bus, "maas-modular-auth-register")[-1]
+    login_payload = _auth_payloads(bus, "maas-modular-auth-login")[-1]
+
+    assert register_payload["operation"] == "modular_auth_register"
+    assert register_payload["service_name"] == "maas-modular-auth-register"
+    assert register_payload["layer"] == "api_modular_auth_registration_intent"
+    assert register_payload["status"] == "success"
+    assert register_payload["http_status_code"] == 200
+    assert register_payload["request_summary"]["email_hash"] == (
+        auth_module._redacted_sha256_prefix(email.lower())
+    )
+    assert register_payload["request_summary"]["password_present"] is True
+    assert register_payload["request_summary"]["name_present"] is True
+    assert register_payload["credential_evidence"]["api_key_issued"] is True
+    assert register_payload["auth_store_evidence"]["committed"] is True
+
+    assert login_payload["operation"] == "modular_auth_login"
+    assert login_payload["service_name"] == "maas-modular-auth-login"
+    assert login_payload["layer"] == "api_modular_auth_login_intent"
+    assert login_payload["status"] == "success"
+    assert login_payload["credential_evidence"]["session_token_issued"] is True
+    assert login_payload["raw_credentials_redacted"] is True
+
+    serialized = json.dumps([register_payload, login_payload], sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    response_values = [
+        register_response.json()["user_id"],
+        register_response.json()["api_key"],
+        login_response.json()["session_token"],
+    ]
+    for raw_value in [email, email.lower(), password, name, *response_values]:
+        assert raw_value not in serialized
+        assert raw_value not in raw_log
+
+
+def test_modular_auth_control_and_read_routes_publish_redacted_evidence(tmp_path):
+    _reset_auth_state()
+    bus = EventBus(project_root=str(tmp_path))
+    auth = AuthService()
+    set_auth_service(auth)
+    user = _make_user("modular-auth-user-secret", "pro")
+    old_key = auth.generate_api_key(user.user_id, user.plan)
+    session_token = auth.create_session(user.user_id)
+    user.api_key = old_key
+    user.session_token = session_token
+    auth_module._user_store[user.user_id] = {
+        "email": "profile-secret@example.test",
+        "name": "Private Profile Name",
+        "plan": "pro",
+    }
+    client = _build_client(user=user, event_bus=bus)
+
+    profile_response = client.get("/api/v1/maas/auth/me")
+    rotate_response = client.post(
+        "/api/v1/maas/auth/api-key",
+        json={"revoke_old": True},
+    )
+    logout_response = client.post("/api/v1/maas/auth/logout")
+    blocked_delete_response = client.delete(
+        "/api/v1/maas/auth/account",
+        params={"confirm": "false"},
+    )
+    delete_response = client.delete(
+        "/api/v1/maas/auth/account",
+        params={"confirm": "true"},
+    )
+
+    assert profile_response.status_code == 200
+    assert rotate_response.status_code == 200, rotate_response.text
+    assert logout_response.status_code == 200
+    assert blocked_delete_response.status_code == 400
+    assert delete_response.status_code == 200
+
+    profile_payload = _auth_payloads(bus, "maas-modular-auth-profile-read")[-1]
+    rotate_payload = _auth_payloads(
+        bus,
+        "maas-modular-auth-api-key-rotation",
+    )[-1]
+    logout_payload = _auth_payloads(bus, "maas-modular-auth-session-control")[-1]
+    account_payloads = _auth_payloads(bus, "maas-modular-auth-account-delete")
+
+    assert profile_payload["observed_state"] is True
+    assert profile_payload["auth_store_evidence"]["action"] == "read_user_profile"
+    assert rotate_payload["credential_evidence"]["api_key_issued"] is True
+    assert rotate_payload["credential_evidence"]["api_key_revoked"] is True
+    assert logout_payload["credential_evidence"]["session_ended"] is True
+    assert account_payloads[0]["stage"] == "account_delete_blocked"
+    assert account_payloads[0]["reason"] == "confirmation_required"
+    assert account_payloads[-1]["stage"] == "account_deleted"
+    assert account_payloads[-1]["claim_boundary"] == (
+        auth_module._MODULAR_AUTH_CLAIM_BOUNDARY
+    )
+
+    all_payloads = [
+        profile_payload,
+        rotate_payload,
+        logout_payload,
+        *account_payloads,
+    ]
+    serialized = json.dumps(all_payloads, sort_keys=True)
+    raw_log = (tmp_path / ".agent_coordination" / "events.log").read_text(
+        encoding="utf-8"
+    )
+    for raw_value in (
+        user.user_id,
+        old_key,
+        rotate_response.json()["api_key"],
+        session_token,
+        "profile-secret@example.test",
+        "Private Profile Name",
+    ):
+        assert raw_value not in serialized
+        assert raw_value not in raw_log
+
+
 def test_login_rejects_wrong_password_for_existing_user():
     _reset_auth_state()
     client = _build_client()  # no user override — uses real auth
@@ -38,7 +218,7 @@ def test_login_rejects_wrong_password_for_existing_user():
             "password": "CorrectPassword123!",
         },
     )
-    assert register_response.status_code == 201, register_response.text
+    assert register_response.status_code == 200, register_response.text
 
     wrong_login_response = client.post(
         "/api/v1/maas/auth/login",
@@ -63,7 +243,7 @@ def test_register_stores_password_hash_not_plaintext():
             "password": raw_password,
         },
     )
-    assert response.status_code == 201, response.text
+    assert response.status_code == 200, response.text
 
     user_id = response.json()["user_id"]
     stored_user = auth_module._user_store[user_id]
@@ -85,7 +265,7 @@ def test_register_rejects_case_insensitive_duplicate_email():
             "password": "StrongPassword123!",
         },
     )
-    assert first.status_code == 201, first.text
+    assert first.status_code == 200, first.text
 
     duplicate = client.post(
         "/api/v1/maas/auth/register",
@@ -108,7 +288,7 @@ def test_login_matches_email_case_insensitively():
             "password": "StrongPassword123!",
         },
     )
-    assert register.status_code == 201, register.text
+    assert register.status_code == 200, register.text
 
     login = client.post(
         "/api/v1/maas/auth/login",
@@ -154,7 +334,7 @@ def test_successful_login_clears_failed_attempt_counter(monkeypatch):
         "/api/v1/maas/auth/register",
         json={"email": "clear-counter@example.com", "password": "CorrectPassword123!"},
     )
-    assert register.status_code == 201, register.text
+    assert register.status_code == 200, register.text
 
     fail_one = client.post(
         "/api/v1/maas/auth/login",
@@ -269,6 +449,7 @@ class TestRotateApiKey:
         assert new_key != old_key
         # Old key was revoked
         assert old_key not in auth._api_keys
+        assert auth._api_key_hash(old_key) not in auth._api_keys
 
     def test_rotation_without_revoke_keeps_old_key(self):
         _reset_auth_state()
@@ -282,7 +463,8 @@ class TestRotateApiKey:
         resp = client.post("/api/v1/maas/auth/api-key", json={"revoke_old": False})
         assert resp.status_code == 200
         # Old key is still in auth service
-        assert old_key in auth._api_keys
+        assert old_key not in auth._api_keys
+        assert auth._api_key_hash(old_key) in auth._api_keys
 
     def test_rotation_requires_auth(self):
         _reset_auth_state()

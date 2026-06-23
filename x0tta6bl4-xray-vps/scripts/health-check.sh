@@ -207,7 +207,9 @@ check_logs() {
     fi
     
     # Check recent errors (last 100 lines)
-    local recent_errors=$(tail -100 "${LOG_DIR}/error.log" 2>/dev/null | grep -ci "error\|failed\|fatal" || echo "0")
+    local recent_errors
+    recent_errors=$(tail -100 "${LOG_DIR}/error.log" 2>/dev/null | awk 'BEGIN{IGNORECASE=1; count=0} /error|failed|fatal/{count++} END{print count}')
+    recent_errors=${recent_errors//[[:space:]]/}
     
     if [[ $recent_errors -eq 0 ]]; then
         log_pass "No errors in recent logs"
@@ -263,7 +265,8 @@ check_network() {
     fi
     
     # Get public IP
-    local public_ip=$(curl -s -4 --max-time 5 ifconfig.me 2>/dev/null || echo "unknown")
+    local public_ip
+    public_ip=$(detect_public_ipv4 || echo "unknown")
     log_info "Public IP: $public_ip"
     
     # Check DNS resolution
@@ -318,6 +321,31 @@ check_connections() {
             log_info "Port $port connections: $count"
         fi
     done
+}
+
+# Check 10: Client distribution safety
+check_client_distribution() {
+    log_section "CLIENT DISTRIBUTION"
+
+    if [[ ! -d "$CLIENT_DIR" ]]; then
+        log_fail "Client directory missing: $CLIENT_DIR"
+        return 1
+    fi
+
+    if [[ ! -x "$DISTRIBUTION_GATE_SCRIPT" ]]; then
+        log_fail "Distribution gate script missing or not executable: $DISTRIBUTION_GATE_SCRIPT"
+        return 1
+    fi
+
+    local gate_output
+    if gate_output="$(CONFIG_FILE="$XRAY_CONFIG" CLIENT_DIR="$CLIENT_DIR" bash "$DISTRIBUTION_GATE_SCRIPT" 2>&1)"; then
+        log_pass "Client distribution gate passed"
+        echo "$gate_output" | grep -E "Distribution gate summary:|Passed:|Failed:|Warnings:|Client profiles are safe to distribute" || true
+    else
+        log_fail "Client distribution gate failed"
+        echo "$gate_output"
+        return 1
+    fi
 }
 
 # Generate health report
@@ -393,6 +421,7 @@ main() {
     check_network
     check_process
     check_connections
+    check_client_distribution
     generate_report
     save_report
     

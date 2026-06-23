@@ -4,7 +4,7 @@
 
 set -e
 
-echo "🚀 РАЗВЕРТЫВАНИЕ X0TTA6BL4 V3.0"
+echo "🚀 РАЗВЕРТЫВАНИЕ x0tta6bl4 V3.0"
 echo "=" | head -c 60 && echo ""
 
 # Цвета для вывода

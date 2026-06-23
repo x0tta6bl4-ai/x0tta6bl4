@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 from .coordinator import FederatedCoordinator
 from .protocol import GlobalModel, ModelUpdate, ModelWeights
 
@@ -125,6 +127,13 @@ class FLMeshWorker:
             "memory": 1.0,
             "network": 1.0,
         }
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=node_id,
+            role="fl",
+            capabilities=("monitoring", "ops"),
+            extra_techniques=("mape_k",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         logger.info(f"FLMeshWorker initialized for {node_id}")
 
@@ -264,6 +273,19 @@ class FLMeshWorker:
         self.status = WorkerStatus.TRAINING
         self.is_training = True
         self.current_round = round_number
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "fl_mesh_local_training",
+                "goal": "Train a local FL update from recent mesh metrics.",
+                "round_number": round_number,
+                "metrics_count": len(self.metrics_history),
+                "constraints": {
+                    "min_metrics": 10,
+                    "max_metrics_used": 100,
+                    "preserve_update_contract": True,
+                },
+            }
+        )
 
         try:
             # Convert metrics to feature vectors
@@ -344,4 +366,6 @@ class FLMeshWorker:
             "metrics_count": len(self.metrics_history),
             "has_local_model": self.local_model is not None,
             "capabilities": self.capabilities,
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
         }

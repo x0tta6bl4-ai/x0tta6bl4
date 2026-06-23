@@ -12,6 +12,19 @@ try:
 except ImportError:
     HAS_HYPOTHESIS = False
 
+# Fix for NameError during collection
+if not HAS_HYPOTHESIS:
+    def given(*a, **k): return lambda f: f
+    class st:
+        @staticmethod
+        def text(*a, **k): return None
+        @staticmethod
+        def integers(*a, **k): return None
+        @staticmethod
+        def lists(*a, **k): return None
+        @staticmethod
+        def dictionaries(*a, **k): return None
+
 
 class TestInputValidation:
     """Tests for input validation"""

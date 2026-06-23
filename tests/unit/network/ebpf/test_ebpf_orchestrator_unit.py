@@ -264,6 +264,34 @@ async def test_status_stats_and_loader_flow_wrappers(orchestrator_setup):
     ok_unload = await orch.unload_program("prog")
     assert ok_unload["success"] is True
 
+    secret_program = "secret-program"
+    secret_path = "/tmp/secret-program.o"
+    secret_interface = "secret-iface"
+    secret_load = await orch.load_program(secret_program, secret_path)
+    assert secret_load["success"] is True
+    secret_attach = await orch.attach_program(
+        secret_program, interface=secret_interface
+    )
+    assert secret_attach["success"] is True
+
+    thinking_status = orch.get_thinking_status()
+    techniques = set(thinking_status["techniques"])
+    assert thinking_status["profile"]["role"] == "coordinator"
+    assert "reverse_planning" in techniques
+    assert "zero_trust_review" in techniques
+    assert "mape_k" in techniques
+    last_context = thinking_status["last_context"]
+    assert last_context["applied"]["framing"]["problem"] == (
+        "ebpf_async_orchestration"
+    )
+    constraints = last_context["applied"]["framing"]["constraints"]
+    assert constraints["operation"] == "attach_program"
+    assert constraints["program_name_redacted"] is True
+    assert constraints["interface_redacted"] is True
+    assert secret_program not in str(thinking_status)
+    assert secret_path not in str(thinking_status)
+    assert secret_interface not in str(thinking_status)
+
     comps["loader"].load_exc = RuntimeError("load")
     comps["loader"].attach_exc = RuntimeError("attach")
     comps["loader"].detach_exc = RuntimeError("detach")

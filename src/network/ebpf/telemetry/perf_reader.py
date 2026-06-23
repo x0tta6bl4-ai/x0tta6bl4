@@ -32,6 +32,13 @@ def _module_available(module_name: str) -> bool:
 # Check for BCC availability
 BCC_AVAILABLE = _module_available("bcc")
 
+EBPF_EVENT_LOSS_CLAIM_BOUNDARY = (
+    "Local eBPF perf/ring buffer health evidence only. Any dropped or "
+    "unparseable event means the reader observed a telemetry blind spot; the "
+    "collector must fail closed and must not claim complete observability, "
+    "attack absence, or production security coverage from this stream."
+)
+
 
 class PerfBufferReader:
     """
@@ -164,6 +171,50 @@ class PerfBufferReader:
     def get_stats(self) -> Dict[str, Any]:
         """Get reader statistics."""
         return self.stats.copy()
+
+    def get_loss_health(self) -> Dict[str, Any]:
+        """Return fail-closed health for perf/ring buffer event loss."""
+        stats = self.get_stats()
+        events_received = int(stats.get("events_received") or 0)
+        events_dropped = int(stats.get("events_dropped") or 0)
+        parse_errors = int(stats.get("parse_errors") or 0)
+        total_seen = events_received + events_dropped
+        drop_ratio = (
+            events_dropped / total_seen
+            if total_seen > 0
+            else 0.0
+        )
+        loss_detected = (
+            events_dropped > int(self.config.max_dropped_events_healthy)
+            or drop_ratio > float(self.config.max_drop_ratio_healthy)
+            or parse_errors > 0
+        )
+        blockers = []
+        if events_dropped > int(self.config.max_dropped_events_healthy):
+            blockers.append("perf_buffer_events_dropped")
+        if drop_ratio > float(self.config.max_drop_ratio_healthy):
+            blockers.append("perf_buffer_drop_ratio_exceeded")
+        if parse_errors > 0:
+            blockers.append("perf_buffer_parse_errors")
+
+        return {
+            "status": "unhealthy" if loss_detected else "healthy",
+            "event_loss_detected": loss_detected,
+            "events_received": events_received,
+            "events_dropped": events_dropped,
+            "parse_errors": parse_errors,
+            "drop_ratio": drop_ratio,
+            "max_dropped_events_healthy": int(
+                self.config.max_dropped_events_healthy
+            ),
+            "max_drop_ratio_healthy": float(self.config.max_drop_ratio_healthy),
+            "observability_integrity_claim_allowed": not loss_detected,
+            "complete_attack_absence_claim_allowed": False,
+            "production_security_coverage_claim_allowed": False,
+            "fail_closed": True,
+            "blockers": blockers,
+            "claim_boundary": EBPF_EVENT_LOSS_CLAIM_BOUNDARY,
+        }
 
 
 __all__ = ["PerfBufferReader"]

@@ -127,25 +127,25 @@ setup_iptables() {
     log_info "Setting up iptables rules..."
     
     # Create custom chain
-    iptables -t mangle -N X0TTA6BL4_MESH 2>/dev/null || {
-        iptables -t mangle -F X0TTA6BL4_MESH
+    iptables -t mangle -N x0tta6bl4_MESH 2>/dev/null || {
+        iptables -t mangle -F x0tta6bl4_MESH
     }
     
     # Exclude local traffic
-    iptables -t mangle -A X0TTA6BL4_MESH -d 10.0.0.0/8 -j RETURN
-    iptables -t mangle -A X0TTA6BL4_MESH -d 172.16.0.0/12 -j RETURN
-    iptables -t mangle -A X0TTA6BL4_MESH -d 192.168.0.0/16 -j RETURN
-    iptables -t mangle -A X0TTA6BL4_MESH -d 127.0.0.0/8 -j RETURN
+    iptables -t mangle -A x0tta6bl4_MESH -d 10.0.0.0/8 -j RETURN
+    iptables -t mangle -A x0tta6bl4_MESH -d 172.16.0.0/12 -j RETURN
+    iptables -t mangle -A x0tta6bl4_MESH -d 192.168.0.0/16 -j RETURN
+    iptables -t mangle -A x0tta6bl4_MESH -d 127.0.0.0/8 -j RETURN
     
     # Exclude mesh node itself (VPS IP)
-    # iptables -t mangle -A X0TTA6BL4_MESH -d 89.125.1.107 -j RETURN
+    # iptables -t mangle -A x0tta6bl4_MESH -d 89.125.1.107 -j RETURN
     
     # Mark remaining packets
-    iptables -t mangle -A X0TTA6BL4_MESH -j MARK --set-mark $MARK
+    iptables -t mangle -A x0tta6bl4_MESH -j MARK --set-mark $MARK
     
     # Apply chain to OUTPUT and PREROUTING
-    iptables -t mangle -A OUTPUT -j X0TTA6BL4_MESH
-    iptables -t mangle -A PREROUTING -j X0TTA6BL4_MESH
+    iptables -t mangle -A OUTPUT -j x0tta6bl4_MESH
+    iptables -t mangle -A PREROUTING -j x0tta6bl4_MESH
     
     # NAT for TUN traffic
     iptables -t nat -A POSTROUTING -o $TUN_DEV -j MASQUERADE
@@ -185,10 +185,10 @@ teardown_iptables() {
     log_info "Removing iptables rules..."
     
     # Remove custom chain
-    iptables -t mangle -F X0TTA6BL4_MESH 2>/dev/null || true
-    iptables -t mangle -D OUTPUT -j X0TTA6BL4_MESH 2>/dev/null || true
-    iptables -t mangle -D PREROUTING -j X0TTA6BL4_MESH 2>/dev/null || true
-    iptables -t mangle -X X0TTA6BL4_MESH 2>/dev/null || true
+    iptables -t mangle -F x0tta6bl4_MESH 2>/dev/null || true
+    iptables -t mangle -D OUTPUT -j x0tta6bl4_MESH 2>/dev/null || true
+    iptables -t mangle -D PREROUTING -j x0tta6bl4_MESH 2>/dev/null || true
+    iptables -t mangle -X x0tta6bl4_MESH 2>/dev/null || true
     
     # Remove NAT rules
     iptables -t nat -D POSTROUTING -o $TUN_DEV -j MASQUERADE 2>/dev/null || true
@@ -249,7 +249,7 @@ show_status() {
     echo ""
     
     echo "--- iptables (mangle) ---"
-    iptables -t mangle -L X0TTA6BL4_MESH -n -v 2>/dev/null || echo "  Chain not found"
+    iptables -t mangle -L x0tta6bl4_MESH -n -v 2>/dev/null || echo "  Chain not found"
     echo ""
     
     echo "--- iptables (nat) ---"

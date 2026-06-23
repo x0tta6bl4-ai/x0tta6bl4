@@ -1,0 +1,34 @@
+Incident: first-party VPN identity renewal can restart x0tta-firstparty-vpn.service repeatedly.
+Host: NL 89.125.1.107
+Time: 2026-06-08T21:35:00Z
+
+Evidence:
+- x0tta-firstparty-vpn-identity-renewal.service uses --lifetime-seconds 3600 --renew-before-seconds 1800.
+- Last renewal at 2026-06-08T21:17:39Z performed service_restart_performed=true.
+- The 2026-06-08T21:32:33Z check did not restart, but next timer at 2026-06-08T21:47:33Z is expected to be inside the renew window.
+
+Planned action:
+- Add /etc/systemd/system/x0tta-firstparty-vpn-identity-renewal.service.d/override.conf.
+- Change only the renewal command to --lifetime-seconds 86400 --renew-before-seconds 3600.
+- If the issuer policy still caps identities at 3600 seconds, use the built-in issuer-lifetime-policy command to set default/max to 86400 before the controlled renewal.
+- Run systemctl daemon-reload.
+- Start x0tta-firstparty-vpn-identity-renewal.service once to renew now under controlled conditions.
+
+Expected effect:
+- One controlled restart of x0tta-firstparty-vpn.service may happen now.
+- x-ui/xray, ghost-access, ghost-pulse-vpn, nginx, and VLESS listeners are not changed.
+- Later timer runs should report renewal_needed=false and server_restart_required=false until the 24h identity approaches renewal.
+
+Rollback:
+- rm /etc/systemd/system/x0tta-firstparty-vpn-identity-renewal.service.d/override.conf
+- /usr/bin/python3 /opt/x0tta-firstparty-vpn/x0vpn_node.py issuer-lifetime-policy --issuer-config /etc/x0tta-firstparty-vpn/issuer.json --default-lifetime-seconds 3600 --max-lifetime-seconds 3600 --allow-file-mutation
+- systemctl daemon-reload
+- systemctl list-timers --all "x0tta-firstparty*identity*"
+
+Addendum:
+- First controlled renewal attempt at 2026-06-08T21:35:41Z failed safely before service restart with IdentityAuthorityError: "identity lifetime is outside authority bounds".
+- x0tta-firstparty-vpn.service remained active with MainPID=87742 after that failed attempt.
+- Applied issuer-lifetime-policy at 2026-06-08T21:40Z: default/max 3600 -> 86400.
+- Controlled renewal then succeeded and restarted x0tta-firstparty-vpn.service once: MainPID 87742 -> 91884.
+- Post-renewal health was ok=true, ports 22082/22083 were listening, and server expires_at became 2026-06-09T21:40:41Z.
+- Immediate follow-up renewal simulation at 2026-06-08T21:41:45Z reported renewal_needed=false, server_restart_required=false, and MainPID remained 91884.

@@ -26,13 +26,61 @@ Key Features:
 - Comprehensive incident reporting
 """
 
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    if value <= 1000:
+        return "100-1000"
+    return "1000+"
+
+
+def _safe_features_summary(features: Dict[str, float]) -> Dict[str, Any]:
+    return {
+        "feature_count_bucket": _safe_count_bucket(len(features)),
+        "feature_key_hashes": sorted(_safe_hash(key) for key in features.keys()),
+        "value_bands": {
+            _safe_hash(key): _safe_number_band(value)
+            for key, value in features.items()
+        },
+    }
 
 
 @dataclass
@@ -85,8 +133,59 @@ class IntegratedAnomalyAnalyzer:
         # Result tracking
         self.completed_analyses: Dict[str, DetectionAndAnalysisResult] = {}
         self.incident_severity_history: Dict[str, str] = {}
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="integrated-anomaly-analyzer",
+            role="monitoring",
+            capabilities=("healing", "quality", "graphsage"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "integrated_anomaly_analyzer_init",
+                "goal": "Initialize anomaly detection and causal analysis safely",
+                "signals": {
+                    "completed_analysis_count_bucket": "0",
+                    "severity_history_count_bucket": "0",
+                },
+                "safety_boundary": (
+                    "Keep node ids, service ids, feature values, incident ids, "
+                    "root-cause explanations, and remediation text out of thinking context."
+                ),
+            }
+        )
 
         logger.info("Integrated Anomaly Analyzer initialized")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_node_ids": True,
+                    "redact_service_ids": True,
+                    "redact_feature_values": True,
+                    "redact_incident_ids": True,
+                    "redact_root_cause_text": True,
+                    "preserve_detection_decision": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, counts, severity, confidence bands, and latency bands."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def process_node_anomaly(
         self,
@@ -179,11 +278,32 @@ class IntegratedAnomalyAnalyzer:
             # Track severity
             self.incident_severity_history[incident_id] = result.severity
 
+            self._record_thinking(
+                "integrated_anomaly_processed",
+                "Process anomalous node through detection and root-cause analysis",
+                {
+                    "node_hash": _safe_hash(node_id),
+                    "service_hash": _safe_hash(service_id) if service_id else None,
+                    "incident_hash": _safe_hash(incident_id),
+                    "features": _safe_features_summary(node_features),
+                    "neighbor_count_bucket": _safe_count_bucket(len(neighbors)),
+                    "is_anomaly": True,
+                    "severity": result.severity,
+                    "anomaly_score_band": _safe_number_band(result.anomaly_score),
+                    "causal_confidence_band": _safe_number_band(
+                        result.causal_confidence
+                    ),
+                    "root_cause_count_bucket": _safe_count_bucket(
+                        len(result.root_causes)
+                    ),
+                    "latency_band": _safe_number_band(result.total_latency_ms),
+                },
+            )
             return result
 
         else:
             # No anomaly - return empty result
-            return DetectionAndAnalysisResult(
+            result = DetectionAndAnalysisResult(
                 incident_id="",
                 node_id=node_id,
                 is_anomaly=False,
@@ -202,6 +322,20 @@ class IntegratedAnomalyAnalyzer:
                 total_latency_ms=(time.time() - start_time) * 1000,
                 severity="normal",
             )
+            self._record_thinking(
+                "integrated_anomaly_processed",
+                "Confirm normal node state after detection phase",
+                {
+                    "node_hash": _safe_hash(node_id),
+                    "service_hash": _safe_hash(service_id) if service_id else None,
+                    "features": _safe_features_summary(node_features),
+                    "neighbor_count_bucket": _safe_count_bucket(len(neighbors)),
+                    "is_anomaly": False,
+                    "anomaly_score_band": _safe_number_band(result.anomaly_score),
+                    "latency_band": _safe_number_band(result.total_latency_ms),
+                },
+            )
+            return result
 
     def _create_incident_id(self, node_id: str) -> str:
         """Create unique incident ID"""
@@ -363,7 +497,7 @@ class IntegratedAnomalyAnalyzer:
             if r.causal_confidence > 0
         ]
 
-        return {
+        report = {
             "status": "ok",
             "summary": {
                 "total_incidents": total_incidents,
@@ -391,13 +525,48 @@ class IntegratedAnomalyAnalyzer:
                 for r in list(self.completed_analyses.values())[-10:]
             ],
         }
+        self._record_thinking(
+            "integrated_anomaly_report",
+            "Summarize integrated anomaly analyses safely",
+            {
+                "total_incidents_bucket": _safe_count_bucket(total_incidents),
+                "critical_count_bucket": _safe_count_bucket(critical),
+                "high_count_bucket": _safe_count_bucket(high),
+                "avg_detection_latency_band": _safe_number_band(
+                    avg_detection_latency
+                ),
+                "root_cause_type_count_bucket": _safe_count_bucket(
+                    len(root_cause_counts)
+                ),
+                "average_causal_confidence_band": _safe_number_band(
+                    report["average_causal_confidence"]
+                ),
+            },
+        )
+        return report
 
     def export_to_json(self, incident_id: str) -> str:
         """Export incident analysis to JSON"""
         if incident_id not in self.completed_analyses:
+            self._record_thinking(
+                "integrated_anomaly_export",
+                "Report missing incident export target",
+                {"incident_hash": _safe_hash(incident_id), "found": False},
+            )
             return json.dumps({"error": "Incident not found"})
 
         result = self.completed_analyses[incident_id]
+        self._record_thinking(
+            "integrated_anomaly_export",
+            "Export incident analysis safely",
+            {
+                "incident_hash": _safe_hash(incident_id),
+                "node_hash": _safe_hash(result.node_id),
+                "severity": result.severity,
+                "root_cause_count_bucket": _safe_count_bucket(len(result.root_causes)),
+                "action_count_bucket": _safe_count_bucket(len(result.immediate_actions)),
+            },
+        )
 
         return json.dumps(
             {

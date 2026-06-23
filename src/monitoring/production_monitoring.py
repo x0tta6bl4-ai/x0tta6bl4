@@ -8,12 +8,14 @@ Provides comprehensive monitoring for production deployment:
 - Performance tracking
 """
 
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from prometheus_client import Counter, Gauge, Histogram
+from src.core.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,69 @@ gtm_total_revenue = Gauge("gtm_total_revenue_rub", "Total revenue in RUB")
 gtm_conversion_rate = Gauge("gtm_conversion_rate_percent", "Conversion rate percentage")
 
 
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    if value <= 1000:
+        return "100-1000"
+    return "1000+"
+
+
+def _safe_metrics_summary(metrics: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "metric_count_bucket": _safe_count_bucket(len(metrics)),
+        "metric_key_hashes": sorted(_safe_hash(key) for key in metrics.keys()),
+        "numeric_bands": {
+            _safe_hash(key): _safe_number_band(value)
+            for key, value in metrics.items()
+            if isinstance(value, (int, float))
+        },
+        "has_timestamp": bool(metrics.get("timestamp")),
+    }
+
+
+def _safe_threshold_summary(thresholds: List["AlertThreshold"]) -> Dict[str, Any]:
+    severity_counts: Dict[str, int] = {}
+    comparison_counts: Dict[str, int] = {}
+    for threshold in thresholds:
+        severity_counts[threshold.severity] = severity_counts.get(threshold.severity, 0) + 1
+        comparison_counts[threshold.comparison] = (
+            comparison_counts.get(threshold.comparison, 0) + 1
+        )
+    return {
+        "threshold_count_bucket": _safe_count_bucket(len(thresholds)),
+        "metric_hashes": sorted(_safe_hash(threshold.metric_name) for threshold in thresholds),
+        "severity_counts": severity_counts,
+        "comparison_counts": comparison_counts,
+    }
+
+
 @dataclass
 class AlertThreshold:
     """Alert threshold configuration"""
@@ -98,11 +163,58 @@ class ProductionMonitor:
         self.metrics_history: List[Dict[str, Any]] = []
         self.alerts: List[Dict[str, Any]] = []
         self.start_time = datetime.now()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="production-monitor",
+            role="monitoring",
+            capabilities=("ops", "healing", "quality"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Load default alert thresholds
         self._load_default_thresholds()
+        self._record_thinking(
+            "production_monitor_init",
+            "Initialize production monitoring with safe threshold context",
+            {
+                "alerting_enabled": self.config.enable_alerting,
+                "metrics_retention_hours": self.config.metrics_retention_hours,
+                "sample_interval_seconds": self.config.sample_interval_seconds,
+                "thresholds": _safe_threshold_summary(self.config.alert_thresholds),
+            },
+        )
 
         logger.info("Production Monitor initialized")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_metric_labels": True,
+                    "redact_endpoints": True,
+                    "redact_user_defined_metric_names": True,
+                    "preserve_threshold_decision": True,
+                },
+                "safety_boundary": (
+                    "Use metric-key hashes, counts, value bands, severity counts, "
+                    "and health booleans only."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     def _load_default_thresholds(self):
         """Load default alert thresholds."""
@@ -373,10 +485,23 @@ class ProductionMonitor:
         if self.config.enable_alerting:
             self._check_alerts(metrics, throughput_unknown=throughput_unknown)
 
+        self._record_thinking(
+            "production_metrics_collection",
+            "Summarize collected production metrics safely",
+            {
+                "metrics": _safe_metrics_summary(metrics),
+                "history_size_bucket": _safe_count_bucket(len(self.metrics_history)),
+                "alerting_enabled": self.config.enable_alerting,
+                "throughput_unknown": throughput_unknown,
+            },
+        )
+
         return metrics
 
     def _check_alerts(self, metrics: Dict[str, Any], throughput_unknown: bool = False):
         """Check if any metrics exceed alert thresholds."""
+        triggered_count = 0
+        triggered_severities: Dict[str, int] = {}
         for threshold in self.config.alert_thresholds:
             metric_value = metrics.get(threshold.metric_name)
 
@@ -415,6 +540,10 @@ class ProductionMonitor:
                 }
 
                 self.alerts.append(alert)
+                triggered_count += 1
+                triggered_severities[threshold.severity] = (
+                    triggered_severities.get(threshold.severity, 0) + 1
+                )
 
                 # Send alert (would integrate with alerting system)
                 logger.warning(
@@ -422,6 +551,17 @@ class ProductionMonitor:
                     f"{threshold.description} "
                     f"(value: {metric_value}, threshold: {threshold.threshold_value})"
                 )
+        self._record_thinking(
+            "production_alert_threshold_check",
+            "Evaluate metrics against configured alert thresholds",
+            {
+                "metrics": _safe_metrics_summary(metrics),
+                "thresholds": _safe_threshold_summary(self.config.alert_thresholds),
+                "throughput_unknown": throughput_unknown,
+                "triggered_count_bucket": _safe_count_bucket(triggered_count),
+                "triggered_severities": triggered_severities,
+            },
+        )
 
     def get_dashboard_data(self) -> Dict[str, Any]:
         """
@@ -444,7 +584,7 @@ class ProductionMonitor:
         else:
             memory_avg = memory_max = cpu_avg = cpu_max = 0
 
-        return {
+        dashboard = {
             "current": current_metrics,
             "statistics": {
                 "memory_avg_mb": memory_avg,
@@ -455,6 +595,18 @@ class ProductionMonitor:
             "alerts": self.alerts[-10:],  # Last 10 alerts
             "uptime_seconds": (datetime.now() - self.start_time).total_seconds(),
         }
+        self._record_thinking(
+            "production_dashboard_snapshot",
+            "Prepare dashboard health summary without exposing raw metric labels",
+            {
+                "current_metrics": _safe_metrics_summary(current_metrics),
+                "history_size_bucket": _safe_count_bucket(len(self.metrics_history)),
+                "visible_alert_count_bucket": _safe_count_bucket(
+                    len(dashboard["alerts"])
+                ),
+            },
+        )
+        return dashboard
 
     def get_health_status(self) -> Dict[str, Any]:
         """
@@ -481,13 +633,24 @@ class ProductionMonitor:
             is_healthy = False
             issues.append("High CPU usage")
 
-        return {
+        health_status = {
             "status": "healthy" if is_healthy else "unhealthy",
             "timestamp": datetime.now().isoformat(),
             "uptime_seconds": metrics["uptime_seconds"],
             "metrics": metrics,
             "issues": issues,
         }
+        self._record_thinking(
+            "production_health_status",
+            "Classify production health from redacted metric bands",
+            {
+                "metrics": _safe_metrics_summary(metrics),
+                "is_healthy": is_healthy,
+                "issue_count_bucket": _safe_count_bucket(len(issues)),
+                "issue_hashes": sorted(_safe_hash(issue) for issue in issues),
+            },
+        )
+        return health_status
 
 
 # Global instance

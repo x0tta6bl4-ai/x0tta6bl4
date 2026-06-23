@@ -89,7 +89,7 @@ COMPILED_PATTERNS = [re.compile(p) for p in SUSPICIOUS_PATTERNS]
 
 # Blocked headers (security-sensitive)
 BLOCKED_HEADERS = {
-    "x-forwarded-host",  # Can be spoofed
+    # "x-forwarded-host",  # Allowed for Ngrok/Proxy
     "x-original-url",
     "x-rewrite-url",
 }

@@ -17,6 +17,7 @@ stages:
   - validate
   - build
   - test
+  - securityscan
   - security
   - deploy
   - monitor
@@ -62,6 +63,14 @@ variables:
 # ============================================================================
 # Stage 1: Validate
 # ============================================================================
+
+validate:pqc-env:
+  stage: validate
+  image: python:3.11-slim
+  script:
+    - pip install liboqs-python || echo "liboqs-python not in pip"
+    - python3 -c "import oqs; print('✅ PQC Library Available')" || echo "⚠️ PQC Library Missing - Falling back to Simulated Mode"
+  allow_failure: true
 
 validate:lint:
   stage: validate
@@ -194,6 +203,48 @@ build:controller:
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
+
+# ============================================================================
+# Action 1: Parallel Tests & Security Gate
+# ============================================================================
+
+test:affected:
+  stage: test
+  parallel: 4
+  image: node:20-alpine
+  extends: .cache_node
+  script:
+    - npm ci
+    # Fallback to 'main' if MR base SHA is missing
+    - NX_BASE=${CI_MERGE_REQUEST_DIFF_BASE_SHA:-"main"}
+    - npx nx affected:test --base=$NX_BASE --head=$CI_COMMIT_SHA --ci -- --maxWorkers=1 --shard=$CI_NODE_INDEX/$CI_NODE_TOTAL
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+
+security:gate:
+  stage: securityscan
+  image: docker:stable
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  cache:
+    key: "trivy-snyk-db-cache"
+    paths:
+      - .cache/trivy
+      - .npm/
+  script:
+    - apk add --no-cache bash jq curl npm
+    - mkdir -p .cache/trivy
+    - npm install -g snyk-to-html
+    - chmod +x scripts/ops/security-scan.sh
+    - ./scripts/ops/security-scan.sh --snyk --trivy --severity HIGH --image $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA --output security-report.html
+  artifacts:
+    paths:
+      - scan-results/security-report.html
+    expire_in: 1 week
+  allow_failure: false
 
 # ============================================================================
 # Stage 3: Test

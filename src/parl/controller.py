@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Callable
 
+from src.core.agent_thinking import AgentThinkingCoach
 from src.parl.types import (
     Task, TaskId, Experience, Policy, StepResult, 
     PARLMetrics, PPOConfig, WorkerId
@@ -135,6 +136,13 @@ class PARLController:
         self._initialized = False
         self._shutdown = False
         self._lock = asyncio.Lock()
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="parl_controller",
+            role="coordinator",
+            capabilities=("fl", "ops", "quality"),
+            extra_techniques=("mape_k",),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
         
         # Callbacks
         self._on_task_complete: Optional[Callable] = None
@@ -260,6 +268,18 @@ class PARLController:
             raise RuntimeError("PARLController not initialized")
         
         start_time = time.time()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "parl_parallel_execution",
+                "goal": "Execute tasks across PARL workers with bounded parallelism.",
+                "task_count": len(tasks),
+                "constraints": {
+                    "max_parallel_steps": self.config.max_parallel_steps,
+                    "num_workers": self.config.num_workers,
+                    "preserve_result_type": "StepResult",
+                },
+            }
+        )
         results: List[StepResult] = []
 
         async with self._lock:
@@ -383,6 +403,17 @@ class PARLController:
             return
         
         start_time = time.time()
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "parl_policy_update",
+                "goal": "Update the global PARL policy from collected experience.",
+                "experience_count": len(experiences),
+                "constraints": {
+                    "enable_policy_learning": self.config.enable_policy_learning,
+                    "policy_version": self._policy_version,
+                },
+            }
+        )
         
         # Aggregate experiences
         aggregated = self._aggregate_experiences(experiences)

@@ -1,0 +1,92 @@
+{
+  "packet_id": "nl-anti-block-remote-client-evidence-request-2026-06-02",
+  "generated_at": "2026-06-06T15:47:38Z",
+  "decision": "REMOTE_CLIENT_EVIDENCE_REQUEST_READY",
+  "source_matrix": "nl-diagnostics/nl-anti-block-client-compatibility-matrix-2026-06-02.json",
+  "matrix_decision": "CLIENT_MATRIX_PARTIAL_REAL_DEVICES_REQUIRED",
+  "evidence_session_id": "nl-anti-block-2026-06-02",
+  "evidence_session_started_at": "2026-06-02T00:00:00Z",
+  "missing_requirements": [
+    "android_happ_or_hiddify",
+    "mobile_network",
+    "restricted_or_work_wifi"
+  ],
+  "minimum_reports_required": 2,
+  "request_count": 2,
+  "checked_at_policy": "generated commands omit --checked-at so the recorder stores current UTC; append --checked-at <ISO8601_Z> only when recording a delayed report",
+  "request_freshness_policy": "record_remote_client_evidence_reply.py rejects request packets older than 24 hours; refresh this packet before recording delayed replies",
+  "request_packet_hash_binding_policy": "record_remote_client_evidence_reply.py supports --expect-request-packet-sha256; before recording a reply, bind it to the exact request artifact hash from scripts/vpn_status.sh --json client_evidence.remote_request_packet.source_sha256 or from sha256sum of this request packet",
+  "direct_record_commands_policy": "Direct record_remote_client_evidence.py --write commands are disabled in this remote request packet; record tester replies only through operator_reply_record_* commands so every persisted reply is bound to the current request packet SHA-256.",
+  "requests": [
+    {
+      "request_id": "remote-client-evidence-1",
+      "covers_requirements": [
+        "android_happ_or_hiddify",
+        "mobile_network"
+      ],
+      "client": "Happ",
+      "network_type": "mobile",
+      "transport": "reality",
+      "port": 443,
+      "evidence_session_id": "nl-anti-block-2026-06-02",
+      "evidence_session_started_at": "2026-06-02T00:00:00Z",
+      "minimum_result_to_close_requirements": "pass",
+      "tester_message": "Test remote-client-evidence-1: use Happ or Hiddify on mobile data, not Wi-Fi. Select the active Ghost Access Reality profile on port 443. Open any normal encrypted website or app through the VPN. Reply only with: pass connected, fail timeout, fail import, or fail no-internet. Do not send profile links, subscription links, QR codes, UUIDs, IP addresses, usernames, phone numbers, handles, screenshots, or logs.",
+      "operator_record_command_policy": "Direct record_remote_client_evidence.py --write commands are disabled in this remote request packet; record tester replies only through operator_reply_record_* commands so every persisted reply is bound to the current request packet SHA-256.",
+      "operator_record_pass_command": "",
+      "operator_reply_record_pass_command": "printf '%s\\n' \"pass connected\" | python3 services/nl-server/ghost-access/record_remote_client_evidence_reply.py --write --record-matrix --refresh-artifacts --expect-request-packet-sha256 \"$(sha256sum nl-diagnostics/nl-anti-block-remote-client-evidence-request-2026-06-02.json | awk '{print $1}')\" --request-id remote-client-evidence-1 --reply-stdin --json",
+      "operator_reply_validate_pass_command": "printf '%s\\n' \"pass connected\" | python3 services/nl-server/ghost-access/record_remote_client_evidence_reply.py --expect-request-packet-sha256 \"$(sha256sum nl-diagnostics/nl-anti-block-remote-client-evidence-request-2026-06-02.json | awk '{print $1}')\" --request-id remote-client-evidence-1 --reply-stdin --json",
+      "operator_record_fail_command": "",
+      "operator_reply_record_fail_command": "printf '%s\\n' \"fail timeout\" | python3 services/nl-server/ghost-access/record_remote_client_evidence_reply.py --write --record-matrix --refresh-artifacts --expect-request-packet-sha256 \"$(sha256sum nl-diagnostics/nl-anti-block-remote-client-evidence-request-2026-06-02.json | awk '{print $1}')\" --request-id remote-client-evidence-1 --reply-stdin --json",
+      "operator_reply_validate_fail_command": "printf '%s\\n' \"fail timeout\" | python3 services/nl-server/ghost-access/record_remote_client_evidence_reply.py --expect-request-packet-sha256 \"$(sha256sum nl-diagnostics/nl-anti-block-remote-client-evidence-request-2026-06-02.json | awk '{print $1}')\" --request-id remote-client-evidence-1 --reply-stdin --json",
+      "safe_reply_options": [
+        "pass connected",
+        "fail timeout",
+        "fail import",
+        "fail no-internet"
+      ]
+    },
+    {
+      "request_id": "remote-client-evidence-2",
+      "covers_requirements": [
+        "restricted_or_work_wifi"
+      ],
+      "client": "any",
+      "network_type": "work-wifi",
+      "transport": "reality",
+      "port": 443,
+      "evidence_session_id": "nl-anti-block-2026-06-02",
+      "evidence_session_started_at": "2026-06-02T00:00:00Z",
+      "minimum_result_to_close_requirements": "pass",
+      "tester_message": "Test remote-client-evidence-2: use Happ or Hiddify on the restricted or work Wi-Fi. Select the active Ghost Access Reality profile on port 443. Open any normal encrypted website or app through the VPN. Reply only with: pass connected, fail timeout, fail import, or fail no-internet. Do not send profile links, subscription links, QR codes, UUIDs, IP addresses, usernames, phone numbers, handles, screenshots, or logs.",
+      "operator_record_command_policy": "Direct record_remote_client_evidence.py --write commands are disabled in this remote request packet; record tester replies only through operator_reply_record_* commands so every persisted reply is bound to the current request packet SHA-256.",
+      "operator_record_pass_command": "",
+      "operator_reply_record_pass_command": "printf '%s\\n' \"pass connected\" | python3 services/nl-server/ghost-access/record_remote_client_evidence_reply.py --write --record-matrix --refresh-artifacts --expect-request-packet-sha256 \"$(sha256sum nl-diagnostics/nl-anti-block-remote-client-evidence-request-2026-06-02.json | awk '{print $1}')\" --request-id remote-client-evidence-2 --reply-stdin --json",
+      "operator_reply_validate_pass_command": "printf '%s\\n' \"pass connected\" | python3 services/nl-server/ghost-access/record_remote_client_evidence_reply.py --expect-request-packet-sha256 \"$(sha256sum nl-diagnostics/nl-anti-block-remote-client-evidence-request-2026-06-02.json | awk '{print $1}')\" --request-id remote-client-evidence-2 --reply-stdin --json",
+      "operator_record_fail_command": "",
+      "operator_reply_record_fail_command": "printf '%s\\n' \"fail timeout\" | python3 services/nl-server/ghost-access/record_remote_client_evidence_reply.py --write --record-matrix --refresh-artifacts --expect-request-packet-sha256 \"$(sha256sum nl-diagnostics/nl-anti-block-remote-client-evidence-request-2026-06-02.json | awk '{print $1}')\" --request-id remote-client-evidence-2 --reply-stdin --json",
+      "operator_reply_validate_fail_command": "printf '%s\\n' \"fail timeout\" | python3 services/nl-server/ghost-access/record_remote_client_evidence_reply.py --expect-request-packet-sha256 \"$(sha256sum nl-diagnostics/nl-anti-block-remote-client-evidence-request-2026-06-02.json | awk '{print $1}')\" --request-id remote-client-evidence-2 --reply-stdin --json",
+      "safe_reply_options": [
+        "pass connected",
+        "fail timeout",
+        "fail import",
+        "fail no-internet"
+      ]
+    }
+  ],
+  "android_adb_probe_decision": "ANDROID_DEVICE_NOT_CONNECTED",
+  "privacy": {
+    "output_privacy_ok": true,
+    "raw_subscription_url_stored": false,
+    "raw_vpn_uri_stored": false,
+    "raw_uuid_stored": false,
+    "raw_ip_stored": false,
+    "raw_email_stored": false,
+    "raw_reporter_identifier_stored": false,
+    "raw_telegram_handle_stored": false,
+    "raw_phone_stored": false,
+    "raw_url_stored": false,
+    "raw_screenshot_stored": false,
+    "raw_logs_stored": false
+  }
+}

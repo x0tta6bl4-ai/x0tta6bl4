@@ -1,0 +1,7 @@
+timestamp_utc=20260608T201802Z
+server=89.125.1.107
+reason=ghost-vpn.service restart loop: UDP 4433 already owned by ghost-pulse-vpn.service
+local_prereq=sudo ip route replace 89.125.1.107/32 via 192.168.0.1 dev enp8s0 src 192.168.0.104
+action=systemctl disable --now ghost-vpn.service ghost-tcp-bridge.service; systemctl reset-failed ghost-vpn.service ghost-tcp-bridge.service
+expected=ghost-vpn loop stops; ghost-pulse-vpn remains active on UDP 4433; VLESS x-ui/xray untouched
+rollback=systemctl enable --now ghost-vpn.service ghost-tcp-bridge.service

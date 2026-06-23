@@ -1,0 +1,63 @@
+{
+  "admission": {
+    "admission_only": true,
+    "ok": true,
+    "rx_frames": 0,
+    "tx_frames": 0
+  },
+  "artifact_hashes": {
+    "admission": "49d665281056eea6378e0321a341d67b12f0cfa4b2086c952d5e964d945e2f53",
+    "dataplane_readiness": "c312321629bda3669b8648beeeae7e7f13b84f455c59a5b5d8a90eabf42f3fb0",
+    "generate": "644126675d5e558fcde8fcbb3c61d375ade9d35b276d05af8988561ca13d5745",
+    "probe": "e3d5615ba5ebea762bab273a7b2009fc9d86b80ba469504a1e8c407136d475e1",
+    "server": "ac1e45cf59dfef697b300dd323d6f80e6f5727ee387ffecbce95d792afc24226",
+    "source_audit": "9df35f35641610dfcda12bc6de66e8e6c660efd770ea45d1e7a3f90ffd8fb152"
+  },
+  "dataplane_readiness": {
+    "allowed": false,
+    "ok": false,
+    "required_dataplane_paths": [
+      "local-loopback"
+    ],
+    "required_dataplane_probe_matrix_hash": "e3c12b5df599d62f987cf73c079d2d64308d7867f9e0040dc15a65645ef16060",
+    "required_dataplane_transports": [
+      [
+        "local-loopback",
+        "tcp"
+      ]
+    ]
+  },
+  "generated_at": "2026-06-06T20:29:40Z",
+  "local_only": true,
+  "mode": "firstparty-live-canary",
+  "nl_write_performed": false,
+  "ok": true,
+  "probe": {
+    "data_response_ok": true,
+    "ok": true,
+    "ping_pong_ok": true,
+    "rx_frames": 2,
+    "selected_endpoint": {
+      "candidate_hash": "80cd16513e81f61c2326c3690a7a84676de2917db6125e3a142f7fd5c4bac39f",
+      "path_label": "local-firstparty-canary-tcp",
+      "priority": 0,
+      "remote_hash": "cf991fb736afd62acf8603741439f580b7659fc6b689c334da1951812a2c90a1",
+      "timeout_millis": 5000,
+      "transport": "tcp"
+    },
+    "tx_frames": 2
+  },
+  "raw_config_stored": false,
+  "schema_version": 1,
+  "secret_material_stored": false,
+  "server_mode": "server",
+  "source_audit": {
+    "allowed": true,
+    "ok": true,
+    "reasons": null,
+    "scanned_files": 37,
+    "source_tree_hash": "74ae83244208bd720e3d8dd967b5630a5571aab968a878a919da22d6df31aa26"
+  },
+  "spb_write_performed": false,
+  "transport": "tcp"
+}

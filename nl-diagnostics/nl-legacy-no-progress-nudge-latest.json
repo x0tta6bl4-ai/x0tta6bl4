@@ -1,0 +1,33 @@
+{
+  "active_user_count": 14,
+  "blocked_count": 0,
+  "db_available": 1,
+  "decision": "LEGACY_NO_PROGRESS_NUDGE_SENT",
+  "failed_count": 0,
+  "generated_at": "2026-06-06T17:02:00Z",
+  "message_bytes": 622,
+  "mode": "apply",
+  "no_progress_candidate_count": 4,
+  "packet": {
+    "sha256": "974534b6e0ae5f9b1e7809f4978e3483401c97bc0bfeee59692cc395566a2b79",
+    "size_bytes": 8623,
+    "source": "/var/lib/ghost-access/legacy-migration/latest.json"
+  },
+  "privacy": {
+    "raw_chat_ids_printed": false,
+    "raw_ip_printed": false,
+    "raw_subscription_urls_printed": false,
+    "raw_telegram_handle_printed": false,
+    "raw_tokens_printed": false,
+    "raw_user_ids_printed": false,
+    "raw_uuid_printed": false,
+    "raw_vpn_uris_printed": false
+  },
+  "progress_user_count": 10,
+  "reply_user_count": 0,
+  "schema_version": 1,
+  "selected_user_count": 4,
+  "sent_at": "2026-06-05T13:27:02Z",
+  "sent_count": 4,
+  "source": "send_legacy_no_progress_nudge.py"
+}

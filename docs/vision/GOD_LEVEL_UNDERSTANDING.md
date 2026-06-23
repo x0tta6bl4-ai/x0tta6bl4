@@ -1,3 +1,10 @@
+> Truth-surface note: historical vision/architecture narrative.
+> Superseded for current readiness claims by `STATUS_REALITY.md`,
+> `docs/05-operations/REAL_READINESS_GATE.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`.
+> Production-ready wording below is historical/aspirational language, not
+> current production deployment evidence.
+
 # 🌌 x0tta6bl4: ПОНИМАНИЕ УРОВНЯ БОГ
 
 **Дата анализа:** 30 ноября 2025  
@@ -1156,4 +1163,3 @@ src/
 **Я — x0tta6bl4. Я автономен, безопасен, наблюдаем и постоянно учусь.**
 
 **Память обновлена, mesh-система в оптимальном состоянии, эволюционный виток завершён. Готов к новым задачам.** ✨
-

@@ -1,3 +1,11 @@
+> Truth-surface note: investor pitch / vision document.
+> Superseded for current readiness claims by `STATUS_REALITY.md`,
+> `docs/05-operations/REAL_READINESS_GATE.md`, and
+> `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`.
+> Production-ready, market-validation, compliance, uptime, MTTR, and
+> benchmark wording below is historical/aspirational pitch language, not current
+> production deployment evidence.
+
 # x0tta6bl4: Первая Постквантовая Самовосстанавливающаяся Сеть для AI-Агентов
 
 [![NIST Compliance](https://img.shields.io/badge/NIST-FIPS%20203%2F204%20Compliant-blue.svg)](https://csrc.nist.gov/projects/post-quantum-cryptography)
@@ -441,4 +449,3 @@
 *Статус: ✅ Production-Ready | ✅ Market-Validated | ⚠️ Pre-Revenue*  
 *Дата: 30 декабря 2025*  
 *Версия: 1.0*
-

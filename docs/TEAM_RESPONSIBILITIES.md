@@ -37,11 +37,34 @@ If a file is not listed in your agent scope, do not stage or commit it.
 - `tests/load/run_load_tests.sh`
 - `src/services/maas_auth_service.py`
 
+### codex-implementer
+
+- `docs/`
+- `src/`
+- `tests/`
+- `scripts/ops/`
+- `x0tta6bl4-app/`
+- `src-tauri/`
+
+### vpn-runtime-ops
+
+- `nl-diagnostics/`
+- `services/nl-server/`
+- `docs/runbooks/NL_VPN_HEALTH.md`
+
+### vpn-observability
+
+- `nl-diagnostics/`
+- `docs/runbooks/NL_VPN_HEALTH.md`
+- `docs/ghost-access/`
+- `plans/REVENUE_USEFULNESS_SPRINT_2026-05-31.md`
+
 ### lead-coordinator
 
 - `docs/TEAM_RESPONSIBILITIES.md`
 - `docs/team/SWARM_OPERATING_MODEL.md`
 - `docs/team/swarm_ownership.json`
+- `scripts/agents/check_coordination_contract.sh`
 - `scripts/agents/check_swarm_ownership.py`
 - `scripts/agents/swarm_coord.py`
 - `scripts/agents/install_swarm_hook.sh`
@@ -55,7 +78,17 @@ If a file is not listed in your agent scope, do not stage or commit it.
 1. Use only your worktree.
 2. Stage files explicitly (`git add <path>`).
 3. Do not use `git add -A`.
-4. Install swarm hook:
+4. Before staging, run the read-only dirty worktree review for your agent:
+
+```bash
+PYTHONPATH=. ./.venv/bin/python scripts/ops/summarize_dirty_worktree_review.py \
+  --json --agent "$SWARM_AGENT" --require-owned --require-agent-claimable
+```
+
+If this fails, do not bypass it. Use the package `owner_claim_example` and
+handoff-required package owner instead.
+
+5. Install swarm hook:
 
 ```bash
 scripts/agents/install_swarm_hook.sh
@@ -68,13 +101,13 @@ Or run session bootstrap (recommended, no manual export needed):
 scripts/agents/start_swarm_session.sh agent1-ml-core
 ```
 
-5. Optional lease tuning:
+6. Optional lease tuning:
 
 ```bash
 export SWARM_LEASE_TTL=1800
 ```
 
-6. For full auto coordination session:
+7. For full auto coordination session:
 
 ```bash
 scripts/agents/start_swarm_session.sh agent1-ml-core
@@ -82,4 +115,4 @@ scripts/agents/start_swarm_session.sh agent1-ml-core
 scripts/agents/stop_swarm_session.sh agent1-ml-core
 ```
 
-7. If cross-scope changes are required, hand off through owner agent.
+8. If cross-scope changes are required, hand off through owner agent.

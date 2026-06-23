@@ -54,8 +54,8 @@ def mock_x509_certificate(mocker):
 # --- WorkloadAPIClient.__init__ Tests ---
 
 
-def test_init_mock_mode_default_warning(caplog):
-    """Test default initialization in mock mode (SDK unavailable, no explicit force mock)."""
+def test_init_fails_closed_without_explicit_mock(caplog):
+    """Missing SDK must not silently fall back to mock SPIFFE."""
     with (
         patch(
             "src.security.spiffe.workload.api_client.SPIFFE_SDK_AVAILABLE", new=False
@@ -66,11 +66,9 @@ def test_init_mock_mode_default_warning(caplog):
         patch.dict(os.environ, {"X0TTA6BL4_FORCE_MOCK_SPIFFE": "false"}),
     ):
         with caplog.at_level(logging.WARNING):
-            client = WorkloadAPIClient()
-            assert client._force_mock_spiffe is True
-            assert "Workload API client initialized in MOCK mode" in caplog.text
-            assert "SPIFFE SDK not available" in caplog.text
-            # assert "SPIFFE endpoint socket not configured" in caplog.text # This warning is conditionally skipped by app logic
+            with pytest.raises(ImportError, match="required for real SPIFFE"):
+                WorkloadAPIClient()
+            assert "Workload API client initialized in MOCK mode" not in caplog.text
 
 
 def test_init_force_mock_mode(caplog):
@@ -87,10 +85,9 @@ def test_init_force_mock_mode(caplog):
         with caplog.at_level(logging.WARNING):
             client = WorkloadAPIClient()
             assert client._force_mock_spiffe is True
-            assert "Workload API client initialized in MOCK mode" in caplog.text
-            assert (
-                "SPIFFE SDK not available" not in caplog.text
-            )  # Warning should be suppressed
+            assert "explicit MOCK mode" in caplog.text
+            assert "not real SPIRE evidence" in caplog.text
+            assert "SPIFFE SDK not available" in caplog.text
             assert (
                 "SPIFFE endpoint socket not configured" not in caplog.text
             )  # Warning should be suppressed
@@ -119,7 +116,7 @@ def test_init_production_no_sdk_error():
         ),
     ):
         with pytest.raises(
-            ImportError, match="The 'spiffe' SDK is REQUIRED in production."
+            ImportError, match="required for real SPIFFE"
         ):
             WorkloadAPIClient()
 
@@ -128,14 +125,20 @@ def test_init_production_no_endpoint_error():
     """Test initialization in production mode without SPIFFE_ENDPOINT_SOCKET."""
     os.environ["X0TTA6BL4_PRODUCTION"] = "true"
     os.environ["SPIFFE_ENDPOINT_SOCKET"] = ""  # Ensure it's empty
-    with pytest.raises(
-        ValueError, match="SPIFFE endpoint socket is REQUIRED in production"
+    with (
+        patch(
+            "src.security.spiffe.workload.api_client.SPIFFE_SDK_AVAILABLE", new=True
+        ),
+        pytest.raises(
+            ValueError, match="SPIFFE endpoint socket is required for real SPIFFE"
+        ),
     ):
         WorkloadAPIClient()
 
 
 def test_init_trust_bundle_path():
     """Test initialization with explicit trust_bundle_path."""
+    os.environ["X0TTA6BL4_FORCE_MOCK_SPIFFE"] = "true"
     mock_path_obj = MagicMock(spec=Path)
     mock_path_obj.read_bytes.return_value = b"mock cert data"
     with patch("pathlib.Path", return_value=mock_path_obj):
@@ -145,6 +148,7 @@ def test_init_trust_bundle_path():
 
 def test_init_trust_bundle_env_var():
     """Test initialization with SPIFFE_TRUST_BUNDLE_PATH env var."""
+    os.environ["X0TTA6BL4_FORCE_MOCK_SPIFFE"] = "true"
     os.environ["SPIFFE_TRUST_BUNDLE_PATH"] = "/env/bundle.pem"
     client = WorkloadAPIClient()
     assert client.trust_bundle_path == Path("/env/bundle.pem")
@@ -155,7 +159,8 @@ def test_init_trust_bundle_env_var():
 
 def test_mock_fetch_x509_svid():
     """Test the internal mock method for X.509 SVID."""
-    client = WorkloadAPIClient()  # This will initialize in mock mode
+    os.environ["X0TTA6BL4_FORCE_MOCK_SPIFFE"] = "true"
+    client = WorkloadAPIClient()
     svid = client._mock_fetch_x509_svid()
     assert svid.spiffe_id == "spiffe://mock.domain/workload/mock-app"
     assert svid.private_key == b"MOCK_PRIVATE_KEY"
@@ -192,6 +197,7 @@ def test_fetch_x509_svid_mock_mode_cache():
 
 def test_mock_fetch_jwt_svid():
     """Test the internal mock method for JWT SVID."""
+    os.environ["X0TTA6BL4_FORCE_MOCK_SPIFFE"] = "true"
     client = WorkloadAPIClient()
     audience = ["aud1", "aud2"]
     jwt_svid = client._mock_fetch_jwt_svid(audience)

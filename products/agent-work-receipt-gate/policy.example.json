@@ -1,0 +1,31 @@
+{
+  "product_name": "Agent Work Receipt Gate",
+  "required_source_truth": [
+    "docs/agent-engineering/VERIFIED_AGENT_WORK_PROTOCOL.md",
+    "products/agent-work-receipt-gate/policy.example.json"
+  ],
+  "required_commands": [
+    "python3 -m py_compile scripts/agents/agent_work_receipt_gate.py",
+    "python3 -m pytest tests/unit/scripts/test_agent_work_receipt_gate.py -q"
+  ],
+  "required_checklist": [
+    "source truth inspected",
+    "verification commands recorded",
+    "claim boundary preserved"
+  ],
+  "forbidden_claim_patterns": [
+    "production ready",
+    "customer traffic proven",
+    "settlement finality proven",
+    "external runtime certified"
+  ],
+  "require_memory_considered": true,
+  "require_manual_path_reason": true,
+  "require_all_verifications_passed": true,
+  "require_remaining_gaps": true,
+  "allowed_checklist_status": [
+    "covered",
+    "not_covered",
+    "blocked"
+  ]
+}

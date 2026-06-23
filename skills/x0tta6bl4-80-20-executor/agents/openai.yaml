@@ -2,3 +2,8 @@ interface:
   display_name: "x0tta6bl4 80/20 Executor"
   short_description: "Runs high-leverage automated agent cycle for x0tta6bl4."
   default_prompt: "Run the 80/20 automation cycle for x0tta6bl4."
+
+thinking_contract:
+  source: "docs/ai_agents/THINKING_TECHNIQUES_FOR_AGENTS.md"
+  runtime_source: "src/core/agent_thinking.py"
+  required_for_all_agents: true

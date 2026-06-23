@@ -11,6 +11,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,6 +74,12 @@ class SpecToCodeAgent:
         """
         self.config = config or {}
         self.is_initialized = False
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="spec-to-code",
+            role="development",
+            capabilities=("code_generation", "planning", "rag"),
+        )
+        self.last_thinking_context: Optional[dict] = None
         logger.info("SpecToCodeAgent initialized")
     
     async def initialize(self) -> None:
@@ -93,7 +101,18 @@ class SpecToCodeAgent:
             await self.initialize()
         
         logger.info(f"Generating {spec.language.value} code for {spec.name}")
-        
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "type": "spec_to_code",
+                "name": spec.name,
+                "description": spec.description,
+                "code_type": spec.code_type.value,
+                "goal": f"generate {spec.language.value} {spec.code_type.value}",
+                "constraints": spec.constraints or {},
+                "requirements": spec.requirements,
+            }
+        )
+
         # Simple template-based generation (placeholder for LLM integration)
         code = self._generate_template(spec)
         
@@ -103,7 +122,12 @@ class SpecToCodeAgent:
             code_type=spec.code_type,
             specification=spec,
             quality_score=0.85,
-            metadata={"generated_by": "spec_to_code_agent"}
+            metadata={
+                "generated_by": "spec_to_code_agent",
+                "thinking_techniques": list(
+                    (self.last_thinking_context or {}).get("techniques", [])
+                ),
+            }
         )
     
     def _generate_template(self, spec: Specification) -> str:

@@ -41,9 +41,9 @@ class _StubBot:
 def _build_client(monkeypatch):
     app = FastAPI()
     stub = _StubBot()
-    monkeypatch.setattr(mod, "_health_bot", stub)
+    monkeypatch.setattr("src.api.maas.endpoints.agent_mesh._health_bot", stub)
     app.dependency_overrides[mod.get_current_user_from_maas] = lambda: {"id": "u-test"}
-    app.include_router(mod.router)
+    app.include_router(mod.router, prefix="/api/v1/maas/agents")
     return TestClient(app), stub
 
 
@@ -126,8 +126,8 @@ def test_health_history_endpoint(monkeypatch):
 def test_health_status_requires_auth_when_dependency_not_overridden(monkeypatch):
     app = FastAPI()
     stub = _StubBot()
-    monkeypatch.setattr(mod, "_health_bot", stub)
-    app.include_router(mod.router)
+    monkeypatch.setattr("src.api.maas.endpoints.agent_mesh._health_bot", stub)
+    app.include_router(mod.router, prefix="/api/v1/maas/agents")
     client = TestClient(app)
 
     response = client.get("/api/v1/maas/agents/health/status")

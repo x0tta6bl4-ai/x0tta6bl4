@@ -139,6 +139,9 @@ class TestMAPEOrchestrator:
         
         assert "latency_p95_value" in metrics
         prometheus.query.assert_called_once()
+        assert orchestrator.last_thinking_context["applied"]["framing"]["problem"] == (
+            "mape_monitor_cycle"
+        )
     
     @pytest.mark.asyncio
     async def test_analyze_cycle_no_action_needed(self, orchestrator):
@@ -169,6 +172,9 @@ class TestMAPEOrchestrator:
         
         assert len(actions) > 0
         assert any(a.action_type == HealingActionType.RE_ROUTE for a in actions)
+        assert orchestrator.last_thinking_context["applied"]["framing"]["problem"] == (
+            "mape_threshold_fallback_analysis"
+        )
     
     @pytest.mark.asyncio
     async def test_analyze_cycle_high_cpu(self, orchestrator):
@@ -226,6 +232,7 @@ class TestMAPEOrchestrator:
         assert "successful_healing_actions" in metrics
         assert "success_rate" in metrics
         assert "circuit_breaker_state" in metrics
+        assert metrics["thinking"]["profile"]["role"] == "healing"
     
     @pytest.mark.asyncio
     async def test_check_health_healthy(self, orchestrator):

@@ -1,0 +1,27 @@
+[Unit]
+Description=Ghost Access legacy no-progress nudge dry-run
+After=telegram-bot-simple.service ghost-access-legacy-migration-progress.service
+ConditionPathExists=/opt/ghost-access-bot/shared/scripts/send_legacy_no_progress_nudge.py
+ConditionPathExists=/opt/ghost-access-bot/shared/x0tta6bl4.db
+ConditionPathExists=/var/lib/ghost-access/legacy-migration/latest.json
+ConditionPathExists=/var/lib/ghost-access/legacy-migration/message-send.json
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/usr/bin/install -d -m 0750 -o root -g root /var/lib/ghost-access/legacy-migration
+ExecStart=/usr/bin/python3 /opt/ghost-access-bot/shared/scripts/send_legacy_no_progress_nudge.py --packet /var/lib/ghost-access/legacy-migration/latest.json --message-send /var/lib/ghost-access/legacy-migration/message-send.json --replies /var/lib/ghost-access/legacy-migration/replies.json --db-path /opt/ghost-access-bot/shared/x0tta6bl4.db --json-out /var/lib/ghost-access/legacy-migration/no-progress-nudge-dry-run.json --min-age-minutes 30 --cooldown-hours 12 --write --json
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/ghost-access-bot/shared
+ReadWritePaths=/var/lib/ghost-access/legacy-migration
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=true

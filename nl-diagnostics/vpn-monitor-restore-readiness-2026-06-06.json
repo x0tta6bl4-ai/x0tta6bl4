@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/build_vpn_monitor_restore_readiness.py",
+  "generated_at": "2026-06-07T05:02:18Z",
+  "decision": "MONITOR_RESTORE_READY_FOR_APPROVAL",
+  "ready_for_approval": true,
+  "apply_allowed_now": false,
+  "approval_required": true,
+  "approval_phrase": "APPLY_RESTORE_NL_VPN_MONITOR_CANARY_TIMER",
+  "local_precheck_command": "bash scripts/ops/restore_nl_vpn_monitor_canary_timer.sh --dry-run --precheck --host nl",
+  "apply_command": "RESTORE_NL_VPN_MONITOR_CONFIRM=APPLY_RESTORE_NL_VPN_MONITOR_CANARY_TIMER bash scripts/ops/restore_nl_vpn_monitor_canary_timer.sh --apply --host nl",
+  "rollback_command": "ssh nl 'sudo systemctl disable --now ghost-access-vpn-monitor.timer'",
+  "gates": [
+    {
+      "id": "DECISION-01",
+      "title": "Current decision points to canary monitor restore, not provider outage",
+      "status": "pass",
+      "ok": true,
+      "evidence": [
+        "decision=restore_transport_canary_monitor",
+        "failure_domain=monitoring",
+        "recommended_action=restore_transport_canary_monitor",
+        "blocking_category=monitoring_gap",
+        "safe_flags=true"
+      ],
+      "next_step": "refresh current-vpn-decision from the latest read-only snapshot"
+    },
+    {
+      "id": "GOAL-01",
+      "title": "Goal status carries the exact monitor-restore next step",
+      "status": "pass",
+      "ok": true,
+      "evidence": [
+        "goal_decision=VPN_PRODUCTION_CANDIDATE_GOAL_NOT_COMPLETE",
+        "core_status=missing",
+        "approval_phrase_in_next_step=true",
+        "no_writes=true"
+      ],
+      "next_step": "rebuild vpn-production-candidate-goal after updating current decision"
+    },
+    {
+      "id": "SCRIPT-01",
+      "title": "Monitor restore script is approval-gated and narrowly scoped",
+      "status": "pass",
+      "ok": true,
+      "evidence": [
+        "script_path=/mnt/projects/scripts/ops/restore_nl_vpn_monitor_canary_timer.sh",
+        "default_dry_run=true",
+        "approval_phrase=true",
+        "confirm_env=true",
+        "apply_requires_confirm=true",
+        "timer_enable=true",
+        "monitor_start=true",
+        "runtime_refresh=true",
+        "rollback_hint=true",
+        "forbidden_hits=none"
+      ],
+      "next_step": "fix restore script gating before any operator approval is accepted"
+    },
+    {
+      "id": "APPROVAL-01",
+      "title": "NL monitor restore remains blocked until explicit approval",
+      "status": "blocked_future_approval",
+      "ok": true,
+      "evidence": [
+        "required_phrase=APPLY_RESTORE_NL_VPN_MONITOR_CANARY_TIMER",
+        "apply_allowed_now=false",
+        "nl_write_performed=false"
+      ],
+      "next_step": "run the apply command only after the exact phrase is present"
+    }
+  ],
+  "no_nl_or_spb_writes_performed": true
+}

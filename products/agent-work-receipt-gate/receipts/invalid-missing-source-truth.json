@@ -1,0 +1,60 @@
+{
+  "task": "Verify the Agent Work Receipt Gate package for client-repo installation.",
+  "agent": "codex-implementer",
+  "result": "This receipt is intentionally invalid because required source truth is missing.",
+  "claims": [
+    "Agent Work Receipt Gate package is ready for client-repo installation after the release verifier passes."
+  ],
+  "tool_audit": {
+    "source_of_truth_checked": true,
+    "source_of_truth": "scripts/agents/agent_work_receipt_gate.py",
+    "memory_considered": true,
+    "memory_tools_used": [],
+    "memory_skipped_reason": "Fixture is self-contained.",
+    "mcp_considered": false,
+    "mcp_used": false,
+    "skills_considered": false,
+    "skills_used": [],
+    "skills_skipped_reason": "",
+    "subagents_considered": false,
+    "subagents_used": [],
+    "subagents_skipped_reason": "",
+    "manual_path_used": false,
+    "manual_path_reason": ""
+  },
+  "verification": [
+    {
+      "command": "python3 -m py_compile scripts/agents/agent_work_receipt_gate.py",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "command": "python3 -m pytest tests/unit/scripts/test_agent_work_receipt_gate.py -q",
+      "exit_code": 0,
+      "status": "passed"
+    }
+  ],
+  "verification_summary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0
+  },
+  "checklist": [
+    {
+      "requirement": "source truth inspected",
+      "status": "covered",
+      "evidence": "Intentionally invalid: required protocol and policy paths are missing."
+    },
+    {
+      "requirement": "verification commands recorded",
+      "status": "covered",
+      "evidence": "Valid verification list is present."
+    },
+    {
+      "requirement": "claim boundary preserved",
+      "status": "covered",
+      "evidence": "No production or runtime claim is made."
+    }
+  ],
+  "remaining_gaps": []
+}

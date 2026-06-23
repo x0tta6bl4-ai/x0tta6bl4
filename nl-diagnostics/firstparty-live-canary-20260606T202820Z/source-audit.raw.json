@@ -1,0 +1,15 @@
+{
+  "allowed": true,
+  "captured_at": 1780777753,
+  "external_import_hashes": [],
+  "forbidden_import_hashes": [],
+  "forbidden_marker_hashes": [],
+  "mode": "source-audit",
+  "ok": true,
+  "os_mutation_performed": false,
+  "reasons": [],
+  "root_hash": "174c92b528a696564c12ee65adc4a2bf0ff7ec165ec47c266daaa3626c444709",
+  "scanned_files": 37,
+  "source_tree_hash": "74ae83244208bd720e3d8dd967b5630a5571aab968a878a919da22d6df31aa26",
+  "version": 1
+}

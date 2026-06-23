@@ -54,30 +54,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModal = document.getElementById('close-modal');
     const buyProBtn = document.getElementById('buy-pro-btn');
 
-    planCard.addEventListener('click', () => {
-        upgradeModal.classList.remove('hidden');
-    });
+    if (planCard) {
+        planCard.addEventListener('click', () => {
+            upgradeModal.classList.remove('hidden');
+        });
+    }
 
-    closeModal.addEventListener('click', () => {
-        upgradeModal.classList.add('hidden');
-    });
+    if (closeModal) {
+        closeModal.addEventListener('click', () => {
+            upgradeModal.classList.add('hidden');
+        });
+    }
 
-    buyProBtn.addEventListener('click', async () => {
-        buyProBtn.innerText = 'Redirecting...';
+    if (buyProBtn) {
+        buyProBtn.addEventListener('click', async () => {
+            buyProBtn.innerText = 'Redirecting...';
+            try {
+                const response = await fetch('/billing/checkout', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({user_id: 1001, plan: 'pro'})
+                });
+                const data = await response.json();
+                window.open(data.checkout_url, '_blank');
+            } catch (e) {
+                console.error("Payment failed", e);
+            }
+        });
+    }
+
+    // Initial status check
+    async function checkStatus() {
         try {
-            // In Tauri, we'd use Shell.open(url)
-            // For web demo, we open in new tab
-            const response = await fetch('/billing/checkout', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({user_id: 1001, plan: 'pro'})
-            });
-            const data = await response.json();
-            window.open(data.checkout_url, '_blank');
-        } catch (e) {
-            console.error("Payment failed", e);
-        }
-    });
+            const res = await fetch('/api/vpn/status');
+            const data = await res.json();
+            if (data.status === "Connected") {
+                isConnected = true;
+                statusText.innerText = 'Connected (Ghost)';
+                statusText.classList.add('text-emerald-400');
+                powerIcon.classList.add('text-emerald-400');
+                statusGlow.classList.add('bg-emerald-500');
+                connectBtn.classList.add('shadow-[0_0_50px_rgba(16,185,129,0.2)]');
+            }
+        } catch (e) {}
+    }
+    checkStatus();
 
     connectBtn.addEventListener('click', async () => {
         if (!isConnected) {
@@ -89,15 +110,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 await showZKPFlow();
 
                 // 2. Call Backend
-                let response = "Connected";
-                if (window.__TAURI__) {
-                    response = await window.__TAURI__.invoke('toggle_vpn', { active: true });
-                } else {
-                    // Simulation mode for web browser
-                    await new Promise(r => setTimeout(r, 500));
-                }
+                let response_json = await fetch('/api/vpn/toggle', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ active: true })
+                });
+                let data = await response_json.json();
                 
-                if (response === "Connected") {
+                if (data.status === "Connected") {
                     isConnected = true;
                     statusText.innerText = 'Connected (Ghost)';
                     statusText.classList.remove('text-zinc-500');
@@ -107,6 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     statusGlow.classList.add('bg-emerald-500');
                     connectBtn.classList.add('shadow-[0_0_50px_rgba(16,185,129,0.2)]');
                     console.log("✅ Securely Connected via Ghost Protocol");
+                } else {
+                    throw new Error(data.message || "Failed to connect");
                 }
             } catch (error) {
                 console.error("Connection failed:", error);
@@ -118,9 +140,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             // Disconnecting
-            if (window.__TAURI__) {
-                await window.__TAURI__.invoke('toggle_vpn', { active: false });
-            }
+            await fetch('/api/vpn/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ active: false })
+            });
             isConnected = false;
             statusText.innerText = 'Disconnected';
             statusText.classList.remove('text-emerald-400');

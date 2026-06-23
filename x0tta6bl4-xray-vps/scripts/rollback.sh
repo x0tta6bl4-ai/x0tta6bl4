@@ -18,6 +18,7 @@ NC='\033[0m'
 BACKUP_DIR="/root/xray-backups"
 CONFIG_DIR="/usr/local/etc/xray"
 SSL_DIR="/etc/ssl/xray"
+XRAY_ROLLBACK_CONFIRM="${XRAY_ROLLBACK_CONFIRM:-}"
 
 # Logging
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
@@ -42,9 +43,13 @@ OPTIONS:
 
 EXAMPLES:
     $0 -l                           List all backups
-    $0 backup-20260131-120000.tar.gz  Rollback to specific backup
-    $0 -a                           Rollback to most recent backup
-    $0 -a -c                        Rollback with current state backup
+    XRAY_ROLLBACK_CONFIRM=STOP_AND_RESTART_XRAY $0 backup-20260131-120000.tar.gz
+    XRAY_ROLLBACK_CONFIRM=STOP_AND_RESTART_XRAY $0 -a
+    XRAY_ROLLBACK_CONFIRM=STOP_AND_RESTART_XRAY $0 -a -c
+
+SAFETY:
+    Rollback stops and starts xray. It refuses to run unless
+    XRAY_ROLLBACK_CONFIRM=STOP_AND_RESTART_XRAY is set.
 EOF
 }
 
@@ -241,7 +246,7 @@ validate_restore() {
     
     # Check configuration validity
     if [[ -f "${CONFIG_DIR}/config.json" ]]; then
-        if xray -test -config "${CONFIG_DIR}/config.json" &>/dev/null; then
+        if xray run -test -config "${CONFIG_DIR}/config.json" &>/dev/null; then
             log_success "Configuration is valid"
         else
             log_error "Configuration is invalid"
@@ -267,6 +272,13 @@ perform_rollback() {
     local archive="$1"
     local force="${2:-false}"
     local backup_current="${3:-false}"
+
+    if [[ "$XRAY_ROLLBACK_CONFIRM" != "STOP_AND_RESTART_XRAY" ]]; then
+        log_error "Refusing rollback: this action stops and starts xray."
+        log_error "Current production profiles can be regenerated without restart via scripts/generate-live-client-profiles.sh."
+        log_error "Set XRAY_ROLLBACK_CONFIRM=STOP_AND_RESTART_XRAY to intentionally rollback and restart."
+        exit 2
+    fi
     
     log_section "ROLLBACK PROCEDURE"
     

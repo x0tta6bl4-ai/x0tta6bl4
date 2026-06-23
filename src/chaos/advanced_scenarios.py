@@ -5,6 +5,7 @@ Extended chaos testing scenarios beyond basic node failures and partitions.
 """
 
 import asyncio
+import hashlib
 import logging
 import random
 from dataclasses import dataclass, field
@@ -12,7 +13,41 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from src.core.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    return "100+"
 
 
 class AdvancedScenarioType(Enum):
@@ -55,7 +90,52 @@ class AdvancedChaosController:
 
     def __init__(self):
         self.active_experiments: Dict[str, AdvancedChaosExperiment] = {}
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id="advanced-chaos-controller",
+            role="healing",
+            capabilities=("ops", "quality", "monitoring"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "advanced_chaos_controller_init",
+                "goal": "Initialize advanced chaos scenarios safely",
+                "signals": {"active_experiment_count_bucket": "0"},
+                "safety_boundary": (
+                    "Keep target node ids, scenario parameter values, behavior labels, "
+                    "and exception messages out of thinking context."
+                ),
+            }
+        )
         logger.info("Advanced Chaos Controller initialized")
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_target_nodes": True,
+                    "redact_parameter_values": True,
+                    "redact_behavior_labels": True,
+                    "redact_error_messages": True,
+                    "preserve_scenario_decision": True,
+                },
+                "safety_boundary": "Use hashes, counts, scenario names, and value bands.",
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
 
     async def run_cascade_failure(
         self,
@@ -119,7 +199,7 @@ class AdvancedChaosController:
 
                 await asyncio.sleep(2)  # Wait between cascade waves
 
-            return {
+            result = {
                 "scenario": "cascade_failure",
                 "initial_node": initial_node,
                 "total_failed": len(failed_nodes),
@@ -127,7 +207,27 @@ class AdvancedChaosController:
                 "failed_nodes": failed_nodes,
                 "duration": duration,
             }
+            self._record_thinking(
+                "advanced_chaos_cascade_failure",
+                "Complete cascade failure scenario safely",
+                {
+                    "initial_node_hash": _safe_hash(initial_node),
+                    "propagation_probability_band": _safe_number_band(
+                        propagation_probability
+                    ),
+                    "max_depth_bucket": _safe_count_bucket(max_depth),
+                    "failed_node_count_bucket": _safe_count_bucket(len(failed_nodes)),
+                    "cascade_depth_bucket": _safe_count_bucket(depth),
+                    "duration_bucket": _safe_count_bucket(duration),
+                },
+            )
+            return result
         except Exception as e:
+            self._record_thinking(
+                "advanced_chaos_cascade_failure",
+                "Record cascade failure scenario error",
+                {"initial_node_hash": _safe_hash(initial_node), "error_type": type(e).__name__},
+            )
             logger.error(f"Cascade failure simulation error: {e}")
             return {"error": str(e)}
 
@@ -168,13 +268,29 @@ class AdvancedChaosController:
 
             await asyncio.sleep(duration)
 
-            return {
+            result = {
                 "scenario": "byzantine_behavior",
                 "target_nodes": target_nodes,
                 "behavior_type": behavior_type,
                 "duration": duration,
             }
+            self._record_thinking(
+                "advanced_chaos_byzantine_behavior",
+                "Complete Byzantine behavior scenario safely",
+                {
+                    "target_count_bucket": _safe_count_bucket(len(target_nodes)),
+                    "target_hashes": [_safe_hash(node) for node in target_nodes[:5]],
+                    "behavior_hash": _safe_hash(behavior_type),
+                    "duration_bucket": _safe_count_bucket(duration),
+                },
+            )
+            return result
         except Exception as e:
+            self._record_thinking(
+                "advanced_chaos_byzantine_behavior",
+                "Record Byzantine behavior scenario error",
+                {"error_type": type(e).__name__},
+            )
             logger.error(f"Byzantine behavior simulation error: {e}")
             return {"error": str(e)}
 
@@ -207,14 +323,30 @@ class AdvancedChaosController:
 
             await asyncio.sleep(duration)
 
-            return {
+            result = {
                 "scenario": "network_storm",
                 "target_nodes": target_nodes,
                 "packet_rate": packet_rate,
                 "duration": duration,
                 "total_packets": packet_rate * duration,
             }
+            self._record_thinking(
+                "advanced_chaos_network_storm",
+                "Complete network storm scenario safely",
+                {
+                    "target_count_bucket": _safe_count_bucket(len(target_nodes)),
+                    "packet_rate_band": _safe_number_band(packet_rate),
+                    "duration_bucket": _safe_count_bucket(duration),
+                    "total_packets_band": _safe_number_band(packet_rate * duration),
+                },
+            )
+            return result
         except Exception as e:
+            self._record_thinking(
+                "advanced_chaos_network_storm",
+                "Record network storm scenario error",
+                {"error_type": type(e).__name__},
+            )
             logger.error(f"Network storm simulation error: {e}")
             return {"error": str(e)}
 
@@ -255,14 +387,30 @@ class AdvancedChaosController:
 
             await asyncio.sleep(duration)
 
-            return {
+            result = {
                 "scenario": "resource_exhaustion",
                 "target_nodes": target_nodes,
                 "resource_type": resource_type,
                 "utilization": utilization,
                 "duration": duration,
             }
+            self._record_thinking(
+                "advanced_chaos_resource_exhaustion",
+                "Complete resource exhaustion scenario safely",
+                {
+                    "target_count_bucket": _safe_count_bucket(len(target_nodes)),
+                    "resource_hash": _safe_hash(resource_type),
+                    "utilization_band": _safe_number_band(utilization),
+                    "duration_bucket": _safe_count_bucket(duration),
+                },
+            )
+            return result
         except Exception as e:
+            self._record_thinking(
+                "advanced_chaos_resource_exhaustion",
+                "Record resource exhaustion scenario error",
+                {"error_type": type(e).__name__},
+            )
             logger.error(f"Resource exhaustion simulation error: {e}")
             return {"error": str(e)}
 
@@ -295,13 +443,28 @@ class AdvancedChaosController:
 
             await asyncio.sleep(duration)
 
-            return {
+            result = {
                 "scenario": "clock_skew",
                 "target_nodes": target_nodes,
                 "skew_seconds": skew_seconds,
                 "duration": duration,
             }
+            self._record_thinking(
+                "advanced_chaos_clock_skew",
+                "Complete clock skew scenario safely",
+                {
+                    "target_count_bucket": _safe_count_bucket(len(target_nodes)),
+                    "skew_band": _safe_number_band(skew_seconds),
+                    "duration_bucket": _safe_count_bucket(duration),
+                },
+            )
+            return result
         except Exception as e:
+            self._record_thinking(
+                "advanced_chaos_clock_skew",
+                "Record clock skew scenario error",
+                {"error_type": type(e).__name__},
+            )
             logger.error(f"Clock skew simulation error: {e}")
             return {"error": str(e)}
 

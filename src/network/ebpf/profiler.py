@@ -7,15 +7,83 @@ Measures CPU usage, memory consumption, and performance impact of eBPF probes.
 Target: <2% CPU overhead (Stage 1 requirement)
 """
 
+import hashlib
 import logging
+import socket
+import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import psutil
 
+from src.coordination.events import EventBus, EventType
+from src.core.agent_thinking import AgentThinkingCoach
+from src.services.service_event_identity import service_event_identity
+
 logger = logging.getLogger(__name__)
+
+EBPF_PROFILER_SERVICE_NAME = "ebpf-profiler"
+EBPF_PROFILER_LAYER = "network_ebpf_profiler_observed_state"
+EBPF_PROFILER_CLAIM_BOUNDARY = (
+    "Local eBPF profiler evidence only. Events record local psutil sampling, "
+    "loopback ping subprocess attempts, socket throughput probes, derived overhead "
+    "estimates, and report generation with hashed process/command/target selectors "
+    "and bounded output metadata; they do not prove production traffic volume, "
+    "remote peer identity, live eBPF datapath enforcement, or statistically valid "
+    "latency/throughput benchmarks beyond the local operation result."
+)
+
+
+def _normalize_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
+def _sha256_text(value: str) -> Optional[str]:
+    if not value:
+        return None
+    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _hash_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return hashlib.sha256(value).hexdigest()
+    return _sha256_text(str(value))
+
+
+def _bounded_output_metadata(
+    stdout: Optional[Any] = None,
+    stderr: Optional[Any] = None,
+) -> Dict[str, Any]:
+    safe_stdout = _normalize_text(stdout)
+    safe_stderr = _normalize_text(stderr)
+    return {
+        "stdout_chars": len(safe_stdout),
+        "stderr_chars": len(safe_stderr),
+        "stdout_sha256": _sha256_text(safe_stdout),
+        "stderr_sha256": _sha256_text(safe_stderr),
+        "output_bounded": True,
+        "output_redacted": True,
+    }
+
+
+def _identity_metadata() -> Dict[str, Any]:
+    identity = service_event_identity(service_name=EBPF_PROFILER_SERVICE_NAME)
+    return {
+        "service_name": EBPF_PROFILER_SERVICE_NAME,
+        "layer": EBPF_PROFILER_LAYER,
+        "spiffe_id_configured": bool(identity.get("spiffe_id")),
+        "did_configured": bool(identity.get("did")),
+        "wallet_address_configured": bool(identity.get("wallet_address")),
+        "redacted": True,
+    }
 
 
 @dataclass
@@ -50,7 +118,12 @@ class EBPFProfiler:
         >>> print(f"CPU overhead: {result.overhead_estimate:.2f}%")
     """
 
-    def __init__(self, process_name: str = "x0tta6bl4"):
+    def __init__(
+        self,
+        process_name: str = "x0tta6bl4",
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+    ):
         """
         Initialize profiler.
 
@@ -61,6 +134,166 @@ class EBPFProfiler:
         self.sampling_interval = 0.1  # 100ms sampling interval
         self.baseline_cpu: Optional[float] = None
         self.baseline_memory: Optional[float] = None
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
+        self.source_agent = EBPF_PROFILER_SERVICE_NAME
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=self.source_agent,
+            role="monitoring",
+            capabilities=("quality", "ops"),
+            extra_techniques=("mape_k", "causal_analysis", "graphsage", "reverse_planning"),
+        )
+        self._last_thinking_context: Optional[Dict[str, Any]] = None
+
+    def _event_bus_or_none(self) -> Optional[EventBus]:
+        event_bus = getattr(self, "event_bus", None)
+        if event_bus is not None:
+            return event_bus
+        try:
+            event_bus = EventBus(project_root=getattr(self, "event_project_root", "."))
+            self.event_bus = event_bus
+            return event_bus
+        except Exception as exc:
+            logger.error("Failed to initialize eBPF profiler EventBus: %s", exc)
+            return None
+
+    def _thinking_coach_or_create(self) -> AgentThinkingCoach:
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            self.source_agent = getattr(
+                self,
+                "source_agent",
+                EBPF_PROFILER_SERVICE_NAME,
+            )
+            coach = AgentThinkingCoach(
+                agent_id=self.source_agent,
+                role="monitoring",
+                capabilities=("quality", "ops"),
+                extra_techniques=(
+                    "mape_k",
+                    "causal_analysis",
+                    "graphsage",
+                    "reverse_planning",
+                ),
+            )
+            self.thinking_coach = coach
+        return coach
+
+    def _record_thinking_context(
+        self,
+        *,
+        operation: str,
+        goal: str,
+        constraints: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        safe_task = {
+            "task_type": "ebpf_profiler_operation",
+            "goal": goal,
+            "constraints": {
+                "operation": operation,
+                "redacted": True,
+                **constraints,
+            },
+            "safety_boundary": (
+                "Record only local eBPF profiler evidence, hashed process, "
+                "command, target and payload selectors, bounded output metadata, "
+                "counts, and summary statistics; do not expose raw process names, "
+                "stdout, stderr, targets, or packet payloads."
+            ),
+        }
+        self._last_thinking_context = self._thinking_coach_or_create().prepare_task(
+            safe_task
+        )
+        return self._last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose profiler thinking state without task secrets."""
+
+        return {
+            **self._thinking_coach_or_create().status(),
+            "last_context": getattr(self, "_last_thinking_context", None),
+        }
+
+    def _publish_observation(
+        self,
+        *,
+        stage: str,
+        operation: str,
+        status: str,
+        source_mode: str,
+        start: float,
+        read_only: bool = True,
+        returncode: Optional[int] = None,
+        parsed_summary: Optional[Dict[str, Any]] = None,
+        error: Optional[BaseException] = None,
+        output: Optional[Dict[str, Any]] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        thinking = self._record_thinking_context(
+            operation=operation,
+            goal=f"{operation}:{stage}:{status}",
+            constraints={
+                "stage": stage,
+                "status": status,
+                "source_mode": source_mode,
+                "read_only": read_only,
+                "returncode_present": returncode is not None,
+                "process_name_hash": _hash_value(getattr(self, "process_name", None)),
+                "process_name_redacted": True,
+                "parsed_summary_keys": sorted((parsed_summary or {}).keys()),
+                "extra_keys": sorted((extra or {}).keys()),
+                "output_redacted": True,
+            },
+        )
+        bus = self._event_bus_or_none()
+        if bus is None:
+            return None
+
+        source_agent = getattr(self, "source_agent", EBPF_PROFILER_SERVICE_NAME)
+        payload: Dict[str, Any] = {
+            "component": "network.ebpf.profiler",
+            "stage": stage,
+            "operation": operation,
+            "operation_resource": f"network:ebpf:profiler:{operation}",
+            "service_name": source_agent,
+            "layer": EBPF_PROFILER_LAYER,
+            "identity": _identity_metadata(),
+            "status": status,
+            "source_mode": source_mode,
+            "returncode": returncode,
+            "duration_ms": round((time.monotonic() - start) * 1000, 3),
+            "read_only": read_only,
+            "observed_state": True,
+            "safe_observation": True,
+            "safe_actuator": False,
+            "parsed_summary": parsed_summary or {},
+            "output": output or _bounded_output_metadata(),
+            "thinking": thinking,
+            "payloads_redacted": True,
+            "claim_boundary": EBPF_PROFILER_CLAIM_BOUNDARY,
+            "process_name_hash": _hash_value(getattr(self, "process_name", None)),
+            "process_name_redacted": True,
+        }
+        if error is not None:
+            payload["error"] = {
+                "type": type(error).__name__,
+                "message_hash": _hash_value(str(error)),
+                "message_redacted": True,
+            }
+        if extra:
+            payload.update(extra)
+
+        try:
+            event = bus.publish(
+                EventType.PIPELINE_STAGE_END,
+                source_agent,
+                payload,
+                priority=4,
+            )
+            return event.event_id
+        except Exception:
+            logger.exception("Failed to publish eBPF profiler observation")
+            return None
 
     def measure_baseline(self, duration: float = 10.0) -> Tuple[float, float]:
         """
@@ -73,6 +306,7 @@ class EBPFProfiler:
             Tuple of (avg_cpu_percent, avg_memory_mb)
         """
         logger.info(f"Measuring baseline (duration: {duration}s)...")
+        op_start = time.monotonic()
 
         cpu_samples = []
         memory_samples = []
@@ -106,6 +340,21 @@ class EBPFProfiler:
         self.baseline_memory = avg_memory
 
         logger.info(f"Baseline: CPU={avg_cpu:.2f}%, Memory={avg_memory:.2f}MB")
+        self._publish_observation(
+            stage="ebpf_profiler_baseline_measured",
+            operation="measure_baseline",
+            status="success",
+            source_mode="psutil",
+            start=op_start,
+            parsed_summary={
+                "duration_seconds": duration,
+                "cpu_samples": len(cpu_samples),
+                "memory_samples": len(memory_samples),
+                "avg_cpu_percent": avg_cpu,
+                "avg_memory_mb": avg_memory,
+                "used_system_cpu_fallback": not bool(memory_samples),
+            },
+        )
         return avg_cpu, avg_memory
 
     def profile_overhead(
@@ -124,6 +373,7 @@ class EBPFProfiler:
         logger.info(
             f"Profiling eBPF overhead (duration: {duration}s, programs: {ebpf_programs_count})..."
         )
+        op_start = time.monotonic()
 
         # Measure baseline if not already done
         if self.baseline_cpu is None:
@@ -148,6 +398,19 @@ class EBPFProfiler:
 
         if not cpu_samples:
             logger.warning("No CPU samples collected")
+            self._publish_observation(
+                stage="ebpf_profiler_overhead_no_samples",
+                operation="profile_overhead",
+                status="failure",
+                source_mode="psutil",
+                start=op_start,
+                parsed_summary={
+                    "duration_seconds": duration,
+                    "samples_collected": 0,
+                    "ebpf_programs_active": ebpf_programs_count,
+                    "target_met": False,
+                },
+            )
             return CPUProfileResult(
                 timestamp=datetime.now(),
                 duration_seconds=duration,
@@ -200,6 +463,24 @@ class EBPFProfiler:
             f"Overhead={overhead:.2f}%, "
             f"Target met: {target_met}"
         )
+        self._publish_observation(
+            stage="ebpf_profiler_overhead_profiled",
+            operation="profile_overhead",
+            status="success",
+            source_mode="psutil",
+            start=op_start,
+            parsed_summary={
+                "duration_seconds": duration,
+                "avg_cpu_percent": avg_cpu,
+                "max_cpu_percent": max_cpu,
+                "cpu_percentiles": dict(percentiles),
+                "memory_mb": avg_memory,
+                "samples_collected": samples_collected,
+                "ebpf_programs_active": ebpf_programs_count,
+                "overhead_estimate": overhead,
+                "target_met": target_met,
+            },
+        )
 
         return result
 
@@ -215,6 +496,150 @@ class EBPFProfiler:
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
         return None
+
+    def _run_ping_latency_probe(self) -> Tuple[float, str]:
+        """Run loopback ping and return (average latency ms, measurement mode)."""
+        op_start = time.monotonic()
+        command = ["ping", "-c", "10", "-W", "1", "127.0.0.1"]
+        try:
+            ping_result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+            self._publish_observation(
+                stage="ebpf_profiler_ping_unavailable",
+                operation="run_ping_latency_probe",
+                status="failure",
+                source_mode="subprocess",
+                start=op_start,
+                returncode=1,
+                error=exc,
+                parsed_summary={
+                    "latency_ms": 1.0,
+                    "measurement_mode": "simulated",
+                    "fallback": True,
+                },
+                extra={
+                    "command_hash": _hash_value(command),
+                    "target_hash": _hash_value("127.0.0.1"),
+                    "command_redacted": True,
+                    "target_redacted": True,
+                },
+            )
+            logger.warning("ping not available, using simulated latency")
+            return 1.0, "simulated"
+        except Exception as exc:
+            self._publish_observation(
+                stage="ebpf_profiler_ping_failed",
+                operation="run_ping_latency_probe",
+                status="failure",
+                source_mode="subprocess",
+                start=op_start,
+                returncode=1,
+                error=exc,
+                parsed_summary={
+                    "latency_ms": 0.0,
+                    "measurement_mode": "failed",
+                    "fallback": False,
+                },
+                extra={
+                    "command_hash": _hash_value(command),
+                    "target_hash": _hash_value("127.0.0.1"),
+                    "command_redacted": True,
+                    "target_redacted": True,
+                },
+            )
+            raise
+
+        import re
+
+        stdout = getattr(ping_result, "stdout", "")
+        stderr = getattr(ping_result, "stderr", "")
+        match = re.search(r"min/avg/max.*?/([\d.]+)/", stdout)
+        latency_ms = float(match.group(1)) if ping_result.returncode == 0 and match else 0.0
+        status = "success" if ping_result.returncode == 0 and match else "failure"
+        self._publish_observation(
+            stage="ebpf_profiler_ping_completed",
+            operation="run_ping_latency_probe",
+            status=status,
+            source_mode="subprocess",
+            start=op_start,
+            returncode=ping_result.returncode,
+            parsed_summary={
+                "latency_ms": latency_ms,
+                "measurement_mode": "ping" if status == "success" else "unparsed",
+                "parsed": bool(match),
+            },
+            output=_bounded_output_metadata(
+                stdout=stdout,
+                stderr=stderr,
+            ),
+            extra={
+                "command_hash": _hash_value(command),
+                "target_hash": _hash_value("127.0.0.1"),
+                "command_redacted": True,
+                "target_redacted": True,
+            },
+        )
+        return latency_ms, "ping" if status == "success" else "unparsed"
+
+    def _measure_loopback_throughput(
+        self,
+        *,
+        duration: float,
+        packet_rate: int,
+    ) -> Tuple[float, str]:
+        op_start = time.monotonic()
+        test_data = b"X" * 1024  # 1KB packets
+        start_time = time.time()
+        bytes_sent = 0
+        packets_sent = 0
+        test_duration = min(duration, 5.0)  # Limit test duration
+
+        while time.time() - start_time < test_duration:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                sock.sendto(test_data, ("127.0.0.1", 12345))
+                bytes_sent += len(test_data)
+                packets_sent += 1
+            except Exception:
+                pass
+            finally:
+                sock.close()
+            time.sleep(0.001)  # Small delay to avoid overwhelming
+
+        elapsed = time.time() - start_time
+        throughput_mbps = (
+            (bytes_sent * 8) / (elapsed * 1_000_000)
+            if elapsed > 0
+            else 0.0
+        )
+        self._publish_observation(
+            stage="ebpf_profiler_loopback_throughput_measured",
+            operation="measure_loopback_throughput",
+            status="success",
+            source_mode="socket",
+            start=op_start,
+            parsed_summary={
+                "duration_seconds": duration,
+                "bounded_test_duration_seconds": test_duration,
+                "packet_rate": packet_rate,
+                "bytes_sent": bytes_sent,
+                "packets_sent": packets_sent,
+                "elapsed_seconds": elapsed,
+                "throughput_mbps": throughput_mbps,
+            },
+            extra={
+                "target_hash": _hash_value("127.0.0.1:12345"),
+                "payload_hash": _hash_value(test_data),
+                "target_redacted": True,
+                "payload_redacted": True,
+            },
+        )
+        return throughput_mbps, "socket"
 
     def profile_network_impact(
         self, duration: float = 30.0, packet_rate: int = 1000
@@ -244,58 +669,43 @@ class EBPFProfiler:
         ebpf_throughput = 0.0
         baseline_latency = 0.0
         ebpf_latency = 0.0
+        network_start = time.monotonic()
 
         try:
-            import socket
-            import subprocess
-
             # Measure baseline latency using ping (if available)
-            try:
-                ping_result = subprocess.run(
-                    ["ping", "-c", "10", "-W", "1", "127.0.0.1"],
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                )
-                if ping_result.returncode == 0:
-                    # Parse ping output for average latency
-                    import re
-
-                    match = re.search(r"min/avg/max.*?/([\d.]+)/", ping_result.stdout)
-                    if match:
-                        baseline_latency = float(match.group(1))
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                logger.warning("ping not available, using simulated latency")
-                baseline_latency = 1.0  # Simulated baseline
+            baseline_latency, latency_mode = self._run_ping_latency_probe()
 
             # Measure baseline throughput (simplified - using socket test)
             # In production, would use iperf3 or similar
             try:
                 # Simple throughput test: send data through loopback
-                test_data = b"X" * 1024  # 1KB packets
-                start_time = time.time()
-                bytes_sent = 0
-                test_duration = min(duration, 5.0)  # Limit test duration
-
-                while time.time() - start_time < test_duration:
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    try:
-                        sock.sendto(test_data, ("127.0.0.1", 12345))
-                        bytes_sent += len(test_data)
-                    except Exception:
-                        pass
-                    finally:
-                        sock.close()
-                    time.sleep(0.001)  # Small delay to avoid overwhelming
-
-                elapsed = time.time() - start_time
-                if elapsed > 0:
-                    baseline_throughput = (bytes_sent * 8) / (
-                        elapsed * 1_000_000
-                    )  # Mbps
+                baseline_throughput, throughput_mode = (
+                    self._measure_loopback_throughput(
+                        duration=duration,
+                        packet_rate=packet_rate,
+                    )
+                )
             except Exception as e:
                 logger.warning(f"Throughput test failed: {e}")
                 baseline_throughput = 100.0  # Simulated baseline
+                throughput_mode = "simulated"
+                self._publish_observation(
+                    stage="ebpf_profiler_loopback_throughput_failed",
+                    operation="measure_loopback_throughput",
+                    status="failure",
+                    source_mode="socket",
+                    start=time.monotonic(),
+                    error=e,
+                    parsed_summary={
+                        "throughput_mbps": baseline_throughput,
+                        "measurement_mode": throughput_mode,
+                        "fallback": True,
+                    },
+                    extra={
+                        "target_hash": _hash_value("127.0.0.1:12345"),
+                        "target_redacted": True,
+                    },
+                )
 
             # Measure with eBPF (assume eBPF adds some overhead)
             # In real scenario, would measure after eBPF programs are loaded
@@ -314,6 +724,21 @@ class EBPFProfiler:
             ebpf_latency = 1.05
             baseline_throughput = 100.0
             ebpf_throughput = 98.0
+            latency_mode = "simulated"
+            throughput_mode = "simulated"
+            self._publish_observation(
+                stage="ebpf_profiler_network_impact_failed",
+                operation="profile_network_impact",
+                status="failure",
+                source_mode="mixed",
+                start=network_start,
+                error=e,
+                parsed_summary={
+                    "duration_seconds": duration,
+                    "packet_rate": packet_rate,
+                    "fallback": True,
+                },
+            )
 
         # Calculate degradation
         throughput_degradation = 0.0
@@ -328,7 +753,7 @@ class EBPFProfiler:
                 (ebpf_latency - baseline_latency) / baseline_latency
             ) * 100
 
-        return {
+        result = {
             "baseline_throughput_mbps": baseline_throughput,
             "ebpf_throughput_mbps": ebpf_throughput,
             "throughput_degradation_percent": throughput_degradation,
@@ -336,6 +761,22 @@ class EBPFProfiler:
             "ebpf_latency_ms": ebpf_latency,
             "latency_increase_percent": latency_increase,
         }
+        self._publish_observation(
+            stage="ebpf_profiler_network_impact_profiled",
+            operation="profile_network_impact",
+            status="success",
+            source_mode="mixed",
+            start=network_start,
+            parsed_summary={
+                **result,
+                "duration_seconds": duration,
+                "packet_rate": packet_rate,
+                "latency_measurement_mode": latency_mode,
+                "throughput_measurement_mode": throughput_mode,
+                "ebpf_values_estimated": True,
+            },
+        )
+        return result
 
     def generate_report(self, results: List[CPUProfileResult]) -> str:
         """

@@ -1,6 +1,11 @@
 import asyncio
+import hashlib
 import logging
+import time
 from datetime import datetime, timedelta
+from typing import Any, Optional
+
+from src.coordination.events import EventBus, EventType, get_event_bus
 from src.database import MarketplaceEscrow, MarketplaceListing, SessionLocal
 from src.api.maas_telemetry import uptime_tracker
 from src.dao.token_bridge import TokenBridge, BridgeConfig
@@ -52,6 +57,7 @@ async def marketplace_settlement_loop():
                 ).all()
 
                 for escrow in pending_escrows:
+                    attempt_started = time.monotonic()
                     listing = db.query(MarketplaceListing).filter(
                         MarketplaceListing.id == escrow.listing_id
                     ).first()
@@ -61,10 +67,17 @@ async def marketplace_settlement_loop():
                         
                     # 2. Check uptime
                     uptime = uptime_tracker.get_uptime_percent(listing.node_id)
+                    settlement_evidence = _settlement_uptime_evidence(
+                        node_id=listing.node_id,
+                        uptime=uptime,
+                    )
                     
                     if uptime >= SETTLEMENT_UPTIME_THRESHOLD:
                         logger.info(f"✅ Node {listing.node_id} passed 99.9% uptime ({uptime:.2%}). Releasing escrow {escrow.id}")
                         
+                        bridge_evidence = {}
+                        bridge_attempted = False
+                        bridge_status = "not_required"
                         # Trigger on-chain release if X0T
                         if escrow.currency == "X0T":
                             try:
@@ -144,6 +157,9 @@ async def marketplace_settlement_loop():
                     else:
                         logger.warning(f"⚠️ Node {listing.node_id} FAILED 99.9% uptime ({uptime:.2%}). Refunding escrow {escrow.id}")
                         
+                        bridge_evidence = {}
+                        bridge_attempted = False
+                        bridge_status = "not_required"
                         # Trigger on-chain refund if X0T
                         if escrow.currency == "X0T":
                             try:
