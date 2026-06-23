@@ -402,3 +402,5 @@ nl-diagnostics/provider-incident-packets/
 
 # Bounty scripts in dao contracts
 src/dao/contracts/scripts/stress_test_gas.js
+/bounties/
+
