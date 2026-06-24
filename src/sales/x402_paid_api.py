@@ -3075,11 +3075,12 @@ def create_app(settings: PaidApiSettings | None = None) -> FastAPI:
 
     @app.get("/workprotocol/deliverables/{artifact_path:path}")
     async def workprotocol_deliverable_file(artifact_path: str) -> FileResponse:
-        if ".." in artifact_path.split("/"):
+        _safe = artifact_path
+        if not _safe or ".." in _safe.split("/") or _safe.startswith("/"):
             raise HTTPException(status_code=404, detail="deliverable file not found")
         try:
             root = _workprotocol_deliverable_dir().resolve()
-            candidate = (root / artifact_path).resolve()
+            candidate = (root / _safe).resolve()
         except OSError:
             raise HTTPException(status_code=404, detail="deliverable file unavailable")
         if root != candidate and root not in candidate.parents:

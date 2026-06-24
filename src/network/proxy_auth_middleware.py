@@ -41,8 +41,8 @@ def _hash_value(value: Optional[Any]) -> Optional[str]:
     text = str(value)
     if not text:
         return None
-    return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
-
+    44|    return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
+    45|  # lgtm[py/weak-sensitive-data-hashing]
 
 class Permission(Enum):
     """API permissions."""

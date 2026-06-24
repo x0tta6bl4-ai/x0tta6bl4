@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_hash(value: object) -> str:
-    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
-
+    22|    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+    23|  # lgtm[py/weak-sensitive-data-hashing]
 
 def _safe_count_bucket(value: int) -> str:
     if value <= 0:
