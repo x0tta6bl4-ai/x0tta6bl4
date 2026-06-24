@@ -104,7 +104,7 @@ async def start_vpn(is_server: bool):
         # UDP Setup
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if is_server:
-            sock.bind(('0.0.0.0', port))
+            sock.bind(('0.0.0.0', port))  # lgtm[py/bind-socket-all-network-interfaces]
         sock.setblocking(False)
         loop = asyncio.get_event_loop()
         client_addr = None
