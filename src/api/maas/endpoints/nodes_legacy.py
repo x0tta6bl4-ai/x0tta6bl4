@@ -47,7 +47,7 @@ _MODULAR_NODE_CLAIM_BOUNDARY = (
 )
 
 try:
-    from src.api.maas_telemetry import _set_telemetry as _set_external_telemetry
+    from src.api.maas.endpoints.telemetry import _set_telemetry as _set_external_telemetry
 except Exception:
     _set_external_telemetry = None
 
@@ -455,8 +455,14 @@ def _to_optional_float(value: Any) -> Optional[float]:
 
 
 def _build_external_telemetry_payload(request: NodeHeartbeatRequest, timestamp_iso: str) -> Dict[str, Any]:
-    latency = _to_optional_float((request.custom_metrics or {}).get("latency_ms"))
-    traffic = _to_optional_float((request.custom_metrics or {}).get("traffic_mbps"))
+    latency = _to_optional_float(getattr(request, "latency_ms", None))
+    if latency is None:
+        latency = _to_optional_float((request.custom_metrics or {}).get("latency_ms"))
+        
+    traffic = _to_optional_float(getattr(request, "traffic_mbps", None))
+    if traffic is None:
+        traffic = _to_optional_float((request.custom_metrics or {}).get("traffic_mbps"))
+        
     payload: Dict[str, Any] = {
         "mesh_id": request.mesh_id,
         "node_id": request.node_id,

@@ -38,7 +38,7 @@ python3 -m pytest tests/unit/security/test_dependency_security_pins_unit.py -q
 
 ## Docs
 
-- **CODEX** — `/mnt/projects/CODEX.md` — рабочая инструкция для AI агентов (v2.1)
+- **CODEX** — `/mnt/projects/CODEX.md` — рабочая инструкция для AI агентов (v2.4)
 - **AGENTS.md** — правила работы AI с монрепо
 - **Green Baseline** — CI пайплайн с security аудитом
 

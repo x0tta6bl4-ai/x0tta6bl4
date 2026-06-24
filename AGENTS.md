@@ -26,7 +26,7 @@ Tone:
 - No vague "operator" language without explaining who must do what.
 - Focus on getting the task done.
 
-## Project Reality (CODEX.md v2.1)
+## Project Reality (CODEX.md v2.4)
 
 This project has a formal operating manual at `/mnt/projects/CODEX.md`.
 Load it before complex tasks. Key facts:

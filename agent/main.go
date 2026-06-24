@@ -25,6 +25,7 @@ import (
 	"github.com/x0tta6bl4/agent/internal/api"
 	"github.com/x0tta6bl4/agent/internal/config"
 	"github.com/x0tta6bl4/agent/internal/crypto/pqc"
+	"github.com/x0tta6bl4/agent/internal/firstpartyvpn"
 	"github.com/x0tta6bl4/agent/internal/healing"
 	"github.com/x0tta6bl4/agent/internal/identity"
 	"github.com/x0tta6bl4/agent/internal/mesh"
@@ -132,6 +133,7 @@ type agent struct {
 	disc      *discovery.Discovery
 	mdns      *discovery.MdnsDiscovery
 	pqcMgr    *pqc.TunnelManager
+	fpNode    *firstpartyvpn.Node
 	healer    *healing.Monitor
 	apiClient *api.Client
 	telem     *telemetry.Reporter
@@ -177,6 +179,14 @@ func newAgent(cfg *config.Config, cfgPath string) (*agent, error) {
 
 	// Attach PQC tunnel manager to mesh node for encrypted datapath
 	node.SetTunnelManager(pqcMgr)
+
+	// FirstParty VPN node wrapper
+	fpNode := firstpartyvpn.NewNode(firstpartyvpn.Config{
+		ScriptPath: cfg.FirstPartyScriptPath,
+		ConfigPath: cfg.FirstPartyConfigPath,
+		ProjectDir: cfg.FirstPartyProjectDir,
+		Role:       cfg.FirstPartyRole,
+	})
 
 	// Telemetry
 	telem := telemetry.NewReporter(node)
@@ -224,6 +234,7 @@ func newAgent(cfg *config.Config, cfgPath string) (*agent, error) {
 		disc:      disc,
 		mdns:      mdnsDisc,
 		pqcMgr:    pqcMgr,
+		fpNode:    fpNode,
 		healer:    healer,
 		apiClient: apiClient,
 		telem:     telem,
@@ -244,6 +255,12 @@ func (a *agent) start() error {
 	// Start self-healing
 	a.healer.Start()
 
+	// Start FirstParty VPN subprocess wrapper
+	if err := a.fpNode.Start(); err != nil {
+		slog.Error("firstpartyvpn node failed to start", "error", err)
+		// non-fatal for now
+	}
+
 	// Register with Control Plane (non-blocking)
 	if a.apiClient != nil {
 		go a.registerAndHeartbeat()
@@ -259,6 +276,7 @@ func (a *agent) start() error {
 }
 
 func (a *agent) stop() {
+	a.fpNode.Stop()
 	a.healer.Stop()
 	a.mdns.Stop()
 	a.node.Stop()
@@ -298,6 +316,10 @@ func (a *agent) gracefulStop(ctx context.Context) {
 	// Phase 4: Stop healing monitor
 	slog.Info("phase 4: stopping healing monitor")
 	a.healer.Stop()
+
+	// Phase 4.5: Stop firstparty VPN
+	slog.Info("phase 4.5: stopping firstpartyvpn")
+	a.fpNode.Stop()
 
 	// Phase 5: Stop mesh node (closes UDP listener)
 	slog.Info("phase 5: stopping mesh node")

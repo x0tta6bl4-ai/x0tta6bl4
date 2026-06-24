@@ -112,13 +112,13 @@ def get_admin_stats() -> str:
     return text
 
 
-def get_user_list(limit: int = 20) -> List[Dict]:
-    """Get list of users"""
+def get_user_list(offset: int = 0, limit: int = 10) -> tuple:
+    """Get list of users with pagination. Returns (users_list, total_count)"""
     if not MODULES_AVAILABLE:
-        return []
+        return [], 0
     
     active_users = get_active_users()
-    return active_users[:limit]
+    return active_users[offset:offset+limit], len(active_users)
 
 
 def extend_user_subscription(user_id: int, days: int) -> bool:

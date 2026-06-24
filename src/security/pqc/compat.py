@@ -11,93 +11,27 @@ import contextlib
 import io
 import logging
 import warnings
+from enum import Enum
+from dataclasses import dataclass
+import hashlib
 
-logger = logging.getLogger(__name__)
-
-
-@contextlib.contextmanager
-def _quiet_legacy_imports():
-    oqs_logger = logging.getLogger("oqs.oqs")
-    previous_oqs_disabled = oqs_logger.disabled
-    oqs_logger.disabled = True
-    try:
-        with (
-            warnings.catch_warnings(),
-            contextlib.redirect_stdout(io.StringIO()),
-            contextlib.redirect_stderr(io.StringIO()),
-        ):
-            warnings.filterwarnings(
-                "ignore",
-                message=(
-                    r"Importing from src\.libx0t\.security\.post_quantum "
-                    r"is deprecated\..*"
-                ),
-                category=DeprecationWarning,
-                append=False,
-            )
-            warnings.filterwarnings(
-                "ignore",
-                message=(
-                    r"Importing from src\.libx0t\.security\.pqc_core "
-                    r"is deprecated\..*"
-                ),
-                category=DeprecationWarning,
-                append=False,
-            )
-            warnings.filterwarnings(
-                "ignore",
-                message=r"liboqs version .* differs from liboqs-python version .*",
-                category=UserWarning,
-                append=False,
-            )
-            yield
-    finally:
-        oqs_logger.disabled = previous_oqs_disabled
-
-# ---------------------------------------------------------------------------
-# Legacy classes from src.libx0t.security.post_quantum
-# ---------------------------------------------------------------------------
-try:
-    with _quiet_legacy_imports():
-        from src.libx0t.security.post_quantum import (  # noqa: F401
-            LIBOQS_AVAILABLE,
-            HybridPQEncryption,
-            LibOQSBackend,
-            PQAlgorithm,
-            PQCiphertext,
-            PQKeyPair,
-            PQMeshSecurityLibOQS,
-        )
-    _LEGACY_POST_QUANTUM_AVAILABLE = True
-except (ImportError, RuntimeError) as _e:  # pragma: no cover
-    logger.debug("Legacy post_quantum classes unavailable: %s", _e)
-    _LEGACY_POST_QUANTUM_AVAILABLE = False
-    # Provide safe placeholders so import of this module never hard-fails
-    LIBOQS_AVAILABLE = False
-    LibOQSBackend = None  # type: ignore[assignment,misc]
-    HybridPQEncryption = None  # type: ignore[assignment,misc]
-    PQAlgorithm = None  # type: ignore[assignment,misc]
-    PQKeyPair = None  # type: ignore[assignment,misc]
-    PQCiphertext = None  # type: ignore[assignment,misc]
-    PQMeshSecurityLibOQS = None  # type: ignore[assignment,misc]
+from .adapter import is_liboqs_available
 
 try:
-    with _quiet_legacy_imports():
-        from src.libx0t.security.pqc_core import (  # noqa: F401
-            PQCHybridScheme,
-            get_pqc_digital_signature,
-            get_pqc_hybrid,
-            get_pqc_key_exchange,
-            test_pqc_availability,
-        )
-    _LEGACY_PQC_CORE_AVAILABLE = True
-except (ImportError, RuntimeError) as _e:  # pragma: no cover
-    logger.debug("Legacy pqc_core helpers unavailable: %s", _e)
-    _LEGACY_PQC_CORE_AVAILABLE = False
-    PQCHybridScheme = None  # type: ignore[assignment,misc]
+    import oqs
+    KeyEncapsulation = oqs.KeyEncapsulation
+    Signature = oqs.Signature
+except (ImportError, AttributeError):
+    KeyEncapsulation = None
+    Signature = None
 
+try:
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import x25519
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     CRYPTOGRAPHY_AVAILABLE = True
-except ImportError:  # pragma: no cover
+except ImportError:
     hashes = None  # type: ignore[assignment]
     serialization = None  # type: ignore[assignment]
     x25519 = None  # type: ignore[assignment]
@@ -105,16 +39,12 @@ except ImportError:  # pragma: no cover
     HKDF = None  # type: ignore[assignment]
     CRYPTOGRAPHY_AVAILABLE = False
 
-
 LIBOQS_AVAILABLE = (
     is_liboqs_available()
     and KeyEncapsulation is not None
     and Signature is not None
 )
 
-# These flags used to report whether legacy modules could be imported.  The
-# compatibility API is now local to this module, so the legacy surface is always
-# available when this module imports.
 _LEGACY_POST_QUANTUM_AVAILABLE = True
 _LEGACY_PQC_CORE_AVAILABLE = True
 

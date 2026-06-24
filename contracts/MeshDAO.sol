@@ -7,9 +7,14 @@ import "@openzeppelin/contracts/governance/extensions/GovernorCountingSimple.sol
 import "@openzeppelin/contracts/governance/extensions/GovernorVotes.sol";
 
 contract MeshDAO is Governor, GovernorSettings, GovernorCountingSimple, GovernorVotes {
-    constructor(IVotes _token)
+    constructor(
+        IVotes _token,
+        uint48 _votingDelay,
+        uint32 _votingPeriod,
+        uint256 _proposalThreshold
+    )
         Governor("x0tta6bl4 MeshDAO")
-        GovernorSettings(1 /* 1 block */, 50400 /* 1 week */, 0)
+        GovernorSettings(_votingDelay, _votingPeriod, _proposalThreshold)
         GovernorVotes(_token)
     {}
 

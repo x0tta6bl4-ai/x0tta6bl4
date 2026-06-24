@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from src.coordination.events import EventBus, EventType
 from src.core.reliability_policy import mark_degraded_dependency
 from src.ledger.rag_search import get_ledger_rag
+from src.api.maas.endpoints import ledger as modular
 from src.services.service_event_trace import service_event_trace_history
 
 

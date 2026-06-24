@@ -24,6 +24,8 @@ VERIFICATION_SUFFIXES = {".md", ".json", ".jsonl"}
 EVENT_TRACE_SOURCE = "EventBus"
 EVENT_TRACE_SOURCE_CLASS = "event_trace"
 EVENT_TRACE_RELATIVE_PATH = ".agent_coordination/events.log"
+EVENT_TRACE_CLAIM_BOUNDARY_LIMIT = 5
+EVENT_TRACE_CLAIM_BOUNDARY_TEXT_LIMIT = 200
 
 
 @dataclass
