@@ -54,8 +54,8 @@
 - Readiness gate: `python3 scripts/ops/check_real_readiness.py --json`
 
 ### VPS
-- `89.125.1.107:8000/health` — HTTP 200, v3.4.0
-- x402 API: `89.125.1.107:8120`
+- `89.125.1.107:8000/api/status` — Ghost-Core node, uptime 46h+, status NORMAL
+- x402 API: `89.125.1.107:8120` — paid endpoint tools
 
 ---
 
