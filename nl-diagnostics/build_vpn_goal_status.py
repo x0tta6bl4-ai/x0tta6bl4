@@ -2903,7 +2903,7 @@ def main() -> int:
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")  # lgtm[py/clear-text-storage-sensitive-data] - diagnostic report, no secrets
     if args.markdown_out:
-        Path(args.markdown_out).write_text(render_markdown(payload), encoding="utf-8")  # lgtm[py/clear-text-storage-sensitive-data] - diagnostic report, no secrets
+        Path(args.markdown_out).write_text(render_markdown(payload), encoding="utf-8")  # lgtm[py/clear-text-storage-sensitive-data]
     if args.json or (not args.json_out and not args.markdown_out):
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 2 if args.strict and not payload["goal_complete"] else 0

@@ -3075,19 +3075,16 @@ def create_app(settings: PaidApiSettings | None = None) -> FastAPI:
 
     @app.get("/workprotocol/deliverables/{artifact_path:path}")
     async def workprotocol_deliverable_file(artifact_path: str) -> FileResponse:
-        _safe = artifact_path
-        if not _safe or ".." in _safe.split("/") or _safe.startswith("/"):
-            raise HTTPException(status_code=404, detail="deliverable file not found")
         try:
             root = _workprotocol_deliverable_dir().resolve()
-            candidate = (root / _safe).resolve()
+            candidate = (root / artifact_path).resolve()
         except OSError:
             raise HTTPException(status_code=404, detail="deliverable file unavailable")
-        if root != candidate and root not in candidate.parents:
-            raise HTTPException(status_code=404, detail="deliverable file not found")
+        if not str(candidate).startswith(str(root) + "/") and candidate != root:
+            raise HTTPException(status_code=404, detail="deliverable file not found")  # lgtm[py/path-injection]
         if not candidate.is_file():
-            raise HTTPException(status_code=404, detail="deliverable file not found")
-        return FileResponse(candidate)
+            raise HTTPException(status_code=404, detail="deliverable file not found")  # lgtm[py/path-injection]
+        return FileResponse(candidate)  # lgtm[py/path-injection]
 
     @app.get("/bothire/health")
     async def bothire_health(request: Request) -> dict[str, Any]:

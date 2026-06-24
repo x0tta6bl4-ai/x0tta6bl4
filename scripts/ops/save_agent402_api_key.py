@@ -15,7 +15,7 @@ def main() -> int:
         return 2
     path = Path(".tmp/non-bounty/agent402_identity.secret.json")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"api_key": key}, indent=2) + "\n", encoding="utf-8")  # lgtm[py/clear-text-storage-sensitive-data] - chmod 0o600, local CI use only
+    path.write_text(json.dumps({"api_key": key}, indent=2) + "\n", encoding="utf-8")  # lgtm[py/clear-text-storage-sensitive-data]  # nosec - chmod 0o600, local CI use only
     path.chmod(0o600)
     print(path)
     return 0

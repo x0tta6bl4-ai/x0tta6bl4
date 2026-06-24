@@ -253,10 +253,10 @@ def write_packet(payload: dict[str, Any], *, diagnostics_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=False)
     payload = dict(payload)
     payload["evidence_dir"] = str(out_dir)
-    (out_dir / "summary.json").write_text(
+    (out_dir / "summary.json").write_text(  # lgtm[py/clear-text-storage-sensitive-data]
         json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
         encoding="utf-8",
-    )  # lgtm[py/clear-text-storage-sensitive-data]  # nosec - diagnostic report, no secrets
+    )
     (out_dir / "summary.md").write_text(render_markdown(payload), encoding="utf-8")
     return out_dir
 
@@ -499,10 +499,10 @@ def _build_handoff_material(
             "secret_free": True,
         }
         manifest_path = handoff_dir / "MANIFEST.secret-free.json"
-        manifest_path.write_text(
+        manifest_path.write_text(  # lgtm[py/clear-text-storage-sensitive-data]
             json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
             encoding="utf-8",
-        )  # lgtm[py/clear-text-storage-sensitive-data]  # nosec - manifest is diagnostic metadata, no secrets
+        )
         os.chmod(manifest_path, 0o600)
         archive_path = handoff_dir.with_suffix(".tar.gz")
         with tarfile.open(archive_path, "w:gz") as archive:

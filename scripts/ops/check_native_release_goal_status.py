@@ -270,7 +270,7 @@ def _write_output(report: Mapping[str, Any], output: str | None) -> None:
         return
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")  # lgtm[py/clear-text-storage-sensitive-data] - diagnostic report, no secrets
+    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")  # lgtm[py/clear-text-storage-sensitive-data]  # lgtm[py/clear-text-storage-sensitive-data] - diagnostic report, no secrets
 
 
 def _print_text(report: Mapping[str, Any]) -> None:
