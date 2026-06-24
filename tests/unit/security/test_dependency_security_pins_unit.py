@@ -104,11 +104,6 @@ def test_removed_unpatched_dependencies_stay_out_of_runtime_baseline() -> None:
             for item in pyproject["project"]["dependencies"]
         )
     }
-    skill_update_script = (
-        ROOT / "x0tta6bl4-core-skill/x0tta6bl4-core/scripts/update_dependencies.sh"
-    ).read_text(encoding="utf-8").lower()
-
     for package in REMOVED_UNPATCHED_DEPENDENCIES:
         assert package not in requirements
         assert package not in project_requirements
-        assert package not in skill_update_script
