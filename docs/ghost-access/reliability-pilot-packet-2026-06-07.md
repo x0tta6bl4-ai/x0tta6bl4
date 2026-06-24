@@ -35,7 +35,7 @@ For one agreed access path, deliver:
 
 Do not claim:
 
-- unblockable access;
+**Goal:** unblockable access — this is an aspirational target, not currently achieved.
 - anonymity;
 - guaranteed DPI bypass;
 - production SLO proof;
