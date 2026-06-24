@@ -418,3 +418,65 @@ src/dao/contracts/scripts/stress_test_gas.js
 # Agent analysis scratch
 /docs/agent-analysis/
 
+
+# === BUILD ARTIFACTS ===
+__pycache__/
+*.pyc
+*.pyo
+htmlcov/
+playwright-report/
+test-results/
+dist/
+build/
+*.egg-info/
+.eggs/
+*.egg
+.coverage
+*.log
+
+# === PERSONAL / UNRELATED ===
+recovered_photos/
+СЕМЕЙНЫЙ_АРХИВ_ИТОГ/
+home_backups/
+sh-kvartira-redesign/
+другие проекты/
+cad-scratch/
+composite-cassettes/
+data-16bbdde1-92ce-4f6f-ac13-c7217d4cd06a-1781211800-85b837ba-batch-0000/
+auto-warp-config/
+
+# === TEMP / CACHE ===
+cache/
+tmp/
+output/
+results/
+reports/
+artifacts/
+external_artifacts/
+load/
+logs/
+node_modules/
+k6-v0.49.0-linux-amd64/
+pytest-of-x0ttta6bl4/
+System Volume Information/
+user_data/
+.github/
+pitch-deck/
+
+# === DOCKER GARBAGE ===
+docker-data-old/
+docker-ext4/
+
+# === TEST OUTPUT ===
+data/
+mesh_proof_data/
+metrics_baseline/
+mutants/
+staging/
+benchmarks/
+
+# === THIRD PARTY ===
+github.com/
+ethernaut-ctf/
+ethernaut-solutions/
+bounties/
