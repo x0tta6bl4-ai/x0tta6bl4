@@ -88,6 +88,10 @@ class SafeActuatorResult:
     simulated: bool = False
 
 
+# Backward-compatible alias used by dao bridge, deployment modules
+SafeActuatorEvidenceMetadata = SafeActuatorResult
+
+
 @dataclass(frozen=True)
 class SpineOutcome:
     request_id: str

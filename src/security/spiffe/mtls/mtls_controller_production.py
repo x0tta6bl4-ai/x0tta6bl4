@@ -11,7 +11,7 @@ import ssl
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     from prometheus_client import Counter, Gauge
