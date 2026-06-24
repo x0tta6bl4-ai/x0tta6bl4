@@ -6,7 +6,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
-from typing import Any, Callable, Optional, Tuple, Generator
+from typing import Any, Callable, Optional, Tuple, Generator, Dict
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from src.database import User, AuditLog, get_db

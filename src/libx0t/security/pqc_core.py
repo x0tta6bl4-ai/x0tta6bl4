@@ -12,13 +12,14 @@ from src.security.pqc.compat import (  # noqa: F401
     PQCDigitalSignature,
     PQCHybridScheme,
     PQCKeyExchange,
-    PQCKeyPair,
-    PQCSignature,
+    PQKeyPair,
+    PQKeyPair as PQCKeyPair,
     get_pqc_digital_signature,
     get_pqc_hybrid,
     get_pqc_key_exchange,
     test_pqc_availability,
 )
+from src.security.pqc.types import PQCSignature  # noqa: F401
 from src.security.pqc import is_liboqs_available  # noqa: F401
 
 warnings.warn(

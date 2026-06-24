@@ -21,16 +21,16 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import (
     Any,
+    Awaitable,
     Callable,
     Dict,
     Generic,
     List,
     Optional,
+    Protocol,
     TypeVar,
     Union,
-    Awaitable,
-    Protocol,
-    runtime_checkable
+    runtime_checkable,
 )
 
 logger = logging.getLogger(__name__)
