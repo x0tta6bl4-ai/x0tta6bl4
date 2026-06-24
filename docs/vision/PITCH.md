@@ -1,4 +1,16 @@
-> Truth-surface note: investor pitch / vision document.
+> **⚠️ HONESTY DISCLAIMER**
+> 
+> This document is an **aspirational vision/investor pitch**. It describes what the project *aims to become*, not its current state.
+> 
+> **Current reality (2026-06-24):**
+> - This is a solo project by one developer under sanctions. Zero budget.
+> - Not production-ready. No paying customers. No security audit.
+> - Benchmarks: 142k PPS on r8169 (not 1M). MTTR ~3min (not <5s).
+> - No 99.97% uptime evidence. No GOST crypto. No BGP/OSPF/MPLS.
+> 
+> For current factual status see: `STATUS_REALITY.md`, `CODEX.md`, `README.md`
+
+1|> Truth-surface note: investor pitch / vision document.
 > Superseded for current readiness claims by `STATUS_REALITY.md`,
 > `docs/05-operations/REAL_READINESS_GATE.md`, and
 > `docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json`.
