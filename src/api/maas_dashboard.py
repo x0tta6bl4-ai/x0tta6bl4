@@ -6,10 +6,13 @@ Aggregated summary for the management dashboard.
 Uses DB-backed data for all statistics including hardware attestation.
 """
 
+import hashlib
 import logging
 import importlib
 from datetime import datetime, timedelta
 from typing import Any, Dict
+
+from src.coordination.events import EventBus, get_event_bus
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session

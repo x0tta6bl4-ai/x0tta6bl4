@@ -247,6 +247,8 @@ def check_current_evidence_context(
             for item in context["planes"]  # type: ignore[index]
             if isinstance(item, dict) and item.get("id")
         }
+    elif not plane_ids and isinstance(context.get("planes"), dict):
+        plane_ids = set(context.get("planes", {}).keys())
 
     open_gap_ids = _as_string_list(context.get("open_gap_ids"))
     if not open_gap_ids and isinstance(context.get("current_gaps"), list):

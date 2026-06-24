@@ -402,3 +402,19 @@ nl-diagnostics/provider-incident-packets/
 
 # Bounty scripts in dao contracts
 src/dao/contracts/scripts/stress_test_gas.js
+/bounties/
+
+# === Generated build artifacts (not source) ===
+
+# GitMark memory bank (rebuilt by script)
+.gitmark-memory/
+
+# Root scratch test files
+/test_heartbeat.py
+/test_router.py
+/test_routes.py
+/test_output.txt
+
+# Agent analysis scratch
+/docs/agent-analysis/
+

@@ -28,7 +28,7 @@ from src.api.maas_auth import get_current_user_from_maas, require_permission
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.core.reliability_policy import mark_degraded_dependency
 from src.database import MarketplaceEscrow, MarketplaceListing, MeshNode, User, GlobalConfig, get_db
-from src.api.maas_telemetry import reputation_system
+from src.api.maas.endpoints.telemetry import reputation_system
 from src.dao.token_bridge import TokenBridge, BridgeConfig
 from src.dao.token import MeshToken
 from src.utils.audit import record_audit_log

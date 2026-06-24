@@ -157,6 +157,7 @@ async def register_v3_alias(req: UserRegisterRequest, db: Session = Depends(get_
 @router.post(
     "/api/v1/maas/mesh/deploy",
     response_model=maas_legacy.MeshDeployResponse,
+    status_code=201,
     include_in_schema=False,
 )
 async def deploy_mesh_alias(
