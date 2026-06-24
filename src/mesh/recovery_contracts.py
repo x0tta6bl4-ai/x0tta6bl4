@@ -122,9 +122,12 @@ class PostActionDataplaneClaimGate(StrictRecoveryModel):
 class PostActionDataplaneRevalidation(StrictRecoveryModel):
     """Optional dataplane proof attached after local recovery revalidation."""
 
-    schema: Literal[
+    schema_id: Literal[
         "mesh_node_degradation_recovery.post_action_dataplane_revalidation.v1"
-    ] = "mesh_node_degradation_recovery.post_action_dataplane_revalidation.v1"
+    ] = Field(
+        default="mesh_node_degradation_recovery.post_action_dataplane_revalidation.v1",
+        alias="schema"
+    )
     status: Literal["not_attempted", "success", "failed"]
     reason: str
     probe_attempted: bool

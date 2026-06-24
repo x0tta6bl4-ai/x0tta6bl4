@@ -28,6 +28,9 @@ except ImportError:
 
 
 from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.services.service_event_identity import service_event_identity_status
+from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
 from src.core.reliability_policy import mark_degraded_dependency
 from src.database import BillingWebhookEvent, Invoice, License, Payment, User, get_db
 from src.services.xray_manager import XrayManager

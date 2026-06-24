@@ -8,6 +8,12 @@ monkeypatches that import ``src.api.maas_nodes`` directly.
 
 from __future__ import annotations
 
+import hmac
+import uuid
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Set, Iterable
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -19,10 +25,11 @@ from src.api.maas_auth import require_role, require_mesh_access
 from src.api.maas_security import token_signer
 from src.core.reliability_policy import mark_degraded_dependency
 from src.utils.audit import record_audit_log
+from src.api.maas.nodes.admission import register_node as core_register_node
 
-_parent = sys.modules.get(__name__.rsplit(".", 1)[0])
-if _parent is not None:
-    setattr(_parent, "maas_nodes", _legacy)
+logger = logging.getLogger(__name__)
+
+
 
 router = APIRouter(prefix="/api/v1/maas", tags=["MaaS Nodes"])
 
@@ -359,17 +366,17 @@ def _ensure_owner_or_admin_access(
 
 # Optional telemetry imports with graceful fallback
 try:
-    from src.api.maas_telemetry import _set_telemetry as _set_external_telemetry
+    from src.api.maas.endpoints.telemetry import _set_telemetry as _set_external_telemetry
 except ImportError:
     _set_external_telemetry = None
 
 try:
-    from src.api.maas_telemetry import _get_telemetry as _get_external_telemetry
+    from src.api.maas.endpoints.telemetry import _get_telemetry as _get_external_telemetry
 except ImportError:
     _get_external_telemetry = None
 
 try:
-    from src.api.maas_telemetry import _get_telemetry_history as _get_external_telemetry_history
+    from src.api.maas.endpoints.telemetry import _get_telemetry_history as _get_external_telemetry_history
 except ImportError:
     _get_external_telemetry_history = None
 
@@ -573,37 +580,15 @@ async def register_node(
     req: NodeRegisterRequest,
     db: Session = Depends(get_db)
 ):
-    instance = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
-    if not instance:
-        raise HTTPException(status_code=404, detail="Mesh not found")
-    
-    if not instance.join_token:
-        raise HTTPException(status_code=503, detail="Mesh enrollment token is not configured")
-    if instance.join_token_expires_at and instance.join_token_expires_at <= datetime.utcnow():
-        raise HTTPException(status_code=401, detail="Enrollment token expired")
-
-    if not hmac.compare_digest(req.enrollment_token, instance.join_token):
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    node_id = req.node_id or f"node-{uuid.uuid4().hex[:6]}"
-    
-    # Check if node already exists
-    existing = db.query(MeshNode).filter(MeshNode.id == node_id).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="Node ID already registered")
-
-    node = MeshNode(
-        id=node_id,
+    return core_register_node(
         mesh_id=mesh_id,
+        enrollment_token=req.enrollment_token,
+        db=db,
+        node_id=req.node_id,
         device_class=req.device_class,
         hardware_id=req.hardware_id,
-        status="pending"
+        enclave_enabled=False,
     )
-    db.add(node)
-    db.commit()
-    
-    logger.info(f"🆕 Node {node_id} registered (pending) for mesh {mesh_id}")
-    return {"status": "pending_approval", "node_id": node_id}
 
 @router.get("/{mesh_id}/nodes/pending")
 def list_pending(

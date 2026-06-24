@@ -1937,11 +1937,13 @@ async def register_v3_alias(
 @router.post(
     "/api/v1/maas/deploy",
     response_model=ModularMeshDeployResponse,
+    status_code=201,
     include_in_schema=False,
 )
 @router.post(
     "/api/v1/maas/mesh/deploy",
     response_model=ModularMeshDeployResponse,
+    status_code=201,
     include_in_schema=False,
 )
 async def deploy_mesh_alias(

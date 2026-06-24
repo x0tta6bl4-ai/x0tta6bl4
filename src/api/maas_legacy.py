@@ -21,8 +21,10 @@ from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
+from src.api.maas_auth import get_current_user_from_maas, require_permission
 from src.api.maas_auth_models import (ApiKeyResponse, TokenResponse,
                                       UserLoginRequest, UserRegisterRequest)
 from src.core.reliability_policy import mark_degraded_dependency
@@ -37,6 +39,7 @@ from src.database import (
 )
 from src.security.hardware_enclave import AttestationService
 from src.services.maas_auth_service import MaaSAuthService, find_user_by_api_key
+from src.api.maas.services import BillingService as ModularBillingService, UsageMeteringService as ModularUsageMeteringService
 
 try:  # Optional in local/dev environments.
     from src.security.ebpf_pqc_gateway import PQC_AVAILABLE
@@ -48,6 +51,10 @@ try:  # Historical readiness surface only checks callability.
 except Exception:  # pragma: no cover - optional.
     PQCNodeIdentity = None
 
+
+from src.api.maas.endpoints.compat import router as compat_router
+from src.api.maas.endpoints.mesh import router as mesh_router
+from src.api.maas.endpoints.nodes_legacy import router as nodes_legacy_router
 
 logger = logging.getLogger(__name__)
 
