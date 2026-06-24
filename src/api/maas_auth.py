@@ -1,7 +1,7 @@
 """Compatibility alias for the DB-backed MaaS auth API."""
 
 import sys as _sys
-from typing import Any, Iterable
+from typing import Any, Iterable, Dict
 
 import logging
 import os
