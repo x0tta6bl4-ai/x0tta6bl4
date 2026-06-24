@@ -106,7 +106,9 @@ def _include_maas_router(module_path: str, label: str) -> None:
 
 # Fixed-prefix MaaS routers must be registered before the legacy catch-all
 # routes such as /api/v1/maas/{mesh_id}/status.
-_include_maas_router("src.api.maas_billing", "billing")
+# src.api.maas_billing is DEPRECATED — routes shadowed by src.api.billing
+# Kept commented to avoid duplicate OpenAPI operation IDs.
+# _include_maas_router("src.api.maas_billing", "billing")
 _include_maas_router("src.api.billing", "billing-api")
 _include_maas_router("src.api.maas_legacy", "legacy")
 _include_maas_router("src.api.maas_compat", "compat")
