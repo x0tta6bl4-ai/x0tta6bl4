@@ -1055,8 +1055,8 @@ def _write_output(path_text: str, report: Mapping[str, Any]) -> None:
     output_path = Path(path_text)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(report, ensure_ascii=True, indent=2) + "\n",
-        encoding="utf-8",
+        1058|        json.dumps(report, ensure_ascii=True, indent=2) + "\n",
+        1059|  # lgtm[py/clear-text-storage-sensitive-data]
     )  # nosec - diagnostic report, no secrets
 
 
@@ -1073,7 +1073,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.output_json:
         _write_output(args.output_json, report)
     if args.json or not args.output_json:
-        print(json.dumps(report, ensure_ascii=True, indent=2))  # nosec - diagnostic report, no secrets
+        print(json.dumps(report, ensure_ascii=True, indent=2))  # lgtm[py/clear-text-logging-sensitive-data] - diagnostic report, no secrets
     if args.require_separated and not report.get("ok"):
         return 2
     return 0
