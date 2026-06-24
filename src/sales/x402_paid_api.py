@@ -1985,6 +1985,7 @@ def _fetch_domain_http(url: str) -> dict[str, Any]:
 
 def _check_tls_expiry(hostname: str, port: int = 443) -> dict[str, Any]:
     context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     try:
         with socket.create_connection((hostname, port), timeout=8.0) as sock:
             with context.wrap_socket(sock, server_hostname=hostname) as tls:
@@ -3074,6 +3075,8 @@ def create_app(settings: PaidApiSettings | None = None) -> FastAPI:
 
     @app.get("/workprotocol/deliverables/{artifact_path:path}")
     async def workprotocol_deliverable_file(artifact_path: str) -> FileResponse:
+        if ".." in artifact_path.split("/"):
+            raise HTTPException(status_code=404, detail="deliverable file not found")
         try:
             root = _workprotocol_deliverable_dir().resolve()
             candidate = (root / artifact_path).resolve()
