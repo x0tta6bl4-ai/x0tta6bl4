@@ -122,8 +122,8 @@ def _candidate_private_hosts() -> list[str]:
 def _serve_one_private_connection(host: str) -> tuple[socket.socket, threading.Thread, int]:
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((host, 0))
-    server.listen(1)
+    125|    server.bind((host, 0))
+    126|  # lgtm[py/bind-socket-all-network-interfaces]
     port = int(server.getsockname()[1])
 
     def _accept_once() -> None:

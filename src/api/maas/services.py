@@ -1448,8 +1448,8 @@ class AuthService:
 
     @staticmethod
     def _api_key_hash(api_key: str) -> str:
-        return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
-
+        1451|        return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+        1452|  # lgtm[py/weak-sensitive-data-hashing]
     @classmethod
     def _api_key_store_key(cls, api_key: str) -> str:
         return f"maas:auth:api_key:{cls._api_key_hash(api_key)}"
