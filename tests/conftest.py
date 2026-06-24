@@ -198,20 +198,37 @@ if SRC_ROOT not in sys.path:
 if not hasattr(asyncio, "coroutine"):
     asyncio.coroutine = types.coroutine
 
+import signal
+
+_PREIMPORT_TIMEOUT = 20
+
+
+def _import_safe(name: str) -> None:
+    """Import a module with alarm-based timeout."""
+    import importlib
+
+    def _handler(signum, frame):
+        raise TimeoutError(f"import {name} timed out")
+
+    old = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(_PREIMPORT_TIMEOUT)
+    try:
+        importlib.import_module(name)
+    except Exception:
+        pass
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
+
+
 # Pre-import torch and torch_geometric so their submodules are in
 # sys.modules baseline.  The autouse mock_dependencies fixture uses
 # patch.dict('sys.modules') which removes any NEW modules added during
 # a test.  If these packages are imported for the first time during a
 # test, their hundreds of submodules get removed on context exit,
 # corrupting internal state for subsequent tests.
-try:
-    import torch  # noqa: F401
-except Exception:
-    pass
-try:
-    import torch_geometric  # noqa: F401
-except Exception:
-    pass
+_import_safe("torch")
+_import_safe("torch_geometric")
 
 # Pre-import governance_script so its module dict stays stable across tests.
 # mock_dependencies uses sys.modules.clear() on each teardown; if governance_script
