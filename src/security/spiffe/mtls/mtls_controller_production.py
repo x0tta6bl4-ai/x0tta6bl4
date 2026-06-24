@@ -116,7 +116,11 @@ class MTLSControllerProduction:
         goal: str,
         signals: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        self.last_thinking_context = self.thinking_coach.prepare_task(
+        coach = getattr(self, "thinking_coach", None)
+        if coach is None:
+            self.last_thinking_context = {"task_type": task_type, "goal": goal}
+            return self.last_thinking_context
+        self.last_thinking_context = coach.prepare_task(
             {
                 "task_type": task_type,
                 "goal": goal,
