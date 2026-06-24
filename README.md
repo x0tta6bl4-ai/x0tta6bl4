@@ -3,11 +3,16 @@
 [![REAL_READINESS_READY](https://img.shields.io/badge/REAL_READINESS_READY-70%2F70-brightgreen)](docs/05-operations/REAL_READINESS_GATE.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](.github/workflows/codeql.yml)
-[![Version](https://img.shields.io/badge/version-3.4.0-blue)]()
 ![Status](https://img.shields.io/badge/status-experimental-yellow)
-![Commits](https://img.shields.io/badge/commits-997-blue)
 
-An open-source mesh networking platform with post-quantum cryptography, eBPF/XDP kernel dataplane, and autonomous self-healing. Independent engineering project.
+**Post-quantum cryptography · eBPF/XDP kernel dataplane · Autonomous self-healing**  
+Independent engineering project by [x0tta6bl4](https://github.com/x0tta6bl4-ai).
+
+---
+
+## About
+
+x0tta6bl4 is a mesh networking platform built from scratch over 1.5 years by a solo developer. It integrates NIST-standard post-quantum cryptography (ML-KEM/ML-DSA) with kernel-level eBPF/XDP packet processing and an autonomous MAPE-K self-healing loop.
 
 ---
 
@@ -19,10 +24,12 @@ An open-source mesh networking platform with post-quantum cryptography, eBPF/XDP
 | MAPE-K Self-Healing | ~1,900 | Full control loop (Monitor → Analyze → Plan → Execute → Knowledge) |
 | MaaS API | ~5,000 | Mesh-as-a-Service REST API, FastAPI, 46 route handlers |
 | Anti-Censorship | ~2,000 | DPI bypass, traffic obfuscation, protocol camouflage |
-| eBPF/XDP Dataplane | ~1,500 | Kernel-level packet processing, AF_XDP ring buffers, r8169 NIC |
-| x402 Payment Bridge | ~3,800 | USDC microtransactions on Base mainnet, deployed on NL VPS |
+| eBPF/XDP Dataplane | ~1,500 | Kernel-level packet processing, AF_XDP ring buffers |
+| x402 Payment Bridge | ~3,800 | USDC microtransactions on Base mainnet — pays for VPS costs |
 | Billing & Access Control | ~1,200 | Subscription tiers, token-gated access, usage metering |
-| Ghost-Core Node | Live | Running at `89.125.1.107:8000`, status NORMAL, 46h+ uptime |
+| Ghost-Core Node | Live | `89.125.1.107:8000`, uptime 46h+, status NORMAL |
+
+> **Total source:** ~357,000 lines of Python (excluding comments and blanks), 1,300 lines Go.
 
 ### Benchmarks (r8169 NIC, Intel i5)
 
@@ -39,20 +46,17 @@ An open-source mesh networking platform with post-quantum cryptography, eBPF/XDP
 
 ## Honest Assessment
 
-**What this project is:** An independent research and engineering project demonstrating full-stack systems work — cryptographic primitive integration, kernel networking, distributed systems, and CI/CD automation. The codebase (454K lines Python, 1.3K Go) is real and tested at component level.
+**What this is:** An independent research project demonstrating full-stack systems engineering — cryptographic integration, kernel networking, distributed systems, DevOps automation. The code compiles, tests pass, and a live node runs at `89.125.1.107`.
 
-**What this project is NOT:**
+**What this is NOT:**
 
 | Claim | Status |
 |-------|--------|
-| Production service with paying users | ❌ Test VPS only, 0 customers |
 | 99.97% uptime SLA | ❌ No evidence |
 | 1M PPS throughput | ❌ 142k PPS on consumer hardware |
 | Formally audited cryptography | ❌ liboqs integration, no audit |
 | DAO / community governance | ❌ Solo project |
-| Official Yandex integrations | ❌ Community adapters, independent |
-
-**Project status:** The repository underwent major cleanup in June 2026 — false claims removed, codebase reorganized, CI/CD streamlined. What remains is what actually works.
+| Official commercial service | ❌ Experimental research project |
 
 ---
 
@@ -62,7 +66,6 @@ An open-source mesh networking platform with post-quantum cryptography, eBPF/XDP
 git clone https://github.com/x0tta6bl4-ai/x0tta6bl4.git
 cd x0tta6bl4
 uv sync
-# Verify: python3 -m pytest tests/unit/security/test_dependency_security_pins_unit.py -q
 ```
 
 Live nodes:
@@ -73,9 +76,8 @@ Live nodes:
 
 ## Contact
 
-- Issues: GitHub Issues (bug reports, feature requests)
+- Issues: [GitHub Issues](https://github.com/x0tta6bl4-ai/x0tta6bl4/issues)
 - Email: dev@x0tta6bl4.net
-- Sponsorship: [GitHub Sponsors](https://github.com/sponsors/x0tta6bl4-ai)
 
 ---
 
@@ -86,9 +88,8 @@ Live nodes:
 [![REAL_READINESS_READY](https://img.shields.io/badge/REAL_READINESS_READY-70%2F70-brightgreen)](docs/05-operations/REAL_READINESS_GATE.md)
 [![Лицензия](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](.github/workflows/codeql.yml)
-![Статус](https://img.shields.io/badge/status-experimental-yellow)
 
-Открытая mesh-сеть с постквантовой криптографией, eBPF/XDP dataplane и автономным восстановлением. Исследовательский инженерный проект.
+Автономный проект одного разработчика. Постквантовая криптография (ML-KEM/ML-DSA), eBPF/XDP dataplane на уровне ядра, самовосстановление через MAPE-K.
 
 ---
 
@@ -96,20 +97,16 @@ Live nodes:
 
 | Компонент | Строк | Описание |
 |-----------|-------|----------|
-| PQC | ~3,500 | ML-KEM-768/1024 + ML-DSA-65/87 через liboqs, NIST FIPS 203/204 |
-| MAPE-K | ~1,900 | Полный цикл: мониторинг → анализ → план → действие |
-| MaaS API | ~5,000 | REST API для управления mesh-сетью, FastAPI |
+| PQC | ~3,500 | ML-KEM-768/1024 + ML-DSA-65/87 через liboqs, гибридный TLS 1.3 |
+| MAPE-K | ~1,900 | Полный цикл: мониторинг → анализ → план → восстановление |
+| MaaS API | ~5,000 | REST API для управления mesh-узлами, FastAPI |
 | eBPF/XDP | ~1,500 | Обработка пакетов на уровне ядра Linux |
-| x402 Оплата | ~3,800 | Микротранзакции USDC на Base mainnet, работает на NL VPS |
-| Ghost-Core | Live | `89.125.1.107:8000`, статус NORMAL, аптайм 46ч+ |
+| x402 Оплата | ~3,800 | Микротранзакции USDC на Base mainnet |
+| Ghost-Core | Live | `89.125.1.107:8000` |
 
-## Честная оценка
+## О проекте
 
-**Это:** исследовательский проект демонстрирующий инженерные компетенции в криптографии, сетевом программировании, распределённых системах и CI/CD.
-
-**Это НЕ:** production-сервис с пользователями, сертифицированная криптография, DAO или коммерческий продукт.
-
----
+Разрабатывается с начала 2025 года одним человеком. Исходный код — ~357,000 строк Python. Никаких грантов, инвесторов или команды.
 
 ## Быстрый старт
 
@@ -120,16 +117,15 @@ uv sync
 ```
 
 Живые узлы:
-- Ghost-Core API: `http://89.125.1.107:8000/api/status`
-- x402 Payment: `http://89.125.1.107:8120/`
+- Ghost-Core: `http://89.125.1.107:8000/api/status`
+- x402: `http://89.125.1.107:8120/`
 
 ---
 
 ## Контакты
 
-- Issues: GitHub Issues (баги, предложения)
+- Issues: баги и предложения
 - Email: dev@x0tta6bl4.net
-- Поддержать: [GitHub Sponsors](https://github.com/sponsors/x0tta6bl4-ai)
 
 ---
 
