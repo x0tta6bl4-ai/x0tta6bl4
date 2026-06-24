@@ -6,7 +6,8 @@
 ![Status](https://img.shields.io/badge/status-experimental-yellow)
 
 **Post-quantum cryptography · eBPF/XDP kernel dataplane · Autonomous self-healing**  
-Independent engineering project by [x0tta6bl4](https://github.com/x0tta6bl4-ai).
+Independent engineering project by [x0tta6bl4](https://github.com/x0tta6bl4-ai).  
+*AI-assisted: see [AI-DECLARATION.md](AI-DECLARATION.md).*
 
 ---
 
@@ -78,6 +79,14 @@ Live nodes:
 
 - Issues: [GitHub Issues](https://github.com/x0tta6bl4-ai/x0tta6bl4/issues)
 - Email: dev@x0tta6bl4.net
+
+---
+
+## Get Involved
+
+- **Star** this repo — helps others discover the project
+- **Try the live node**: `curl http://89.125.1.107:8000/api/status`
+- **Open an issue** for feedback, questions, or ideas
 
 ---
 
