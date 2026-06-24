@@ -190,6 +190,36 @@ class SPIFFEController:
             "last_thinking_context": self.last_thinking_context,
         }
 
+
+    def _prepare_thinking_context(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        safe_extra = {}
+        if extra:
+            for k, v in extra.items():
+                if isinstance(v, (str, int, float, bool)):
+                    safe_extra[k] = v
+                else:
+                    safe_extra[k] = str(type(v).__name__)
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "extra": safe_extra or {},
+                "constraints": {
+                    "redact_svid_certificates": True,
+                    "redact_private_keys": True,
+                    "redact_ca_bundles": True,
+                    "redact_temp_paths": True,
+                    "redact_spiffe_ids": True,
+                    "redact_exception_text": True,
+                },
+            }
+        )
+
     def initialize(
         self,
         attestation_strategy: AttestationStrategy = AttestationStrategy.JOIN_TOKEN,
