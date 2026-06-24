@@ -1,104 +1,127 @@
-# 🛡️ x0tta6bl4 — Quantum Shield VPN (v3.4.0)
+# x0tta6bl4 — mesh networking platform
 
 [![REAL_READINESS_READY](https://img.shields.io/badge/REAL_READINESS_READY-70%2F70-brightgreen)](docs/05-operations/REAL_READINESS_GATE.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+![GitHub commits](https://img.shields.io/badge/commits-987-blue)
+![Status](https://img.shields.io/badge/status-alpha-yellow)
 
-**Engineering Integrity meets Post-Quantum Security.**  
-x0tta6bl4 is a cryptographically-hardened, self-healing mesh network optimized for the post-quantum era.
+**Само-восстанавливающаяся mesh-сеть с постквантовой криптографией и eBPF dataplane.**
 
-## 🚀 Quantum Shield VPN is LIVE
-Our first B2C product is a post-quantum VPN built on the x0tta6bl4 core.
-- **Get the Bot**: [@x0tta6bl4_bot](https://t.me/x0tta6bl4_bot)
-- **7-Day Free Trial**: Verified PQC transport for everyone.
-- **Honest Performance**: 142k PPS real-world baseline (RC1).
+> Код открыт, всё честно. Это соло-проект одного человека, а не корпоративный продукт.
 
-## Why x0tta6bl4?
+---
 
-- **Honest Mode** — We recently purged all unverified claims. Every metric here is backed by an eBPF-attested log.
-- **Post-quantum transport** — Hybrid TLS 1.3 + Kyber/ML-KEM encryption.
-- **eBPF DPI-bypass** — Defeat deep-packet inspection at the kernel level.
-- **Self-healing MAPE-K** — Autonomous recovery with <20s detection time.
+## Про проект
 
-## 📊 The Reality Map (RC1 Baseline)
+**x0tta6bl4** — это не «ещё один VPN». Это **mesh networking platform**:
 
-| Capability | Status | Evidence |
-|------------|--------|----------|
-| Throughput | ✅ 142k PPS | `docs/verification/xdp-live-attach-20260615T133855Z/` |
-| PQC Stack  | ✅ Verified | `docs/verification/HYBRID_TLS_VALIDATION_LATEST.md` |
-| Readiness  | ✅ 100% | `python3 scripts/ops/check_real_readiness.py` |
+- **PQC транспорт** — ML-KEM-768 + ML-DSA-65 (NIST FIPS 203/204)
+- **eBPF/XDP dataplane** — обработка пакетов на уровне ядра, DPI-bypass
+- **MAPE-K self-healing** — автономное восстановление узлов
+- **SPIFFE/SPIRE mTLS** — zero-trust аттестация
 
-## Quick Start
+Всё это можно использовать как VPN, mesh для IoT, приватный overlay, research-полигон — что хочешь.
+
+---
+
+## Об авторе
+
+Привет. Я разработчик из Крыма, под санкциями, без команды и бюджета.
+
+- 1.5+ лет пишу x0tta6bl4 в свободное время
+- Домашний сервер в шкафу, сетевая r8169, Linux
+- Сделал mesh для себя → друзья попросили доступ → решил поделиться с миром
+- Не корпорация, не стартап, не инвесторы. Только я и линукс.
+
+**Почему этот проект?** Постквантовая криптография должна быть доступна обычным людям, а не только enterprise. Инструменты связи, которые нельзя заблокировать.
+
+---
+
+## Что реально работает (RC1 baseline)
+
+| Компонент | Статус |
+|-----------|--------|
+| **PQC стек** | ✅ ML-KEM-768/1024 + ML-DSA-65/87, liboqs |
+| **XDP dataplane** | ✅ 142k PPS TX / 49k PPS RX на r8169 |
+| **Self-healing** | ✅ MAPE-K loop, <20s detection |
+| **SPIRE mTLS** | ✅ Интегрирован, тесты проходят |
+| **x402 Payment** | ✅ USDC на Base mainnet |
+| **CI/CD** | ✅ Green Baseline, CodeQL, Dependency Review |
+
+**Доказательства:**
+- PQC: `docs/verification/HYBRID_TLS_VALIDATION_LATEST.md`
+- XDP: `docs/verification/xdp-live-attach-20260615T133855Z/`
+- Readiness gate: `python3 scripts/ops/check_real_readiness.py --json`
+
+### VPS
+- `89.125.1.107:8000/health` — HTTP 200, v3.4.0
+- x402 API: `89.125.1.107:8120`
+
+---
+
+## Чего НЕТ (не жди)
+
+| Утверждение | Реальность |
+|-------------|-----------|
+| Production VPN для 1M пользователей | ❌ Тестовый VPS, 0 платящих клиентов |
+| 99.97% uptime | ❌ Нет доказательств |
+| 1M PPS | ❌ 142k на r8169 — честные цифры |
+| Сертифицированная криптография | ❌ PQC через liboqs, без аудита |
+| DAO / управление сообществом | ❌ Я один. Возможно в будущем |
+| Официальная интеграция с Yandex | ❌ Адаптеры написал сам, Яндекс не при делах |
+
+---
+
+## Benchmarks (честно, с методологией)
+
+| Метрика | Значение | Условия |
+|---------|----------|---------|
+| TX PPS | 142,000 | XDP_DROP → XDP_TX, r8169, Intel i5, pktgen |
+| RX PPS | 49,000 | XDP_DROP без обработки, та же машина |
+| PQC handshake | <50ms | ML-KEM-768 + ML-DSA-65, localhost |
+| MTTD | <20s | MAPE-K monitor loop |
+| MTTR | ~3min | Автономное восстановление |
+
+**Методология:** `docs/benchmarks/`
+
+---
+
+## Quick start
 
 ```bash
 git clone https://github.com/x0tta6bl4-ai/x0tta6bl4.git
 cd x0tta6bl4
-uv sync  # или: pip install -r requirements.txt (72 deps вместо 342)
+uv sync  # pip install -r requirements.txt (72 deps)
 python3 -m pytest tests/unit/security/test_dependency_security_pins_unit.py -q
 ```
 
-## Docs
+---
 
-- **CODEX** — `/mnt/projects/CODEX.md` — рабочая инструкция для AI агентов (v2.4)
-- **AGENTS.md** — правила работы AI с монрепо
-- **Green Baseline** — CI пайплайн с security аудитом
+## Для российских пользователей
 
-## Horizon-2 (Road to v4.0)
-We are currently scaling to **1,000,000+ PPS** using `AF_XDP` and Intel-native offloading. Join us in the research track for the next-gen high-performance mesh.
+Адаптеры для YDB, Perfator, Odyssey — **community-разработка, неофициальная**. Я написал их для удобства, но они не одобрены Яндексом.
 
-## Benchmarks
-
-| Metric | Value | Method |
-|--------|-------|--------|
-| TX PPS | 142,000 | XDP on Intel NIC (r8169) |
-| RX PPS | 49,000 | XDP on Intel NIC (r8169) |
-| PQC Handshake | <50ms | ML-KEM-768 + ML-DSA-65 |
-| MTTD | <20ms | MAPE-K monitor loop |
-| MTTR | <3min | Autonomous recovery |
-| MTTR Reduction | 93% | Federated knowledge sharing |
-| PQC Regression Tests | 10,000+ | liboqs-python |
-| Security CVEs Fixed | 6 | Audit Feb 2026 |
-
-## Yandex Integration
-
-Ready-made modules for Yandex open source projects:
-
-| Module | Target | Status |
-|--------|--------|--------|
-| PQC Adapter | YDB (distributed SQL) | `src/integration/ydb_pqc_adapter.py` |
-| eBPF Collector | Perfator (profiling) | `src/integration/perforator_ebpf_collector.py` |
-| PQC-TLS | Odyssey (PostgreSQL pooler) | `src/integration/odyssey_pqc_tls.py` |
-
-## Russian / Русский
-
-**x0tta6bl4** — децентрализованная платформа Mesh-as-a-Service с постквантовой защитой.
-
-### Ключевые возможности
-- **Постквантовая криптография** — ML-KEM-768 (обмен ключами) + ML-DSA-65 (подписи), NIST FIPS 203/204
-- **eBPF/XDP** — обработка пакетов на уровне ядра Linux (142k PPS)
-- **MAPE-K self-healing** — автономное восстановление узлов (<20ms MTTD, <3мин MTTR)
-- **Yggdrasil IPv6** — децентрализованная маршрутизация без GPS
-- **SPIFFE/SPIRE** — zero-trust аттестация рабочих нагрузок
-- **DAO Governance** — голосование через X0T токен (Base Sepolia)
-
-### Быстрый старт
-```bash
-git clone https://github.com/x0tta6bl4-ai/x0tta6bl4.git
-cd x0tta6bl4
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python3 scripts/ops/check_real_readiness.py --json
-```
-
-### Для российских компаний
-- Модули интеграции с YDB, Perfator, Odyssey
-- RFC-черновик для IETF: Post-Quantum Hybrid Key Exchange for Mesh Networks
-- Статья на Хабре: "Постквантовая криптография для российских облачных платформ"
-
-### Контакты
-- GitHub: https://github.com/x0tta6bl4-ai/x0tta6bl4
-- Demo: http://89.125.1.107:8000/health
-- Email: dev@x0tta6bl4.net
+- `src/integration/ydb_pqc_adapter.py` — PQC для YDB
+- `src/integration/perforator_ebpf_collector.py` — eBPF для Perfator
+- `src/integration/odyssey_pqc_tls.py` — PQC-TLS для Odyssey
 
 ---
-*Built with cryptographic honesty. Verified by machines, not marketing.*
-*Построено с криптографической честностью. Проверено машинами, а не маркетингом.*
+
+## Документация
+
+- **CODEX.md** — рабочая инструкция для AI-агентов (факты, процедуры, traps)
+- **AGENTS.md** — правила работы AI с монорепо
+- **SECURITY.md** — security policy
+- **STATUS_REALITY.md** — что доказано, что нет
+
+---
+
+## Контакты
+
+- GitHub Issues: открывай баги и предложения
+- Email: dev@x0tta6bl4.net
+- GitHub Sponsors: [поддержать разработку](https://github.com/sponsors/x0tta6bl4-ai)
+
+---
+
+*Сделано одним человеком. Проверено машинами, а не маркетингом.*

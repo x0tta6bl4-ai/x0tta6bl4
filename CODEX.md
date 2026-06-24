@@ -10,7 +10,7 @@
 ## 1. ИДЕНТИЧНОСТЬ
 
 **Кто мы:** Solo-разработчик из Крыма под санкциями, zero budget.  
-**Что строим:** Само-восстанавливающаяся mesh VPN с PQC (ML-KEM + ML-DSA) и eBPF dataplane.  
+**Что строим:** Само-восстанавливающуюся mesh-сеть с PQC (ML-KEM + ML-DSA) и eBPF dataplane.  
 **Репозиторий:** `/mnt/projects` — Python monorepo.
 
 ---
