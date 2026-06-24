@@ -1,9 +1,8 @@
 # Grant Application: x0tta6bl4 Swarm Project
 **Project Name:** x0tta6bl4 (Autonomous Self-Healing PQC-Mesh)
-**Category:** Digital Rights, Underserved Communities, Cyber-Resilience.
+# x0tta6bl4 — Mesh Networking Platform
 
-## 1. Executive Summary
-x0tta6bl4 provides a self-healing, decentralized communication network protected by post-quantum cryptography. Our mission is to ensure 99.97% uptime for critical infrastructure and underserved regions where traditional networks fail.
+> **⚠️ HONESTY NOTE:** This document is an aspirational grant application. It describes what we *aim to achieve*, not current reality. 99.97% uptime is a target, not achieved. Current status: solo project, no paying customers, no uptime SLA.
 
 ## 2. Technical Innovation: Swarm Intelligence
 Unlike traditional VPNs or mesh systems, x0tta6bl4 implements a **Collective Memory** via MAPE-K loops. 
