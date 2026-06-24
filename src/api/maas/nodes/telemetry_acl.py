@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # --- External Telemetry Helpers (mocked or imported) ---
 try:
-    from src.api.maas_telemetry import (_get_telemetry as _read_external_telemetry,
+    from src.api.maas.endpoints.telemetry import (_get_telemetry as _read_external_telemetry,
                                       _get_telemetry_history as _read_external_telemetry_history)
 except ImportError:
     _read_external_telemetry = lambda x: {}

@@ -379,6 +379,7 @@ class TestAnalyticsTimeseries:
     def test_timeseries_uses_heartbeat_telemetry_from_store(self, client, analytics_data, monkeypatch):
         import src.api.maas.endpoints.analytics as analytics_mod
         import src.api.maas.endpoints.telemetry as telemetry_mod
+        import src.api.maas_analytics as legacy_analytics_mod
 
         mesh_id = f"mesh-ts-{uuid.uuid4().hex[:6]}"
         node_id = f"nd-ts-{uuid.uuid4().hex[:8]}"
@@ -486,6 +487,7 @@ class TestAnalyticsTimeseries:
         monkeypatch.setattr(telemetry_mod, "REDIS_AVAILABLE", True)
         monkeypatch.setattr(telemetry_mod, "r_client", redis_adapter)
         monkeypatch.setattr(analytics_mod, "_redis_client", redis_adapter)
+        monkeypatch.setattr(legacy_analytics_mod, "_redis_client", redis_adapter)
 
         hb = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat",

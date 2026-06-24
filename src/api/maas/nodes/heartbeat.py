@@ -25,7 +25,7 @@ _HEARTBEAT_TELEMETRY_EVENT_ID_LIMIT = 10
 _HEARTBEAT_OBSERVED_LAYER = "api_mesh_to_commerce"
 
 try:
-    from src.api.maas_telemetry import _set_telemetry as _set_external_telemetry
+    from src.api.maas.endpoints.telemetry import _set_telemetry as _set_external_telemetry
 except Exception:
     _set_external_telemetry = None
 

@@ -90,3 +90,24 @@ def get_back_keyboard() -> InlineKeyboardMarkup:
     keyboard.add(InlineKeyboardButton("🔙 Назад", callback_data="main_menu"))
     return keyboard
 
+def get_pagination_keyboard(offset: int, limit: int, total: int) -> InlineKeyboardMarkup:
+    """Клавиатура с пагинацией для списка пользователей"""
+    keyboard = InlineKeyboardMarkup(row_width=3)
+    buttons = []
+    if offset > 0:
+        prev_offset = max(0, offset - limit)
+        buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"admin_users_page_{prev_offset}"))
+    
+    page = (offset // limit) + 1
+    total_pages = ((total - 1) // limit) + 1 if total > 0 else 1
+    buttons.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="ignore"))
+    
+    if offset + limit < total:
+        next_offset = offset + limit
+        buttons.append(InlineKeyboardButton("Вперед ➡️", callback_data=f"admin_users_page_{next_offset}"))
+        
+    if buttons:
+        keyboard.row(*buttons)
+    keyboard.add(InlineKeyboardButton("🔙 Главное меню", callback_data="main_menu"))
+    return keyboard
+

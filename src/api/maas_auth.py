@@ -37,11 +37,16 @@ except Exception as _authlib_err:
     _oauth_available = False
 
 router = APIRouter(prefix="/api/v1/maas/auth", tags=["MaaS Auth"])
+from src.api.maas.endpoints.auth import router as _modular_auth_router
+router.include_router(_modular_auth_router)
+
 auth_service = MaaSAuthService(
     api_key_factory=ApiKeyManager.generate,
     default_plan="starter",
 )
 from src.core.rbac import DEFAULT_ROLE_PERMISSIONS, MeshPermission
+from src.api.maas.auth import require_mesh_access as _modular_require_mesh_access
+from src.api.maas.auth import get_current_user as get_current_user_from_maas
 
 
 def _maas_auth_db_session_available(db: Any) -> bool:
@@ -274,6 +279,9 @@ _LEGACY_ROLE_DEFAULTS = {
 }
 
 
+def _permission_value(val: Any) -> str:
+    return str(getattr(val, "value", str(val)))
+
 def _role_allows(role: str, permission: str) -> bool:
     wanted = _permission_value(permission)
     allowed = DEFAULT_ROLE_PERMISSIONS.get(str(role or "user"), set())
@@ -352,8 +360,18 @@ if not hasattr(_legacy, "oidc_validator"):
 if not hasattr(_legacy, "oauth"):
     _legacy.oauth = None
 
+def _legacy_require_mesh_access(permission: Any):
+    # Backward compatible wrapper that acts as a factory
+    perm_str = getattr(permission, "value", str(permission))
+    return require_permission(perm_str)
+
 if not hasattr(_legacy, "require_mesh_access"):
-    _legacy.require_mesh_access = _modular_require_mesh_access
+    _legacy.require_mesh_access = _legacy_require_mesh_access
+
+if not hasattr(_legacy, "get_current_user_from_maas"):
+    _legacy.get_current_user_from_maas = get_current_user_from_maas
+
+_legacy.router = router
 
 globals().update(_legacy.__dict__)
 _sys.modules[__name__] = _legacy

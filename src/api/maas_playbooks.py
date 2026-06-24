@@ -1,6 +1,9 @@
 """Compatibility exports for the MaaS signed playbooks endpoint module."""
 
+import logging
 import sys
+from datetime import datetime, timedelta
+from typing import Dict, Any, List, Set
 
 from .maas.endpoints import playbooks as _playbooks
 

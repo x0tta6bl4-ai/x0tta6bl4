@@ -97,3 +97,17 @@ def publish_marketplace_escrow_event(
     except Exception as exc:
         logger.error("Failed to publish marketplace escrow event: %s", exc)
         return None
+
+
+def bridge_upstream_evidence(bridge: Any) -> dict[str, Any]:
+    """Generate aggregate evidence for the token bridge state."""
+    if bridge is None:
+        return {}
+    try:
+        stats = getattr(bridge, "get_chain_stats", None)
+        chain_stats = stats() if callable(stats) else {}
+        return {
+            "wallet_address": chain_stats.get("bridge_address") or getattr(bridge, "bridge_address", None),
+        }
+    except Exception:
+        return {}

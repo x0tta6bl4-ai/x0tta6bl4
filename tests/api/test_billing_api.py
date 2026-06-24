@@ -172,7 +172,7 @@ class TestStripeWebhook:
             with patch(
                 "src.api.users.users_db", {"test@example.com": {"plan": "free"}}
             ):
-                with patch("src.sales.telegram_bot.TokenGenerator") as mock_token:
+                with patch("src.sales.telegram_bot_v2.TokenGenerator") as mock_token:
                     mock_token.generate.return_value = "license_xxx"
 
                     response = client.post(
@@ -249,7 +249,7 @@ class TestStripeWebhook:
         assert "Invalid JSON" in response.json()["detail"]
 
     @patch.dict(os.environ, {"STRIPE_WEBHOOK_SECRET": "whsec_test"})
-    @patch("src.sales.telegram_bot.TokenGenerator.generate")
+    @patch("src.sales.telegram_bot_v2.TokenGenerator.generate")
     def test_webhook_idempotent_replay_by_event_id(self, mock_token_generate):
         """Same Stripe event id should be processed only once."""
         event_id = f"evt_{uuid.uuid4().hex}"

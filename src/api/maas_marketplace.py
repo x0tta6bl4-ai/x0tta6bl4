@@ -19,8 +19,18 @@ from typing import Any, Dict, List, Optional
 
 import sys
 
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 from .maas.endpoints import marketplace as _marketplace
 
+from src.api.maas_auth import get_current_user_from_maas, require_permission
+from src.core.reliability_policy import mark_degraded_dependency
+from src.database import MarketplaceEscrow, MarketplaceListing, User, GlobalConfig, get_db
+from src.api.maas.endpoints.telemetry import reputation_system
+from src.dao.token_bridge import TokenBridge, BridgeConfig
+from src.dao.token import MeshToken
+from src.utils.audit import record_audit_log
 from src.resilience.advanced_patterns import get_resilient_executor
 from src.monitoring.maas_metrics import record_escrow_failure
 from src.services.marketplace_events import publish_marketplace_escrow_event

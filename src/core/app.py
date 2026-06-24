@@ -119,7 +119,7 @@ _include_maas_router("src.api.maas_analytics", "analytics")
 _include_maas_router("src.api.maas_agent_mesh", "agent-mesh")
 _include_maas_router("src.api.service_identity_status", "service-identity-status")
 
-if not is_light_mode:
+if not _LIGHT_MODE:
     _include_maas_router("src.api.maas_nodes", "nodes")
     _include_maas_router("src.api.maas_policies", "policies")
     _include_maas_router("src.api.maas_telemetry", "telemetry")

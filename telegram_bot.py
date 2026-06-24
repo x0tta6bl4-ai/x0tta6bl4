@@ -27,7 +27,7 @@ except ImportError:
 try:
     from keyboards import (
         get_main_menu_keyboard, get_trial_keyboard, get_subscribe_keyboard,
-        get_config_keyboard, get_admin_keyboard, get_back_keyboard
+        get_config_keyboard, get_admin_keyboard, get_back_keyboard, get_pagination_keyboard
     )
     KEYBOARDS_AVAILABLE = True
 except ImportError:
@@ -217,9 +217,11 @@ async def cmd_trial(message: types.Message):
     # Создаем trial аккаунт
     expires_at = datetime.now() + timedelta(days=TRIAL_DAYS)
     
-    if MODULES_AVAILABLE:
-        # Generate UUID for user
-        vpn_uuid = generate_uuid()
+    if not MODULES_AVAILABLE:
+        await message.answer("❌ База данных недоступна. Попробуйте позже.")
+        return
+
+    # Generate UUID for user        vpn_uuid = generate_uuid()
         create_user(
             user_id=user_id,
             username=message.from_user.username,
@@ -228,17 +230,6 @@ async def cmd_trial(message: types.Message):
             vpn_uuid=vpn_uuid
         )
         log_activity(user_id, "trial_activated")
-    else:
-        # Fallback to in-memory storage
-        if not hasattr(cmd_trial, 'users_db'):
-            cmd_trial.users_db = {}
-        cmd_trial.users_db[user_id] = {
-            'user_id': user_id,
-            'username': message.from_user.username,
-            'trial_used': True,
-            'expires_at': expires_at,
-            'plan': 'trial'
-        }
     
     # Send welcome message
     try:
@@ -356,9 +347,12 @@ async def process_successful_payment(message: types.Message):
     expires_at = datetime.now() + timedelta(days=30)
     payment_amount = payment.total_amount / 100  # Convert cents to dollars
     
-    if MODULES_AVAILABLE:
-        # Get or create user
-        user = get_user(user_id)
+    if not MODULES_AVAILABLE:
+        logger.error(f"CRITICAL: Payment received from {user_id} but DB is down!")
+        await message.answer("❌ Платеж прошел, но база данных недоступна. Пожалуйста, напишите в поддержку.")
+        return
+
+    # Get or create user        user = get_user(user_id)
         if not user:
             vpn_uuid = generate_uuid()
             create_user(
@@ -387,18 +381,6 @@ async def process_successful_payment(message: types.Message):
             status='completed'
         )
         log_activity(user_id, "subscription_activated")
-    else:
-        # Fallback to in-memory storage
-        if not hasattr(process_successful_payment, 'users_db'):
-            process_successful_payment.users_db = {}
-        process_successful_payment.users_db[user_id] = {
-            'user_id': user_id,
-            'username': message.from_user.username,
-            'expires_at': expires_at,
-            'plan': 'pro',
-            'payment_amount': payment_amount,
-            'payment_currency': payment.currency
-        }
     
     # Send welcome message
     try:
@@ -435,24 +417,17 @@ async def cmd_config(message: types.Message):
     if MODULES_AVAILABLE:
         log_activity(user_id, "config_requested")
     
-    # Check if user exists and is active
-    if MODULES_AVAILABLE:
-        if not is_user_active(user_id):
-            await message.answer(
+    if not MODULES_AVAILABLE:
+        await message.answer("❌ База данных недоступна. Попробуйте позже.")
+        return
+
+    if not is_user_active(user_id):            await message.answer(
                 "❌ У тебя нет активной подписки.\n"
                 "Используй /trial для бесплатного доступа."
             )
             return
         
-        user = get_user(user_id)
-    else:
-        # Fallback check
-        if not hasattr(cmd_config, 'users_db') or user_id not in cmd_config.users_db:
-            await message.answer(
-                "❌ У тебя нет активной подписки.\n"
-                "Используй /trial для бесплатного доступа."
-            )
-            return
+    user = get_user(user_id)
         
         user = cmd_config.users_db[user_id]
         if user.get('expires_at') and datetime.now() >= user['expires_at']:
@@ -509,9 +484,11 @@ async def cmd_status(message: types.Message):
     """Статус подписки"""
     user_id = message.from_user.id
     
-    if MODULES_AVAILABLE:
-        log_activity(user_id, "status_requested")
-        user = get_user(user_id)
+    if not MODULES_AVAILABLE:
+        await message.answer("❌ База данных недоступна. Попробуйте позже.")
+        return
+
+    log_activity(user_id, "status_requested")        user = get_user(user_id)
         
         if not user:
             await message.answer("❌ У тебя нет активной подписки.")
@@ -519,30 +496,6 @@ async def cmd_status(message: types.Message):
         
         if user.get('expires_at'):
             expires_at = datetime.fromisoformat(user['expires_at'])
-            days_left = (expires_at - datetime.now()).days
-            if days_left > 0:
-                await message.answer(
-                    f"✅ **Активная подписка**\n\n"
-                    f"План: {user.get('plan', 'unknown')}\n"
-                    f"Осталось дней: {days_left}\n"
-                    f"Истекает: {expires_at.strftime('%d.%m.%Y')}",
-                    parse_mode="Markdown"
-                )
-            else:
-                await message.answer("❌ Подписка истекла. Используй /subscribe")
-        else:
-            await message.answer("❌ Подписка неактивна")
-    else:
-        # Fallback
-        if not hasattr(cmd_status, 'users_db') or user_id not in cmd_status.users_db:
-            await message.answer("❌ У тебя нет активной подписки.")
-            return
-        
-        user = cmd_status.users_db[user_id]
-        if user.get('expires_at'):
-            expires_at = user['expires_at']
-            if isinstance(expires_at, str):
-                expires_at = datetime.fromisoformat(expires_at)
             days_left = (expires_at - datetime.now()).days
             if days_left > 0:
                 await message.answer(
@@ -643,27 +596,79 @@ async def cmd_admin_stats(message: types.Message):
 
 @dp.message_handler(commands=['admin_users'])
 async def cmd_admin_users(message: types.Message):
-    """Admin: Список пользователей"""
+    """Admin: Список пользователей с пагинацией"""
     user_id = message.from_user.id
     
     try:
-        from admin_commands import is_admin, get_user_list, format_user_info
+        from admin_commands import is_admin, get_user_list
         if not is_admin(user_id):
             await message.answer("❌ Доступ запрещён")
             return
         
-        users = get_user_list(limit=10)
+        limit = 10
+        users, total = get_user_list(offset=0, limit=limit)
         if not users:
             await message.answer("📭 Нет активных пользователей")
             return
         
-        text = f"**👥 Активные пользователи (показано {len(users)}):**\n\n"
+        text = f"**👥 Активные пользователи (Всего: {total}):**\n\n"
         for user in users:
-            text += f"• User {user['user_id']} (@{user.get('username', 'N/A')}) - {user.get('plan', 'N/A')}\n"
+            text += f"• `{user['user_id']}` (@{user.get('username', 'N/A')}) - {user.get('plan', 'N/A')}\n"
         
-        await message.answer(text, parse_mode="Markdown")
+        if KEYBOARDS_AVAILABLE:
+            await message.answer(text, parse_mode="Markdown", reply_markup=get_pagination_keyboard(0, limit, total))
+        else:
+            await message.answer(text, parse_mode="Markdown")
     except ImportError:
         await message.answer("❌ Admin commands not available")
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("admin_users_page_"))
+async def callback_admin_users_page(callback_query: types.CallbackQuery):
+    """Пагинация для списка пользователей"""
+    user_id = callback_query.from_user.id
+    try:
+        from admin_commands import is_admin, get_user_list
+        if not is_admin(user_id):
+            await callback_query.answer("❌ Доступ запрещён", show_alert=True)
+            return
+            
+        offset = int(callback_query.data.split("_")[-1])
+        limit = 10
+        users, total = get_user_list(offset=offset, limit=limit)
+        
+        text = f"**👥 Активные пользователи (Всего: {total}):**\n\n"
+        for user in users:
+            text += f"• `{user['user_id']}` (@{user.get('username', 'N/A')}) - {user.get('plan', 'N/A')}\n"
+            
+        await callback_query.message.edit_text(
+            text, 
+            parse_mode="Markdown", 
+            reply_markup=get_pagination_keyboard(offset, limit, total)
+        )
+    except Exception as e:
+        await callback_query.answer(f"Ошибка: {str(e)}")
+
+@dp.message_handler(commands=['wallet'])
+async def cmd_wallet(message: types.Message):
+    """Привязка EVM кошелька (Web3 DAO)"""
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.answer("ℹ️ Использование: `/wallet 0x...`\nПривяжите ваш кошелек для получения DAO скидок.", parse_mode="Markdown")
+        return
+        
+    wallet = parts[1]
+    if not wallet.startswith("0x") or len(wallet) != 42:
+        await message.answer("❌ Неверный формат EVM адреса.")
+        return
+        
+    user_id = message.from_user.id
+    if MODULES_AVAILABLE:
+        from database import update_user
+        update_user(user_id, zkp_public_key=wallet)  # Storing in zkp_public_key field temporarily
+        await message.answer(f"✅ Кошелек `{wallet}` успешно привязан!\nВ будущем он будет использоваться для Snapshot голосований.", parse_mode="Markdown")
+    else:
+        await message.answer("❌ База данных недоступна.")
+
 
 
 @dp.message_handler(commands=['admin_user'])

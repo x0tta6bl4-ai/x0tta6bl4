@@ -75,6 +75,12 @@ type Config struct {
 
 	// Telemetry
 	HeartbeatIntervalSec int `yaml:"heartbeat_interval_sec"` // default 30
+
+	// First-Party VPN Wrapper
+	FirstPartyScriptPath string `yaml:"firstparty_script_path"` // Path to x0vpn_node.py
+	FirstPartyConfigPath string `yaml:"firstparty_config_path"` // Path to client.json or server.json
+	FirstPartyRole       string `yaml:"firstparty_role"`        // client-tun or server-tun
+	FirstPartyProjectDir string `yaml:"firstparty_project_dir"` // PYTHONPATH for python process
 }
 
 // DefaultConfig returns a Config with sane defaults.
@@ -96,6 +102,10 @@ func DefaultConfig() *Config {
 		DataDir:              DefaultDataDir,
 		LogLevel:             DefaultLogLevel,
 		HeartbeatIntervalSec: 30,
+		FirstPartyScriptPath: "/opt/x0tta6bl4/services/nl-server/firstparty-vpn-test/x0vpn_test_node.py",
+		FirstPartyConfigPath: "/etc/x0t/client.json",
+		FirstPartyRole:       "client-tun",
+		FirstPartyProjectDir: "/mnt/projects",
 	}
 }
 
