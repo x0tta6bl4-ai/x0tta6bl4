@@ -11,7 +11,7 @@ name = "x0tta6bl4"
 version = "3.4.0"
 description = "Experimental mesh networking, post-quantum transport, eBPF dataplane, identity, and resilience tooling."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [
     { name = "x0tta6bl4 Team", email = "contact@x0tta6bl4.com" },
