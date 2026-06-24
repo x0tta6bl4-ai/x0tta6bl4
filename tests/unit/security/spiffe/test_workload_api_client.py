@@ -18,11 +18,10 @@ MOCK_EXPIRY = datetime.utcnow() + timedelta(hours=1)
 MOCK_JWT_TOKEN = "MOCK_JWT_TOKEN"
 
 
-@pytest.mark.skipif(
-    SPIFFE_SDK_AVAILABLE, reason="spiffe SDK is installed, skipping mock client tests"
-)
 @pytest.fixture
 def mock_spiffe_sdk():
+    if SPIFFE_SDK_AVAILABLE:
+        pytest.skip("spiffe SDK is installed, skipping mock client tests")
     """Mocks the py-spiffe WorkloadApiClient and its availability flag."""
     # This mock will be used for the `with SpiffeWorkloadApiClient() as client:` block
     mock_sdk_instance = MagicMock()
