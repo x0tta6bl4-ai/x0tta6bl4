@@ -53,7 +53,7 @@ def _looks_like_plist(data: bytes) -> bool:
 
 
 def _normalise_fingerprint(data: bytes) -> str:
-    digest = hashlib.sha1(data).hexdigest().upper()
+    digest = hashlib.sha256(data).hexdigest().upper()[:40]
     return ":".join(digest[index : index + 2] for index in range(0, len(digest), 2))
 
 

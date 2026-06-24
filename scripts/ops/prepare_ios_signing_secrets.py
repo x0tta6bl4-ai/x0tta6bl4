@@ -155,7 +155,7 @@ def _write_local_env(path: Path, values: Mapping[str, str]) -> None:
     path.write_text(
         "\n".join(f"{name}={value}" for name, value in values.items()) + "\n",
         encoding="utf-8",
-    )
+    )  # nosec - chmod 0o600, CI temp env file
     _chmod_owner_only(path)
 
 
@@ -236,7 +236,7 @@ def _write_output(report: Mapping[str, Any], output: str | None) -> None:
         return
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")  # nosec - diagnostic report, no secrets
 
 
 def _print_text(report: Mapping[str, Any]) -> None:
