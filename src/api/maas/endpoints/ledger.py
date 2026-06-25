@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from src.coordination.events import EventBus, EventType
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.services.service_event_trace import service_event_trace_history
 
 try:

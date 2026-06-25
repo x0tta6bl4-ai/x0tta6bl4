@@ -95,7 +95,7 @@ class PasswordMigrator:
 
             password_bytes = plaintext.encode("utf-8")
             return bcrypt.checkpw(password_bytes, bcrypt_hash.encode("utf-8"))
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Password verification error: {e}")
             return False
 

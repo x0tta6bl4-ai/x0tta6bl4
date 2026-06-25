@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.network.ebpf.bcc_probes import MeshNetworkProbes
 from src.network.ebpf.cilium_integration import CiliumLikeIntegration
 from src.network.ebpf.dynamic_fallback import DynamicFallbackController

@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 from ..aggregators import get_aggregator
 from ..blockchain import ModelBlockchain, ModelMetadata

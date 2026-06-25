@@ -23,7 +23,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import aiohttp
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.libx0t.core.circuit_breaker import CircuitBreaker
 from src.libx0t.core.connection_retry import RetryPolicy, with_retry
 

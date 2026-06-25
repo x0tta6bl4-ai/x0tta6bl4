@@ -27,11 +27,11 @@ except ImportError:
     generate_vless_link = None
 
 
-from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
+from src.core.resilience.circuit_breaker import CircuitBreakerOpen, stripe_circuit
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.services.service_event_identity import service_event_identity_status
 from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import BillingWebhookEvent, Invoice, License, Payment, User, get_db
 from src.services.xray_manager import XrayManager
 
@@ -759,7 +759,7 @@ def _billing_api_vless_link_available() -> bool:
 def _billing_api_provisioning_imports_available() -> bool:
     try:
         provisioning_module = importlib.import_module("src.services.provisioning_service")
-        telegram_module = importlib.import_module("src.sales.telegram_bot")
+        telegram_module = importlib.import_module("src.sales.telegram_bot_v2")
     except Exception:
         return False
     return (
@@ -1597,7 +1597,7 @@ async def stripe_webhook(
             db_user.stripe_subscription_id = obj.get("subscription") or obj.get("id")
 
             # Generate license (legacy support) in the same transaction so failures rollback plan updates.
-            from src.sales.telegram_bot import TokenGenerator
+            from src.sales.telegram_bot_v2 import TokenGenerator
 
             license_token = TokenGenerator.generate(tier="pro")
             new_license = License(

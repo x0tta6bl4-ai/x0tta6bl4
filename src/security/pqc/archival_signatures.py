@@ -165,7 +165,7 @@ class ArchivalSigner:
             # Try creating — if it fails, not supported
             oqs.Signature(oqs_name)
             return True
-        except Exception:
+        except (ValueError, TypeError, RuntimeError, OSError):
             return False
 
     def generate_keypair(self) -> ArchivalKeyPair:

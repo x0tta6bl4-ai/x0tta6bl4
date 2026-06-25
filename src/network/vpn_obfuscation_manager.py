@@ -14,7 +14,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 from .obfuscation.domain_fronting import DomainFrontingTransport
 from .obfuscation.faketls import FakeTLSTransport

@@ -57,7 +57,7 @@ class PQCKeyExchange:
             try:
                 self._adapter = PQCAdapter(kem_alg=algorithm)
                 logger.info(f"PQCKeyExchange initialized with {algorithm}")
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.warning(f"Failed to initialize PQC adapter: {e}")
                 self.enabled = False
         else:
@@ -111,7 +111,7 @@ class PQCKeyExchange:
             logger.info(f"Generated {self.algorithm} keypair: {keypair.key_id}")
             return keypair
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to generate keypair: {e}")
             raise
 
@@ -133,7 +133,7 @@ class PQCKeyExchange:
             logger.debug(f"Encapsulated {len(shared_secret)} byte shared secret")
             return ciphertext, shared_secret
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to encapsulate: {e}")
             raise
 
@@ -156,7 +156,7 @@ class PQCKeyExchange:
             logger.debug(f"Decapsulated {len(shared_secret)} byte shared secret")
             return shared_secret
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to decapsulate: {e}")
             raise
 

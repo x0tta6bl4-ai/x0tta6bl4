@@ -50,12 +50,12 @@ class MTLSContext:
         if self.cert_file:
             try:
                 self.cert_file.close()
-            except Exception:
+            except (OSError, ValueError):
                 pass  # Ignore errors on close
         if self.key_file:
             try:
                 self.key_file.close()
-            except Exception:
+            except (OSError, ValueError):
                 pass  # Ignore errors on close
 
 
@@ -114,7 +114,7 @@ def build_mtls_context(
             cert_file=cert_file,
             key_file=key_file,
         )
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError, OSError) as e:
         # If something goes wrong, make sure to clean up any files we created.
         if cert_file:
             cert_file.close()

@@ -10,7 +10,7 @@ import hashlib
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 from .models import EventSeverity, TelemetryConfig, TelemetryEvent
 

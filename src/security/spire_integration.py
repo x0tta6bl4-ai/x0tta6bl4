@@ -92,7 +92,7 @@ class SPIREClient:
             self.client = WorkloadApiClient(self.config.agent_address)
             self._connected = True
             logger.info(f"SPIRE client initialized at {self.config.agent_address}")
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError) as e:
             logger.warning(f"Failed to initialize SPIRE client: {e}")
             self._connected = False
 
@@ -124,7 +124,7 @@ class SPIREClient:
                     "key": key_bytes,
                     "bundle": bundle_bytes or b"",
                 }
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to fetch X.509 context from SPIRE: {e}")
 
         return None
@@ -142,7 +142,7 @@ class SPIREClient:
             else:
                 return None
             return self._extract_bundle_bytes(bundle)
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to fetch X.509 bundle from SPIRE: {e}")
 
         return None
@@ -234,7 +234,7 @@ def is_spire_available() -> bool:
         return True
     except (FileNotFoundError, ConnectionRefusedError, socket.timeout):
         return False
-    except Exception:
+    except (ValueError, TypeError, RuntimeError, OSError):
         return False
 
 

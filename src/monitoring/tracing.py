@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Callable, Dict, Optional, ParamSpec, TypeVar
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 P = ParamSpec("P")

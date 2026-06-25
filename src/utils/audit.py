@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import Request
 from sqlalchemy.orm import Session
 
-from src.core.logging_config import RequestIdContextVar
+from src.core.logging.logging_config import RequestIdContextVar
 from src.database import AuditLog
 
 logger = logging.getLogger(__name__)
@@ -100,7 +100,7 @@ def _resolve_trace_id(request: Optional[Request]) -> Optional[str]:
 
     try:
         # Lazy import avoids hard runtime dependency during module import.
-        from src.core.tracing_middleware import get_correlation_id
+        from src.core.middleware.tracing_middleware import get_correlation_id
 
         correlation_id = get_correlation_id()
         if correlation_id and correlation_id.strip():

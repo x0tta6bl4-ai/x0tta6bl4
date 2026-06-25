@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 

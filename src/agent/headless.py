@@ -19,7 +19,7 @@ import httpx
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.security.pqc_identity import PQCNodeIdentity
 from src.network.discovery.protocol import MeshDiscovery
 from src.network.routing.stigmergy import StigmergyRouter

@@ -257,12 +257,12 @@ class MTLSControllerProduction:
                             f"📊 mTLS Metrics updated: "
                             f"expiry_in={expiry_seconds:.0f}s, age={age_seconds:.0f}s"
                         )
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, KeyError) as e:
                     logger.debug(f"Failed to update metrics: {e}")
 
             return context
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"❌ Failed to setup mTLS context: {e}")
             self._record_thinking(
                 "mtls_context_setup_failed",
@@ -469,7 +469,7 @@ class MTLSControllerProduction:
             )
             return True
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"❌ SPIFFE ID verification failed: {e}")
             self._record_thinking(
                 "mtls_peer_spiffe_verify_failed",
@@ -510,12 +510,12 @@ class MTLSControllerProduction:
 
                         MetricsRegistry.mtls_certificate_rotations_total.inc()
                         logger.debug("📊 Certificate rotation metric incremented")
-                    except Exception as e:
+                    except (ValueError, TypeError, RuntimeError, OSError) as e:
                         logger.debug(f"Failed to update rotation metric: {e}")
 
                 logger.info("✅ Certificate rotation complete")
 
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.error(f"❌ Certificate rotation failed: {e}")
                 self._record_thinking(
                     "mtls_auto_rotation_failed",

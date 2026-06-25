@@ -142,7 +142,7 @@ class CertificateValidator:
                         MetricsRegistry.mtls_certificate_validation_failures_total.labels(
                             failure_type="not_yet_valid"
                         ).inc()
-                    except Exception:
+                    except (ValueError, KeyError):
                         pass
                 return (
                     False,
@@ -158,7 +158,7 @@ class CertificateValidator:
                         MetricsRegistry.mtls_certificate_validation_failures_total.labels(
                             failure_type="expired"
                         ).inc()
-                    except Exception:
+                    except (ValueError, KeyError):
                         pass
                 return (
                     False,
@@ -226,7 +226,7 @@ class CertificateValidator:
             logger.debug(f"✅ Certificate validated: {spiffe_id}")
             return (True, spiffe_id, None)
 
-        except Exception as e:
+        except (ValueError, TypeError, OSError, AttributeError, x509.ExtensionNotFound) as e:
             logger.error(f"❌ Certificate validation error: {e}")
 
             # Track validation failure
@@ -238,7 +238,7 @@ class CertificateValidator:
                     MetricsRegistry.mtls_certificate_validation_failures_total.labels(
                         failure_type=error_type
                     ).inc()
-                except Exception as metric_e:
+                except (ValueError, OSError) as metric_e:
                     logger.debug(
                         f"Failed to update validation failure metric: {metric_e}"
                     )
@@ -266,7 +266,7 @@ class CertificateValidator:
         except x509.ExtensionNotFound:
             logger.warning("Certificate missing SAN extension")
             return None
-        except Exception as e:
+        except (ValueError, OSError, AttributeError, KeyError) as e:
             logger.error(f"Failed to extract SPIFFE ID: {e}")
             return None
 
@@ -281,7 +281,7 @@ class CertificateValidator:
                 try:
                     ca_cert = x509.load_pem_x509_certificate(ca_pem, default_backend())
                     trust_certs.append(ca_cert)
-                except Exception as e:
+                except (ValueError, TypeError, OSError) as e:
                     logger.warning(f"Failed to load trust bundle certificate: {e}")
                     continue
 
@@ -300,13 +300,13 @@ class CertificateValidator:
                         f"Certificate chain validated against CA: {ca_cert.subject}"
                     )
                     return True
-                except Exception:
+                except (ValueError, TypeError, OSError):
                     continue
 
             logger.warning("Certificate not issued by any trusted CA")
             return False
 
-        except Exception as e:
+        except (ValueError, TypeError, OSError) as e:
             logger.error(f"Certificate chain validation error: {e}")
             return False
 
@@ -357,7 +357,7 @@ class CertificateValidator:
             try:
                 cert.verify_directly_issued_by(ca_cert)
                 return ca_cert
-            except Exception:
+            except (ValueError, TypeError, OSError):
                 continue
         return None
 
@@ -434,7 +434,7 @@ class CertificateValidator:
         except ImportError:
             logger.debug("OCSP builder not available in cryptography version")
             return (False, None)
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError) as e:
             logger.warning(f"OCSP check failed: {e}")
             return (False, None)
 
@@ -483,13 +483,13 @@ class CertificateValidator:
                             True,
                             f"Certificate serial {cert.serial_number} found in CRL",
                         )
-                except Exception as e:
+                except (ConnectionError, TimeoutError, OSError, ValueError) as e:
                     logger.warning(f"Failed to download CRL from {crl_url}: {e}")
                     continue
 
             return (False, None)
 
-        except Exception as e:
+        except (ValueError, ConnectionError, TimeoutError, OSError) as e:
             logger.warning(f"CRL check failed: {e}")
             # Don't fail validation if CRL check fails (fail open)
             return (False, None)
@@ -515,7 +515,7 @@ class CertificateValidator:
             return None
         except x509.ExtensionNotFound:
             return None
-        except Exception as e:
+        except (ValueError, OSError, AttributeError) as e:
             logger.debug(f"Failed to extract OCSP URL: {e}")
             return None
 
@@ -536,7 +536,7 @@ class CertificateValidator:
             return urls
         except x509.ExtensionNotFound:
             return []
-        except Exception as e:
+        except (ValueError, OSError, AttributeError) as e:
             logger.debug(f"Failed to extract CRL URLs: {e}")
             return []
 
@@ -571,7 +571,7 @@ class CertificateValidator:
                 )
                 return revoked_serials
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError) as e:
             logger.warning(f"Failed to download/parse CRL from {crl_url}: {e}")
             return set()
 

@@ -194,7 +194,7 @@ class SchnorrZKP:
 
             return valid
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"ZKP verification error: {e}")
             return False
 

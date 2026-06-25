@@ -38,7 +38,7 @@ try:
             _MEM_LOCK = True
     else:
         _MEM_LOCK = False
-except Exception:
+except (ValueError, TypeError, RuntimeError, OSError):
     _MEM_LOCK = False
     logger.warning("Memory locking not available - keys may be swapped to disk")
 
@@ -141,7 +141,7 @@ class SecureKeyStorage:
                 if result != 0:
                     logger.warning("mlockall failed with errno=%s", ctypes.get_errno())
                 return result == 0
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.warning("Failed to lock memory: %s", e)
             return False
 
@@ -262,7 +262,7 @@ class SecureKeyStorage:
             try:
                 # Decrypt and return a COPY (original stays encrypted)
                 return self._decrypt_key(encrypted_key, tag)
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.error("Failed to decrypt key %s: %s", handle.key_id, e)
                 return None
 
@@ -341,7 +341,7 @@ class SecureKeyStorage:
             self.clear_all()
 
             logger.info("SecureKeyStorage cleanup complete")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, KeyError) as e:
             logger.error("Error during cleanup: %s", e)
 
     @contextmanager

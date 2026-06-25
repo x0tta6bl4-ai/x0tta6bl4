@@ -16,7 +16,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 from .edge_node import EdgeNode, EdgeNodeManager, EdgeTask, TaskPriority
 

@@ -17,7 +17,7 @@ from src.coordination.events import EventBus, get_event_bus
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, get_db
 from src.api.maas_auth import require_permission
 from src.services.maas_analytics_service import MaaSAnalyticsService

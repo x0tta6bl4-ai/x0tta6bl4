@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
 from src.api.maas_auth import get_current_user_from_maas, require_role
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import MeshNode, NodeBinaryAttestation, SBOMEntry, User, get_db
 from src.utils.audit import record_audit_log
 

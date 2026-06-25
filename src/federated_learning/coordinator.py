@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 from .aggregators import Aggregator, get_aggregator
 from .protocol import (AggregationResult, GlobalModel, ModelUpdate, ModelWeights)

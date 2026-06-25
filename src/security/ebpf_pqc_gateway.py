@@ -198,7 +198,7 @@ class EBPFPQCGateway:
             logger.info(f"Completed PQC key exchange for session {session_id}")
             return True
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Key exchange completion failed: {e}")
             return False
 
@@ -217,7 +217,7 @@ class EBPFPQCGateway:
             ciphertext = aesgcm.encrypt(nonce, payload, None)
             session.last_seq += 1  # increment sequence number (v3.1)
             return nonce + ciphertext
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"AES-256-GCM encryption failed: {e}")
             return None
 
@@ -238,7 +238,7 @@ class EBPFPQCGateway:
             ciphertext = encrypted_payload[12:]
             aesgcm = AESGCM(session.aes_key)
             return aesgcm.decrypt(nonce, ciphertext, None)
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"AES-256-GCM decryption failed: {e}")
             return None
 
@@ -253,7 +253,7 @@ class EBPFPQCGateway:
         """Verify signature with ML-DSA-65"""
         try:
             return self.dsa.verify(message, signature, public_key)
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Signature verification failed: {e}")
             return False
 

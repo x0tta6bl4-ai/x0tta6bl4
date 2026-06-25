@@ -397,7 +397,7 @@ class PQMeshSecurityLibOQS:
                 self.kem_keypair.private_key,
                 ciphertext,
             )
-        except Exception:
+        except (ValueError, TypeError, RuntimeError, OSError):
             return None
 
     def sign(self, message: bytes) -> bytes:
@@ -601,7 +601,7 @@ class PQCDigitalSignature:
         try:
             sig = Signature(self.ALGORITHM)
             return bool(sig.verify(message, signature_bytes, public_key))
-        except Exception:
+        except (ValueError, TypeError, RuntimeError, OSError):
             return False
 
 
@@ -637,7 +637,7 @@ class PQCHybridScheme:
                 "status": "success",
                 "timestamp": datetime.utcnow().isoformat(),
             }
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError) as exc:
             logger.error("Failed to setup secure channel: %s", exc)
             return {"method": "fallback", "error": str(exc), "status": "failed"}
 
@@ -698,7 +698,7 @@ def test_pqc_availability() -> dict[str, Any]:
             "algorithms": ["ML-KEM-768", "ML-DSA-65"],
             "timestamp": datetime.utcnow().isoformat(),
         }
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, RuntimeError, KeyError) as exc:
         logger.error("PQC test failed: %s", exc)
         return {"status": "error", "error": str(exc), "fallback": "classical_crypto"}
 

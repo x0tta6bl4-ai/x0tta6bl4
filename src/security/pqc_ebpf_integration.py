@@ -63,7 +63,7 @@ class PQCeBPFAccelerator:
                 else:
                     logger.warning(f"⚠️ PQC eBPF program not found at {program_path}")
                     self.enable_ebpf = False
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.warning(f"⚠️ Failed to initialize eBPF: {e}")
                 self.enable_ebpf = False
         else:
@@ -81,7 +81,7 @@ class PQCeBPFAccelerator:
         try:
             self.program.bpf[map_name]
             return map_name
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.warning(f"⚠️ eBPF key lookup map unavailable: {e}")
             return None
 
@@ -128,7 +128,7 @@ class PQCeBPFAccelerator:
             
             logger.debug(f"📦 Cached session key in eBPF for peer={peer_id}")
             return True
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"❌ Failed to cache in eBPF: {e}")
             return False
 
@@ -165,7 +165,7 @@ class PQCeBPFAccelerator:
                 return bytes(value.session_key)
             
             return None
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"❌ Failed to lookup from eBPF: {e}")
             return None
 
@@ -187,7 +187,7 @@ class PQCeBPFAccelerator:
             # For now, we just log
             logger.info(f"📌 Would attach eBPF program to {interface}")
             return True
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"❌ Failed to attach to interface: {e}")
             return False
 
@@ -207,7 +207,7 @@ class PQCeBPFAccelerator:
         try:
             logger.info(f"📌 Would detach eBPF program from {interface}")
             return True
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"❌ Failed to detach from interface: {e}")
             return False
 

@@ -213,7 +213,7 @@ class SPIFFEAutoRenew:
             except asyncio.CancelledError:
                 logger.info("Auto-renewal loop cancelled")
                 break
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.error(f"❌ Error in renewal loop: {e}")
                 await asyncio.sleep(self.config.retry_delay)
 
@@ -281,7 +281,7 @@ class SPIFFEAutoRenew:
                     current_svid.expiry.timestamp()
                 )  # Ensure metric is always updated
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"❌ Error checking X.509 SVID: {e}")
             AUTO_RENEW_FAILURE_TOTAL.labels(svid_type="x509").inc()
             if self._on_renewal_failed:
@@ -362,7 +362,7 @@ class SPIFFEAutoRenew:
                         cached_jwt.expiry.timestamp()
                     )  # Ensure metric is always updated
 
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError) as e:
                 logger.error(
                     f"❌ Error checking JWT SVID for audience {audience_key}: {e}"
                 )
@@ -428,7 +428,7 @@ class SPIFFEAutoRenew:
                 loop = asyncio.get_event_loop()
                 new_svid = await loop.run_in_executor(None, self.client.fetch_x509_svid)
                 return new_svid
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError, KeyError) as e:
                 logger.warning(
                     f"X.509 renewal attempt {attempt + 1}/{self.config.max_retries} failed: {e}"
                 )
@@ -449,7 +449,7 @@ class SPIFFEAutoRenew:
                     None, lambda: self.client.fetch_jwt_svid(audience)
                 )
                 return new_jwt
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.warning(
                     f"JWT renewal attempt {attempt + 1}/{self.config.max_retries} "
                     f"for audience {audience} failed: {e}"

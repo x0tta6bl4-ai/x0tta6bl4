@@ -29,7 +29,6 @@ import sys
 import time
 import urllib.request
 from email.mime.text import MIMEText
-from typing import List
 
 _MASK = "[REDACTED]"
 _SLACK_WEBHOOK_RE = re.compile(r"https://hooks\.slack\.com/services/[^\s'\"<>]+")
@@ -51,7 +50,7 @@ def _redact_sensitive_text(value: object) -> str:
 def send_email(
     subject: str,
     body: str,
-    to: List[str],
+    to: list[str],
     smtp_host: str,
     smtp_port: int,
     smtp_user: str = None,
@@ -143,7 +142,7 @@ def pods_all_running(pod_list_json) -> bool:
     return True
 
 
-def watch(namespace: str, labels: List[str], timeout: int, interval: int):
+def watch(namespace: str, labels: list[str], timeout: int, interval: int):
     start = time.time()
     if labels:
         while True:

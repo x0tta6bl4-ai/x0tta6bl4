@@ -63,7 +63,7 @@ class PQCCrypto:
             _, self._shared_secret = self._adapter.kem_encapsulate(self.public_key)
             self.key = self._shared_secret[:32]  # Use first 32 bytes for AES-256
             logger.debug(f"PQC initialized with real {kem_alg}")
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.critical(f"❌ Failed to initialize real PQC backend: {e}")
             raise RuntimeError(f"PQC initialization failure: {e}")
 

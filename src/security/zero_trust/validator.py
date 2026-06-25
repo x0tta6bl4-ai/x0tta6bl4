@@ -104,7 +104,7 @@ class ZeroTrustValidator:
                 "expiry": svid.expiry.isoformat(),
                 "trust_domain": self.trust_domain,
             }
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError) as e:
             logger.error(f"Failed to fetch identity: {e}")
             return {"error": str(e)}
 
@@ -145,6 +145,6 @@ class ZeroTrustValidator:
             # Security-first behavior: deny if policy engine is unavailable.
             logger.error("Policy Engine not available, defaulting to deny")
             return False
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.error(f"Policy check error: {e}, defaulting to deny")
             return False  # Fail-closed for security

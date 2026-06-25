@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query, Request
 
 from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
 from src.coordination.events import EventBus, EventType
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.services.service_event_trace import (
     service_event_trace_filter,
     service_event_trace_history,

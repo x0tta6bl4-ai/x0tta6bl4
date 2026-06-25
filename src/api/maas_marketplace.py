@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from .maas.endpoints import marketplace as _marketplace
 
 from src.api.maas_auth import get_current_user_from_maas, require_permission
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import MarketplaceEscrow, MarketplaceListing, User, GlobalConfig, get_db
 from src.api.maas.endpoints.telemetry import reputation_system
 from src.dao.token_bridge import TokenBridge, BridgeConfig
@@ -111,7 +111,7 @@ def _current_user_event_identity(current_user: User) -> Dict[str, Optional[str]]
 def _get_token_bridge() -> TokenBridge:
     global _token_bridge
     if _token_bridge is None:
-        from src.core.settings import settings
+        from src.core.config.settings import settings
         config = BridgeConfig(
             rpc_url=settings.rpc_url or "",
             contract_address=settings.contract_address or "",

@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from src.database import GovernanceProposal, GovernanceVote, User, GlobalConfig, get_db
 from src.api.maas_auth import get_current_user_from_maas
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,

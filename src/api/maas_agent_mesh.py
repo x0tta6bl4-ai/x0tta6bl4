@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from src.agents.maas_health_bot import HealthBotConfig, MaasHealthBot
 from src.api.maas_auth import get_current_user_from_maas
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 
 router = APIRouter(prefix="/api/v1/maas/agents", tags=["MaaS Agent Mesh"])
 _health_bot = MaasHealthBot(HealthBotConfig.from_env())

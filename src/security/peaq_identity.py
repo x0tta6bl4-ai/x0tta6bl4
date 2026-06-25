@@ -111,7 +111,7 @@ class PeaqIdentityAdapter:
                 "tx_hash": result.tx_hash,
                 "node_id": self.node_id
             }
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError) as e:
             logger.error(f"Failed to register machine on peaq: {e}")
             raise PeaqIdentityError(f"On-chain registration failed: {e}")
 

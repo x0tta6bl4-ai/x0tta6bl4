@@ -26,7 +26,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}

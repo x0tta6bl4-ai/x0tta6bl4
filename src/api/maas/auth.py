@@ -19,7 +19,7 @@ from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBea
 from sqlalchemy.orm import Session
 
 from src.api.maas_security import ApiKeyManager
-from src.core.rbac import DEFAULT_ROLE_PERMISSIONS, MeshPermission
+from src.core.security.rbac import DEFAULT_ROLE_PERMISSIONS, MeshPermission
 from src.database import get_db
 from src.services.maas_auth_service import MaaSAuthService, find_user_by_api_key
 

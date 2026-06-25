@@ -249,7 +249,7 @@ class PQCPerformanceOptimizer:
                 logger.info("✅ eBPF acceleration available")
             else:
                 logger.debug("eBPF not available (optional)")
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as e:
             logger.debug(f"eBPF check failed: {e}")
 
     def optimized_handshake(

@@ -159,7 +159,7 @@ class WorkloadAPIClientProduction:
                 logger.info(f"✅ X.509-SVID fetched: {svid.spiffe_id}")
                 return svid
 
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.warning(
                     f"⚠️ Attempt {attempt + 1} failed to fetch X.509-SVID via SPIFFE SDK: {e}"
                 )
@@ -196,7 +196,7 @@ class WorkloadAPIClientProduction:
             logger.info(f"✅ JWT-SVID fetched for {audience}")
             return jwt_svid
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"❌ Failed to fetch JWT-SVID: {e}")
             raise
 
@@ -279,7 +279,7 @@ class WorkloadAPIClientProduction:
 
             return is_valid
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"❌ JWT-SVID validation failed: {e}")
             return False
 
@@ -324,7 +324,7 @@ class WorkloadAPIClientProduction:
                 # Check every 5 minutes
                 await asyncio.sleep(300)
 
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.error(f"❌ Auto-renewal error: {e}")
                 await asyncio.sleep(60)  # Retry after 1 minute
 

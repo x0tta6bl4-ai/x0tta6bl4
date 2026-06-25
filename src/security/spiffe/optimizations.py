@@ -151,7 +151,7 @@ class MultiRegionFailover:
             try:
                 await self._check_all_regions()
                 await asyncio.sleep(self.config.health_check_interval)
-            except Exception as e:
+            except (ConnectionError, TimeoutError, OSError, ValueError) as e:
                 logger.error(f"Health check loop error: {e}")
                 await asyncio.sleep(self.config.health_check_interval)
 
@@ -239,14 +239,14 @@ class MultiRegionFailover:
                 except httpx.TimeoutException:
                     logger.warning(f"Region {region} health check timed out")
                     return False
-                except Exception as e:
+                except (ConnectionError, TimeoutError, OSError, ValueError) as e:
                     logger.warning(f"Region {region} health check failed: {e}")
                     return False
 
         except ImportError:
             logger.warning("httpx not available, using basic connectivity check")
             return await self._check_basic_connectivity_fallback(region)
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError) as e:
             logger.error(
                 f"Unexpected error during health check for region {region}: {e}"
             )
@@ -296,7 +296,7 @@ class MultiRegionFailover:
                 return (
                     response.status_code < 500
                 )  # Any non-server-error is considered healthy
-        except Exception:
+        except (OSError, RuntimeError):
             return False
 
     async def _check_basic_connectivity_fallback(self, region: str) -> bool:
@@ -336,7 +336,7 @@ class MultiRegionFailover:
                 return True
             except (asyncio.TimeoutError, OSError):
                 return False
-        except Exception:
+        except (OSError, RuntimeError):
             return False
 
     async def _attempt_failover(self) -> None:

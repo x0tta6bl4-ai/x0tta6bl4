@@ -6,21 +6,21 @@ Coordinates all MAPE-K phases into a complete cycle.
 
 import hashlib
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
-from .meta_planning import MetaPlanner
-from .monitoring import MonitoringPhase
 from .analysis import AnalysisPhase
-from .planning import PlanningPhase
 from .execution import ExecutionPhase
 from .knowledge import KnowledgePhase
+from .meta_planning import MetaPlanner
+from .monitoring import MonitoringPhase
+from .planning import PlanningPhase
 
 logger = logging.getLogger(__name__)
 
 
-def _hash_value(value: Any) -> Optional[str]:
+def _hash_value(value: Any) -> str | None:
     if value is None:
         return None
     text = str(value)
@@ -76,7 +76,7 @@ class MAPEKCoordinator:
             role="coordinator",
             capabilities=("mape_k", "healing", "quality"),
         )
-        self.last_thinking_context: Dict[str, Any] = {}
+        self.last_thinking_context: dict[str, Any] = {}
 
         # History and statistics
         self.reasoning_history: list = []
@@ -92,12 +92,12 @@ class MAPEKCoordinator:
         *,
         task_type: str,
         goal: str,
-        task: Optional[Dict[str, Any]] = None,
-        extra: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        task: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Prepare redacted thinking context for MAPE-K cycle coordination."""
         safe_task = dict(task or {})
-        context: Dict[str, Any] = {
+        context: dict[str, Any] = {
             "type": task_type,
             "goal": goal,
             "node_id_hash": _hash_value(self.node_id),
@@ -124,7 +124,7 @@ class MAPEKCoordinator:
         self.last_thinking_context = self.thinking_coach.prepare_task(context)
         return self.last_thinking_context
 
-    def get_thinking_status(self) -> Dict[str, Any]:
+    def get_thinking_status(self) -> dict[str, Any]:
         """Expose thinking profile and latest redacted coordinator context."""
         return {
             "thinking": self.thinking_coach.status(),
@@ -132,8 +132,8 @@ class MAPEKCoordinator:
         }
 
     async def run_full_cycle(
-        self, task: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, task: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Run complete MAPE-K cycle.
 
@@ -229,7 +229,7 @@ class MAPEKCoordinator:
             logger.error(f"❌ Meta-Cognitive MAPE-K Cycle failed: {e}", exc_info=True)
             return {"error": str(e)}
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         """Get cycle statistics."""
         return self.stats.copy()
 

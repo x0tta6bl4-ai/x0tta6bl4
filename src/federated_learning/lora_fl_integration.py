@@ -19,7 +19,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.federated_learning.coordinator import (
     CoordinatorConfig,
     FederatedCoordinator,
