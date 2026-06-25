@@ -7,6 +7,12 @@ import time
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
+from src.self_healing.mape_k.analyzer import MAPEKAnalyzer
+from src.self_healing.mape_k.executor import MAPEKExecutor
+from src.self_healing.mape_k.knowledge import MAPEKKnowledge
+from src.self_healing.mape_k.monitor import MAPEKMonitor
+from src.self_healing.mape_k.planner import MAPEKPlanner
+
 logger = logging.getLogger(__name__)
 
 
