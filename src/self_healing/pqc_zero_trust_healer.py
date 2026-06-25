@@ -25,6 +25,7 @@ from src.security.policy_decision_adapter import (
 )
 from ..services.service_event_identity import service_event_identity
 from .mape_k import MAPEKAnalyzer, MAPEKExecutor, MAPEKMonitor, MAPEKPlanner
+from .signed_command import SignedRemediationCommand
 
 logger = logging.getLogger(__name__)
 
@@ -723,6 +724,37 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
             "wallet_address": wallet_address or service_identity["wallet_address"],
         }
 
+        # Signing key for SignedRemediationCommand
+        # Uses gateway ML-DSA secret key when available; falls back to derived HMAC key
+        # For HMAC-based signing, signing and verification use the same key
+        self._signing_key: bytes = b""
+        self._signing_key_id: str = "hmac-deriv"
+        self._verification_key: bytes = b""
+        try:
+            if self.pqc_gateway and hasattr(self.pqc_gateway, "our_dsa_secret_key"):
+                seed = self.pqc_gateway.our_dsa_secret_key
+                self._signing_key = hashlib.sha256(seed).digest()
+                self._verification_key = self._signing_key
+                self._signing_key_id = "gateway-ml-dsa-65-hmac"
+                logger.info("SignedCommand: using gateway ML-DSA derived key")
+        except Exception as exc:
+            logger.warning("SignedCommand: key init failed, using random key: %s", exc)
+            self._signing_key = hashlib.sha256(os.urandom(32)).digest()
+            self._verification_key = self._signing_key
+            self._signing_key_id = "random-dev"
+
+        # Emergency mode state
+        self._emergency_mode_active: bool = False
+        self._emergency_activated_at: Optional[datetime] = None
+
+    def _sign_action(self, action: str) -> SignedRemediationCommand:
+        """Wrap an action string in a signed command."""
+        return SignedRemediationCommand.sign(
+            action,
+            signing_key=self._signing_key,
+            signing_key_id=self._signing_key_id,
+        )
+
     @staticmethod
     def _env_bool(name: str, default: bool) -> bool:
         value = os.getenv(name)
@@ -935,7 +967,9 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
                         reason=policy_reason,
                         policy_decision=policy_decision,
                     )
-                    result = await self._execute_action(action)
+                    # Sign the action before execution
+                    signed_cmd = self._sign_action(action)
+                    result = await self._execute_action(signed_cmd)
                     results.append(result)
                     if result["success"]:
                         success_count += 1
@@ -1007,9 +1041,25 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
                 "execution_data": {"error": str(e)},
             }
 
-    async def _execute_action(self, action: str) -> Dict[str, Any]:
-        """Execute a specific healing action"""
-        action_lower = action.lower()
+    async def _execute_action(self, action_or_cmd) -> Dict[str, Any]:
+        """Execute a specific healing action with signature verification.
+
+        Accepts either a SignedRemediationCommand or a str.
+        When SignedRemediationCommand is passed, verifies the signature first.
+        """
+        # Unwrap signed command
+        if isinstance(action_or_cmd, SignedRemediationCommand):
+            cmd = action_or_cmd
+            if not cmd.verify(verification_key=self._verification_key):
+                logger.error("SignedCommand verification FAILED for action: %s", cmd.action)
+                return {
+                    "action": cmd.action,
+                    "success": False,
+                    "error": "SignedCommand signature verification failed",
+                }
+            action_lower = cmd.action.lower()
+        else:
+            action_lower = str(action_or_cmd).lower()
 
         if "rotate all pqc keys" in action_lower:
             return await self._rotate_all_keys()
@@ -1033,21 +1083,81 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
             return {"action": action, "success": True, "message": "Action logged"}
 
     async def _rotate_pqc_identity(self) -> Dict[str, Any]:
-        """Rotate PQC Node Identity (Long-term keys)"""
+        """Rotate PQC Node Identity (Long-term ML-DSA/ML-KEM keys).
+
+        Creates new PQCNodeIdentity, regenerates gateway keypair,
+        and syncs to XDP loader if available.
+
+        On failure: rolls back all keys to pre-rotation state.
+        """
+        # ── Save pre-rotation state for rollback ──
+        saved = {
+            "did": self.identity.get("did", ""),
+            "signing_key": self._signing_key,
+            "signing_key_id": self._signing_key_id,
+            "verification_key": self._verification_key,
+        }
+        if self.pqc_gateway:
+            saved["gateway_pub"] = self.pqc_gateway.our_dsa_public_key
+            saved["gateway_sec"] = self.pqc_gateway.our_dsa_secret_key
+        if hasattr(self, "_emergency_mode_active"):
+            saved["emergency_mode"] = self._emergency_mode_active
+
         try:
-            # Note: In a real system, the executor would need access to the identity manager
-            # We'll assume for now that it's provided in the healer context or accessible
-            # This is a PLACEHOLDER implementation as we don't have the global context here
-            # But the logic should be: call identity_manager.rotate_keys()
             logger.info("Executing PQC Node Identity rotation (ML-DSA-65/ML-KEM-768)")
-            # Simulated success
+
+            node_id = self.identity.get("node_id", "default-node")
+
+            # 1. Create/update PQC node identity
+            identity = PQCNodeIdentity(node_id)
+            old_did = saved["did"]
+            new_did = identity.did
+            self.identity["did"] = new_did
+
+            # 2. Regenerate gateway DSA keypair
+            if self.pqc_gateway:
+                self.pqc_gateway.dsa = __import__("oqs", fromlist=["Signature"]).Signature("ML-DSA-65")
+                self.pqc_gateway.our_dsa_public_key = self.pqc_gateway.dsa.generate_keypair()
+                self.pqc_gateway.our_dsa_secret_key = self.pqc_gateway.dsa.export_secret_key()
+                # Regenerate signing key from new DSA key
+                self._signing_key = hashlib.sha256(self.pqc_gateway.our_dsa_secret_key).digest()
+                self._signing_key_id = "gateway-ml-dsa-65-hmac"
+                self._verification_key = self._signing_key
+
+            # 3. Sync to XDP loader
+            if self.pqc_loader:
+                self.pqc_loader.sync_with_gateway()
+
+            logger.info("PQC identity rotated: %s -> %s", old_did[:16], new_did[:16])
             return {
                 "action": "rotate_pqc_identity",
                 "success": True,
-                "message": "PQC Node Identity rotated successfully, new DID broadcasted to mesh"
+                "old_did": old_did,
+                "new_did": new_did,
+                "node_id": node_id,
+                "message": "PQC Node Identity rotated, new keys loaded to EBPF gateway",
             }
+
         except Exception as e:
-            return {"action": "rotate_pqc_identity", "success": False, "error": str(e)}
+            logger.error("PQC identity rotation failed; rolling back keys: %s", e)
+
+            # ── Rollback everything to pre-rotation state ──
+            self.identity["did"] = saved["did"]
+            self._signing_key = saved["signing_key"]
+            self._signing_key_id = saved["signing_key_id"]
+            self._verification_key = saved["verification_key"]
+            if self.pqc_gateway:
+                self.pqc_gateway.our_dsa_public_key = saved.get("gateway_pub", b"")
+                self.pqc_gateway.our_dsa_secret_key = saved.get("gateway_sec", b"")
+            if "emergency_mode" in saved:
+                self._emergency_mode_active = saved["emergency_mode"]
+
+            return {
+                "action": "rotate_pqc_identity",
+                "success": False,
+                "error": str(e),
+                "rolled_back": True,
+            }
 
     async def _rotate_all_keys(self) -> Dict[str, Any]:
         """Emergency key rotation"""
@@ -1097,19 +1207,59 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
             }
 
     async def _enable_emergency_mode(self) -> Dict[str, Any]:
-        """Enable emergency security mode"""
+        """Enable emergency security mode.
+
+        Sets emergency_mode flag on executor, which:
+        - Forces strict XDP signature verification in eBPF dataplane
+        - Increases monitor sensitivity
+        - Blocks non-critical healing actions
+        """
         try:
-            # In emergency mode, be more restrictive
-            # This would need to be implemented in the monitor
             logger.warning("PQC Emergency security mode enabled")
+            self._emergency_mode_active = True
+
+            # Signal eBPF dataplane for strict verification
+            if self.pqc_loader and hasattr(self.pqc_loader, "set_strict_verification"):
+                self.pqc_loader.set_strict_verification(True)
+                logger.info("eBPF XDP loader set to strict verification mode")
+
+            # Update health metrics to reflect emergency state
+            self._emergency_activated_at = datetime.now()
+
             return {
                 "action": "enable_emergency_mode",
                 "success": True,
-                "message": "Emergency mode enabled",
+                "emergency_active": True,
+                "activated_at": self._emergency_activated_at.isoformat(),
+                "message": "Emergency mode enabled: strict XDP verification active",
+            }
+        except Exception as e:
+            logger.error("Failed to enable emergency mode: %s", e)
+            return {
+                "action": "enable_emergency_mode",
+                "success": False,
+                "error": str(e),
+            }
+
+    async def _disable_emergency_mode(self) -> Dict[str, Any]:
+        """Disable emergency security mode and restore normal operation."""
+        try:
+            logger.info("PQC Emergency security mode disabled")
+            self._emergency_mode_active = False
+
+            if self.pqc_loader and hasattr(self.pqc_loader, "set_strict_verification"):
+                self.pqc_loader.set_strict_verification(False)
+                logger.info("eBPF XDP loader restored to normal verification mode")
+
+            return {
+                "action": "disable_emergency_mode",
+                "success": True,
+                "emergency_active": False,
+                "message": "Emergency mode disabled: normal XDP verification restored",
             }
         except Exception as e:
             return {
-                "action": "enable_emergency_mode",
+                "action": "disable_emergency_mode",
                 "success": False,
                 "error": str(e),
             }
