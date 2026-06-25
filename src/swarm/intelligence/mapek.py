@@ -64,6 +64,7 @@ class MAPEKIntegration:
         did: Optional[str] = None,
         wallet_address: Optional[str] = None,
         safe_actuator: Optional[Any] = None,
+        mesh_detector: Optional[Any] = None,
     ):
         self.swarm = swarm_intelligence
         self._metrics_history: List[Dict[str, Any]] = []
@@ -93,6 +94,8 @@ class MAPEKIntegration:
         }
         self._last_decision_result: Optional[DecisionResult] = None
         self.safe_actuator = safe_actuator or AsyncSafeActuator(self._propose_action_internal)
+        self.mesh_detector = mesh_detector
+        self._mesh_topology_cache: Optional[Dict[str, Any]] = None
 
     @staticmethod
     def _env_bool(name: str, default: bool) -> bool:
@@ -488,7 +491,11 @@ class MAPEKIntegration:
         )
 
     async def monitor(self) -> Dict[str, Any]:
-        """Collect swarm state and metrics."""
+        """Collect swarm state and metrics.
+
+        When a mesh_detector is configured, also collects live mesh topology
+        snapshots for GNN-based anomaly detection in the analyze phase.
+        """
         status = await self.swarm.get_consensus_status()
         nodes = self.swarm.get_nodes()
 
@@ -500,6 +507,32 @@ class MAPEKIntegration:
             "pending_decisions": len(self.swarm._pending_decisions),
         }
 
+        # Collect mesh topology snapshot when a detector is available
+        self._mesh_topology_cache = None
+        if self.mesh_detector is not None:
+            try:
+                mesh_data = None
+                if hasattr(self.swarm, "get_mesh_topology"):
+                    mesh_data = self.swarm.get_mesh_topology()
+                elif hasattr(self.swarm, "network"):
+                    net = self.swarm.network
+                    mesh_data = {
+                        "node_features": getattr(net, "node_features", []),
+                        "edge_index": getattr(net, "edge_index", []),
+                    }
+                if mesh_data is not None:
+                    self._mesh_topology_cache = mesh_data
+                    metrics["mesh_topology_collected"] = True
+                    metrics["mesh_num_nodes"] = len(
+                        mesh_data.get("node_features", []))
+                    metrics["mesh_num_edges"] = len(
+                        mesh_data.get("edge_index", []))
+                else:
+                    metrics["mesh_topology_collected"] = False
+            except Exception as exc:
+                logger.warning("Failed to collect mesh topology: %s", exc)
+                metrics["mesh_topology_collected"] = False
+
         self._metrics_history.append(metrics)
         if len(self._metrics_history) > 100:
             self._metrics_history = self._metrics_history[-100:]
@@ -507,8 +540,15 @@ class MAPEKIntegration:
         return metrics
 
     def analyze(self, metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Analyze metrics for anomalies and opportunities."""
+        """Analyze metrics for anomalies and opportunities.
+
+        Runs both rule-based checks (availability, backlog) and, when a
+        mesh_detector is configured, GNN-based anomaly detection on mesh
+        network topology.
+        """
         anomalies = []
+
+        # ── Rule-based checks ──────────────────────────────────────
 
         # Check node availability
         active_ratio = metrics.get("active_nodes", 0) / max(metrics.get("total_nodes", 1), 1)
@@ -517,6 +557,7 @@ class MAPEKIntegration:
                 "type": "low_availability",
                 "severity": "high",
                 "value": active_ratio,
+                "source": "mapek_rules",
             })
 
         # Check pending decisions backlog
@@ -526,28 +567,145 @@ class MAPEKIntegration:
                 "type": "decision_backlog",
                 "severity": "medium",
                 "value": pending,
+                "source": "mapek_rules",
             })
 
+        # ── GNN-based mesh anomaly detection ───────────────────────
+        if self.mesh_detector is not None and self._mesh_topology_cache is not None:
+            try:
+                self._analyze_mesh_topology(anomalies)
+            except Exception as exc:
+                logger.warning("Mesh GNN analysis failed: %s", exc)
+
         return anomalies
+
+    def _analyze_mesh_topology(self, anomalies: List[Dict[str, Any]]) -> None:
+        """Run GNN-based anomaly detection on cached mesh topology."""
+        mesh = self._mesh_topology_cache
+        if not mesh:
+            return
+
+        node_features = mesh.get("node_features", [])
+        edge_index = mesh.get("edge_index", [])
+        if not node_features or not edge_index:
+            return
+
+        # Run batch prediction
+        import time
+        t0 = time.time()
+        try:
+            predictions = self.mesh_detector.predict_topology(node_features, edge_index)
+        except Exception as exc:
+            logger.warning("MeshGNN prediction failed: %s", exc)
+            return
+
+        inference_ms = (time.time() - t0) * 1000.0
+        logger.info("Mesh GNN inference on %d nodes in %.1fms",
+                    len(predictions), inference_ms)
+
+        # Aggregate per-node predictions into topology-level anomalies
+        anomaly_nodes = [p for p in predictions if p.is_anomaly]
+        if not anomaly_nodes:
+            return
+
+        # Count anomaly scores to classify the event type
+        scores = [p.anomaly_score for p in anomaly_nodes]
+        mean_score = sum(scores) / max(len(scores), 1)
+        anomaly_ratio = len(anomaly_nodes) / max(len(predictions), 1)
+
+        if anomaly_ratio > 0.4:
+            # Widespread anomalies → possible cascade or partition
+            anomalies.append({
+                "type": "mesh_topology_instability",
+                "severity": "high",
+                "value": anomaly_ratio,
+                "mean_score": mean_score,
+                "anomalous_nodes": len(anomaly_nodes),
+                "total_nodes": len(predictions),
+                "inference_ms": round(inference_ms, 2),
+                "source": "mesh_gnn",
+            })
+        elif anomaly_ratio > 0.15:
+            anomalies.append({
+                "type": "mesh_link_degradation_cluster",
+                "severity": "medium",
+                "value": anomaly_ratio,
+                "mean_score": mean_score,
+                "anomalous_nodes": len(anomaly_nodes),
+                "total_nodes": len(predictions),
+                "inference_ms": round(inference_ms, 2),
+                "source": "mesh_gnn",
+            })
+        else:
+            # Isolated anomalies — individual node/link issues
+            worst = max(anomaly_nodes, key=lambda p: p.anomaly_score)
+            anomalies.append({
+                "type": "mesh_node_anomaly",
+                "severity": "low",
+                "value": worst.anomaly_score,
+                "node_id": worst.node_id,
+                "anomalous_nodes": len(anomaly_nodes),
+                "total_nodes": len(predictions),
+                "inference_ms": round(inference_ms, 2),
+                "source": "mesh_gnn",
+            })
 
     def plan(self, anomalies: List[Dict[str, Any]]) -> List[SwarmAction]:
         """Generate action proposals based on anomalies."""
         actions = []
 
         for anomaly in anomalies:
-            if anomaly["type"] == "low_availability":
+            a_type = anomaly["type"]
+            a_severity = anomaly.get("severity", "low")
+
+            # ── Rule-based anomaly types ───────────────────────────
+            if a_type == "low_availability":
                 actions.append(SwarmAction(
                     action_type="healing",
                     description="Initiate node recovery procedure",
-                    parameters={"anomaly": anomaly},
+                    parameters=anomaly,
                     priority=DecisionPriority.HIGH,
                 ))
-            elif anomaly["type"] == "decision_backlog":
+            elif a_type == "decision_backlog":
                 actions.append(SwarmAction(
                     action_type="scaling",
                     description="Request additional decision capacity",
-                    parameters={"anomaly": anomaly},
+                    parameters=anomaly,
                     priority=DecisionPriority.NORMAL,
+                ))
+
+            # ── GNN-based mesh anomaly types ───────────────────────
+            elif a_type == "mesh_topology_instability":
+                severity = a_severity or "high"
+                actions.append(SwarmAction(
+                    action_type="mesh_isolation",
+                    description=(
+                        f"Mesh topology instability detected: "
+                        f"{anomaly.get('anomalous_nodes', '?')} anomalous nodes "
+                        f"(mean score {anomaly.get('mean_score', 0):.2f})"
+                    ),
+                    parameters=anomaly,
+                    priority=DecisionPriority.HIGH if severity == "high" else DecisionPriority.NORMAL,
+                ))
+            elif a_type == "mesh_link_degradation_cluster":
+                actions.append(SwarmAction(
+                    action_type="redundancy",
+                    description=(
+                        f"Link degradation cluster: "
+                        f"{anomaly.get('anomalous_nodes', '?')} nodes affected"
+                    ),
+                    parameters=anomaly,
+                    priority=DecisionPriority.NORMAL,
+                ))
+            elif a_type == "mesh_node_anomaly":
+                actions.append(SwarmAction(
+                    action_type="inspection",
+                    description=(
+                        f"Suspicious node: {anomaly.get('node_id', '?')} "
+                        f"(score {anomaly.get('value', 0):.2f})"
+                    ),
+                    parameters=anomaly,
+                    priority=DecisionPriority.LOW,
                 ))
 
         return actions
@@ -673,7 +831,12 @@ class MAPEKIntegration:
         return result
 
     def learn(self, action: SwarmAction, result: Dict[str, Any]) -> None:
-        """Learn from action outcomes."""
+        """Learn from action outcomes.
+
+        When a mesh_detector with experience replay is configured, the
+        learn phase pushes the topology snapshot into the buffer and
+        periodically triggers fine-tuning.
+        """
         action_type = action.action_type
         if action_type not in self._learning_data:
             self._learning_data[action_type] = {
@@ -684,6 +847,39 @@ class MAPEKIntegration:
         self._learning_data[action_type]["total"] += 1
         if result.get("success"):
             self._learning_data[action_type]["successful"] += 1
+
+        # Push topology snapshot into experience replay buffer
+        if self.mesh_detector is not None and self._mesh_topology_cache is not None:
+            try:
+                mesh = self._mesh_topology_cache
+                node_features = mesh.get("node_features", [])
+                edge_index = mesh.get("edge_index", [])
+                if node_features and edge_index:
+                    # Build a minimal snapshot from the cached topology
+                    class _LearnSnapshot:
+                        def __init__(self, nf, ei):
+                            self.node_features = nf
+                            self.edge_index = ei
+                            num_nodes = len(nf)
+                            self.num_nodes = num_nodes
+                            # Use the predictions as pseudo-labels when
+                            # no ground-truth labels are available
+                            self.labels = [0.0] * num_nodes
+
+                    snap = _LearnSnapshot(node_features, edge_index)
+                    self.mesh_detector.push_experience(snap)
+
+                    # Periodically fine-tune every 20 successful actions
+                    total = self._learning_data[action_type]["total"]
+                    if total > 0 and total % 20 == 0 and result.get("success"):
+                        hist = self.mesh_detector.fine_tune(verbose=False)
+                        if hist.epochs:
+                            logger.info(
+                                f"Online fine-tune: {len(hist.epochs)} steps, "
+                                f"loss {hist.losses[-1]:.4f}, "
+                                f"acc {hist.accuracies[-1]:.1%}")
+            except Exception as exc:
+                logger.warning("Failed to push experience in learn phase: %s", exc)
 
     def get_success_rate(self, action_type: str) -> float:
         """Get success rate for an action type."""
