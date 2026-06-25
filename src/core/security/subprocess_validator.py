@@ -1,5 +1,6 @@
 # Subprocess validation utilities
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -98,6 +99,7 @@ def _validate_subcommand(command: str, subcommand: object, allowed: set[str]) ->
 
 
 def _resolve_trusted_command(command: str) -> str:
+    # First, try trusted system directories
     for directory in TRUSTED_COMMAND_DIRS:
         candidate = Path(directory) / command
         try:
@@ -105,6 +107,10 @@ def _resolve_trusted_command(command: str) -> str:
                 return str(candidate)
         except OSError:
             continue
+    # Fallback: use shutil.which() — covers custom install paths
+    resolved = shutil.which(command)
+    if resolved:
+        return resolved
     raise ValueError(f"Allowed command is not available in trusted system paths: {command}")
 
 
