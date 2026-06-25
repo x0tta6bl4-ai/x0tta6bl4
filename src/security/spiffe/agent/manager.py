@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
+from src.core.security.subprocess_validator import safe_run
 from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
@@ -582,7 +583,7 @@ class SPIREAgentManager:
             cmd.extend(["-selector", f"{key}:{value}"])
 
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd, capture_output=True, check=True, text=True, timeout=30
             )
             logger.info(
@@ -624,7 +625,7 @@ class SPIREAgentManager:
         try:
             # Execute: spire-server entry show
             cmd = [self._spire_server_bin, "entry", "show"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=30)
 
             if result.returncode != 0:
                 logger.warning(f"Failed to list workloads: {result.stderr.strip()}")
@@ -740,7 +741,7 @@ class SPIREAgentManager:
         _context: Dict[str, Any],
     ) -> SafeActuatorResult:
         try:
-            result = subprocess.run(
+            result = safe_run(
                 [
                     self._spire_agent_bin,
                     "healthcheck",

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
+from src.core.security.subprocess_validator import safe_run
 from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
@@ -359,7 +360,7 @@ class SPIREServerClient:
         _context: Dict[str, Any],
     ) -> SafeActuatorResult:
         try:
-            result = subprocess.run(
+            result = safe_run(
                 [self.spire_server_bin, "healthcheck"],
                 capture_output=True,
                 text=True,
@@ -489,7 +490,7 @@ class SPIREServerClient:
         holder: Dict[str, List[SPIREServerEntry]],
     ) -> SafeActuatorResult:
         try:
-            result = subprocess.run(
+            result = safe_run(
                 [self.spire_server_bin, "entry", "show"],
                 capture_output=True,
                 text=True,
@@ -546,7 +547,7 @@ class SPIREServerClient:
 
     def _delete_entry_internal(self, entry_id: str) -> SafeActuatorResult:
         try:
-            result = subprocess.run(
+            result = safe_run(
                 [self.spire_server_bin, "entry", "delete", "-entryID", entry_id],
                 capture_output=True,
                 text=True,
@@ -611,7 +612,7 @@ class SPIREServerClient:
         holder: Dict[str, Dict[str, Any]],
     ) -> SafeActuatorResult:
         try:
-            result = subprocess.run(
+            result = safe_run(
                 [self.spire_server_bin, "healthcheck", "-shallow"],
                 capture_output=True,
                 text=True,
