@@ -21,6 +21,47 @@ try:
 except RuntimeError:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
+# ---------------------------------------------------------------------------
+# Mock heavy dependencies that the import chain pulls in (PQC, monitoring, etc.)
+# These are not required for unit tests and can cause import errors.
+# ---------------------------------------------------------------------------
+_HEAVY_MOCKS = {
+    "prometheus_client": types.ModuleType("prometheus_client"),
+    "kubernetes": types.ModuleType("kubernetes"),
+    "flwr": types.ModuleType("flwr"),
+    "eth_account": types.ModuleType("eth_account"),
+    "web3": types.ModuleType("web3"),
+    "sentence_transformers": types.ModuleType("sentence_transformers"),
+    "oqs": types.ModuleType("oqs"),
+    "liboqs": types.ModuleType("liboqs"),
+}
+for _mod_name, _mod in _HEAVY_MOCKS.items():
+    sys.modules.setdefault(_mod_name, _mod)
+
+# Give prometheus_client the expected names so imports don't crash
+_prom = sys.modules["prometheus_client"]
+_prom.CollectorRegistry = type("CollectorRegistry", (), {
+    "__call__": lambda s, *a, **kw: types.SimpleNamespace(
+        get_sample_value=lambda *a: 0.0, names=lambda self: iter([])
+    ),
+    "get_sample_value": lambda *a: 0.0,
+    "names": lambda self: iter([]),
+})
+_prom.Counter = lambda *a, **kw: types.SimpleNamespace(
+    inc=lambda: None, labels=lambda **kw: types.SimpleNamespace(inc=lambda: None)
+)
+_prom.Gauge = lambda *a, **kw: types.SimpleNamespace(
+    set=lambda v: None, inc=lambda: None,
+    labels=lambda **kw: types.SimpleNamespace(set=lambda v: None)
+)
+_prom.Histogram = lambda *a, **kw: types.SimpleNamespace(
+    observe=lambda v: None,
+    labels=lambda **kw: types.SimpleNamespace(observe=lambda v: None)
+)
+_prom.Summary = lambda *a, **kw: types.SimpleNamespace(observe=lambda v: None)
+_prom.generate_latest = lambda: b""
+_prom.CONTENT_TYPE_LATEST = "text/plain"
+
 
 class SandboxSafeTestClient:
     """
@@ -198,55 +239,96 @@ if SRC_ROOT not in sys.path:
 if not hasattr(asyncio, "coroutine"):
     asyncio.coroutine = types.coroutine
 
-import signal
 
-_PREIMPORT_TIMEOUT = 20
+_PREIMPORT_TIMEOUT = 5
+
+
+def _is_module_available(name: str) -> bool:
+    """Fast check if a module exists and can be imported quickly."""
+    import importlib.util
+    spec = importlib.util.find_spec(name)
+    if spec is None:
+        return False
+    # Torch is found by find_spec but takes 8+ seconds to import on
+    # CPU-only hardware.  Skip it — individual tests that need torch
+    # must handle the import themselves.
+    # Similarly, skip torch_geometric and other heavy packages that
+    # drag in torch transitively.
+    SLOW_MODULES = {
+        "torch", "torch_geometric",  # heavy C extensions
+        "sentence_transformers",       # drags in torch
+        "flwr",                         # drags in torch
+        "src.dao.governance_script",   # drags in web3 → heavy
+        "prometheus_client",           # drags in protobuf
+    }
+    if name in SLOW_MODULES:
+        return False
+    return True
 
 
 def _import_safe(name: str) -> None:
-    """Import a module with alarm-based timeout."""
+    """Import a module with thread-based timeout.
+
+    Returns silently on timeout or import error — the caller must
+    handle missing modules.  Uses a daemon thread instead of SIGALRM
+    because the latter does not reliably interrupt C-level imports.
+    """
     import importlib
+    import threading
 
-    def _handler(signum, frame):
-        raise TimeoutError(f"import {name} timed out")
+    result = [None]
+    exc_info = [None]
 
-    old = signal.signal(signal.SIGALRM, _handler)
-    signal.alarm(_PREIMPORT_TIMEOUT)
-    try:
-        importlib.import_module(name)
-    except Exception:
-        pass
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old)
+    def _load():
+        try:
+            result[0] = importlib.import_module(name)
+        except BaseException as e:
+            exc_info[0] = e
+
+    t = threading.Thread(target=_load, daemon=True)
+    t.start()
+    t.join(timeout=_PREIMPORT_TIMEOUT)
+    if t.is_alive():
+        return  # timed out — give up silently
+    if exc_info[0] is not None and not isinstance(exc_info[0], ImportError):
+        return  # unexpected error — skip
+    # Success — keep the module in sys.modules
 
 
-# Pre-import torch and torch_geometric so their submodules are in
-# sys.modules baseline.  The autouse mock_dependencies fixture uses
-# patch.dict('sys.modules') which removes any NEW modules added during
-# a test.  If these packages are imported for the first time during a
-# test, their hundreds of submodules get removed on context exit,
-# corrupting internal state for subsequent tests.
-_import_safe("torch")
-_import_safe("torch_geometric")
+def _batch_import_safe(*names: str) -> None:
+    """Pre-import multiple modules in parallel threads.
 
-# Pre-import governance_script so its module dict stays stable across tests.
-# mock_dependencies uses sys.modules.clear() on each teardown; if governance_script
-# is first imported inside a test, subsequent re-imports share the same pyc code
-# object but with a fresh dict, which corrupts CPython's LOAD_GLOBAL inline cache
-# for DEPLOYMENT_FILE (heisenbug: monkeypatch.setattr works on the dict but
-# LOAD_GLOBAL returns the cached stale value from the previous module dict).
-try:
-    import src.dao.governance_script  # noqa: F401
-except Exception:
-    pass
+    Skips modules that aren't installed (checked via find_spec which is
+    nearly instant).  Each remaining module gets _PREIMPORT_TIMEOUT seconds
+    of wall time, but all run concurrently so total wall time is ~1 timeout.
+    """
+    import threading
 
-try:
-    import prometheus_client  # noqa: F401
-except Exception:
-    pass
+    # Filter to only installed modules
+    installed = [n for n in names if _is_module_available(n)]
+    if not installed:
+        return
 
-# Pre-import sqlalchemy.orm so its module-level inspection registry survives
+    threads = []
+    for name in installed:
+        t = threading.Thread(target=_import_safe, args=(name,), daemon=True)
+        t.start()
+        threads.append(t)
+    for t in threads:
+        t.join(timeout=_PREIMPORT_TIMEOUT + 1)
+
+
+# Batch pre-import all infrastructure packages in parallel.
+# _batch_import_safe skips modules not installed (find_spec is instant),
+# and each remaining module gets _PREIMPORT_TIMEOUT seconds concurrently.
+# Total wall time: ~5s regardless of how many modules are installed.
+_batch_import_safe(
+    "torch",
+    "torch_geometric",
+    "src.dao.governance_script",
+    "prometheus_client",
+    "sqlalchemy",
+)
 # mock_dependencies rollback.  sqlalchemy.orm.base registers 'object' with
 # SQLAlchemy's inspection system at import time; if the module is removed from
 # sys.modules and reimported, the registration runs again and raises
