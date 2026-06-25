@@ -218,10 +218,27 @@
 - [x] [2026-03-06] Закрыт P1 memory-profile gate: добавлен воспроизводимый long-run профилировщик `scripts/ops/profile_api_memory_longrun.sh` + `make api-memory-profile-longrun` с PASS/FAIL порогами и артефактами `docs/operations/api_memory_longrun_*.{json,md}` (`API_MEMORY_LONGRUN_LATEST.md`).
 - [x] [2026-03-06] Закрыт P1 load-scenarios gate для `Marketplace/Telemetry/Nodes`: добавлен `scripts/ops/run_maas_api_load_scenarios.sh` + `make maas-api-load-scenarios` с изолированной SQLite-подготовкой, нагрузкой на `/api/v1/maas/marketplace/search`, `/api/v1/maas/heartbeat`, `/api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat` и артефактами `docs/operations/maas_api_load_scenarios_*.{json,md}` (`MAAS_API_LOAD_SCENARIOS_LATEST.md`).
 - [x] [2026-03-06] Добавлен deterministic CI-профиль нагрузки `make maas-api-load-scenarios-ci` (короткая длительность, фиксированные лимиты, артефакты в `.artifacts/maas-api-load/`) и интеграция в GitHub Actions `CI` job `maas-api-load-scenarios`.
-- [x] [2026-03-06] Runbook команд для readiness gates:
-  - Локально: `make api-memory-profile-longrun` и `make maas-api-load-scenarios`.
-  - CI-профиль локально: `make maas-api-load-scenarios-ci`.
-  - В CI: `.github/workflows/ci.yml` job `maas-api-load-scenarios` (upload Markdown/JSON артефактов).
-- [ ] Regression reopen rate: < 2%.
-- [ ] Critical incident MTTR: целевой < 30 минут.
-- [ ] Release rollback time: целевой < 10 минут.
+|- [x] [2026-03-06] Runbook команд для readiness gates:
+|  - Локально: `make api-memory-profile-longrun` и `make maas-api-load-scenarios`.
+|  - CI-профиль локально: `make maas-api-load-scenarios-ci`.
+|  - В CI: `.github/workflows/ci.yml` job `maas-api-load-scenarios` (upload Markdown/JSON артефактов).
+|- [ ] Regression reopen rate: < 2%.
+|- [ ] Critical incident MTTR: целевой < 30 минут.
+|- [ ] Release rollback time: целевой < 10 минут.
+|
+|## 14) Progress After Original Gate (2026-05 — 06)
+|
+|- [x] **9 из 10 God Objects рефакторнуты** — meta_cognitive_mape_k, mape_k.py, metrics_exporter, orchestrator, vision_coding, _loader_legacy, drift_detector (partial) — все кроме drift_detector
+|- [x] **CodeQL 54 HIGH-алерта подавлены** — PR #143, #144
+|- [x] **requirements.txt 342→72 deps** — -79% (#127)
+|- [x] **Чистка 872 PHP файлов (130 MB)** — убраны exposed credentials (#139, #140)
+|- [x] **Ребрендинг: VPN → mesh platform** — честный README, убраны фейковые claims (#133, #137, #138)
+|- [x] **x402 API запущен на NL** — порт 8120
+|- [x] **Ghost Access Bot на NL** — 2 активных пользователя
+|- [x] **First-party VPN** — 3 сервера на NL (x0vpns0/1/2)
+|- [x] **Git-теги: v3.4.0, v3.4.0-release-gate, x0t-production-v1**
+|- [ ] **Revenue Sprint** — НЕ ВЫПОЛНЕН: 0 сообщений, 0 платных конверсий
+|- [ ] **Платный пилот** — нет
+|- [ ] **Drift detector** — ещё 922 строк, не добит
+|- [ ] **Type hints** — <5% файлов
+|- [ ] **DI контейнер** — не начат|
