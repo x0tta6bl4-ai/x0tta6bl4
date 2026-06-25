@@ -236,6 +236,8 @@ data-16bbdde1-92ce-4f6f-ac13-c7217d4cd06a-*/
 .env.*
 !.env.example
 !.env.*.example
+!.env.ide
+!.env.development
 **/*.secret
 **/*.key
 **/secrets/
@@ -480,3 +482,23 @@ github.com/
 ethernaut-ctf/
 ethernaut-solutions/
 bounties/
+
+# === LARGE BINARY FILES (never track in git) ===
+docker_storage.img
+*.gguf
+bin/xray
+bin/xray.zip
+bin/geoip.dat
+k6-*/
+x0t-agent-smoke
+ai-actuator
+local-aggregator
+afxdp_bridge_v2
+prod
+
+# === BACKUP FILES ===
+*.bak
+
+# === BUILD ARTIFACTS ===
+*.egg-info/
+src/__pycache__/
