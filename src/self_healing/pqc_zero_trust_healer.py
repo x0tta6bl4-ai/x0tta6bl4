@@ -27,6 +27,7 @@ from ..services.service_event_identity import service_event_identity
 from .mape_k import MAPEKAnalyzer, MAPEKExecutor, MAPEKMonitor, MAPEKPlanner
 from .signed_command import SignedRemediationCommand
 from .anomaly_consensus import AnomalyConsensusManager, AnomalyEvidence
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
