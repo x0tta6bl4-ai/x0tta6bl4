@@ -56,7 +56,11 @@ x0tta6bl4 is a mesh networking platform with post-quantum cryptography (ML-KEM/M
 | Formally audited cryptography | ❌ liboqs integration, no audit |
 | DAO / community governance | ❌ Solo project |
 | Official commercial service | ❌ Experimental research project |
-| Production deployment | ❌ Retired 2026-06 |
+| Production deployment | ❌ Retired 2026-06 — заменён Docker Compose |
+| ZTCR (Zero-Trust Chaos Resilience) | ✅ 29/29 tests — SignedCommand + PBFT + SVID |
+| Security hardened | ✅ 36 subprocess → safe_run, allowlist 54 команд, 0 HIGH bandit |
+| reverse-skill (RE/pentest) | ✅ 23 модуля, routing matrix |
+| SPIRE Docker stack | ✅ localhost:8081 — server + agent + mesh-2node |
 
 ---
 
@@ -68,16 +72,18 @@ cd x0tta6bl4
 uv sync
 ```
 
-### Local stack (Docker)
+### Local mesh (SPIRE + 2 nodes)
 ```bash
-docker compose up ghost-vpn-server ghost-vpn-redis -d
-docker compose up mesh-node-a mesh-node-b -d
+docker compose -f deploy/docker-compose/compose.yaml up -d
+curl -s http://localhost:9100/health
+docker logs mesh-node-a -f | grep "consensus"
 ```
 
-### Run tests
+### Run core tests
 ```bash
-python3 -m pytest tests/unit/consensus/ -q --no-cov
-python3 -m pytest tests/unit/security/ -q --no-cov
+python3 -m pytest tests/unit/self_healing/test_svid_signer.py \
+  tests/unit/self_healing/test_anomaly_consensus.py \
+  tests/unit/self_healing/test_spire_crash_chaos.py -v --tb=short
 ```
 
 ### Want to collaborate?
