@@ -63,7 +63,7 @@ class TestSVIDSignerUnit:
         signer_a.register_peer("spiffe://x0tta6bl4.mesh/workload/node-b")
 
         signer_b = SVIDSigner(spiffe_id="spiffe://x0tta6bl4.mesh/workload/node-b", mode="dev")
-        msg = _make_pbft_msg(sender_id="node-b")
+        msg = _make_pbft_msg({"sender_id": "node-b"})
         signed = signer_b.sign_payload(msg)
 
         # signer_a should verify the message from its registered peer node-b
