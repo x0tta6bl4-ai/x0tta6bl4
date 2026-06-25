@@ -26,6 +26,7 @@ from src.security.policy_decision_adapter import (
 from ..services.service_event_identity import service_event_identity
 from .mape_k import MAPEKAnalyzer, MAPEKExecutor, MAPEKMonitor, MAPEKPlanner
 from .signed_command import SignedRemediationCommand
+from .anomaly_consensus import AnomalyConsensusManager, AnomalyEvidence
 
 logger = logging.getLogger(__name__)
 
@@ -696,6 +697,9 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
         spiffe_id: Optional[str] = None,
         did: Optional[str] = None,
         wallet_address: Optional[str] = None,
+        anomaly_consensus: Optional[AnomalyConsensusManager] = None,
+        consensus_peers: Optional[set[str]] = None,
+        consensus_f: int = 0,
     ):
         super().__init__()
         self.pqc_gateway = pqc_gateway or get_pqc_gateway()
@@ -746,6 +750,26 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
         # Emergency mode state
         self._emergency_mode_active: bool = False
         self._emergency_activated_at: Optional[datetime] = None
+
+        # Anomaly consensus manager (Delphi-consensus via PBFT)
+        if anomaly_consensus is not None:
+            self.consensus_manager = anomaly_consensus
+        elif consensus_peers:
+            self.consensus_manager = AnomalyConsensusManager(
+                node_id=node_id,
+                peers=consensus_peers,
+                f=consensus_f,
+                event_bus=self.event_bus,
+                project_root=self.event_project_root,
+            )
+        else:
+            # Single-node mode: auto-approve (f=0, no peers)
+            self.consensus_manager = AnomalyConsensusManager(
+                node_id=node_id,
+                f=0,
+                event_bus=self.event_bus,
+                project_root=self.event_project_root,
+            )
 
     def _sign_action(self, action: str) -> SignedRemediationCommand:
         """Wrap an action string in a signed command."""
@@ -1182,22 +1206,53 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
             return {"action": "rotate_all_keys", "success": False, "error": str(e)}
 
     async def _isolate_compromised_sessions(self) -> Dict[str, Any]:
-        """Isolate sessions with anomalies"""
+        """Isolate sessions with anomalies.
+
+        Before isolating, requests cross-node consensus via PBFT to verify
+        the anomaly is real and not a local telemetry artifact (false DoS).
+        """
         try:
             isolated_count = 0
+            consensus_denied_count = 0
             current_time = datetime.now()
 
-            # Find sessions with recent anomalies (this would need anomaly tracking)
-            # For now, isolate sessions older than 2 hours
+            # Find sessions with recent anomalies or inactivity
             for session_id, session in list(self.pqc_gateway.sessions.items()):
-                if current_time - session.last_used > timedelta(hours=2):
-                    session.isolated = True
-                    isolated_count += 1
+                is_old = current_time - session.last_used > timedelta(hours=2)
+
+                if not is_old:
+                    continue
+
+                # ── Delphi-consensus: verify with peer nodes ──
+                evidence = {
+                    "session_id": session_id,
+                    "failure_rate": 0.0,
+                    "total_packets": 0,
+                    "reason": "session_inactive_2h",
+                }
+                verdict = await self.consensus_manager.request_consensus(
+                    session_id=session_id,
+                    anomaly_type="inactive_session",
+                    severity="medium",
+                    evidence=evidence,
+                )
+
+                if not verdict.approved:
+                    logger.info(
+                        "Consensus DENIED isolation for session %s: %s",
+                        session_id[:8], verdict.reason,
+                    )
+                    consensus_denied_count += 1
+                    continue
+
+                session.isolated = True
+                isolated_count += 1
 
             return {
                 "action": "isolate_compromised_sessions",
                 "success": True,
                 "isolated_sessions": isolated_count,
+                "consensus_denied": consensus_denied_count,
             }
         except Exception as e:
             return {
@@ -1401,6 +1456,9 @@ class PQCZeroTrustHealer:
         spiffe_id: Optional[str] = None,
         did: Optional[str] = None,
         wallet_address: Optional[str] = None,
+        anomaly_consensus: Optional[AnomalyConsensusManager] = None,
+        consensus_peers: Optional[set[str]] = None,
+        consensus_f: int = 0,
     ):
         self.monitor = PQCZeroTrustMonitor(pqc_gateway, pqc_loader)
         self.analyzer = PQCZeroTrustAnalyzer()
@@ -1417,6 +1475,9 @@ class PQCZeroTrustHealer:
             spiffe_id=spiffe_id,
             did=did,
             wallet_address=wallet_address,
+            anomaly_consensus=anomaly_consensus,
+            consensus_peers=consensus_peers,
+            consensus_f=consensus_f,
         )
 
         # Start healing loop
