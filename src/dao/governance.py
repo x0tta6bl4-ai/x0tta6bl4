@@ -456,7 +456,7 @@ class ActionDispatcher:
         try:
             # 1. Rotate Reality VPN Keys - use lazy import for optional dependency
             try:
-                from vpn_config_generator import XUIAPIClient
+                from src.services.vpn_config_generator import XUIAPIClient
                 xui = XUIAPIClient()
             except ImportError as ie:
                 logger.warning(f"XUIAPIClient not available: {ie}, skipping Reality key rotation")

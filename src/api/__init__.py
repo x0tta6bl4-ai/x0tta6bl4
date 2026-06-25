@@ -4,12 +4,23 @@ Submodules are imported only when requested. This keeps unrelated routers from
 performing environment checks while another API module is being imported.
 """
 
-from __future__ import annotations
-
 from importlib import import_module
 from types import ModuleType
+import os
 
-__all__ = ["users", "billing", "vpn"]
+_current_dir = os.path.dirname(__file__)
+__all__ = sorted(list(set(
+    [
+        os.path.splitext(f)[0]
+        for f in os.listdir(_current_dir)
+        if f.endswith(".py") and f != "__init__.py"
+    ]
+    + [
+        d
+        for d in os.listdir(_current_dir)
+        if os.path.isdir(os.path.join(_current_dir, d)) and not d.startswith("__")
+    ]
+)))
 
 
 def __getattr__(name: str) -> ModuleType | None:

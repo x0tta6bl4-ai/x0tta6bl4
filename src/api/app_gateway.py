@@ -50,7 +50,20 @@ async def get_status():
         "balance": econ.get("balance", "0"),
         "daily": econ.get("daily_earnings", "0"),
         "gen": stats.get("evolution_gen", 1),
-        "status": stats.get("pulse_status", "NORMAL")
+        "status": stats.get("pulse_status", "NORMAL"),
+        "peers": stats.get("peers", []),
+        "peer_count": stats.get("peer_count", 0),
+    }
+
+
+@app.get("/api/peers")
+async def get_peers():
+    """Список пиров mesh-сети."""
+    stats = _read_json_file(MESH_STATS_FILE)
+    return {
+        "node_id": stats.get("node_id", "GHOST-NODE"),
+        "peers": stats.get("peers", []),
+        "peer_count": stats.get("peer_count", 0),
     }
 
 @app.post("/api/control/{action}")

@@ -509,3 +509,471 @@ class MeshGNNDetector:
                 inference_time_ms=round(elapsed, 2),
             ))
         return predictions
+
+
+# ═══════════════════════════════════════════════════════════════
+# Online learning — experience replay buffer + fine-tuning
+# ═══════════════════════════════════════════════════════════════
+
+class ExperienceReplayBuffer:
+    """Sliding window of labeled mesh snapshots for online learning.
+
+    Maintains class balance via reservoir sampling: when the buffer is full,
+    the minority class is kept, and only the majority class is evicted.
+
+    Args:
+        capacity: maximum number of snapshots to retain.
+        balance_classes: if True, attempt to keep equal normal/anomaly ratio.
+    """
+
+    def __init__(self, capacity: int = 100, *, balance_classes: bool = True) -> None:
+        self.capacity = capacity
+        self.balance_classes = balance_classes
+        self._snapshots: list = []
+
+    @property
+    def size(self) -> int:
+        return len(self._snapshots)
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self._snapshots) == 0
+
+    def push(self, snapshot) -> None:
+        if self.balance_classes:
+            self._push_balanced(snapshot)
+        else:
+            self._push_fifo(snapshot)
+
+    def push_batch(self, snapshots: list) -> None:
+        for snap in snapshots:
+            self.push(snap)
+
+    def sample(self, n: int | None = None) -> list:
+        if n is None:
+            return list(self._snapshots)
+        return list(self._snapshots[-n:])
+
+    def clear(self) -> None:
+        self._snapshots.clear()
+
+    def _push_fifo(self, snapshot) -> None:
+        self._snapshots.append(snapshot)
+        if len(self._snapshots) > self.capacity:
+            self._snapshots.pop(0)
+
+    def _push_balanced(self, snapshot) -> None:
+        n_anom = sum(1 for l in snapshot.labels if l > 0.5)
+        is_anom_snap = n_anom > len(snapshot.labels) / 2
+
+        if len(self._snapshots) < self.capacity:
+            self._snapshots.append(snapshot)
+            return
+
+        buf_normal = sum(
+            1 for s in self._snapshots
+            if sum(1 for l in s.labels if l > 0.5) <= len(s.labels) / 2
+        )
+        buf_anom = self.size - buf_normal
+
+        victim_idx = -1
+        for i, s in enumerate(self._snapshots):
+            s_is_anom = sum(1 for l in s.labels if l > 0.5) > len(s.labels) / 2
+            if is_anom_snap and not s_is_anom and buf_normal > buf_anom:
+                victim_idx = i
+                break
+            if not is_anom_snap and s_is_anom and buf_anom > buf_normal:
+                victim_idx = i
+                break
+
+        if victim_idx >= 0:
+            self._snapshots.pop(victim_idx)
+            self._snapshots.append(snapshot)
+        else:
+            self._push_fifo(snapshot)
+
+    def anomaly_ratio(self) -> float:
+        if not self._snapshots:
+            return 0.0
+        total_anom = sum(
+            sum(1 for l in s.labels if l > 0.5)
+            for s in self._snapshots
+        )
+        total_nodes = sum(len(s.labels) for s in self._snapshots)
+        return total_anom / max(total_nodes, 1)
+
+    def __repr__(self) -> str:
+        return (
+            f"ExperienceReplayBuffer(capacity={self.capacity}, "
+            f"size={self.size}, anomaly_ratio={self.anomaly_ratio():.2%})"
+        )
+
+
+def fine_tune_mesh_gnn(
+    model: MeshGNN,
+    buffer: ExperienceReplayBuffer,
+    *,
+    steps: int = 10,
+    lr: float = 0.001,
+    lr_decay: float = 0.95,
+    verbose: bool = False,
+) -> TrainingHistory:
+    """Fine-tune a MeshGNN on the experience replay buffer.
+
+    Uses a lower LR than initial training to avoid catastrophic forgetting.
+    Each *step* is one gradient update on the entire buffer (a mini-epoch).
+    """
+    if buffer.is_empty:
+        logger.warning("fine_tune_mesh_gnn called with empty buffer -- skipping")
+        return TrainingHistory()
+
+    snapshots = buffer.sample()
+    opt = Adam(model.parameters(), lr=lr)
+    history = TrainingHistory()
+
+    for step in range(steps):
+        total_loss = 0.0
+        total_accy = 0.0
+        n = 0
+
+        for snap in snapshots:
+            x_arr = features_to_array(snap.node_features)
+            adj_norm = build_adj_norm(snap.edge_index, snap.num_nodes)
+            targets = Tensor(np.array(snap.labels, dtype=np.float64).reshape(-1, 1))
+            x = Tensor(x_arr, requires_grad=False)
+
+            edge_idx = edge_attr = None
+            if model._edge_feat_dim > 0:
+                edge_idx = build_edge_index_array(snap.edge_index, snap.num_nodes)
+                if edge_idx.shape[0] > 0:
+                    edge_attr = build_edge_features(edge_idx, x_arr)
+
+            opt.zero_grad()
+            logits = model.forward(x, adj_norm, edge_idx, edge_attr)
+            loss = model.bce(logits, targets)
+            loss.backward()
+            opt.step()
+
+            clipped = np.clip(logits.data, -100.0, 100.0)
+            probs = 1.0 / (1.0 + np.exp(-clipped))
+            preds = (probs >= 0.5).astype(np.float64)
+
+            total_loss += float(loss.data) * snap.num_nodes
+            total_accy += float(np.mean(preds == targets.data)) * snap.num_nodes
+            n += snap.num_nodes
+
+        avg_loss = total_loss / n
+        avg_accy = total_accy / n
+        history.epochs.append(step)
+        history.losses.append(avg_loss)
+        history.accuracies.append(avg_accy)
+
+        if verbose:
+            logger.info(
+                f"Fine-tune step {step:3d}/{steps}  loss={avg_loss:.4f}  acc={avg_accy:.1%}")
+
+        opt.lr *= lr_decay
+
+    return history
+
+
+# ═══════════════════════════════════════════════════════════════
+# Edge deployment — model export to C header and binary format
+# ═══════════════════════════════════════════════════════════════
+
+def export_to_c_header(
+    model: MeshGNN,
+    path: str | Path,
+    *,
+    array_prefix: str = "gnn",
+    sigmoid_after_output: bool = True,
+) -> None:
+    """Export model weights as a C header file for embedded deployment.
+
+    The header defines float arrays for each weight matrix and bias vector,
+    plus metadata constants (layer sizes, feature dimensions).
+
+    An embedded C application can include this header and run inference
+    using the weights directly.
+
+    Args:
+        model: trained MeshGNN
+        path: output path (.h recommended)
+        array_prefix: C variable name prefix (prevents name collisions)
+        sigmoid_after_output: if True, comment documents expected sigmoid
+    """
+    import textwrap
+
+    def _array(name: str, data: np.ndarray) -> str:
+        flat = data.ravel().tolist()
+        lines = []
+        # Values per line — 6 for readability
+        vpl = 6
+        for i in range(0, len(flat), vpl):
+            chunk = flat[i:i + vpl]
+            lines.append("    " + ", ".join(f"{v:.10f}f" for v in chunk))
+        body = ",\n".join(lines)
+        return (
+            f"static const float {array_prefix}_{name}[{data.size}] = {{\n"
+            f"{body}\n"
+            f"}};"
+        )
+
+    def _shape(name: str, data: np.ndarray) -> str:
+        return f"static const int {array_prefix}_{name}_shape[{data.ndim}] = {{{', '.join(str(s) for s in data.shape)}}};"
+
+    weights = []
+
+    def _add(key, tens):
+        if tens is not None:
+            weights.append(_array(key, tens.data))
+            weights.append(_shape(key, tens.data))
+
+    _add("conv1_W_self", model.conv1.W_self)
+    _add("conv1_W_neigh", model.conv1.W_neigh)
+    if model.conv1.W_edge is not None:
+        _add("conv1_W_edge", model.conv1.W_edge)
+    _add("conv2_W_self", model.conv2.W_self)
+    _add("conv2_W_neigh", model.conv2.W_neigh)
+    if model.conv2.W_edge is not None:
+        _add("conv2_W_edge", model.conv2.W_edge)
+    _add("output_W", model.output.W)
+    if model.output.b is not None:
+        _add("output_b", model.output.b)
+
+    meta = f"""\
+static const int {array_prefix}_input_dim = {model.conv1.W_self.data.shape[0]};
+static const int {array_prefix}_hidden_dim = {model.conv1.W_self.data.shape[1]};
+static const int {array_prefix}_output_dim = 1;
+static const int {array_prefix}_edge_feat_dim = {model._edge_feat_dim};
+static const int {array_prefix}_num_layers = 2;
+"""
+
+    header = f"""\
+/*
+ * MeshGNN model weights — auto-generated by mesh_gnn.py
+ * Architecture: SAGEConv -> ReLU -> SAGEConv -> ReLU -> Linear -> sigmoid
+ * Input dim: {model.conv1.W_self.data.shape[0]}
+ * Hidden dim: {model.conv1.W_self.data.shape[1]}
+ * Edge feat dim: {model._edge_feat_dim}
+{" * Output activation: sigmoid" if sigmoid_after_output else ""}
+ *
+ * Inference steps:
+ *   1. h = ReLU(D^{-1}A @ x @ W_neigh1 + x @ W_self1 + edge_agg @ W_edge1)
+ *   2. h = ReLU(D^{-1}A @ h @ W_neigh2 + h @ W_self2 + edge_agg @ W_edge2)
+ *   3. logit = h @ W_out + b_out
+ *   4. prob = 1 / (1 + exp(-logit))
+ */
+
+#ifndef {array_prefix.upper()}_MODEL_H
+#define {array_prefix.upper()}_MODEL_H
+
+#ifdef __cplusplus
+extern "C" {{
+#endif
+
+{meta}
+{chr(10).join(weights)}
+
+#ifdef __cplusplus
+}}
+#endif
+
+#endif /* {array_prefix.upper()}_MODEL_H */
+"""
+    with open(path, "w") as f:
+        f.write(header)
+    logger.info(f"C header exported to {path} ({len(weights)} arrays)")
+
+
+def export_to_binary(model: MeshGNN, path: str | Path) -> None:
+    """Export model weights as a compact binary file.
+
+    Format (little-endian):
+      [4 bytes]  magic: 0x474E4E58 ("GNNX")
+      [4 bytes]  version: 1
+      [4 bytes]  input_dim
+      [4 bytes]  hidden_dim
+      [4 bytes]  edge_feat_dim
+      [4 bytes]  num_arrays (N)
+
+      For each array:
+        [4 bytes]  name_len
+        [name_len bytes]  array name (e.g. "conv1.W_self")
+        [4 bytes]  ndim
+        [4 bytes * ndim]  shape
+        [8 bytes * size]  float64 data
+
+    Loadable on any platform — no Python required.
+    """
+    import struct
+
+    arrays: List[tuple[str, np.ndarray]] = []
+
+    def _add(name: str, tens):
+        if tens is not None:
+            arrays.append((name, tens.data))
+
+    _add("conv1.W_self", model.conv1.W_self)
+    _add("conv1.W_neigh", model.conv1.W_neigh)
+    _add("conv1.W_edge", model.conv1.W_edge)
+    _add("conv2.W_self", model.conv2.W_self)
+    _add("conv2.W_neigh", model.conv2.W_neigh)
+    _add("conv2.W_edge", model.conv2.W_edge)
+    _add("output.W", model.output.W)
+    _add("output.b", model.output.b)
+
+    with open(path, "wb") as f:
+        # Header
+        f.write(struct.pack("<4sIIIII",
+                           b"GNNX", 1,
+                           model.conv1.W_self.data.shape[0],
+                           model.conv1.W_self.data.shape[1],
+                           model._edge_feat_dim,
+                           len(arrays)))
+        # Arrays with name labels
+        for name, arr in arrays:
+            name_bytes = name.encode("utf-8")
+            f.write(struct.pack("<I", len(name_bytes)))
+            f.write(name_bytes)
+            f.write(struct.pack("<I", arr.ndim))
+            for d in arr.shape:
+                f.write(struct.pack("<I", d))
+            f.write(arr.astype(np.float64).tobytes())
+
+    size_kb = Path(path).stat().st_size / 1024
+    logger.info(f"Binary model exported to {path} ({size_kb:.1f} KB, {len(arrays)} arrays)")
+
+
+def load_from_binary(path: str | Path) -> dict:
+    """Load model weights from binary format.
+
+    Returns:
+        dict of {"conv1.W_self": ndarray, ...} indexed by name.
+    """
+    import struct
+
+    with open(path, "rb") as f:
+        magic, version, input_dim, hidden_dim, edge_feat_dim, num_arrays = (
+            struct.unpack("<4sIIIII", f.read(4 * 6)))
+        assert magic == b"GNNX", f"Bad magic: {magic}"
+        assert version == 1, f"Unsupported version: {version}"
+
+        result = {}
+        for _ in range(num_arrays):
+            name_len = struct.unpack("<I", f.read(4))[0]
+            name = f.read(name_len).decode("utf-8")
+            ndim = struct.unpack("<I", f.read(4))[0]
+            shape = struct.unpack(f"<{'I' * ndim}", f.read(4 * ndim))
+            data = np.frombuffer(f.read(8 * np.prod(shape).item()),
+                                 dtype=np.float64).reshape(shape)
+            result[name] = data
+
+    result["_meta"] = {
+        "input_dim": input_dim,
+        "hidden_dim": hidden_dim,
+        "edge_feat_dim": edge_feat_dim,
+    }
+    return result
+
+
+class EdgeInferenceEngine:
+    """Lightweight inference engine for MeshGNN on edge devices.
+
+    Loads only the weights (not the full training graph) and runs inference
+    using pure NumPy matrix operations. No training dependencies needed.
+
+    Args:
+        weight_path: path to binary model file (.gnnx)
+    """
+
+    def __init__(self, weight_path: str | Path) -> None:
+        self.weights = load_from_binary(weight_path)
+        meta = self.weights["_meta"]
+        self.input_dim = meta["input_dim"]
+        self.hidden_dim = meta["hidden_dim"]
+        self.edge_feat_dim = meta["edge_feat_dim"]
+        self._has_edge = self.edge_feat_dim > 0 and "conv1.W_edge" in self.weights
+
+    def predict(
+        self,
+        x: np.ndarray,
+        adj_norm: np.ndarray,
+        edge_index: np.ndarray | None = None,
+        edge_attr: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Forward pass without autograd tracking (pure NumPy).
+
+        Same interface as MeshGNN.predict() but without any Tensor objects.
+
+        Args:
+            x: (N, input_dim) node features
+            adj_norm: (N, N) normalised adjacency
+            edge_index: (M, 2) edge indices (required if model has edge features)
+            edge_attr: (M, F) edge features (required if model has edge features)
+
+        Returns:
+            (N, 1) sigmoid probabilities
+        """
+        W = self.weights
+
+        # Conv1
+        h = x @ W["conv1.W_self"] + adj_norm @ x @ W["conv1.W_neigh"]
+        if self._has_edge and edge_index is not None and edge_attr is not None:
+            from src.ml.micro_tensor import _aggregate_edge_features
+            edge_agg = _aggregate_edge_features(edge_index, edge_attr, x.shape[0])
+            h += edge_agg @ W["conv1.W_edge"]
+        h = np.maximum(0, h)
+
+        # Conv2
+        h = h @ W["conv2.W_self"] + adj_norm @ h @ W["conv2.W_neigh"]
+        if self._has_edge:
+            edge_agg2 = _aggregate_edge_features(edge_index, edge_attr, x.shape[0])
+            h += edge_agg2 @ W["conv2.W_edge"]
+        h = np.maximum(0, h)
+
+        # Output
+        logits = h @ W["output.W"]
+        if "output.b" in W:
+            logits += W["output.b"]
+
+        # Sigmoid
+        clipped = np.clip(logits, -100.0, 100.0)
+        return 1.0 / (1.0 + np.exp(-clipped))
+
+    def predict_topology(
+        self,
+        node_features: List[Dict[str, float]],
+        edge_index_list: List[Tuple[int, int]],
+    ) -> List[AnomalyPrediction]:
+        """Full topology prediction — same interface as MeshGNNDetector."""
+        from src.ml.mesh_gnn import (
+            features_to_array, build_adj_norm, build_edge_index_array,
+            build_edge_features,
+        )
+
+        num_nodes = len(node_features)
+        x_arr = features_to_array(node_features)
+        adj_norm = build_adj_norm(edge_index_list, num_nodes)
+
+        edge_idx = edge_attr = None
+        if self._has_edge:
+            edge_idx = build_edge_index_array(edge_index_list, num_nodes)
+            if edge_idx.shape[0] > 0:
+                edge_attr = build_edge_features(edge_idx, x_arr)
+
+        probs = self.predict(x_arr, adj_norm, edge_idx, edge_attr)
+
+        predictions = []
+        for i in range(num_nodes):
+            score = float(probs[i, 0])
+            confidence = abs(score - 0.5) * 2.0
+            predictions.append(AnomalyPrediction(
+                is_anomaly=score >= 0.5,
+                anomaly_score=round(score, 4),
+                confidence=round(min(1.0, confidence), 4),
+                node_id=str(i),
+                features=node_features[i] if isinstance(node_features[i], dict) else {},
+                inference_time_ms=0.0,
+            ))
+        return predictions

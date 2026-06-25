@@ -369,6 +369,9 @@ if not hasattr(_legacy, "require_mesh_access"):
 if not hasattr(_legacy, "get_current_user_from_maas"):
     _legacy.get_current_user_from_maas = get_current_user_from_maas
 
+from src.api.maas.endpoints.auth import register
+_legacy.register = register
+
 _legacy.router = router
 
 globals().update(_legacy.__dict__)

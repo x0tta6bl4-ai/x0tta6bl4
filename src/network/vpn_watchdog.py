@@ -36,7 +36,7 @@ from src.services.service_event_identity import service_event_identity
 
 def _build_log_handlers() -> list[logging.Handler]:
     handlers: list[logging.Handler] = [logging.StreamHandler()]
-    log_path = os.getenv("VPN_WATCHDOG_LOG_PATH", f"/tmp/vpn_watchdog-{os.getuid()}.log")
+    log_path = os.getenv("VPN_WATCHDOG_LOG_PATH", f"{os.environ.get('TMPDIR', '/tmp')}/vpn_watchdog-{os.getuid()}.log")
     if not log_path:
         return handlers
 
@@ -54,7 +54,7 @@ def _build_log_handlers() -> list[logging.Handler]:
 
 def _build_log_handlers() -> list[logging.Handler]:
     handlers: list[logging.Handler] = [logging.StreamHandler()]
-    log_path = os.getenv("VPN_WATCHDOG_LOG_PATH", f"/tmp/vpn_watchdog-{os.getuid()}.log")
+    log_path = os.getenv("VPN_WATCHDOG_LOG_PATH", f"{os.environ.get('TMPDIR', '/tmp')}/vpn_watchdog-{os.getuid()}.log")
     if not log_path:
         return handlers
 

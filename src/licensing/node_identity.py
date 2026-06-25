@@ -423,6 +423,9 @@ class NodeLicenseManager:
             method="POST",
         )
         try:
+            parsed = urllib.parse.urlparse(self._activation_url())
+            if parsed.scheme not in ("https", "http"):
+                raise ValueError(f"Banned URL scheme: {parsed.scheme}")
             with urllib.request.urlopen(request, timeout=10) as response:
                 data = json.load(response)
         except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:

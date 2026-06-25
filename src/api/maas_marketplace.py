@@ -79,6 +79,113 @@ def _normalize_identity(value: Any) -> str:
     return str(value).strip()
 
 
+def _redacted_sha256_prefix(value: Any) -> Optional[str]:
+    import hashlib
+    normalized = _normalize_identity(value)
+    if not normalized:
+        return None
+    return hashlib.sha256(
+        normalized.encode("utf-8", errors="replace")
+    ).hexdigest()[:16]
+
+
+def _marketplace_request_evidence(
+    *,
+    action: str,
+    route: str,
+    current_user: User,
+    request_scope: Any = None,
+    normalized_idempotency_key: Optional[str] = None,
+    idempotency_cache_hit: bool = False,
+    db_write_ready: Optional[bool] = None,
+    listing_status: Any = None,
+    currency: Any = None,
+    hours: Optional[int] = None,
+    renter_matches_listing: Optional[bool] = None,
+    admin_override: Optional[bool] = None,
+) -> Dict[str, Any]:
+    role = _normalize_identity(getattr(current_user, "role", None)) or "unknown"
+    return {
+        "action": action,
+        "route": route,
+        "actor_role": role,
+        "request_scope_hash": _redacted_sha256_prefix(request_scope),
+        "idempotency_key_present": normalized_idempotency_key is not None,
+        "idempotency_key_hash": _redacted_sha256_prefix(normalized_idempotency_key),
+        "idempotency_cache_hit": bool(idempotency_cache_hit),
+        "db_write_ready": db_write_ready if isinstance(db_write_ready, bool) else None,
+        "listing_status": _normalize_identity(listing_status) or None,
+        "currency": _normalize_identity(currency) or None,
+        "hours": hours if isinstance(hours, int) else None,
+        "renter_matches_listing": (
+            renter_matches_listing if isinstance(renter_matches_listing, bool) else None
+        ),
+        "admin_override": admin_override if isinstance(admin_override, bool) else None,
+        "service_identity_present": {
+            "spiffe_id": bool(_normalize_identity(getattr(current_user, "spiffe_id", None))),
+            "did": bool(_normalize_identity(getattr(current_user, "did", None))),
+            "wallet_address": bool(_normalize_identity(getattr(current_user, "wallet_address", None))),
+        },
+        "raw_identifiers_redacted": True,
+        "claim_boundary": (
+            "Marketplace API request evidence records local auth/request/idempotency "
+            "metadata only. It does not authenticate the caller beyond the enclosing "
+            "FastAPI dependency result and never copies raw user, listing, mesh, or "
+            "idempotency-key values."
+        ),
+    }
+
+
+def _marketplace_api_settlement_evidence(
+    *,
+    action: str,
+    started_at: float,
+    decision_basis: str,
+    source_quality: str,
+    bridge_attempted: bool = False,
+    bridge_status: str = "not_required",
+    db_write_attempted: bool = False,
+    db_committed: bool = False,
+    escrow_status_after: Optional[Any] = None,
+    listing_status_after: Optional[Any] = None,
+) -> Dict[str, Any]:
+    return {
+        "decision_basis": str(decision_basis)[:120],
+        "source_quality": str(source_quality)[:120],
+        "settlement_action": str(action)[:80],
+        "duration_ms": round((time.monotonic() - started_at) * 1000.0, 3),
+        "dataplane_confirmed": False,
+        "threshold_met": True,
+        "telemetry_evidence": {
+            "source_agents": [],
+            "event_ids": [],
+            "events_total": 0,
+            "payloads_redacted": True,
+        },
+        "bridge_evidence": {
+            "attempted": bool(bridge_attempted),
+            "status": str(bridge_status)[:80],
+            "source_agent": "token-bridge" if bridge_attempted else None,
+            "payloads_redacted": True,
+        },
+        "db_write_evidence": {
+            "storage_backend": "sqlalchemy",
+            "attempted": bool(db_write_attempted),
+            "committed": bool(db_committed),
+            "payloads_redacted": True,
+        },
+        "output_summary": {
+            "escrow_status_after": str(escrow_status_after)[:80]
+            if escrow_status_after is not None
+            else None,
+            "listing_status_after": str(listing_status_after)[:80]
+            if listing_status_after is not None
+            else None,
+            "raw_identifiers_redacted": True,
+        },
+    }
+
+
 def _ids_equal(left: Any, right: Any) -> bool:
     """Compare identifiers while tolerating int<->str legacy mismatches."""
     left_norm = _normalize_identity(left)

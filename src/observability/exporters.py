@@ -242,6 +242,9 @@ class OTLPSpanExporter(SpanExporter):
             req_headers = {"Content-Type": "application/json", **self.headers}
 
             try:
+                parsed = urllib.parse.urlparse(url)
+                if parsed.scheme not in ("https", "http"):
+                    raise ValueError(f"Banned URL scheme: {parsed.scheme}")
                 req = urllib.request.Request(url, data=payload, headers=req_headers, method="POST")
                 with urllib.request.urlopen(req, timeout=float(self.timeout)) as response:
                     if response.status == 200:

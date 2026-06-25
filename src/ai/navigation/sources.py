@@ -34,6 +34,7 @@ class NewsIngestor:
         """Simple XML/RSS parser."""
         items = []
         try:
+            import defusedxml.ElementTree as ET
             root = ET.fromstring(content)
             # Handle RSS 2.0
             for item in root.findall(".//item"):
