@@ -1,6 +1,6 @@
 # AI Declaration
 
-**Date:** 2026-06-24
+**Date:** 2026-06-25
 **Scope:** Entire codebase (excluding third-party dependencies)
 
 ## Summary
@@ -9,6 +9,8 @@ This project is **AI-generated code, human-architected and validated**.
 
 Over 1.5 years of part-time work, I used AI agents to generate the codebase while I designed the architecture, wrote specifications, integrated components, and validated everything through tests and live deployment.
 
+> **System prompts used for code generation are in [`/.prompts/`](/.prompts/).**
+
 ## Per Component
 
 | Component | Code Gen | Architecture | Integration | Validation |
@@ -16,8 +18,8 @@ Over 1.5 years of part-time work, I used AI agents to generate the codebase whil
 | PQC (ML-KEM/ML-DSA) | AI | Human | Human | Human |
 | eBPF/XDP | AI | Human | Human | Human |
 | MAPE-K Loop | AI | Human | Human | Human |
-| x402 Payment | AI | Human | Human | Human |
 | MaaS API | AI | Human | Human | Human |
+| LoRA Fine-Tuning | AI | Human | Human | Human |
 | Tests | AI-assisted | Human | Human | Human |
 | CI/CD | AI-assisted | Human | Human | Human |
 

@@ -549,7 +549,7 @@ def main():
         print("❌ pip install python-telegram-bot")
         return
 
-    if config.BOT_TOKEN == "YOUR_BOT_TOKEN":
+    if config.BOT_TOKEN == "YOUR_BOT_TOKEN":  # nosec
         print("❌ Установи TELEGRAM_BOT_TOKEN")
         print("")
         print("1. @BotFather → /newbot")

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
-from src.core.reliability_policy import CircuitBreakerOpen, RetryExhausted
+from src.core.resilience.reliability_policy import CircuitBreakerOpen, RetryExhausted
 
 
 def test_billing_readiness_ready_when_db_and_stripe_configured(monkeypatch):

@@ -137,11 +137,6 @@ blockchain = [
     "web3>=7.15.0",
 ]
 
-# Dependencies for x402 paid API and agent-to-agent micropayments
-monetization = [
-    "x402[fastapi,evm,httpx]==2.12.0",
-]
-
 # Group to install all optional dependencies
 all = [
     "x0tta6bl4[dev]",
@@ -169,7 +164,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --maxfail=10 --cov=src --cov-report=term-missing --cov-report=html"
+addopts = "-v --maxfail=10"
+asyncio_mode = "auto"
+norecursedirs = ".git .pytest_cache __pycache__ *.egg-info dist build .venv node_modules .hermes"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "security: security related tests",

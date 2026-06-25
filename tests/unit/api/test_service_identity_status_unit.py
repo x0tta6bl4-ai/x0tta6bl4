@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from src.core.app import app
-from src.core.reliability_policy import get_degraded_dependencies
+from src.core.resilience.reliability_policy import get_degraded_dependencies
 from src.coordination.events import EventBus, EventType
 from src.api import service_identity_status as identity_api
 
