@@ -1,4 +1,4 @@
-"""Unit tests for src.core.reliability_policy."""
+"""Unit tests for src.core.resilience.reliability_policy."""
 
 import asyncio
 from types import SimpleNamespace
@@ -7,7 +7,7 @@ import pytest
 from starlette.responses import Response
 
 from src.core.circuit_breaker import CircuitBreaker
-from src.core.reliability_policy import (ReliabilityPolicy, RetryExhausted,
+from src.core.resilience.reliability_policy import (ReliabilityPolicy, RetryExhausted,
                                          call_with_reliability,
                                          get_degraded_dependencies,
                                          mark_degraded_dependency,

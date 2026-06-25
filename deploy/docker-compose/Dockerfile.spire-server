@@ -1,12 +1,12 @@
-# SPIRE Server Dockerfile
-FROM python:3.12-slim AS builder
-RUN apt-get update -qq && apt-get install -y -qq curl tar 2>/dev/null
-ARG SPIRE_VERSION=v1.15.1
-RUN curl -sL --max-time 120 "https://github.com/spiffe/spire/releases/download/${SPIRE_VERSION}/spire-1.15.1-linux-amd64-musl.tar.gz" -o /tmp/spire.tar.gz \
-    && tar xzf /tmp/spire.tar.gz -C /tmp/
-
+# SPIRE Server Dockerfile — uses local tarball (no network needed at build time)
 FROM python:3.12-slim
-COPY --from=builder /tmp/spire-1.15.1/bin/spire-server /usr/local/bin/spire-server
+
+# Use pre-downloaded tarball from build context (deploy/docker-compose/spire.tar.gz)
+COPY deploy/docker-compose/spire.tar.gz /tmp/spire.tar.gz
+RUN tar xzf /tmp/spire.tar.gz -C /tmp/ \
+    && cp /tmp/spire-1.15.1/bin/spire-server /usr/local/bin/spire-server \
+    && rm -rf /tmp/spire*
+
 COPY deploy/docker-compose/spire-server.conf /etc/spire/server.conf
 RUN mkdir -p /var/lib/spire/server /tmp/spire-server
 EXPOSE 8081

@@ -1,6 +1,6 @@
 import pytest
 
-from src.core.agent_mape_integration import AgentMAPEIntegrator
+from src.core.mape_k.agent_mape_integration import AgentMAPEIntegrator
 
 
 @pytest.mark.asyncio
