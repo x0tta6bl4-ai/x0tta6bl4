@@ -12,19 +12,7 @@ Independent engineering project by [x0tta6bl4](https://github.com/x0tta6bl4-ai).
 
 ## About
 
-Built since early 2025 by a solo developer in Crimea — a sanctions-restricted region with no access to Stripe, AWS, Google Play, or international payment systems. Zero budget. Zero grants. Zero investors.
-
-This is not a startup. It's a survival infrastructure project.
-
-Every component — post-quantum cryptography (ML-KEM/ML-DSA via liboqs), eBPF/XDP kernel dataplane, autonomous MAPE-K self-healing loop — exists because conventional infrastructure (cloud, certificates, payment gateways) is either blocked or unaffordable. The only payment method available is USDC on Base mainnet.
-
-~357,000 lines of Python, 1.5 years, one person.
-
-**What works today:** PQC stack (ML-KEM-768/1024 + ML-DSA-65/87), MAPE-K control loop, Raft consensus (36/36 tests), Ghost-VPN transport (Docker, healthy), eBPF programs (previously attached, benchmarks documented).
-
-**What doesn't yet:** Production deployment (previous VPS retired), MaaS API behind a live endpoint, DAO/token circulation.
-
-Target audience: people in restricted regions who need mesh networking that doesn't depend on corporate cloud providers, bank cards, or government permission.
+x0tta6bl4 is a mesh networking platform with post-quantum cryptography (ML-KEM/ML-DSA via liboqs), eBPF/XDP dataplane, and MAPE-K self-healing. Built since 2025 by a solo developer with AI agents in spare time.
 
 ---
 
@@ -100,7 +88,7 @@ Reach out directly — see [CONTRIBUTING.md](CONTRIBUTING.md) for contact detail
 ## Contact
 
 - Issues: [GitHub Issues](https://github.com/x0tta6bl4-ai/x0tta6bl4/issues)
-- Telegram: [@x0tta6bl4](https://t.me/x0tta6bl4)
+- Telegram: [@x0tta6bl4_ai](https://t.me/x0tta6bl4_ai)
 - Email: x0tta6bl4.ai@gmail.com
 
 ---
@@ -116,17 +104,7 @@ Reach out directly — see [CONTRIBUTING.md](CONTRIBUTING.md) for contact detail
 
 ## О проекте
 
-Разрабатывается с начала 2025 года одним человеком в Крыму — регион под санкциями, где нет доступа к Stripe, AWS, Google Play и международным платёжным системам. Zero budget. Никаких грантов. Никаких инвесторов.
-
-Это не стартап. Это инфраструктура для выживания.
-
-Каждый компонент — постквантовая криптография (ML-KEM/ML-DSA через liboqs), eBPF/XDP dataplane, автономное самовосстановление MAPE-K — существует не потому что это модно, а потому что обычная инфраструктура (облака, сертификаты, платёжные шлюзы) заблокирована или недоступна. Единственный доступный способ оплаты — USDC на Base mainnet.
-
-~357 000 строк Python. 1,5 года. Один человек.
-
-**Что работает сейчас:** PQC-стек (ML-KEM-768/1024 + ML-DSA-65/87), MAPE-K цикл, Raft-консенсус (36/36 тестов), Ghost-VPN транспорт (Docker, healthy), eBPF-программы (ранее приаттачены, бенчмарки задокументированы).
-
-**Что пока не работает:** production-деплой (предыдущий VPS остановлен), MaaS API за живым endpoint'ом, DAO/токен в обороте.
+x0tta6bl4 — платформа для mesh-сетей с постквантовой криптографией (ML-KEM/ML-DSA через liboqs), eBPF/XDP dataplane и автономным самовосстановлением MAPE-K. Разрабатывается с 2025 года одним человеком с AI-агентами в свободное время.
 
 ---
 
@@ -159,7 +137,7 @@ docker compose up mesh-node-a mesh-node-b -d
 ## Контакты
 
 - Issues: баги и предложения
-- Telegram: [@x0tta6bl4](https://t.me/x0tta6bl4)
+- Telegram: [@x0tta6bl4_ai](https://t.me/x0tta6bl4_ai)
 - Email: x0tta6bl4.ai@gmail.com
 
 ---
