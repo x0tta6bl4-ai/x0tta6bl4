@@ -14,30 +14,20 @@ By day 7, reach one of these outcomes:
 - three real user calls or async intakes with clear refusal reasons;
 - one rewritten offer based on real refusal wording.
 
-## Current Decision
+## Current Decision (as of 2026-06-25 — ⚠️ SPRINT НЕ ВЫПОЛНЕН)
 
 - Current offer: Ghost Access Reliability Pilot
-- Current status: `outreach_not_started`
-- Next action: send 10 direct messages using
-  `docs/ghost-access/reliability-pilot-day1-runbook-2026-06-08.md`
-- Day 2-3 conversion runbook:
-  `docs/ghost-access/reliability-pilot-day2-day3-conversion-runbook-2026-06-08.md`
-- Payment handoff:
-  `docs/ghost-access/reliability-pilot-payment-handoff-2026-06-08.md`
-- Starter incident note template:
-  `docs/templates/GHOST_ACCESS_STARTER_INCIDENT_NOTE_TEMPLATE.md`
-- Payment asked: `no`
-- Paid conversion: `no`
-- Offer rewrite needed: `unknown`
+- Current status: **`outreach_not_started`** — 0 сообщений отправлено
+- **Спринт не выполнен. 0 платных конверсий. Следующее действие: не определённо.**
 
-## Metrics
+## Metrics (as of 2026-06-25)
 
 | Metric | Target | Current |
 |---|---:|---:|
-| Direct messages sent | 20 | 0 |
-| Replies | 5 | 0 |
-| Calls or async intakes | 3 | 0 |
-| Paid asks | 1 | 0 |
+| Direct messages sent | 20 | **0** |
+| Replies | 5 | **0** |
+| Calls or async intakes | 3 | **0** |
+| Paid conversions | 1 | **0** |
 | Paid pilots/deposits | 1 | 0 |
 | Refusal reasons recorded | 3 | 0 |
 
