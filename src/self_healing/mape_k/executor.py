@@ -19,7 +19,7 @@ class MAPEKExecutor:
 
     def __init__(self):
         try:
-            from src.self_healing.recovery_actions import \
+            from src.self_healing.recovery.executor import \
                 RecoveryActionExecutor
 
             self.recovery_executor = RecoveryActionExecutor()
