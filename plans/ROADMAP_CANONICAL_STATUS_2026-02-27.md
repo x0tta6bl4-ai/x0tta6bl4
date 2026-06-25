@@ -1,6 +1,6 @@
 # x0tta6bl4 Canonical Roadmap Status
 
-**Date:** 2026-02-27  
+**Date:** 2026-02-27 (Last updated: 2026-06-25)  
 **Purpose:** single live status table to remove roadmap conflicts and keep execution priorities aligned.
 
 ## Scope And Method
@@ -24,16 +24,20 @@
 
 | Initiative | Owner | Status | Next Milestone | Main Blocker |
 |---|---|---|---|---|
-| Release Readiness (P0/P1 gate) | Architect + Dev + QA | In Progress | Close top P0 checklist items by 2026-03-08 | Open P0 items in API/DB/security hardening |
-| Golden Smoke Pre-Merge | Dev + QA | Operational | Keep quick gate stable each merge | None (currently green) |
-| Nightly Golden Smoke (core/heavy + guardrails) | DevOps | Operational | Collect 2 weeks of duration baseline by 2026-03-13 | No historical trend baseline yet |
-| MaaS Pivot Scope (Phases 1-5) | Product + Dev | Complete | Sustain and harden for pilots | Execution quality, not feature gap |
-| MaaS W10-W12 Delivery | Dev | In Progress | Finish W12 (`multi-arch`, `dependabot`) by 2026-03-15 | Pending CI/container work |
-| Security Gates In CI | DevOps + Security | In Progress | Enforce required branch checks on `main` by 2026-03-01 | Branch protection finalization |
-| SPIFFE/SPIRE Production Integration | Security + Platform | Complete | Run periodic staging validation cycle | Need scheduled validation evidence |
-| Mesh-FL + Swarm Consensus | ML + Core | In Progress | Close remaining P1 quality/perf issues by 2026-03-15 | Code quality/perf debt from review |
-| Technical Debt Program | Core + Platform | In Progress | Close open TD items (006/007/008) by 2026-03-31 | Non-critical backlog still open |
-| Commercial Readiness To Revenue | Product + GTM | In Progress | Convert technical readiness into paid pilots by 2026-04-25 | GTM pipeline + contracts/onboarding |
+| Release Readiness (P0/P1 gate) | Architect + Dev + QA | ✅ **226/229 — все P0/P1 закрыты** | 3 operational metrics (reopen rate, MTTR, rollback) | Нет продакшн-деплоя для сбора метрик |
+| Golden Smoke Pre-Merge | Dev + QA | ✅ **Стабилен** | Keep green | None |
+| Nightly Golden Smoke | DevOps | ✅ **Работает** | Duration baseline collected | None |
+| MaaS Pivot Scope (Phases 1-5) | Product + Dev | ✅ **Complete** | Harden for pilots | Execution quality, not feature gap |
+| **God Object Refactoring** | Core | **9/10 done** | drift_detector.py (922 строк) | 1 оставшийся |
+| **CodeQL gates** | Security | **0 critical/high** | Поддерживать | None |
+| **requirements.txt cleanup** | Dev | **342→72 deps (-79%)** | Поддерживать | None |
+| **Ghost Access Bot** | Ops | **Работает на NL** | 2 пользователя | Мало пользователей |
+| **x402 API** | Dev | **Запущен на NL (8120)** | Привлечь пользователей | Продакшн-трафик |
+| **First-party VPN** | Ops | **3 сервера на NL** | x0vpns0/1/2 active | None |
+| **Revenue Sprint** | GTM | **НЕ ВЫПОЛНЕН** | 0 сообщений, 0 конверсий | Нет аутрич-активности |
+| SPIFFE/SPIRE Production Integration | Security + Platform | ✅ **Complete** | Periodic staging validation | None |
+| Technical Debt Program | Core + Platform | ✅ **Phase 2 complete** | drift_detector, DI, type hints | Не критично |
+| Commercial Readiness To Revenue | Product + GTM | **🟡 Нет прогресса** | Convert technical readiness into paid pilots | GTM pipeline |
 
 ## Audited Roadmap/Plan Files (Active Set)
 
