@@ -1,6 +1,5 @@
 # x0tta6bl4 — Self-Healing Mesh Networking Platform
 
-[![REAL_READINESS_READY](https://img.shields.io/badge/REAL_READINESS_READY-70%2F70-brightgreen)](docs/05-operations/REAL_READINESS_GATE.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](.github/workflows/codeql.yml)
 ![Status](https://img.shields.io/badge/status-experimental-yellow)
@@ -13,7 +12,19 @@ Independent engineering project by [x0tta6bl4](https://github.com/x0tta6bl4-ai).
 
 ## About
 
-x0tta6bl4 is a mesh networking platform built from scratch over 1.5 years by a solo developer. It integrates NIST-standard post-quantum cryptography (ML-KEM/ML-DSA) with kernel-level eBPF/XDP packet processing and an autonomous MAPE-K self-healing loop.
+Built since early 2025 by a solo developer in Crimea — a sanctions-restricted region with no access to Stripe, AWS, Google Play, or international payment systems. Zero budget. Zero grants. Zero investors.
+
+This is not a startup. It's a survival infrastructure project.
+
+Every component — post-quantum cryptography (ML-KEM/ML-DSA via liboqs), eBPF/XDP kernel dataplane, autonomous MAPE-K self-healing loop — exists because conventional infrastructure (cloud, certificates, payment gateways) is either blocked or unaffordable. The only payment method available is USDC on Base mainnet.
+
+~357,000 lines of Python, 1.5 years, one person.
+
+**What works today:** PQC stack (ML-KEM-768/1024 + ML-DSA-65/87), MAPE-K control loop, Raft consensus (36/36 tests), Ghost-VPN transport (Docker, healthy), eBPF programs (previously attached, benchmarks documented).
+
+**What doesn't yet:** Production deployment (previous VPS retired), MaaS API behind a live endpoint, DAO/token circulation.
+
+Target audience: people in restricted regions who need mesh networking that doesn't depend on corporate cloud providers, bank cards, or government permission.
 
 ---
 
@@ -26,9 +37,8 @@ x0tta6bl4 is a mesh networking platform built from scratch over 1.5 years by a s
 | MaaS API | ~5,000 | Mesh-as-a-Service REST API, FastAPI, 46 route handlers |
 | Anti-Censorship | ~2,000 | DPI bypass, traffic obfuscation, protocol camouflage |
 | eBPF/XDP Dataplane | ~1,500 | Kernel-level packet processing, AF_XDP ring buffers |
-| x402 Payment Bridge | ~3,800 | USDC microtransactions on Base mainnet — pays for VPS costs |
+| Ghost Transport (VPN) | ~2,000 | Experimental STL-encapsulated transport, Docker-ready |
 | Billing & Access Control | ~1,200 | Subscription tiers, token-gated access, usage metering |
-| Ghost-Core Node | Live | `89.125.1.107:8000`, uptime 46h+, status NORMAL |
 
 > **Total source:** ~357,000 lines of Python (excluding comments and blanks), 1,300 lines Go.
 
@@ -47,7 +57,7 @@ x0tta6bl4 is a mesh networking platform built from scratch over 1.5 years by a s
 
 ## Honest Assessment
 
-**What this is:** An independent research project demonstrating full-stack systems engineering — cryptographic integration, kernel networking, distributed systems, DevOps automation. The code compiles, tests pass, and a live node runs at `89.125.1.107`.
+**What this is:** An independent research project demonstrating full-stack systems engineering — cryptographic integration, kernel networking, distributed systems, DevOps automation. The code compiles and tests pass.
 
 **What this is NOT:**
 
@@ -58,6 +68,7 @@ x0tta6bl4 is a mesh networking platform built from scratch over 1.5 years by a s
 | Formally audited cryptography | ❌ liboqs integration, no audit |
 | DAO / community governance | ❌ Solo project |
 | Official commercial service | ❌ Experimental research project |
+| Production deployment | ❌ Retired 2026-06 |
 
 ---
 
@@ -69,24 +80,28 @@ cd x0tta6bl4
 uv sync
 ```
 
-Live nodes:
-- Ghost-Core API: `http://89.125.1.107:8000/api/status`
-- x402 Payment: `http://89.125.1.107:8120/`
+### Local stack (Docker)
+```bash
+docker compose up ghost-vpn-server ghost-vpn-redis -d
+docker compose up mesh-node-a mesh-node-b -d
+```
+
+### Run tests
+```bash
+python3 -m pytest tests/unit/consensus/ -q --no-cov
+python3 -m pytest tests/unit/security/ -q --no-cov
+```
+
+### Want to collaborate?
+Reach out directly — see [CONTRIBUTING.md](CONTRIBUTING.md) for contact details and current needs.
 
 ---
 
 ## Contact
 
 - Issues: [GitHub Issues](https://github.com/x0tta6bl4-ai/x0tta6bl4/issues)
-- Email: dev@x0tta6bl4.net
-
----
-
-## Get Involved
-
-- **Star** this repo — helps others discover the project
-- **Try the live node**: `curl http://89.125.1.107:8000/api/status`
-- **Open an issue** for feedback, questions, or ideas
+- Telegram: [@x0tta6bl4](https://t.me/x0tta6bl4)
+- Email: x0tta6bl4.ai@gmail.com
 
 ---
 
@@ -94,11 +109,24 @@ Live nodes:
 
 # x0tta6bl4 — Само-восстанавливающаяся mesh-сеть
 
-[![REAL_READINESS_READY](https://img.shields.io/badge/REAL_READINESS_READY-70%2F70-brightgreen)](docs/05-operations/REAL_READINESS_GATE.md)
 [![Лицензия](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](.github/workflows/codeql.yml)
 
-Автономный проект одного разработчика. Постквантовая криптография (ML-KEM/ML-DSA), eBPF/XDP dataplane на уровне ядра, самовосстановление через MAPE-K.
+---
+
+## О проекте
+
+Разрабатывается с начала 2025 года одним человеком в Крыму — регион под санкциями, где нет доступа к Stripe, AWS, Google Play и международным платёжным системам. Zero budget. Никаких грантов. Никаких инвесторов.
+
+Это не стартап. Это инфраструктура для выживания.
+
+Каждый компонент — постквантовая криптография (ML-KEM/ML-DSA через liboqs), eBPF/XDP dataplane, автономное самовосстановление MAPE-K — существует не потому что это модно, а потому что обычная инфраструктура (облака, сертификаты, платёжные шлюзы) заблокирована или недоступна. Единственный доступный способ оплаты — USDC на Base mainnet.
+
+~357 000 строк Python. 1,5 года. Один человек.
+
+**Что работает сейчас:** PQC-стек (ML-KEM-768/1024 + ML-DSA-65/87), MAPE-K цикл, Raft-консенсус (36/36 тестов), Ghost-VPN транспорт (Docker, healthy), eBPF-программы (ранее приаттачены, бенчмарки задокументированы).
+
+**Что пока не работает:** production-деплой (предыдущий VPS остановлен), MaaS API за живым endpoint'ом, DAO/токен в обороте.
 
 ---
 
@@ -110,12 +138,7 @@ Live nodes:
 | MAPE-K | ~1,900 | Полный цикл: мониторинг → анализ → план → восстановление |
 | MaaS API | ~5,000 | REST API для управления mesh-узлами, FastAPI |
 | eBPF/XDP | ~1,500 | Обработка пакетов на уровне ядра Linux |
-| x402 Оплата | ~3,800 | Микротранзакции USDC на Base mainnet |
-| Ghost-Core | Live | `89.125.1.107:8000` |
-
-## О проекте
-
-Разрабатывается с начала 2025 года одним человеком. Исходный код — ~357,000 строк Python. Никаких грантов, инвесторов или команды.
+| Ghost Transport | ~2,000 | Экспериментальный транспорт, Docker-ready |
 
 ## Быстрый старт
 
@@ -125,16 +148,19 @@ cd x0tta6bl4
 uv sync
 ```
 
-Живые узлы:
-- Ghost-Core: `http://89.125.1.107:8000/api/status`
-- x402: `http://89.125.1.107:8120/`
+### Локальный запуск (Docker)
+```bash
+docker compose up ghost-vpn-server ghost-vpn-redis -d
+docker compose up mesh-node-a mesh-node-b -d
+```
 
 ---
 
 ## Контакты
 
 - Issues: баги и предложения
-- Email: dev@x0tta6bl4.net
+- Telegram: [@x0tta6bl4](https://t.me/x0tta6bl4)
+- Email: x0tta6bl4.ai@gmail.com
 
 ---
 
