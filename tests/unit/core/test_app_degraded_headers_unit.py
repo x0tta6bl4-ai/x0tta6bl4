@@ -12,7 +12,7 @@ os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 os.environ.setdefault("MAAS_LIGHT_MODE", "true")
 
 from src.core.app import app
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 
 
 def _ensure_test_route() -> None:

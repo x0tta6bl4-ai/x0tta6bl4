@@ -380,7 +380,7 @@ class TestRetryPolicy:
 class TestTimeoutPropagation:
     @pytest.mark.asyncio
     async def test_call_with_reliability_times_out(self):
-        from src.core.reliability_policy import (ReliabilityPolicy,
+        from src.core.resilience.reliability_policy import (ReliabilityPolicy,
                                                  call_with_reliability)
 
         policy = ReliabilityPolicy(
@@ -399,7 +399,7 @@ class TestTimeoutPropagation:
 
     @pytest.mark.asyncio
     async def test_call_with_reliability_succeeds_fast(self):
-        from src.core.reliability_policy import (ReliabilityPolicy,
+        from src.core.resilience.reliability_policy import (ReliabilityPolicy,
                                                  call_with_reliability)
 
         policy = ReliabilityPolicy(
@@ -422,7 +422,7 @@ class TestTimeoutPropagation:
 
 class TestGracefulDegradation:
     def test_mark_and_get_degraded_dependency(self):
-        from src.core.reliability_policy import (get_degraded_dependencies,
+        from src.core.resilience.reliability_policy import (get_degraded_dependencies,
                                                  mark_degraded_dependency)
 
         req = _make_request_state()
@@ -433,7 +433,7 @@ class TestGracefulDegradation:
         assert "stripe" in deps
 
     def test_dedup_and_normalize(self):
-        from src.core.reliability_policy import (get_degraded_dependencies,
+        from src.core.resilience.reliability_policy import (get_degraded_dependencies,
                                                  mark_degraded_dependency)
 
         req = _make_request_state()
@@ -443,7 +443,7 @@ class TestGracefulDegradation:
         assert deps == ["redis"]
 
     def test_set_degraded_header(self):
-        from src.core.reliability_policy import (mark_degraded_dependency,
+        from src.core.resilience.reliability_policy import (mark_degraded_dependency,
                                                  set_degraded_dependencies_header)
 
         req = _make_request_state()
@@ -460,7 +460,7 @@ class TestGracefulDegradation:
         assert "db" in parts
 
     def test_no_header_when_no_degraded(self):
-        from src.core.reliability_policy import (set_degraded_dependencies_header)
+        from src.core.resilience.reliability_policy import (set_degraded_dependencies_header)
 
         req = _make_request_state()
         response = MagicMock()
@@ -469,7 +469,7 @@ class TestGracefulDegradation:
         assert "X-Degraded-Dependencies" not in response.headers
 
     def test_mark_empty_string_ignored(self):
-        from src.core.reliability_policy import (get_degraded_dependencies,
+        from src.core.resilience.reliability_policy import (get_degraded_dependencies,
                                                  mark_degraded_dependency)
 
         req = _make_request_state()
@@ -487,7 +487,7 @@ class TestCallWithReliabilityIntegration:
     @pytest.mark.asyncio
     async def test_circuit_breaker_created_per_dependency(self):
         from src.core.circuit_breaker import get_circuit_breaker
-        from src.core.reliability_policy import (ReliabilityPolicy,
+        from src.core.resilience.reliability_policy import (ReliabilityPolicy,
                                                  call_with_reliability)
 
         policy = ReliabilityPolicy(
@@ -510,7 +510,7 @@ class TestCallWithReliabilityIntegration:
     @pytest.mark.asyncio
     async def test_explicit_circuit_breaker_used(self):
         from src.core.circuit_breaker import CircuitBreaker
-        from src.core.reliability_policy import (ReliabilityPolicy,
+        from src.core.resilience.reliability_policy import (ReliabilityPolicy,
                                                  call_with_reliability)
 
         custom_cb = CircuitBreaker(

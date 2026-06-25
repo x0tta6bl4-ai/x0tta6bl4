@@ -29,7 +29,7 @@ def _load_marketplace():
     stubs = {
         "src.database": MagicMock(),
         "src.api.maas_auth": MagicMock(),
-        "src.core.reliability_policy": MagicMock(),
+        "src.core.resilience.reliability_policy": MagicMock(),
         "src.api.maas_telemetry": MagicMock(),
         "src.dao.token_bridge": MagicMock(),
         "src.dao.token": MagicMock(),

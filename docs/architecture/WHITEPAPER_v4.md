@@ -854,18 +854,16 @@ class MAEKGovernanceAdapter:
 | Artifact | Status | Evidence |
 |----------|--------|----------|
 | VPS Health Check | HTTP 200 | `89.125.1.107:8000/health` |
-| x402 Paid API | 8 services | `89.125.1.107:8120` |
 | Open5GS Bridge | Operational | `89.125.1.107:18080/health` |
 | Session Creation | 25ms latency | `89.125.1.107:18080/bridge/sessions` |
 | Payment Enforcement | HTTP 402 | All paid endpoints |
-| Agent Earning | Running | AgentPact, x402 Directory, Income Watch |
+| Agent Earning | Running | AgentPact, Income Watch |
 
 ### 9.2 What This Proves
 
 1. VPS deployment works on real infrastructure.
-2. x402 payment protocol works with real USDC on Base mainnet.
-3. Open5GS integration works with containerized backend.
-4. Earning agents are operational.
+2. Open5GS integration works with containerized backend.
+3. Earning agents are operational.
 
 ### 9.3 What This Does NOT Prove
 

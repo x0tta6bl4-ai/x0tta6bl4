@@ -366,14 +366,14 @@ class TestGracefulShutdown:
 
 class TestReliabilityPolicy:
     def test_default_policy(self):
-        from src.core.reliability_policy import ReliabilityPolicy
+        from src.core.resilience.reliability_policy import ReliabilityPolicy
         p = ReliabilityPolicy()
         assert p.timeout_seconds == 8.0
         assert p.max_retries == 2
         assert p.failure_threshold == 3
 
     def test_policy_for_dependency(self):
-        from src.core.reliability_policy import policy_for_dependency
+        from src.core.resilience.reliability_policy import policy_for_dependency
         with patch.dict(os.environ, {
             "RELIABILITY_STRIPE_TIMEOUT_SECONDS": "5.0",
             "RELIABILITY_STRIPE_MAX_RETRIES": "3",
@@ -383,7 +383,7 @@ class TestReliabilityPolicy:
             assert p.max_retries == 3
 
     def test_policy_for_dependency_defaults(self):
-        from src.core.reliability_policy import policy_for_dependency
+        from src.core.resilience.reliability_policy import policy_for_dependency
         p = policy_for_dependency("nonexistent_dep")
         assert p.timeout_seconds == 8.0
 

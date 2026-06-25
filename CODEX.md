@@ -1,7 +1,7 @@
 # x0tta6bl4 CODEX — AI Agent Operating Manual
 
-> **Version:** 2.4  
-> **Last updated:** 2026-06-24  
+> **Version:** 2.6  
+> **Last updated:** 2026-06-25  
 > **Purpose:** Фактологический слой для AI-агентов: что есть, чего нет, как не налажать.  
 > **Не повторяет AGENTS.md** — здесь только рабочие инструкции с артефактами.
 
@@ -21,23 +21,25 @@
 |-----------|--------|-----------|---------------|
 | **PQC стек** | ✅ Verified | 2026-06-15 | ML-KEM-768 + ML-DSA-65, `docs/verification/HYBRID_TLS_VALIDATION_LATEST.md` |
 | **XDP/eBPF dataplane** | ✅ Attached | 2026-06-15 | 142k PPS TX, 49k PPS RX на r8169, `docs/verification/xdp-live-attach-*` |
-| **MAPE-K self-healing** | ✅ Local loop | 2026-06-15 | monitor→execute→verify, <20s MTTD, ~3min MTTR (локально) |
+| **MAPE-K self-healing** | ✅ Local loop | 2026-06-25 | 4/4 тестов, monitor→execute→verify, <20s MTTD |
 | **ZTCR SignedCommand** | ✅ Integrated | 2026-06-25 | HMAC-signed healing commands в `src/self_healing/signed_command.py` |
-| **ZTCR Identity Rotation** | ✅ Implemented | 2026-06-25 | Non-placeholder: `_rotate_pqc_identity` + rollback + emergency mode toggle |
-| **ZTCR Delphi-Consensus** | ✅ Integrated | 2026-06-25 | PBFT cross-node verify перед изоляцией, `anomaly_consensus.py` |
-| **ZTCR Chaos Tests** | ✅ 29/29 pass | 2026-06-25 | SVIDSigner + consensus + SPIRE crash |
-| **SPIFFE/SPIRE mTLS** | ✅ Integrated | 2026-06-15 | документировано, есть тесты |
-| **SVIDSigner** | ✅ 11 tests | 2026-06-25 | SPIFFE-verifiable PBFT. HMAC (dev) + JWT-SVID (prod stub) |
+| **ZTCR Delphi-Consensus** | ✅ Integrated | 2026-06-25 | PBFT cross-node verify, `anomaly_consensus.py` |
+| **ZTCR SVIDSigner** | ✅ 11 tests | 2026-06-25 | SPIFFE-verifiable PBFT. HMAC (dev) + JWT-SVID (prod stub) |
+| **ZTCR Chaos Tests** | ✅ 29/29 | 2026-06-25 | SVIDSigner + consensus + SPIRE crash (mock) |
+| **SPIRE Docker Stack** | ✅ Docker Compose | 2026-06-25 | 4 контейнера: spire-server + agent + 2 mesh-node |
 | **reverse-skill** | ✅ 432 файла | 2026-06-25 | 23 RE/pentest модуля в `.hermes/reverse-skill/` |
-| **Security Audit** | ✅ Результаты | 2026-06-25 | 1498 bandit issues (2 HIGH fixed), nmap, trufflehog |
+| **GitHub Actions CI** | ✅ `.github/workflows/ci.yaml` | 2026-06-25 | pytest + compile + bandit + Docker build |
+| **Security: subprocess** | ✅ safe_run | 2026-06-25 | 36 subprocess.run→safe_run, allowlist 7→54 команд |
+| **Security: Audit** | ✅ Bandit | 2026-06-25 | HIGH 2→0, B608 nosec, B105 nosec, URL scheme guard |
+| **Security: Cryptography** | ✅ SHA1→SHA256 | 2026-06-25 | `rag_search.py`, SHA1 больше не используеся |
 | **Ghost Access transport** | ⚡ Experimental | 2026-06-15 | STL-упаковка, требует полевой валидации |
-| **API gateway** | 🟡 Code only | 2026-06-25 | health локально. VPS выключен |
+| **API gateway** | 🟡 Code only | 2026-06-25 | health только локально |
 | **Real-readiness gate** | 🟡 70/70 checks | 2026-06-15 | Только локально |
 
 ### VPS Production (УТРАЧЕНО)
-- VPS `89.125.1.107` — **аренда закончилась, сервер выключен 2026-06-25**
-- SPIRE server/agent, mesh-node, ghost-access, x-ui — все были на NL
-- Деплой возможен на новом сервере — CI/CD описан ниже
+- VPS `89.125.1.107` — **аренда закончилась, выключен 2026-06-25**
+- SPIRE server/agent, mesh-node, ghost-access, x-ui — всё было на NL  
+- Локальная замена: `docker compose -f deploy/docker-compose/compose.yaml up -d`
 
 ---
 
@@ -189,8 +191,16 @@ python3 scripts/benchmark_pqc.py
 # gitmark memory bank
 python3 scripts/gitmark_memory_bank.py build --root /mnt/projects --out-dir /mnt/projects/.gitmark-memory --profile rag
 
-# NL VPN health
-curl -s http://89.125.1.107:8000/health
+# NL VPN health (DEAD — VPS выключен 2026-06-25)
+# Вместо этого — локальный mesh:
+docker compose -f deploy/docker-compose/compose.yaml up -d
+docker logs mesh-node-a -f
+
+# PQC smoke
+python3 scripts/benchmark_pqc.py
+
+# gitmark memory bank
+python3 scripts/gitmark_memory_bank.py build --root /mnt/projects --out-dir /mnt/projects/.gitmark-memory --profile rag
 ```
 
 ---
