@@ -49,7 +49,7 @@ from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_meta
 from src.api.maas_auth_models import UserRegisterRequest
 from src.api.maas_security import ApiKeyManager
 from src.coordination.events import EventType
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import Session as UserSession
 from src.database import User, get_db
 from .maas.registry import record_audit_log

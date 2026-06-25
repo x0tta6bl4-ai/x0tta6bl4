@@ -21,7 +21,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.network.residential_proxy_manager import (ProxyEndpoint, ProxyStatus,
                                                    TLSFingerprintRandomizer)
 from src.services.service_event_identity import service_event_identity

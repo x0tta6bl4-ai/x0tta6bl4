@@ -16,7 +16,7 @@ from math import isfinite
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.dao.governance import GovernanceEngine, Proposal, ProposalState
 from src.dao.mapek_threshold_proposal import MAPEKThresholdProposal, ThresholdChange
 from src.storage.ipfs_client import IPFSClient

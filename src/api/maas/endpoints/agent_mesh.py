@@ -15,7 +15,7 @@ from src.agents.maas_health_bot import HealthBotConfig, MaasHealthBot
 from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
 from src.api.maas_auth import get_current_user_from_maas
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 
 router = APIRouter( tags=["MaaS Agent Mesh"])
 _health_bot = MaasHealthBot(HealthBotConfig.from_env())

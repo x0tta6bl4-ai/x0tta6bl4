@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.dao.fl_governance import Proposal, VoteType
 from src.llm.local_llm import LocalLLM
 

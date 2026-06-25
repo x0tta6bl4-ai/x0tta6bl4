@@ -17,7 +17,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import Session as DB_Session
 from src.database import User, get_db
 from src.api.maas_security import ApiKeyManager

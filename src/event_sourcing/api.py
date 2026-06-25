@@ -42,7 +42,7 @@ from src.event_sourcing.event_store import EventStore, Event, EventMetadata
 from src.event_sourcing.command_bus import CommandBus, Command
 from src.event_sourcing.query_bus import QueryBus, Query as ESQuery
 from src.event_sourcing.projection import ProjectionManager
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 # Import resilience patterns
 from src.resilience import (

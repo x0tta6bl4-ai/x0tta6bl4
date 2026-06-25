@@ -15,7 +15,7 @@ import time
 from typing import Any, Dict, List, Mapping, Optional
 
 from src.coordination.events import EventBus, EventType
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)

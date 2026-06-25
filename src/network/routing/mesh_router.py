@@ -6,93 +6,13 @@ Multi-hop forwarding с reactive route discovery.
 import asyncio
 import hashlib
 import hmac
-import json
 import logging
-import secrets
-import time
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set
+from collections.abc import Callable
+from typing import Any
+
+from src.network.routing.types import PacketType, RouteEntry, RoutingPacket
 
 logger = logging.getLogger(__name__)
-
-
-class PacketType(Enum):
-    """Типы пакетов маршрутизации."""
-
-    DATA = 0x01  # Данные приложения
-    RREQ = 0x02  # Route Request
-    RREP = 0x03  # Route Reply
-    RERR = 0x04  # Route Error
-    HELLO = 0x05  # Hello/keepalive
-    CRDT_SYNC = 0x06  # CRDT Synchronization data
-
-
-@dataclass
-class RouteEntry:
-    """Запись в routing table."""
-
-    destination: str
-    next_hop: str
-    hop_count: int
-    seq_num: int
-    timestamp: float = field(default_factory=time.time)
-    valid: bool = True
-    path: List[str] = field(default_factory=list)  # Добавляем путь в RouteEntry
-
-    @property
-    def age(self) -> float:
-        return time.time() - self.timestamp
-
-
-@dataclass
-class RoutingPacket:
-    """Пакет маршрутизации."""
-
-    packet_type: PacketType
-    source: str
-    destination: str
-    seq_num: int
-    hop_count: int
-    ttl: int
-    payload: bytes
-    packet_id: str = field(default_factory=lambda: secrets.token_hex(8))
-    # Новое поле для отслеживания пройденного пути (для Node-Disjointness)
-    path_traversed: List[str] = field(default_factory=list)
-
-    def to_bytes(self) -> bytes:
-        header = {
-            "type": self.packet_type.value,
-            "src": self.source,
-            "dst": self.destination,
-            "seq": self.seq_num,
-            "hops": self.hop_count,
-            "ttl": self.ttl,
-            "id": self.packet_id,
-            "path": self.path_traversed,  # Добавляем путь в заголовок
-        }
-        header_bytes = json.dumps(header).encode()
-        return len(header_bytes).to_bytes(2, "big") + header_bytes + self.payload
-
-    @classmethod
-    def from_bytes(cls, data: bytes) -> "RoutingPacket":
-        header_len = int.from_bytes(data[:2], "big")
-        header = json.loads(data[2 : 2 + header_len].decode())
-        payload = data[2 + header_len :]
-
-        return cls(
-            packet_type=PacketType(header["type"]),
-            source=header["src"],
-            destination=header["dst"],
-            seq_num=header["seq"],
-            hop_count=header["hops"],
-            ttl=header["ttl"],
-            payload=payload,
-            packet_id=header["id"],
-            path_traversed=header.get(
-                "path", []
-            ),  # Извлекаем путь, по умолчанию пустой список
-        )
 
 
 class MeshRouter:
@@ -110,25 +30,25 @@ class MeshRouter:
     ROUTE_TIMEOUT = 60.0  # секунды
     RREQ_TIMEOUT = 5.0  # таймаут ожидания RREP
 
-    def __init__(self, node_id: str, shared_secret: Optional[bytes] = None, parl_enabled: bool = False):
+    def __init__(self, node_id: str, shared_secret: bytes | None = None, parl_enabled: bool = False):
         self.node_id = node_id
         self.seq_num = 0
         self._shared_secret = shared_secret  # HMAC key for packet authentication
 
         # Routing table: destination -> List[RouteEntry]
-        self._routes: Dict[str, List[RouteEntry]] = {}
+        self._routes: dict[str, list[RouteEntry]] = {}
 
         # Pending route requests
-        self._pending_rreq: Dict[str, asyncio.Future] = {}
+        self._pending_rreq: dict[str, asyncio.Future] = {}
 
         # Seen packet IDs (for deduplication)
-        self._seen_packets: Set[str] = set()
-        self._seen_cleanup_task: Optional[asyncio.Task] = None
-        
+        self._seen_packets: set[str] = set()
+        self._seen_cleanup_task: asyncio.Task | None = None
+
         # PARL Integration (Phase 2, Week 8)
         self.parl_enabled = parl_enabled
         self._parl_optimizer = None
-        self._parl_task: Optional[asyncio.Task] = None
+        self._parl_task: asyncio.Task | None = None
         if self.parl_enabled:
             try:
                 from src.network.parl_mesh_integration import PARLMeshOptimizer
@@ -137,11 +57,11 @@ class MeshRouter:
                 logger.warning("PARL integration requested but module not found.")
 
         # Callbacks
-        self._send_callback: Optional[Callable] = (
+        self._send_callback: Callable | None = (
             None  # (packet_bytes, next_hop) -> bool
         )
-        self._receive_callback: Optional[Callable[[str, bytes], None]] = None
-        self._crdt_sync_callback: Optional[Callable[[Dict[str, Any]], None]] = (
+        self._receive_callback: Callable[[str, bytes], None] | None = None
+        self._crdt_sync_callback: Callable[[dict[str, Any]], None] | None = (
             None  # (crdt_data) -> None
         )
 
@@ -211,7 +131,7 @@ class MeshRouter:
         self._receive_callback = callback
 
     def set_crdt_sync_callback(
-        self, callback: Callable[[str, Dict[str, Any]], None]
+        self, callback: Callable[[str, dict[str, Any]], None]
     ):  # Changed callback signature
         """Установить callback для полученных CRDT-данных."""
         self._crdt_sync_callback = callback
@@ -271,7 +191,7 @@ class MeshRouter:
 
         logger.debug(f"Finished processing neighbor removal: {neighbor_id}")
 
-    def get_route(self, destination: str) -> List[RouteEntry]:
+    def get_route(self, destination: str) -> list[RouteEntry]:
         """Получить все активные маршруты к destination, отсортированные по качеству."""
         routes_for_dest = self._routes.get(destination, [])
 
@@ -288,9 +208,9 @@ class MeshRouter:
 
         return valid_routes
 
-    def get_routes(self) -> Dict[str, List[RouteEntry]]:
+    def get_routes(self) -> dict[str, list[RouteEntry]]:
         """Получить все активные маршруты."""
-        active_routes: Dict[str, List[RouteEntry]] = {}
+        active_routes: dict[str, list[RouteEntry]] = {}
         for dest, routes_list in self._routes.items():
             valid_routes = [
                 route
@@ -374,7 +294,7 @@ class MeshRouter:
         tag = hmac.new(self._shared_secret, data, hashlib.sha256).digest()
         return data + tag
 
-    def _verify_packet(self, data: bytes) -> Optional[bytes]:
+    def _verify_packet(self, data: bytes) -> bytes | None:
         """Verify and strip HMAC signature. Returns raw data or None if invalid."""
         if not self._shared_secret:
             return data
@@ -641,7 +561,7 @@ class MeshRouter:
             logger.error(f"Failed to send packet: {e}")
             return False
 
-    async def _discover_route(self, destination: str) -> Optional[RouteEntry]:
+    async def _discover_route(self, destination: str) -> RouteEntry | None:
         """Выполнить route discovery."""
         # Создаём future для ожидания RREP
         future = asyncio.get_event_loop().create_future()
@@ -670,7 +590,7 @@ class MeshRouter:
             async with self._stats_lock:
                 self._stats["routes_discovered"] += 1
             return route
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(f"Route discovery timeout for {destination}")
             self._pending_rreq.pop(destination, None)
             return None
@@ -679,7 +599,7 @@ class MeshRouter:
         self,
         requester: str,
         next_hop: str,
-        path_to_target: List[str],
+        path_to_target: list[str],
         target: str = None,
         hop_count: int = 0,
     ):
@@ -712,7 +632,7 @@ class MeshRouter:
         next_hop: str,
         hop_count: int,
         seq_num: int,
-        path: Optional[List[str]] = None,
+        path: list[str] | None = None,
     ):
         """Обновить или добавить маршрут."""
         if path is None:
@@ -888,7 +808,7 @@ class MeshRouter:
         logger.debug(f"Broadcasted RERR for broken link to {failed_next_hop}.")
 
     async def send_crdt_update(
-        self, destination: str, crdt_data: Dict[str, Any]
+        self, destination: str, crdt_data: dict[str, Any]
     ) -> bool:
         """
         Отправить CRDT-данные к destination.
@@ -963,7 +883,7 @@ class MeshRouter:
             **stats_copy,
         }
 
-    async def get_mape_k_metrics(self) -> Dict[str, float]:
+    async def get_mape_k_metrics(self) -> dict[str, float]:
         """
         Calculates and returns key MAPE-K metrics based on current router statistics.
         """

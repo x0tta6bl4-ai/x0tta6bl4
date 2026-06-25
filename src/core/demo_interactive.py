@@ -10,7 +10,6 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -52,8 +51,8 @@ class MeshNode:
     x: float = 0.0
     y: float = 0.0
     status: NodeStatus = NodeStatus.HEALTHY
-    last_failure: Optional[float] = None
-    recovery_time: Optional[float] = None
+    last_failure: float | None = None
+    recovery_time: float | None = None
 
 
 @dataclass
@@ -70,12 +69,12 @@ class DemoSession:
     """Демо-сессия"""
 
     session_id: str
-    nodes: Dict[str, MeshNode] = field(default_factory=dict)
-    links: List[MeshLink] = field(default_factory=list)
-    events: List[Dict] = field(default_factory=list)
+    nodes: dict[str, MeshNode] = field(default_factory=dict)
+    links: list[MeshLink] = field(default_factory=list)
+    events: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
 
-    def add_event(self, event_type: str, node_id: str, data: Dict = None):
+    def add_event(self, event_type: str, node_id: str, data: dict = None):
         """Добавить событие в timeline"""
         self.events.append(
             {
@@ -91,7 +90,7 @@ class InteractiveDemo:
     """Управление интерактивными демо-сессиями"""
 
     def __init__(self):
-        self.sessions: Dict[str, DemoSession] = {}
+        self.sessions: dict[str, DemoSession] = {}
         self._cleanup_task = None
 
     def create_session(self, num_nodes: int = 5) -> str:
@@ -123,7 +122,7 @@ class InteractiveDemo:
         logger.info(f"Created demo session: {session_id} with {num_nodes} nodes")
         return session_id
 
-    async def destroy_node(self, session_id: str, node_id: str) -> Dict:
+    async def destroy_node(self, session_id: str, node_id: str) -> dict:
         """'Сломать' узел и запустить self-healing"""
         session = self.sessions.get(session_id)
         if not session:
@@ -194,7 +193,7 @@ class InteractiveDemo:
             "events": session.events[-4:],  # Последние 4 события
         }
 
-    def get_session_status(self, session_id: str) -> Dict:
+    def get_session_status(self, session_id: str) -> dict:
         """Получить статус сессии"""
         session = self.sessions.get(session_id)
         if not session:
@@ -220,7 +219,7 @@ class InteractiveDemo:
             "created_at": session.created_at,
         }
 
-    def reset_session(self, session_id: str) -> Dict:
+    def reset_session(self, session_id: str) -> dict:
         """Сбросить сессию (все узлы здоровы)"""
         session = self.sessions.get(session_id)
         if not session:

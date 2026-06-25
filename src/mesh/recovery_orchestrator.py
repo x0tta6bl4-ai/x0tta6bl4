@@ -7,7 +7,7 @@ import time
 import uuid
 from typing import Any, Callable, Mapping
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.coordination.events import EventBus, EventType
 from src.mesh.recovery_contracts import (
     BoundedClaims,

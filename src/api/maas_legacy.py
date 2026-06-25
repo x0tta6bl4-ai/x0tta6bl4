@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from src.api.maas_auth import get_current_user_from_maas, require_permission
 from src.api.maas_auth_models import (ApiKeyResponse, TokenResponse,
                                       UserLoginRequest, UserRegisterRequest)
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import BillingWebhookEvent, User, get_db, MeshInstance as DBMeshInstance
 from src.api.maas_security import api_key_manager, oidc_validator, token_signer
 from src.coordination.events import EventBus, EventType, get_event_bus
@@ -52,11 +52,11 @@ except Exception:  # pragma: no cover - optional.
     PQCNodeIdentity = None
 
 
+logger = logging.getLogger(__name__)
+
 from src.api.maas.endpoints.compat import router as compat_router
 from src.api.maas.endpoints.mesh import router as mesh_router
 from src.api.maas.endpoints.nodes_legacy import router as nodes_legacy_router
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["MaaS Legacy"])
 router.include_router(compat_router)

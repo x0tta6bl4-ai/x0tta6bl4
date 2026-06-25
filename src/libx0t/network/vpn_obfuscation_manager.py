@@ -13,7 +13,7 @@ import time
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 from .obfuscation.base import ObfuscationTransport, TransportManager
 from .obfuscation.domain_fronting import DomainFrontingTransport

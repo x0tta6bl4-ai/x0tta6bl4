@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Optional, Set
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.swarm.agent import Agent, AgentCapabilities
 from src.swarm.agents.pricing_agent import DynamicPricingAgent
 

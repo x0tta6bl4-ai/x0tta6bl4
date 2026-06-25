@@ -7,7 +7,6 @@ No graceful degradation for production-critical components.
 
 import os
 import sys
-from typing import List, Tuple
 
 PRODUCTION_MODE = os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
 
@@ -87,7 +86,7 @@ def check_production_dependencies() -> None:
         raise ProductionDependencyError(error_msg)
 
 
-def get_dependency_status() -> List[Tuple[str, bool, str]]:
+def get_dependency_status() -> list[tuple[str, bool, str]]:
     """
     Get status of all dependencies.
 

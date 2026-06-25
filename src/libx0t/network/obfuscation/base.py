@@ -8,7 +8,7 @@ import hashlib
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 _SERVICE_AGENT = "libx0t-network-obfuscation-transport"
 _KNOWN_TRANSPORT_NAMES = frozenset(

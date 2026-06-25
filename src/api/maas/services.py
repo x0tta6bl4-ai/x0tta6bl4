@@ -19,7 +19,7 @@ import aiohttp
 from sqlalchemy.orm import Session
 
 from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
-from src.core.settings import settings
+from src.core.config.settings import settings
 from src.sales.payment_verification import BaseUSDCVerifier
 
 from .constants import (
@@ -1448,8 +1448,7 @@ class AuthService:
 
     @staticmethod
     def _api_key_hash(api_key: str) -> str:
-        1451|        return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
-        1452|  # lgtm[py/weak-sensitive-data-hashing]
+        return hashlib.sha256(api_key.encode("utf-8")).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
     @classmethod
     def _api_key_store_key(cls, api_key: str) -> str:
         return f"maas:auth:api_key:{cls._api_key_hash(api_key)}"

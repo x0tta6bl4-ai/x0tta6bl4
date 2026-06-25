@@ -3,7 +3,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 try:
     from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
@@ -64,10 +64,8 @@ class ProductionSystem:
 
     def _import_components(self):
         try:
-            from src.optimization.performance_tuner import \
-                get_performance_tuner
-            from src.optimization.prometheus_cardinality_optimizer import \
-                get_cardinality_optimizer
+            from src.optimization.performance_tuner import get_performance_tuner
+            from src.optimization.prometheus_cardinality_optimizer import get_cardinality_optimizer
             from src.resilience.advanced_patterns import get_resilient_executor
             from src.security.production_hardening import get_hardening_manager
 
@@ -87,7 +85,7 @@ class ProductionSystem:
         path: str,
         status_code: int,
         duration_ms: float,
-        labels: Dict[str, str],
+        labels: dict[str, str],
     ) -> None:
         self.request_count += 1
         self.latency_sum += duration_ms
@@ -107,7 +105,7 @@ class ProductionSystem:
             method, path, labels.get("client_ip", "unknown"), status_code, duration_ms
         )
 
-    def get_system_health(self) -> Dict[str, Any]:
+    def get_system_health(self) -> dict[str, Any]:
         uptime = (datetime.utcnow() - self.start_time).total_seconds()
 
         self.performance_tuner.analyze_performance()
@@ -176,7 +174,7 @@ class ProductionSystem:
 
         return max(0, min(100, final_score))
 
-    def get_production_readiness_report(self) -> Dict[str, Any]:
+    def get_production_readiness_report(self) -> dict[str, Any]:
         health = self.get_system_health()
         raw_readiness_level = self._get_readiness_level(health["health_score"])
         current_evidence = self._current_evidence_context()
@@ -249,11 +247,11 @@ class ProductionSystem:
         else:
             return "DEVELOPMENT"
 
-    def _current_evidence_context(self) -> Dict[str, Any]:
+    def _current_evidence_context(self) -> dict[str, Any]:
         root = self.current_evidence_root
         map_path = root / CURRENT_CROSS_PLANE_MAP
         audit_path = root / CURRENT_ACTIVE_AUDIT
-        context: Dict[str, Any] = {
+        context: dict[str, Any] = {
             "included": map_path.exists() and audit_path.exists(),
             "source": "docs/architecture",
             "cross_plane_map": str(CURRENT_CROSS_PLANE_MAP),
@@ -343,7 +341,7 @@ class ProductionSystem:
         return context
 
     def _current_evidence_allows_production_claim(
-        self, context: Dict[str, Any]
+        self, context: dict[str, Any]
     ) -> bool:
         return bool(
             context.get("included") is True
@@ -353,7 +351,7 @@ class ProductionSystem:
             and context.get("next_action_count") == 0
         )
 
-    def _cross_plane_proof_gate_context(self) -> Dict[str, Any]:
+    def _cross_plane_proof_gate_context(self) -> dict[str, Any]:
         requested_claims = list(PRODUCTION_SYSTEM_CROSS_PLANE_CLAIMS)
         surface = "production_system.readiness"
         if readiness_cross_plane_claim_gate_metadata is None:

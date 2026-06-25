@@ -117,7 +117,7 @@ class TEEValidator:
         if self.sgx_verifier is not None:
             try:
                 return bool(self.sgx_verifier(attestation))
-            except Exception as exc:
+            except (ValueError, TypeError, RuntimeError, OSError) as exc:
                 logger.error("SGX attestation verifier callable failed: %s", exc)
                 return False
 

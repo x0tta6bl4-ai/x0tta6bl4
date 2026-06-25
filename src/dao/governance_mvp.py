@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Import safe subprocess for helm operations
 try:
-    from src.core.safe_subprocess import safe_helm_upgrade
+    from src.core.security.safe_subprocess import safe_helm_upgrade
     HELM_AVAILABLE = True
 except ImportError:
     try:

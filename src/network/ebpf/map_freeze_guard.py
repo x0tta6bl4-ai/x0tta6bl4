@@ -13,7 +13,7 @@ import subprocess
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Mapping, Sequence
 
-from src.core.subprocess_validator import safe_run
+from src.core.security.subprocess_validator import safe_run
 
 
 EBPF_MAP_FREEZE_CLAIM_GATE_SCHEMA = "x0tta6bl4.ebpf.map_freeze_claim_gate.v1"

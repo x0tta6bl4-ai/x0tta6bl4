@@ -58,7 +58,7 @@ class PQCDigitalSignature:
             try:
                 self._adapter = PQCAdapter(sig_alg=algorithm)
                 logger.info(f"PQCDigitalSignature initialized with {algorithm}")
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.warning(f"Failed to initialize PQC adapter: {e}")
                 self.enabled = False
         else:
@@ -112,7 +112,7 @@ class PQCDigitalSignature:
             logger.info(f"Generated {self.algorithm} keypair: {keypair.key_id}")
             return keypair
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to generate keypair: {e}")
             raise
 
@@ -151,7 +151,7 @@ class PQCDigitalSignature:
             logger.debug(f"Signed message: {len(signature_bytes)} byte signature")
             return signature
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to sign message: {e}")
             raise
 
@@ -182,7 +182,7 @@ class PQCDigitalSignature:
             logger.debug(f"Signature verification: {result}")
             return is_valid
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to verify signature: {e}")
             return False
 

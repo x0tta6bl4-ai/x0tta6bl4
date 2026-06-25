@@ -36,7 +36,7 @@ from src.api.maas.models import (
 from src.api.maas.endpoints.auth import register as register_v1
 from src.api.maas_auth_models import TokenResponse, UserRegisterRequest
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import User, get_db
 
 router = APIRouter(tags=["MaaS Compatibility"])

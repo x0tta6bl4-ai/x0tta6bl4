@@ -4,7 +4,7 @@ Planning Phase for MAPE-K.
 Phase 3: Plans solutions and optimizes reasoning process.
 """
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .models import ReasoningApproach
 
@@ -40,7 +40,7 @@ class PlanningPhase:
         self.first_principles = first_principles
         self.think_aloud = think_aloud
 
-    async def execute(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, analysis: dict[str, Any]) -> dict[str, Any]:
         """
         Execute planning phase.
         
@@ -79,7 +79,7 @@ class PlanningPhase:
             "think_aloud_log": self._get_thoughts(),
         }
 
-    async def _plan_recovery(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
+    async def _plan_recovery(self, analysis: dict[str, Any]) -> dict[str, Any]:
         """Plan recovery via MAPE-K."""
         if not self.mape_k:
             return {}
@@ -102,7 +102,7 @@ class PlanningPhase:
                 self.think_aloud.log(f"⚠️ Ошибка планирования: {e}")
             return {}
 
-    def _plan_reverse(self, recovery_plan: Dict[str, Any]) -> Optional[List[str]]:
+    def _plan_reverse(self, recovery_plan: dict[str, Any]) -> list[str] | None:
         """Plan using reverse planning."""
         if not self.reverse_planner or "goal" not in recovery_plan:
             return None
@@ -119,8 +119,8 @@ class PlanningPhase:
             return None
 
     def _plan_first_principles(
-        self, recovery_plan: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        self, recovery_plan: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """Plan using First Principles."""
         if not self.first_principles:
             return None
@@ -139,7 +139,7 @@ class PlanningPhase:
             logger.warning(f"⚠️ First principles planning failed: {e}")
             return None
 
-    def _optimize_reasoning(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
+    def _optimize_reasoning(self, analysis: dict[str, Any]) -> dict[str, Any]:
         """Optimize reasoning process."""
         return {
             "approach_selection": self._select_best_approach(analysis),
@@ -147,14 +147,14 @@ class PlanningPhase:
             "checkpoints": self._define_checkpoints(),
         }
 
-    def _select_best_approach(self, analysis: Dict[str, Any]) -> str:
+    def _select_best_approach(self, analysis: dict[str, Any]) -> str:
         """Select best reasoning approach."""
         reasoning_analysis = analysis.get("reasoning_analysis", {})
         if reasoning_analysis.get("anomaly_detected"):
             return ReasoningApproach.COMBINED_ALL.value
         return ReasoningApproach.COMBINED_RAG_GRAPHSAGE.value
 
-    def _optimize_time(self, analysis: Dict[str, Any]) -> Dict[str, float]:
+    def _optimize_time(self, analysis: dict[str, Any]) -> dict[str, float]:
         """Optimize time allocation."""
         return {
             "planning": 0.2,
@@ -162,7 +162,7 @@ class PlanningPhase:
             "analysis": 0.2,
         }
 
-    def _define_checkpoints(self) -> List[Dict[str, Any]]:
+    def _define_checkpoints(self) -> list[dict[str, Any]]:
         """Define meta-checkpoints."""
         return [
             {"name": "approach_selection", "metric": "success_probability > 0.9"},
@@ -172,8 +172,8 @@ class PlanningPhase:
 
     async def _validate_plan(
         self,
-        recovery_plan: Dict[str, Any],
-        reasoning_optimization: Dict[str, Any]
+        recovery_plan: dict[str, Any],
+        reasoning_optimization: dict[str, Any]
     ) -> bool:
         """Validate plan through meta-analysis."""
         # Simplified validation

@@ -4,7 +4,7 @@ import logging
 from typing import Optional, Dict, Any
 import hvac
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class SecretsManager:
                         },
                     )
                     logger.warning("⚠️ Vault authentication failed")
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 self._record_thinking(
                     "secrets_manager_vault_connect_failed",
                     "Record Vault connection failure safely",
@@ -189,7 +189,7 @@ class SecretsManager:
                     },
                 )
                 return value
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 self._record_thinking(
                     "secret_retrieve_vault_miss",
                     "Fall back after Vault secret miss safely",
@@ -244,7 +244,7 @@ class SecretsManager:
                     },
                 )
                 return True
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 self._record_thinking(
                     "secret_store_failed",
                     "Record Vault secret write failure safely",

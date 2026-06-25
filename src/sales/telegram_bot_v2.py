@@ -10,6 +10,7 @@ x0tta6bl4 Sales Bot v2.0
 import logging
 import os
 import secrets
+import time
 from dataclasses import dataclass
 
 try:
@@ -584,3 +585,20 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+class TokenGenerator:
+    """Generates unique activation tokens (re-exported from v1 for compatibility)."""
+
+    @staticmethod
+    def generate(tier: str = "basic") -> str:
+        """Generate activation token."""
+        tier_code = {"basic": "BAS", "pro": "PRO", "enterprise": "ENT"}.get(tier, "BAS")
+        random_part = secrets.token_hex(8).upper()
+        timestamp = hex(int(time.time()))[2:].upper()
+        return f"X0T-{tier_code}-{random_part}-{timestamp}"
+
+    @staticmethod
+    def generate_order_id() -> str:
+        """Generate unique order ID."""
+        return f"ORD-{secrets.token_hex(6).upper()}"

@@ -86,7 +86,7 @@ class HybridKeyExchange:
             try:
                 self._pqc_kem = PQCKeyExchange()
                 logger.info("HybridKeyExchange initialized (X25519 + ML-KEM-768)")
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.warning(f"Failed to initialize PQC KEM: {e}")
                 self.enabled = False
         else:
@@ -146,7 +146,7 @@ class HybridKeyExchange:
             logger.info(f"Generated hybrid keypair: {key_id}")
             return hybrid_keypair
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to generate hybrid keypair: {e}")
             raise
 
@@ -194,7 +194,7 @@ class HybridKeyExchange:
             logger.debug(f"Hybrid encapsulation: {len(combined_ciphertext)} byte ciphertext")
             return combined_ciphertext, combined_secret
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed hybrid encapsulation: {e}")
             raise
 
@@ -247,7 +247,7 @@ class HybridKeyExchange:
             logger.debug("Hybrid decapsulation successful")
             return combined_secret
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed hybrid decapsulation: {e}")
             raise
 
@@ -316,7 +316,7 @@ class HybridSignatureScheme:
             try:
                 self._pqc_dsa = PQCDigitalSignature()
                 logger.info("HybridSignatureScheme initialized (Ed25519 + ML-DSA-65)")
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.warning(f"Failed to initialize PQC DSA: {e}")
                 self.enabled = False
         else:
@@ -376,7 +376,7 @@ class HybridSignatureScheme:
             logger.info(f"Generated hybrid signing keypair: {key_id}")
             return hybrid_keypair
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to generate hybrid signing keypair: {e}")
             raise
 
@@ -427,7 +427,7 @@ class HybridSignatureScheme:
             logger.debug(f"Hybrid signature created: {len(signature.signature_bytes)} bytes")
             return signature
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to create hybrid signature: {e}")
             raise
 
@@ -466,7 +466,7 @@ class HybridSignatureScheme:
             try:
                 ed_public_key.verify(signature.classical_signature, message)
                 ed_valid = True
-            except Exception:
+            except (ValueError, TypeError, RuntimeError, OSError):
                 ed_valid = False
 
             # Verify ML-DSA signature
@@ -483,7 +483,7 @@ class HybridSignatureScheme:
             logger.debug(f"Hybrid signature verification: {result}")
             return is_valid
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed hybrid signature verification: {e}")
             return False
 

@@ -25,7 +25,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 from src.coordination.events import EventBus, EventType
-from src.core.safe_subprocess import SafeSubprocess
+from src.core.security.safe_subprocess import SafeSubprocess
 from src.integration.spine import SafeActuatorEvidenceMetadata
 
 logger = logging.getLogger(__name__)

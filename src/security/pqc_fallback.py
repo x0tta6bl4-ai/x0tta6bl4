@@ -21,7 +21,7 @@ class PQCFallbackHandler:
         try:
             # Try real PQC
             result = liboqs_backend.kem_encapsulate(...)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError) as e:
             # Fallback to classical
             handler.handle_fallback("liboqs_error", str(e))
             result = classical_backend.encapsulate(...)

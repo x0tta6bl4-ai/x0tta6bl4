@@ -6,7 +6,7 @@ STATE_FILE = "/mnt/projects/swarm_state.json"
 ARCHIVE_ROOT = "/mnt/projects/СЕМЕЙНЫЙ_АРХИВ_ИТОГ"
 
 def get_state():
-    with open(STATE_FILE, 'r') as f:
+    with open(STATE_FILE) as f:
         return json.load(f)
 
 def save_state(state):

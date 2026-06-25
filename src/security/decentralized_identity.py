@@ -549,7 +549,7 @@ class DIDManager:
 
             return True, "Credential valid"
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             self._record_thinking(
                 "did_credential_verify_error",
                 "Handle credential verification error",

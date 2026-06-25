@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType
-from src.core.agent_thinking import AgentThinkingCoach
-from src.core.subprocess_validator import safe_run
+from src.core.thinking.agent_thinking import AgentThinkingCoach
+from src.core.security.subprocess_validator import safe_run
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)

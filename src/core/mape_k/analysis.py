@@ -4,7 +4,7 @@ Analysis Phase for MAPE-K.
 Phase 2: Analyzes problems and reasoning process.
 """
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .models import ReasoningMetrics
 
@@ -43,7 +43,7 @@ class AnalysisPhase:
         self.think_aloud = think_aloud
         self.node_id = node_id
 
-    async def execute(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, metrics: dict[str, Any]) -> dict[str, Any]:
         """
         Execute analysis phase.
         
@@ -81,15 +81,15 @@ class AnalysisPhase:
         }
 
     async def _analyze_system(
-        self, system_metrics: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, system_metrics: dict[str, Any]
+    ) -> dict[str, Any]:
         """Analyze system metrics via MAPE-K."""
         if not self.mape_k:
             return {}
 
         try:
             consciousness_metrics = self.mape_k._analyze(system_metrics)
-            
+
             analysis = {
                 "consciousness_state": (
                     consciousness_metrics.state.value
@@ -122,8 +122,8 @@ class AnalysisPhase:
             return {}
 
     def _generate_lateral_approaches(
-        self, system_metrics: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        self, system_metrics: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """Generate lateral thinking approaches."""
         if not self.lateral_thinking:
             return None
@@ -139,7 +139,7 @@ class AnalysisPhase:
             logger.warning(f"⚠️ Lateral thinking failed: {e}")
             return None
 
-    def _analyze_reasoning(self, metrics: ReasoningMetrics) -> Dict[str, Any]:
+    def _analyze_reasoning(self, metrics: ReasoningMetrics) -> dict[str, Any]:
         """Analyze reasoning process."""
         analysis = {
             "efficiency": self._assess_efficiency(metrics),
@@ -167,7 +167,7 @@ class AnalysisPhase:
         return max(0.0, min(1.0, efficiency))
 
     async def _store_reasoning_failure(
-        self, reasoning_analysis: Dict[str, Any]
+        self, reasoning_analysis: dict[str, Any]
     ) -> None:
         """Store reasoning failure in knowledge base."""
         if not self.knowledge_base:

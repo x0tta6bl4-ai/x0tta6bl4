@@ -97,7 +97,7 @@ class SPIREHAClient:
             try:
                 await self._check_all_servers()
                 await asyncio.sleep(self.health_check_interval)
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.error(f"Health check loop error: {e}", exc_info=True)
                 await asyncio.sleep(self.health_check_interval)
 
@@ -119,7 +119,7 @@ class SPIREHAClient:
                     else:
                         server.healthy = False
                         server.failure_count += 1
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.debug(f"Health check failed for {server.address}: {e}")
                 server.healthy = False
                 server.failure_count += 1
@@ -193,7 +193,7 @@ class SPIREHAClient:
                 # Success - return result
                 return result
 
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.warning(
                     f"⚠️ Operation failed on {server.address}: {e}. "
                     f"Trying next server..."

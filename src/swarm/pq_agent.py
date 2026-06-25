@@ -10,7 +10,7 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.swarm.agent import AgentMessage, TaskResult, SpecializedAgent
 from src.security.pqc_spiffe import PQCSpiffeBridge
 

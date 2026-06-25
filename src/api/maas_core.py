@@ -12,17 +12,17 @@ import secrets
 import threading
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from src.database import User, MeshInstance, MeshNode, get_db
-from src.api.maas_auth import get_current_user_from_maas, require_role
-from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
 from src.ai.dynamic_pricing import pricing_agent
+from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
+from src.api.maas_auth import get_current_user_from_maas, require_role
+from src.database import MeshInstance, MeshNode, User, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -65,12 +65,12 @@ _PRICING_AGENT_INTERVAL_SECONDS = max(
     int(os.getenv("MAAS_PRICING_AGENT_INTERVAL_SECONDS", "60")),
 )
 _pricing_agent_lock = threading.Lock()
-_last_pricing_agent_attempt_at: Optional[datetime] = None
+_last_pricing_agent_attempt_at: datetime | None = None
 
 
 def _maas_core_lifecycle_claim_gate(
     surface: str = "maas_core.lifecycle",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     return {
         "schema": "x0tta6bl4.maas_core_lifecycle_claim_gate.v1",
         "surface": surface,
@@ -90,14 +90,14 @@ def _maas_core_lifecycle_claim_gate(
     }
 
 
-def _maas_core_lifecycle_cross_plane_gate(surface: str) -> Dict[str, Any]:
+def _maas_core_lifecycle_cross_plane_gate(surface: str) -> dict[str, Any]:
     return cross_plane_claim_gate_metadata(
         _MAAS_CORE_LIFECYCLE_CROSS_PLANE_CLAIMS,
         surface=surface,
     )
 
 
-def _maas_core_lifecycle_claim_boundary_headers() -> Dict[str, str]:
+def _maas_core_lifecycle_claim_boundary_headers() -> dict[str, str]:
     return dict(_MAAS_CORE_LIFECYCLE_CLAIM_HEADERS)
 
 
@@ -152,7 +152,7 @@ async def deploy_mesh(
 
     mesh_id = f"mesh-{uuid.uuid4().hex[:8]}"
     join_token = secrets.token_urlsafe(32)
-    
+
     instance = MeshInstance(
         id=mesh_id,
         name=req.name,
@@ -163,7 +163,7 @@ async def deploy_mesh(
         status="active"
     )
     db.add(instance)
-    
+
     # Provision initial nodes
     for i in range(req.nodes):
         node = MeshNode(
@@ -173,10 +173,10 @@ async def deploy_mesh(
             device_class="edge"
         )
         db.add(node)
-        
+
     db.commit()
     db.refresh(instance)
-    
+
     return {
         "id": instance.id,
         "name": instance.name,
@@ -191,7 +191,7 @@ async def deploy_mesh(
         ),
     }
 
-@router.get("/list", response_model=List[MeshResponse])
+@router.get("/list", response_model=list[MeshResponse])
 def list_meshes(
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db),
@@ -250,7 +250,7 @@ async def terminate_mesh(
     instance = db.query(MeshInstance).filter(MeshInstance.id == mesh_id, MeshInstance.owner_id == current_user.id).first()
     if not instance:
         raise HTTPException(status_code=404, detail="Mesh not found")
-    
+
     instance.status = "terminated"
     db.commit()
     return {

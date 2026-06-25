@@ -27,7 +27,7 @@ except ImportError:
 from prometheus_client import REGISTRY, Counter, Gauge, start_http_server
 
 from src.coordination.events import EventBus, EventType
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logging.basicConfig(level=logging.INFO)
