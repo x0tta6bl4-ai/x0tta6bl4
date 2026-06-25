@@ -2,7 +2,7 @@ import asyncio
 from types import SimpleNamespace
 
 import src.api.vision_endpoints as vision_mod
-from src.core.reliability_policy import get_degraded_dependencies
+from src.core.resilience.reliability_policy import get_degraded_dependencies
 
 
 class _FakeProcessor:

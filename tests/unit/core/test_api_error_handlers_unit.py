@@ -3,8 +3,8 @@
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
-from src.core.api_error_handlers import register_api_error_handlers
-from src.core.logging_config import RequestIdContextVar
+from src.core.app.api_error_handlers import register_api_error_handlers
+from src.core.logging.logging_config import RequestIdContextVar
 
 
 def _build_app() -> FastAPI:

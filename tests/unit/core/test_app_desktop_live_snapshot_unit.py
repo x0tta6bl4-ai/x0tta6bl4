@@ -7,7 +7,7 @@ import json
 from fastapi.testclient import TestClient
 
 from src.coordination.events import EventBus, EventType
-from src.core import app_desktop
+from src.core.app import app_desktop
 
 
 def test_platform_live_snapshot_returns_redacted_eventbus_state(tmp_path, monkeypatch) -> None:
