@@ -17,6 +17,7 @@ from .models import RecoveryActionType, RecoveryResult
 from .rate_limiter import RateLimiter
 
 from src.coordination.events import EventBus, EventType, get_event_bus
+from src.core.security.subprocess_validator import safe_run
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -117,7 +118,7 @@ class RecoveryActionExecutor:
         if not shutil.which("systemctl"):
             return False
         try:
-            r = subprocess.run(
+            r = safe_run(
                 ["systemctl", "is-system-running", "--quiet"],
                 capture_output=True,
                 timeout=2,
@@ -133,7 +134,7 @@ class RecoveryActionExecutor:
         if not shutil.which("docker"):
             return False
         try:
-            r = subprocess.run(
+            r = safe_run(
                 ["docker", "info", "--format", "{{.ServerVersion}}"],
                 capture_output=True,
                 timeout=3,
@@ -153,7 +154,7 @@ class RecoveryActionExecutor:
         if not shutil.which("kubectl"):
             return False
         try:
-            ctx = subprocess.run(
+            ctx = safe_run(
                 ["kubectl", "config", "current-context"],
                 capture_output=True,
                 timeout=2,
@@ -463,13 +464,13 @@ class RecoveryActionExecutor:
             # `systemctl restart` incurs when the unit does not exist.
             if self._available_backends.get("systemctl"):
                 try:
-                    active = subprocess.run(
+                    active = safe_run(
                         ["systemctl", "is-active", "--quiet", service_name],
                         capture_output=True,
                         timeout=2,
                     )
                     if active.returncode == 0:
-                        result = subprocess.run(
+                        result = safe_run(
                             ["systemctl", "restart", service_name],
                             capture_output=True,
                             text=True,
@@ -489,13 +490,13 @@ class RecoveryActionExecutor:
             # docker inspect is fast (~0.05s) and confirms container exists.
             if self._available_backends.get("docker"):
                 try:
-                    inspect = subprocess.run(
+                    inspect = safe_run(
                         ["docker", "inspect", "--format", "{{.Id}}", service_name],
                         capture_output=True,
                         timeout=5,
                     )
                     if inspect.returncode == 0:
-                        result = subprocess.run(
+                        result = safe_run(
                             ["docker", "restart", service_name],
                             capture_output=True,
                             text=True,
@@ -515,7 +516,7 @@ class RecoveryActionExecutor:
             # --request-timeout=2s caps the API-server round-trip.
             if self._available_backends.get("kubectl"):
                 try:
-                    exists = subprocess.run(
+                    exists = safe_run(
                         [
                             "kubectl", "get", "deployment", service_name,
                             "-o", "name", "--request-timeout=2s",
@@ -524,7 +525,7 @@ class RecoveryActionExecutor:
                         timeout=5,
                     )
                     if exists.returncode == 0:
-                        result = subprocess.run(
+                        result = safe_run(
                             [
                                 "kubectl", "rollout", "restart",
                                 f"deployment/{service_name}",
@@ -688,7 +689,7 @@ class RecoveryActionExecutor:
         try:
             # Try Kubernetes
             try:
-                result = subprocess.run(
+                result = safe_run(
                     [
                         "kubectl",
                         "scale",
@@ -741,7 +742,7 @@ class RecoveryActionExecutor:
         try:
             # Try Kubernetes
             try:
-                result = subprocess.run(
+                result = safe_run(
                     [
                         "kubectl",
                         "scale",
@@ -862,7 +863,7 @@ class RecoveryActionExecutor:
                     "alpine:latest",
                     "sh", "-c", script_content
                 ]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                result = safe_run(cmd, capture_output=True, text=True, timeout=60)
                 if result.returncode == 0:
                     return RecoveryResult(
                         success=True,
@@ -876,7 +877,7 @@ class RecoveryActionExecutor:
 
             # 2. Local execution (fallback)
             logger.info("Executing script locally (no container isolation)")
-            result = subprocess.run(
+            result = safe_run(
                 ["sh", "-c", script_content],
                 capture_output=True,
                 text=True,
