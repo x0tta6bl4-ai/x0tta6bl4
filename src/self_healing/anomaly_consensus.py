@@ -35,6 +35,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from src.coordination.events import EventBus, EventType
+from src.coordination.consensus_transport import ConsensusTransport
 from src.swarm.pbft import PBFTNode, PBFTRequest
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,8 @@ class AnomalyConsensusManager:
         consensus_timeout: float = 15.0,
         auto_approve: bool = False,
         local_health_fn: Optional[Callable[[], float]] = None,
+        transport: Optional["ConsensusTransport"] = None,
+        transport_project_root: Optional[str] = None,
     ):
         """
         Args:
@@ -170,6 +173,9 @@ class AnomalyConsensusManager:
             consensus_timeout: Max seconds to wait for consensus
             auto_approve: If True, always approve (bypass PBFT)
             local_health_fn: Optional callback returning local health score (0-1)
+            transport: Optional ConsensusTransport for cross-process P2P messaging.
+                       When set, overrides in-process _node_registry routing.
+            transport_project_root: Project root for transport (defaults to project_root)
         """
         self.node_id = node_id
         self.peers = peers or set()
@@ -181,13 +187,18 @@ class AnomalyConsensusManager:
 
         self.event_bus = event_bus
 
+        # P2P transport (cross-process via file-based ConsensusTransport)
+        self._transport = transport
+        self._transport_project_root = transport_project_root or project_root
+
         # In single-node / auto-approve mode, skip PBFT entirely
         self._pbft_node: Optional[PBFTNode] = None
         if not self.auto_approve:
             self._init_pbft()
 
-        # Register for in-process routing
-        _register_node(self)
+        # Register for in-process routing (used when no transport)
+        if self._transport is None:
+            _register_node(self)
 
     def _init_pbft(self) -> None:
         """Initialize PBFT node with in-process transport."""
@@ -205,19 +216,64 @@ class AnomalyConsensusManager:
             send_message=self._route_message,
         )
 
+        # If transport is set, register the PBFT message handler
+        if self._transport is not None:
+            self._transport.register_handler("pbft", self._handle_transport_message)
+
+    def _handle_transport_message(self, msg: Any) -> None:
+        """Handle incoming PBFT message from ConsensusTransport."""
+        payload = msg.payload if hasattr(msg, "payload") else msg
+        if self._pbft_node and isinstance(payload, dict):
+            self._pbft_node.receive_message(payload)
+
+    async def start_transport(self) -> None:
+        """Start the P2P transport polling loop (if transport is set)."""
+        if self._transport is not None and hasattr(self._transport, "start"):
+            await self._transport.start()
+            logger.info("P2P consensus transport started for %s", self.node_id)
+
+    async def stop_transport(self) -> None:
+        """Stop the P2P transport polling loop."""
+        if self._transport is not None and hasattr(self._transport, "stop"):
+            await self._transport.stop()
+            logger.info("P2P consensus transport stopped for %s", self.node_id)
+
     def _route_message(self, target_id: str, message: Dict[str, Any]) -> None:
-        """Route PBFT message to target node via in-process registry."""
+        """Route PBFT message to target node.
+
+        Priority:
+        1. ConsensusTransport (cross-process P2P, file-based)
+        2. In-process _node_registry (same process, different instances)
+        3. Fallback: log warning
+        """
         if target_id == self.node_id:
             # Local message
             if self._pbft_node:
                 self._pbft_node.receive_message(message)
             return
+
+        # P2P transport mode (cross-process, file-based)
+        if self._transport is not None:
+            from src.coordination.consensus_transport import ConsensusMessage
+
+            msg = ConsensusMessage(
+                source_node=self.node_id,
+                target_node=target_id,
+                message_type="pbft",
+                payload=message,
+            )
+            asyncio.create_task(self._transport.send(msg))
+            return
+
+        # In-process mode (same Python process)
         target = _node_registry.get(target_id)
         if target and target._pbft_node:
             target._pbft_node.receive_message(message)
         else:
             logger.warning(
-                "Consensus peer %s not found in registry (simulating timeout)", target_id
+                "Consensus peer %s not found in registry (no transport either); "
+                "this node will not receive PBFT messages",
+                target_id,
             )
 
     def _evaluate_anomaly(self, operation: Any) -> Dict[str, Any]:
@@ -390,8 +446,13 @@ class AnomalyConsensusManager:
             "auto_approve": self.auto_approve,
             "registered_peers": sorted(_node_registry.keys()),
             "pbft_initialized": self._pbft_node is not None,
+            "transport_enabled": self._transport is not None,
+            "transport_stats": self._transport.get_stats() if self._transport else None,
         }
 
     def close(self) -> None:
-        """Clean up — unregister from routing table."""
+        """Clean up — unregister from routing table and stop transport."""
         _unregister_node(self.node_id)
+        if self._transport is not None:
+            # Transport stop must be awaited separately via stop_transport()
+            logger.info("P2P transport will be stopped by caller's stop_transport()")
