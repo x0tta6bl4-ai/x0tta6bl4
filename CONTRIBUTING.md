@@ -38,11 +38,27 @@ We as members, contributors, and leaders pledge to make participation in our com
 
 ### Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project team at conduct@x0tta6bl4.net. All complaints will be reviewed and investigated and will result in a response that is deemed necessary and appropriate.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project team at x0tta6bl4.ai@gmail.com. All complaints will be reviewed and investigated and will result in a response that is deemed necessary and appropriate.
 
 ---
 
 ## How to Contribute
+
+### What We Need Right Now
+
+This is a solo project that needs collaborators. Specific help wanted:
+
+| Area | What's needed |
+|------|---------------|
+| **DevOps** | Ansible/Terraform for redeploying mesh-node, SPIRE, ghost-vpn on a new VPS |
+| **Security auditing** | Penetration testing of PQC hybrid TLS handshake, eBPF programs |
+| **Code review** | Fresh eyes on MAPE-K, mesh modules, API endpoints |
+| **Testing** | Expanding test coverage for anti-censorship, mesh recovery paths |
+
+If any of this sounds like you — **reach out directly** before opening issues:
+
+- Telegram: [@x0tta6bl4](https://t.me/x0tta6bl4) — fastest response
+- Email: x0tta6bl4.ai@gmail.com
 
 ### Reporting Bugs
 
@@ -451,7 +467,7 @@ To maintain the stability and auditability of the x0tta6bl4 circuit, all contrib
 
 Instead, please report security issues privately:
 
-1. Email: security@x0tta6bl4.net
+1. Email: x0tta6bl4.ai@gmail.com
 2. Include: Description, steps to reproduce, potential impact
 3. Response time: Within 48 hours
 
@@ -461,9 +477,9 @@ See [SECURITY.md](SECURITY.md) for full security policy.
 
 ## Getting Help
 
-- **Documentation**: [docs.x0tta6bl4.net](https://docs.x0tta6bl4.net)
-- **Discord**: [discord.gg/x0tta6bl4](https://discord.gg/x0tta6bl4)
-- **Email**: dev@x0tta6bl4.net
+- **Issues**: [GitHub Issues](https://github.com/x0tta6bl4-ai/x0tta6bl4/issues)
+- **Telegram**: [@x0tta6bl4](https://t.me/x0tta6bl4) — fastest response
+- **Email**: x0tta6bl4.ai@gmail.com
 
 ---
 
