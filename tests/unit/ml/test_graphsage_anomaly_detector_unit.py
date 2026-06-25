@@ -285,11 +285,19 @@ class TestDetectorInit:
         assert det.is_trained is False
 
     def test_no_torch_fallback(self):
-        """When torch is not available, model and device are None."""
+        """When torch is not available, fall back to micro_tensor GNN backend on first use."""
         with patch("src.ml.graphsage_anomaly_detector.is_torch_available", return_value=False):
             det = GraphSAGEAnomalyDetector()
+            # Model is lazy-initialised — still None until predict/train
             assert det.model is None
             assert det.device is None
+            # After calling _init_model_if_needed(), mesh backend kicks in
+            result = det._init_model_if_needed()
+            assert result is True
+            assert det.model is not None
+            assert det.device == "cpu"
+            from src.ml.mesh_gnn import MeshGNNDetector
+            assert isinstance(det.model, MeshGNNDetector)
 
     def test_quantization_disabled_explicitly(self):
         det = _make_detector(use_quantization=False)
@@ -692,10 +700,11 @@ class TestTrainMethod:
         with patch("src.ml.graphsage_anomaly_detector._TORCH_AVAILABLE", False):
             det = GraphSAGEAnomalyDetector()
             det.train(
-                node_features=[_normal_features()],
-                edge_index=[(0, 1)],
+                node_features=[_normal_features(), _normal_features()],
+                edge_index=[(0, 1), (1, 0)],
             )
-            assert not getattr(det, "is_trained", False)
+            # Mesh backend initialises and trains a model
+            assert det.is_trained is True
 
     def test_train_model_none_returns_early(self):
         det = _make_detector()
@@ -1421,7 +1430,9 @@ class TestCreateDetectorForMapek:
     def test_pretrain_true_no_torch_skips_training(self):
         with patch("src.ml.graphsage_anomaly_detector.is_torch_available", return_value=False):
             det = create_graphsage_detector_for_mapek(pretrain=True)
-            assert det.model is None
+            # Mesh backend IS initialised — just not the torch one
+            assert det.model is not None
+            assert det.is_trained is True
 
     def test_default_quantization_is_true(self):
         det = create_graphsage_detector_for_mapek(pretrain=False)

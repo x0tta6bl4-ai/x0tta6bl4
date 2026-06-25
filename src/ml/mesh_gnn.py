@@ -36,6 +36,10 @@ FEATURE_NAMES = ["rssi", "snr", "loss_rate", "link_age",
                  "latency", "throughput", "cpu", "memory"]
 DEFAULT_INPUT_DIM = 8
 DEFAULT_HIDDEN_DIM = 64
+EDGE_FEATURE_NAMES = [
+    "rssi_diff", "snr_diff", "loss_sum", "latency_diff", "throughput_sum",
+]
+DEFAULT_EDGE_FEAT_DIM = len(EDGE_FEATURE_NAMES)
 DEFAULT_EPOCHS = 100
 DEFAULT_LR = 0.005
 
@@ -50,9 +54,13 @@ class MeshGNN:
     SAGEConv(input_dim → hidden_dim) → ReLU → SAGEConv(hidden_dim → hidden_dim)
     → ReLU → Linear(hidden_dim → 1) → sigmoid
 
+    When *edge_feat_dim* is set, the model uses edge features computed from
+    node feature differences (asymmetry + sum of correlated metrics).
+
     Args:
         input_dim: number of input features per node
         hidden_dim: number of hidden units in each SAGEConv layer
+        edge_feat_dim: number of edge features (0 to disable)
         init_scale: weight initialisation standard deviation
     """
 
@@ -61,47 +69,73 @@ class MeshGNN:
         input_dim: int = DEFAULT_INPUT_DIM,
         hidden_dim: int = DEFAULT_HIDDEN_DIM,
         *,
+        edge_feat_dim: int = 0,
         init_scale: float = 0.05,
     ) -> None:
-        self.conv1 = SAGEConv(input_dim, hidden_dim, init_scale=init_scale)
+        self.conv1 = SAGEConv(input_dim, hidden_dim,
+                              edge_feat_dim=edge_feat_dim if edge_feat_dim > 0 else None,
+                              init_scale=init_scale)
         self.relu1 = ReLU()
-        self.conv2 = SAGEConv(hidden_dim, hidden_dim, init_scale=init_scale)
+        self.conv2 = SAGEConv(hidden_dim, hidden_dim,
+                              edge_feat_dim=edge_feat_dim if edge_feat_dim > 0 else None,
+                              init_scale=init_scale)
         self.relu2 = ReLU()
         self.output = Linear(hidden_dim, 1, init_scale=init_scale)
         self.bce = BCELoss()
+        self._edge_feat_dim = edge_feat_dim
 
     def parameters(self):
         return (self.conv1.parameters() + self.conv2.parameters()
                 + self.output.parameters())
 
-    def forward(self, x: Tensor, adj_norm: np.ndarray) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        adj_norm: np.ndarray,
+        edge_index: np.ndarray | None = None,
+        edge_attr: np.ndarray | None = None,
+    ) -> Tensor:
         """Forward pass: node features → node-level anomaly logits.
 
         Args:
             x: node features (N, input_dim)
             adj_norm: D^{-1}A normalised adjacency (N, N)
+            edge_index: optional (M, 2) edge indices
+            edge_attr: optional (M, F) edge feature vectors
 
         Returns:
             anomaly logits (N, 1)
         """
-        h = self.conv1(x, adj_norm)
+        h = self.conv1(x, adj_norm, edge_index, edge_attr)
         h = self.relu1(h)
-        h = self.conv2(h, adj_norm)
+        h = self.conv2(h, adj_norm, edge_index, edge_attr)
         h = self.relu2(h)
         logits = self.output(h)
         return logits
 
-    def predict(self, x: np.ndarray, adj_norm: np.ndarray) -> np.ndarray:
+    def predict(
+        self,
+        x: np.ndarray,
+        adj_norm: np.ndarray,
+        edge_index: np.ndarray | None = None,
+        edge_attr: np.ndarray | None = None,
+    ) -> np.ndarray:
         """NumPy-in/NumPy-out prediction (no grad tracking)."""
         x_t = Tensor(x, requires_grad=False)
-        logits = self.forward(x_t, adj_norm)
+        logits = self.forward(x_t, adj_norm, edge_index, edge_attr)
         clipped = np.clip(logits.data, -100.0, 100.0)
         sig = 1.0 / (1.0 + np.exp(-clipped))
         return sig
 
-    def predict_proba(self, x: np.ndarray, adj_norm: np.ndarray) -> np.ndarray:
+    def predict_proba(
+        self,
+        x: np.ndarray,
+        adj_norm: np.ndarray,
+        edge_index: np.ndarray | None = None,
+        edge_attr: np.ndarray | None = None,
+    ) -> np.ndarray:
         """Return sigmoid probabilities (0-1)."""
-        return self.predict(x, adj_norm)
+        return self.predict(x, adj_norm, edge_index, edge_attr)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -128,6 +162,68 @@ def build_adj_norm(
     deg = adj.sum(axis=1, keepdims=True)
     deg[deg == 0] = 1.0
     return adj / deg
+
+
+def build_edge_index_array(
+    edge_index: List[Tuple[int, int]],
+    num_nodes: int,
+) -> np.ndarray:
+    """Convert edge list to (M, 2) numpy array of int64.
+
+    Filters out-of-bound node references.
+    """
+    filtered = [(s, d) for s, d in edge_index
+                if s < num_nodes and d < num_nodes]
+    if not filtered:
+        return np.zeros((0, 2), dtype=np.int64)
+    return np.array(filtered, dtype=np.int64)
+
+
+def build_edge_features(
+    edge_index: np.ndarray,
+    x_arr: np.ndarray,
+    feature_names: List[str] | None = None,
+) -> np.ndarray:
+    """Compute edge features from per-node feature differences.
+
+    For each edge (src, dst), computes:
+        rssi_diff = |rssi_src - rssi_dst|
+        snr_diff = |snr_src - snr_dst|
+        loss_sum = loss_src + loss_dst
+        latency_diff = |latency_src - latency_dst|
+        throughput_sum = throughput_src + throughput_dst
+
+    Args:
+        edge_index: (M, 2) array of edge indices.
+        x_arr: (N, F) node feature array.
+        feature_names: list of feature names matching FEATURE_NAMES order.
+
+    Returns:
+        (M, 5) edge feature array.
+    """
+    names = feature_names or FEATURE_NAMES
+    name_to_idx = {n: i for i, n in enumerate(names)}
+
+    def _val(name):
+        return name_to_idx.get(name, 0)
+
+    i_rssi = _val("rssi")
+    i_snr = _val("snr")
+    i_loss = _val("loss_rate")
+    i_lat = _val("latency")
+    i_thr = _val("throughput")
+
+    M = edge_index.shape[0]
+    edge_attr = np.zeros((M, 5), dtype=np.float64)
+    for e in range(M):
+        s = int(edge_index[e, 0])
+        d = int(edge_index[e, 1])
+        edge_attr[e, 0] = abs(x_arr[s, i_rssi] - x_arr[d, i_rssi])
+        edge_attr[e, 1] = abs(x_arr[s, i_snr] - x_arr[d, i_snr])
+        edge_attr[e, 2] = x_arr[s, i_loss] + x_arr[d, i_loss]
+        edge_attr[e, 3] = abs(x_arr[s, i_lat] - x_arr[d, i_lat])
+        edge_attr[e, 4] = x_arr[s, i_thr] + x_arr[d, i_thr]
+    return edge_attr
 
 
 def features_to_array(
@@ -173,9 +269,12 @@ def train_mesh_gnn(
         .edge_index: List[Tuple[int, int]]
         .labels: List[float]
 
+    When model uses edge features (``model._edge_feat_dim > 0``), they are
+    automatically computed from node features and the adjacency.
+
     Args:
         model: MeshGNN instance
-        snapshots: list of mesh telemetry snapshots (e.g. MeshSnapshot)
+        snapshots: list of mesh telemetry snapshots
         epochs: number of full passes over the dataset
         lr: Adam learning rate
         verbose: print epoch logs
@@ -198,8 +297,16 @@ def train_mesh_gnn(
 
             x = Tensor(x_arr, requires_grad=False)
 
+            # Build edge features when model supports them
+            edge_idx = None
+            edge_attr = None
+            if model._edge_feat_dim > 0:
+                edge_idx = build_edge_index_array(snap.edge_index, snap.num_nodes)
+                if edge_idx.shape[0] > 0:
+                    edge_attr = build_edge_features(edge_idx, x_arr)
+
             opt.zero_grad()
-            logits = model.forward(x, adj_norm)
+            logits = model.forward(x, adj_norm, edge_idx, edge_attr)
             loss = model.bce(logits, targets)
             loss.backward()
             opt.step()
@@ -238,7 +345,7 @@ def save_mesh_gnn(model: MeshGNN, path: str | Path) -> None:
         model: trained MeshGNN
         path: save path (.json recommended)
     """
-    weights = {
+    weights: Dict[str, Any] = {
         "conv1.W_self": model.conv1.W_self.data.tolist(),
         "conv1.W_neigh": model.conv1.W_neigh.data.tolist(),
         "conv2.W_self": model.conv2.W_self.data.tolist(),
@@ -246,6 +353,12 @@ def save_mesh_gnn(model: MeshGNN, path: str | Path) -> None:
         "output.W": model.output.W.data.tolist(),
         "output.b": model.output.b.data.tolist() if model.output.b is not None else None,
     }
+    # Save edge weights when present
+    if model.conv1.W_edge is not None:
+        weights["conv1.W_edge"] = model.conv1.W_edge.data.tolist()
+    if model.conv2.W_edge is not None:
+        weights["conv2.W_edge"] = model.conv2.W_edge.data.tolist()
+
     with open(path, "w") as f:
         json.dump(weights, f)
     logger.info(f"Model saved to {path} ({sum(v is not None for v in weights.values())} layers)")
@@ -268,6 +381,11 @@ def load_mesh_gnn(model: MeshGNN, path: str | Path) -> None:
     model.output.W.data[:] = np.array(weights["output.W"])
     if model.output.b is not None and weights.get("output.b") is not None:
         model.output.b.data[:] = np.array(weights["output.b"])
+    # Load edge weights when present
+    if model.conv1.W_edge is not None and "conv1.W_edge" in weights:
+        model.conv1.W_edge.data[:] = np.array(weights["conv1.W_edge"])
+    if model.conv2.W_edge is not None and "conv2.W_edge" in weights:
+        model.conv2.W_edge.data[:] = np.array(weights["conv2.W_edge"])
 
     logger.info(f"Model loaded from {path}")
 
@@ -293,60 +411,69 @@ class MeshGNNDetector:
 
     Args:
         model: trained MeshGNN (or None to use default init)
-        threshold: score ≥ threshold → anomaly flagged
+        threshold: score >= threshold → anomaly flagged
+        experience_buffer: optional ExperienceReplayBuffer for online fine-tuning
+        fine_tune_lr: learning rate for fine-tuning
+        fine_tune_lr_decay: multiplicative LR decay per fine-tune step
+        fine_tune_steps: number of gradient steps per fine-tune call
     """
 
     def __init__(
         self,
         model: MeshGNN | None = None,
         threshold: float = 0.5,
+        experience_buffer: ExperienceReplayBuffer | None = None,
+        fine_tune_lr: float = 0.001,
+        fine_tune_lr_decay: float = 0.95,
+        fine_tune_steps: int = 5,
     ) -> None:
         self.model = model or MeshGNN()
         self.threshold = threshold
         self._is_trained = False
+        self._experience_buffer = experience_buffer
+        self._fine_tune_lr = fine_tune_lr
+        self._fine_tune_lr_decay = fine_tune_lr_decay
+        self._fine_tune_steps = fine_tune_steps
 
     @property
     def is_trained(self) -> bool:
         return self._is_trained
 
-    def predict_node(
-        self,
-        node_features: Dict[str, float],
-        edge_index: List[Tuple[int, int]],
-        num_nodes: int,
-        node_idx: int,
-    ) -> AnomalyPrediction:
-        """Predict anomaly for a single node in the topology."""
-        t0 = time.perf_counter()
+    def push_experience(self, snapshot) -> None:
+        """Push a labeled snapshot into the experience replay buffer.
 
-        # Build full graph
-        x_arr = np.zeros((num_nodes, DEFAULT_INPUT_DIM), dtype=np.float64)
-        for i, feat in enumerate([node_features] if num_nodes == 1 else [{}] * num_nodes):
-            pass  # We only have one node's features — use a simplified path
+        The snapshot must have .node_features, .edge_index, .labels, .num_nodes.
+        """
+        if self._experience_buffer is not None:
+            self._experience_buffer.push(snapshot)
 
-        # More generically, need all node features — but the single-node API
-        # is limited. For production the caller should pass all nodes.
-        # Fallback: build from whatever we have
-        if isinstance(node_features, dict):
-            # Assume it's a full list passed as first arg
-            x_arr = features_to_array([node_features] * num_nodes)
-        else:
-            x_arr = features_to_array(node_features)
+    def fine_tune(self, *, steps: int | None = None,
+                  lr: float | None = None, verbose: bool = False) -> TrainingHistory:
+        """Run fine-tuning on the experience replay buffer.
 
-        adj_norm = build_adj_norm(edge_index, num_nodes)
-        probs = self.model.predict(x_arr, adj_norm)
-        score = float(probs[node_idx, 0])
-        confidence = abs(score - 0.5) * 2.0  # 0.5→0.0, 0.0 or 1.0→1.0
-        elapsed = (time.perf_counter() - t0) * 1000.0
-
-        return AnomalyPrediction(
-            is_anomaly=score >= self.threshold,
-            anomaly_score=round(score, 4),
-            confidence=round(min(1.0, confidence), 4),
-            node_id=str(node_idx),
-            features=node_features if isinstance(node_features, dict) else {},
-            inference_time_ms=round(elapsed, 2),
+        Returns:
+            TrainingHistory with per-step metrics (empty if no buffer).
+        """
+        if self._experience_buffer is None or self._experience_buffer.is_empty:
+            return TrainingHistory()
+        return fine_tune_mesh_gnn(
+            self.model,
+            self._experience_buffer,
+            steps=steps or self._fine_tune_steps,
+            lr=lr or self._fine_tune_lr,
+            lr_decay=self._fine_tune_lr_decay,
+            verbose=verbose,
         )
+
+    def experience_stats(self) -> dict:
+        """Return statistics about the experience replay buffer."""
+        if self._experience_buffer is None:
+            return {"size": 0, "anomaly_ratio": 0.0, "capacity": 0}
+        return {
+            "size": self._experience_buffer.size,
+            "anomaly_ratio": self._experience_buffer.anomaly_ratio(),
+            "capacity": self._experience_buffer.capacity,
+        }
 
     def predict_topology(
         self,
@@ -358,7 +485,15 @@ class MeshGNNDetector:
         num_nodes = len(node_features)
         x_arr = features_to_array(node_features)
         adj_norm = build_adj_norm(edge_index, num_nodes)
-        probs = self.model.predict(x_arr, adj_norm)
+
+        # Build edge features when model supports them
+        edge_idx = edge_attr = None
+        if self.model._edge_feat_dim > 0:
+            edge_idx = build_edge_index_array(edge_index, num_nodes)
+            if edge_idx.shape[0] > 0:
+                edge_attr = build_edge_features(edge_idx, x_arr)
+
+        probs = self.model.predict(x_arr, adj_norm, edge_idx, edge_attr)
         elapsed = (time.perf_counter() - t0) * 1000.0
 
         predictions = []
