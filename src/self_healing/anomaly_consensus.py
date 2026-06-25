@@ -37,6 +37,7 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from src.coordination.events import EventBus, EventType
 from src.coordination.consensus_transport import ConsensusTransport
 from src.swarm.pbft import PBFTNode, PBFTRequest
+from .svid_signer import SVIDSigner
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,8 @@ class AnomalyConsensusManager:
         local_health_fn: Optional[Callable[[], float]] = None,
         transport: Optional["ConsensusTransport"] = None,
         transport_project_root: Optional[str] = None,
+        svid_signer: Optional[SVIDSigner] = None,
+        svid_signing_key: Optional[bytes] = None,
     ):
         """
         Args:
@@ -176,6 +179,10 @@ class AnomalyConsensusManager:
             transport: Optional ConsensusTransport for cross-process P2P messaging.
                        When set, overrides in-process _node_registry routing.
             transport_project_root: Project root for transport (defaults to project_root)
+            svid_signer: Optional SVIDSigner for SPIFFE-authenticated PBFT messages.
+                         If not set but svid_signing_key is, creates a dev-mode signer.
+            svid_signing_key: Optional HMAC key for dev-mode SVID signing.
+                              If neither svid_signer nor svid_signing_key, no signing.
         """
         self.node_id = node_id
         self.peers = peers or set()
@@ -190,6 +197,18 @@ class AnomalyConsensusManager:
         # P2P transport (cross-process via file-based ConsensusTransport)
         self._transport = transport
         self._transport_project_root = transport_project_root or project_root
+
+        # SVID signer for SPIFFE-authenticated PBFT messages
+        if svid_signer is not None:
+            self._svid_signer = svid_signer
+        elif svid_signing_key is not None:
+            self._svid_signer = SVIDSigner(
+                spiffe_id=f"spiffe://x0tta6bl4.mesh/workload/{node_id}",
+                mode="dev",
+                _signing_key=svid_signing_key,
+            )
+        else:
+            self._svid_signer = None
 
         # In single-node / auto-approve mode, skip PBFT entirely
         self._pbft_node: Optional[PBFTNode] = None
@@ -245,11 +264,16 @@ class AnomalyConsensusManager:
         1. ConsensusTransport (cross-process P2P, file-based)
         2. In-process _node_registry (same process, different instances)
         3. Fallback: log warning
+
+        Outgoing messages are SVID-signed if a signer is configured.
         """
+        # Sign outgoing message before routing
+        signed_message = self._sign_outgoing_message(message)
+
         if target_id == self.node_id:
-            # Local message
+            # Local message — skip SVID verify (self-signed)
             if self._pbft_node:
-                self._pbft_node.receive_message(message)
+                self._pbft_node.receive_message(signed_message)
             return
 
         # P2P transport mode (cross-process, file-based)
@@ -260,7 +284,7 @@ class AnomalyConsensusManager:
                 source_node=self.node_id,
                 target_node=target_id,
                 message_type="pbft",
-                payload=message,
+                payload=signed_message,
             )
             asyncio.create_task(self._transport.send(msg))
             return
@@ -268,12 +292,61 @@ class AnomalyConsensusManager:
         # In-process mode (same Python process)
         target = _node_registry.get(target_id)
         if target and target._pbft_node:
-            target._pbft_node.receive_message(message)
+            target._pbft_node.receive_message(signed_message)
         else:
             logger.warning(
                 "Consensus peer %s not found in registry (no transport either); "
                 "this node will not receive PBFT messages",
                 target_id,
+            )
+
+    def _sign_outgoing_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        """Sign an outgoing PBFT message with SVID identity."""
+        if self._svid_signer is None:
+            return message  # No signing configured
+        try:
+            # Don't re-sign already-signed messages (loopback)
+            if "svid_signature" in message:
+                return message
+            return self._svid_signer.sign_payload(message)
+        except Exception as exc:
+            logger.error("SVID sign failed (sending unsigned): %s", exc)
+            return message
+
+    def _verify_incoming_message(self, message: Dict[str, Any]) -> bool:
+        """Verify SVID signature on an incoming PBFT message.
+
+        Only verifies messages that have SVID signatures.
+        Messages without signatures are accepted in dev mode but logged.
+        """
+        if "svid_signature" not in message:
+            if self._svid_signer is not None:
+                logger.warning("Incoming message lacks SVID signature (dev mode — accepted)")
+            return True  # Accept unsigned in dev mode
+
+        if self._svid_signer is None:
+            logger.warning("SVID signer not configured; cannot verify incoming signature")
+            return False
+
+        try:
+            return self._svid_signer.verify_payload(message)
+        except Exception as exc:
+            logger.error("SVID verify error: %s", exc)
+            return False
+
+    def _handle_transport_message(self, msg: Any) -> None:
+        """Handle incoming PBFT message from ConsensusTransport."""
+        payload = msg.payload if hasattr(msg, "payload") else msg
+        if not isinstance(payload, dict):
+            return
+        # Verify SVID signature before processing
+        if self._verify_incoming_message(payload):
+            if self._pbft_node:
+                self._pbft_node.receive_message(payload)
+        else:
+            logger.warning(
+                "Dropping PBFT message with invalid SVID signature from %s",
+                payload.get("svid_signer", "unknown"),
             )
 
     def _evaluate_anomaly(self, operation: Any) -> Dict[str, Any]:
