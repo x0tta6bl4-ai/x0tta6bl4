@@ -3,16 +3,108 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](.github/workflows/codeql.yml)
 ![Status](https://img.shields.io/badge/status-experimental-yellow)
+![ZTCR](https://img.shields.io/badge/ZTCR-29%2F29%20tests-brightgreen)
 
 **Post-quantum cryptography · eBPF/XDP kernel dataplane · Autonomous self-healing**  
 Independent engineering project by [x0tta6bl4](https://github.com/x0tta6bl4-ai).  
-*AI-assisted: see [AI-DECLARATION.md](AI-DECLARATION.md).*
+*AI-assisted: see [AI-DECLARATION.md](AI-DECLARATION.md) and [system prompts](/.prompts/).*
 
 ---
 
-## About
+## System Architecture
 
-x0tta6bl4 is a mesh networking platform with post-quantum cryptography (ML-KEM/ML-DSA via liboqs), eBPF/XDP dataplane, and MAPE-K self-healing. Built since 2025 by a solo developer with AI agents in spare time.
+```mermaid
+graph TB
+    subgraph APP["Application Layer"]
+        API[FastAPI / MaaS API]
+        Billing[Billing & Access Control]
+    end
+
+    subgraph CONTROL["Control Plane"]
+        MAPEK[MAPE-K Self-Healing<br/>Monitor→Analyze→Plan→Execute]
+        ZTCR[ZTCR Security<br/>SignedCommand + PBFT + SVID]
+        EventBus[Async EventBus]
+    end
+
+    subgraph MESH["Mesh Layer"]
+        DHT[DHT Peer Discovery]
+        CRDT[CRDT State Sync]
+        VPN[First-party VPN<br/>Ghost Transport]
+    end
+
+    subgraph TRANSPORT["Transport Security"]
+        PQC[Hybrid TLS 1.3<br/>ML-KEM-768 + X25519<br/>ML-DSA-65 + ECDSA]
+        SPIRE[SPIRE/SPIFFE mTLS<br/>Identity & Attestation]
+    end
+
+    subgraph KERNEL["Kernel Dataplane"]
+        XDP[eBPF/XDP<br/>Packet Filter & Forward]
+        AFXDP[AF_XDP Ring Buffers<br/>Kernel↔Userspace Zero-Copy]
+    end
+
+    KERNEL --> TRANSPORT
+    TRANSPORT --> MESH
+    MESH --> CONTROL
+    CONTROL --> APP
+```
+
+---
+
+## PQC Hybrid Handshake
+
+```mermaid
+sequenceDiagram
+    participant Alice as Mesh Node A
+    participant Bob as Mesh Node B
+
+    Note over Alice,Bob: Phase 1: Key Exchange
+    Alice->>Alice: Generate X25519 keypair<br/>Generate ML-KEM-768 keypair
+    Alice->>Bob: ClientHello (classical PK + PQC PK)
+    Bob->>Bob: Encapsulate against both keys
+    Bob->>Alice: ServerHello (ciphertext)
+    Alice->>Alice: Decapsulate → shared secret
+
+    Note over Alice,Bob: Phase 2: Authentication
+    Alice->>Alice: Sign transcript with ML-DSA-65
+    Alice->>Bob: Signature + SPIFFE SVID
+    Bob->>Bob: Verify signature + SVID chain
+
+    Note over Alice,Bob: Phase 3: Secure Channel
+    Alice->>Bob: Encrypted mesh traffic (AES-256-GCM)
+```
+
+---
+
+## MAPE-K Self-Healing Loop
+
+```mermaid
+graph LR
+    M[Monitor<br/>CPU / Memory / Network<br/>Peer Health] --> A[Analyze<br/>Anomaly Detection<br/>Pattern Correlation]
+    A --> P[Plan<br/>Recovery Strategy<br/>Risk Assessment]
+    P --> E[Execute<br/>Signed Commands<br/>Verified Actions]
+    E --> K[Knowledge Base<br/>Incident History<br/>Effectiveness Metrics]
+
+    K -.-> M
+    K -.-> A
+    K -.-> P
+```
+
+---
+
+## Human vs AI
+
+This project follows a **human-architected, AI-generated** development model.
+
+| Aspect | Human | AI Agents |
+|--------|-------|-----------|
+| **Architecture** | System design, component boundaries, data flows | — |
+| **Implementation** | — | PQC stack, MAPE-K loop, eBPF/C code, MaaS API, tests |
+| **Integration** | Making components work together, debugging | — |
+| **Validation** | Test design, benchmark analysis, live deployment | Test generation, CI pipeline |
+| **Prompts** | Written in `/.prompts/` | — |
+
+> See [AI-DECLARATION.md](AI-DECLARATION.md) for per-component breakdown.
+> See [/.prompts/](/.prompts/) for the exact system prompts used.
 
 ---
 
@@ -27,6 +119,7 @@ x0tta6bl4 is a mesh networking platform with post-quantum cryptography (ML-KEM/M
 | eBPF/XDP Dataplane | ~1,500 | Kernel-level packet processing, AF_XDP ring buffers |
 | Ghost Transport (VPN) | ~2,000 | Experimental STL-encapsulated transport, Docker-ready |
 | Billing & Access Control | ~1,200 | Subscription tiers, token-gated access, usage metering |
+| LoRA Fine-Tuning (ML) | ~1,000 | Low-Rank Adaptation for federated learning (pure NumPy) |
 
 > **Total source:** ~357,000 lines of Python (excluding comments and blanks), 1,300 lines Go.
 
@@ -56,11 +149,12 @@ x0tta6bl4 is a mesh networking platform with post-quantum cryptography (ML-KEM/M
 | Formally audited cryptography | ❌ liboqs integration, no audit |
 | DAO / community governance | ❌ Solo project |
 | Official commercial service | ❌ Experimental research project |
-| Production deployment | ❌ Retired 2026-06 — заменён Docker Compose |
-| ZTCR (Zero-Trust Chaos Resilience) | ✅ 29/29 tests — SignedCommand + PBFT + SVID |
-| Security hardened | ✅ 36 subprocess → safe_run, allowlist 54 команд, 0 HIGH bandit |
-| reverse-skill (RE/pentest) | ✅ 23 модуля, routing matrix |
-| SPIRE Docker stack | ✅ localhost:8081 — server + agent + mesh-2node |
+| Production deployment | ❌ Retired 2026-06 — replaced by Docker Compose |
+| **ZTCR (Zero-Trust Chaos Resilience)** | ✅ 29/29 tests — SignedCommand + PBFT + SVID |
+| **Security hardened** | ✅ 36 subprocess → safe_run, allowlist 54 commands, 0 HIGH bandit |
+| **reverse-skill (RE/pentest)** | ✅ 23 modules, routing matrix |
+| **SPIRE Docker stack** | ✅ localhost:8081 — server + agent + mesh-2node |
+| **LoRA ML fine-tuning** | ✅ Pure NumPy, federated-learning ready |
 
 ---
 
@@ -73,6 +167,7 @@ uv sync
 ```
 
 ### Local mesh (SPIRE + 2 nodes)
+
 ```bash
 docker compose -f deploy/docker-compose/compose.yaml up -d
 curl -s http://localhost:9100/health
@@ -80,14 +175,44 @@ docker logs mesh-node-a -f | grep "consensus"
 ```
 
 ### Run core tests
+
 ```bash
+# ZTCR chaos resilience tests
 python3 -m pytest tests/unit/self_healing/test_svid_signer.py \
   tests/unit/self_healing/test_anomaly_consensus.py \
   tests/unit/self_healing/test_spire_crash_chaos.py -v --tb=short
+
+# PQC smoke test
+python3 scripts/benchmark_pqc.py
 ```
 
-### Want to collaborate?
-Reach out directly — see [CONTRIBUTING.md](CONTRIBUTING.md) for contact details and current needs.
+### See MAPE-K healing in action
+
+```bash
+# Start the mesh
+docker compose -f deploy/docker-compose/compose.yaml up -d
+
+# Kill a node
+docker kill mesh-node-a
+
+# Watch autonomous recovery (expect <3 min)
+docker logs mesh-node-a -f | grep -E "MAPE-K|recovery|healing"
+```
+
+---
+
+## Reproducibility
+
+Every component can be verified locally:
+
+| Component | Command | Expected |
+|-----------|---------|----------|
+| PQC handshake | `python3 scripts/benchmark_pqc.py` | <50ms handshake |
+| MAPE-K loop | `python3 -m pytest tests/unit/self_healing/test_mape_k.py -v` | 4/4 passed |
+| ZTCR chaos | `python3 -m pytest tests/unit/self_healing/ -v` | 29/29 passed |
+| eBPF attach | `sudo python3 -c "from src.network.ebpf.xdp_manager import XDPManager"` | Import OK |
+| SPIRE stack | `docker compose -f deploy/docker-compose/compose.yaml ps` | 4 containers running |
+| LoRA training | `python3 -c "from src.ml.lora.trainer import LoRATrainer; print('OK')"` | Import OK |
 
 ---
 
@@ -99,22 +224,22 @@ Reach out directly — see [CONTRIBUTING.md](CONTRIBUTING.md) for contact detail
 
 ---
 
+*Independent engineering project. Verified by machines, not marketing.*
+
 ---
 
-# x0tta6bl4 — Само-восстанавливающаяся mesh-сеть
+## x0tta6bl4 — Само-восстанавливающаяся mesh-сеть
 
 [![Лицензия](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](.github/workflows/codeql.yml)
 
 ---
 
-## О проекте
+### О проекте
 
 x0tta6bl4 — платформа для mesh-сетей с постквантовой криптографией (ML-KEM/ML-DSA через liboqs), eBPF/XDP dataplane и автономным самовосстановлением MAPE-K. Разрабатывается с 2025 года одним человеком с AI-агентами в свободное время.
 
----
-
-## Реализованные компоненты
+### Реализованные компоненты
 
 | Компонент | Строк | Описание |
 |-----------|-------|----------|
@@ -124,7 +249,7 @@ x0tta6bl4 — платформа для mesh-сетей с посткванто�
 | eBPF/XDP | ~1,500 | Обработка пакетов на уровне ядра Linux |
 | Ghost Transport | ~2,000 | Экспериментальный транспорт, Docker-ready |
 
-## Быстрый старт
+### Быстрый старт
 
 ```bash
 git clone https://github.com/x0tta6bl4-ai/x0tta6bl4.git
@@ -133,6 +258,7 @@ uv sync
 ```
 
 ### Локальный запуск (Docker)
+
 ```bash
 docker compose up ghost-vpn-server ghost-vpn-redis -d
 docker compose up mesh-node-a mesh-node-b -d
@@ -140,12 +266,9 @@ docker compose up mesh-node-a mesh-node-b -d
 
 ---
 
-## Контакты
+### Контакты
 
-- Issues: баги и предложения
 - Telegram: [@x0tta6bl4_ai](https://t.me/x0tta6bl4_ai)
 - Email: x0tta6bl4.ai@gmail.com
-
----
 
 *Independent engineering project. Verified by machines, not marketing.*
