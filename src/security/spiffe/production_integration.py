@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import httpx
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +148,7 @@ class SPIREHealthChecker:
                 await self.check_server_health()
                 await self.check_agent_health()
                 await asyncio.sleep(self.config.health_check_interval)
-            except Exception as e:
+            except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as e:
                 logger.error(f"❌ Health check error: {e}")
                 await asyncio.sleep(5)
 
@@ -165,7 +165,7 @@ class SPIREHealthChecker:
                 if self.server_healthy:
                     logger.debug("✅ SPIRE Server healthy")
                 return self.server_healthy
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError) as e:
             logger.warning(f"⚠️ SPIRE Server health check failed: {e}")
             self.server_healthy = False
             return False
@@ -185,7 +185,7 @@ class SPIREHealthChecker:
                 )
                 self.agent_healthy = False
                 return False
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError) as e:
             logger.warning(f"⚠️ SPIRE Agent health check failed: {e}")
             self.agent_healthy = False
             return False
@@ -221,7 +221,7 @@ class SVIDRotationPolicy:
             try:
                 await self._check_and_rotate()
                 await asyncio.sleep(self.config.rotation_interval)
-            except Exception as e:
+            except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as e:
                 logger.error(f"❌ SVID rotation error: {e}")
                 await asyncio.sleep(10)
 
@@ -263,7 +263,7 @@ class SVIDRotationPolicy:
                 except ImportError:
                     pass
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as e:
             logger.error(f"❌ SVID rotation check failed: {e}")
 
 
@@ -413,7 +413,7 @@ class MTLSContextManager:
             )
             return context
 
-        except Exception as e:
+        except (ValueError, OSError, KeyError, RuntimeError) as e:
             logger.error(f"❌ Failed to build mTLS context: {e}")
             self._record_thinking(
                 "spire_mtls_context_build_failed",
@@ -430,7 +430,7 @@ class MTLSContextManager:
                 async with self._context_lock:
                     self.current_context = await self._build_context()
                     logger.debug("🔄 mTLS context updated")
-            except Exception as e:
+            except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as e:
                 logger.error(f"❌ Context update error: {e}")
                 self._record_thinking(
                     "spire_mtls_context_update_failed",
@@ -564,7 +564,7 @@ class ProductionSPIREIntegration:
                 },
             )
 
-        except Exception as e:
+        except (ValueError, OSError, KeyError, RuntimeError) as e:
             logger.error(f"❌ Failed to initialize SPIRE integration: {e}")
             self._record_thinking(
                 "production_spire_initialize_failed",
@@ -591,7 +591,7 @@ class ProductionSPIREIntegration:
                     "started": self._started,
                 },
             )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             logger.error(f"❌ Shutdown error: {e}")
             self._record_thinking(
                 "production_spire_shutdown_failed",

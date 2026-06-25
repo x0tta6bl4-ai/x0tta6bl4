@@ -24,8 +24,8 @@ from typing import Any, Dict, List, Optional
 import aiohttp
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.circuit_breaker import CircuitBreaker
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.resilience.circuit_breaker import CircuitBreaker
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)

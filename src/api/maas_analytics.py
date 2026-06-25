@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.api.maas_auth import require_permission
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import User, get_db
 from src.services.maas_analytics_service import MaaSAnalyticsService
 

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional
 
 import httpx
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 from ..agent import AttestationStrategy, SPIREAgentManager, WorkloadEntry
 from ..certificate_validator import CertificateValidator
@@ -133,7 +133,7 @@ class SPIFFEController:
                     performance_config=perf_config, multi_region_config=multi_region
                 )
                 logger.info("✅ SPIFFE/SPIRE optimizations enabled (Paradox Zone)")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError) as e:
                 logger.warning(
                     f"⚠️ Failed to initialize optimizations: {e}, continuing without optimizations"
                 )
@@ -257,7 +257,7 @@ class SPIFFEController:
                 },
             )
             logger.info(f"Identity provisioned: {self.current_identity.spiffe_id}")
-        except Exception as e:
+        except (ValueError, OSError, KeyError, RuntimeError) as e:
             self._prepare_thinking_context(
                 task_type="spiffe_controller_initialize",
                 goal="record identity fetch failure without exposing certificate material",
@@ -351,7 +351,7 @@ class SPIFFEController:
             pqc_ca, pqc_manager = self._ensure_pqc_identity()
             pqc_manager.rotate_identity(pqc_ca)
             
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError) as e:
             logger.error(f"Failed to renew identity: {e}")
 
     def start_auto_renewal(self, check_interval: int = 60):
@@ -371,7 +371,7 @@ class SPIFFEController:
                         self._renew_identity()
                 except asyncio.CancelledError:
                     break
-                except Exception as e:
+                except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as e:
                     logger.error(f"Error in auto-renewal loop: {e}")
 
         try:
@@ -381,7 +381,7 @@ class SPIFFEController:
             else:
                 self._auto_renew_task = asyncio.ensure_future(renewal_loop())
             logger.info(f"✅ Auto-renewal started (check interval: {check_interval}s)")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError) as e:
             logger.warning(f"Failed to start auto-renewal: {e}")
 
     def stop_auto_renewal(self):
@@ -565,7 +565,7 @@ class SPIFFEController:
                 except RuntimeError:
                     # No event loop, create new one
                     asyncio.run(self.optimizations.shutdown())
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError) as e:
                 logger.warning(f"Failed to shutdown optimizations: {e}")
 
         return self.agent.stop()

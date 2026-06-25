@@ -7,7 +7,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.mesh.recovery_contracts import PolicyDecision
 
 

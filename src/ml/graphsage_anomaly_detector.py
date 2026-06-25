@@ -17,6 +17,13 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+from src.ml.mesh_gnn import (
+    MeshGNN,
+    MeshGNNDetector as MeshGNNDetectorWrapper,
+    features_to_array,
+    build_adj_norm,
+    train_mesh_gnn as train_mesh,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -316,32 +323,41 @@ class GraphSAGEAnomalyDetector:
         return self._use_quantization_actual
 
     def _init_model_if_needed(self):
-        """Deferred initialization of the torch model."""
+        """Deferred initialization — tries torch first, falls back to micro_tensor GNN."""
         if self.model is not None:
             return True
-            
-        if not is_torch_available():
-            return False
-            
-        t_comp = _ensure_torch()
-        if not t_comp["available"]:
-            return False
-            
-        torch = t_comp["torch"]
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = t_comp["ModelClass"](
-            input_dim=self.input_dim, 
-            hidden_dim=self.hidden_dim, 
-            num_layers=self.num_layers
-        ).to(self.device)
 
-        if self.use_quantization:
-            try:
-                self.model.prepare_for_quantization()
-                logger.info("Model prepared for INT8 quantization")
-            except Exception as e:
-                logger.warning(f"Quantization prep failed: {e}")
-        
+        # Try PyTorch first
+        if is_torch_available():
+            t_comp = _ensure_torch()
+            if t_comp["available"]:
+                torch = t_comp["torch"]
+                self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                self.model = t_comp["ModelClass"](
+                    input_dim=self.input_dim,
+                    hidden_dim=self.hidden_dim,
+                    num_layers=self.num_layers,
+                ).to(self.device)
+
+                if self.use_quantization:
+                    try:
+                        self.model.prepare_for_quantization()
+                        logger.info("Model prepared for INT8 quantization")
+                    except Exception as e:
+                        logger.warning(f"Quantization prep failed: {e}")
+
+                logger.info(f"Initialised PyTorch GraphSAGE model (device={self.device})")
+                return True
+
+        # Fallback: micro_tensor GNN (no PyTorch dependency)
+        logger.info("PyTorch not available — falling back to micro_tensor GNN")
+        mesh_model = MeshGNN(
+            input_dim=self.input_dim,
+            hidden_dim=self.hidden_dim,
+            init_scale=0.05,
+        )
+        self.model = MeshGNNDetectorWrapper(model=mesh_model, threshold=self.anomaly_threshold)
+        self.device = "cpu"
         return True
 
     def train(
@@ -364,7 +380,27 @@ class GraphSAGEAnomalyDetector:
         if not valid_edges:
             logger.warning("No valid edges found for the given node features. Skipping training.")
             return
-        
+
+        # Dispatch to the right backend
+        if self._is_mesh_backend():
+            self._train_mesh(node_features, valid_edges, labels, epochs, lr)
+        else:
+            self._train_torch(node_features, valid_edges, labels, epochs, lr)
+
+        self.is_trained = True
+
+    def _is_mesh_backend(self) -> bool:
+        """Check whether the active model is the micro_tensor backend."""
+        return isinstance(self.model, MeshGNNDetectorWrapper)
+
+    def _train_torch(
+        self,
+        node_features: List[Dict[str, float]],
+        valid_edges: List[Tuple[int, int]],
+        labels: Optional[List[float]],
+        epochs: int,
+        lr: float,
+    ) -> None:
         t_comp = _ensure_torch()
         torch = t_comp["torch"]
         nn = t_comp["nn"]
@@ -383,7 +419,7 @@ class GraphSAGEAnomalyDetector:
         criterion = nn.BCELoss()
         self.model.train()
 
-        for epoch in range(epochs):
+        for _ in range(epochs):
             optimizer.zero_grad()
             predictions = self.model(data.x, data.edge_index)
             loss = criterion(predictions, data.y)
@@ -396,7 +432,52 @@ class GraphSAGEAnomalyDetector:
             except Exception:
                 pass
 
-        self.is_trained = True
+    def _train_mesh(
+        self,
+        node_features: List[Dict[str, float]],
+        valid_edges: List[Tuple[int, int]],
+        labels: Optional[List[float]],
+        epochs: int,
+        lr: float,
+    ) -> None:
+        """Train using micro_tensor GNN backend."""
+        # Build a snapshot-like structure that train_mesh_gnn understands
+        class _Snapshot:
+            def __init__(self, features, edges, lbls):
+                self.node_features = features
+                self.edge_index = edges
+                self.labels = lbls if lbls is not None else [0.0] * len(features)
+                self.num_nodes = len(features)
+
+        snap = _Snapshot(node_features, valid_edges, labels)
+        mesh_model: MeshGNNDetectorWrapper = self.model  # type: ignore
+        train_mesh(mesh_model.model, [snap], epochs=epochs, lr=lr, verbose=False)
+
+    def _predict_mesh(
+        self,
+        node_id: str,
+        node_features: Dict[str, float],
+        neighbors: List[Tuple[str, Dict[str, float]]],
+        edge_index: Optional[List[Tuple[int, int]]],
+        start_time: float,
+    ) -> AnomalyPrediction:
+        """Predict using micro_tensor GNN backend."""
+        all_nodes: List[Dict[str, float]] = [node_features] + [f for _, f in neighbors]
+        num_nodes = len(all_nodes)
+
+        if edge_index is None:
+            edge_index = [(0, i + 1) for i in range(len(neighbors))]
+            edge_index += [(i + 1, 0) for i in range(len(neighbors))]
+
+        mesh: MeshGNNDetectorWrapper = self.model  # type: ignore
+        preds = mesh.predict_topology(all_nodes, edge_index)
+
+        target_pred = preds[0] if preds else AnomalyPrediction(
+            is_anomaly=False, anomaly_score=0.0, confidence=0.0,
+            node_id=node_id, features=node_features,
+            inference_time_ms=(time.time() - start_time) * 1000,
+        )
+        return target_pred
 
     def predict(
         self,
@@ -407,8 +488,32 @@ class GraphSAGEAnomalyDetector:
     ) -> AnomalyPrediction:
         start_time = time.time()
 
-        # If torch not available or model not ready, use rule-based fallback
-        if not self._init_model_if_needed() or not self.is_trained:
+        if not self._init_model_if_needed():
+            labels = self._generate_labels([node_features])
+            anomaly_score = float(labels[0]) if labels else 0.0
+            is_anomaly = anomaly_score >= self.anomaly_threshold
+            prediction = AnomalyPrediction(
+                is_anomaly=is_anomaly,
+                anomaly_score=anomaly_score,
+                confidence=0.8,
+                node_id=node_id,
+                features=node_features,
+                inference_time_ms=(time.time() - start_time) * 1000,
+            )
+            prediction.claim_gate = build_graphsage_anomaly_claim_gate(
+                prediction,
+                threshold=self.anomaly_threshold,
+                source="graphsage_rule_fallback",
+                detector_trained=self.is_trained,
+            )
+            return prediction
+
+        # Dispatch to mesh backend when PyTorch is absent
+        if self._is_mesh_backend():
+            return self._predict_mesh(node_id, node_features, neighbors, edge_index, start_time)
+
+        # PyTorch backend path
+        if not self.is_trained:
             labels = self._generate_labels([node_features])
             anomaly_score = float(labels[0]) if labels else 0.0
             is_anomaly = anomaly_score >= self.anomaly_threshold

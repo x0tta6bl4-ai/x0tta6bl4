@@ -5,7 +5,7 @@ Phase 4: Executes plans with meta-awareness.
 """
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .models import ExecutionLogEntry
 
@@ -38,7 +38,7 @@ class ExecutionPhase:
         self.self_reflection = self_reflection
         self.think_aloud = think_aloud
 
-    async def execute(self, plan: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, plan: dict[str, Any]) -> dict[str, Any]:
         """
         Execute execution phase.
         
@@ -48,7 +48,7 @@ class ExecutionPhase:
         Returns:
             Dictionary with execution_result and execution_log
         """
-        execution_log: List[ExecutionLogEntry] = []
+        execution_log: list[ExecutionLogEntry] = []
         recovery_plan = plan.get("recovery_plan", {})
         reasoning_optimization = plan.get("reasoning_optimization", {})
 
@@ -84,7 +84,7 @@ class ExecutionPhase:
             "think_aloud_log": self._get_thoughts(),
         }
 
-    def _reflect_on_plan(self, recovery_plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _reflect_on_plan(self, recovery_plan: dict[str, Any]) -> dict[str, Any] | None:
         """Reflect on plan before execution."""
         if not self.self_reflection:
             return None
@@ -104,8 +104,8 @@ class ExecutionPhase:
 
     async def _execute_step(
         self,
-        step: Dict[str, Any],
-        reasoning_optimization: Dict[str, Any]
+        step: dict[str, Any],
+        reasoning_optimization: dict[str, Any]
     ) -> ExecutionLogEntry:
         """Execute single step."""
         step_start = time.time()
@@ -134,7 +134,7 @@ class ExecutionPhase:
             meta_insights=meta_insights,
         )
 
-    async def _run_step(self, step: Dict[str, Any]) -> Dict[str, Any]:
+    async def _run_step(self, step: dict[str, Any]) -> dict[str, Any]:
         """Run step via MAPE-K."""
         if not self.mape_k:
             return {"status": "success", "message": "Step completed"}
@@ -151,9 +151,9 @@ class ExecutionPhase:
 
     async def _handle_dead_end(
         self,
-        execution_log: List[ExecutionLogEntry],
-        reasoning_optimization: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        execution_log: list[ExecutionLogEntry],
+        reasoning_optimization: dict[str, Any]
+    ) -> dict[str, Any]:
         """Handle dead end by rollback and replan."""
         logger.warning("🔄 Rolling back and replanning...")
 
@@ -183,8 +183,8 @@ class ExecutionPhase:
 
     def _record_breakthrough(
         self,
-        step: Dict[str, Any],
-        reasoning_optimization: Dict[str, Any]
+        step: dict[str, Any],
+        reasoning_optimization: dict[str, Any]
     ) -> ExecutionLogEntry:
         """Record breakthrough moment."""
         logger.info(f"✅ Breakthrough at step: {step}")
@@ -202,29 +202,29 @@ class ExecutionPhase:
         )
 
     def _explain_approach(
-        self, step: Dict[str, Any], optimization: Dict[str, Any]
+        self, step: dict[str, Any], optimization: dict[str, Any]
     ) -> str:
         """Explain approach selection."""
         approach = optimization.get("approach_selection", "unknown")
         return f"Selected {approach} based on historical success rate"
 
-    def _get_alternatives(self, step: Dict[str, Any]) -> List[str]:
+    def _get_alternatives(self, step: dict[str, Any]) -> list[str]:
         """Get alternative approaches."""
         from .models import ReasoningApproach
         return [a.value for a in ReasoningApproach]
 
-    def _calculate_probability(self, step: Dict[str, Any]) -> float:
+    def _calculate_probability(self, step: dict[str, Any]) -> float:
         """Calculate success probability."""
         return 0.85
 
-    def _analyze_failure(self, step: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze_failure(self, step: dict[str, Any]) -> dict[str, Any]:
         """Analyze why step failed."""
         return {
             "reason": "approach_not_suitable",
             "recommendation": "try_alternative",
         }
 
-    def _identify_turning_point(self, step: Dict[str, Any]) -> str:
+    def _identify_turning_point(self, step: dict[str, Any]) -> str:
         """Identify turning point."""
         return f"Breakthrough at step: {step.get('action', 'unknown')}"
 

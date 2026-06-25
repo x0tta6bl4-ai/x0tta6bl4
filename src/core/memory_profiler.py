@@ -7,7 +7,7 @@ import threading
 import time
 import tracemalloc
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 import psutil
 
@@ -43,7 +43,7 @@ class MemoryProfiler:
         self.process = psutil.Process()
         self.enable_tracemalloc = enable_tracemalloc
         self._monitoring = False
-        self._monitor_thread: Optional[threading.Thread] = None
+        self._monitor_thread: threading.Thread | None = None
         self._stats_history: list[MemoryStats] = []
 
         if enable_tracemalloc:
@@ -140,7 +140,7 @@ class MemoryProfiler:
         """Get historical memory statistics."""
         return self._stats_history.copy()
 
-    def get_memory_report(self) -> Dict[str, Any]:
+    def get_memory_report(self) -> dict[str, Any]:
         """Generate comprehensive memory report."""
         if not self.enable_tracemalloc:
             return {"error": "Tracemalloc not enabled"}

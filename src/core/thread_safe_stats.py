@@ -18,7 +18,7 @@ import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -94,18 +94,18 @@ class ThreadSafeMetrics:
         self.component_name = component_name
 
         # Atomic counters
-        self._counters: Dict[str, AtomicCounter] = defaultdict(AtomicCounter)
+        self._counters: dict[str, AtomicCounter] = defaultdict(AtomicCounter)
 
         # Atomic gauges
-        self._gauges: Dict[str, AtomicFloat] = defaultdict(AtomicFloat)
+        self._gauges: dict[str, AtomicFloat] = defaultdict(AtomicFloat)
 
         # Thread-safe sets for unique items
-        self._sets: Dict[str, set] = defaultdict(set)
-        self._set_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
+        self._sets: dict[str, set] = defaultdict(set)
+        self._set_locks: dict[str, threading.Lock] = defaultdict(threading.Lock)
 
         # Thread-safe deques for recent values
-        self._recent: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
-        self._recent_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
+        self._recent: dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
+        self._recent_locks: dict[str, threading.Lock] = defaultdict(threading.Lock)
 
         # Last update timestamp
         self._last_update = AtomicFloat()
@@ -166,7 +166,7 @@ class ThreadSafeMetrics:
             self._recent[series_name].append((time.time(), value))
             self._last_update.update(time.time())
 
-    def get_recent(self, series_name: str, limit: Optional[int] = None) -> List[tuple]:
+    def get_recent(self, series_name: str, limit: int | None = None) -> list[tuple]:
         """Get recent values from series."""
         with self._recent_locks[series_name]:
             recent = list(self._recent[series_name])
@@ -174,7 +174,7 @@ class ThreadSafeMetrics:
                 return recent[-limit:]
             return recent
 
-    def get_stats_snapshot(self) -> Dict[str, Any]:
+    def get_stats_snapshot(self) -> dict[str, Any]:
         """Get thread-safe snapshot of all metrics."""
         snapshot = {
             "component": self.component_name,
@@ -270,7 +270,7 @@ class MeshRouterStats:
         """Update peer latency measurement."""
         self.metrics.add_recent("peer_latencies", (peer_id, latency_ms))
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get router statistics snapshot."""
         stats = self.metrics.get_stats_snapshot()
 
@@ -337,7 +337,7 @@ class MeshTopologyStats:
         """Record failover event."""
         self.metrics.increment_counter("failover_events")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get topology statistics snapshot."""
         stats = self.metrics.get_stats_snapshot()
 
@@ -356,11 +356,11 @@ class MeshTopologyStats:
 
 
 # Global registry for component stats
-_component_stats: Dict[str, Any] = {}
+_component_stats: dict[str, Any] = {}
 _registry_lock = threading.Lock()
 
 
-def get_component_stats(component_id: str) -> Optional[ThreadSafeMetrics]:
+def get_component_stats(component_id: str) -> ThreadSafeMetrics | None:
     """Get component statistics from registry."""
     with _registry_lock:
         return _component_stats.get(component_id)
@@ -372,7 +372,7 @@ def register_component_stats(component_id: str, stats: ThreadSafeMetrics) -> Non
         _component_stats[component_id] = stats
 
 
-def get_all_stats() -> Dict[str, Dict[str, Any]]:
+def get_all_stats() -> dict[str, dict[str, Any]]:
     """Get all registered component statistics."""
     with _registry_lock:
         return {

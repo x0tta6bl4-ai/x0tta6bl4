@@ -20,10 +20,10 @@ from sqlalchemy.orm import Session
 
 from src.database import (ACLPolicy, MarketplaceEscrow, MarketplaceListing,
                           MeshInstance, MeshNode, User, get_db)
-from src.core.rbac import MeshPermission, DEFAULT_ROLE_PERMISSIONS as ROLE_PERMISSIONS
+from src.core.security.rbac import MeshPermission, DEFAULT_ROLE_PERMISSIONS as ROLE_PERMISSIONS
 from src.api.maas_auth import require_role, require_mesh_access
 from src.api.maas_security import token_signer
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.utils.audit import record_audit_log
 from src.api.maas.nodes.admission import register_node as core_register_node
 

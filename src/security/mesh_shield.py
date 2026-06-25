@@ -313,7 +313,7 @@ class MeshShield:
         for handler in self._event_handlers:
             try:
                 handler(event_type, data)
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.error(f"Event handler error: {e}")
 
     def get_metrics(self) -> Dict:

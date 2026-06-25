@@ -256,7 +256,7 @@ class PQCSpiffeBridge:
                 else:
                     public_key.verify(leaf.signature, leaf.tbs_certificate_bytes)
                 return True
-            except Exception:
+            except (ValueError, TypeError, RuntimeError, OSError):
                 continue
         return False
 

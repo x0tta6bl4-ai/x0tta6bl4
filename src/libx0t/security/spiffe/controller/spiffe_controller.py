@@ -19,7 +19,7 @@ from typing import Any, Dict, Iterator, List, Optional
 
 import httpx
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 from ..agent import AttestationStrategy, SPIREAgentManager, WorkloadEntry
 from ..certificate_validator import CertificateValidator

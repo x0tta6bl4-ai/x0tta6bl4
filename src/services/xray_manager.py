@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 # Ensure project root is in path for relative imports if needed
 sys.path.insert(

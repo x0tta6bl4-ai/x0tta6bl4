@@ -13,8 +13,9 @@ import asyncio
 import json
 import logging
 import os
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Optional, ParamSpec, Protocol, TypeVar
+from typing import Any, Optional, ParamSpec, Protocol, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +26,12 @@ P = ParamSpec("P")
 class CacheBackend(Protocol):
     """Protocol for cache backend implementations."""
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """Get value from cache."""
         ...
 
     async def set(
-        self, key: str, value: Any, ex: Optional[int] = None, nx: bool = False
+        self, key: str, value: Any, ex: int | None = None, nx: bool = False
     ) -> bool:
         """Set value in cache."""
         ...
@@ -52,10 +53,10 @@ class InMemoryCacheBackend:
     """In-memory cache backend for testing."""
 
     def __init__(self):
-        self._data: dict[str, tuple[Any, Optional[float]]] = {}
+        self._data: dict[str, tuple[Any, float | None]] = {}
         self._lock = asyncio.Lock()
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         async with self._lock:
             if key not in self._data:
                 return None
@@ -66,7 +67,7 @@ class InMemoryCacheBackend:
             return value
 
     async def set(
-        self, key: str, value: Any, ex: Optional[int] = None, nx: bool = False
+        self, key: str, value: Any, ex: int | None = None, nx: bool = False
     ) -> bool:
         async with self._lock:
             if nx and key in self._data:
@@ -108,7 +109,7 @@ class RedisCache:
     _instance: Optional["RedisCache"] = None
     _lock = asyncio.Lock()
 
-    def __new__(cls, backend: Optional[CacheBackend] = None):
+    def __new__(cls, backend: CacheBackend | None = None):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
@@ -116,7 +117,7 @@ class RedisCache:
             cls._instance._backend = None
         return cls._instance
 
-    def __init__(self, backend: Optional[CacheBackend] = None):
+    def __init__(self, backend: CacheBackend | None = None):
         # Only initialize if not already initialized or if new backend provided
         if not self._initialized or backend is not None:
             self._backend = backend
@@ -129,7 +130,7 @@ class RedisCache:
         cls._instance = None
 
     @classmethod
-    def create_for_testing(cls, backend: Optional[CacheBackend] = None) -> "RedisCache":
+    def create_for_testing(cls, backend: CacheBackend | None = None) -> "RedisCache":
         """Create cache instance with test backend."""
         cls._instance = None
         instance = cls.__new__(cls)
@@ -167,7 +168,7 @@ class RedisCache:
                 await self._initialize_sentinel(sentinel_hosts, sentinel_master)
             else:
                 await self._initialize_standalone()
-            
+
             # Test connection
             await self._backend.ping()
             self._initialized = True
@@ -243,7 +244,7 @@ class RedisCache:
         self._initialized = True
         logger.info(f"✅ Redis cache initialized (standalone): {redis_url}")
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """Get value from cache with runtime fallback support."""
         if not self._initialized:
             await self._initialize()
@@ -385,10 +386,10 @@ class RedisCache:
 
 
 # Global cache instance (lazy initialization)
-_cache_instance: Optional[RedisCache] = None
+_cache_instance: RedisCache | None = None
 
 
-def get_cache(backend: Optional[CacheBackend] = None) -> RedisCache:
+def get_cache(backend: CacheBackend | None = None) -> RedisCache:
     """Get or create global cache instance."""
     global _cache_instance
     if _cache_instance is None:
@@ -410,8 +411,8 @@ cache = get_cache()
 def cached(
     ttl: int = 60,
     key_prefix: str = "",
-    key_builder: Optional[Callable[..., str]] = None,
-    cache_instance: Optional[RedisCache] = None,
+    key_builder: Callable[..., str] | None = None,
+    cache_instance: RedisCache | None = None,
 ):
     """
     Decorator for caching function results.
@@ -475,7 +476,7 @@ class CacheWarming:
     Background cache warming to prevent thundering herd.
     """
 
-    def __init__(self, cache_instance: Optional[RedisCache] = None):
+    def __init__(self, cache_instance: RedisCache | None = None):
         self._tasks: dict[str, asyncio.Task] = {}
         self._lock = asyncio.Lock()
         self._cache = cache_instance or cache

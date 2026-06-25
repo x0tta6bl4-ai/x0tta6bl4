@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, Optional
 
 import prometheus_client as prom
 from prometheus_client import REGISTRY
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +58,9 @@ def _get_or_create_metric(metric_class, name, description, **kwargs):
             if hasattr(collector, "_name") and collector._name == name:
                 return collector
         return metric_class(name, description, **kwargs)
-    except Exception:
+    except (ValueError, KeyError):
+        # Fallback: create with registry=None to avoid registration
         return metric_class(name, description, registry=None, **kwargs)
-
 
 # Prometheus metrics - using helper to avoid duplicate registration
 vault_token_expiry_seconds = _get_or_create_metric(
@@ -240,7 +240,7 @@ class VaultHealthMonitor:
 
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as e:
                 self._record_thinking(
                     "vault_health_loop_failed",
                     "Record Vault health loop failure safely",
@@ -281,7 +281,7 @@ class VaultHealthMonitor:
                 if self.on_health_change:
                     try:
                         self.on_health_change(is_healthy)
-                    except Exception as e:
+                    except (ValueError, TypeError, RuntimeError) as e:
                         self._record_thinking(
                             "vault_health_callback_failed",
                             "Record Vault health callback failure safely",
@@ -299,7 +299,7 @@ class VaultHealthMonitor:
             # Check token expiry
             await self._check_token_expiry()
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as e:
             self._record_thinking(
                 "vault_health_check_failed",
                 "Record Vault health check failure safely",
@@ -346,7 +346,7 @@ class VaultHealthMonitor:
                     if self.on_token_expiry_warning:
                         try:
                             self.on_token_expiry_warning()
-                        except Exception as e:
+                        except (ValueError, TypeError, RuntimeError) as e:
                             self._record_thinking(
                                 "vault_token_warning_callback_failed",
                                 "Record Vault token warning callback failure safely",

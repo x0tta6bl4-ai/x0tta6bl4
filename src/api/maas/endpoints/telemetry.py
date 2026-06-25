@@ -25,7 +25,7 @@ from src.coordination.events import EventBus, EventType, get_event_bus
 from src.database import MeshNode, get_db
 from src.api.maas_auth import get_current_user_from_maas
 from src.api.maas.registry import find_mesh_for_node, get_mesh
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.monitoring.maas_metrics import record_heartbeat as _record_heartbeat_metric
 from src.network.reputation_scoring import ReputationScoringSystem
 

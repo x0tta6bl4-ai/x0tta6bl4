@@ -11,7 +11,7 @@ from src.coordination.events import EventType, get_event_bus
 from src.database import MeshNode
 from src.mesh.recovery_contracts import build_post_action_dataplane_claim_gate
 from .security import ensure_mesh_visibility_with_permission
-from src.core.rbac import MeshPermission
+from src.core.security.rbac import MeshPermission
 
 logger = logging.getLogger(__name__)
 

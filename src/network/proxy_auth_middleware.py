@@ -23,7 +23,7 @@ import jwt
 from aiohttp import web
 from aiohttp.web_middlewares import middleware
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,7 @@ def _hash_value(value: Optional[Any]) -> Optional[str]:
     text = str(value)
     if not text:
         return None
-    44|    return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
-    45|  # lgtm[py/weak-sensitive-data-hashing]
+    return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
 
 class Permission(Enum):
     """API permissions."""

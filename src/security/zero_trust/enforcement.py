@@ -84,7 +84,7 @@ class ZeroTrustEnforcer:
                     if AutoIsolationManager
                     else None
                 )
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.warning(f"AutoIsolationManager unavailable: {e}")
                 self.isolation_manager = None
             try:
@@ -93,7 +93,7 @@ class ZeroTrustEnforcer:
                     if ContinuousVerificationEngine
                     else None
                 )
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.warning(f"ContinuousVerificationEngine unavailable: {e}")
                 self.verification_engine = None
 
@@ -157,7 +157,7 @@ class ZeroTrustEnforcer:
                         trust_score=TrustScore.UNTRUSTED,
                         reason="SPIFFE identity validation failed",
                     )
-            except Exception as e:
+            except (ValueError, KeyError, RuntimeError, OSError) as e:
                 logger.error(f"SPIFFE validation error: {e}")
                 self.enforcement_stats["denied"] += 1
                 return EnforcementResult(
@@ -208,7 +208,7 @@ class ZeroTrustEnforcer:
                 if verification_result and not verification_result.verified:
                     # Lower trust score but don't deny immediately
                     self._update_trust_score(peer_spiffe_id, -0.1)
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.warning(f"Verification error: {e}")
 
         # 5. Calculate trust score
@@ -229,7 +229,7 @@ class ZeroTrustEnforcer:
                         details="Untrusted trust score",
                         level_override=quarantine_level,
                     )
-                except Exception as e:
+                except (ValueError, KeyError, RuntimeError, OSError) as e:
                     logger.warning(f"Isolation action failed: {e}")
             self.enforcement_stats["denied"] += 1
             self.enforcement_stats["isolated"] += 1

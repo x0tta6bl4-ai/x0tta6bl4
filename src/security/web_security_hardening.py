@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
 import bcrypt
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +180,7 @@ class PasswordHasher:
                 },
             )
             return hashed.decode("utf-8")
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Password hashing failed: {e}")
             _record_web_security_thinking(
                 "password_hash_failed",
@@ -216,7 +216,7 @@ class PasswordHasher:
                 },
             )
             return verified
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.warning(f"Password verification failed: {e}")
             _record_web_security_thinking(
                 "password_verify_failed",
@@ -468,7 +468,7 @@ class MD5ToModernMigration:
                 )
                 return False, "User must set new password"
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Migration failed for user {user_id}: {e}")
             cls.MIGRATION_STATS["failed"] += 1
             _record_web_security_thinking(

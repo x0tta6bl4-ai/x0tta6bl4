@@ -24,7 +24,7 @@ from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_meta
 from src.database import GovernanceProposal, GovernanceVote, User, GlobalConfig, get_db
 from src.api.maas_auth import get_current_user_from_maas
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.integration.spine import (
     SafeActuator,
     SafeActuatorEvidenceMetadata,

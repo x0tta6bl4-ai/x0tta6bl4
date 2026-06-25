@@ -1,0 +1,591 @@
+"""
+MAPE-K Feedback Loops
+
+Implements closed-loop feedback between self-learning optimizer,
+dynamic optimizer, and the main MAPE-K cycle.
+"""
+
+import hashlib
+import logging
+import time
+from collections import deque
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from src.core.thinking.agent_thinking import AgentThinkingCoach
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _value_band(value: float) -> str:
+    if value >= 0.9:
+        return "very_high"
+    if value >= 0.7:
+        return "high"
+    if value >= 0.4:
+        return "medium"
+    if value > 0:
+        return "low"
+    return "zero"
+
+
+class FeedbackLoopType(Enum):
+    """Types of feedback loops"""
+
+    METRICS_LEARNING = "metrics_learning"  # Metrics → Learning → Thresholds
+    PERFORMANCE_ADAPTATION = (
+        "performance_adaptation"  # Performance → Optimization → Params
+    )
+    DECISION_QUALITY = "decision_quality"  # Decision outcome → Quality → Strategy
+    ANOMALY_FEEDBACK = (
+        "anomaly_feedback"  # Anomalies → Detection accuracy → Sensitivity
+    )
+    RESOURCE_OPTIMIZATION = (
+        "resource_optimization"  # Resources → Utilization → Allocation
+    )
+
+
+@dataclass
+class FeedbackSignal:
+    """Signal for feedback loops"""
+
+    loop_type: FeedbackLoopType
+    timestamp: float
+    source: str  # Where signal came from
+    value: float
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class LoopAction:
+    """Action to take based on feedback"""
+
+    parameter: str
+    old_value: float
+    new_value: float
+    reason: str
+    loop_type: FeedbackLoopType
+
+
+class FeedbackLoopManager:
+    """
+    Manages all feedback loops in the system.
+    """
+
+    def __init__(self, self_learning_optimizer=None, dynamic_optimizer=None):
+        self.self_learning = self_learning_optimizer
+        self.dynamic_optimizer = dynamic_optimizer
+
+        self.signal_history: deque = deque(maxlen=10000)
+        self.action_history: deque = deque(maxlen=5000)
+
+        self.loop_metrics: dict[FeedbackLoopType, dict[str, float]] = {
+            loop_type: {
+                "signals_processed": 0,
+                "actions_taken": 0,
+                "last_signal_time": 0,
+                "effectiveness": 0.5,
+            }
+            for loop_type in FeedbackLoopType
+        }
+
+        self.callbacks: dict[FeedbackLoopType, list[Callable]] = {
+            loop_type: [] for loop_type in FeedbackLoopType
+        }
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"feedback-loop-manager:{_safe_hash(id(self))}",
+            role="coordinator",
+            capabilities=("mape_k", "monitoring", "causal_analysis"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "feedback_loop_manager_init",
+                "goal": "Initialize MAPE-K feedback loop decisions",
+                "signals": {
+                    "self_learning_available": self_learning_optimizer is not None,
+                    "dynamic_optimizer_available": dynamic_optimizer is not None,
+                    "loop_count": len(self.loop_metrics),
+                },
+                "safety_boundary": (
+                    "Do not expose raw parameter names, decision ids, resource names, "
+                    "callback identities, or optimizer internals in thinking context."
+                ),
+            }
+        )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_parameter_names": True,
+                    "redact_decision_ids": True,
+                    "redact_resource_names": True,
+                    "preserve_feedback_contract": True,
+                },
+                "safety_boundary": (
+                    "Use loop names, hashes, value bands, counters, and action flags."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
+
+    def register_callback(
+        self, loop_type: FeedbackLoopType, callback: Callable[[FeedbackSignal], None]
+    ):
+        """Register callback for feedback loop"""
+        self.callbacks[loop_type].append(callback)
+        self._record_thinking(
+            "feedback_loop_callback_registered",
+            "Register callback for feedback loop",
+            {
+                "loop_type": loop_type.value,
+                "callback_count": len(self.callbacks[loop_type]),
+            },
+        )
+
+    def signal_metrics_learning(
+        self, parameter: str, threshold_value: float, confidence: float
+    ) -> LoopAction | None:
+        """
+        Process metrics learning signal.
+        Learns optimal thresholds from metric observations.
+        """
+        signal = FeedbackSignal(
+            loop_type=FeedbackLoopType.METRICS_LEARNING,
+            timestamp=time.time(),
+            source="metrics_observer",
+            value=threshold_value,
+            metadata={"confidence": confidence, "parameter": parameter},
+        )
+
+        self.signal_history.append(signal)
+        self.loop_metrics[FeedbackLoopType.METRICS_LEARNING]["signals_processed"] += 1
+
+        if self.self_learning:
+            old_value = self.self_learning.get_recommendation(parameter)
+            if old_value:
+                old_value = old_value.recommended_value
+            else:
+                old_value = threshold_value
+
+            action = LoopAction(
+                parameter=parameter,
+                old_value=old_value,
+                new_value=threshold_value,
+                reason=f"Learned from metrics (confidence: {confidence:.2f})",
+                loop_type=FeedbackLoopType.METRICS_LEARNING,
+            )
+
+            self.action_history.append(action)
+            self.loop_metrics[FeedbackLoopType.METRICS_LEARNING]["actions_taken"] += 1
+
+            self._execute_callbacks(FeedbackLoopType.METRICS_LEARNING, signal)
+            self._record_thinking(
+                "feedback_loop_metrics_learning_action",
+                "Convert metrics learning signal into threshold action",
+                {
+                    "loop_type": FeedbackLoopType.METRICS_LEARNING.value,
+                    "parameter_hash": _safe_hash(parameter),
+                    "threshold_band": _value_band(threshold_value / 100.0),
+                    "confidence_band": _value_band(confidence),
+                    "action_taken": True,
+                    "signal_count_bucket": _safe_count_bucket(
+                        len(self.signal_history)
+                    ),
+                    "action_count_bucket": _safe_count_bucket(
+                        len(self.action_history)
+                    ),
+                },
+            )
+            return action
+
+        self._record_thinking(
+            "feedback_loop_metrics_learning_signal",
+            "Record metrics learning signal without action",
+            {
+                "loop_type": FeedbackLoopType.METRICS_LEARNING.value,
+                "parameter_hash": _safe_hash(parameter),
+                "threshold_band": _value_band(threshold_value / 100.0),
+                "confidence_band": _value_band(confidence),
+                "self_learning_available": False,
+            },
+        )
+        return None
+
+    def signal_performance_degradation(
+        self, cpu_usage: float, memory_usage: float, latency_ms: float
+    ) -> LoopAction | None:
+        """
+        Process performance degradation signal.
+        Triggers dynamic optimization to handle degradation.
+        """
+        signal = FeedbackSignal(
+            loop_type=FeedbackLoopType.PERFORMANCE_ADAPTATION,
+            timestamp=time.time(),
+            source="performance_monitor",
+            value=max(cpu_usage, memory_usage),
+            metadata={"cpu": cpu_usage, "memory": memory_usage, "latency": latency_ms},
+        )
+
+        self.signal_history.append(signal)
+        self.loop_metrics[FeedbackLoopType.PERFORMANCE_ADAPTATION][
+            "signals_processed"
+        ] += 1
+
+        if self.dynamic_optimizer:
+            old_interval = self.dynamic_optimizer.current_parameters.monitoring_interval
+
+            new_params = self.dynamic_optimizer.optimize()
+
+            action = LoopAction(
+                parameter="monitoring_interval",
+                old_value=old_interval,
+                new_value=new_params.monitoring_interval,
+                reason=f"Performance degradation (CPU: {cpu_usage:.1f}%, "
+                f"Memory: {memory_usage:.1f}%, Latency: {latency_ms:.1f}ms)",
+                loop_type=FeedbackLoopType.PERFORMANCE_ADAPTATION,
+            )
+
+            self.action_history.append(action)
+            self.loop_metrics[FeedbackLoopType.PERFORMANCE_ADAPTATION][
+                "actions_taken"
+            ] += 1
+
+            self._execute_callbacks(FeedbackLoopType.PERFORMANCE_ADAPTATION, signal)
+            self._record_thinking(
+                "feedback_loop_performance_action",
+                "Convert performance degradation into optimizer action",
+                {
+                    "loop_type": FeedbackLoopType.PERFORMANCE_ADAPTATION.value,
+                    "cpu_band": _value_band(cpu_usage / 100.0),
+                    "memory_band": _value_band(memory_usage / 100.0),
+                    "latency_band": _value_band(latency_ms / 1000.0),
+                    "action_taken": True,
+                    "signal_count_bucket": _safe_count_bucket(
+                        len(self.signal_history)
+                    ),
+                },
+            )
+            return action
+
+        self._record_thinking(
+            "feedback_loop_performance_signal",
+            "Record performance degradation signal without optimizer action",
+            {
+                "loop_type": FeedbackLoopType.PERFORMANCE_ADAPTATION.value,
+                "cpu_band": _value_band(cpu_usage / 100.0),
+                "memory_band": _value_band(memory_usage / 100.0),
+                "latency_band": _value_band(latency_ms / 1000.0),
+                "dynamic_optimizer_available": False,
+            },
+        )
+        return None
+
+    def signal_decision_quality(
+        self, decision_id: str, predicted_outcome: float, actual_outcome: float
+    ) -> LoopAction | None:
+        """
+        Process decision quality feedback.
+        Measures how well our decisions match actual outcomes.
+        """
+        error = abs(predicted_outcome - actual_outcome)
+        accuracy = 1.0 - (error / max(abs(actual_outcome), 1.0))
+
+        signal = FeedbackSignal(
+            loop_type=FeedbackLoopType.DECISION_QUALITY,
+            timestamp=time.time(),
+            source="decision_evaluator",
+            value=accuracy,
+            metadata={
+                "decision_id": decision_id,
+                "predicted": predicted_outcome,
+                "actual": actual_outcome,
+                "error": error,
+            },
+        )
+
+        self.signal_history.append(signal)
+        self.loop_metrics[FeedbackLoopType.DECISION_QUALITY]["signals_processed"] += 1
+
+        # Update decision quality metrics
+        if self.dynamic_optimizer:
+            old_rate = self.dynamic_optimizer.current_parameters.learning_rate
+
+            if accuracy < 0.5:
+                new_rate = old_rate * 1.2  # Increase learning
+            elif accuracy > 0.9:
+                new_rate = old_rate * 0.9  # Decrease learning (stable)
+            else:
+                new_rate = old_rate
+
+            new_rate = min(1.0, max(0.05, new_rate))
+
+            action = LoopAction(
+                parameter="learning_rate",
+                old_value=old_rate,
+                new_value=new_rate,
+                reason=f"Decision quality feedback (accuracy: {accuracy:.2f})",
+                loop_type=FeedbackLoopType.DECISION_QUALITY,
+            )
+
+            if new_rate != old_rate:
+                self.action_history.append(action)
+                self.loop_metrics[FeedbackLoopType.DECISION_QUALITY][
+                    "actions_taken"
+                ] += 1
+
+            self._execute_callbacks(FeedbackLoopType.DECISION_QUALITY, signal)
+            self._record_thinking(
+                "feedback_loop_decision_quality_signal",
+                "Process decision quality feedback",
+                {
+                    "loop_type": FeedbackLoopType.DECISION_QUALITY.value,
+                    "decision_hash": _safe_hash(decision_id),
+                    "accuracy_band": _value_band(accuracy),
+                    "error_band": _value_band(error / max(abs(actual_outcome), 1.0)),
+                    "action_taken": new_rate != old_rate,
+                    "learning_rate_band": _value_band(new_rate),
+                },
+            )
+            return action
+
+        self._record_thinking(
+            "feedback_loop_decision_quality_signal",
+            "Record decision quality feedback without optimizer action",
+            {
+                "loop_type": FeedbackLoopType.DECISION_QUALITY.value,
+                "decision_hash": _safe_hash(decision_id),
+                "accuracy_band": _value_band(accuracy),
+                "dynamic_optimizer_available": False,
+            },
+        )
+        return None
+
+    def signal_anomaly_detection(
+        self, true_positive: bool, false_positive: bool, false_negative: bool
+    ) -> LoopAction | None:
+        """
+        Process anomaly detection feedback.
+        Adjusts sensitivity based on detection accuracy.
+        """
+        signal = FeedbackSignal(
+            loop_type=FeedbackLoopType.ANOMALY_FEEDBACK,
+            timestamp=time.time(),
+            source="anomaly_evaluator",
+            value=1.0 if true_positive else 0.0,
+            metadata={"tp": true_positive, "fp": false_positive, "fn": false_negative},
+        )
+
+        self.signal_history.append(signal)
+        self.loop_metrics[FeedbackLoopType.ANOMALY_FEEDBACK]["signals_processed"] += 1
+
+        if false_positive:
+            # Too sensitive, reduce sensitivity
+            adjustment = "reduce_sensitivity"
+        elif false_negative:
+            # Not sensitive enough, increase sensitivity
+            adjustment = "increase_sensitivity"
+        else:
+            adjustment = "maintain"
+
+        if adjustment != "maintain":
+            action = LoopAction(
+                parameter="anomaly_sensitivity",
+                old_value=1.0,
+                new_value=1.0,
+                reason=f"Anomaly feedback: TP={true_positive}, FP={false_positive}, FN={false_negative}",
+                loop_type=FeedbackLoopType.ANOMALY_FEEDBACK,
+            )
+
+            self.action_history.append(action)
+            self.loop_metrics[FeedbackLoopType.ANOMALY_FEEDBACK]["actions_taken"] += 1
+
+            self._execute_callbacks(FeedbackLoopType.ANOMALY_FEEDBACK, signal)
+            self._record_thinking(
+                "feedback_loop_anomaly_action",
+                "Convert anomaly detection feedback into sensitivity action",
+                {
+                    "loop_type": FeedbackLoopType.ANOMALY_FEEDBACK.value,
+                    "true_positive": true_positive,
+                    "false_positive": false_positive,
+                    "false_negative": false_negative,
+                    "adjustment": adjustment,
+                    "action_taken": True,
+                },
+            )
+            return action
+
+        self._record_thinking(
+            "feedback_loop_anomaly_signal",
+            "Record anomaly detection feedback without adjustment",
+            {
+                "loop_type": FeedbackLoopType.ANOMALY_FEEDBACK.value,
+                "true_positive": true_positive,
+                "false_positive": false_positive,
+                "false_negative": false_negative,
+                "adjustment": adjustment,
+                "action_taken": False,
+            },
+        )
+        return None
+
+    def signal_resource_pressure(
+        self, resource_type: str, utilization: float
+    ) -> LoopAction | None:
+        """
+        Process resource pressure signal.
+        Adjusts resource allocation based on usage patterns.
+        """
+        signal = FeedbackSignal(
+            loop_type=FeedbackLoopType.RESOURCE_OPTIMIZATION,
+            timestamp=time.time(),
+            source="resource_monitor",
+            value=utilization,
+            metadata={"resource": resource_type},
+        )
+
+        self.signal_history.append(signal)
+        self.loop_metrics[FeedbackLoopType.RESOURCE_OPTIMIZATION][
+            "signals_processed"
+        ] += 1
+
+        if self.dynamic_optimizer and utilization > 0.8:
+            old_parallelism = (
+                self.dynamic_optimizer.current_parameters.execution_parallelism
+            )
+            new_parallelism = max(1, old_parallelism - 1)
+
+            action = LoopAction(
+                parameter="execution_parallelism",
+                old_value=old_parallelism,
+                new_value=new_parallelism,
+                reason=f"Resource pressure: {resource_type} utilization {utilization:.0%}",
+                loop_type=FeedbackLoopType.RESOURCE_OPTIMIZATION,
+            )
+
+            self.action_history.append(action)
+            self.loop_metrics[FeedbackLoopType.RESOURCE_OPTIMIZATION][
+                "actions_taken"
+            ] += 1
+
+            self._execute_callbacks(FeedbackLoopType.RESOURCE_OPTIMIZATION, signal)
+            self._record_thinking(
+                "feedback_loop_resource_action",
+                "Convert resource pressure into execution parallelism action",
+                {
+                    "loop_type": FeedbackLoopType.RESOURCE_OPTIMIZATION.value,
+                    "resource_hash": _safe_hash(resource_type),
+                    "utilization_band": _value_band(utilization),
+                    "action_taken": True,
+                    "parallelism_bucket": _safe_count_bucket(new_parallelism),
+                },
+            )
+            return action
+
+        self._record_thinking(
+            "feedback_loop_resource_signal",
+            "Record resource pressure without action",
+            {
+                "loop_type": FeedbackLoopType.RESOURCE_OPTIMIZATION.value,
+                "resource_hash": _safe_hash(resource_type),
+                "utilization_band": _value_band(utilization),
+                "dynamic_optimizer_available": self.dynamic_optimizer is not None,
+                "above_action_threshold": utilization > 0.8,
+            },
+        )
+        return None
+
+    def _execute_callbacks(self, loop_type: FeedbackLoopType, signal: FeedbackSignal):
+        """Execute registered callbacks for feedback loop"""
+        for callback in self.callbacks[loop_type]:
+            try:
+                callback(signal)
+            except Exception as e:
+                logger.error(f"Callback error in {loop_type.value}: {e}")
+
+    def get_loop_metrics(self) -> dict[str, Any]:
+        """Get metrics for all feedback loops"""
+        return {
+            loop_type.value: metrics.copy()
+            for loop_type, metrics in self.loop_metrics.items()
+        }
+
+    def get_signal_history(
+        self, loop_type: FeedbackLoopType | None = None, limit: int = 100
+    ) -> list[FeedbackSignal]:
+        """Get signal history"""
+        history = list(self.signal_history)[-limit:]
+
+        if loop_type:
+            history = [s for s in history if s.loop_type == loop_type]
+
+        return history
+
+    def get_action_history(
+        self, loop_type: FeedbackLoopType | None = None, limit: int = 100
+    ) -> list[LoopAction]:
+        """Get action history"""
+        history = list(self.action_history)[-limit:]
+
+        if loop_type:
+            history = [a for a in history if a.loop_type == loop_type]
+
+        return history
+
+    def get_feedback_stats(self) -> dict[str, Any]:
+        """Get overall feedback loop statistics"""
+        total_signals = sum(m["signals_processed"] for m in self.loop_metrics.values())
+        total_actions = sum(m["actions_taken"] for m in self.loop_metrics.values())
+
+        stats = {
+            "total_signals": total_signals,
+            "total_actions": total_actions,
+            "action_ratio": total_actions / max(1, total_signals),
+            "loops": self.get_loop_metrics(),
+            "active_callbacks": {
+                lt.value: len(cbs) for lt, cbs in self.callbacks.items()
+            },
+        }
+        self._record_thinking(
+            "feedback_loop_stats_collected",
+            "Collect feedback loop statistics",
+            {
+                "total_signals_bucket": _safe_count_bucket(total_signals),
+                "total_actions_bucket": _safe_count_bucket(total_actions),
+                "action_ratio_band": _value_band(stats["action_ratio"]),
+                "active_callback_counts": stats["active_callbacks"],
+            },
+        )
+        return stats

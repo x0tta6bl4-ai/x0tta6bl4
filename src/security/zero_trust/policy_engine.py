@@ -450,7 +450,7 @@ class PolicyEngine:
                 logger.warning(f"OPA query failed: {response.status_code}")
                 return None
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.warning(f"OPA evaluation failed: {e}")
             return None
 
@@ -500,7 +500,7 @@ class PolicyEngine:
             for callback in self.update_callbacks:
                 try:
                     callback(updated_rule)
-                except Exception as e:
+                except (ValueError, KeyError, RuntimeError, SecurityError) as e:
                     logger.warning(f"Policy update callback failed: {e}")
 
             logger.info(

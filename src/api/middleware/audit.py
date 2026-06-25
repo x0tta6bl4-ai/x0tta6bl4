@@ -10,7 +10,7 @@ from typing import Any, Callable, Optional, Tuple, Generator, Dict
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from src.database import User, AuditLog, get_db
-from src.core.tracing_middleware import get_correlation_id
+from src.core.middleware.tracing_middleware import get_correlation_id
 from src.services.maas_auth_service import find_user_by_api_key
 
 logger = logging.getLogger(__name__)

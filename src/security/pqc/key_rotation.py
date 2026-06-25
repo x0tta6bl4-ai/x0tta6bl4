@@ -401,7 +401,7 @@ class PQCKeyRotation:
                 logger.info(f"✅ Key recovered from backup: {key_id}")
                 return record
 
-            except Exception as e:
+            except (FileNotFoundError, PermissionError, OSError, ValueError, KeyError) as e:
                 logger.error(f"Failed to recover key from {backup_file}: {e}")
 
         logger.warning(f"⚠️ Key not found in backups: {key_id}")

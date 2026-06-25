@@ -20,7 +20,7 @@ from .consensus import (
 )
 from .paxos import PaxosNode, MultiPaxos
 from .pbft import PBFTNode
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 try:
     from src.coordination.consensus_transport import (

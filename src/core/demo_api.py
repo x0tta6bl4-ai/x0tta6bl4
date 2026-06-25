@@ -4,7 +4,7 @@ Demo API для sales presentations
 """
 
 import logging
-from typing import Annotated, Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated, Any, Optional
 
 if TYPE_CHECKING:
     from src.self_healing.mape_k_integrated import IntegratedMAPEKCycle
@@ -66,7 +66,7 @@ async def get_status(
 
 @app.post("/api/demo/anomaly")
 async def demo_anomaly_detection(
-    metrics: Dict[str, Any],
+    metrics: dict[str, Any],
     integrated_cycle: Annotated[
         "IntegratedMAPEKCycle", Depends(get_integrated_cycle_dependency)
     ],
@@ -93,7 +93,7 @@ async def demo_anomaly_detection(
 
 @app.post("/api/demo/chaos")
 async def demo_chaos_experiment(
-    experiment: Dict[str, Any],
+    experiment: dict[str, Any],
     integrated_cycle: Annotated[
         "IntegratedMAPEKCycle", Depends(get_integrated_cycle_dependency)
     ],

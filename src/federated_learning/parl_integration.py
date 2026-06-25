@@ -15,7 +15,7 @@ from typing import Optional
 from src.federated_learning.coordinator import (FederatedCoordinator,
                                                 RoundStatus, TrainingRound)
 from src.federated_learning.protocol import ModelUpdate, ModelWeights
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.swarm.parl.controller import PARLController
 
 logger = logging.getLogger(__name__)

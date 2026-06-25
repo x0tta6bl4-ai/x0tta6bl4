@@ -22,7 +22,7 @@ from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_meta
 from src.api.maas_auth import require_permission
 from src.api.maas_security import token_signer
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import PlaybookAck, SignedPlaybook, User, get_db
 from src.utils.audit import record_audit_log
 

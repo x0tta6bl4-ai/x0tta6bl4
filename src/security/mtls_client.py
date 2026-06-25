@@ -209,7 +209,7 @@ class MTLSClient:
         except ImportError:
             logger.error("py-spiffe not installed, cannot use SPIFFE workload API")
             raise
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to load SPIFFE credentials: {e}")
             raise
 
@@ -279,7 +279,7 @@ class MTLSClient:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (ConnectionError, TimeoutError, OSError, ValueError) as e:
                 logger.error(f"Certificate rotation check failed: {e}")
 
     async def _reload_certificates(self):
@@ -295,7 +295,7 @@ class MTLSClient:
 
             logger.info("Certificates rotated successfully")
 
-        except Exception as e:
+        except (ValueError, KeyError, RuntimeError) as e:
             logger.error(f"Certificate reload failed: {e}")
             # Keep old session on failure
             self._session = old_session

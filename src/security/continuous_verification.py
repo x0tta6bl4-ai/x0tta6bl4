@@ -541,7 +541,7 @@ class ContinuousVerificationEngine:
                 try:
                     check = self.strategies[vtype].verify(session, context)
                     checks.append(check)
-                except Exception as e:
+                except (ValueError, TypeError, RuntimeError, OSError) as e:
                     logger.error(f"Verification error for {vtype}: {e}")
                     checks.append(
                         VerificationCheck(
@@ -578,7 +578,7 @@ class ContinuousVerificationEngine:
         for callback in self._callbacks:
             try:
                 callback(session, checks)
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.error(f"Callback error: {e}")
 
         return passed, checks, aggregate_score
@@ -644,7 +644,7 @@ class ContinuousVerificationEngine:
                                 f"Session {session.session_id} failed verification: "
                                 f"score={score:.2f}"
                             )
-                    except Exception as e:
+                    except (ValueError, KeyError, RuntimeError) as e:
                         logger.error(
                             f"Error verifying session {session.session_id}: {e}"
                         )
@@ -652,7 +652,7 @@ class ContinuousVerificationEngine:
                 # Clean up inactive sessions
                 self._cleanup_sessions()
 
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.error(f"Error in verification loop: {e}")
 
             time.sleep(10)  # Check every 10 seconds

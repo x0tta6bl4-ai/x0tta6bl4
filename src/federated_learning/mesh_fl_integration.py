@@ -35,7 +35,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 from .topology_aware_aggregator import (
     AggregationResult,

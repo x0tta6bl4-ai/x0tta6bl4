@@ -19,7 +19,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from src.core.cache import cache, cached
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import User, get_db
 from src.api.maas_auth import require_permission, get_current_user_from_maas
 from vpn_config_generator import XUIAPIClient

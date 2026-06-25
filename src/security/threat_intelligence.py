@@ -322,7 +322,7 @@ class ThreatIntelligenceEngine:
                 if indicator.corroborations == 0:
                     added += 1
 
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.error(f"Failed to process indicator: {e}")
 
         logger.info(

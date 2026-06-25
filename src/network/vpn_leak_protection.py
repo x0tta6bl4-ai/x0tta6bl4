@@ -19,7 +19,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.safe_subprocess import (SafeSubprocess, SecurityError,
+from src.core.security.safe_subprocess import (SafeSubprocess, SecurityError,
                                       ValidationError)
 from src.services.service_event_identity import service_event_identity
 
