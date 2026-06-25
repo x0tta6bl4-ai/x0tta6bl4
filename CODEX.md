@@ -25,15 +25,19 @@
 | **ZTCR SignedCommand** | ✅ Integrated | 2026-06-25 | HMAC-signed healing commands в `src/self_healing/signed_command.py` |
 | **ZTCR Identity Rotation** | ✅ Implemented | 2026-06-25 | Non-placeholder: `_rotate_pqc_identity` + rollback + emergency mode toggle |
 | **ZTCR Delphi-Consensus** | ✅ Integrated | 2026-06-25 | PBFT cross-node verify перед изоляцией, `anomaly_consensus.py` |
-| **ZTCR Chaos Tests** | ✅ 18 tests | 2026-06-25 | SPIRE crash mid-rotation + consensus approve/reject/timeout |
+| **ZTCR Chaos Tests** | ✅ 29/29 pass | 2026-06-25 | SVIDSigner + consensus + SPIRE crash |
 | **SPIFFE/SPIRE mTLS** | ✅ Integrated | 2026-06-15 | документировано, есть тесты |
+| **SVIDSigner** | ✅ 11 tests | 2026-06-25 | SPIFFE-verifiable PBFT. HMAC (dev) + JWT-SVID (prod stub) |
+| **reverse-skill** | ✅ 432 файла | 2026-06-25 | 23 RE/pentest модуля в `.hermes/reverse-skill/` |
+| **Security Audit** | ✅ Результаты | 2026-06-25 | 1498 bandit issues (2 HIGH fixed), nmap, trufflehog |
 | **Ghost Access transport** | ⚡ Experimental | 2026-06-15 | STL-упаковка, требует полевой валидации |
-| **API gateway** | ✅ Deployed | 2026-06-15 | health: HTTP 200, 8 сервисов, ~25ms latency |
-| **Real-readiness gate** | ✅ 70/70 checks | 2026-06-15 | `scripts/ops/check_real_readiness.py --json` |
+| **API gateway** | 🟡 Code only | 2026-06-25 | health локально. VPS выключен |
+| **Real-readiness gate** | 🟡 70/70 checks | 2026-06-15 | Только локально |
 
-### VPS Production Evidence (2026-06-15)
-- VPS: `89.125.1.107:8000/health` → HTTP 200, v3.4.0
-- Open5GS: `89.125.1.107:18080/health` → HTTP 200
+### VPS Production (УТРАЧЕНО)
+- VPS `89.125.1.107` — **аренда закончилась, сервер выключен 2026-06-25**
+- SPIRE server/agent, mesh-node, ghost-access, x-ui — все были на NL
+- Деплой возможен на новом сервере — CI/CD описан ниже
 
 ---
 
