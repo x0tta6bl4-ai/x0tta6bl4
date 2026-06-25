@@ -19,6 +19,7 @@ import hashlib
 import logging
 import os
 import subprocess
+from src.core.security.subprocess_validator import safe_run
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -363,7 +364,7 @@ class CanaryDeployment:
             self._record_live_action_blocked("deploy_canary_version")
             return False
 
-        result = subprocess.run(
+        result = safe_run(
             [
                 "helm",
                 "upgrade",
@@ -410,7 +411,7 @@ class CanaryDeployment:
             self._record_live_action_blocked("update_helm_traffic_percentage")
             return False
 
-        result = subprocess.run(
+        result = safe_run(
             [
                 "helm",
                 "upgrade",
@@ -456,7 +457,7 @@ class CanaryDeployment:
             self._record_live_action_blocked("helm_rollback")
             return False
 
-        result = subprocess.run(
+        result = safe_run(
             [
                 "helm",
                 "rollback",
@@ -671,7 +672,7 @@ class CanaryDeployment:
                     )
                     namespace = os.getenv("K8S_NAMESPACE", self.helm_namespace)
 
-                    result = subprocess.run(
+                    result = safe_run(
                         [
                             "kubectl",
                             "rollout",
@@ -692,7 +693,7 @@ class CanaryDeployment:
                         rollback_success = True
 
                         # Wait for rollout to complete
-                        result = subprocess.run(
+                        result = safe_run(
                             [
                                 "kubectl",
                                 "rollout",
@@ -765,8 +766,9 @@ class CanaryDeployment:
 
         try:
             import subprocess
+from src.core.security.subprocess_validator import safe_run
 
-            result = subprocess.run(
+            result = safe_run(
                 [
                     "docker",
                     "compose",
@@ -812,9 +814,10 @@ class CanaryDeployment:
 
         try:
             import subprocess
+from src.core.security.subprocess_validator import safe_run
 
             # Scale canary to 0 replicas
-            result = subprocess.run(
+            result = safe_run(
                 ["kubectl", "scale", "deployment/x0tta6bl4-canary", "--replicas=0"],
                 capture_output=True,
                 text=True,

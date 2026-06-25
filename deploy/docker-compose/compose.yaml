@@ -1,34 +1,35 @@
-version: "3.9"
-
 services:
   spire-server:
-    build:
-      context: ../..
-      dockerfile: deploy/docker-compose/Dockerfile.spire-server
+    image: spire-server:latest
     container_name: spire-server
     hostname: spire-server
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     networks:
       mesh-net:
         aliases:
           - spire-server
     healthcheck:
-      test: ["CMD-SHELL", "ss -tlnp | grep 8081 || exit 1"]
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1',8081),2).close()"]
       interval: 5s
       timeout: 3s
       retries: 10
-      start_period: 3s
+      start_period: 5s
 
   spire-agent:
-    build:
-      context: ../..
-      dockerfile: deploy/docker-compose/Dockerfile.spire-agent
+    image: spire-agent:latest
     container_name: spire-agent
     hostname: spire-agent
     environment:
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - NO_PROXY=*
+      - http_proxy=
+      - https_proxy=
+      - no_proxy=*
       - SPIRE_SERVER_ADDRESS=spire-server
-      - SPIRE_JOIN_TOKEN=${SPIRE_JOIN_TOKEN:-dev-token}
+    volumes:
+      - spire-socket:/tmp/spire-agent
     networks:
       mesh-net:
         aliases:
@@ -46,9 +47,14 @@ services:
       - PEERS=node-b
       - PEER_PORTS=9101
       - PORT=9100
-      - SPIRE_AGENT_SOCKET=/tmp/spire-agent/api.sock
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - NO_PROXY=*
+      - http_proxy=
+      - https_proxy=
+      - no_proxy=*
     volumes:
-      - spire-agent-socket:/tmp/spire-agent
+      - spire-socket:/tmp/spire-agent:ro
     networks:
       mesh-net:
         aliases:
@@ -65,9 +71,14 @@ services:
       - PEERS=node-a
       - PEER_PORTS=9100
       - PORT=9101
-      - SPIRE_AGENT_SOCKET=/tmp/spire-agent/api.sock
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - NO_PROXY=*
+      - http_proxy=
+      - https_proxy=
+      - no_proxy=*
     volumes:
-      - spire-agent-socket:/tmp/spire-agent
+      - spire-socket:/tmp/spire-agent:ro
     networks:
       mesh-net:
         aliases:
@@ -76,7 +87,7 @@ services:
       - node-a
 
 volumes:
-  spire-agent-socket:
+  spire-socket:
 
 networks:
   mesh-net:
