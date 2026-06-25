@@ -693,7 +693,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     # Test password hashing
-    test_password = "ExamplePassword123!@#"
+    test_password = "ExamplePassword123!@#"  # nosec
     print("Testing password validation with sample input")
 
     is_valid, msg = PasswordHasher.validate_password_strength(test_password)
