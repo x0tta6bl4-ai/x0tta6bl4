@@ -234,6 +234,9 @@ def _jwt_svid_jwks_dict() -> Dict[str, Any] | None:
 
     url = os.getenv("MAAS_JWT_SVID_JWKS_URL", "").strip()
     if url:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("https", "http"):
+            raise ValueError(f"Banned URL scheme for JWKS: {parsed.scheme}")
         with urllib.request.urlopen(url, timeout=5) as response:
             loaded = json.loads(response.read().decode("utf-8"))
         if isinstance(loaded, Mapping):

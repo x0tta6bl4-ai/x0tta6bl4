@@ -35,6 +35,9 @@ def _http_json(url: str, *, timeout_seconds: float = 20.0) -> dict[str, Any]:
         },
     )
     try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("https", "http"):
+            raise ValueError(f"Banned URL scheme: {parsed.scheme}")
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:

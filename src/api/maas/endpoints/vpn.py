@@ -29,8 +29,8 @@ from src.database import User, get_db
 from src.api.maas_auth import require_permission, get_current_user_from_maas
 from src.network.vpn_leak_protection import get_vpn_protector
 from src.services.service_event_identity import service_event_identity
-from vpn_config_generator import XUIAPIClient
-from vpn_config_generator import generate_config_text, generate_vless_link
+from src.services.vpn_config_generator import XUIAPIClient
+from src.services.vpn_config_generator import generate_config_text, generate_vless_link
 try:
     from new_vpn_config_generator import (
         generate_vless_link as generate_experimental_link,
@@ -39,8 +39,8 @@ try:
     EXPERIMENTAL_AVAILABLE = True
 except ImportError:
     EXPERIMENTAL_AVAILABLE = False
-    from vpn_config_generator import generate_vless_link as generate_experimental_link
-    from vpn_config_generator import generate_config_text as generate_experimental_text
+    from src.services.vpn_config_generator import generate_vless_link as generate_experimental_link
+    from src.services.vpn_config_generator import generate_config_text as generate_experimental_text
 
 logger = logging.getLogger(__name__)
 

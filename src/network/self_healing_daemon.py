@@ -431,7 +431,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - [MAPE-K Self-Healing] - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("/tmp/healing.log"),
+        logging.FileHandler(os.getenv("TMPDIR", "/tmp") + "/healing.log"),
         logging.StreamHandler()
     ]
 )
@@ -935,7 +935,7 @@ def trigger_healing(reason: str):
         logging.critical("🚨 Stage 4: Initiating Reality Key Rotation (Self-Healing)")
         rotation_start = time.monotonic()
         try:
-            from vpn_config_generator import XUIAPIClient
+            from src.services.vpn_config_generator import XUIAPIClient
             xui = XUIAPIClient()
             xui.rotate_reality_credentials()
             logging.info("✅ Reality keys rotated and x-ui restarted.")
