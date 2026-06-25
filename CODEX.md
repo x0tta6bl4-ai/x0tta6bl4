@@ -22,17 +22,18 @@
 | **PQC стек** | ✅ Verified | 2026-06-15 | ML-KEM-768 + ML-DSA-65, `docs/verification/HYBRID_TLS_VALIDATION_LATEST.md` |
 | **XDP/eBPF dataplane** | ✅ Attached | 2026-06-15 | 142k PPS TX, 49k PPS RX на r8169, `docs/verification/xdp-live-attach-*` |
 | **MAPE-K self-healing** | ✅ Local loop | 2026-06-15 | monitor→execute→verify, <20s MTTD, ~3min MTTR (локально) |
+| **ZTCR SignedCommand** | ✅ Integrated | 2026-06-25 | HMAC-signed healing commands в `src/self_healing/signed_command.py` |
+| **ZTCR Identity Rotation** | ✅ Implemented | 2026-06-25 | Non-placeholder: `_rotate_pqc_identity` + rollback + emergency mode toggle |
+| **ZTCR Delphi-Consensus** | ✅ Integrated | 2026-06-25 | PBFT cross-node verify перед изоляцией, `anomaly_consensus.py` |
+| **ZTCR Chaos Tests** | ✅ 18 tests | 2026-06-25 | SPIRE crash mid-rotation + consensus approve/reject/timeout |
 | **SPIFFE/SPIRE mTLS** | ✅ Integrated | 2026-06-15 | документировано, есть тесты |
 | **Ghost Access transport** | ⚡ Experimental | 2026-06-15 | STL-упаковка, требует полевой валидации |
-| **x402 Payment** | ✅ Deployed | 2026-06-15 | USDC на Base mainnet, HTTP 402 enforced |
 | **API gateway** | ✅ Deployed | 2026-06-15 | health: HTTP 200, 8 сервисов, ~25ms latency |
 | **Real-readiness gate** | ✅ 70/70 checks | 2026-06-15 | `scripts/ops/check_real_readiness.py --json` |
 
 ### VPS Production Evidence (2026-06-15)
 - VPS: `89.125.1.107:8000/health` → HTTP 200, v3.4.0
-- x402 Paid API: `89.125.1.107:8120`
 - Open5GS: `89.125.1.107:18080/health` → HTTP 200
-- Agent earnings: AgentPact, x402 Directory, Income Watch запущены
 
 ---
 
@@ -64,7 +65,7 @@
 | **Mesh** | DHT discovery, CRDT sync, First-party VPN, WireGuard |
 | **Control** | MAPE-K (self-healing), EventBus, SafeActuator |
 | **API** | FastAPI, MaaS (Mesh-as-a-Service), REST/gRPC |
-| **Payment** | x402, USDC Base mainnet, Stripe webhooks |
+| **Payment** | Stripe webhooks |
 
 ---
 
