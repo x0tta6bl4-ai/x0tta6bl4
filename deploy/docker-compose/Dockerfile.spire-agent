@@ -1,0 +1,12 @@
+# SPIRE Agent Dockerfile
+FROM python:3.12-slim AS builder
+RUN apt-get update -qq && apt-get install -y -qq curl tar 2>/dev/null
+ARG SPIRE_VERSION=v1.15.1
+RUN curl -sL --max-time 120 "https://github.com/spiffe/spire/releases/download/${SPIRE_VERSION}/spire-1.15.1-linux-amd64-musl.tar.gz" -o /tmp/spire.tar.gz \
+    && tar xzf /tmp/spire.tar.gz -C /tmp/
+
+FROM python:3.12-slim
+COPY --from=builder /tmp/spire-1.15.1/bin/spire-agent /usr/local/bin/spire-agent
+COPY deploy/docker-compose/spire-agent.conf /etc/spire/agent.conf
+RUN mkdir -p /var/lib/spire/agent /tmp/spire-agent
+CMD ["spire-agent", "run", "-config", "/etc/spire/agent.conf"]

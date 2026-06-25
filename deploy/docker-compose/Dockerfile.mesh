@@ -1,0 +1,47 @@
+FROM python:3.12-slim AS base
+
+# Disable proxy
+ARG HTTP_PROXY=""
+ARG HTTPS_PROXY=""
+ARG NO_PROXY="*"
+ARG http_proxy=""
+ARG https_proxy=""
+ARG no_proxy="*"
+ENV HTTP_PROXY=""
+ENV HTTPS_PROXY=""
+ENV NO_PROXY="*"
+ENV http_proxy=""
+ENV https_proxy=""
+ENV no_proxy="*"
+
+# Install runtime deps
+RUN pip install --no-cache-dir --timeout=60 prometheus-client aiohttp hvac cryptography 2>&1 | tail -3
+
+# Copy entire source tree
+COPY src/ /code/src/
+COPY deploy/docker-compose/mesh_node.py /app/mesh_node.py
+ENV PYTHONPATH=/code
+WORKDIR /app
+CMD ["python3", "-u", "/app/mesh_node.py"]
+
+# --- SPIRE Server ---
+FROM base AS spire-server-build
+RUN apt-get update -qq && apt-get install -y -qq curl tar 2>/dev/null
+RUN curl -sL --max-time 60 "https://github.com/spiffe/spire/releases/download/v1.15.1/spire-1.15.1-linux-amd64-musl.tar.gz" -o /tmp/spire.tar.gz \
+    && tar xzf /tmp/spire.tar.gz -C /tmp/ \
+    && cp /tmp/spire-1.15.1/bin/spire-server /usr/local/bin/ \
+    && cp /tmp/spire-1.15.1/conf/server/server.conf /etc/spire/server.conf
+COPY deploy/docker-compose/spire-server.conf /etc/spire/server.conf
+RUN mkdir -p /var/lib/spire/server /tmp/spire-server
+EXPOSE 8081
+CMD ["spire-server", "run", "-config", "/etc/spire/server.conf"]
+
+# --- SPIRE Agent ---
+FROM base AS spire-agent-build
+RUN apt-get update -qq && apt-get install -y -qq curl tar 2>/dev/null
+RUN curl -sL --max-time 60 "https://github.com/spiffe/spire/releases/download/v1.15.1/spire-1.15.1-linux-amd64-musl.tar.gz" -o /tmp/spire.tar.gz \
+    && tar xzf /tmp/spire.tar.gz -C /tmp/ \
+    && cp /tmp/spire-1.15.1/bin/spire-agent /usr/local/bin/
+COPY deploy/docker-compose/spire-agent.conf /etc/spire/agent.conf
+RUN mkdir -p /var/lib/spire/agent /tmp/spire-agent
+CMD ["sh", "-c", "spire-agent run -config /etc/spire/agent.conf"]

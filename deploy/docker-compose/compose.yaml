@@ -1,0 +1,83 @@
+version: "3.9"
+
+services:
+  spire-server:
+    build:
+      context: ../..
+      dockerfile: deploy/docker-compose/Dockerfile.spire-server
+    container_name: spire-server
+    hostname: spire-server
+    ports:
+      - "8081:8081"
+    networks:
+      mesh-net:
+        aliases:
+          - spire-server
+    healthcheck:
+      test: ["CMD-SHELL", "ss -tlnp | grep 8081 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+  spire-agent:
+    build:
+      context: ../..
+      dockerfile: deploy/docker-compose/Dockerfile.spire-agent
+    container_name: spire-agent
+    hostname: spire-agent
+    environment:
+      - SPIRE_SERVER_ADDRESS=spire-server
+      - SPIRE_JOIN_TOKEN=${SPIRE_JOIN_TOKEN:-dev-token}
+    networks:
+      mesh-net:
+        aliases:
+          - spire-agent
+    depends_on:
+      spire-server:
+        condition: service_healthy
+
+  node-a:
+    image: mesh-node:latest
+    container_name: mesh-node-a
+    hostname: node-a
+    environment:
+      - NODE_ID=node-a
+      - PEERS=node-b
+      - PEER_PORTS=9101
+      - PORT=9100
+      - SPIRE_AGENT_SOCKET=/tmp/spire-agent/api.sock
+    volumes:
+      - spire-agent-socket:/tmp/spire-agent
+    networks:
+      mesh-net:
+        aliases:
+          - node-a
+    depends_on:
+      - spire-agent
+
+  node-b:
+    image: mesh-node:latest
+    container_name: mesh-node-b
+    hostname: node-b
+    environment:
+      - NODE_ID=node-b
+      - PEERS=node-a
+      - PEER_PORTS=9100
+      - PORT=9101
+      - SPIRE_AGENT_SOCKET=/tmp/spire-agent/api.sock
+    volumes:
+      - spire-agent-socket:/tmp/spire-agent
+    networks:
+      mesh-net:
+        aliases:
+          - node-b
+    depends_on:
+      - node-a
+
+volumes:
+  spire-agent-socket:
+
+networks:
+  mesh-net:
+    driver: bridge
