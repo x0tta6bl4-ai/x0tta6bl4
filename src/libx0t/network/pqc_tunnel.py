@@ -11,7 +11,7 @@ import struct
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 SIMULATED_PQC_ENV = "X0TTA6BL4_ALLOW_SIMULATED_PQC"

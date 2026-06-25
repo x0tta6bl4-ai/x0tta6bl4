@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from src.api.maas_auth import require_permission
 from src.api.maas_security import token_signer
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import PlaybookAck, SignedPlaybook, User, get_db
 from src.utils.audit import record_audit_log
 

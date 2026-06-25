@@ -165,7 +165,7 @@ class SPIREAgentManager:
     def _default_event_bus(project_root: str) -> Optional[EventBus]:
         try:
             return get_event_bus(project_root)
-        except Exception as exc:
+        except (ImportError, RuntimeError, OSError, ValueError) as exc:
             logger.error("Failed to initialize SPIRE agent EventBus: %s", exc)
             return None
 
@@ -175,7 +175,7 @@ class SPIREAgentManager:
             from src.security.zero_trust.policy_engine import get_policy_engine
 
             return get_policy_engine()
-        except Exception as exc:
+        except (ImportError, RuntimeError, ValueError, OSError) as exc:
             logger.error("Failed to initialize SPIRE agent policy engine: %s", exc)
             return None
 
@@ -265,7 +265,7 @@ class SPIREAgentManager:
                 priority=7,
             )
             return event.event_id
-        except Exception as exc:
+        except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as exc:
             logger.error("Failed to publish SPIRE agent manager event: %s", exc)
             return None
 
@@ -283,8 +283,9 @@ class SPIREAgentManager:
                 resource=f"identity:spire_agent:{operation}",
                 workload_type="spire-agent-manager",
             )
-        except Exception as exc:
+        except (ValueError, KeyError, RuntimeError, OSError) as exc:
             return False, None, f"SPIRE agent policy evaluation failed: {exc}"
+
         if not self._policy_allowed(decision):
             return (
                 False,
@@ -420,7 +421,7 @@ class SPIREAgentManager:
             logger.error("SPIRE Agent socket did not appear within timeout")
             self.stop()
             return SafeActuatorResult(False, "SPIRE Agent socket did not appear")
-        except Exception:
+        except (FileNotFoundError, PermissionError, OSError, subprocess.CalledProcessError):
             logger.exception("Failed to start SPIRE Agent")
             return SafeActuatorResult(False, "Failed to start SPIRE Agent")
         return SafeActuatorResult(True, "SPIRE Agent started")
@@ -467,7 +468,7 @@ class SPIREAgentManager:
             self.agent_process.wait(timeout=5)
             self._cleanup()
             return SafeActuatorResult(True, "SPIRE Agent stopped with SIGKILL")
-        except Exception:
+        except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
             logger.exception("Failed to stop SPIRE Agent")
             return SafeActuatorResult(False, "Failed to stop SPIRE Agent")
 
@@ -598,7 +599,7 @@ class SPIREAgentManager:
                 e.stderr,
             )
             return SafeActuatorResult(False, "SPIRE workload registration failed")
-        except Exception:
+        except (subprocess.CalledProcessError, OSError, ValueError, RuntimeError):
             logger.exception(
                 "An unexpected error occurred during workload registration."
             )
@@ -709,7 +710,7 @@ class SPIREAgentManager:
         except subprocess.TimeoutExpired:
             logger.error("Timeout while listing workloads")
             return []
-        except Exception as e:
+        except (subprocess.CalledProcessError, OSError, ValueError) as e:
             logger.exception(f"Error listing workloads: {e}")
             return []
 
@@ -755,7 +756,7 @@ class SPIREAgentManager:
                 if result.returncode == 0
                 else "SPIRE Agent healthcheck returned non-zero",
             )
-        except Exception:
+        except (subprocess.CalledProcessError, OSError):
             logger.exception("SPIRE Agent healthcheck command failed")
             # Fallback: if process is running and socket exists, treat as healthy.
             return SafeActuatorResult(True, "SPIRE Agent healthcheck fallback healthy")
@@ -768,7 +769,7 @@ class SPIREAgentManager:
         """Return True only when the SPIRE endpoint is a real Unix socket."""
         try:
             return bool(self.socket_path.exists()) and bool(self.socket_path.is_socket())
-        except Exception:
+        except (OSError, RuntimeError):
             return False
 
     def _find_spire_binary(self, binary_name: str) -> str:
@@ -841,7 +842,7 @@ plugins {{
                 logger.debug(
                     "Removed generated SPIRE config %s", self._generated_config_path
                 )
-            except Exception:
+            except (FileNotFoundError, PermissionError, OSError):
                 logger.exception("Failed to remove generated SPIRE config")
 
         self._generated_config_path = None

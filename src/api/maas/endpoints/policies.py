@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
 from src.api.maas_auth import require_role
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import ACLPolicy, User, get_db
 
 logger = logging.getLogger(__name__)

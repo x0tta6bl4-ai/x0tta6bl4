@@ -4,7 +4,7 @@ Meta-Planning Phase for MAPE-K.
 Phase 0: Creates solution space map and reasoning path.
 """
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .models import ReasoningApproach, ReasoningPath, SolutionSpace
 
@@ -47,8 +47,8 @@ class MetaPlanner:
         self.think_aloud = think_aloud
 
     async def execute(
-        self, task: Dict[str, Any]
-    ) -> Tuple[SolutionSpace, ReasoningPath]:
+        self, task: dict[str, Any]
+    ) -> tuple[SolutionSpace, ReasoningPath]:
         """
         Execute meta-planning phase.
         
@@ -108,7 +108,7 @@ class MetaPlanner:
 
         return solution_space, reasoning_path
 
-    def _run_six_hats(self, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _run_six_hats(self, task: dict[str, Any]) -> dict[str, Any] | None:
         """Run Six Thinking Hats analysis."""
         if not self.six_hats:
             return None
@@ -124,7 +124,7 @@ class MetaPlanner:
             logger.warning(f"⚠️ Six Hats analysis failed: {e}")
             return None
 
-    def _run_first_principles(self, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _run_first_principles(self, task: dict[str, Any]) -> dict[str, Any] | None:
         """Run First Principles decomposition."""
         if not self.first_principles:
             return None
@@ -142,9 +142,9 @@ class MetaPlanner:
 
     def _build_approaches(
         self,
-        hats_analysis: Optional[Dict[str, Any]],
-        first_principles: Optional[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        hats_analysis: dict[str, Any] | None,
+        first_principles: dict[str, Any] | None
+    ) -> list[dict[str, Any]]:
         """Build list of reasoning approaches."""
         approaches = [
             {
@@ -197,7 +197,7 @@ class MetaPlanner:
 
         return approaches
 
-    async def _get_failure_history(self, task: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _get_failure_history(self, task: dict[str, Any]) -> list[dict[str, Any]]:
         """Get failure history from knowledge base."""
         if not self.knowledge_base:
             return []
@@ -222,9 +222,9 @@ class MetaPlanner:
 
     async def _calculate_probabilities(
         self,
-        approaches: List[Dict[str, Any]],
-        task: Dict[str, Any]
-    ) -> Dict[str, float]:
+        approaches: list[dict[str, Any]],
+        task: dict[str, Any]
+    ) -> dict[str, float]:
         """Calculate success probabilities for each approach."""
         probabilities = {}
 
@@ -247,9 +247,9 @@ class MetaPlanner:
 
     def _select_best_approach(
         self,
-        approaches: List[Dict[str, Any]],
-        probabilities: Dict[str, float]
-    ) -> Dict[str, Any]:
+        approaches: list[dict[str, Any]],
+        probabilities: dict[str, float]
+    ) -> dict[str, Any]:
         """Select best approach based on probabilities."""
         return max(
             approaches,
@@ -258,8 +258,8 @@ class MetaPlanner:
 
     def _build_reasoning(
         self,
-        approach: Dict[str, Any],
-        probabilities: Dict[str, float]
+        approach: dict[str, Any],
+        probabilities: dict[str, float]
     ) -> str:
         """Build reasoning string for approach selection."""
         prob = probabilities.get(approach["name"], approach["probability"])
@@ -267,9 +267,9 @@ class MetaPlanner:
 
     async def _build_reasoning_path(
         self,
-        task: Dict[str, Any],
-        best_approach: Dict[str, Any],
-        failure_history: List[Dict[str, Any]]
+        task: dict[str, Any],
+        best_approach: dict[str, Any],
+        failure_history: list[dict[str, Any]]
     ) -> ReasoningPath:
         """Build reasoning path with checkpoints."""
         # Reverse planning
@@ -297,7 +297,7 @@ class MetaPlanner:
             estimated_time=self._estimate_time(task, best_approach),
         )
 
-    def _extract_features(self, task: Dict[str, Any]) -> Dict[str, float]:
+    def _extract_features(self, task: dict[str, Any]) -> dict[str, float]:
         """Extract features for GraphSAGE prediction."""
         return {
             "task_complexity": 0.5,
@@ -306,7 +306,7 @@ class MetaPlanner:
         }
 
     def _estimate_time(
-        self, task: Dict[str, Any], approach: Dict[str, Any]
+        self, task: dict[str, Any], approach: dict[str, Any]
     ) -> float:
         """Estimate reasoning time."""
         base_time = 1.0

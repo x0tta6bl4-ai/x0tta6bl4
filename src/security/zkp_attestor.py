@@ -107,7 +107,7 @@ class NIZKPAttestor:
             right = (comm * pk_c) % P
             
             return left == right
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"ZKP Verification error: {e}")
             return False
 

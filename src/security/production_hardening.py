@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +235,7 @@ class InputValidator:
         try:
             json.loads(value)
             return True
-        except Exception:
+        except (ValueError, TypeError, RuntimeError, OSError):
             return False
 
     def validate_ipv4(self, value: str) -> bool:
@@ -247,7 +247,7 @@ class InputValidator:
                 num = int(part)
                 if num < 0 or num > 255:
                     return False
-            except Exception:
+            except (ValueError, TypeError, RuntimeError, OSError):
                 return False
         return True
 

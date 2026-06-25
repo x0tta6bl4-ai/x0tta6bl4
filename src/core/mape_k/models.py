@@ -6,7 +6,7 @@ Contains all dataclasses and enums used across MAPE-K phases.
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class ReasoningApproach(Enum):
@@ -24,15 +24,15 @@ class ReasoningApproach(Enum):
 class SolutionSpace:
     """Map of solution space."""
 
-    approaches: List[Dict[str, Any]] = field(default_factory=list)
-    failure_history: List[Dict[str, Any]] = field(default_factory=list)
-    success_probabilities: Dict[str, float] = field(default_factory=dict)
-    selected_approach: Optional[str] = None
-    reasoning: Optional[str] = None
+    approaches: list[dict[str, Any]] = field(default_factory=list)
+    failure_history: list[dict[str, Any]] = field(default_factory=list)
+    success_probabilities: dict[str, float] = field(default_factory=dict)
+    selected_approach: str | None = None
+    reasoning: str | None = None
     # Enhanced techniques
-    hats_analysis: Optional[Dict[str, Any]] = None
-    first_principles: Optional[Dict[str, Any]] = None
-    reverse_plan: Optional[List[str]] = None
+    hats_analysis: dict[str, Any] | None = None
+    first_principles: dict[str, Any] | None = None
+    reverse_plan: list[str] | None = None
 
 
 @dataclass
@@ -40,8 +40,8 @@ class ReasoningPath:
     """Plan for reasoning path."""
 
     first_step: str
-    dead_ends_to_avoid: List[str] = field(default_factory=list)
-    checkpoints: List[Dict[str, Any]] = field(default_factory=list)
+    dead_ends_to_avoid: list[str] = field(default_factory=list)
+    checkpoints: list[dict[str, Any]] = field(default_factory=list)
     estimated_time: float = 0.0
 
 
@@ -56,7 +56,7 @@ class ReasoningMetrics:
     knowledge_base_hits: int = 0
     cache_hit_rate: float = 0.0
     start_time: float = field(default_factory=time.time)
-    end_time: Optional[float] = None
+    end_time: float | None = None
 
 
 @dataclass
@@ -67,20 +67,20 @@ class ReasoningAnalytics:
     reasoning_time: float
     approaches_tried: int
     dead_ends: int
-    breakthrough_moment: Optional[str] = None
+    breakthrough_moment: str | None = None
     success: bool = False
-    meta_insight: Optional[Dict[str, Any]] = None
+    meta_insight: dict[str, Any] | None = None
 
 
 @dataclass
 class ExecutionLogEntry:
     """Entry in execution log."""
 
-    step: Dict[str, Any]
-    result: Dict[str, Any]
+    step: dict[str, Any]
+    result: dict[str, Any]
     duration: float
     reasoning_approach: str
-    meta_insights: Dict[str, Any]
+    meta_insights: dict[str, Any]
     timestamp: float = field(default_factory=time.time)
 
 
@@ -88,11 +88,11 @@ class ExecutionLogEntry:
 class MAPEKCycleResult:
     """Result of complete MAPE-K cycle."""
 
-    meta_plan: Dict[str, Any]
-    metrics: Dict[str, Any]
-    analysis: Dict[str, Any]
-    plan: Dict[str, Any]
-    execution_log: Dict[str, Any]
-    knowledge: Dict[str, Any]
+    meta_plan: dict[str, Any]
+    metrics: dict[str, Any]
+    analysis: dict[str, Any]
+    plan: dict[str, Any]
+    execution_log: dict[str, Any]
+    knowledge: dict[str, Any]
     success: bool = True
-    error: Optional[str] = None
+    error: str | None = None

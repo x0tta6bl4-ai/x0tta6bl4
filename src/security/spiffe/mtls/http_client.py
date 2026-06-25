@@ -54,13 +54,13 @@ class SPIFFEPeerCertTransport(httpx.AsyncBaseTransport):
         if stream is not None:
             try:
                 ssl_obj = stream.get_extra_info("ssl_object")
-            except Exception:  # pragma: no cover - very defensive
+            except (ValueError, TypeError, RuntimeError, OSError):
                 ssl_obj = None
 
             if ssl_obj is not None:
                 try:
                     der_cert = ssl_obj.getpeercert(binary_form=True)
-                except Exception:  # pragma: no cover - depends on runtime
+                except (ValueError, TypeError, RuntimeError, OSError):
                     der_cert = None
 
                 if der_cert:

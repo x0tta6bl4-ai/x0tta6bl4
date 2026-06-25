@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from src.api.cross_plane_claim_gate import readiness_cross_plane_claim_gate_metadata
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 
 logger = logging.getLogger(__name__)
 

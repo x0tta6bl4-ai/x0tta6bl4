@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Callable
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.parl.types import (
     Task, TaskId, Experience, Policy, StepResult, 
     PARLMetrics, PPOConfig, WorkerId

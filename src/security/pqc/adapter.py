@@ -98,7 +98,7 @@ def get_supported_kem_algorithms() -> list[str]:
         import oqs
         if hasattr(oqs, "get_enabled_kem_mechanisms"):
             return list(oqs.get_enabled_kem_mechanisms())
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError, OSError) as e:
         logger.error(f"Failed to get KEM mechanisms: {e}")
 
     return []
@@ -118,7 +118,7 @@ def get_supported_sig_algorithms() -> list[str]:
         import oqs
         if hasattr(oqs, "get_enabled_sig_mechanisms"):
             return list(oqs.get_enabled_sig_mechanisms())
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError, OSError) as e:
         logger.error(f"Failed to get signature mechanisms: {e}")
 
     return []
@@ -272,7 +272,7 @@ class PQCAdapter:
                     logger.error(f"KEM encap_secret returned invalid result: {result} for alg {self.kem_alg}")
                     raise ValueError(f"Invalid KEM result for {self.kem_alg}")
                 return result[0], result[1]
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Failed to encapsulate with {self.kem_alg}: {e}")
             supported = get_supported_kem_algorithms()
             logger.info(f"Supported KEMs at runtime: {supported}")
@@ -361,7 +361,7 @@ class PQCAdapter:
             except oqs.MechanismNotSupportedError as e:
                 logger.error(f"Mechanism not supported: {e}")
                 return False
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.error(f"Signature verification failed: {e}")
                 return False
 

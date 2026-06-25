@@ -10,7 +10,7 @@ Integrates all Q2 components into main application:
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,10 @@ except ImportError:
 # Enhanced FL Aggregators
 try:
     from src.federated_learning.aggregators_enhanced import (
-        AdaptiveAggregator, EnhancedAggregator, get_enhanced_aggregator)
+        AdaptiveAggregator,
+        EnhancedAggregator,
+        get_enhanced_aggregator,
+    )
 
     ENHANCED_AGGREGATORS_AVAILABLE = True
 except ImportError:
@@ -71,8 +74,8 @@ class Q2Integration:
         enable_lora: bool = True,
         enable_cilium: bool = True,
         enable_enhanced_aggregators: bool = True,
-        rag_data_path: Optional[Path] = None,
-        lora_models_path: Optional[Path] = None,
+        rag_data_path: Path | None = None,
+        lora_models_path: Path | None = None,
     ):
         self.enable_rag = enable_rag and RAG_AVAILABLE
         self.enable_lora = enable_lora and LORA_AVAILABLE
@@ -82,7 +85,7 @@ class Q2Integration:
         )
 
         # RAG Pipeline
-        self.rag_pipeline: Optional[RAGPipeline] = None
+        self.rag_pipeline: RAGPipeline | None = None
         if self.enable_rag:
             try:
                 self.rag_pipeline = RAGPipeline(
@@ -96,7 +99,7 @@ class Q2Integration:
                 self.rag_pipeline = None
 
         # LoRA Trainer
-        self.lora_trainer: Optional[LoRATrainer] = None
+        self.lora_trainer: LoRATrainer | None = None
         if self.enable_lora:
             try:
                 # LoRA trainer is initialized on-demand when training starts
@@ -105,7 +108,7 @@ class Q2Integration:
                 logger.warning(f"⚠️ LoRA Trainer initialization failed: {e}")
 
         # Cilium eBPF Integration
-        self.cilium_integration: Optional[CiliumLikeIntegration] = None
+        self.cilium_integration: CiliumLikeIntegration | None = None
         if self.enable_cilium:
             try:
                 self.cilium_integration = CiliumLikeIntegration(
@@ -129,7 +132,7 @@ class Q2Integration:
     # --- RAG Pipeline Methods ---
 
     def add_knowledge(
-        self, text: str, document_id: str, metadata: Optional[Dict[str, Any]] = None
+        self, text: str, document_id: str, metadata: dict[str, Any] | None = None
     ) -> bool:
         """
         Add knowledge to RAG pipeline.
@@ -178,7 +181,7 @@ class Q2Integration:
             logger.error(f"Failed to query knowledge: {e}")
             return ""
 
-    def retrieve_knowledge(self, query: str, top_k: int = 10) -> Optional[Any]:
+    def retrieve_knowledge(self, query: str, top_k: int = 10) -> Any | None:
         """
         Retrieve knowledge with full RAG result.
 
@@ -201,7 +204,7 @@ class Q2Integration:
     # --- LoRA Fine-tuning Methods ---
 
     def initialize_lora_trainer(
-        self, base_model_name: str, config: Optional[LoRAConfig] = None
+        self, base_model_name: str, config: LoRAConfig | None = None
     ) -> bool:
         """
         Initialize LoRA trainer for fine-tuning.
@@ -229,7 +232,7 @@ class Q2Integration:
 
     def train_lora_adapter(
         self, train_dataset: Any, adapter_id: str, **training_kwargs
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Train LoRA adapter.
 
@@ -278,7 +281,7 @@ class Q2Integration:
             logger.error(f"Failed to get network flows: {e}")
             return []
 
-    def get_network_metrics(self) -> Dict[str, Any]:
+    def get_network_metrics(self) -> dict[str, Any]:
         """
         Get network metrics from Cilium integration.
 
@@ -315,7 +318,7 @@ class Q2Integration:
 
     # --- Enhanced Aggregators Methods ---
 
-    def get_enhanced_aggregator(self, method: str = "enhanced_fedavg") -> Optional[Any]:
+    def get_enhanced_aggregator(self, method: str = "enhanced_fedavg") -> Any | None:
         """
         Get enhanced aggregator for federated learning.
 
@@ -357,10 +360,10 @@ class Q2Integration:
 
 
 # Global instance
-_q2_integration: Optional[Q2Integration] = None
+_q2_integration: Q2Integration | None = None
 
 
-def get_q2_integration() -> Optional[Q2Integration]:
+def get_q2_integration() -> Q2Integration | None:
     """Get global Q2 Integration instance."""
     return _q2_integration
 

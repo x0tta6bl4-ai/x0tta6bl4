@@ -134,7 +134,7 @@ class SPIREServerClient:
     def _default_event_bus(project_root: str) -> Optional[EventBus]:
         try:
             return get_event_bus(project_root)
-        except Exception as exc:
+        except (ImportError, RuntimeError, OSError, ValueError) as exc:
             logger.error("Failed to initialize SPIRE server client EventBus: %s", exc)
             return None
 
@@ -144,7 +144,7 @@ class SPIREServerClient:
             from src.security.zero_trust.policy_engine import get_policy_engine
 
             return get_policy_engine()
-        except Exception as exc:
+        except (ImportError, RuntimeError, ValueError, OSError) as exc:
             logger.error(
                 "Failed to initialize SPIRE server client policy engine: %s",
                 exc,
@@ -241,8 +241,8 @@ class SPIREServerClient:
                 priority=7,
             )
             return event.event_id
-        except Exception as exc:
-            logger.error("Failed to publish SPIRE server client event: %s", exc)
+        except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as exc:
+            logger.error("Failed to publish SPIRE server manager event: %s", exc)
             return None
 
     def _evaluate_control_policy(self, operation: str) -> tuple[bool, Any, str]:
@@ -267,8 +267,8 @@ class SPIREServerClient:
                 resource=f"identity:spire_server:{operation}",
                 workload_type="spire-server-client",
             )
-        except Exception as exc:
-            return False, None, f"SPIRE server client policy evaluation failed: {exc}"
+        except (ValueError, KeyError, RuntimeError, OSError) as exc:
+            return (False, f"SPIRE server policy evaluation failed: {exc}")
         if not self._policy_allowed(decision):
             return (
                 False,
@@ -461,7 +461,7 @@ class SPIREServerClient:
                 return SafeActuatorResult(True, "SPIRE entry created")
             logger.error(f"Failed to create entry: {result.stderr}")
             return SafeActuatorResult(False, "SPIRE entry creation failed")
-        except Exception as e:
+        except (subprocess.CalledProcessError, OSError, ValueError) as e:
             logger.error(f"Error creating SPIRE entry: {e}")
             return SafeActuatorResult(False, f"Error creating SPIRE entry: {e}")
 
@@ -521,7 +521,7 @@ class SPIREServerClient:
             holder["entries"] = entries
             logger.info(f"Listed {len(entries)} SPIRE entries")
             return SafeActuatorResult(True, "SPIRE entries listed")
-        except Exception as e:
+        except (subprocess.CalledProcessError, OSError, ValueError) as e:
             logger.error(f"Error listing SPIRE entries: {e}")
             return SafeActuatorResult(False, f"Error listing SPIRE entries: {e}")
 
@@ -558,7 +558,7 @@ class SPIREServerClient:
                 return SafeActuatorResult(True, "SPIRE entry deleted")
             logger.error(f"Failed to delete entry: {result.stderr}")
             return SafeActuatorResult(False, "SPIRE entry deletion failed")
-        except Exception as e:
+        except (subprocess.CalledProcessError, OSError, ValueError) as e:
             logger.error(f"Error deleting SPIRE entry: {e}")
             return SafeActuatorResult(False, f"Error deleting SPIRE entry: {e}")
 
@@ -633,7 +633,7 @@ class SPIREServerClient:
                 if result.returncode == 0
                 else "SPIRE server shallow healthcheck returned non-zero",
             )
-        except Exception as e:
+        except (subprocess.CalledProcessError, OSError) as e:
             logger.error(f"Error getting server status: {e}")
             holder["status"] = {
                 "healthy": False,

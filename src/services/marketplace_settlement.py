@@ -26,7 +26,7 @@ _SERVICE_AGENT = "maas-settlement"
 def _get_token_bridge():
     global _token_bridge
     if _token_bridge is None:
-        from src.core.settings import settings
+        from src.core.config.settings import settings
 
         bridge_config = BridgeConfig(
             rpc_url=settings.rpc_url or "",

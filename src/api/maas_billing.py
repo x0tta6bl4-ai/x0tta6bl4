@@ -12,6 +12,7 @@ import logging
 import os
 import uuid
 import asyncio
+import warnings
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
@@ -23,7 +24,7 @@ from sqlalchemy.orm import Session
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.database import User, Invoice, get_db
 from src.api.maas_auth import get_current_user_from_maas, require_permission
-from src.core.reliability_policy import (CircuitBreakerOpen, RetryExhausted,
+from src.core.resilience.reliability_policy import (CircuitBreakerOpen, RetryExhausted,
                                          call_with_reliability,
                                          mark_degraded_dependency)
 from src.utils.audit import record_audit_log
@@ -55,6 +56,9 @@ STRIPE_PLANS = {
     "pro": os.getenv("STRIPE_PRICE_PRO"),
     "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE"),
 }
+
+_missing_plans = [name for name, price_id in STRIPE_PLANS.items() if not price_id]
+_is_production = os.getenv("ENVIRONMENT", "").strip().lower() in {"production", "prod", "live"}
 
 warnings.warn(
     "src.api.maas_billing is deprecated. Use src.api.maas.endpoints.billing instead.",

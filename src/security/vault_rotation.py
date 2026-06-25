@@ -140,7 +140,7 @@ class CircuitBreaker:
             result = await func(*args, **kwargs)
             await self._on_success()
             return result
-        except Exception:
+        except (ConnectionError, TimeoutError, OSError, ValueError):
             await self._on_failure()
             raise
 
@@ -243,7 +243,7 @@ class RotationValidator:
                 result = await self._validators[name](creds)
                 results[name] = result
                 logger.debug(f"Validator {name}: {'PASS' if result else 'FAIL'}")
-            except Exception as e:
+            except (ValueError, TypeError, KeyError, OSError, RuntimeError) as e:
                 logger.error(f"Validator {name} failed: {e}")
                 results[name] = False
 
@@ -360,7 +360,7 @@ class EnhancedDatabaseCredentialRotator:
             await conn.execute("SELECT 1")
             await conn.close()
             return True
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError) as e:
             logger.error(f"Connectivity validation failed: {e}")
             return False
 
@@ -386,7 +386,7 @@ class EnhancedDatabaseCredentialRotator:
 
             await conn.close()
             return True
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, PermissionError) as e:
             logger.error(f"Permissions validation failed: {e}")
             return False
 
@@ -563,7 +563,7 @@ class EnhancedDatabaseCredentialRotator:
             result.error = str(e)
             result.completed_at = datetime.now()
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError, KeyError) as e:
             logger.error(f"[Rotation] Failed to rotate credentials: {e}")
             result.status = RotationStatus.FAILED
             result.error = str(e)
@@ -593,7 +593,7 @@ class EnhancedDatabaseCredentialRotator:
                     async with pool.acquire() as conn:
                         await conn.execute(f"DROP USER IF EXISTS {new_username}")
                     logger.info(f"[Rollback] Dropped new user: {new_username}")
-                except Exception as e:
+                except (ConnectionError, TimeoutError, OSError) as e:
                     logger.error(f"[Rollback] Failed to drop new user: {e}")
 
             # Restore old credentials in Vault if needed
@@ -603,14 +603,14 @@ class EnhancedDatabaseCredentialRotator:
                     old_creds_obj = DatabaseCredentials(**old_creds)
                     await manager.store_database_credentials(db_name, old_creds_obj)
                     logger.info("[Rollback] Restored old credentials in Vault")
-                except Exception as e:
+                except (ConnectionError, TimeoutError, OSError, ValueError) as e:
                     logger.error(f"[Rollback] Failed to restore old credentials: {e}")
 
             result.status = RotationStatus.ROLLED_BACK
             result.rollback_reason = result.error
             logger.info(f"[Rollback] Completed for {db_name}")
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as e:
             logger.critical(f"[Rollback] Rollback failed: {e}")
             result.rollback_reason = f"Rollback failed: {e}"
 
@@ -752,7 +752,7 @@ class RotationScheduler:
 
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as e:
                 logger.error(f"[Scheduler] Loop error: {e}")
                 await asyncio.sleep(3600)
 
@@ -786,7 +786,7 @@ class RotationScheduler:
         except CircuitBreakerOpenError:
             logger.warning(f"[Scheduler] Circuit breaker open for {schedule_id}")
             return False
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as e:
             logger.error(f"[Scheduler] Rotation failed for {schedule_id}: {e}")
             return False
 

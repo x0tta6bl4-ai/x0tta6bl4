@@ -3,7 +3,7 @@ import logging
 from typing import Any, Dict, List, Optional, Set
 from dataclasses import dataclass, field
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.vision.processor import VisionProcessor
 
 logger = logging.getLogger(__name__)

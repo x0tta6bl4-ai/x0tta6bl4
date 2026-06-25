@@ -51,7 +51,7 @@ def _get_or_create_metric(metric_class, name, description, **kwargs):
                 return collector
         # Create new metric if not found
         return metric_class(name, description, **kwargs)
-    except Exception:
+    except (ValueError, KeyError):
         # Fallback: create with registry=None to avoid registration
         return metric_class(name, description, registry=None, **kwargs)
 
@@ -237,7 +237,7 @@ class VaultClient:
                 vault_health.set(1)
                 logger.info("Successfully connected to Vault at %s", self.vault_addr)
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, OSError) as e:
                 vault_health.set(0)
                 self._degraded = True
                 logger.error("Failed to connect to Vault: %s", e)
@@ -284,7 +284,7 @@ class VaultClient:
                 )
                 return
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, OSError) as e:
                 vault_auth_failures.labels(reason=type(e).__name__).inc()
 
                 if attempt < self.max_retries - 1:
@@ -319,7 +319,7 @@ class VaultClient:
                 f"JWT token not found at {self.k8s_jwt_path}. "
                 "Ensure running in Kubernetes with service account mounted."
             )
-        except Exception as e:
+        except (FileNotFoundError, PermissionError, OSError) as e:
             raise VaultAuthError(f"Failed to read JWT token: {e}")
 
     def _read_jwt_sync(self) -> str:
@@ -407,7 +407,7 @@ class VaultClient:
             except VaultSecretError:
                 raise
 
-            except Exception as e:
+            except (VaultError, ConnectionError, TimeoutError, OSError, ValueError) as e:
                 if _is_invalid_path_error(e):
                     vault_secret_failures.labels(operation="read", reason="not_found").inc()
                     logger.error("Secret not found at %s", secret_path)
@@ -476,7 +476,7 @@ class VaultClient:
 
             logger.info("Stored secret at %s", secret_path)
 
-        except Exception as e:
+        except (VaultError, ConnectionError, TimeoutError, OSError, ValueError) as e:
             if _is_vault_error(e):
                 vault_secret_failures.labels(operation="write", reason="vault_error").inc()
                 logger.error("Failed to store secret: %s", e)
@@ -504,7 +504,7 @@ class VaultClient:
 
             logger.info("Deleted secret at %s", secret_path)
 
-        except Exception as e:
+        except (VaultError, ConnectionError, TimeoutError, OSError, ValueError) as e:
             if _is_vault_error(e):
                 vault_secret_failures.labels(operation="delete", reason="vault_error").inc()
                 logger.error("Failed to delete secret: %s", e)
@@ -527,7 +527,7 @@ class VaultClient:
                 path=path,
             )
             return response["data"]["keys"]
-        except Exception as e:
+        except (VaultError, ConnectionError, TimeoutError, OSError, ValueError) as e:
             if _is_vault_error(e):
                 logger.error("Failed to list secrets at %s: %s", path, e)
                 raise VaultSecretError(f"List failed: {e}")
@@ -592,7 +592,7 @@ class VaultClient:
 
             return is_healthy
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError) as e:
             logger.warning("Health check failed: %s", e)
             vault_health.set(0)
             self._degraded = True
@@ -626,7 +626,7 @@ class VaultClient:
             if self.client:
                 try:
                     self.client.close()
-                except Exception as e:
+                except (OSError, ValueError) as e:
                     logger.warning("Error closing Vault client: %s", e)
                 finally:
                     self.client = None

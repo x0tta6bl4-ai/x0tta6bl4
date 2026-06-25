@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.network.proxy_auth_middleware import (ProxyAuthMiddleware,
                                                create_auth_middleware)

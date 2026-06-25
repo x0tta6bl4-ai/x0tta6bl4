@@ -3,12 +3,12 @@ Monitoring Phase for MAPE-K.
 
 Phase 1: Monitors system metrics and reasoning process.
 """
-import logging
 import hashlib
+import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 from .models import ReasoningMetrics
 
@@ -41,7 +41,7 @@ def _score_band(value: float) -> str:
     return "very_low"
 
 
-def _metrics_summary(metrics: Dict[str, Any]) -> Dict[str, Any]:
+def _metrics_summary(metrics: dict[str, Any]) -> dict[str, Any]:
     keys = sorted(str(key) for key in (metrics or {}).keys())
     return {
         "key_count": len(keys),
@@ -65,7 +65,7 @@ class MonitoringPhase:
         mape_k_loop=None,
         mind_maps=None,
         think_aloud=None,
-        reasoning_history: Optional[List[Dict[str, Any]]] = None,
+        reasoning_history: list[dict[str, Any]] | None = None,
     ):
         """
         Initialize Monitoring Phase.
@@ -106,8 +106,8 @@ class MonitoringPhase:
         self,
         task_type: str,
         goal: str,
-        signals: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        signals: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         self.last_thinking_context = self.thinking_coach.prepare_task(
             {
                 "task_type": task_type,
@@ -127,13 +127,13 @@ class MonitoringPhase:
         )
         return self.last_thinking_context
 
-    def get_thinking_status(self) -> Dict[str, Any]:
+    def get_thinking_status(self) -> dict[str, Any]:
         return {
             "thinking": self.thinking_coach.status(),
             "last_thinking_context": self.last_thinking_context,
         }
 
-    async def execute(self) -> Dict[str, Any]:
+    async def execute(self) -> dict[str, Any]:
         """
         Execute monitoring phase.
         
@@ -196,7 +196,7 @@ class MonitoringPhase:
             "think_aloud_log": self._get_thoughts(),
         }
 
-    async def _monitor_system(self) -> Dict[str, Any]:
+    async def _monitor_system(self) -> dict[str, Any]:
         """Monitor system metrics via MAPE-K."""
         if not self.mape_k:
             self._record_thinking(
@@ -263,9 +263,9 @@ class MonitoringPhase:
 
     def _create_mind_map(
         self,
-        system_metrics: Dict[str, Any],
+        system_metrics: dict[str, Any],
         reasoning_metrics: ReasoningMetrics
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Create mind map for visualization."""
         if not self.mind_maps:
             return None
@@ -283,7 +283,7 @@ class MonitoringPhase:
             logger.warning(f"⚠️ Mind map creation failed: {e}")
             return None
 
-    def _detect_logic_gaps(self) -> List[str]:
+    def _detect_logic_gaps(self) -> list[str]:
         """Detect logic gaps in reasoning."""
         if not self.think_aloud:
             return []
@@ -297,7 +297,7 @@ class MonitoringPhase:
             logger.warning(f"⚠️ Logic gap detection failed: {e}")
             return []
 
-    def _get_thoughts(self) -> List[str]:
+    def _get_thoughts(self) -> list[str]:
         """Get think-aloud thoughts."""
         if self.think_aloud:
             return self.think_aloud.get_thoughts()

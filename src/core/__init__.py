@@ -5,8 +5,8 @@ NOTE: Migration to libx0t.core is in progress but not yet complete;
 src/core/*.py files are still the authoritative source.
 The warning below is suppressed until migration finishes.
 """
-from pathlib import Path
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 # Migration in progress — src/core is still the canonical location.

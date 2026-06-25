@@ -9,7 +9,7 @@ from sqlalchemy import func
 from src.dao.token import MeshToken
 from src.database import License, Payment, SessionLocal, User
 from src.monitoring.production_monitoring import get_production_monitor
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("GTM-Agent")

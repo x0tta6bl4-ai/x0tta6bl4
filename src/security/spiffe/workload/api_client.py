@@ -43,7 +43,7 @@ try:  # Optional SPIFFE SDK integration
         WorkloadApiClient as SpiffeWorkloadApiClient  # type: ignore[import]
 
     SPIFFE_SDK_AVAILABLE = True
-except Exception:  # pragma: no cover - SDK is optional
+except (ImportError, AttributeError, RuntimeError):  # pragma: no cover - SDK is optional
     SpiffeWorkloadApiClient = None  # type: ignore[assignment]
     SPIFFE_SDK_AVAILABLE = False
 
@@ -289,11 +289,11 @@ class WorkloadAPIClient:
                 payload,
             )
             return event.event_id
-        except Exception:
+        except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError):
             logger.exception("Failed to publish SPIFFE Workload API evidence")
             return None
 
-    def _mock_fetch_x509_svid(self) -> X509SVID:
+    def _fetch_x509_svid_via_sdk(self) -> X509SVID:
         # Simple mock X509SVID for testing
         return X509SVID(
             spiffe_id="spiffe://mock.domain/workload/mock-app",
@@ -376,7 +376,7 @@ class WorkloadAPIClient:
         try:
             with SpiffeWorkloadApiClient() as client:
                 sdk_svid = client.fetch_x509_svid()
-        except Exception as exc:
+        except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as exc:
             logger.error("Failed to fetch X.509 SVID via SPIFFE SDK: %s", exc)
             self._publish_trust_event(
                 operation="x509_svid_fetch",
@@ -489,7 +489,7 @@ class WorkloadAPIClient:
         try:
             with SpiffeWorkloadApiClient() as client:
                 sdk_jwt = client.fetch_jwt_svid(audience=set(audience))
-        except Exception as exc:
+        except (ConnectionError, TimeoutError, OSError, ValueError, RuntimeError) as exc:
             logger.error("Failed to fetch JWT SVID via SPIFFE SDK: %s", exc)
             self._publish_trust_event(
                 operation="jwt_svid_fetch",
@@ -614,7 +614,7 @@ class WorkloadAPIClient:
             logger.warning("Trust bundle not found: %s", self.trust_bundle_path)
             self._trust_bundle_cas = []
             return self._trust_bundle_cas
-        except Exception as exc:  # pragma: no cover - unexpected I/O errors
+        except (FileNotFoundError, PermissionError, OSError, ValueError) as exc:  # pragma: no cover - unexpected I/O errors
             logger.error(
                 "Failed to read trust bundle from %s: %s",
                 self.trust_bundle_path,
@@ -838,7 +838,7 @@ class WorkloadAPIClient:
                     public_key = ca_cert.public_key()
                     try:
                         hash_alg = cert.signature_hash_algorithm
-                    except Exception:  # pragma: no cover - very defensive
+                    except (ValueError, AttributeError, TypeError):  # pragma: no cover - very defensive
                         hash_alg = None
 
                     if hash_alg is not None:
@@ -856,7 +856,7 @@ class WorkloadAPIClient:
 
                     verified = True
                     break
-                except Exception:
+                except (ValueError, TypeError, OSError):
                     # Try the next CA in the bundle.
                     continue
 
@@ -906,7 +906,7 @@ class WorkloadAPIClient:
         if self.current_svid is not None:
             try:
                 callback(self.current_svid)
-            except Exception:
+            except (ValueError, TypeError, RuntimeError):
                 logger.exception("SVID update callback raised an exception")
 
     def enable_auto_renew(

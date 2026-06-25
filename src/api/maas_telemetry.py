@@ -27,7 +27,7 @@ import redis
 
 from src.database import MeshNode, get_db
 from src.api.maas_auth import get_current_user_from_maas
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.network.reputation_scoring import ReputationScoringSystem
 
 logger = logging.getLogger(__name__)

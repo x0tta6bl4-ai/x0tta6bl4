@@ -8,11 +8,12 @@ using the PARL (Parallel Agent Reinforcement Learning) Engine.
 import asyncio
 import logging
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, fields, is_dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
+from typing import Any
 
+from src.network.routing.types import RouteEntry
 from src.swarm.parl.controller import PARLController
-from src.network.routing.mesh_router import RouteEntry
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +23,13 @@ class PARLMeshOptimizer:
     Optimizes mesh network routes and detects anomalies using PARL Engine.
     """
 
-    def __init__(self, parl_controller: Optional[PARLController] = None):
+    def __init__(self, parl_controller: PARLController | None = None):
         self.parl_controller = parl_controller or PARLController()
         logger.info("✅ PARL Mesh Optimizer initialized")
 
     async def optimize_routes_parallel(
-        self, current_routes: Dict[str, List[RouteEntry]]
-    ) -> Dict[str, List[RouteEntry]]:
+        self, current_routes: dict[str, list[RouteEntry]]
+    ) -> dict[str, list[RouteEntry]]:
         """
         Parallelize route evaluation using PARL workers.
         """
@@ -38,8 +39,8 @@ class PARLMeshOptimizer:
         logger.info(f"🚀 Starting parallel route optimization for {len(current_routes)} destinations")
         start_time = asyncio.get_event_loop().time()
 
-        tasks: List[Dict[str, Any]] = []
-        task_destinations: Dict[str, str] = {}
+        tasks: list[dict[str, Any]] = []
+        task_destinations: dict[str, str] = {}
         # Create a task for each destination's route list
         for dest, routes in current_routes.items():
             task_id = f"opt_route_{dest}_{int(time.time()*1000)}"
@@ -58,7 +59,7 @@ class PARLMeshOptimizer:
         results = await self.parl_controller.execute_parallel(tasks)
 
         # Process results
-        optimized_routes: Dict[str, List[RouteEntry]] = {}
+        optimized_routes: dict[str, list[RouteEntry]] = {}
         for result in results:
             if not self._get_value(result, "success", False):
                 continue
@@ -83,7 +84,7 @@ class PARLMeshOptimizer:
         logger.info(f"✨ Parallel route optimization completed in {elapsed:.3f}s")
         return optimized_routes
 
-    async def detect_anomalies_parallel(self, node_metrics: Dict[str, Dict[str, Any]]) -> List[str]:
+    async def detect_anomalies_parallel(self, node_metrics: dict[str, dict[str, Any]]) -> list[str]:
         """
         Parallelize anomaly detection across multiple nodes.
         """
@@ -93,8 +94,8 @@ class PARLMeshOptimizer:
         logger.info(f"🔍 Starting parallel anomaly detection for {len(node_metrics)} nodes")
         start_time = asyncio.get_event_loop().time()
 
-        tasks: List[Dict[str, Any]] = []
-        task_nodes: Dict[str, str] = {}
+        tasks: list[dict[str, Any]] = []
+        task_nodes: dict[str, str] = {}
         for node_id, metrics in node_metrics.items():
             task_id = f"anomaly_{node_id}"
             tasks.append({
@@ -131,13 +132,13 @@ class PARLMeshOptimizer:
         return getattr(container, key, default)
 
     @staticmethod
-    def _route_to_dict(route: RouteEntry) -> Dict[str, Any]:
+    def _route_to_dict(route: RouteEntry) -> dict[str, Any]:
         if is_dataclass(route):
             return asdict(route)
         return dict(getattr(route, "__dict__", {}))
 
     @staticmethod
-    def _rank_routes(routes: Sequence[RouteEntry]) -> List[RouteEntry]:
+    def _rank_routes(routes: Sequence[RouteEntry]) -> list[RouteEntry]:
         return sorted(
             routes,
             key=lambda route: (
@@ -154,7 +155,7 @@ class PARLMeshOptimizer:
         destination: str,
         worker_result: Mapping[str, Any],
         current_routes: Sequence[RouteEntry],
-    ) -> List[RouteEntry]:
+    ) -> list[RouteEntry]:
         ranked_routes = self._rank_routes(current_routes)
 
         ordered_route_dicts = worker_result.get("routes") or worker_result.get("optimized_routes")
@@ -177,9 +178,9 @@ class PARLMeshOptimizer:
         destination: str,
         worker_routes: Sequence[Any],
         ranked_routes: Sequence[RouteEntry],
-    ) -> List[RouteEntry]:
-        selected: List[RouteEntry] = []
-        selected_keys: Set[tuple[Any, ...]] = set()
+    ) -> list[RouteEntry]:
+        selected: list[RouteEntry] = []
+        selected_keys: set[tuple[Any, ...]] = set()
 
         for raw_route in worker_routes:
             if not isinstance(raw_route, Mapping):
@@ -212,7 +213,7 @@ class PARLMeshOptimizer:
         destination: str,
         raw_route: Mapping[str, Any],
         ranked_routes: Sequence[RouteEntry],
-    ) -> Optional[RouteEntry]:
+    ) -> RouteEntry | None:
         candidates = [
             route
             for route in ranked_routes
@@ -236,7 +237,7 @@ class PARLMeshOptimizer:
         destination: str,
         path: Sequence[Any],
         ranked_routes: Sequence[RouteEntry],
-    ) -> Optional[RouteEntry]:
+    ) -> RouteEntry | None:
         route_path = [str(node) for node in path]
         for route in ranked_routes:
             if route.destination == destination and route.path == route_path:
@@ -244,7 +245,7 @@ class PARLMeshOptimizer:
         return None
 
     @staticmethod
-    def _prepend_route(route: RouteEntry, ranked_routes: Sequence[RouteEntry]) -> List[RouteEntry]:
+    def _prepend_route(route: RouteEntry, ranked_routes: Sequence[RouteEntry]) -> list[RouteEntry]:
         route_key = PARLMeshOptimizer._route_identity(route)
         return [route] + [
             candidate
@@ -253,7 +254,7 @@ class PARLMeshOptimizer:
         ]
 
     @staticmethod
-    def _route_from_dict(destination: str, raw_route: Mapping[str, Any]) -> Optional[RouteEntry]:
+    def _route_from_dict(destination: str, raw_route: Mapping[str, Any]) -> RouteEntry | None:
         try:
             field_names = {field.name for field in fields(RouteEntry)}
             route_data = {

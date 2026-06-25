@@ -5,7 +5,7 @@ Phase 5: Accumulates knowledge and generates meta-insights.
 """
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .models import ReasoningAnalytics
 
@@ -43,10 +43,10 @@ class KnowledgePhase:
 
     async def execute(
         self,
-        execution_log: Dict[str, Any],
-        reasoning_history: List[Dict[str, Any]],
-        stats: Dict[str, int]
-    ) -> Dict[str, Any]:
+        execution_log: dict[str, Any],
+        reasoning_history: list[dict[str, Any]],
+        stats: dict[str, int]
+    ) -> dict[str, Any]:
         """
         Execute knowledge phase.
         
@@ -87,7 +87,7 @@ class KnowledgePhase:
             "think_aloud_log": self._get_thoughts(),
         }
 
-    def _build_incident_record(self, execution_log: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_incident_record(self, execution_log: dict[str, Any]) -> dict[str, Any]:
         """Build incident record."""
         return {
             "timestamp": time.time(),
@@ -96,7 +96,7 @@ class KnowledgePhase:
             "steps": execution_log.get("execution_log", []),
         }
 
-    def _build_analytics(self, execution_entries: List[Dict[str, Any]]) -> ReasoningAnalytics:
+    def _build_analytics(self, execution_entries: list[dict[str, Any]]) -> ReasoningAnalytics:
         """Build reasoning analytics."""
         return ReasoningAnalytics(
             algorithm_used=(
@@ -115,12 +115,12 @@ class KnowledgePhase:
             success=self._check_success(execution_entries),
         )
 
-    def _check_success(self, execution_entries: List[Dict[str, Any]]) -> bool:
+    def _check_success(self, execution_entries: list[dict[str, Any]]) -> bool:
         """Check if execution was successful."""
         # Simplified check
         return len(execution_entries) > 0
 
-    def _extract_breakthrough(self, execution_entries: List[Dict[str, Any]]) -> Optional[str]:
+    def _extract_breakthrough(self, execution_entries: list[dict[str, Any]]) -> str | None:
         """Extract breakthrough moment."""
         for entry in execution_entries:
             if entry.get("meta_insights", {}).get("event") == "breakthrough":
@@ -130,8 +130,8 @@ class KnowledgePhase:
     def _generate_meta_insight(
         self,
         analytics: ReasoningAnalytics,
-        execution_entries: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        execution_entries: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """Generate meta-insight based on success/failure."""
         if analytics.success:
             return {
@@ -150,7 +150,7 @@ class KnowledgePhase:
         """Analyze why algorithm worked."""
         return f"Algorithm {analytics.algorithm_used} worked due to high confidence and low dead ends"
 
-    def _extract_success_factors(self, entries: List[Dict[str, Any]]) -> List[str]:
+    def _extract_success_factors(self, entries: list[dict[str, Any]]) -> list[str]:
         """Extract key success factors."""
         return ["high_confidence", "low_dead_ends", "efficient_reasoning"]
 
@@ -162,7 +162,7 @@ class KnowledgePhase:
         """Suggest alternative approach."""
         return "Try combined approach with RAG + GraphSAGE for better results"
 
-    def _run_three_questions(self, execution_log: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _run_three_questions(self, execution_log: dict[str, Any]) -> dict[str, Any] | None:
         """Run Three Questions reflection."""
         if not self.three_questions:
             return None
@@ -187,9 +187,9 @@ class KnowledgePhase:
 
     async def _store_incident(
         self,
-        incident_record: Dict[str, Any],
+        incident_record: dict[str, Any],
         analytics: ReasoningAnalytics,
-        meta_insight: Dict[str, Any]
+        meta_insight: dict[str, Any]
     ) -> None:
         """Store incident in knowledge base."""
         if not self.knowledge_base:
@@ -210,9 +210,9 @@ class KnowledgePhase:
 
     def _update_history(
         self,
-        reasoning_history: List[Dict[str, Any]],
+        reasoning_history: list[dict[str, Any]],
         analytics: ReasoningAnalytics,
-        meta_insight: Dict[str, Any]
+        meta_insight: dict[str, Any]
     ) -> None:
         """Update reasoning history."""
         reasoning_history.append({
@@ -222,7 +222,7 @@ class KnowledgePhase:
             "success": analytics.success,
         })
 
-    def _update_stats(self, stats: Dict[str, int], success: bool) -> None:
+    def _update_stats(self, stats: dict[str, int], success: bool) -> None:
         """Update cycle statistics."""
         stats["total"] = stats.get("total", 0) + 1
         if success:

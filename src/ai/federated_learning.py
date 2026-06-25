@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +171,31 @@ class DifferentialPrivacyFLClient(fl.client.NumPyClient):
                 train_data, batch_size=32, shuffle=True
             )
 
+    def _forward_model(self, batch) -> torch.Tensor:
+        """Forward pass with support for GNN Data/Batch objects and edge_index fallbacks."""
+        # 1. PyTorch Geometric Data/Batch object
+        if hasattr(batch, "edge_index") and hasattr(batch, "x"):
+            return self.model(batch.x, batch.edge_index)
+            
+        # 2. Tuple of 3 elements: (x, edge_index, y)
+        if isinstance(batch, tuple) and len(batch) == 3:
+            x, edge_index, _ = batch
+            return self.model(x, edge_index)
+            
+        # 3. Tuple of 2 elements: (x, y)
+        if isinstance(batch, tuple) and len(batch) == 2:
+            x, _ = batch
+            if hasattr(self.model, "conv1") or "conv" in dir(self.model):
+                edge_index = torch.zeros((2, 0), dtype=torch.long, device=x.device)
+                return self.model(x, edge_index)
+            return self.model(x)
+            
+        # 4. Plain tensor input
+        if hasattr(self.model, "conv1") or "conv" in dir(self.model):
+            edge_index = torch.zeros((2, 0), dtype=torch.long, device=batch.device)
+            return self.model(batch, edge_index)
+        return self.model(batch)
+
     def get_parameters(self, config):
         """Получение параметров модели"""
         return [val.cpu().numpy() for _, val in self.model.state_dict().items()]
@@ -203,16 +228,20 @@ class DifferentialPrivacyFLClient(fl.client.NumPyClient):
             for batch in self.train_loader:
                 self.optimizer.zero_grad()
 
-                # Вычисляем loss (упрощённая версия)
-                if isinstance(batch, tuple) and len(batch) == 2:
-                    x, y = batch
-                    logits = self.model(x)
+                logits = self._forward_model(batch)
+                
+                # Извлечение меток
+                if hasattr(batch, "y"):
+                    y = batch.y
+                elif isinstance(batch, tuple) and len(batch) in (2, 3):
+                    y = batch[-1]
+                else:
+                    y = None
+
+                if y is not None:
                     loss = nn.functional.cross_entropy(logits, y)
                 else:
-                    # Fallback для других форматов данных
-                    x = batch
-                    logits = self.model(x)
-                    loss = logits.mean()  # Упрощённый loss
+                    loss = logits.mean()
 
                 loss.backward()
                 self.optimizer.step()
@@ -258,16 +287,22 @@ class DifferentialPrivacyFLClient(fl.client.NumPyClient):
 
         with torch.no_grad():
             for batch in self.val_data:
-                if isinstance(batch, tuple) and len(batch) == 2:
-                    x, y = batch
-                    logits = self.model(x)
+                logits = self._forward_model(batch)
+                
+                # Извлечение меток
+                if hasattr(batch, "y"):
+                    y = batch.y
+                elif isinstance(batch, tuple) and len(batch) in (2, 3):
+                    y = batch[-1]
+                else:
+                    y = None
+
+                if y is not None:
                     loss = nn.functional.cross_entropy(logits, y)
                     pred = logits.argmax(dim=1)
                     correct += (pred == y).sum().item()
                     total += y.size(0)
                 else:
-                    x = batch
-                    logits = self.model(x)
                     loss = logits.mean()
 
                 total_loss += loss.item()

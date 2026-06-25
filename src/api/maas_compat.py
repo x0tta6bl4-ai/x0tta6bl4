@@ -12,7 +12,7 @@ from src.api import maas_legacy
 from src.api.maas_auth import get_current_user_from_maas, register as register_v1
 from src.api.maas_auth_models import TokenResponse, UserRegisterRequest
 from src.api.maas_billing import create_subscription_session
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import User, get_db
 
 router = APIRouter(tags=["MaaS Compatibility"])

@@ -15,7 +15,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from .event_store import Event, EventStore
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 

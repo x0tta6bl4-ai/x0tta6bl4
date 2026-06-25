@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 
 from src.monitoring.metrics import (record_mttr,
                                     record_self_healing_event)
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 

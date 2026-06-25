@@ -189,7 +189,7 @@ class MeshMTLSEnforcer:
                     "Certificate does not contain SAN extension with SPIFFE IDs"
                 )
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"SVID verification failed: {e}")
             return {"verified": False, "reason": str(e)}
 
@@ -235,7 +235,7 @@ class MeshMTLSEnforcer:
             logger.debug(f"✓ Certificate chain valid ({len(cert_chain)} certificates)")
             return True
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"Certificate chain validation failed: {e}")
             raise
 
@@ -279,7 +279,7 @@ class MeshMTLSEnforcer:
             logger.info("✅ Secure mTLS client configured with TLS 1.3")
             return client
 
-        except Exception as e:
+        except (ValueError, KeyError, RuntimeError, OSError) as e:
             logger.error(f"Failed to setup secure client: {e}")
             raise TLS13EnforcementError(f"TLS 1.3 enforcement failed: {e}") from e
 
@@ -338,7 +338,7 @@ class MeshMTLSEnforcer:
                     "error": f"HTTP {response.status_code}",
                 }
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError, KeyError) as e:
             logger.error(f"mTLS connectivity verification failed: {e}")
             return {"verified": False, "peer": peer_address, "error": str(e)}
 

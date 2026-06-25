@@ -37,5 +37,5 @@ def verify_password(password: str, stored_hash: str) -> Tuple[bool, bool]:
     try:
         is_valid = bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
         return is_valid, False
-    except Exception:
+    except (ValueError, TypeError, RuntimeError, OSError):
         return False, False

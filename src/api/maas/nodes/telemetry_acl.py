@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.database import ACLPolicy, MeshInstance, MeshNode, User
-from src.core.rbac import MeshPermission
+from src.core.security.rbac import MeshPermission
 from .security import (
     ensure_mesh_visibility,
 )

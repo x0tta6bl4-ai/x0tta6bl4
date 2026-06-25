@@ -14,7 +14,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
 from src.billing.stripe_client import StripeClient, StripeConfig
-from src.core.reliability_policy import (CircuitBreakerOpen, RetryExhausted,
+from src.core.resilience.reliability_policy import (CircuitBreakerOpen, RetryExhausted,
                                          call_with_reliability,
                                          mark_degraded_dependency)
 from database import get_user, update_user, record_payment

@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.api.maas_auth import get_current_user_from_maas, require_role
-from src.core.reliability_policy import mark_degraded_dependency
+from src.core.resilience.reliability_policy import mark_degraded_dependency
 from src.database import MeshNode, NodeBinaryAttestation, SBOMEntry, User, get_db
 from src.utils.audit import record_audit_log
 

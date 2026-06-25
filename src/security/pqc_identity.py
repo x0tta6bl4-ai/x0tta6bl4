@@ -135,7 +135,7 @@ class PQCNodeIdentity:
             pubkey = bytes.fromhex(remote_pubkey_hex)
 
             return self.security.verify(payload, signature, pubkey)
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"PQC Verification failed: {e}")
             return False
 

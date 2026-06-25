@@ -5,7 +5,7 @@ FastAPI endpoint for serving causal analysis visualization data.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/causal-analysis", tags=["causal-analysis"])
 
 # Global instances (would be dependency injection in production)
-_causal_engine: Optional[CausalAnalysisEngine] = None
-_visualizer: Optional[CausalAnalysisVisualizer] = None
+_causal_engine: CausalAnalysisEngine | None = None
+_visualizer: CausalAnalysisVisualizer | None = None
 
 
 def init_causal_analysis():
@@ -32,7 +32,7 @@ def init_causal_analysis():
 
 
 @router.get("/incidents/{incident_id}")
-async def get_causal_analysis(incident_id: str) -> Dict[str, Any]:
+async def get_causal_analysis(incident_id: str) -> dict[str, Any]:
     """
     Get causal analysis dashboard data for an incident.
 
@@ -57,7 +57,7 @@ async def get_causal_analysis(incident_id: str) -> Dict[str, Any]:
 
 
 @router.post("/demo")
-async def create_demo_incident() -> Dict[str, Any]:
+async def create_demo_incident() -> dict[str, Any]:
     """
     Create a demo incident for visualization.
 
@@ -79,7 +79,7 @@ async def create_demo_incident() -> Dict[str, Any]:
 
 
 @router.get("/incidents")
-async def list_incidents() -> Dict[str, Any]:
+async def list_incidents() -> dict[str, Any]:
     """
     List all incidents available for analysis.
 

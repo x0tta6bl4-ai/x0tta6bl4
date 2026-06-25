@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
@@ -329,7 +329,7 @@ class AutoIsolationManager:
             from src.network.ebpf.quarantine_manager import QuarantineManager
             self._quarantine = QuarantineManager()
             self.register_callback(self._enforce_network_isolation)
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error(f"XDP Quarantine enforcement not available: {e}")
             self._quarantine = None
 
@@ -412,7 +412,7 @@ class AutoIsolationManager:
         for callback in self._callbacks:
             try:
                 callback(node_id, level)
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError) as e:
                 logger.error(f"Callback error: {e}")
 
     def isolate(

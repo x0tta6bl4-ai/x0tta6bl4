@@ -31,7 +31,7 @@ from src.agents.development import (
     get_spec_to_code_agent,
     get_documentation_agent,
 )
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 

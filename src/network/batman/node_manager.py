@@ -82,7 +82,7 @@ except ImportError:
     STEGO_MESH_AVAILABLE = False
 
 # Geo-Fencing Integration
-from src.core.agent_thinking import AgentThinkingCoach
+from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.network.geofencing import GeoFencer
 
 logger = logging.getLogger(__name__)

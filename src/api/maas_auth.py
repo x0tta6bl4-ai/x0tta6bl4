@@ -1,24 +1,20 @@
 """Compatibility alias for the DB-backed MaaS auth API."""
 
-import sys as _sys
-from typing import Any, Iterable, Dict
-
 import logging
 import os
 import secrets
-import uuid
-from datetime import datetime, timedelta
-from typing import Any, Dict, Union
+import sys as _sys
+from collections.abc import Iterable
+from types import SimpleNamespace
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from types import SimpleNamespace
-from src.api.maas_auth_models import (ApiKeyResponse, UserLoginRequest,
-                                      UserRegisterRequest, TokenResponse)
-from src.core.reliability_policy import mark_degraded_dependency
-from src.database import User, Session as UserSession, get_db
-from src.api.maas_security import oidc_validator, ApiKeyManager
+from src.api.maas_security import ApiKeyManager, oidc_validator
+from src.core.resilience.reliability_policy import mark_degraded_dependency
+from src.database import Session as UserSession
+from src.database import User, get_db
 
 # Legacy compatibility namespace
 _legacy = SimpleNamespace()
@@ -36,17 +32,19 @@ except Exception as _authlib_err:
     _OAuth = None
     _oauth_available = False
 
+def _get_modular_auth_router():
+    from src.api.maas.endpoints.auth import router
+    return router
+
 router = APIRouter(prefix="/api/v1/maas/auth", tags=["MaaS Auth"])
-from src.api.maas.endpoints.auth import router as _modular_auth_router
-router.include_router(_modular_auth_router)
+router.include_router(_get_modular_auth_router())
 
 auth_service = MaaSAuthService(
     api_key_factory=ApiKeyManager.generate,
     default_plan="starter",
 )
-from src.core.rbac import DEFAULT_ROLE_PERMISSIONS, MeshPermission
-from src.api.maas.auth import require_mesh_access as _modular_require_mesh_access
 from src.api.maas.auth import get_current_user as get_current_user_from_maas
+from src.core.security.rbac import DEFAULT_ROLE_PERMISSIONS
 
 
 def _maas_auth_db_session_available(db: Any) -> bool:
@@ -118,7 +116,7 @@ def _maas_auth_bootstrap_token_configured() -> bool:
     return bool(os.getenv("BOOTSTRAP_TOKEN", "").strip())
 
 
-def _maas_auth_readiness_status(db: Any) -> Dict[str, Any]:
+def _maas_auth_readiness_status(db: Any) -> dict[str, Any]:
     auth_db_ready = _maas_auth_db_session_available(db)
     user_model_ready = _maas_auth_user_model_available()
     session_model_ready = _maas_auth_session_model_available()
