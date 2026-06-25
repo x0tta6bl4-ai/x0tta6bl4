@@ -59,6 +59,10 @@ ALLOWED_COMMANDS = {
     "wget",
     "git",
     "make",
+    # Kubernetes / containers
+    "kubectl",
+    "docker",
+    "containerd",
 }
 
 DANGEROUS_ARGUMENT_CHARS = frozenset((";", "&", "|", "`", "$", "(", ")", "<", ">", "\n", "\r"))
