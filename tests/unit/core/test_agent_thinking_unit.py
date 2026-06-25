@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import numpy as np
 
-from src.core.agent_thinking import (
+from src.core.thinking.agent_thinking import (
     ALL_THINKING_TECHNIQUES,
     AgentThinkingCoach,
     build_agent_thinking_profile,

@@ -32,7 +32,7 @@ def _load_telemetry():
         "redis": MagicMock(),
         "src.database": MagicMock(),
         "src.api.maas_auth": MagicMock(),
-        "src.core.reliability_policy": MagicMock(),
+        "src.core.resilience.reliability_policy": MagicMock(),
         "src.monitoring.maas_metrics": MagicMock(),
         "src.network.reputation_scoring": MagicMock(),
     }

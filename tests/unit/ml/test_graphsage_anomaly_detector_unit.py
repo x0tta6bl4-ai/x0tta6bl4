@@ -9,7 +9,13 @@ Covers:
 - Private helpers: _features_to_tensor, _edges_to_tensor, _generate_labels, _score_to_severity
 - create_graphsage_detector_for_mapek factory
 - Edge cases: empty data, missing features, no-torch fallback, error paths
+
+Marked @slow because this file depends on torch/torch_geometric imports
+which take 10+ seconds on CPU-only hardware.
 """
+import pytest
+
+pytestmark = pytest.mark.slow
 
 from dataclasses import asdict
 from unittest.mock import MagicMock, patch

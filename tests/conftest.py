@@ -48,6 +48,9 @@ _prom.Histogram = lambda *a, **kw: types.SimpleNamespace(
 _prom.Summary = lambda *a, **kw: types.SimpleNamespace(observe=lambda v: None)
 _prom.generate_latest = lambda: b""
 _prom.CONTENT_TYPE_LATEST = "text/plain"
+_prom.REGISTRY = types.SimpleNamespace(
+    _names_to_collectors={},
+)
 
 # Now safe to import everything else
 import asyncio
