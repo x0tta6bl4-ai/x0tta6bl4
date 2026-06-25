@@ -57,7 +57,7 @@ This is a solo project that needs collaborators. Specific help wanted:
 
 If any of this sounds like you — **reach out directly** before opening issues:
 
-- Telegram: [@x0tta6bl4](https://t.me/x0tta6bl4) — fastest response
+- Telegram: [@x0tta6bl4_ai](https://t.me/x0tta6bl4_ai) — fastest response
 - Email: x0tta6bl4.ai@gmail.com
 
 ### Reporting Bugs
@@ -478,7 +478,7 @@ See [SECURITY.md](SECURITY.md) for full security policy.
 ## Getting Help
 
 - **Issues**: [GitHub Issues](https://github.com/x0tta6bl4-ai/x0tta6bl4/issues)
-- **Telegram**: [@x0tta6bl4](https://t.me/x0tta6bl4) — fastest response
+- **Telegram**: [@x0tta6bl4_ai](https://t.me/x0tta6bl4_ai) — fastest response
 - **Email**: x0tta6bl4.ai@gmail.com
 
 ---
