@@ -15,7 +15,7 @@ from src.api.maas.auth import UserContext
 from src.api.maas.endpoints import nodes_legacy as mod
 from src.api.maas.models import NodeHeartbeatRequest, NodeRegisterRequest
 from src.api.maas.nodes.telemetry_acl import _ensure_owner_or_admin_access
-from src.core.rbac import MeshPermission
+from src.core.security.rbac import MeshPermission
 from src.coordination.events import EventBus, EventType
 from src.database import Base, MeshInstance, User
 from src.services.service_event_trace import event_trace_evidence_summary

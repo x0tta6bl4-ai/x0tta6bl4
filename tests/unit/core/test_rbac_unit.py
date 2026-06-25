@@ -1,4 +1,4 @@
-"""Unit tests for src.core.rbac — MeshPermission enum and DEFAULT_ROLE_PERMISSIONS."""
+"""Unit tests for src.core.security.rbac — MeshPermission enum and DEFAULT_ROLE_PERMISSIONS."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 
 
-from src.core.rbac import DEFAULT_ROLE_PERMISSIONS, MeshPermission
+from src.core.security.rbac import DEFAULT_ROLE_PERMISSIONS, MeshPermission
 
 
 # ---------------------------------------------------------------------------

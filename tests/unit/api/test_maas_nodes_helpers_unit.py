@@ -13,7 +13,7 @@ from src.api.maas.nodes.security import (
     _expand_permission_aliases,
 )
 from src.api.maas.endpoints.nodes_legacy import _to_optional_float
-from src.core.rbac import MeshPermission
+from src.core.security.rbac import MeshPermission
 
 
 # ---------------------------------------------------------------------------
