@@ -78,6 +78,7 @@ datasets/
 *.zip
 *.tar
 *.tar.gz
+!deploy/docker-compose/spire.tar.gz
 *.rar
 
 # Cache
