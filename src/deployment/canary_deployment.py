@@ -765,8 +765,8 @@ class CanaryDeployment:
             return False
 
         try:
+            from src.core.security.subprocess_validator import safe_run
             import subprocess
-from src.core.security.subprocess_validator import safe_run
 
             result = safe_run(
                 [
@@ -813,8 +813,8 @@ from src.core.security.subprocess_validator import safe_run
             return False
 
         try:
+            from src.core.security.subprocess_validator import safe_run
             import subprocess
-from src.core.security.subprocess_validator import safe_run
 
             # Scale canary to 0 replicas
             result = safe_run(
