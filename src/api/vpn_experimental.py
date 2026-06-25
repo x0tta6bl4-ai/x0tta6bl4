@@ -24,7 +24,7 @@ from src.services.service_event_identity import service_event_identity
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-from new_vpn_config_generator import generate_config_text, generate_vless_link
+from src.services.vpn_config_generator import generate_config_text, generate_vless_link
 
 logger = logging.getLogger(__name__)
 
@@ -241,7 +241,7 @@ def _load_configured_vpn_users() -> List[Dict[str, Any]]:
 
 def _get_xui_client():
     try:
-        from vpn_config_generator import XUIAPIClient
+        from src.services.vpn_config_generator import XUIAPIClient
     except Exception as exc:
         logger.debug("XUIAPIClient unavailable for experimental VPN API: %s", exc)
         return None

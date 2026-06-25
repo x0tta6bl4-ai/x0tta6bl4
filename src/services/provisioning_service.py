@@ -312,7 +312,7 @@ class ProvisioningService:
         """Lazy-load XUIAPIClient."""
         if self._xui_client is None:
             try:
-                from vpn_config_generator import XUIAPIClient
+                from src.services.vpn_config_generator import XUIAPIClient
                 self._xui_client = XUIAPIClient()
             except ImportError:
                 logger.warning("XUIAPIClient not available — running in simulated mode")

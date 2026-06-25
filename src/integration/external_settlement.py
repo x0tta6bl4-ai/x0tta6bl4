@@ -506,6 +506,9 @@ def _rpc_call(rpc_url: str, method: str, params: List[Any]) -> Any:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
+    parsed = urllib.parse.urlparse(rpc_url)
+    if parsed.scheme not in ("https", "http"):
+        raise ValueError(f"Banned URL scheme for RPC: {parsed.scheme}")
     with urllib.request.urlopen(request, timeout=20) as response:
         payload = json.loads(response.read().decode("utf-8"))
     if payload.get("error"):

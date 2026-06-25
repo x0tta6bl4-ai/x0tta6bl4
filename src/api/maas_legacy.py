@@ -40,6 +40,28 @@ from src.database import (
 from src.security.hardware_enclave import AttestationService
 from src.services.maas_auth_service import MaaSAuthService, find_user_by_api_key
 from src.api.maas.services import BillingService as ModularBillingService, UsageMeteringService as ModularUsageMeteringService
+from src.api.maas.models import (
+    BillingWebhookRequest,
+    BillingWebhookResponse,
+    LegacyBillingResponse,
+    MeshDeployRequest,
+    MeshDeployResponse,
+    MeshStatusResponse,
+    MeshMetricsResponse,
+    NodeApproveRequest,
+    NodeApproveResponse,
+    NodeHeartbeatRequest,
+    NodeRegisterRequest,
+    NodeRegisterResponse,
+    NodeReissueTokenRequest,
+    NodeReissueTokenResponse,
+    NodeRevokeRequest,
+    NodeRevokeResponse,
+    PolicyRequest,
+    PolicyResponse,
+    ScaleRequest,
+    TokenRotateResponse,
+)
 
 try:  # Optional in local/dev environments.
     from src.security.ebpf_pqc_gateway import PQC_AVAILABLE

@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 # Simplified import
 try:
-    from vpn_config_generator import generate_vless_link
+    from src.services.vpn_config_generator import generate_vless_link
 except ImportError:
     generate_vless_link = None
 

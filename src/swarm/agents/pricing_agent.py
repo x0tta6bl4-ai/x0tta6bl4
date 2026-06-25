@@ -140,6 +140,20 @@ class DynamicPricingAgent(Agent):
             recommendation["node_id"] = node_id
             recommendation["task_id"] = task_id
 
+            # Prepare thinking context for compliance and testing
+            self.last_thinking_context = self.thinking_coach.prepare_task(
+                {
+                    **payload,
+                    "agent_id": self.agent_id,
+                    "role": self.role,
+                    "capabilities": list(self.capabilities.keys()),
+                }
+            )
+            if self.last_thinking_context and "techniques" in self.last_thinking_context:
+                recommendation["thinking_techniques"] = list(self.last_thinking_context["techniques"])
+            else:
+                recommendation["thinking_techniques"] = []
+
             logger.info(
                 "💰 Node %s: Suggested price $%.4f (Multiplier: %.2fx)",
                 node_id,
