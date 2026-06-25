@@ -124,6 +124,8 @@
         "RC1_RELEASE_NOTES.md.sig",
         "RC1_RELEASE_NOTES.md",
         "README.md",
+        "AI-DECLARATION.md",
+        ".prompts/",
         "docs/release/",
         "docs/05-operations/",
         "src/",
