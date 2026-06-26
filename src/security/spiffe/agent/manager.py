@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.security.subprocess_validator import safe_run
+from src.core.security.subprocess_validator import safe_popen, safe_run
 from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
@@ -404,7 +404,7 @@ class SPIREAgentManager:
 
             self.socket_path.parent.mkdir(parents=True, exist_ok=True)
 
-            self.agent_process = subprocess.Popen(
+            self.agent_process = safe_popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

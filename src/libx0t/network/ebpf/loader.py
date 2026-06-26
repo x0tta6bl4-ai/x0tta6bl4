@@ -458,7 +458,7 @@ class EBPFLoader:
                 if xdp_mode != "skb":
                     cmd.extend(["mode", xdp_mode])
 
-                result = subprocess.run(
+                result = safe_run(
                     cmd, check=True, capture_output=True, text=True, timeout=10
                 )
 
@@ -504,7 +504,7 @@ class EBPFLoader:
                 ".text",
             ]
 
-            result = subprocess.run(
+            result = safe_run(
                 cmd, check=True, capture_output=True, text=True, timeout=10
             )
 
@@ -517,7 +517,7 @@ class EBPFLoader:
     def _verify_xdp_attachment(self, interface: str, mode: str) -> bool:
         """Verify XDP program is attached to interface."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["ip", "link", "show", "dev", interface],
                 check=True,
                 capture_output=True,
@@ -558,7 +558,7 @@ class EBPFLoader:
             True if program is verified attached, False otherwise
         """
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "prog", "show", "id", str(program_id)],
                 capture_output=True,
                 text=True,
@@ -634,7 +634,7 @@ class EBPFLoader:
                     "sec",
                     "xdp",
                 ]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
                 if result.returncode == 0:
                     logger.info(
@@ -676,7 +676,7 @@ class EBPFLoader:
 
             # Try to verify program is loaded via bpftool
             cmd = ["bpftool", "prog", "list"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode == 0 and program_source in result.stdout:
                 logger.debug("Program found in bpftool list")
@@ -749,7 +749,7 @@ class EBPFLoader:
     def _detach_xdp(self, interface: str) -> bool:
         """Detach XDP program from interface."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["ip", "link", "set", "dev", interface, "xdp", "off"],
                 check=True,
                 capture_output=True,
@@ -771,7 +771,7 @@ class EBPFLoader:
         """Detach TC program from interface."""
         try:
             # Remove TC filter
-            result = subprocess.run(
+            result = safe_run(
                 ["tc", "filter", "del", "dev", interface, "ingress"],
                 check=True,
                 capture_output=True,
@@ -872,7 +872,7 @@ class EBPFLoader:
 
         # Try to read stats from bpftool
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "dump", "name", "packet_stats"],
                 capture_output=True,
                 text=True,
@@ -936,7 +936,7 @@ class EBPFLoader:
                     next_hop_if,
                 ]
 
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
                 if result.returncode != 0:
                     logger.warning(

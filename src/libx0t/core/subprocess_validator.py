@@ -202,3 +202,26 @@ def safe_run(cmd: List[str], **kwargs) -> subprocess.CompletedProcess:
     resolved_cmd = [_resolve_trusted_command(cmd[0]), *cmd[1:]]
     return subprocess.run(resolved_cmd, **safe_kwargs)
 
+
+def safe_popen(cmd: List[str], **kwargs) -> subprocess.Popen:
+    """
+    Safely start a subprocess with validation, returning Popen for long-lived processes.
+
+    Use this for daemon/long-running processes (SPIRE agents, watchers, etc.)
+    where subprocess.run() would block indefinitely.
+
+    Args:
+        cmd: Command list to execute
+        **kwargs: Additional arguments for subprocess.Popen
+
+    Returns:
+        subprocess.Popen object
+    """
+    validate_command(cmd)
+    validate_arguments(cmd)
+    _validate_run_kwargs(kwargs)
+    safe_kwargs = dict(kwargs)
+    safe_kwargs["shell"] = False
+    resolved_cmd = [_resolve_trusted_command(cmd[0]), *cmd[1:]]
+    return subprocess.Popen(resolved_cmd, **safe_kwargs)
+
