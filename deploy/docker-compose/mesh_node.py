@@ -108,8 +108,8 @@ class MeshNode:
         """Send consensus request to a peer via HTTP."""
         import aiohttp
 
-        # Map peer name to port
-        peer_idx = list(self.peers).index(target_peer)
+        # Map peer name to port (use sorted order to match PEER_PORTS)
+        peer_idx = sorted(list(self.peers)).index(target_peer)
         target_port = PEER_PORTS[peer_idx]
 
         payload = {
