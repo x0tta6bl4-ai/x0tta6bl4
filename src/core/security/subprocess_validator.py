@@ -1,3 +1,4 @@
+from __future__ import annotations
 # Subprocess validation utilities
 import os
 import shutil
@@ -22,7 +23,11 @@ ALLOWED_COMMANDS = {
     "python",
     "bash",
     "sh",
-    # System service management
+    # System config
+    "sudo",
+    "sysctl",
+    "iptables",
+    "nft",
     "systemctl",
     "systemd-run",
     # Network / VPN
@@ -54,7 +59,6 @@ ALLOWED_COMMANDS = {
     "free",
     "ps",
     "ss",
-    "ip",
     "tcpdump",
     "curl",
     "wget",
@@ -201,3 +205,4 @@ def safe_run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     safe_kwargs["shell"] = False
     resolved_cmd = [_resolve_trusted_command(cmd[0]), *cmd[1:]]
     return subprocess.run(resolved_cmd, **safe_kwargs)
+

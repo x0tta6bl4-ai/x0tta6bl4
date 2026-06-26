@@ -11,6 +11,7 @@ Usage:
     fix = WebRTCLeakFix()
     fix.apply_browser_fixes()  # Apply to Chrome/Firefox
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -243,9 +244,9 @@ class WebRTCLeakFix:
         # Check iptables (Linux only)
         if self.system == "Linux":
             try:
-                import subprocess
+                from src.core.security.subprocess_validator import safe_run
 
-                result = subprocess.run(
+                result = safe_run(
                     ["iptables", "-L", "OUTPUT", "-n"], capture_output=True, text=True
                 )
                 status["system_rules_active"] = "3478" in result.stdout
@@ -278,3 +279,4 @@ if __name__ == "__main__":
     print("\nApplying fixes...")
     results = fix.apply_browser_fixes()
     print(f"Results: {results}")
+

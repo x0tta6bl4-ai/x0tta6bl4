@@ -4,10 +4,13 @@ x0tta6bl4 STABLE eBPF Monitor (v2.1)
 Minimalist BPF program to monitor packets without complex kernel header dependencies.
 Compatible with Ubuntu 24.04+
 """
+from __future__ import annotations
 
 from bcc import BPF
 import time
 import sys
+
+from src.core.security.subprocess_validator import safe_run
 
 # Minimal BPF program - just count packets
 bpf_text = """
@@ -30,8 +33,7 @@ def main(interface="singbox_tun"):
     print(f"[*] Starting Stable eBPF Monitor on {interface}...")
     
     # Check if interface exists
-    import subprocess
-    res = subprocess.run(["ip", "addr", "show", interface], capture_output=True)
+    res = safe_run(["ip", "addr", "show", interface], capture_output=True)
     if res.returncode != 0:
         print(f"[!] Interface {interface} not found. Waiting...")
         return
@@ -51,10 +53,7 @@ def main(interface="singbox_tun"):
             except KeyboardInterrupt:
                 break
     except Exception as e:
-        print(f"[!] eBPF Failure: {e}")
+        print(f"[!] BPF Error: {e}")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        main(sys.argv[1])
-    else:
-        main()
+    main()
