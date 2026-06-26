@@ -1,52 +1,58 @@
 # x0tta6bl4 Roadmap
 
-**Version:** 3.4.0  
-**Last Updated:** 2026-02-27  
-**Status:** Pre-Production (Release Hardening + Pilot Preparation)
+**Version:** 3.5.0
+**Last Updated:** 2026-06-26
+**Status:** Pre-Production (Release Hardening)
 
-> **Canonical source of truth:** this file + [`plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md`](plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md)
+## Current State (As Of 2026-06-26)
 
----
+### ✅ Completed (this session, June 26)
 
-## Source Precedence (When Files Conflict)
+| Area | Detail |
+|:-----|:-------|
+| **Tech debt** | `__init__.py` 930→0, `from __future__ import annotations` 100%, subprocess safety 200+→0 |
+| **subprocess hardening** | All `subprocess.run()` → `safe_run()` (54 files), `Popen` → `safe_popen` (3 calls) |
+| **Allowlist** | 65 commands across both validators, `sudo`/`sysctl`/`iptables`/`nft`/`pgrep`/`ethtool` added |
+| **Dead code** | `charter_client.py` deleted, `algorithm_update.py` deduped |
+| **CVE patching** | yt-dlp: CVE-2026-26331 fixed, starlette 0.52.1→1.3.1 (5 CVEs), PyJWT 2.12.0→2.13.0 (5 CVEs) |
+| **Import fix** | `_legacy/__init__.py` shadow bug resolved |
+| **PRs closed** | #156 (docs cleanup), #155 (refactor — superseded) |
+| **CI** | Green Baseline ✅, CodeQL ✅, `import src` ✅ |
+| **Git hygiene** | 27 old stashes dropped, .gitignore extended, 92 untracked files handled |
 
-1. **Release gate truth:** [`plans/MASTER_100_READINESS_TODOS_2026-02-26.md`](plans/MASTER_100_READINESS_TODOS_2026-02-26.md)
-2. **Execution truth:** [`plans/EXECUTION_BACKLOG_Q1_2026_W7_W8.md`](plans/EXECUTION_BACKLOG_Q1_2026_W7_W8.md)
-3. **Domain/capability plans:** MaaS, SPIFFE/SPIRE, Mesh-FL, Tech Debt plans
-4. **Informational snapshots:** `docs/STATUS.md`, grant/action docs
-5. **Historical only:** `docs/archive/**`
+### Remaining Tech Debt
 
----
+| Category | Status | Priority |
+|:---------|:------:|:---------|
+| CVE/dependabot (~40 alerts) | 🟡 Pending rescan after starlette/PyJWT bump | High |
+| 68 files > 1000 lines refactor | 🟡 Low risk — active code | Low |
+| 14 diverged libx0t vs src/network files | 🟡 Both versions live | Low |
+| 199 suppressed lints | 🟢 All intentional (shims, lazy imports, defensive) | None |
+| 14 wildcard imports | 🟢 All re-export shims for BC | None |
 
-## Current State (As Of 2026-06-23)
+## Next Milestones (v3.5.0 → Production)
 
-- **PQC core**: ML-KEM-768/1024 + ML-DSA-65/87 — NIST FIPS 203/204 verified
-- **Side-channel**: 8/8 vulnerabilities closed (variable-time encode, secret branches)
-- **CI**: Green Baseline ✅ | CodeQL ✅ | Dependabot: 50→4 alerts
-- **Requirements**: 342→72 dependencies (cleaned)
-- **Tech debt split**: 20 large files → 66 package files (metrics_exporter split today)
-- **Self-healing**: MAPE-K fully packaged, chaos tests active
-- **VPN**: 4 inbounds active (3 VLESS Reality + 1 Shadowsocks), 7+ TB traffic
-- **Hermes**: 9 MCP servers, 70+ tools, local AI model
-- **Bounty**: 5 PRs submitted ($575 total, under review)
+### Phase 1: Dependency Security (Days 1-3)
+- [x] yt-dlp: CVE-2026-26331
+- [x] starlette 0.52.1→1.3.1 (+5 CVEs patched)
+- [x] PyJWT 2.12.0→2.13.0 (+5 CVEs patched)
+- [ ] Verify dependabot rescan results (pending GitHub schedule)
+- [ ] Fix remaining high-severity CVEs if any
 
-## Remaining Tech Debt
+### Phase 2: Infrastructure (Week 1-2)
+- [ ] Deploy HashiCorp Vault (HA, 3 replicas, Raft, KMS) — config ready
+- [ ] Wire sealed secrets for production K8s
+- [ ] Run Stripe e2e tests
+- [ ] Validate Ghost Transport deployment
 
-| God Object | Lines | Status |
-|:-----------|:-----:|:-------|
-| `core/mape_k_loop.py` | 1941 | ✅ **Archived** (dead code, not imported) |
-| `network/ebpf/metrics_exporter.py` | 1451 | ✅ **Split** → 7 files |
-| `core/meta_cognitive_mape_k.py` | 1153 | ✅ **Archived** (dead code, not imported) |
-| `self_healing/mape_k.py` | 1145 | ✅ **Split** → 9 files (6 classes) |
-|| `core/mape_k_loop/` (package) | 1084 | ✅ **Split** during earlier session |
-| `network/ebpf/orchestrator.py` | 1120 | ✅ **Split** → 7 files |
-| `ledger/drift_detector.py` | 922 | ✅ **Split** → 3 files |
-| `swarm/vision_coding.py` | 887 | ✅ **Split** → 5 files |
-| **Total god objects eliminated** | **6,810** | **PR #128-#131** |
+### Phase 3: Visibility & Release (Week 2-3)
+- [ ] Bump VERSION → v3.5.0
+- [ ] Release notes
+- [ ] Portfolio/README update for job search
+- [ ] Open source outreach (issues, discussions)
 
-## Next Milestones
+## Constraints
 
-1. Close remaining tech debt (6 god objects)
-2. Bounty PRs merge → $575
-3. Review me-hub PRs (14 open, 0 merged)
-4. Re-evaluate roadmap for Q3 2026
+- **Zero budget** — solo developer under sanctions (Crimea)
+- **No cloud infra available** — Vault, Stripe, K8s require external infrastructure
+- **Target:** survival infrastructure for sanctioned people, journalists, activists
