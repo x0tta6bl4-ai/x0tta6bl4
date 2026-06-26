@@ -61,6 +61,7 @@ logger = logging.getLogger("mesh-node")
 
 NODE_ID = os.environ.get("NODE_ID", "node-a")
 PEERS = [p for p in os.environ.get("PEERS", "").split(",") if p]
+PEER_IDS = [p for p in os.environ.get("PEER_IDS", "").split(",") if p]
 PORT = int(os.environ.get("PORT", "9100"))
 PEER_PORTS = os.environ.get("PEER_PORTS", "").split(",")
 
