@@ -69,6 +69,14 @@ ALLOWED_COMMANDS = {
     "sysctl",
     "iptables",
     "nft",
+    # Process / diagnostics
+    "pgrep",
+    "ethtool",
+    # Network config
+    "resolvectl",
+    # Cross-platform network tools
+    "scutil",
+    "ipconfig",
 }
 
 DANGEROUS_ARGUMENT_CHARS = frozenset((";", "&", "|", "`", "$", "(", ")", "<", ">", "\n", "\r"))
