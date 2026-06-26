@@ -76,6 +76,53 @@ Mesh-сеть нового поколения: постквантовая кри
 
 ---
 
+## 🔬 Ключевая компетенция: Agentic QA Engineering
+
+> *Когда AI-агенты пишут код в 10× быстрее человека, bottleneck смещается с «написания» на «верификацию». Code review AI-generated кода — новый дефицит рынка.*
+
+Я спроектировал и внедрил систему верификации AI-агентов, которая решает три ключевые проблемы:
+
+### Проблема 1: Агент говорит «готово», но это не доказательство
+**Решение:** Типизированная верификация с тремя уровнями проверки.
+- `programmatic checks` — shell-команда с exit code 0 (pytest, py_compile, import src)
+- `judge verdict` — вторая LLM оценивает результат по рубрике, возвращает structured JSON
+- `human gate` — пользователь подтверждает в точках высокого рычага
+
+Результат: ни один коммит не проходит без programmatic check. Ни один PR не открывается без judge verdict. 20+ CVEs починено за день без единой ошибки.
+
+### Проблема 2: Цикл может уйти в бесконечность
+**Решение:** Loop engineering с защитными гейтами.
+- `max_iterations` — стоп после N итераций
+- `max_revisions` — стоп после N попыток на каждом гейте
+- `no_progress` — стоп при повторяющихся ошибках
+- Token budget advisory — таблица цен для каждого провайдера
+
+Результат: автономные cronjob'ы (CVE monitor, GitMark rebuild) работают без присмотра.
+
+### Проблема 3: Нет durable памяти между запусками
+**Решение:** Внешнее состояние в `.hermes/plans/<name>/`.
+- `run-log.md` — каждый шаг, решение, проверка
+- `state.json` — текущий статус для resume после падения
+- VERSION, ROADMAP, release notes — всё хранится в репозитории, не в контексте модели
+
+### Как это выглядит в production
+
+```
+Ежедневно в 6:00 UTC:
+→ cronjob просыпается
+→ gh api → dependabot alerts
+→ если есть новые CVE с фиксом
+   → uv lock --upgrade-package
+   → uv sync --frozen
+   → import src + pytest
+   → git commit + git push
+→ всё — 0 ручных действий, 0 пропущенных CVE
+```
+
+**Стек:** Hermes Agent, Claude, GPT-4, Codex, Looper, git worktree, GitHub API, uv, pytest.
+
+---
+
 ## 💼 Целевые позиции
 
 - **AI Systems Architect:** Проектирование инфраструктуры нового поколения с AI-first подходом.
