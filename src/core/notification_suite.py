@@ -30,6 +30,7 @@ import sys
 import time
 import urllib.request
 from email.mime.text import MIMEText
+from src.core.security.subprocess_validator import safe_run
 
 _MASK = "[REDACTED]"
 _SLACK_WEBHOOK_RE = re.compile(r"https://hooks\.slack\.com/services/[^\s'\"<>]+")
@@ -118,7 +119,7 @@ def kubectl_get_pods(namespace: str, label_selector: str = None):
         base_cmd.extend(["-l", label_selector])
     base_cmd.extend(["-o", "json"])
     try:
-        result = subprocess.run(base_cmd, capture_output=True, text=True, timeout=10)
+        result = safe_run(base_cmd, capture_output=True, text=True, timeout=10)
         if result.returncode != 0:
             print(f"[watch][kubectl-error] {_redact_sensitive_text(result.stderr.strip())}")
             return None

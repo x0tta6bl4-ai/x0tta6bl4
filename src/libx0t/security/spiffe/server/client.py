@@ -14,6 +14,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ class SPIREServerClient:
             True if server is healthy
         """
         try:
-            result = subprocess.run(
+            result = safe_run(
                 [self.spire_server_bin, "healthcheck"],
                 capture_output=True,
                 text=True,
@@ -123,7 +124,7 @@ class SPIREServerClient:
             if admin:
                 cmd.append("-admin")
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=10)
 
             if result.returncode == 0:
                 # Extract entry ID from output
@@ -146,7 +147,7 @@ class SPIREServerClient:
             List of SPIREServerEntry objects
         """
         try:
-            result = subprocess.run(
+            result = safe_run(
                 [self.spire_server_bin, "entry", "show"],
                 capture_output=True,
                 text=True,
@@ -193,7 +194,7 @@ class SPIREServerClient:
             True if deletion successful
         """
         try:
-            result = subprocess.run(
+            result = safe_run(
                 [self.spire_server_bin, "entry", "delete", "-entryID", entry_id],
                 capture_output=True,
                 text=True,
@@ -238,7 +239,7 @@ class SPIREServerClient:
             Dictionary with server status information
         """
         try:
-            result = subprocess.run(
+            result = safe_run(
                 [self.spire_server_bin, "healthcheck", "-shallow"],
                 capture_output=True,
                 text=True,

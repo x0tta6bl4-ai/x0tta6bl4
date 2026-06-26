@@ -23,6 +23,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -395,7 +396,7 @@ class BatmanMetricsCollector:
         """Collect mesh topology metrics."""
         try:
             # Get originators
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "originators"],
                 capture_output=True,
                 text=True,
@@ -407,7 +408,7 @@ class BatmanMetricsCollector:
                 snapshot.originators_count = max(0, len(lines) - 2)  # Skip header
             
             # Get neighbors
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "transglobal"],
                 capture_output=True,
                 text=True,
@@ -426,7 +427,7 @@ class BatmanMetricsCollector:
     async def _collect_link_metrics(self, snapshot: BatmanMetricsSnapshot) -> None:
         """Collect link quality metrics."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "originators"],
                 capture_output=True,
                 text=True,
@@ -465,7 +466,7 @@ class BatmanMetricsCollector:
     async def _collect_routing_metrics(self, snapshot: BatmanMetricsSnapshot) -> None:
         """Collect routing table metrics."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "translocal"],
                 capture_output=True,
                 text=True,
@@ -484,7 +485,7 @@ class BatmanMetricsCollector:
     async def _collect_gateway_metrics(self, snapshot: BatmanMetricsSnapshot) -> None:
         """Collect gateway metrics."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "gateways"],
                 capture_output=True,
                 text=True,
@@ -505,7 +506,7 @@ class BatmanMetricsCollector:
                             break
             
             # Get gateway mode
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "gw_mode"],
                 capture_output=True,
                 text=True,
@@ -524,7 +525,7 @@ class BatmanMetricsCollector:
         """Collect interface metrics."""
         try:
             # Check interface status
-            result = subprocess.run(
+            result = safe_run(
                 ["ip", "link", "show", self.interface],
                 capture_output=True,
                 text=True,
@@ -536,7 +537,7 @@ class BatmanMetricsCollector:
                 snapshot.interface_up = "up" in output and "down" not in output
             
             # Get traffic statistics
-            result = subprocess.run(
+            result = safe_run(
                 ["cat", f"/sys/class/net/{self.interface}/statistics/rx_bytes"],
                 capture_output=True,
                 text=True,
@@ -546,7 +547,7 @@ class BatmanMetricsCollector:
             if result.returncode == 0:
                 snapshot.rx_bytes = int(result.stdout.strip())
             
-            result = subprocess.run(
+            result = safe_run(
                 ["cat", f"/sys/class/net/{self.interface}/statistics/tx_bytes"],
                 capture_output=True,
                 text=True,
@@ -556,7 +557,7 @@ class BatmanMetricsCollector:
             if result.returncode == 0:
                 snapshot.tx_bytes = int(result.stdout.strip())
             
-            result = subprocess.run(
+            result = safe_run(
                 ["cat", f"/sys/class/net/{self.interface}/statistics/rx_packets"],
                 capture_output=True,
                 text=True,
@@ -566,7 +567,7 @@ class BatmanMetricsCollector:
             if result.returncode == 0:
                 snapshot.rx_packets = int(result.stdout.strip())
             
-            result = subprocess.run(
+            result = safe_run(
                 ["cat", f"/sys/class/net/{self.interface}/statistics/tx_packets"],
                 capture_output=True,
                 text=True,
@@ -592,7 +593,7 @@ class BatmanMetricsCollector:
             
             # Measure latency to a known originator
             if snapshot.originators_count > 0:
-                result = subprocess.run(
+                result = safe_run(
                     ["batctl", "meshif", self.interface, "originators"],
                     capture_output=True,
                     text=True,
@@ -608,7 +609,7 @@ class BatmanMetricsCollector:
                             mac = parts[0]
                             
                             # Ping to measure latency
-                            ping_result = subprocess.run(
+                            ping_result = safe_run(
                                 ["batctl", "meshif", self.interface, "ping", "-c", "3", mac],
                                 capture_output=True,
                                 text=True,

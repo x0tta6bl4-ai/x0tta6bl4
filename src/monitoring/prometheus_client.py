@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import time
+from src.core.security.subprocess_validator import safe_run
 
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ class PrometheusExporter:
         if shutil.which("bpftool") is None:
             return None
         try:
-            proc = subprocess.run(
+            proc = safe_run(
                 self._bpftool_command(*args),
                 capture_output=True,
                 text=True,

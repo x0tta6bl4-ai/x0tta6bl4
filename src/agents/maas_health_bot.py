@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 import httpx
 
 from src.core.thinking.agent_thinking import AgentThinkingCoach
+from src.core.security.subprocess_validator import safe_run
 
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -365,7 +366,7 @@ class MaasHealthBot:
         report["attempted"] = True
         self._mark_action_attempt(action_id)
         try:
-            completed = subprocess.run(
+            completed = safe_run(
                 shlex.split(command),
                 capture_output=True,
                 text=True,

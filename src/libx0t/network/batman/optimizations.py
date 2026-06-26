@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ class MultiPathRouter:
         try:
             import subprocess
 
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", "bat0", "originators"],
                 capture_output=True,
                 text=True,
@@ -179,7 +180,7 @@ class AODVFallback:
             try:
                 import subprocess
 
-                result = subprocess.run(
+                result = safe_run(
                     ["batctl", "meshif", "bat0", "ping", "-c", "1", destination],
                     capture_output=True,
                     text=True,
@@ -219,7 +220,7 @@ class AODVFallback:
         try:
             import subprocess
 
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", "bat0", "ping", "-c", "1", destination],
                 capture_output=True,
                 text=True,

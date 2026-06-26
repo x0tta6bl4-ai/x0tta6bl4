@@ -24,6 +24,7 @@ from src.services.service_event_identity import service_event_identity
 
 from .models import TelemetryConfig
 from .security import SecurityManager
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -279,7 +280,7 @@ class MapReader:
         start = time.monotonic()
         command_shape = ["bpftool", "--version"]
         try:
-            result = subprocess.run(
+            result = safe_run(
                 command_shape, capture_output=True, timeout=2
             )
             available = result.returncode == 0
@@ -460,7 +461,7 @@ class MapReader:
         command_shape = ["bpftool", "map", "dump", "name", "<map_name>", "--json"]
         command_hash = self._hash_value(" ".join(command_shape))
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "dump", "name", map_name, "--json"],
                 capture_output=True,
                 text=True,

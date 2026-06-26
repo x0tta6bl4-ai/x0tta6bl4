@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from src.coordination.events import EventBus, EventType
 from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +259,7 @@ class EBPFMapManager:
         cmd = ["bpftool", "version"]
         start = time.monotonic()
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 capture_output=True,
                 timeout=2
@@ -337,7 +338,7 @@ class EBPFMapManager:
             return {}
         
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 capture_output=True,
                 text=True,
@@ -500,7 +501,7 @@ class EBPFMapManager:
             return False
         
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 capture_output=True,
                 text=True,
@@ -717,7 +718,7 @@ class EBPFMapManager:
             return []
         
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 capture_output=True,
                 text=True,

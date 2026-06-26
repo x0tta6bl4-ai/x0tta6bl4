@@ -25,6 +25,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
+from src.core.security.subprocess_validator import safe_run
 
 # Try to import crypto libs
 try:
@@ -112,14 +113,14 @@ class HardwareFingerprinter:
         """Get CPU identifier."""
         try:
             if platform.system() == "Linux":
-                result = subprocess.run(
+                result = safe_run(
                     ["cat", "/proc/cpuinfo"], capture_output=True, text=True, timeout=5
                 )
                 for line in result.stdout.split("\n"):
                     if "Serial" in line or "model name" in line:
                         return hashlib.sha256(line.encode()).hexdigest()[:16]
             elif platform.system() == "Darwin":
-                result = subprocess.run(
+                result = safe_run(
                     ["sysctl", "-n", "machdep.cpu.brand_string"],
                     capture_output=True,
                     text=True,
@@ -146,7 +147,7 @@ class HardwareFingerprinter:
                     return f.read().strip()[:32]
             # macOS
             if platform.system() == "Darwin":
-                result = subprocess.run(
+                result = safe_run(
                     ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
                     capture_output=True,
                     text=True,

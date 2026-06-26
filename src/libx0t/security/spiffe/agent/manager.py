@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.core.thinking.agent_thinking import AgentThinkingCoach
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -413,7 +414,7 @@ class SPIREAgentManager:
             cmd.extend(["-selector", f"{key}:{value}"])
 
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd, capture_output=True, check=True, text=True, timeout=30
             )
             logger.info(
@@ -482,7 +483,7 @@ class SPIREAgentManager:
             )
             # Execute: spire-server entry show
             cmd = [self._spire_server_bin, "entry", "show"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=30)
 
             if result.returncode != 0:
                 self._record_thinking(
@@ -622,7 +623,7 @@ class SPIREAgentManager:
 
         try:
             # print("DEBUG: Calling subprocess.run in health_check") # Removed debug print
-            result = subprocess.run(
+            result = safe_run(
                 [
                     self._spire_agent_bin,
                     "healthcheck",

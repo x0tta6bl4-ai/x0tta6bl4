@@ -22,6 +22,7 @@ import psutil
 from src.coordination.events import EventBus, EventType
 from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -503,7 +504,7 @@ class EBPFProfiler:
         op_start = time.monotonic()
         command = ["ping", "-c", "10", "-W", "1", "127.0.0.1"]
         try:
-            ping_result = subprocess.run(
+            ping_result = safe_run(
                 command,
                 capture_output=True,
                 text=True,

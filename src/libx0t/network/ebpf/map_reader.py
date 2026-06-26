@@ -11,6 +11,7 @@ import logging
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class EBPFMapReader:
     def _check_bpftool(self) -> bool:
         """Check if bpftool is available."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "--version"], capture_output=True, timeout=2
             )
             return result.returncode == 0
@@ -49,7 +50,7 @@ class EBPFMapReader:
             return []
 
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "show", "--json"],
                 capture_output=True,
                 text=True,
@@ -91,7 +92,7 @@ class EBPFMapReader:
             # Use map name if available, otherwise use ID
             map_arg = map_name if map_name else str(map_id)
 
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "dump", "name", map_arg, "--json"],
                 capture_output=True,
                 text=True,
@@ -104,7 +105,7 @@ class EBPFMapReader:
             else:
                 # Try with ID if name failed
                 if map_name and map_id:
-                    result = subprocess.run(
+                    result = safe_run(
                         ["bpftool", "map", "dump", "id", str(map_id), "--json"],
                         capture_output=True,
                         text=True,

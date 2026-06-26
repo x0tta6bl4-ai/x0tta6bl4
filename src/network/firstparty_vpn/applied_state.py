@@ -12,6 +12,7 @@ from typing import Callable, Mapping
 from .linux_policy import LinuxNetworkPolicyConfig, LinuxServerNatConfig
 from .ops import assert_privacy_safe
 from .tun import LinuxTunConfig
+from src.core.security.subprocess_validator import safe_run
 
 LinuxAppliedStateReadCommand = tuple[str, ...]
 LinuxAppliedStateCommandRunner = Callable[[LinuxAppliedStateReadCommand], str]
@@ -401,7 +402,7 @@ def _nonempty_lines(output: str) -> tuple[str, ...]:
 
 
 def _default_read_command_runner(command: LinuxAppliedStateReadCommand) -> str:
-    completed = subprocess.run(
+    completed = safe_run(
         command,
         check=True,
         capture_output=True,

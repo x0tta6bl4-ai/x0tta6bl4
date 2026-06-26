@@ -452,7 +452,7 @@ class SPIREServerClient:
             if admin:
                 cmd.append("-admin")
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=10)
 
             if result.returncode == 0:
                 entry_id = (

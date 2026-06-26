@@ -7,6 +7,7 @@ import shlex
 import subprocess
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, Sequence
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,7 @@ class TEEValidator:
             "signature_b64": self._b64(attestation.signature or b""),
         }
         try:
-            result = subprocess.run(
+            result = safe_run(
                 self.sgx_verifier_command,
                 input=json.dumps(payload),
                 capture_output=True,

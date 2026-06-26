@@ -21,6 +21,7 @@ from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.network.ebpf.loader import (EBPFAttachError, EBPFAttachMode,
                                      EBPFLoader)
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -311,7 +312,7 @@ class EBPFLoaderImplementation(EBPFLoader):
         # Check if still attached via ip link. If this check cannot run, fail
         # closed because returning success would hide a possibly attached program.
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode != 0:
                 logger.warning(
@@ -513,7 +514,7 @@ class EBPFLoaderImplementation(EBPFLoader):
         safe_command = _redacted_command(cmd, redacted_indices=())
         start = time.monotonic()
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode == 0:
                 # Check if program appears in list
@@ -645,7 +646,7 @@ class EBPFLoaderImplementation(EBPFLoader):
         safe_command = _redacted_command(cmd, redacted_indices=(4,))
         start = time.monotonic()
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode == 0:
                 # Parse bpftool output (simplified)

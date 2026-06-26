@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from src.core.security.subprocess_validator import safe_run
 
 
 SCHEMA_VERSION = "x0tta6bl4-x0t-contract-build-verification-v1"
@@ -73,7 +74,7 @@ def _node22_command(*args: str) -> List[str]:
 def _run_command(name: str, command: List[str], cwd: Path, timeout: int) -> CommandResult:
     started = time.monotonic()
     try:
-        result = subprocess.run(
+        result = safe_run(
             command,
             cwd=str(cwd),
             check=False,

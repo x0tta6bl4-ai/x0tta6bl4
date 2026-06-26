@@ -12,6 +12,7 @@ import logging
 import os
 import struct
 import subprocess
+from src.libx0t.core.subprocess_validator import safe_run
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -89,7 +90,7 @@ class EBPFLoaderImplementation(EBPFLoader):
         # Check if still attached via ip link
         try:
             cmd = ["ip", "link", "show", "dev", attached_to]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode == 0:
                 # Check if XDP is still attached
@@ -124,7 +125,7 @@ class EBPFLoaderImplementation(EBPFLoader):
         try:
             # List maps for this program
             cmd = ["bpftool", "map", "list"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode == 0:
                 # Maps are automatically cleaned up when program is unloaded
@@ -246,7 +247,7 @@ class EBPFLoaderImplementation(EBPFLoader):
         # Try to verify via bpftool
         try:
             cmd = ["bpftool", "prog", "list"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode == 0:
                 # Check if program appears in list
@@ -297,7 +298,7 @@ class EBPFLoaderImplementation(EBPFLoader):
         # Try to get runtime stats from kernel
         try:
             cmd = ["bpftool", "prog", "show", "id", program_id]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode == 0:
                 # Parse bpftool output (simplified)

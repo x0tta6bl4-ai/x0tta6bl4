@@ -28,6 +28,7 @@ from src.mesh.metric_evidence_policy import (
 )
 from src.mesh.yggdrasil_optimizer import get_optimizer
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -955,7 +956,7 @@ class MeshActionEnforcer:
             output: List[Dict[str, Any]] = []
             for command in commands:
                 try:
-                    result = subprocess.run(
+                    result = safe_run(
                         command,
                         capture_output=True,
                         text=True,

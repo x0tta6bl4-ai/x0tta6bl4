@@ -26,6 +26,7 @@ from .mtu import MtuProbeResult
 from .protocol import FrameType
 from .runtime import FirstPartyUdpClient, SessionRouteDrop
 from .session import SessionContext
+from src.core.security.subprocess_validator import safe_run
 
 if TYPE_CHECKING:
     from .camouflage import CamouflagePolicy, CamouflageProfile
@@ -369,7 +370,7 @@ class LinuxTunDevice:
 
     @staticmethod
     def _default_command_runner(command: Sequence[str]) -> None:
-        subprocess.run(command, check=True)
+        safe_run(command, check=True)
 
 
 def _read_linux_tun_packet(fd: int, mtu: int, timeout: float | None) -> bytes:

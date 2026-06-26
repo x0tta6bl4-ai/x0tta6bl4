@@ -15,6 +15,7 @@ from typing import Any
 import aiohttp
 import structlog
 from config.settings import settings
+from src.core.security.subprocess_validator import safe_run
 
 logger = structlog.get_logger()
 
@@ -254,7 +255,7 @@ class DNSLeakDetector:
         """Check DNS resolution for leaks using system commands"""
         try:
             # Try to get current DNS servers
-            result = subprocess.run(
+            result = safe_run(
                 ["systemd-resolve", "--status"],
                 capture_output=True,
                 text=True,
@@ -335,7 +336,7 @@ class WebRTCLeakDetector:
 
         for config_path in firefox_config_paths:
             try:
-                result = subprocess.run(
+                result = safe_run(
                     ["find", config_path, "-name", "prefs.js"],
                     capture_output=True,
                     text=True,
@@ -344,7 +345,7 @@ class WebRTCLeakDetector:
 
                 if result.stdout:
                     # Check if WebRTC is disabled
-                    grep_result = subprocess.run(
+                    grep_result = safe_run(
                         ["grep", "media.peerconnection.enabled", result.stdout.strip().split('\n')[0]],
                         capture_output=True,
                         text=True
@@ -370,7 +371,7 @@ class WebRTCLeakDetector:
         """Check system-level WebRTC settings"""
         # Check for WebRTC processes
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["pgrep", "-f", "webrtc"],
                 capture_output=True,
                 text=True
@@ -424,7 +425,7 @@ class IPv6LeakDetector:
 
         # Check for IPv6 addresses on interfaces
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["ip", "-6", "addr", "show"],
                 capture_output=True,
                 text=True,

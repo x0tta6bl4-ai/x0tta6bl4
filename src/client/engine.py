@@ -87,7 +87,7 @@ class QuantumShieldEngine:
 
             # Execute setup script
             cmd = ["pkexec", setup_script, TUN_INTERFACE_NAME, "10.10.0.2/32", "10.10.0.1", real_user, routing_mode]
-            res = subprocess.run(cmd, capture_output=True, text=True)
+            res = safe_run(cmd, capture_output=True, text=True)
             if res.returncode != 0:
                 raise Exception(f"Setup Script Failed: {res.stderr or res.stdout}")
 

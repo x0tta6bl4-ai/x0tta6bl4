@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ def get_yggdrasil_status() -> Dict[str, Any]:
         raise RuntimeError("yggdrasilctl not found. Mesh networking unavailable.")
 
     try:
-        result = subprocess.run(
+        result = safe_run(
             [yggdrasilctl_path, "getSelf"],
             capture_output=True,
             text=True,
@@ -91,7 +92,7 @@ def get_yggdrasil_peers() -> Dict[str, Any]:
         raise RuntimeError("yggdrasilctl not found")
 
     try:
-        result = subprocess.run(
+        result = safe_run(
             [yggdrasilctl_path, "getPeers"],
             capture_output=True,
             text=True,
@@ -121,7 +122,7 @@ def get_yggdrasil_routes() -> Dict[str, Any]:
         raise RuntimeError("yggdrasilctl not found")
 
     try:
-        result = subprocess.run(
+        result = safe_run(
             [yggdrasilctl_path, "getSelf"],
             capture_output=True,
             text=True,
