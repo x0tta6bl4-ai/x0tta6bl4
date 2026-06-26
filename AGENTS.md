@@ -120,16 +120,95 @@ Every request goes through an automatic technique selection based on task type:
 
 Full framework at skill `x0tta6bl4-thinking-framework`.
 
-### Проектные навыки (x0tta6bl4-*)
-- `x0tta6bl4-pqc-test` — PQC smoke test
-- `x0tta6bl4-large-file-split` — traps для split в этом monorepo
-- `x0tta6bl4-evidence-gate` — NL VPN evidence gate
-- `x0tta6bl4-context-saver` — шаблон сохранения контекста
-- `x0tta6bl4-hacker-mode` — хакерский стиль: код > слова, обходы, zero-budget
-- `x0tta6bl4-mission-support` — человечность, поддержка миссии
-- `x0tta6bl4-thinking-framework` — **14 видов мышления + 30 техник, автовыбор под задачу**
-- `x0tta6bl4-pc-optimization` — оптимизация ПК (lowntfs-3g, earlyoom)
-- `csr-bt-keyboard-recovery` — восстановление BT-клавиатуры на CSR донгле
+## Справочник навыков (skills)
+
+> **Правило:** навыки — это специализированные процедуры. Если задача совпадает
+> с триггером навыка — загрузи его. Не гадай, не импровизируй, не изобретай
+> велосипед. Навыки содержат выверенные команды, traps и pitfalls.
+
+### Какой навык когда загружать
+
+#### 🔵 АРХИТЕКТУРА И АНАЛИЗ — загружать ПЕРВЫМ при входе в тему
+
+| Навык | Когда | Зачем |
+|:------|:------|:------|
+| **x0tta6bl4-depin-architecture** | Любая архитектурная работа, ревью дизайна, planning | Даёт полную карту 11 слоёв, связи, границы. Без него — вслепую |
+| **x0tta6bl4-architecture-audit** | Перед утверждением "компонент работает" | Проверяет что реально живо, а что мёртво (docker ps, systemctl, ps aux) |
+| **x0tta6bl4-code-autopsy** | Сомневаешься — код реальный или заглушка? | Находит пустые returns, disabled middleware, stubs |
+| **x0tta6bl4-project-analysis-snapshot** | Первичный вход в репозиторий | Быстрый срез: LOC, тесты, CI status |
+| **x0tta6bl4-ztcr-audit** | Аудит безопасности, threat modeling | Zero-Trust + STRIDE + Chaos + Causal |
+| **x0tta6bl4-user-preferences** | Любая сессия | Предпочтения пользователя, конфиг ПК, ограничения |
+
+#### 🟢 КАЧЕСТВО КОДА И ТЕХДОЛГ
+
+| Навык | Когда | Зачем |
+|:------|:------|:------|
+| **x0tta6bl4-tech-debt-elimination** | subprocess safety, `__init__.py`, `from __future__ import annotations`, allowlist sync, CVE patching | Выверенный 5-фазный процесс, traps (legacy shadow, starlette compat, swarm blocks) |
+| **techdebt-bulk-refactoring** | Массовый рефакторинг (50+ файлов) | Параллельные агенты, git cleanup после массовых изменений |
+| **repo-hygiene-audit** | Надо почистить репозиторий | Фейковые claims, мёртвые файлы, утекшие credentials, stale CI |
+| **repo-cleanup-patterns** | После repo-hygiene-audit | Проверенные паттерны: Green Baseline, CodeQL dismiss, branch protection bypass |
+| **repo-audit-extensions** | Расширенный аудит | Session-specific дополнения к repo-hygiene-audit |
+| **x0tta6bl4-codeql-fix-workflow** | CodeQL алерт в CI | Анализ → классификация → фикс → suppress → dismiss. traps: diagnostic write_text, SHA256 false positives |
+| **x0tta6bl4-security-automation** | Batch security audit | bandit, nmap, trufflehog — bootstrap под санкциями |
+| **x0tta6bl4-security-hardening** | Batch security hardening | CodeQL triage, CI cleanup, parallel-agent conflict recovery |
+
+#### 🟠 ИНФРАСТРУКТУРА И ДЕПЛОЙ
+
+| Навык | Когда | Зачем |
+|:------|:------|:------|
+| **x0tta6bl4-mesh-local-deploy** | Надо поднять mesh локально | Docker Compose, SVID, SPIRE — 2 режима |
+| **x0tta6bl4-remote-deploy** | Деплой на NL VPS (89.125.1.107) | SPIRE lifecycle, systemd, rsync, health, chaos |
+| **x0tta6bl4-evidence-gate** | Проверить production readiness NL VPN | source audit, snapshot, decision, goal |
+| **x0tta6bl4-browser-automation** | Навигация по веб-UI, админки, скриншоты | Playwright MCP + Desktop Commander (если нет npm) |
+| **x0tta6bl4-desktop-commander** | Полный контроль ПК (мышь, клавиатура, окна) | Pure Python — работает без npm под санкциями |
+| **x0tta6bl4-pc-optimization** | Оптимизация этого ПК (Athlon 3000G, 13GB) | ntfs3 → lowntfs-3g, earlyoom, BT keyboard, disk rescue |
+| **disk-cleanup-workflow** | `/` заполнен на 100% | Когда du/find висят — точная последовательность |
+| **csr-bt-keyboard-recovery** | BT клавиатура не коннектится | CSR донгл 0a12:0001, rotating MAC, SMP failure |
+
+#### 🔴 МАШИННОЕ ОБУЧЕНИЕ
+
+| Навык | Когда | Зачем |
+|:------|:------|:------|
+| **mesh-gnn-complete** | GNN, аномалии mesh, MAPE-K ML | Полный стек: autograd → GNN → MAPE-K → edge deployment |
+| **micro-tensor-implementation** | Надо понять/поправить autograd engine | Pure NumPy, SAGEConv, gradient check |
+
+#### 🟣 ПОИСК РАБОТЫ И ВИДИМОСТЬ
+
+| Навык | Когда | Зачем |
+|:------|:------|:------|
+| **x0tta6bl4-job-search-strategy** | Стратегия поиска, portfolio, CV | Позиционирование AI Architect, этичный job search |
+| **x0tta6bl4-job-hunting** | Автоматизация откликов | HH.ru + RemoteOK — проверенные селекторы, EPIPE trap |
+| **hh-job-automation** | Только HH.ru | Playwright + browser_cookie3 |
+| **web-market-research** | Исследование рынка вакансий | React SPA парсинг через браузер |
+| **ai-recruitment-adversarial** | Защита от AI-скрининга резюме | Prompt injection в PDF, white-text, LLM-as-a-Judge evasion |
+
+#### 🟡 ИНСТРУМЕНТЫ И ОБХОДЫ
+
+| Навык | Когда | Зачем |
+|:------|:------|:------|
+| **x0tta6bl4-local-ai** | Нет интернета, ollama сломан | llama-cpp-python fallback, qwen2.5-coder 1.5b |
+| **x0tta6bl4-python-mcp-pattern** | Нужен MCP сервер, нет npm | Чистый Python stdlib, stdin/stdout |
+| **x0tta6bl4-hermes-config-diagnostics** | Hermes не работает (vision, compression, model) | Диагностика auxiliary provider, custom provider quirks |
+| **mimo-device-fingerprint-spoof** | Xiaomi MimoCode 441 risk_control | Spoof machine-id, hostname, installation_id |
+
+#### ⚪ МЕТА-НАВЫКИ
+
+| Навык | Когда | Зачем |
+|:------|:------|:------|
+| **x0tta6bl4-thinking-framework** | **AUTO-APPLIED** — загружается автоматически | 14 видов мышления + 30 техник. Не загружать руками |
+| **x0tta6bl4-loop-designer** | Надо спроектировать агентский цикл | Цель → верификация → советник → гейты → план. Портал Looper (ksimback) |
+| **context-saver** | Контекст теряется, сессия длинная | Сохранить прогресс, восстановить после потери контекста |
+
+### Алгоритм выбора навыка
+
+```
+1. Определи тип задачи (см. таблицу выше по цветам)
+2. Загрузи базовый навык для этого типа (первый в группе)
+3. Если задача сложная (5+ шагов) — загрузи x0tta6bl4-loop-designer
+4. Если сомневаешься в реальности кода — x0tta6bl4-code-autopsy
+5. Если сомневаешься в архитектуре — x0tta6bl4-depin-architecture
+6. В конце сессии — сохрани новый навык через skill_manage
+```
 
 ### Быстрые команды из terminal()
 ```bash
