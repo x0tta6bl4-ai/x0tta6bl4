@@ -8,6 +8,7 @@ Example:
     torch = lazy_import('torch')
     ml_modules = lazy_import_group('ml')
 """
+from __future__ import annotations
 
 import logging
 from typing import Any
@@ -126,3 +127,4 @@ tf = lazy_import("tensorflow")
 transformers = lazy_import("transformers")
 numpy = lazy_import("numpy")
 pandas = lazy_import("pandas")
+

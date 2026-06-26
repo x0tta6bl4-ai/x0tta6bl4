@@ -9,6 +9,7 @@ x0tta6bl4 Hybrid TLS Module (ECDHE + Kyber)
 Использование:
     from src.security.pqc.hybrid_tls import HybridTLSContext, hybrid_handshake, hybrid_encrypt, hybrid_decrypt
 """
+from __future__ import annotations
 
 import hashlib
 import os
@@ -335,3 +336,4 @@ def measure_handshake_overhead() -> float:
     hybrid_handshake(client, server)
     elapsed = (time.time() - start) * 1000
     return elapsed
+

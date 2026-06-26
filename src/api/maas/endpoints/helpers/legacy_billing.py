@@ -2,6 +2,7 @@
 Legacy MaaS Billing Helper - logic extracted from maas_legacy monolith.
 Modular implementation for v4.0 architecture.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -132,3 +133,4 @@ async def legacy_billing_webhook(
     }
 
     return response
+

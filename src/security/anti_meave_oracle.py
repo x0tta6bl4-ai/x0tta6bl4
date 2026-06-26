@@ -6,6 +6,7 @@ Implements capability-based access control and anomaly detection.
 
 Based on the Anti-Meave Protocol from x0tta6bl4 security architecture.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -658,3 +659,4 @@ def set_oracle(oracle: AntiMeaveOracle) -> None:
     """Set the singleton oracle instance."""
     global _oracle
     _oracle = oracle
+

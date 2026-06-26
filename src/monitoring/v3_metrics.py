@@ -4,6 +4,7 @@ Monitoring Metrics for V3.0 Components
 
 Prometheus метрики для мониторинга компонентов v3.0.
 """
+from __future__ import annotations
 
 import logging
 
@@ -170,3 +171,4 @@ class V3MetricsCollector:
 
 # Глобальный экземпляр коллектора
 metrics_collector = V3MetricsCollector()
+

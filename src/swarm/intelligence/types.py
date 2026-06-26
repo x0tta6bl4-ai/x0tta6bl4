@@ -1,6 +1,7 @@
 """
 Types and definitions for Swarm Intelligence.
 """
+from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -151,3 +152,4 @@ class SwarmNodeInfo:
             "weight": self.weight,
             "last_heartbeat": self.last_heartbeat.isoformat(),
         }
+

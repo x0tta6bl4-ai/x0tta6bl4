@@ -5,6 +5,7 @@ MaaS Security Layer — x0tta6bl4
 API key management, rate limiting per key,
 PQC-signed mesh join tokens, and OIDC SSO validation.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -567,3 +568,4 @@ api_key_manager = ApiKeyManager()
 rate_limiter = RateLimiter(requests_per_minute=60, burst=10)
 token_signer = PQCTokenSigner()
 oidc_validator = OIDCValidator()
+

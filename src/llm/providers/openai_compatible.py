@@ -5,6 +5,7 @@ OpenAI-Compatible LLM Provider
 Generic provider for any OpenAI-compatible API.
 Supports OpenAI, Azure OpenAI, and other compatible services.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -442,3 +443,4 @@ class OpenAICompatibleProvider(BaseLLMProvider):
 
 
 __all__ = ["OpenAICompatibleProvider"]
+

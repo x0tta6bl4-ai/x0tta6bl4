@@ -4,6 +4,7 @@ Yggdrasil Routing Optimizer - Advanced routing optimization for mesh networks.
 Provides ML-based route optimization, latency prediction, and adaptive path selection
 for Yggdrasil-based mesh networks.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -824,3 +825,4 @@ def get_optimizer(config: Optional[OptimizationConfig] = None) -> YggdrasilOptim
     if _optimizer_instance is None:
         _optimizer_instance = YggdrasilOptimizer(config)
     return _optimizer_instance
+

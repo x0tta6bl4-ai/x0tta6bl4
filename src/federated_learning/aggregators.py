@@ -9,6 +9,7 @@ Implements multiple aggregation strategies:
 
 Reference: "Byzantine-Robust Distributed Learning" (Blanchard et al., 2017)
 """
+from __future__ import annotations
 
 import logging
 import math
@@ -540,3 +541,4 @@ def get_aggregator(method: str = "fedavg", **kwargs) -> Aggregator:
         )
 
     return aggregators[method](**kwargs)
+

@@ -1,3 +1,4 @@
+from __future__ import annotations
 # Logging Agents package for x0tta6bl4
 """
 Logging agents for log analysis and pattern detection.
@@ -22,3 +23,4 @@ __all__ = [
     "LogPattern",
     "get_log_analyzer",
 ]
+

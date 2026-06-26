@@ -3,6 +3,7 @@ Planning Phase for MAPE-K.
 
 Phase 3: Plans solutions and optimizes reasoning process.
 """
+from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -184,3 +185,4 @@ class PlanningPhase:
         if self.think_aloud:
             return self.think_aloud.get_thoughts()
         return []
+

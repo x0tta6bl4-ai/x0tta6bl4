@@ -7,6 +7,7 @@ Implements:
 - Block detection and recovery
 - Anomaly detection for unusual patterns
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -638,3 +639,4 @@ class ReputationScoringSystem:
             "proxies": payload["proxies"],
             "recommendations": payload["recommendations"],
         }
+

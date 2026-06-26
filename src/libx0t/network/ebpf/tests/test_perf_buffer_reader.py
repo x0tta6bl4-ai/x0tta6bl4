@@ -9,6 +9,7 @@ Tests cover:
 - Statistics
 - Error handling
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock, Mock, patch
 
@@ -362,3 +363,4 @@ class TestPerfBufferReaderEdgeCases:
         assert call_args.cpu_id == 3
         assert call_args.pid == 9999
         assert call_args.severity == EventSeverity.CRITICAL
+

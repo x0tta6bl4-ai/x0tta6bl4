@@ -5,6 +5,7 @@ Supports both:
 1. Polling mode: scan ProposalExecuted events from chain.
 2. Webhook mode: accept ProposalExecuted payloads via FastAPI.
 """
+from __future__ import annotations
 
 import asyncio
 import json
@@ -596,3 +597,4 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         logger.info("Service stopped by user")
+

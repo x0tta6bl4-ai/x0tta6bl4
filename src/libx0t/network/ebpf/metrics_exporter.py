@@ -16,6 +16,7 @@ Supports:
 - Ring buffer events
 - Histogram maps
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -1149,3 +1150,4 @@ if __name__ == "__main__":
     # Get summary
     summary = exporter.get_metrics_summary()
     print("Summary:", json.dumps(summary, indent=2))
+

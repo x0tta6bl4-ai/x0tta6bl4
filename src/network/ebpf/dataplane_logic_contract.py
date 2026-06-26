@@ -2,6 +2,7 @@
 Dataplane Logic Contract for x0tta6bl4.
 Enforces formal invariants D1-D3 for eBPF/XDP stability.
 """
+from __future__ import annotations
 
 import logging
 from enum import Enum
@@ -80,3 +81,4 @@ class DataplaneLogicContract:
             "violations": self.violations,
             "claim_boundary": "AlphaProof Nexus eBPF dataplane state evidence."
         }
+

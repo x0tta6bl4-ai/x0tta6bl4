@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, Dict, Optional
@@ -83,3 +84,4 @@ class IncidentDAOWorkflow:
 
         self.governance.execute_proposal(proposal_id)
         return True
+

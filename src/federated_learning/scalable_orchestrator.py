@@ -26,6 +26,7 @@ Features:
 - Automatic failover and retry logic
 - Monitoring and metrics
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -831,3 +832,4 @@ class AdaptiveClientSampler:
     def mark_straggler(self, client_id: str, round_num: int):
         """Mark client as straggler for round."""
         self.straggler_history[client_id].append(round_num)
+

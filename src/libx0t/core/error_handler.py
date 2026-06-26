@@ -3,6 +3,7 @@ Unified Error Handler Framework for x0tta6bl4.
 
 Provides consistent error handling, logging, and alerting across all modules.
 """
+from __future__ import annotations
 
 import logging
 import traceback
@@ -381,3 +382,4 @@ def handle_error_decorator(
             return sync_wrapper
 
     return decorator
+

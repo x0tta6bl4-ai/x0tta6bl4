@@ -1,6 +1,7 @@
 """
 MaaS Auth Endpoints - Modular implementation.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -305,3 +306,4 @@ async def bootstrap_admin(
         "access_token": api_key,
         "role": "admin",
     }
+

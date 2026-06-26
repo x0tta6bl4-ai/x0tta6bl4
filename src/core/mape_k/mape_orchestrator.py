@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import logging
 import os
@@ -729,3 +730,4 @@ class MAPEOrchestrator:
             "thinking": self.thinking_coach.status(),
             "last_thinking_context": self.last_thinking_context,
         }
+

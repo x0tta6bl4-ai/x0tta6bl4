@@ -2,6 +2,7 @@
 User Management API
 Registration, authentication, and user profile management
 """
+from __future__ import annotations
 
 import hmac
 import os
@@ -441,3 +442,4 @@ async def get_users(
         )
         for user in users
     ]
+

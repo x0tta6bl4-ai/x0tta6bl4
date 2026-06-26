@@ -12,6 +12,7 @@
 - Фрейминг
 - Саморефлексия
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -651,3 +652,4 @@ class SelfReflection:
     def _consider_alternatives(self, plan: Dict[str, Any]) -> List[str]:
         """Рассмотрение альтернатив"""
         return ["Альтернативный план 1", "Альтернативный план 2"]
+

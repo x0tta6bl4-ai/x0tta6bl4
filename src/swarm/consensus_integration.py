@@ -4,6 +4,7 @@ Swarm Consensus Integration Module
 Integrates Raft, Paxos, and PBFT consensus algorithms
 with the SwarmOrchestrator for distributed AI agent coordination.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -888,3 +889,4 @@ __all__ = [
     "SwarmConsensusManager",
     "WeightedVote",
 ]
+

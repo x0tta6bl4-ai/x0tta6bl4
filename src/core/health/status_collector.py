@@ -2,6 +2,7 @@
 Status collector for /status endpoint
 Собирает реальные данные о состоянии системы для API
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -271,3 +272,4 @@ def get_status_data() -> StatusData:
 def get_current_status() -> dict[str, Any]:
     """Получить текущий статус системы"""
     return get_status_data().get_status()
+

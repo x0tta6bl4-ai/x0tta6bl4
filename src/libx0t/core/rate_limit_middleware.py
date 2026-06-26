@@ -7,6 +7,7 @@ Provides:
 - Redis-backed distributed rate limiting
 - Graceful degradation to in-memory when Redis unavailable
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -256,3 +257,4 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 default_config = RateLimitConfig(
     requests_per_second=100, burst_size=50, block_duration=60
 )
+

@@ -11,6 +11,7 @@ Production-ready certificate validation with:
 - Extended validation
 - Certificate pinning
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -698,3 +699,4 @@ class CertificateValidator:
 
         logger.info(f"✅ Certificate validated: {spiffe_id}")
         return True
+

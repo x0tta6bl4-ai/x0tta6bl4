@@ -6,6 +6,7 @@ x0tta6bl4 Unified Pathfinder
 Унифицированный pathfinder для k-дизъюнктных путей в mesh-сети.
 Интегрирует Batman-adv topology с MeshRouter для отказоустойчивой маршрутизации.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -282,3 +283,4 @@ class UnifiedPathfinder:
             "nodes": len(self.nodes),
             "edges": len(self.edges),
         }
+

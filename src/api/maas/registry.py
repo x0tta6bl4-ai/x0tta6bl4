@@ -3,6 +3,7 @@ MaaS Registry - Global state management.
 
 Contains global state dictionaries and audit logging for the MaaS API.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -258,3 +259,4 @@ __all__ = [
     "find_mesh_for_node",
     "get_registry_lock",
 ]
+

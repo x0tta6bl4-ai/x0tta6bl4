@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
@@ -122,3 +123,4 @@ class ConsciousnessBasedRouter:
 
         # Return best peer
         return scored_peers[0][0] if scored_peers else None
+

@@ -7,6 +7,7 @@ Implements:
 - Block detection and recovery
 - Anomaly detection for unusual patterns
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -426,3 +427,4 @@ class ReputationScoringSystem:
             },
             "recommendations": self.get_recommendations(),
         }
+

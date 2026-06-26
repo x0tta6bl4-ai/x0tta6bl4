@@ -4,6 +4,7 @@ Advanced VPN Obfuscation Manager for x0tta6bl4
 Manages multiple obfuscation techniques and implements rotating parameters
 for better block bypass and anonymity.
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -963,3 +964,4 @@ def test_obfuscation():
 
 if __name__ == "__main__":
     test_obfuscation()
+

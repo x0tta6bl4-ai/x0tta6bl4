@@ -3,6 +3,7 @@ Feature Flags для управления версиями приложения.
 
 Позволяет консолидировать все версии app в один с feature flags.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -85,3 +86,4 @@ class FeatureFlags:
         logger.info(
             f"Feature Flags - Disabled: {', '.join(disabled) if disabled else 'none'}"
         )
+

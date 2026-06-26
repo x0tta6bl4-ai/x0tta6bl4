@@ -3,6 +3,7 @@
 Entrypoint for Marketplace Janitor Service.
 Designed to run as a standalone process or container.
 """
+from __future__ import annotations
 import asyncio
 import logging
 import os
@@ -31,3 +32,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -4,6 +4,7 @@ OpenTelemetry Distributed Tracing Integration
 Provides comprehensive distributed tracing, metrics collection, and observability
 for the entire system including traces, spans, metrics, and logs correlation.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -451,3 +452,4 @@ def initialize_observability(service_name: str) -> ObservabilityCollector:
 def get_observability_collector() -> Optional[ObservabilityCollector]:
     """Get global observability collector"""
     return _global_collector
+

@@ -6,6 +6,7 @@ orchestration, which imports torch) before the temporary API can answer
 `/health`. The verifier exercises auth/mesh/nodes/telemetry only, so optional
 routers are imported lazily only for the full application mode.
 """
+from __future__ import annotations
 
 import os
 
@@ -137,3 +138,4 @@ def get_combined_router(
 router = get_combined_router()
 
 __all__ = ["get_combined_router", "router"]
+

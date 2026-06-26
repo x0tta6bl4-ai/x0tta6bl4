@@ -7,6 +7,7 @@ Integrates production-ready optimizations:
 - Performance tuning
 - Federation support
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -429,3 +430,4 @@ class SPIREOptimizations:
     def get_failover(self) -> MultiRegionFailover:
         """Get failover instance."""
         return self.failover
+

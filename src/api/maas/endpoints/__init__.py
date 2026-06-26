@@ -8,6 +8,7 @@ Contains FastAPI routers for different API domains:
 - auth: Authentication endpoints
 - pilot: Pilot onboarding endpoints
 """
+from __future__ import annotations
 
 from typing import Any
 
@@ -43,3 +44,4 @@ def __getattr__(name: str) -> Any:
         from . import combined
         return combined.get_combined_router
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+

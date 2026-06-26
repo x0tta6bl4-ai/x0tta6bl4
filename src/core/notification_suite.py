@@ -19,6 +19,7 @@ Exit codes:
   1 generic failure
   2 timeout (watch)
 """
+from __future__ import annotations
 import argparse
 import json
 import re
@@ -237,3 +238,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

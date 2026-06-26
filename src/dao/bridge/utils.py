@@ -1,6 +1,7 @@
 """
 Utility functions for Token Bridge data safety and formatting.
 """
+from __future__ import annotations
 import hashlib
 from typing import Any, Dict, List, Optional
 
@@ -73,3 +74,4 @@ def _chain_write_result_summary(
         "simulated": bool(simulated),
         "raw_hash_redacted": True,
     }
+

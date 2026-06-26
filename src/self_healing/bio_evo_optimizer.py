@@ -5,6 +5,7 @@ Bio-evolutionary Optimizer for Self-Healing Mesh
 Optimizes MAPE-K parameters and GraphSAGE weights using Genetic Algorithms (GA)
 to minimize MTTR (Mean Time To Recovery) in 10k+ node environments.
 """
+from __future__ import annotations
 
 import random
 import logging
@@ -116,3 +117,4 @@ class BioEvoOptimizer:
 
     def get_best_params(self) -> MapeKParameters:
         return self.population[0].params
+

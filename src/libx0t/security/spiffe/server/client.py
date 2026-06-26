@@ -7,6 +7,7 @@ Production-ready client for SPIRE Server API:
 - Health checks
 - Server status
 """
+from __future__ import annotations
 
 import logging
 import subprocess
@@ -256,3 +257,4 @@ class SPIREServerClient:
         except Exception as e:
             logger.error(f"Error getting server status: {e}")
             return {"healthy": False, "address": self.server_address, "error": str(e)}
+

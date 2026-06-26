@@ -7,6 +7,7 @@ Redirects to modular nodes_legacy router in src/api/maas/endpoints/nodes_legacy.
 
 DEPRECATED: Use src.api.maas.endpoints.nodes instead.
 """
+from __future__ import annotations
 
 import logging
 import warnings
@@ -30,3 +31,4 @@ __all__ = [
     "router",
     "_set_external_telemetry",
 ]
+

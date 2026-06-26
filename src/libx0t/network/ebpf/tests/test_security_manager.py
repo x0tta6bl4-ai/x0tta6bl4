@@ -9,6 +9,7 @@ Tests cover:
 - Event validation
 - Security statistics
 """
+from __future__ import annotations
 
 import pytest
 from telemetry_module import (EventSeverity, SecurityManager,
@@ -584,3 +585,4 @@ class TestSecurityManagerEdgeCases:
 
         assert is_valid, f"Valid minimal event was rejected: {error}"
         assert error is None
+

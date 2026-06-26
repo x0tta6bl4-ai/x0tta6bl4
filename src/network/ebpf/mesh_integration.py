@@ -14,6 +14,7 @@ Features:
 - Path switch frequency tracking
 - TQ score integration
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -645,3 +646,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

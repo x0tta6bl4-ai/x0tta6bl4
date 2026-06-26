@@ -8,6 +8,7 @@ This module builds upon the existing EBPFMetricsExporter to provide:
 4. Health check integration
 5. Detailed error reporting for debugging
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -777,3 +778,4 @@ if __name__ == "__main__":
 
     except Exception as e:
         logger.error(f"Error: {e}")
+

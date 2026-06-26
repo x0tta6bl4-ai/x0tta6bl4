@@ -5,6 +5,7 @@ SwarmOrchestrator - Central coordinator for Kimi K2.5 Agent Swarm
 Manages up to 100 parallel agents with PARL (Parallel-Agent RL) optimization.
 Provides 4.5x speedup vs sequential execution.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -258,3 +259,4 @@ class SwarmOrchestrator:
 def create_swarm(config: Optional[SwarmConfig] = None) -> SwarmOrchestrator:
     """Factory retained for compatibility with older imports."""
     return SwarmOrchestrator(config=config)
+

@@ -2,6 +2,7 @@
 Batman-adv Mesh Topology Discovery & Management
 Core module for x0tta6bl4 decentralized mesh networking
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
@@ -585,3 +586,4 @@ class MeshTopology:
                         max_distance = max(max_distance, distance)
 
         return max_distance
+

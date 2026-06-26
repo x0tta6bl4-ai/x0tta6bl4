@@ -7,6 +7,7 @@ Features:
 - Histogram buckets
 - HTTP endpoint
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional
@@ -235,3 +236,4 @@ class PrometheusExporter:
 
 
 __all__ = ["PrometheusExporter"]
+

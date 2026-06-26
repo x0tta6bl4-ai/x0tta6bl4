@@ -1,4 +1,5 @@
 """Compatibility exports for the MaaS signed playbooks endpoint module."""
+from __future__ import annotations
 
 import logging
 import sys
@@ -571,3 +572,4 @@ async def get_playbook_status(
         "node_statuses": node_statuses,
         "total_acks": len(node_statuses),
     }
+

@@ -6,6 +6,7 @@ attachment, and lifecycle management for x0tta6bl4.
 
 All TODO items from loader.py are implemented here.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -741,3 +742,4 @@ def create_ebpf_loader(
         event_bus=event_bus,
         event_project_root=event_project_root,
     )
+

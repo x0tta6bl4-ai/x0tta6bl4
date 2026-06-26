@@ -5,6 +5,7 @@ Geo-Fencing for x0tta6bl4 Mesh.
 Enforces DAO-governed transit rules based on node geographic jurisdiction.
 Prevents traffic from transiting through restricted countries.
 """
+from __future__ import annotations
 
 import logging
 from typing import List, Dict, Optional, Set
@@ -55,3 +56,4 @@ class GeoFencer:
         """Check if a node's location is restricted."""
         country = self.get_country(ip_address)
         return country not in self.restricted_countries
+

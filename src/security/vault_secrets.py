@@ -6,6 +6,7 @@ of secrets in Vault, including database credentials, API keys, certificates,
 and tokens. It also includes a secret injector for integrating secrets into
 application configuration.
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -677,3 +678,4 @@ class SecretInjector:
             },
         )
         return injected
+

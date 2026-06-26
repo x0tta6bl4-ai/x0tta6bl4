@@ -13,6 +13,7 @@ Features:
 - Health checks for alerting channels
 - Async and sync support
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -899,3 +900,4 @@ def send_alert_sync(
                 alert_name, severity, message, labels, annotations, skip_rate_limit
             )
         )
+

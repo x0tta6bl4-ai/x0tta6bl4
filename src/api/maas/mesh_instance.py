@@ -3,6 +3,7 @@ Mesh Instance - Running mesh network with consciousness metrics.
 
 Contains the MeshInstance class for managing mesh lifecycle and metrics.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
@@ -227,3 +228,4 @@ class MeshInstance:
 
 
 __all__ = ["MeshInstance"]
+

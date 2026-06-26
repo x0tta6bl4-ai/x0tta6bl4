@@ -8,6 +8,7 @@ Implements privacy-preserving gradient sharing using:
 
 Reference: "Deep Learning with Differential Privacy" (Abadi et al., 2016)
 """
+from __future__ import annotations
 
 import logging
 import math
@@ -445,3 +446,4 @@ def compute_dp_sgd_privacy(
     )
 
     return epsilon
+

@@ -1,3 +1,4 @@
+from __future__ import annotations
 # Monitoring Agents package for x0tta6bl4
 """
 Monitoring agents for 24/7 system health monitoring.
@@ -20,3 +21,4 @@ __all__ = [
     "HealthStatus",
     "get_health_monitor",
 ]
+

@@ -7,6 +7,7 @@ Provides JSON-formatted logging with:
 - Sensitive data masking
 - Performance metrics integration
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -540,3 +541,4 @@ def create_logging_middleware(logger: StructuredLogger | None = None):
 # Initialize logging on module import if configured
 if os.getenv("STRUCTURED_LOGGING", "false").lower() == "true":
     configure_logging()
+

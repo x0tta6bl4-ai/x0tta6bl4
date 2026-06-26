@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import os
 from typing import Dict, List
@@ -146,3 +147,4 @@ class LocalLLM:
 
     def is_ready(self) -> bool:
         return self.llm is not None
+

@@ -4,6 +4,7 @@ Intrusion Detection System (IDS)
 Provides network and host-based intrusion detection, behavioral analysis,
 and incident response.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -368,3 +369,4 @@ class IntrusionDetectionSystem:
             "by_severity": by_severity,
             "by_status": by_status,
         }
+

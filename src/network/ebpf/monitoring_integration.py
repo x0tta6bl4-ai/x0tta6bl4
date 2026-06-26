@@ -4,6 +4,7 @@ eBPF Monitoring Integration
 Integrates eBPF programs with x0tta6bl4 monitoring system.
 Provides real-time metrics from eBPF programs to MAPE-K and GraphSAGE.
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -659,3 +660,4 @@ def create_ebpf_monitoring(
         enable_xdp_counter=enable_xdp_counter,
         enable_graphsage_streaming=enable_graphsage_streaming,
     )
+

@@ -4,6 +4,7 @@ PARL Controller - Central controller for Parallel-Agent Reinforcement Learning
 Manages pool of up to 100 agents, coordinates parallel execution of up to 1500 steps,
 collects and aggregates experience, updates global policy.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -615,3 +616,4 @@ class PARLController:
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit."""
         await self.shutdown()
+

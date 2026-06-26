@@ -5,6 +5,7 @@ Provides dependency injection for authentication, authorization, user context,
 mesh access checks, and a small in-memory rate limiter used by the modular MaaS
 API surface.
 """
+from __future__ import annotations
 
 import logging
 import threading
@@ -519,3 +520,4 @@ __all__ = [
     "API_KEY_HEADER",
     "BEARER_AUTH",
 ]
+

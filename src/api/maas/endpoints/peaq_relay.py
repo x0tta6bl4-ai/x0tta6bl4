@@ -2,6 +2,7 @@
 peaq Relay Endpoints - Modular Machine Functions.
 Provides PQC-secured tunneling for peaq dApps.
 """
+from __future__ import annotations
 
 import logging
 import uuid
@@ -120,3 +121,4 @@ async def get_peaq_depin_stats():
             "source": "empirical_kernel_metrics"
         }
     }
+

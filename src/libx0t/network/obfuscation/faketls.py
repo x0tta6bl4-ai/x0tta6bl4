@@ -2,6 +2,7 @@
 FakeTLS Transport for x0tta6bl4 Mesh.
 Wraps traffic in realistic TLS 1.3 records to bypass DPI.
 """
+from __future__ import annotations
 
 import secrets
 import socket
@@ -188,3 +189,4 @@ class FakeTLSTransport(ObfuscationTransport):
                 raise ValueError("Incomplete FakeTLS application data record")
             return data[5 : 5 + length]
         return data
+

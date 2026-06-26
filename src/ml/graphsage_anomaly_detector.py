@@ -10,6 +10,7 @@ Target metrics (Stage 2):
 - Inference latency: <50ms
 - Model size: <5MB (INT8 quantized)
 """
+from __future__ import annotations
 
 import logging
 import math
@@ -1017,3 +1018,4 @@ def create_graphsage_detector_for_mapek(
         )
 
     return detector
+

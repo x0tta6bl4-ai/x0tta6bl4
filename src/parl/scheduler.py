@@ -4,6 +4,7 @@ PARL Task Scheduler - Intelligent task scheduling for parallel execution
 Implements priority-based scheduling, load balancing, dependency resolution,
 and dynamic worker allocation.
 """
+from __future__ import annotations
 
 import asyncio
 import heapq

@@ -6,6 +6,7 @@ Handles:
 - SBOM/Attestation verification against MaaS Supply Chain API.
 - PQC-signed metadata validation.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -152,3 +153,4 @@ async def verify_integrity(node_id: str, agent_version: str) -> bool:
     except Exception as e:
         logger.error(f"⚠️ Integrity verification failed due to error: {e}")
         return not _strict_integrity_enabled()
+

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from typing import Dict, List
 from urllib.parse import quote_plus
@@ -66,3 +67,4 @@ class DeepSearcher:
                     seen_urls.add(url)
                     all_results.append(item)
         return all_results
+

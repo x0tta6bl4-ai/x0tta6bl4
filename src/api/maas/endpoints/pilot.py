@@ -4,6 +4,7 @@ MaaS Pilot Endpoints - Pilot program signup and management.
 Provides REST API endpoints for pilot customer onboarding,
 mesh instance creation, and billing setup.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -716,3 +717,4 @@ async def activate_pilot(
 
 
 __all__ = ["router"]
+

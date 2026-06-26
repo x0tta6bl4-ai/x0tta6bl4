@@ -3,6 +3,7 @@ Document Chunking for RAG Pipeline
 
 Splits documents into chunks for embedding and retrieval.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -316,3 +317,4 @@ class DocumentChunker:
 
         # Fallback to fixed size
         return self._chunk_fixed_size(text, document_id, metadata)
+

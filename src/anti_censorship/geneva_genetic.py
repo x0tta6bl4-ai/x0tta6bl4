@@ -11,6 +11,7 @@ DNA consists of a sequence of packet manipulation actions:
 - TAMPER: Change packet headers (TTL, flags, etc.)
 - DROP: Drop a specific packet.
 """
+from __future__ import annotations
 
 import random
 import logging
@@ -373,3 +374,4 @@ class GenevaGeneticOptimizer:
             },
         )
         return best
+

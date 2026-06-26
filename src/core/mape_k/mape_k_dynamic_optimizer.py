@@ -3,6 +3,7 @@ Dynamic MAPE-K Parameter Optimization
 
 Dynamically adjusts MAPE-K cycle parameters based on system state and performance.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -226,3 +227,4 @@ class DynamicOptimizer:
     def get_optimization_history(self) -> list[dict[str, Any]]:
         """Get optimization event history"""
         return self.optimization_events.copy()
+

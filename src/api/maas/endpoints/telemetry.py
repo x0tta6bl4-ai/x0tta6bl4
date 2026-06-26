@@ -4,6 +4,7 @@ MaaS Telemetry (Production - Redis backed) — x0tta6bl4
 
 High-frequency telemetry storage using Redis for scalability.
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -1381,3 +1382,4 @@ async def get_topology(
             degraded_dependencies=degraded_dependencies,
         ),
     }
+

@@ -15,6 +15,7 @@ Endpoints:
 - GET /swarm - List all swarms
 - POST /swarm/{swarm_id}/vision/analyze - Visual analysis
 """
+from __future__ import annotations
 
 import asyncio
 import hmac
@@ -723,3 +724,4 @@ async def swarm_health(request: Request):
     for dependency in payload["degraded_dependencies"]:
         mark_degraded_dependency(request, dependency)
     return payload
+

@@ -7,6 +7,7 @@ Handles routing protocol packets:
 - RERR (Route Error)
 - HELLO (Neighbor Discovery)
 """
+from __future__ import annotations
 
 import logging
 import struct
@@ -348,3 +349,4 @@ class PacketHandler:
             "pending_requests": len(self._pending_requests),
             "seen_packets_cache": len(self._seen_packets),
         }
+

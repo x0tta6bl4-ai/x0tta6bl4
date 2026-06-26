@@ -10,6 +10,7 @@ Prometheus метрики для x0tta6bl4
 - Federated Learning
 - DAO Governance
 """
+from __future__ import annotations
 
 import hashlib
 import re
@@ -847,3 +848,4 @@ class MetricsMiddleware:
         metrics.request_duration.labels(
             method=method, endpoint=endpoint, api_key=api_key
         ).observe(duration)
+

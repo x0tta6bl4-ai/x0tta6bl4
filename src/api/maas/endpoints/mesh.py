@@ -3,6 +3,7 @@ MaaS Mesh Endpoints - Mesh lifecycle management.
 
 Provides REST API endpoints for mesh deployment, scaling, and termination.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -2048,3 +2049,4 @@ async def get_mesh_mapek(
 
 
 __all__ = ["router"]
+

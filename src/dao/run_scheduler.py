@@ -3,6 +3,7 @@
 X0T Epoch Reward Scheduler Service.
 Runs constantly, checking for epoch completion every minute.
 """
+from __future__ import annotations
 import asyncio
 import logging
 import os
@@ -115,3 +116,4 @@ if __name__ == "__main__":
         logger.info("Scheduler stopped by user")
     except Exception as e:
         logger.critical(f"Scheduler crashed: {e}")
+

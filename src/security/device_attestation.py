@@ -8,6 +8,7 @@ Implements:
 - Behavioral attestation
 - Trust score calculation
 """
+from __future__ import annotations
 
 import hashlib
 import hmac
@@ -851,3 +852,4 @@ class MeshDeviceAttestor:
         )
 
         return valid, trust_score
+

@@ -14,6 +14,7 @@ Metrics Categories:
 - Query Bus metrics (execution, cache)
 - Projection metrics (processing, lag)
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, Optional
@@ -916,3 +917,4 @@ __all__ = [
     "get_event_sourcing_metrics",
     "get_resilience_metrics",
 ]
+

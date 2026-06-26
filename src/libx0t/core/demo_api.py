@@ -2,6 +2,7 @@
 Demo API для sales presentations
 Показывает все интегрированные компоненты в действии
 """
+from __future__ import annotations
 
 import logging
 from typing import Annotated, Any, Dict, Optional, TYPE_CHECKING
@@ -192,3 +193,4 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8081)  # nosec B104
+

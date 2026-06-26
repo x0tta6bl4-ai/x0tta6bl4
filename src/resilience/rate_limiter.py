@@ -8,6 +8,7 @@ Multiple rate limiting algorithms for distributed systems:
 - Leaky Bucket: Constant rate output with queue buffering
 - Adaptive Rate Limiter: ML-based rate adjustment
 """
+from __future__ import annotations
 
 import logging
 import threading
@@ -687,3 +688,4 @@ __all__ = [
     "RateLimiterFactory",
     "rate_limit",
 ]
+

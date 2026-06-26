@@ -5,6 +5,7 @@ Collects metrics from eBPF programs and provides them to MAPE-K
 Date: February 2, 2026
 Version: 1.0
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -485,3 +486,4 @@ class EBPFMetricsCollector:
     def get_collection_interval(self) -> float:
         """Get current collection interval."""
         return self._collection_interval
+

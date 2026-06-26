@@ -1,6 +1,7 @@
 """
 Configuration settings for Geo-Leak Detector
 """
+from __future__ import annotations
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import List, Optional, Set
@@ -116,3 +117,4 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
+

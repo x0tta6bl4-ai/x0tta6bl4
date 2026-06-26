@@ -4,6 +4,7 @@ PARL Integration for Mesh Network
 Provides parallelized route optimization and anomaly detection
 using the PARL (Parallel Agent Reinforcement Learning) Engine.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -267,3 +268,4 @@ class PARLMeshOptimizer:
         except (TypeError, ValueError):
             logger.warning("Ignoring invalid PARL route result for %s: %r", destination, raw_route)
             return None
+

@@ -11,6 +11,7 @@ Implements:
 
 Standards: W3C DID Core 1.0, Verifiable Credentials Data Model 1.1
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -859,3 +860,4 @@ class MeshCredentialTypes:
     PEER_ATTESTATION = "MeshPeerAttestationCredential"
     SERVICE_AUTHORIZATION = "MeshServiceAuthorizationCredential"
     GOVERNANCE_VOTE = "MeshGovernanceVoteCredential"
+

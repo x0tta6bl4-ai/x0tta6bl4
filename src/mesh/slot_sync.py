@@ -9,6 +9,7 @@ Target metrics:
 - Collision Resolution ≤ 35 sec
 - MTTD (Mean Time To Detect) ≤ 1.9 sec
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -427,3 +428,4 @@ def _run_test():
 
 if __name__ == "__main__":
     _run_test()
+

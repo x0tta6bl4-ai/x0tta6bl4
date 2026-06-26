@@ -7,6 +7,7 @@
 Ключевая инновация: Система думает о том, как она думает,
 создавая проверяемый след рассуждений и самокорректирующуюся логику.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -1151,3 +1152,4 @@ class MetaCognitiveMAPEK:
     def _suggest_alternative_approach(self, analytics: ReasoningAnalytics) -> str:
         """Предложение альтернативного подхода"""
         return "Try combined approach with RAG + GraphSAGE for better results"
+

@@ -12,6 +12,7 @@ Features:
 
 Reference: "PBFT" (Castro & Liskov, 1999)
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -604,3 +605,4 @@ class ConsensusNetwork:
     def get_all_metrics(self) -> Dict[str, Dict[str, Any]]:
         """Get metrics from all nodes."""
         return {node_id: node.get_metrics() for node_id, node in self.nodes.items()}
+

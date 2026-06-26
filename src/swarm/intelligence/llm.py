@@ -1,6 +1,7 @@
 """
 Kimi K2.5 (or OpenAI-compatible) LLM integration for Swarm decisions.
 """
+from __future__ import annotations
 import asyncio
 import logging
 import time
@@ -229,3 +230,4 @@ class KimiK25Integration:
                 if self._request_count > 0 else 0.0
             ),
         }
+

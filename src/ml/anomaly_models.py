@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from typing import List
@@ -18,3 +19,4 @@ class AnomalyAnalysis:
     recommended_action: str
     severity: float
     affected_nodes: List[str]
+

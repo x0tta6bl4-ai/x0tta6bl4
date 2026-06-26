@@ -8,6 +8,7 @@ Provides:
 - Thundering herd protection
 - Dependency injection support for testability
 """
+from __future__ import annotations
 
 import asyncio
 import json
@@ -550,3 +551,4 @@ async def get_or_warm(
 
 # Import time for InMemoryCacheBackend
 import time
+

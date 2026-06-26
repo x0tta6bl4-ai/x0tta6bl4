@@ -4,6 +4,7 @@ DAO Governance MVP
 Complete governance system with proposal management, voting,
 execution engine, and governance UI integration.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
@@ -486,3 +487,4 @@ def create_governance_mvp(node_id: str) -> GovernanceMVP:
         GovernanceMVP instance
     """
     return GovernanceMVP(node_id)
+

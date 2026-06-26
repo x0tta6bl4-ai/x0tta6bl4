@@ -11,6 +11,7 @@ Monitors:
 
 Triggers self-healing actions when anomalies detected.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -1042,3 +1043,4 @@ def integrate_ebpf_self_healing(mape_k_manager, interface: str = "eth0"):
 
     logger.info("eBPF anomaly detector registered with MAPE-K monitor")
     return ebpf_controller
+

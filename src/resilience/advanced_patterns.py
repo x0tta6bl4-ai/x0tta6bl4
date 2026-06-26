@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import threading
 import time
@@ -286,3 +287,4 @@ __all__ = [
     "ResilientExecutor",
     "get_resilient_executor",
 ]
+

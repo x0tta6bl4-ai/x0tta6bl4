@@ -11,6 +11,7 @@ Features:
 - Race condition detection and mitigation
 - Support for 50+ nodes (Stage 1 requirement)
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -377,3 +378,4 @@ class SlotSynchronizer:
             ),
             "resync_attempts": self.resync_attempts,
         }
+

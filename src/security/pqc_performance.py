@@ -8,6 +8,7 @@ Optimizations for Post-Quantum Cryptography:
 - eBPF acceleration (if available)
 - Performance metrics and benchmarking
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -461,3 +462,4 @@ class OptimizedPQMeshSecurity(PQMeshSecurityLibOQS):
             }
         )
         return stats
+

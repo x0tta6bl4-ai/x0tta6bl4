@@ -3,6 +3,7 @@ Auto-Instrumentation for Common Libraries
 
 Provides automatic instrumentation for FastAPI, SQLAlchemy, Redis, HTTPX, etc.
 """
+from __future__ import annotations
 
 import functools
 import logging
@@ -514,3 +515,4 @@ def traced(
             ...
     """
     return trace_method(name, kind, attributes)
+

@@ -10,6 +10,7 @@ Enforces mandatory mTLS with TLS 1.3 for all service-to-service connections:
 
 Integrates with SPIFFE/SPIRE for automatic identity provisioning.
 """
+from __future__ import annotations
 
 import logging
 import ssl
@@ -347,3 +348,4 @@ class MeshMTLSEnforcer:
         if self.mtls_context:
             self.mtls_context.cleanup()
             logger.debug("mTLS context cleaned up")
+

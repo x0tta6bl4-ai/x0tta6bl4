@@ -4,6 +4,7 @@ Main telemetry collector for eBPF programs.
 This is the primary interface for collecting telemetry from eBPF programs.
 It coordinates map reading, perf buffer processing, and metrics export.
 """
+from __future__ import annotations
 
 import importlib.util
 import logging
@@ -358,3 +359,4 @@ class EBPFTelemetryCollector:
 
 
 __all__ = ["EBPFTelemetryCollector"]
+

@@ -4,6 +4,7 @@ Batch Retrieval Optimization for RAG Pipeline
 Implements efficient batch processing for multiple queries
 with parallel execution and result aggregation.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -379,3 +380,4 @@ class AdaptiveBatchRetriever(BatchRetriever):
         elif recent_avg > self.target_latency_ms * 1.2:
             self.max_workers = max(self.max_workers - self.adjustment_step, 1)
             logger.info(f"Decreased parallelism to {self.max_workers}")
+

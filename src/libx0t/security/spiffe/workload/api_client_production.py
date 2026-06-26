@@ -2,6 +2,7 @@
 Production-ready SPIFFE Workload API Client implementation.
 Replaces TODO in api_client.py lines 83-87.
 """
+from __future__ import annotations
 
 import asyncio
 import time
@@ -362,3 +363,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

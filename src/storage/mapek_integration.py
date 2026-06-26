@@ -4,6 +4,7 @@ MAPE-K Integration with Knowledge Storage v2.0
 
 Provides seamless integration between MAPE-K cycle and Knowledge Storage.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -282,3 +283,4 @@ def create_mapek_knowledge_with_storage(
     knowledge = MAPEKKnowledge(knowledge_storage=adapter)
 
     return knowledge, adapter
+

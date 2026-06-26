@@ -7,6 +7,7 @@ Provides resilient network connections with:
 - Jitter to prevent thundering herd
 - Configurable retry policies
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -239,3 +240,4 @@ API_RETRY_POLICY = RetryPolicy(
     max_delay=30.0,
     retryable_exceptions=(ConnectionError, TimeoutError, OSError),
 )
+

@@ -12,6 +12,7 @@ Tests cover:
 - HTTP server
 - Error handling
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock, Mock, patch
 
@@ -483,3 +484,4 @@ class TestPrometheusExporterEdgeCases:
 
         # Should not raise exception
         assert True
+

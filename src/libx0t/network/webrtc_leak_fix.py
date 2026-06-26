@@ -11,6 +11,7 @@ Usage:
     fix = WebRTCLeakFix()
     fix.apply_browser_fixes()  # Apply to Chrome/Firefox
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -278,3 +279,4 @@ if __name__ == "__main__":
     print("\nApplying fixes...")
     results = fix.apply_browser_fixes()
     print(f"Results: {results}")
+

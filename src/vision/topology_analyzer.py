@@ -1,3 +1,4 @@
+from __future__ import annotations
 import hashlib
 import logging
 from typing import Any, Dict, List, Optional, Set
@@ -435,3 +436,4 @@ class MeshTopologyAnalyzer:
             {"cache_count_bucket": "0"},
         )
         logger.info("Topology analysis cache cleared")
+

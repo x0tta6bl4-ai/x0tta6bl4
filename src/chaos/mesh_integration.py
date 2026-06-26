@@ -1,6 +1,7 @@
 """
 Интеграция Chaos Controller с Mesh Network
 """
+from __future__ import annotations
 
 import logging
 from typing import List, Optional
@@ -147,3 +148,4 @@ class MeshChaosIntegration:
 
         # Запустить через chaos controller для метрик
         return await self.chaos_controller.run_experiment(experiment)
+

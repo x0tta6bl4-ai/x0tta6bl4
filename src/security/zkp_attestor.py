@@ -9,6 +9,7 @@ Attestations supported:
 1. Identity: Proof of private key possession without revealing it.
 2. Firmware Integrity: Proof that firmware hash matches a commitment.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -235,3 +236,4 @@ class BatchZKPVerifier:
         # This shouldn't happen - batch failed but individual all passed
         logger.error("Batch verification inconsistency detected")
         return False, "batch_inconsistency"
+

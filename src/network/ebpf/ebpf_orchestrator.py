@@ -4,6 +4,7 @@ EBPF Orchestrator - единая точка управления eBPF подси
 Объединяет все компоненты eBPF в единую архитектуру для упрощения развертывания,
 мониторинга и управления.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -565,3 +566,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

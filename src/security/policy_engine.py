@@ -11,6 +11,7 @@ Implements:
 
 Standards: XACML concepts, OPA-compatible
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -705,3 +706,4 @@ class PolicyEnforcer:
             return wrapper
 
         return decorator
+

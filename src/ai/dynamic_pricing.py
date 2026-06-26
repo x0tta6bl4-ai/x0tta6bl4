@@ -5,6 +5,7 @@ MaaS AI Dynamic Pricing — x0tta6bl4
 Swarm-based intelligence for autonomous market regulation.
 Analyzes network load and proposes price adjustments to the DAO.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any
@@ -107,3 +108,4 @@ class PricingAgent:
 
 # Global singleton
 pricing_agent = PricingAgent()
+

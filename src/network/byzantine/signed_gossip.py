@@ -4,6 +4,7 @@ Signed Gossip Protocol for Control-Plane Messages.
 Все управляющие сообщения подписаны PQC подписями (Dilithium3)
 для защиты от Byzantine attacks.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -284,3 +285,4 @@ class SignedGossip:
         }
 
         logger.info(f"✅ Keys rotated, new epoch: {self._current_epoch}")
+

@@ -4,6 +4,7 @@ Paxos Consensus Algorithm Implementation
 Provides complete implementation of the Paxos consensus algorithm
 for distributed decision making in the swarm.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -575,3 +576,4 @@ __all__ = [
     "PaxosNode",
     "MultiPaxos",
 ]
+

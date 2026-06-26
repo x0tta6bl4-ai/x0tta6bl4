@@ -3,6 +3,7 @@ API Endpoints для Continuity Ledger
 
 Semantic search и другие операции с ledger через API
 """
+from __future__ import annotations
 
 import importlib
 import logging
@@ -954,3 +955,4 @@ async def event_trace_status():
             f"Ошибка при получении статуса EventBus traces: {e}", exc_info=True
         )
         raise HTTPException(status_code=500, detail="Internal server error")
+

@@ -8,6 +8,7 @@ Features:
 - Post-Quantum Cryptography (Kyber768 + AES-256-GCM)
 - Automatic failover
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -603,3 +604,4 @@ class MeshConnection:
                 pass
         self.reader = None
         self.writer = None
+

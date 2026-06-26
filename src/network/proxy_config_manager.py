@@ -8,6 +8,7 @@ Implements:
 - Configuration validation and schema enforcement
 - Integration with proxy_manager and control_plane
 """
+from __future__ import annotations
 
 import asyncio
 import base64
@@ -744,3 +745,4 @@ def create_default_config() -> ProxyInfrastructureConfig:
             api_key_required=False, rate_limit_enabled=True  # Enable in production
         ),
     )
+

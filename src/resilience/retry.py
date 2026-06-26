@@ -4,6 +4,7 @@ Enhanced Retry Pattern Implementation
 
 Retry patterns with exponential backoff, jitter, and configurable policies.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -375,3 +376,4 @@ __all__ = [
     "RetryPolicy",
     "retry",
 ]
+

@@ -5,6 +5,7 @@ Rate Limiter for LLM API Calls
 Token bucket and sliding window rate limiting for LLM providers.
 Prevents API rate limit errors and manages costs.
 """
+from __future__ import annotations
 
 import logging
 import threading
@@ -376,3 +377,4 @@ __all__ = [
     "RateLimiter",
     "MultiProviderRateLimiter",
 ]
+

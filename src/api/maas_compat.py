@@ -1,4 +1,5 @@
 """Compatibility export for MaaS compatibility routes and readiness helpers."""
+from __future__ import annotations
 
 from src.api.maas.endpoints import compat as modular
 from src.api.maas.endpoints.compat import *  # noqa: F401,F403
@@ -249,3 +250,4 @@ async def billing_pay_alias(*args, **kwargs):
         return await modular.billing_pay_alias(*args, **kwargs)
     finally:
         modular._resolve_create_subscription_session = original_resolver
+

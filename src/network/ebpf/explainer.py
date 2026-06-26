@@ -2,6 +2,7 @@
 eBPF Event Explainer
 Объясняет eBPF события простым языком для non-kernel developers
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -228,3 +229,4 @@ class EBPFExplainer:
             )
 
         return explanation
+

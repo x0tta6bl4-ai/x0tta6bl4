@@ -5,6 +5,7 @@ MaaS Analytics Service — x0tta6bl4
 Business logic for calculating mesh health, costs, and marketplace ROI.
 Isolated from API layer for better testability and performance optimization.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -413,3 +414,4 @@ class MaaSAnalyticsService:
                 "monthly_estimate_usd": round(hourly_revenue_cents / 100.0 * 24 * 30, 2),
             },
         }
+

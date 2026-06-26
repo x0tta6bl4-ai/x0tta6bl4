@@ -3,6 +3,7 @@ Traffic Shaping Module for x0tta6bl4 Mesh.
 Shapes traffic patterns to mimic popular applications (YouTube, Netflix, etc.)
 to evade advanced DPI that analyzes timing and packet size patterns.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -511,3 +512,4 @@ class TrafficAnalyzer:
         self.packet_sizes = []
         self.inter_arrival_times = []
         self._last_packet_time = None
+

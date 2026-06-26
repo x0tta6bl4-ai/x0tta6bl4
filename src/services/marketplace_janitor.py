@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import logging
 import time
@@ -149,3 +150,4 @@ async def marketplace_janitor_loop():
 if __name__ == "__main__":
     # For manual testing
     asyncio.run(marketplace_janitor_loop())
+

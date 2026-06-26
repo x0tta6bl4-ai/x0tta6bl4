@@ -12,6 +12,7 @@ Integrates all components:
 
 Provides unified lifecycle management and graceful operations.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -451,3 +452,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

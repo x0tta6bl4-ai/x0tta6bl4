@@ -2,6 +2,7 @@
 API Endpoints for Vision Coding Module
 =======================================
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List
@@ -188,3 +189,4 @@ async def visual_debug(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Visual debugging failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

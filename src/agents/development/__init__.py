@@ -1,3 +1,4 @@
+from __future__ import annotations
 # Development Agents package for x0tta6bl4
 """
 Development agents for code generation and documentation.
@@ -34,3 +35,4 @@ __all__ = [
     "GeneratedCode",
     "get_spec_to_code_agent",
 ]
+

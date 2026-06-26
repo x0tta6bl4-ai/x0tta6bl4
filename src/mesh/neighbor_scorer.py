@@ -1,6 +1,7 @@
 """
 ML-based neighbor scoring for mesh network route selection.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -90,3 +91,4 @@ class NeighborScorer:
     def reset_stats(self) -> None:
         """Reset all neighbor statistics."""
         self._neighbor_stats.clear()
+

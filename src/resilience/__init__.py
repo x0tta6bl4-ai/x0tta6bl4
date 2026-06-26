@@ -13,6 +13,7 @@ Comprehensive resilience patterns for distributed systems:
 
 Version: 2.0.0
 """
+from __future__ import annotations
 
 from src.resilience.advanced_patterns import (
     CircuitState,
@@ -153,3 +154,4 @@ __all__ = [
     "ResilientExecutor",
     "get_resilient_executor",
 ]
+

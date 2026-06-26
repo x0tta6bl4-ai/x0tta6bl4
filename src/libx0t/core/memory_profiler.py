@@ -1,6 +1,7 @@
 """
 Memory profiling utilities for x0tta6bl4
 """
+from __future__ import annotations
 
 import logging
 import threading
@@ -184,3 +185,4 @@ def get_memory_profiler() -> MemoryProfiler:
 def log_memory_usage(prefix: str = "Memory usage"):
     """Convenience function to log current memory usage."""
     _memory_profiler.log_memory_usage(prefix)
+

@@ -3,6 +3,7 @@
 x0tta6bl4 INVESTOR LIVE DEMO
 Simulates a full economic cycle: Deploy -> Stake -> Traffic -> Rewards -> ROI
 """
+from __future__ import annotations
 import random
 import sys
 import time
@@ -156,3 +157,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

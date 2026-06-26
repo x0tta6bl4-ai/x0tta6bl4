@@ -12,6 +12,7 @@ Features:
 - Automatic failover detection
 - Prometheus metrics export
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -987,3 +988,4 @@ def create_health_monitor_for_mapek(
         enable_prometheus=True,
         alert_callback=alert_callback,
     )
+

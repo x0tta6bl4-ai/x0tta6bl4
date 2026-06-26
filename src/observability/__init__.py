@@ -3,6 +3,7 @@ OpenTelemetry Tracing Module for MaaS x0tta6bl4
 
 Provides distributed tracing, metrics, and logging integration.
 """
+from __future__ import annotations
 
 from .tracing import (
     TracingConfig,
@@ -52,3 +53,4 @@ __all__ = [
 ]
 
 __version__ = "1.0.0"
+

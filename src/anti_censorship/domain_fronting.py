@@ -9,6 +9,7 @@ different domain names at different layers of the HTTPS request:
 
 This allows bypassing DNS-based and TLS SNI-based blocking.
 """
+from __future__ import annotations
 
 import logging
 import random
@@ -680,3 +681,4 @@ __all__ = [
     "DomainFrontingClient",
     "create_fronting_client",
 ]
+

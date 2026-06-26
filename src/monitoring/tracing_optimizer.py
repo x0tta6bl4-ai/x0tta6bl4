@@ -8,6 +8,7 @@ Advanced tracing optimization with:
 - Root cause analysis
 - Distributed latency tracking
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -864,3 +865,4 @@ __all__ = [
     "TracingOptimizer",
     "get_tracing_optimizer",
 ]
+

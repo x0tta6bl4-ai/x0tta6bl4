@@ -1,6 +1,7 @@
 """
 Интеграция eBPF Explainer с реальными eBPF programs
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional
@@ -126,3 +127,4 @@ class EBPFProgramIntegration:
             ]
 
         return explanations
+

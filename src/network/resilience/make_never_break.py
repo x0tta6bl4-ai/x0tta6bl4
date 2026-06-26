@@ -14,6 +14,7 @@ Key Features:
 
 Reference: Rajant Kinetic Mesh "Make-Make-Make-Never-Break" principle
 """
+from __future__ import annotations
 
 import asyncio
 import inspect
@@ -704,3 +705,4 @@ __all__ = [
     "ResilienceConfig",
     "MakeNeverBreakEngine",
 ]
+

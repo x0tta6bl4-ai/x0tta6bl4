@@ -13,6 +13,7 @@ Architecture:
            ▼                   ▼                   ▼
       Anomaly Score      Threat Level        Isolation
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
@@ -338,3 +339,4 @@ class MeshShield:
 
 # Global instance
 mesh_shield = MeshShield()
+

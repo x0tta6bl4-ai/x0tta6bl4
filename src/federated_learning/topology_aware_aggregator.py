@@ -10,6 +10,7 @@ Topology-Aware Aggregator for Mesh-FL Integration
 - Устойчивость к node churn
 - Интеграция с Batman-adv метриками
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -452,3 +453,4 @@ async def create_topology_aware_aggregator(
         metrics_provider = BatmanAdvMetricsProvider(mesh_router)
     
     return aggregator, metrics_provider
+

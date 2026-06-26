@@ -3,6 +3,7 @@
 VPN Config Generator для x0tta6bl4
 Генерирует VLESS + Reality конфиги для пользователей с advanced obfuscation
 """
+from __future__ import annotations
 
 import os
 import uuid
@@ -377,3 +378,4 @@ class XUIAPIClient:
         except Exception as e:
             logger.error(f"Failed to delete user {email} from x-ui: {e}")
             return False
+

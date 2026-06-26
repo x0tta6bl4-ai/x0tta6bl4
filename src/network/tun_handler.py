@@ -9,6 +9,7 @@ Usage:
     await tun.create()
     packet = await tun.read_packet()
 """
+from __future__ import annotations
 
 import asyncio
 import fcntl
@@ -771,3 +772,4 @@ async def test_tun_interface():
 
 if __name__ == "__main__":
     asyncio.run(test_tun_interface())
+

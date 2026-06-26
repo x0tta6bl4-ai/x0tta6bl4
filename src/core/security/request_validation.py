@@ -8,6 +8,7 @@ Provides security validation for incoming requests:
 - Injection attack prevention
 - Header validation
 """
+from __future__ import annotations
 
 import logging
 import re
@@ -418,3 +419,4 @@ __all__ = [
     "sanitize_dict",
     "default_config",
 ]
+

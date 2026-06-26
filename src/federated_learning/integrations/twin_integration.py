@@ -9,6 +9,7 @@ Features:
 - FederatedTrainingOrchestrator: Coordinates multi-node FL training
 - TwinMetricsCollector: Gathers metrics for monitoring
 """
+from __future__ import annotations
 
 import logging
 # Import Digital Twin
@@ -776,3 +777,4 @@ class FederatedTrainingOrchestrator:
             "avg_reward": total_reward / num_episodes,
             "avg_hops": total_hops / max(1, successes),
         }
+

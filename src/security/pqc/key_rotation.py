@@ -3,6 +3,7 @@ PQC Key Rotation с Backup и Recovery.
 
 Автоматическая ротация PQC ключей с сохранением старых для recovery.
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -440,3 +441,4 @@ class PQCKeyRotation:
             should_rotate_sig = age >= self.config.rotation_interval
 
         return should_rotate_kem, should_rotate_sig
+

@@ -9,6 +9,7 @@ Includes dashboards for:
 - Security & Zero Trust
 - Distributed Tracing
 """
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass
@@ -599,3 +600,4 @@ def create_grafana_provisioning_config(
     }
 
     return config
+

@@ -4,6 +4,7 @@ IPFS Client for x0tta6bl4 Knowledge Storage
 
 Provides IPFS integration for distributed knowledge storage.
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, Optional
@@ -197,3 +198,4 @@ class MockIPFSClient:
 
     def is_available(self) -> bool:
         return True
+

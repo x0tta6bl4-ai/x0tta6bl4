@@ -9,6 +9,7 @@ Identity Normalization Module - CVE-2020-12812 Protection
 
 Решение x0tta6bl4: каноническая нормализация на архитектурном уровне.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -156,3 +157,4 @@ def is_system_identifier(identifier: str) -> bool:
     """
     normalized = identifier.lower().strip()
     return normalized in SYSTEM_IDENTIFIERS.values()
+

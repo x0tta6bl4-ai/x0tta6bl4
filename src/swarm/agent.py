@@ -8,6 +8,7 @@ Base class for all agents in the swarm with:
 - State management
 - Inter-agent communication
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -523,3 +524,4 @@ def create_agent(
     if specialization:
         return SpecializedAgent(agent_id, swarm_id, specialization, **kwargs)
     return Agent(agent_id, swarm_id, [AgentCapability(name="task_execution")], **kwargs)
+

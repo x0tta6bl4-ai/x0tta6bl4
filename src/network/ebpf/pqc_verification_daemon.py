@@ -15,6 +15,7 @@ Architecture:
 The XDP program sends unverified packets to userspace, daemon verifies,
 and marks sessions as verified in BPF map for fast-path processing.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -1245,3 +1246,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -1,6 +1,7 @@
 """
 Security module for Vault Integration and secret management.
 """
+from __future__ import annotations
 
 from .vault_auth import K8sAuthConfig, K8sAuthHandler
 from .vault_client import VaultAuthError, VaultClient, VaultSecretError
@@ -18,3 +19,4 @@ __all__ = [
     "SecretType",
     "VaultHealthMonitor",
 ]
+

@@ -2,6 +2,7 @@
 
 Decentralized self-healing mesh network with Zero Trust security.
 """
+from __future__ import annotations
 
 from importlib import import_module
 from typing import Any
@@ -24,3 +25,4 @@ def __getattr__(name: str) -> Any:
 
 
 __all__ = ["core", "security", "network", "ml", "monitoring"]
+

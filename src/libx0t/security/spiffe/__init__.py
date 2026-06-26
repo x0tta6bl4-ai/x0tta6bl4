@@ -13,6 +13,7 @@ References:
 - https://spiffe.io/
 - https://github.com/spiffe/spire
 """
+from __future__ import annotations
 
 from .agent import AttestationStrategy, SPIREAgentManager, WorkloadEntry
 from .controller import SPIFFEController
@@ -24,3 +25,4 @@ __all__ = [
     "AttestationStrategy",
     "WorkloadEntry",
 ]
+

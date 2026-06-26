@@ -9,6 +9,7 @@ Provisioning Service — x0tta6bl4
 Zero-Trust: каждый вызов валидирует входные данные,
 каждый аккаунт получает уникальный UUID.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -713,3 +714,4 @@ class _SimulatedXUI:
 
 # Singleton instance
 provisioning_service = ProvisioningService()
+

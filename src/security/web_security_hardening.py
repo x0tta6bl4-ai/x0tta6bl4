@@ -11,6 +11,7 @@ Key features:
 - Secure session token generation
 - OWASP compliance checks
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -716,3 +717,4 @@ if __name__ == "__main__":
     report = create_security_audit_report()
     print(f"  Timestamp: {report['timestamp']}")
     print(f"  Recommendations: {len(report['recommendations'])}")
+

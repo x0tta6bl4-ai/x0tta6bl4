@@ -1,6 +1,7 @@
 """
 X0TToken/X0TBridge ABI (minimal, only what we need).
 """
+from __future__ import annotations
 
 CONTRACT_ABI = [
     # Events
@@ -177,3 +178,4 @@ CONTRACT_ABI = [
         "type": "function",
     },
 ]
+

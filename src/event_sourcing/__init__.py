@@ -4,6 +4,7 @@ Event Sourcing & CQRS Module - Event-driven architecture for MaaS.
 Provides event sourcing, CQRS pattern implementation, and event store
 for building scalable, event-driven distributed systems.
 """
+from __future__ import annotations
 
 from .event_store import EventStore, Event, EventVersion
 from .command_bus import CommandBus, Command, CommandHandler
@@ -28,3 +29,4 @@ __all__ = [
     "ProjectionManager",
     "ProjectionStatus",
 ]
+

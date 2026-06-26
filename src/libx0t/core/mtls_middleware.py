@@ -7,6 +7,7 @@ mTLS middleware for FastAPI with TLS 1.3 enforcement
 - Валидация истечения сертификата
 - Логирование и метрики
 """
+from __future__ import annotations
 
 import logging
 import ipaddress
@@ -391,3 +392,4 @@ class MTLSMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
 
         return response
+

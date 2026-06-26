@@ -3,6 +3,7 @@ Meta-Planning Phase for MAPE-K.
 
 Phase 0: Creates solution space map and reasoning path.
 """
+from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -312,3 +313,4 @@ class MetaPlanner:
         base_time = 1.0
         complexity = task.get("complexity", 0.5)
         return base_time * (1 + complexity)
+

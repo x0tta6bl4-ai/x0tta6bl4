@@ -6,6 +6,7 @@ No PyTorch dependency — works with the project's existing NumPy stack.
 
 Used by federated learning for distributed adapter training across mesh nodes.
 """
+from __future__ import annotations
 
 from src.ml.lora.config import LoRAConfig
 from src.ml.lora.adapter import LoRAAdapter, load_lora_adapter, save_lora_adapter
@@ -19,3 +20,4 @@ __all__ = [
     "load_lora_adapter",
     "save_lora_adapter",
 ]
+

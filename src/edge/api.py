@@ -18,6 +18,7 @@ Integrates resilience patterns:
 
 Integrates Prometheus metrics for observability.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -942,3 +943,4 @@ __all__ = [
     "DistributionStrategyUpdate",
     "EdgeHealth",
 ]
+

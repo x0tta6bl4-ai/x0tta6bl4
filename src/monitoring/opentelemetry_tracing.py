@@ -9,6 +9,7 @@ Provides distributed tracing for x0tta6bl4 with spans for:
 - DAO governance
 - eBPF program execution
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -716,3 +717,4 @@ __all__ = [
     "get_ml_spans",
     "get_swarm_spans",
 ]
+

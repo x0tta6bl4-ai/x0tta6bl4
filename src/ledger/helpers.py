@@ -3,6 +3,7 @@ Helper функции для работы с Continuity Ledger
 
 Утилиты для парсинга, валидации и работы с ledger
 """
+from __future__ import annotations
 
 import logging
 import re
@@ -320,3 +321,4 @@ def extract_key_metrics(content: str) -> Dict[str, Any]:
                 }
 
     return key_metrics
+

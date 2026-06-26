@@ -7,6 +7,7 @@ Production-ready client for SPIRE Server API:
 - Health checks
 - Server status
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -642,3 +643,4 @@ class SPIREServerClient:
                 "error": str(e),
             }
             return SafeActuatorResult(False, f"Error getting server status: {e}")
+

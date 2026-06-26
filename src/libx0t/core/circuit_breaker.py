@@ -8,6 +8,7 @@ Provides fault tolerance for external API calls with:
 - Metrics exposure
 - Prometheus integration
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -447,3 +448,4 @@ vpn_provisioning_circuit = create_circuit_breaker(
 auth_provider_circuit = create_circuit_breaker(
     name="auth_provider", failure_threshold=3, recovery_timeout=30.0
 )
+

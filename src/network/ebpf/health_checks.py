@@ -4,6 +4,7 @@ Health checks for eBPF components.
 This module provides health check functionality for all eBPF components
 to ensure they are functioning correctly and provide meaningful diagnostics.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -501,3 +502,4 @@ def add_health_check_methods():
 
 # Apply monkey patches when module is imported
 add_health_check_methods()
+

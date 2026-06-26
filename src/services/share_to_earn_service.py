@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import json
 import logging
@@ -222,3 +223,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Service stopped.")
+

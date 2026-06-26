@@ -4,6 +4,7 @@ Event Store - Persistent event storage for event sourcing.
 Provides append-only event storage with event versioning,
 snapshots, and event replay capabilities.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -644,3 +645,4 @@ class FileEventStore(EventStore):
         result = await super().append(aggregate_id, events, expected_version)
         await self.persist()
         return result
+

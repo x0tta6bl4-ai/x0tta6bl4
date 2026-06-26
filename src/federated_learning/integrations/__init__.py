@@ -7,6 +7,7 @@ Connects FL components with other x0tta6bl4 modules:
 - Privacy-aware aggregation pipeline
 - Blockchain audit trail
 """
+from __future__ import annotations
 
 from .twin_integration import (FederatedTrainingOrchestrator,
                                TwinBackedRoutingEnv, TwinMetricsCollector)
@@ -16,3 +17,4 @@ __all__ = [
     "FederatedTrainingOrchestrator",
     "TwinMetricsCollector",
 ]
+

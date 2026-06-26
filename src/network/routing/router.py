@@ -7,6 +7,7 @@ Provides a unified interface for mesh routing that coordinates:
 - PacketHandler: Protocol packet processing
 - RouteRecovery: Failure detection and repair
 """
+from __future__ import annotations
 
 import logging
 import time

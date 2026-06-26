@@ -7,6 +7,7 @@ Provides Stripe payment provider integration for:
 - Payment processing
 - Webhook handling
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -669,3 +670,4 @@ __all__ = [
     # Client
     "StripeClient",
 ]
+

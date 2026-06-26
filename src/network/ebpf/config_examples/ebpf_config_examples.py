@@ -17,6 +17,7 @@ Each example includes:
 - CLI usage examples
 - Monitoring setup
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List
@@ -406,3 +407,4 @@ def demonstrate_config_usage():
 
 if __name__ == "__main__":
     demonstrate_config_usage()
+

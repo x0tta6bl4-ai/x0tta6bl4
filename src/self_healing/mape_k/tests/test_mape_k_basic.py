@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pytest
 from src.self_healing.mape_k.manager import SelfHealingManager
 from src.self_healing.mape_k.logic_contract import FormalState
@@ -30,3 +31,4 @@ def test_mape_k_anomaly_detection():
 
 if __name__ == "__main__":
     pytest.main([__file__])
+

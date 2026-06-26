@@ -6,6 +6,7 @@ Handles:
 - TC attachment (ingress/egress)
 - Attachment verification
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -844,3 +845,4 @@ class EBPFAttachManager:
                 return True
         
         return False
+

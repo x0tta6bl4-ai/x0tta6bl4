@@ -8,6 +8,7 @@ Provides detailed health status including:
 - External service status
 - Resource utilization
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -401,3 +402,4 @@ __all__ = [
     "get_liveness",
     "get_readiness",
 ]
+

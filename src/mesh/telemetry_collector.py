@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import hashlib
 import logging
@@ -1006,3 +1007,4 @@ class MeshTelemetryCollector:
         )
 
 mesh_telemetry_collector = MeshTelemetryCollector()
+

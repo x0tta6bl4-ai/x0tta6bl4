@@ -4,6 +4,7 @@ Threat Detection
 Provides anomaly detection for security threats, threat intelligence integration,
 and automated response.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -346,3 +347,4 @@ class ThreatDetector:
             "by_severity": by_severity,
             "by_status": by_status,
         }
+

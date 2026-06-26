@@ -8,6 +8,7 @@ Resource isolation patterns for preventing cascade failures:
 - Partitioned Bulkhead: Isolate different workload types
 - Adaptive Bulkhead: ML-based capacity adjustment
 """
+from __future__ import annotations
 
 import logging
 import threading
@@ -814,3 +815,4 @@ __all__ = [
     "bulkhead",
     "bulkhead_decorator",
 ]
+

@@ -9,6 +9,7 @@ Orchestrates SPIFFE/SPIRE components for mesh network:
 
 Integrates with x0tta6bl4 mesh control plane.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -610,3 +611,4 @@ class SPIFFEController:
             extra={"status": dict(result)},
         )
         return result
+

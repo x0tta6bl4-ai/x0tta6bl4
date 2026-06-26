@@ -3,6 +3,7 @@ Data models for Meta-Cognitive MAPE-K.
 
 Contains all dataclasses and enums used across MAPE-K phases.
 """
+from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -96,3 +97,4 @@ class MAPEKCycleResult:
     knowledge: dict[str, Any]
     success: bool = True
     error: str | None = None
+

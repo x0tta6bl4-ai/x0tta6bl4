@@ -14,6 +14,7 @@ References:
 - BCC/bpftool for Linux eBPF integration
 - Cilium's eBPF library patterns
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -1037,3 +1038,4 @@ class EBPFLoader:
 
         logger.info(f"Loaded {len(loaded_ids)} eBPF programs")
         return loaded_ids
+

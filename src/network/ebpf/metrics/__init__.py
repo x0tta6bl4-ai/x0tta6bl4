@@ -24,6 +24,7 @@ Modules:
     - prometheus_exporter: Prometheus integration
     - exporter: Main EBPFMetricsExporter class
 """
+from __future__ import annotations
 
 from typing import Any
 
@@ -112,3 +113,4 @@ def __getattr__(name: str) -> Any:
 # Package metadata
 __version__ = "2.0.0"
 __author__ = "MaaS Team"
+

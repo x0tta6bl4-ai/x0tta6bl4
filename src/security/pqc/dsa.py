@@ -3,6 +3,7 @@ ML-DSA-65 Digital Signature Algorithm.
 
 NIST FIPS 204 compliant digital signatures.
 """
+from __future__ import annotations
 import hashlib
 import logging
 from datetime import datetime, timedelta
@@ -231,3 +232,4 @@ class PQCDigitalSignature:
     def is_available(self) -> bool:
         """Check if DSA is available."""
         return self.enabled
+

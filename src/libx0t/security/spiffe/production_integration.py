@@ -9,6 +9,7 @@ Handles:
 - Policy enforcement through zero-trust engine
 - Monitoring and health checks
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -682,3 +683,4 @@ async def shutdown_spire_integration():
     if _integration_instance:
         await _integration_instance.shutdown()
         _integration_instance = None
+

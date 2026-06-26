@@ -4,6 +4,7 @@
 Предоставляет инструменты для проверки производительности и масштабируемости
 системы при различных уровнях нагрузки.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -436,3 +437,4 @@ def compare_load_tests(
             else 0
         ),
     }
+

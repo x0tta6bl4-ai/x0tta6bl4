@@ -6,6 +6,7 @@ Provides security hardening features for eBPF programs:
 - LRU map management for high concurrency
 - Security monitoring and alerting
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -212,3 +213,4 @@ def configure_security(noise_level: NoiseLevel = NoiseLevel.MEDIUM):
     enhancements = get_security_enhancements()
     enhancements.configure_noise(noise_level)
     logger.info(f"Global security configuration updated: noise={noise_level.value}")
+

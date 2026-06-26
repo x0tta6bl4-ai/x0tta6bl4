@@ -2,6 +2,7 @@
 Node verification logic for MeshNetworkManager.
 Handles state integrity verification of mesh nodes.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -250,3 +251,4 @@ class NodeVerifier:
         except Exception:
             pass
         return None
+

@@ -10,6 +10,7 @@ Tests cover:
 - Error handling
 - Performance
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock, Mock, patch
 
@@ -529,3 +530,4 @@ class TestMapReaderIntegration:
 
         # Should still return data
         assert isinstance(data2, dict)
+

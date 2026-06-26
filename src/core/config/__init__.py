@@ -1,6 +1,7 @@
 """
 src.core.config — Settings, feature flags, lazy import helpers.
 """
+from __future__ import annotations
 
 from src.core.config.feature_flags import FeatureFlags
 from src.core.config.lazy_imports import LazyModule
@@ -11,3 +12,4 @@ __all__ = [
     "FeatureFlags",
     "LazyModule",
 ]
+

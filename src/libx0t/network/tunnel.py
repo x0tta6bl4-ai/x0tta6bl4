@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import socket
 import threading
@@ -75,3 +76,4 @@ class Tunnel:
         if self.sock:
             self.sock.close()
         logger.info("Tunnel closed.")
+

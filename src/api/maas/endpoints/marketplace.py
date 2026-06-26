@@ -5,6 +5,7 @@ MaaS Marketplace (Production) — x0tta6bl4
 Peer-to-peer infrastructure sharing with escrow payment protection.
 Funds are held in escrow until the rented node passes a health heartbeat.
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -2276,3 +2277,4 @@ async def cancel_listing(
         ),
     )
     return {"status": "cancelled"}
+
