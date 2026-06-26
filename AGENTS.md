@@ -159,6 +159,7 @@ Full framework at skill `x0tta6bl4-thinking-framework`.
 | **x0tta6bl4-mesh-local-deploy** | Надо поднять mesh локально | Docker Compose, SVID, SPIRE — 2 режима |
 | **x0tta6bl4-remote-deploy** | Деплой на NL VPS (89.125.1.107) | SPIRE lifecycle, systemd, rsync, health, chaos |
 | **x0tta6bl4-evidence-gate** | Проверить production readiness NL VPN | source audit, snapshot, decision, goal |
+| **x0tta6bl4-worktree-agent** | Надо сделать несколько фич параллельно | git worktree + delegate_task: каждая фича в своей копии |
 | **x0tta6bl4-browser-automation** | Навигация по веб-UI, админки, скриншоты | Playwright MCP + Desktop Commander (если нет npm) |
 | **x0tta6bl4-desktop-commander** | Полный контроль ПК (мышь, клавиатура, окна) | Pure Python — работает без npm под санкциями |
 | **x0tta6bl4-pc-optimization** | Оптимизация этого ПК (Athlon 3000G, 13GB) | ntfs3 → lowntfs-3g, earlyoom, BT keyboard, disk rescue |
@@ -205,10 +206,18 @@ Full framework at skill `x0tta6bl4-thinking-framework`.
 1. Определи тип задачи (см. таблицу выше по цветам)
 2. Загрузи базовый навык для этого типа (первый в группе)
 3. Если задача сложная (5+ шагов) — загрузи x0tta6bl4-loop-designer
-4. Если сомневаешься в реальности кода — x0tta6bl4-code-autopsy
-5. Если сомневаешься в архитектуре — x0tta6bl4-depin-architecture
-6. В конце сессии — сохрани новый навык через skill_manage
+4. Если фич несколько и они независимы — загрузи x0tta6bl4-worktree-agent
+5. Если сомневаешься в реальности кода — x0tta6bl4-code-autopsy
+6. Если сомневаешься в архитектуре — x0tta6bl4-depin-architecture
+7. В конце сессии — сохрани новый навык через skill_manage
 ```
+
+### Активные cronjob'ы
+
+| Расписание | Имя | Что делает |
+|:-----------|:----|:-----------|
+| `0 5 * * *` | GitMark daily rebuild | Перестраивает RAG memory bank по codebase |
+| `0 6 * * *` | CVE daily monitor | Проверяет dependabot, чинит CVE с фиксом |
 
 ### Быстрые команды из terminal()
 ```bash
