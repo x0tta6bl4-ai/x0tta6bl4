@@ -30,6 +30,14 @@ ALLOWED_COMMANDS = {
     "nft",
     "systemctl",
     "systemd-run",
+    # Process / diagnostics
+    "pgrep",
+    "ethtool",
+    # Network config
+    "resolvectl",
+    # Cross-platform network tools
+    "scutil",
+    "ipconfig",
     # Network / VPN
     "xray",
     "xray-linux-amd64",
