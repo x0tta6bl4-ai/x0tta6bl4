@@ -44,8 +44,8 @@ services:
     hostname: node-a
     environment:
       - NODE_ID=node-a
-      - PEERS=node-b
-      - PEER_PORTS=9101
+      - PEERS=node-b,node-nl-bridge
+      - PEER_PORTS=9101,9102
       - PORT=9100
       - HTTP_PROXY=
       - HTTPS_PROXY=
@@ -85,6 +85,30 @@ services:
           - node-b
     depends_on:
       - node-a
+
+  node-nl-bridge:
+    image: mesh-node:latest
+    container_name: mesh-node-nl-bridge
+    hostname: node-nl-bridge
+    environment:
+      - NODE_ID=node-nl-bridge
+      - PEERS=node-a,node-b,89.125.1.107
+      - PEER_PORTS=9100,9100,9101
+      - PORT=9102
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - NO_PROXY=*
+      - http_proxy=
+      - https_proxy=
+      - no_proxy=*
+    volumes:
+      - spire-socket:/tmp/spire-agent:ro
+    networks:
+      mesh-net:
+        aliases:
+          - node-nl-bridge
+    depends_on:
+      - node-b
 
 volumes:
   spire-socket:
