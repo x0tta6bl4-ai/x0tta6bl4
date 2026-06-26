@@ -829,7 +829,7 @@ class EBPFLoader:
                     cmd.extend(["mode", xdp_mode])
 
                 attach_start = time.monotonic()
-                result = subprocess.run(
+                result = safe_run(
                     cmd, check=True, capture_output=True, text=True, timeout=10
                 )
 
@@ -919,7 +919,7 @@ class EBPFLoader:
                 ".text",
             ]
 
-            subprocess.run(
+            safe_run(
                 cmd, check=True, capture_output=True, text=True, timeout=10
             )
 
@@ -934,7 +934,7 @@ class EBPFLoader:
         cmd = ["ip", "link", "show", "dev", interface]
         verify_start = time.monotonic()
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 check=True,
                 capture_output=True,
@@ -1074,7 +1074,7 @@ class EBPFLoader:
         cmd = ["bpftool", "prog", "show", "id", str(program_id)]
         verify_start = time.monotonic()
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 capture_output=True,
                 text=True,
@@ -1242,7 +1242,7 @@ class EBPFLoader:
                     "xdp",
                 ]
                 attach_start = time.monotonic()
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
                 if result.returncode == 0:
                     self._publish_observation(
@@ -1397,7 +1397,7 @@ class EBPFLoader:
             # Try to verify program is loaded via bpftool
             cmd = ["bpftool", "prog", "list"]
             list_start = time.monotonic()
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             program_seen = result.returncode == 0 and program_source in result.stdout
             self._publish_observation(
@@ -1511,7 +1511,7 @@ class EBPFLoader:
         cmd = ["ip", "link", "set", "dev", interface, "xdp", "off"]
         detach_start = time.monotonic()
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 check=True,
                 capture_output=True,
@@ -1573,7 +1573,7 @@ class EBPFLoader:
         """Detach TC program from interface."""
         try:
             # Remove TC filter
-            subprocess.run(
+            safe_run(
                 ["tc", "filter", "del", "dev", interface, "ingress"],
                 check=True,
                 capture_output=True,
@@ -1676,7 +1676,7 @@ class EBPFLoader:
         cmd = ["bpftool", "map", "dump", "name", "packet_stats"]
         stats_start = time.monotonic()
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 capture_output=True,
                 text=True,
@@ -1837,7 +1837,7 @@ class EBPFLoader:
                 ]
 
                 update_start = time.monotonic()
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
                 self._publish_observation(
                     stage=(
