@@ -73,6 +73,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from src.core.thinking.agent_thinking import AgentThinkingCoach
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -609,7 +610,7 @@ class MapReader:
         try:
             import subprocess
 
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "--version"], capture_output=True, timeout=2
             )
             return result.returncode == 0
@@ -674,7 +675,7 @@ class MapReader:
         import subprocess
 
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "dump", "name", map_name, "--json"],
                 capture_output=True,
                 text=True,

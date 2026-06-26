@@ -72,6 +72,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from src.coordination.events import EventBus, EventType
 from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -671,7 +672,7 @@ class MapReader:
         op_start = time.monotonic()
         command_shape = ["bpftool", "--version"]
         try:
-            result = subprocess.run(
+            result = safe_run(
                 command_shape, capture_output=True, timeout=2
             )
             available = result.returncode == 0
@@ -831,7 +832,7 @@ class MapReader:
         command_shape = ["bpftool", "map", "dump", "name", "<map_name>", "--json"]
         command_hash = _hash_value(" ".join(command_shape))
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "dump", "name", map_name, "--json"],
                 capture_output=True,
                 text=True,

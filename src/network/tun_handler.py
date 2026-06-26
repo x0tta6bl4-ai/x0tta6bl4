@@ -23,6 +23,7 @@ from typing import Any, Optional
 
 from src.coordination.events import EventBus, EventType
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +234,7 @@ class TUNInterface:
             **selector_metadata,
         }
         try:
-            result = subprocess.run(
+            result = safe_run(
                 command,
                 capture_output=True,
                 text=True,

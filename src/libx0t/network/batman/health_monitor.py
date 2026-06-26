@@ -25,6 +25,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.core.thinking.agent_thinking import AgentThinkingCoach
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -537,7 +538,7 @@ class BatmanHealthMonitor:
         """Check link quality to neighbors."""
         try:
             # Get link quality from batctl
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "originators"],
                 capture_output=True,
                 text=True,
@@ -642,7 +643,7 @@ class BatmanHealthMonitor:
     async def _check_gateway(self) -> HealthCheckResult:
         """Check gateway connectivity."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "gateways"],
                 capture_output=True,
                 text=True,
@@ -696,7 +697,7 @@ class BatmanHealthMonitor:
     async def _check_interface(self) -> HealthCheckResult:
         """Check Batman-adv interface status."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["ip", "link", "show", self.interface],
                 capture_output=True,
                 text=True,
@@ -740,7 +741,7 @@ class BatmanHealthMonitor:
     async def _check_routing(self) -> HealthCheckResult:
         """Check routing table health."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "translocal"],
                 capture_output=True,
                 text=True,
@@ -795,7 +796,7 @@ class BatmanHealthMonitor:
     async def _get_originators(self) -> List[str]:
         """Get list of originator MAC addresses."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "originators"],
                 capture_output=True,
                 text=True,
@@ -818,7 +819,7 @@ class BatmanHealthMonitor:
     async def _ping_originator(self, mac: str, count: int = 1) -> bool:
         """Ping an originator through Batman mesh."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "ping", "-c", str(count), mac],
                 capture_output=True,
                 text=True,

@@ -51,6 +51,7 @@ from src.security.policy_decision_adapter import (
     policy_rules as normalize_policy_rules,
 )
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -486,7 +487,7 @@ class HelmRunner:
             )
 
         try:
-            proc = subprocess.run(
+            proc = safe_run(
                 command,
                 capture_output=True,
                 text=True,

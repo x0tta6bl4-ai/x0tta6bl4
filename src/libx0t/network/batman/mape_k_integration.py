@@ -111,6 +111,7 @@ from .health_monitor import (
     NodeHealthReport,
 )
 from .metrics import BatmanMetricsCollector, BatmanMetricsSnapshot
+from src.libx0t.core.subprocess_validator import safe_run
 
 # Try to import MAPE-K components
 try:
@@ -824,7 +825,7 @@ class BatmanMAPEKExecutor:
         
         try:
             # Bring interface down
-            subprocess.run(
+            safe_run(
                 ["ip", "link", "set", self.interface, "down"],
                 check=True,
                 timeout=10,
@@ -833,7 +834,7 @@ class BatmanMAPEKExecutor:
             await asyncio.sleep(1)
             
             # Bring interface up
-            subprocess.run(
+            safe_run(
                 ["ip", "link", "set", self.interface, "up"],
                 check=True,
                 timeout=10,
@@ -851,7 +852,7 @@ class BatmanMAPEKExecutor:
         
         try:
             # Get current gateway mode
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", self.interface, "gw_mode"],
                 capture_output=True,
                 text=True,
@@ -861,7 +862,7 @@ class BatmanMAPEKExecutor:
             current_mode = result.stdout.strip()
             
             # Toggle gateway mode to force reselection
-            subprocess.run(
+            safe_run(
                 ["batctl", "meshif", self.interface, "gw_mode", "off"],
                 check=True,
                 timeout=5,
@@ -870,7 +871,7 @@ class BatmanMAPEKExecutor:
             await asyncio.sleep(1)
             
             # Restore original mode
-            subprocess.run(
+            safe_run(
                 ["batctl", "meshif", self.interface, "gw_mode", current_mode or "client"],
                 check=True,
                 timeout=5,
@@ -886,7 +887,7 @@ class BatmanMAPEKExecutor:
         
         try:
             # Flush translation tables
-            subprocess.run(
+            safe_run(
                 ["batctl", "meshif", self.interface, "translocal", "-d"],
                 timeout=5,
             )
@@ -922,7 +923,7 @@ class BatmanMAPEKExecutor:
         import subprocess
         
         try:
-            subprocess.run(
+            safe_run(
                 ["systemctl", "restart", "batman-adv"],
                 check=True,
                 timeout=30,

@@ -31,6 +31,7 @@ from enum import Enum
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from src.libx0t.core.subprocess_validator import safe_run
 
 
 # Enhanced error handling and validation components
@@ -745,7 +746,7 @@ class EBPFMetricsExporter:
         try:
             # Find map ID by name
             cmd = ["bpftool", "map", "show", "name", map_name, "-j"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode != 0:
                 self.slog.debug(
@@ -778,7 +779,7 @@ class EBPFMetricsExporter:
 
             # Dump map contents
             cmd = ["bpftool", "map", "dump", "id", str(map_id), "-j"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode != 0:
                 raise BpftoolError(

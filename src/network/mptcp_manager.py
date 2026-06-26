@@ -102,7 +102,7 @@ class MPTCPManager:
     @classmethod
     def _read_mptcp_limits(cls) -> Dict[str, int]:
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["ip", "mptcp", "limits", "show"],
                 capture_output=True,
                 text=True,

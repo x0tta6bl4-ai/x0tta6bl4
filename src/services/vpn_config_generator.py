@@ -12,6 +12,7 @@ import logging
 import random
 from typing import Dict, Optional
 from datetime import datetime
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +178,7 @@ class XUIAPIClient:
 
         try:
             try:
-                result = subprocess.run(
+                result = safe_run(
                     ["xray", "x25519"],
                     capture_output=True,
                     text=True,
@@ -230,7 +231,7 @@ class XUIAPIClient:
             conn.close()
             
             try:
-                result = subprocess.run(
+                result = safe_run(
                     ["systemctl", "restart", "x-ui"],
                     capture_output=True,
                     text=True,

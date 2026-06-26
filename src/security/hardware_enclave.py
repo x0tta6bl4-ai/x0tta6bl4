@@ -11,6 +11,7 @@ import logging
 import os
 import hashlib
 from typing import Any, Dict
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 

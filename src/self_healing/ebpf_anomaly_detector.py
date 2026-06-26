@@ -36,6 +36,7 @@ from src.security.policy_decision_adapter import (
 )
 from ..services.service_event_identity import service_event_identity
 from .mape_k import MAPEKAnalyzer, MAPEKExecutor, MAPEKMonitor, MAPEKPlanner
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -751,7 +752,7 @@ class EBPFExecutor(MAPEKExecutor):
             logger.warning("Required recovery command is unavailable: %s", executable)
             return False
         try:
-            subprocess.run(
+            safe_run(
                 command,
                 check=True,
                 stdout=subprocess.DEVNULL,

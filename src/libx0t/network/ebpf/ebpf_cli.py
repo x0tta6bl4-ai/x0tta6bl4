@@ -17,6 +17,7 @@ from typing import Optional
 from .ebpf_orchestrator import (EBPFOrchestrator,
                                                 OrchestratorConfig)
 from .loader import EBPFAttachMode, EBPFProgramType
+from src.libx0t.core.subprocess_validator import safe_run
 
 # Configure logging
 logging.basicConfig(
@@ -341,7 +342,7 @@ Examples:
         try:
             import subprocess
 
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "dump", "name", "mesh_routes", "-j"],
                 capture_output=True,
                 text=True,

@@ -18,6 +18,7 @@ import os
 import platform
 from pathlib import Path
 from typing import Dict, List, Optional
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +179,7 @@ class WebRTCLeakFix:
 
             for port in webrtc_ports:
                 # Block UDP (WebRTC primarily uses UDP)
-                subprocess.run(
+                safe_run(
                     [
                         "iptables",
                         "-A",
@@ -246,7 +247,7 @@ class WebRTCLeakFix:
             try:
                 import subprocess
 
-                result = subprocess.run(
+                result = safe_run(
                     ["iptables", "-L", "OUTPUT", "-n"], capture_output=True, text=True
                 )
                 status["system_rules_active"] = "3478" in result.stdout

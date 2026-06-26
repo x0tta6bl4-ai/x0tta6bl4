@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, Optional
 from src.coordination.events import EventBus, EventType
 from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +294,7 @@ class RingBufferReader:
         start = time.monotonic()
         try:
             # Check if map exists: bpftool map show name <map_name>
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "show", "name", self.map_name],
                 capture_output=True,
                 text=True,

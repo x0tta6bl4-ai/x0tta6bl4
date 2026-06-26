@@ -16,6 +16,7 @@ from pathlib import Path
 from src.network.ebpf.ebpf_orchestrator import (EBPFOrchestrator,
                                                 OrchestratorConfig)
 from src.network.ebpf.loader import EBPFAttachMode, EBPFProgramType
+from src.core.security.subprocess_validator import safe_run
 
 # Configure logging
 logging.basicConfig(
@@ -340,7 +341,7 @@ Examples:
         try:
             import subprocess
 
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "dump", "name", "mesh_routes", "-j"],
                 capture_output=True,
                 text=True,

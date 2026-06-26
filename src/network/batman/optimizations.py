@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +231,7 @@ class MultiPathRouter(_BatmanEvidenceMixin):
         # Uses batctl to discover available paths
         command_shape = ["batctl", "meshif", "bat0", "originators"]
         try:
-            result = subprocess.run(
+            result = safe_run(
                 command_shape,
                 capture_output=True,
                 text=True,
@@ -432,7 +433,7 @@ class AODVFallback(_BatmanEvidenceMixin):
                 "<destination>",
             ]
             try:
-                result = subprocess.run(
+                result = safe_run(
                     ["batctl", "meshif", "bat0", "ping", "-c", "1", destination],
                     capture_output=True,
                     text=True,
@@ -582,7 +583,7 @@ class AODVFallback(_BatmanEvidenceMixin):
             "<destination>",
         ]
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["batctl", "meshif", "bat0", "ping", "-c", "1", destination],
                 capture_output=True,
                 text=True,

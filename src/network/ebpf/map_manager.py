@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from src.coordination.events import EventBus, EventType
 from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -295,7 +296,7 @@ class EBPFMapManager:
             # We need to split the key_hex string into individual arguments for subprocess
             full_cmd = ["bpftool", "map", "update", "name", map_name, "key"] + key_hex.split() + ["value", value_hex]
             
-            result = subprocess.run(full_cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(full_cmd, capture_output=True, text=True, timeout=5)
             command_metadata = [
                 "bpftool",
                 "map",
@@ -462,7 +463,7 @@ class EBPFMapManager:
 
         try:
             full_cmd = ["bpftool", "map", "delete", "name", map_name, "key"] + key_hex.split()
-            result = subprocess.run(full_cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(full_cmd, capture_output=True, text=True, timeout=5)
             command_metadata = [
                 "bpftool",
                 "map",

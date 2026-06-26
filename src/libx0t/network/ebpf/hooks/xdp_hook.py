@@ -17,6 +17,7 @@ import subprocess
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -147,12 +148,12 @@ class XDPHook:
                     "sec",
                     "xdp",
                 ]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
                 if result.returncode == 0:
                     # Verify attachment
                     verify_cmd = ["ip", "link", "show", "dev", interface]
-                    verify_result = subprocess.run(
+                    verify_result = safe_run(
                         verify_cmd, capture_output=True, text=True, timeout=2
                     )
 
@@ -217,12 +218,12 @@ class XDPHook:
         try:
             # Execute: ip link set dev {interface} xdp off
             cmd = ["ip", "link", "set", "dev", interface, "xdp", "off"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
 
             if result.returncode == 0:
                 # Verify detachment
                 verify_cmd = ["ip", "link", "show", "dev", interface]
-                verify_result = subprocess.run(
+                verify_result = safe_run(
                     verify_cmd, capture_output=True, text=True, timeout=2
                 )
 
