@@ -412,7 +412,7 @@ class EBPFAttachManager:
                     cmd.extend(["mode", xdp_mode])
                 
                 attach_start = time.monotonic()
-                result = subprocess.run(
+                result = safe_run(
                     cmd, check=True, capture_output=True, text=True, timeout=10
                 )
                 
@@ -579,7 +579,7 @@ class EBPFAttachManager:
             ]
             
             attach_start = time.monotonic()
-            result = subprocess.run(
+            result = safe_run(
                 cmd, check=True, capture_output=True, text=True, timeout=10
             )
             self._publish_observation(
@@ -658,7 +658,7 @@ class EBPFAttachManager:
         cmd = ["ip", "link", "set", "dev", interface, "xdp", "off"]
         detach_start = time.monotonic()
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 check=True,
                 capture_output=True,
@@ -720,7 +720,7 @@ class EBPFAttachManager:
         cmd = ["tc", "filter", "del", "dev", interface, "ingress"]
         detach_start = time.monotonic()
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 check=True,
                 capture_output=True,
@@ -774,7 +774,7 @@ class EBPFAttachManager:
         cmd = ["ip", "link", "show", "dev", interface]
         verify_start = time.monotonic()
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 check=True,
                 capture_output=True,

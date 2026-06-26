@@ -11,13 +11,13 @@ import asyncio
 import json
 import logging
 import os
-import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Set
 
 from fastapi import FastAPI, HTTPException, Request, status
+from src.core.security.subprocess_validator import safe_run
 from pydantic import BaseModel
 
 from src.coordination.events import EventBus, EventType, get_event_bus
@@ -441,17 +441,16 @@ class DAOExecutor:
             env["DAO_PROPOSAL_ID"] = str(proposal_id)
             env["DAO_PROPOSAL_TITLE"] = title
 
-            process = subprocess.Popen(
+            result = safe_run(
                 ["bash", script_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 text=True,
                 env=env,
             )
-            stdout, stderr = process.communicate()
-            self._last_release_return_code = int(process.returncode)
+            stdout, stderr = result.stdout, result.stderr
+            self._last_release_return_code = result.returncode
 
-            if process.returncode == 0:
+            if result.returncode == 0:
                 logger.info("Upgrade successful for proposal %d", proposal_id)
                 logger.debug("Script output: %s", stdout)
                 return True

@@ -20,8 +20,10 @@ import os
 import hashlib
 import shutil
 import signal
-import subprocess
 import tempfile
+from typing import Any, Dict, List, Optional
+
+from src.libx0t.core.subprocess_validator import safe_popen
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -201,7 +203,7 @@ class SPIREAgentManager:
 
             self.socket_path.parent.mkdir(parents=True, exist_ok=True)
 
-            self.agent_process = subprocess.Popen(
+            self.agent_process = safe_popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
