@@ -16,6 +16,8 @@ In an AI-assisted development workflow, **prompts are the real source code**. Th
 | [ebpf-dataplane.md](ebpf-dataplane.md) | Claude | XDP/eBPF kernel module | ~1,500 |
 | [mape-k-self-healing.md](mape-k-self-healing.md) | GPT-4 | MAPE-K control loop | ~1,900 |
 | [ztcr-chaos.md](ztcr-chaos.md) | Claude | ZTCR chaos resilience | ~2,000 |
+| [prompt-auditor.md](prompt-auditor.md) | Любая | Meta-audit промптов | — |
+| [plan-gate.md](plan-gate.md) | Любая | Pre-coding guard | — |
 
 ## Prompt Structure
 
