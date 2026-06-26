@@ -319,6 +319,39 @@ docker-ext4/
 # Local swarm artifacts
 LOCAL_SWARM_RECEIVE.txt
 
+# Local development artifacts (not for repo)
+.dev_systemd/
+.stashflag
+
+# Hermes agent plans (local session state)
+.hermes/plans/*.md
+.hermes/plans/agents/
+
+# Staging artifacts
+Dockerfile.staging
+
+# Generated commercial evidence bundles
+commercial/products/*/out/
+
+# Legacy test stubs
+tests/legacy/
+
+# Migration scripts (one-time use)
+scripts/migrations/
+scripts/add_future_annotations.py
+scripts/replace_subprocess.py
+
+# VPN configuration generators (local)
+scripts/vpn/
+scripts/fix_ntfs_reboot.sh
+
+# Job hunter scripts (personal)
+scripts/hh_auto_bot.py
+scripts/job_hunter.py
+
+# Audit scripts (one-time)
+scripts/audit_health_check.sh
+
 # Personal archives (Cyrillic named)
 СЕМЕЙНЫЙ_АРХИВ_ИТОГ/
 
