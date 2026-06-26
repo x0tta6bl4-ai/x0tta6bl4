@@ -10,6 +10,7 @@ import logging
 import struct
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class RingBufferReader:
             import subprocess
 
             # Check if map exists: bpftool map show name <map_name>
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "show", "name", self.map_name],
                 capture_output=True,
                 text=True,

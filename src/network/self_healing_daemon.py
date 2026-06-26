@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 DEFAULT_SOCKS_PORT_CANDIDATES = (10818, 10918, 10808, 10809, 10924, 40467, 1080)
 NETWORK_SELF_HEALING_DAEMON_SERVICE_NAME = "network-self-healing-daemon"
@@ -228,7 +229,7 @@ def _run_observed_command(
         **(selector_metadata or {}),
     }
     try:
-        result = subprocess.run(
+        result = safe_run(
             command,
             capture_output=True,
             text=text,
@@ -465,7 +466,7 @@ def provider_guard_allows_heal() -> tuple[bool, str]:
     if PROVIDER_GUARD_REQUIRE_FRESH:
         cmd.append("--require-fresh")
     try:
-        result = subprocess.run(
+        result = safe_run(
             cmd,
             capture_output=True,
             text=True,
@@ -603,7 +604,7 @@ def get_fin_wait2_count() -> int:
     cmd = ["ss", "-tn", "dst", VPN_SERVER]
     command_shape = ["ss", "-tn", "dst", "<vpn_server>"]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        result = safe_run(cmd, capture_output=True, text=True, timeout=5)
         count = sum(1 for line in result.stdout.splitlines() if "FIN-WAIT-2" in line)
         _publish_observation(
             stage=(

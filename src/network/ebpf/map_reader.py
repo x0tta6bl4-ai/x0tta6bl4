@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from src.coordination.events import EventBus, EventType
 from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -255,7 +256,7 @@ class EBPFMapReader:
     def _check_bpftool(self) -> bool:
         """Check if bpftool is available."""
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "--version"], capture_output=True, timeout=2
             )
             return result.returncode == 0
@@ -282,7 +283,7 @@ class EBPFMapReader:
 
         start = time.monotonic()
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "show", "--json"],
                 capture_output=True,
                 text=True,
@@ -381,7 +382,7 @@ class EBPFMapReader:
             map_arg = map_name if map_name else str(map_id)
             selector = "name" if map_name else "id"
 
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "map", "dump", selector, map_arg, "--json"],
                 capture_output=True,
                 text=True,
@@ -409,7 +410,7 @@ class EBPFMapReader:
             else:
                 # Try with ID if name failed
                 if map_name and map_id:
-                    fallback_result = subprocess.run(
+                    fallback_result = safe_run(
                         ["bpftool", "map", "dump", "id", str(map_id), "--json"],
                         capture_output=True,
                         text=True,

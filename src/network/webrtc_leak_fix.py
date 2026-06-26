@@ -178,7 +178,7 @@ class WebRTCLeakFix:
 
             for port in webrtc_ports:
                 # Block UDP (WebRTC primarily uses UDP)
-                subprocess.run(
+                safe_run(
                     [
                         "iptables",
                         "-A",

@@ -11,6 +11,7 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,7 @@ class DependencyHealthChecker:
             # Check if eBPF is available via kernel
             import subprocess
 
-            result = subprocess.run(
+            result = safe_run(
                 ["bpftool", "version"], capture_output=True, text=True, timeout=2
             )
 

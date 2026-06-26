@@ -11,6 +11,7 @@ import ipaddress
 import subprocess
 from dataclasses import dataclass, field
 from typing import Callable, Literal, Sequence
+from src.core.security.subprocess_validator import safe_run
 
 TransportProtocol = Literal["udp", "tcp", "camouflage"]
 FirewallProtocol = Literal["udp", "tcp"]
@@ -276,7 +277,7 @@ class LinuxNetworkPolicyPlanner:
 
     @staticmethod
     def _default_command_runner(command: Sequence[str]) -> None:
-        subprocess.run(command, check=True)
+        safe_run(command, check=True)
 
 
 @dataclass(frozen=True)
@@ -659,4 +660,4 @@ class LinuxServerNatPlanner:
 
     @staticmethod
     def _default_command_runner(command: Sequence[str]) -> None:
-        subprocess.run(command, check=True)
+        safe_run(command, check=True)

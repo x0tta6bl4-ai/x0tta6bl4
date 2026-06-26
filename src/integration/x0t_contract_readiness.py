@@ -15,6 +15,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+from src.core.security.subprocess_validator import safe_run
 
 
 SCHEMA_VERSION = "x0tta6bl4-x0t-contract-readiness-v1"
@@ -128,7 +129,7 @@ def _version_satisfies(spec: str, actual: str) -> bool:
 
 def _current_node_version() -> str:
     try:
-        result = subprocess.run(
+        result = safe_run(
             ["node", "--version"],
             check=False,
             capture_output=True,

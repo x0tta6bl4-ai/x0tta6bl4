@@ -33,6 +33,7 @@ from typing import Any, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 
 def _build_log_handlers() -> list[logging.Handler]:
@@ -173,7 +174,7 @@ def provider_guard_allows_heal(*, require_fresh: bool | None = None) -> tuple[bo
     if effective_require_fresh:
         cmd.append("--require-fresh")
     try:
-        result = subprocess.run(
+        result = safe_run(
             cmd,
             capture_output=True,
             text=True,
@@ -288,7 +289,7 @@ def check_connection_states() -> dict:
         **_selector_metadata(vpn_server=VPN_SERVER),
     }
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=5)
+        result = safe_run(command, capture_output=True, text=True, timeout=5)
         for line in result.stdout.splitlines():
             for state in states:
                 if state in line:
@@ -504,7 +505,7 @@ def discover_socks_port() -> Optional[int]:
 
 def _curl_proxy_health(port: int) -> Optional[tuple[bool, float]]:
     try:
-        result = subprocess.run(
+        result = safe_run(
             [
                 "curl",
                 "-sS",
@@ -547,7 +548,7 @@ def check_packet_loss() -> float:
         **_selector_metadata(vpn_server=VPN_SERVER),
     }
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=15)
+        result = safe_run(command, capture_output=True, text=True, timeout=15)
         for line in result.stdout.splitlines():
             # "5 packets transmitted, 3 received, 40% packet loss"
             m = re.search(r"(\d+)% packet loss", line)
@@ -657,7 +658,7 @@ def get_xray_pid() -> Optional[int]:
         **_selector_metadata(process_pattern=XRAY_PROCESS_PATTERN),
     }
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=3)
+        result = safe_run(command, capture_output=True, text=True, timeout=3)
         pids = result.stdout.strip().splitlines()
         if pids:
             pid = int(pids[0])
@@ -788,7 +789,7 @@ class VPNHealer:
                 **_selector_metadata(vpn_server=VPN_SERVER, state=state),
             }
             try:
-                result = subprocess.run(
+                result = safe_run(
                     command,
                     timeout=5, capture_output=True
                 )

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import psutil
+from src.libx0t.core.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +255,7 @@ class EBPFProfiler:
 
             # Measure baseline latency using ping (if available)
             try:
-                ping_result = subprocess.run(
+                ping_result = safe_run(
                     ["ping", "-c", "10", "-W", "1", "127.0.0.1"],
                     capture_output=True,
                     text=True,

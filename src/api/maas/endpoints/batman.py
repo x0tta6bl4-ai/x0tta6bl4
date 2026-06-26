@@ -33,6 +33,7 @@ from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
 from ..auth import UserContext, get_current_user, require_mesh_access
 from ..registry import get_mesh
 from src.coordination.events import EventBus, EventType, get_event_bus
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -1747,7 +1748,7 @@ async def get_batman_originators(
     result = None
     
     try:
-        result = subprocess.run(
+        result = safe_run(
             ["batctl", "meshif", interface, "originators"],
             capture_output=True,
             text=True,
@@ -1886,7 +1887,7 @@ async def get_batman_gateways(
     
     try:
         # Get gateways
-        gateways_result = subprocess.run(
+        gateways_result = safe_run(
             ["batctl", "meshif", interface, "gateways"],
             capture_output=True,
             text=True,
@@ -1908,7 +1909,7 @@ async def get_batman_gateways(
                         })
         
         # Get gateway mode
-        mode_result = subprocess.run(
+        mode_result = safe_run(
             ["batctl", "meshif", interface, "gw_mode"],
             capture_output=True,
             text=True,

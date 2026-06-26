@@ -40,6 +40,7 @@ from src.coordination.events import EventBus, EventType
 from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.network.routing.stigmergy import StigmergyRouter
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -307,7 +308,7 @@ def _bpftool_dump_map(
     safe_command = _redacted_command(command, redacted_indices=(4,))
     start = time.monotonic()
     try:
-        result = subprocess.run(
+        result = safe_run(
             command,
             capture_output=True,
             text=True,
@@ -790,7 +791,7 @@ class StigmergyBridge:
         ]
         safe_command = _redacted_command(cmd, redacted_indices=(4, 7))
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
                 self._publish_observation(
                     stage="stigmergy_xdp_attach_succeeded",
@@ -865,7 +866,7 @@ class StigmergyBridge:
         cmd = ["ip", "link", "set", "dev", self.interface, "xdp", "off"]
         safe_command = _redacted_command(cmd, redacted_indices=(4,))
         try:
-            result = subprocess.run(
+            result = safe_run(
                 cmd,
                 capture_output=True,
                 text=True,

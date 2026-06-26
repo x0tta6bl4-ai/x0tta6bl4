@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from src.coordination.events import EventBus, EventType
 from src.core.thinking.agent_thinking import AgentThinkingCoach
 from src.services.service_event_identity import service_event_identity
+from src.core.security.subprocess_validator import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -288,7 +289,7 @@ class XDPHook:
             pass
 
         try:
-            result = subprocess.run(
+            result = safe_run(
                 ["ip", "link", "help"],
                 capture_output=True,
                 text=True,
@@ -422,7 +423,7 @@ class XDPHook:
                     "sec",
                     "xdp",
                 ]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                result = safe_run(cmd, capture_output=True, text=True, timeout=5)
                 command_metadata = _redacted_command(cmd, redacted_indices=(4, 7))
 
                 if result.returncode == 0:
@@ -449,7 +450,7 @@ class XDPHook:
                     verify_start = time.monotonic()
                     verify_cmd = ["ip", "link", "show", "dev", interface]
                     try:
-                        verify_result = subprocess.run(
+                        verify_result = safe_run(
                             verify_cmd, capture_output=True, text=True, timeout=2
                         )
                     except subprocess.TimeoutExpired as e:
@@ -719,7 +720,7 @@ class XDPHook:
             command_start = time.monotonic()
             # Execute: ip link set dev {interface} xdp off
             cmd = ["ip", "link", "set", "dev", interface, "xdp", "off"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = safe_run(cmd, capture_output=True, text=True, timeout=5)
             command_metadata = _redacted_command(cmd, redacted_indices=(4,))
 
             if result.returncode == 0:
@@ -744,7 +745,7 @@ class XDPHook:
                 verify_start = time.monotonic()
                 verify_cmd = ["ip", "link", "show", "dev", interface]
                 try:
-                    verify_result = subprocess.run(
+                    verify_result = safe_run(
                         verify_cmd, capture_output=True, text=True, timeout=2
                     )
                 except subprocess.TimeoutExpired as e:
