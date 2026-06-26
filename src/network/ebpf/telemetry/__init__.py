@@ -30,6 +30,7 @@ Usage:
     )
     collector = EBPFTelemetryCollector(config)
 """
+from __future__ import annotations
 
 import importlib.util
 import sys
@@ -211,3 +212,4 @@ __all__ = [
 ]
 
 __version__ = "3.4.0"
+

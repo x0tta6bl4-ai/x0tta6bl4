@@ -3,6 +3,7 @@ Database module for x0tta6bl4
 ==============================================
 SQLAlchemy ORM setup and database models.
 """
+from __future__ import annotations
 
 import os
 import logging
@@ -542,3 +543,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

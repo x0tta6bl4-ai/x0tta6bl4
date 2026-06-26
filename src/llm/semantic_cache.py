@@ -5,6 +5,7 @@ Semantic Cache for LLM Responses
 Intelligent caching system that uses semantic similarity
 to return cached responses for semantically similar queries.
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -385,3 +386,4 @@ class SemanticCache:
 
 
 __all__ = ["SemanticCache", "CacheEntry"]
+

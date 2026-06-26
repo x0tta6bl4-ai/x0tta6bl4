@@ -2,6 +2,7 @@
 Полноценный Mesh Node с интегрированными компонентами.
 Объединяет: Discovery, Transport, Obfuscation, Traffic Shaping, DAO.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -323,3 +324,4 @@ async def example_node():
 
 if __name__ == "__main__":
     asyncio.run(example_node())
+

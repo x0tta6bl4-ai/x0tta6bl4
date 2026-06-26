@@ -4,6 +4,7 @@ Advanced Policy Engine for Zero Trust
 Provides fine-grained policy enforcement using rule-based engine.
 Now includes OPA/Rego integration, dynamic policy updates, and versioning.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
@@ -674,3 +675,4 @@ def configure_policy_engine(default_action: PolicyAction = PolicyAction.DENY):
     global _policy_engine
     _policy_engine = PolicyEngine(default_action=default_action)
     logger.info(f"Policy Engine configured with default action: {default_action.value}")
+

@@ -1,4 +1,5 @@
 """LLM Providers Package"""
+from __future__ import annotations
 
 from src.llm.providers.base import BaseLLMProvider, ProviderCapabilityError
 from src.llm.providers.ollama import OllamaProvider
@@ -12,3 +13,4 @@ __all__ = [
     "VLLMProvider",
     "OpenAICompatibleProvider",
 ]
+

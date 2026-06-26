@@ -3,6 +3,7 @@ MaaS API Constants and Configuration.
 
 Contains PQC segment profiles, plan aliases, and billing configuration.
 """
+from __future__ import annotations
 
 from typing import Any, Dict
 
@@ -128,3 +129,4 @@ __all__ = [
     "BILLING_WEBHOOK_EVENTS",
     "PLAN_REQUEST_LIMITS",
 ]
+

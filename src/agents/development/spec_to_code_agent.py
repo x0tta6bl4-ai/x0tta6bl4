@@ -1,3 +1,4 @@
+from __future__ import annotations
 # 🤖 Spec-to-Code Agent - x0tta6bl4
 """
 AI Agent for generating code from specifications.
@@ -364,3 +365,4 @@ def get_spec_to_code_agent() -> SpecToCodeAgent:
     if _spec_to_code_agent is None:
         _spec_to_code_agent = SpecToCodeAgent()
     return _spec_to_code_agent
+

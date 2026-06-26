@@ -1,6 +1,7 @@
 """
 Recovery Actions for MAPE-K
 """
+from __future__ import annotations
 import logging
 import os
 import shutil
@@ -68,3 +69,4 @@ class RateLimiter:
         # Record action
         self.action_times.append(now)
         return True
+

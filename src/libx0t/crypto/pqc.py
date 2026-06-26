@@ -9,6 +9,7 @@ DEPRECATED shim. Use src.security.pqc.simple instead.
 This shim is maintained for backward compatibility only.
 It will be removed in a future version.
 """
+from __future__ import annotations
 import importlib
 import warnings
 
@@ -22,3 +23,4 @@ warnings.warn(
 from src.security.pqc.simple import PQC  # noqa: F401
 
 __all__ = ["PQC"]
+

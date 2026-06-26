@@ -10,6 +10,7 @@ FL-Mesh Integration Module
 - Распределение глобальной модели через mesh
 - Сбор метрик для обучения
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -206,3 +207,4 @@ async def create_integration_from_mesh_nodes(
     integration = FLMeshIntegration(coordinator=coordinator, mesh_nodes=mesh_nodes)
 
     return integration
+

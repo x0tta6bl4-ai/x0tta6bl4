@@ -6,6 +6,7 @@ Manages mesh network topology including:
 - Link quality tracking
 - Neighbor relationships
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -341,3 +342,4 @@ class TopologyManager:
             },
         )
         return adjacency
+

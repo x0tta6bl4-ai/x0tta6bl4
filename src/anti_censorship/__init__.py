@@ -8,6 +8,7 @@ Comprehensive censorship circumvention toolkit including:
 - CDN integration for connection masking
 - Pluggable transports (obfs4, meek, snowflake)
 """
+from __future__ import annotations
 
 from src.anti_censorship.stego_mesh import StegoMeshProtocol
 from src.anti_censorship.domain_fronting import (
@@ -57,3 +58,4 @@ __all__ = [
     "DetectionResult",
     "BlockingType",
 ]
+

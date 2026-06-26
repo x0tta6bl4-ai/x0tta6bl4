@@ -4,6 +4,7 @@ MAPE-K Feedback Loops
 Implements closed-loop feedback between self-learning optimizer,
 dynamic optimizer, and the main MAPE-K cycle.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -589,3 +590,4 @@ class FeedbackLoopManager:
             },
         )
         return stats
+

@@ -3,6 +3,7 @@ x0tta6bl4 Token Rewards System.
 Handles distributing X0T tokens for relay traffic and uptime.
 Supports both local simulation and real Base Sepolia transactions.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -431,3 +432,4 @@ class TokenRewards:
 
     def get_balance(self, node_address: str) -> str:
         return f"{self.balance:.4f}"
+

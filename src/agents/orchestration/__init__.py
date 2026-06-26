@@ -1,3 +1,4 @@
+from __future__ import annotations
 # Orchestration package for AI Agents
 """
 Agent Orchestrator - coordinates all AI agents.
@@ -14,3 +15,4 @@ __all__ = [
     "AgentStatus",
     "get_orchestrator",
 ]
+

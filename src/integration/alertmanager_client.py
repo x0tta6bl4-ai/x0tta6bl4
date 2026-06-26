@@ -5,6 +5,7 @@ Real-time alert stream subscription
 Module: src/integration/alertmanager_client.py
 Purpose: Subscribe to AlertManager alerts for reactive MAPE-K triggering
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -712,3 +713,4 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     asyncio.run(main())
+

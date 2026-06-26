@@ -2,6 +2,7 @@
 GraphSAGE Anomaly Detector - Observe Mode
 Реализация observe mode для постепенной миграции к block mode
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
@@ -409,3 +410,4 @@ class GraphSAGEObserveMode:
                 logger.warning("No validation data, cannot migrate to BLOCK mode")
         else:
             logger.warning(f"Already in {self.mode.value} mode")
+

@@ -5,6 +5,7 @@ MaaS Signed Playbooks (Production) — x0tta6bl4
 PQC-signed commands for agents with in-memory delivery queues and optional
 SQLAlchemy persistence for audit/history.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -972,3 +973,4 @@ async def get_playbook_status(
         "node_statuses": node_statuses,
         "total_acks": len(node_statuses),
     }
+

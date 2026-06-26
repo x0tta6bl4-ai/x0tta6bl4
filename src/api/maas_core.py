@@ -5,6 +5,7 @@ MaaS Core (Production) — x0tta6bl4
 Handles mesh lifecycle (deploy, list, terminate) using SQLAlchemy.
 Includes Autonomous Market Regulation via PricingAgent.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -263,3 +264,4 @@ async def terminate_mesh(
             "maas_core.lifecycle.terminate"
         ),
     }
+

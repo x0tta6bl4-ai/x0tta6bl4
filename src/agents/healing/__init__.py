@@ -1,3 +1,4 @@
+from __future__ import annotations
 # Healing Agents package for x0tta6bl4
 """
 Healing agents for automatic service recovery.
@@ -20,3 +21,4 @@ __all__ = [
     "HealingStatus",
     "get_auto_healer",
 ]
+

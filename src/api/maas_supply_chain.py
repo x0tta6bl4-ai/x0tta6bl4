@@ -5,6 +5,7 @@ MaaS Supply Chain Security — x0tta6bl4
 DB-backed SBOM registry and per-node binary attestation.
 Includes an in-memory compatibility layer for direct unit calls.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -507,3 +508,4 @@ async def get_mesh_attestation_report(
         "compromised_nodes": compromised_nodes,
         "integrity": "clean" if not compromised_nodes else "compromised",
     }
+

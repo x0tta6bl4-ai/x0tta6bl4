@@ -1,4 +1,5 @@
 """Compatibility wrapper for the modular MaaS analytics endpoint."""
+from __future__ import annotations
 
 import sys
 
@@ -146,3 +147,4 @@ async def get_marketplace_roi(
 ):
     service = MaaSAnalyticsService(db, _redis_client)
     return service.get_marketplace_roi(mesh_id, current_user.id)
+

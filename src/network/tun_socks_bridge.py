@@ -11,6 +11,7 @@ This enables transparent traffic routing through x0tta6bl4 mesh network:
 Usage:
     python3 -m src.network.tun_socks_bridge --tun tun0 --socks-host 127.0.0.1 --socks-port 1080
 """
+from __future__ import annotations
 
 import argparse
 import asyncio
@@ -414,3 +415,4 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+

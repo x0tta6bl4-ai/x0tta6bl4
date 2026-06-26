@@ -5,6 +5,7 @@ Quantum-Safe SPIFFE Integration for x0tta6bl4
 Bridges SPIRE (X.509 SVIDs) with Post-Quantum Cryptography (ML-DSA/Dilithium).
 Provides a way to attest PQC public keys using SPIFFE identities.
 """
+from __future__ import annotations
 
 import logging
 import re
@@ -265,3 +266,4 @@ class PQCSpiffeBridge:
         Wraps data in a PQC-signed manifest.
         """
         return self.pqc_identity.sign_manifest(data)
+

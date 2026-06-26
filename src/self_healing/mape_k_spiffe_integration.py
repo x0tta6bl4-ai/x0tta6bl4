@@ -13,6 +13,7 @@ Example:
     >>> loop = SPIFFEMapEKLoop()
     >>> asyncio.run(loop.execute_cycle())
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -856,3 +857,4 @@ class SPIFFEMapEKLoop:
         except Exception as e:
             logger.error(f"Fatal error: {e}")
             raise
+

@@ -3,6 +3,7 @@ PQC Data Types.
 
 Data classes for Post-Quantum Cryptography operations.
 """
+from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -159,3 +160,4 @@ class PQCSession:
             "created_at": self.created_at.isoformat(),
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }
+

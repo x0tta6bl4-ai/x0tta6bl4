@@ -2,6 +2,7 @@
 MAPE-K Cycle с интеграцией всех новых компонентов
 Готово для demo и sales presentations
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -447,3 +448,4 @@ class IntegratedMAPEKCycle:
 
         # Return estimated time
         return base_time * multiplier
+

@@ -10,6 +10,7 @@ Security layers:
 4. Network-level validation (mesh rejects invalid nodes)
 5. Double-spending detection (same ID on 2 machines = auto-ban)
 """
+from __future__ import annotations
 
 import hashlib
 import hmac
@@ -559,3 +560,4 @@ def main(argv: Optional[list[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

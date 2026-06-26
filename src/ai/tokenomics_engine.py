@@ -5,6 +5,7 @@ x0tta6bl4 Adaptive Tokenomics Engine
 Autonomous regulation of token rewards and burn rates based on 
 network-wide inflation metrics. Prevents hyperinflation during 10k+ pilot.
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, Any
@@ -48,3 +49,4 @@ class AdaptiveRewardEngine:
             ],
             "rationale": "Countering hyperinflation observed in 10k node simulation."
         }
+

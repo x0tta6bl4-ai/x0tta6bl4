@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import hashlib
 import logging
@@ -244,3 +245,4 @@ async def marketplace_settlement_loop():
 
 if __name__ == "__main__":
     asyncio.run(marketplace_settlement_loop())
+

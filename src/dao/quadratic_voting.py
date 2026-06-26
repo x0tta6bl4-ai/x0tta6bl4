@@ -6,6 +6,7 @@ Implements quadratic voting algorithm:
 - Cost = (Votes)²
 - Voting power = √(tokens_held)
 """
+from __future__ import annotations
 
 import logging
 import math
@@ -226,3 +227,4 @@ if __name__ == "__main__":
     print(f"Support: {support:.1f}%")
     print(f"Quorum (33%): {qv.check_quorum(votes, 1000, 33.0)}")
     print(f"Supermajority (67%): {qv.check_supermajority(votes, 67.0)}")
+

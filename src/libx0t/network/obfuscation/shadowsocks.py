@@ -2,6 +2,7 @@
 Shadowsocks Transport for x0tta6bl4 Mesh.
 Implements a Shadowsocks-compatible obfuscation layer (AEAD ChaCha20-Poly1305).
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -180,3 +181,4 @@ class ShadowsocksTransport(ObfuscationTransport):
         cipher = ChaCha20Poly1305(session_key)
 
         return cipher.decrypt(nonce, ciphertext_with_tag, None)
+

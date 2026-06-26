@@ -1,6 +1,7 @@
 """
 MaaS Node Management Package.
 """
+from __future__ import annotations
 
 from .security import (
     MeshOperator,
@@ -91,3 +92,4 @@ __all__ = [
     "list_all_mesh_nodes",
     "AccessCheckRequest",
 ]
+

@@ -4,6 +4,7 @@ Self-Learning MAPE-K Threshold Optimization
 Automatically learns optimal thresholds from historical metrics data.
 Provides anomaly detection, trend analysis, and dynamic threshold adaptation.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -372,3 +373,4 @@ class SelfLearningThresholdOptimizer:
             if parameter not in self.buffers:
                 self.buffers[parameter] = MetricsBuffer(parameter)
             self.buffers[parameter].add_points(points)
+

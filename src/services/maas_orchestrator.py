@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from sqlalchemy.orm import Session
 from src.core.thinking.agent_thinking import AgentThinkingCoach
@@ -101,3 +102,4 @@ class MaaSOrchestrator:
             return False
 
 maas_orchestrator = MaaSOrchestrator()
+

@@ -7,6 +7,7 @@ This module provides:
 - Test configuration
 - Utility functions
 """
+from __future__ import annotations
 
 import sys
 import time
@@ -506,3 +507,4 @@ class ErrorTestHelper:
             for record in caplog.records
             if record.levelname == "WARNING"
         ), f"Warning message '{warning_message}' not found in logs"
+

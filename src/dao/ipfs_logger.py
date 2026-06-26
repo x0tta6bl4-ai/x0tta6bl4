@@ -1,6 +1,7 @@
 """
 Логирование критических событий в IPFS для DAO аудита
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -59,3 +60,4 @@ class DAOAuditLogger:
         The hash can be used to verify that the event has not been tampered with.
         """
         return hashlib.sha256(event_str.encode()).hexdigest()
+

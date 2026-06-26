@@ -3,6 +3,7 @@ RAG Pipeline MVP for x0tta6bl4
 
 Retrieval-Augmented Generation pipeline for knowledge retrieval.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -422,3 +423,4 @@ class RAGPipeline:
             logger.info(f"📂 Loaded RAG pipeline from {path}")
         else:
             self.vector_index.load()
+

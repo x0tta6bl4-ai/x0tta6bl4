@@ -5,6 +5,7 @@ This module provides utilities for authenticating with Vault using
 Kubernetes service account tokens, including JWT token management
 and K8s environment validation.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -229,3 +230,4 @@ class K8sAuthHandler:
         self._namespace = None
         self._ca_cert = None
         logger.debug("K8s auth cache cleared")
+

@@ -4,6 +4,7 @@ Quorum Validation для критических событий.
 Критические события (link down, node failure, governance) требуют
 кворумной валидации перед принятием решения.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -192,3 +193,4 @@ class QuorumValidator:
                 f"🔴 Source {source} has low reputation "
                 f"({self._source_reputation[source]:.2f}) - possible false reports"
             )
+

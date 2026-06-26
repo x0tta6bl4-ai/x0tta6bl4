@@ -2,6 +2,7 @@
 Core Leak Detection Engine
 Multi-vector detection for IP, DNS, WebRTC, and other geolocation leaks
 """
+from __future__ import annotations
 import asyncio
 import json
 import subprocess
@@ -569,3 +570,4 @@ class LeakDetectionEngine:
                 "ipv6_leak"
             ]
         }
+

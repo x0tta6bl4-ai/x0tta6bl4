@@ -7,6 +7,7 @@ Features:
 - Custom event handlers
 - Thread-safe queue
 """
+from __future__ import annotations
 
 import importlib.util
 import logging
@@ -218,3 +219,4 @@ class PerfBufferReader:
 
 
 __all__ = ["PerfBufferReader"]
+

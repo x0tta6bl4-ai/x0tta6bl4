@@ -8,6 +8,7 @@ Provides AODV-like mesh routing with modular components:
 - RouteRecovery: Failure detection and healing
 - MeshRouter: Main coordinator (facade)
 """
+from __future__ import annotations
 
 from .topology import TopologyManager, NodeInfo, LinkQuality
 from .route_table import RouteTable, RouteEntry
@@ -27,3 +28,4 @@ __all__ = [
     "RoutingPacket",
     "RouteRecovery",
 ]
+

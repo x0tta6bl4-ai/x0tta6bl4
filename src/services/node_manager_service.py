@@ -8,6 +8,7 @@ Node Manager Service
 - Получение статуса сети
 - Закрытие соединения (Tor-like circuit)
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -536,3 +537,4 @@ async def get_node_manager() -> NodeManagerService:
         _node_manager = NodeManagerService()
         await _node_manager.initialize()
     return _node_manager
+

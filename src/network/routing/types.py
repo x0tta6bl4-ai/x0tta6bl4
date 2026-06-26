@@ -9,6 +9,7 @@ Exports:
     - RouteEntry: Routing table entry dataclass
     - RoutingPacket: Wire-format routing packet dataclass
 """
+from __future__ import annotations
 
 import json
 import secrets
@@ -93,3 +94,4 @@ class RoutingPacket:
                 "path", []
             ),  # Извлекаем путь, по умолчанию пустой список
         )
+

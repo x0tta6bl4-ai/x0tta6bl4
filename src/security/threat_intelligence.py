@@ -11,6 +11,7 @@ Implements:
 
 Standards: STIX 2.1, TAXII 2.1 concepts
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -512,3 +513,4 @@ class ThreatIntelligenceEngine:
                 "bloom_filter_size": self.bloom_filter.size,
                 "reports": len(self.reports),
             }
+

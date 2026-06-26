@@ -2,6 +2,7 @@
 Domain Fronting Transport for x0tta6bl4 Mesh.
 Encapsulates traffic in HTTP/TLS requests to a CDN, hiding the true destination.
 """
+from __future__ import annotations
 
 import socket
 import ssl
@@ -194,3 +195,4 @@ class DomainFrontingTransport(ObfuscationTransport):
             body, _remaining = _extract_http_body(data)
             return body or b""
         return data
+

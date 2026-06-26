@@ -7,6 +7,7 @@ Mesh Discovery Protocol для x0tta6bl4.
 2. Bootstrap nodes - начальные узлы для подключения
 3. DHT (Kademlia-like) - распределённая таблица для глобального discovery
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -688,3 +689,4 @@ async def example_discovery():
 
 if __name__ == "__main__":
     asyncio.run(example_discovery())
+

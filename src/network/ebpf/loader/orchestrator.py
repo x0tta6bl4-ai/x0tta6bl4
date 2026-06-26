@@ -6,6 +6,7 @@ coordinating ProgramLoader, AttachManager, and MapManager.
 
 This is the main entry point for eBPF operations.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -438,3 +439,4 @@ class EBPFLoaderOrchestrator:
 
 # Backward compatibility alias
 EBPFLoader = EBPFLoaderOrchestrator
+

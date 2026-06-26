@@ -1,6 +1,7 @@
 """
 src.core.mape_k — MAPE-K autonomic control loop components.
 """
+from __future__ import annotations
 
 from src.core.mape_k.agent_mape_integration import AgentMAPEIntegrator
 from src.core.mape_k.mape_k_dynamic_optimizer import DynamicOptimizer
@@ -21,3 +22,4 @@ __all__ = [
     "AgentMAPEIntegrator",
     "PARLMAPEKExecutor",
 ]
+

@@ -4,6 +4,7 @@ Byzantine Protection для Mesh Network.
 Интегрирует Signed Gossip и Quorum Validation с mesh routing
 для защиты от Byzantine attacks.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -225,3 +226,4 @@ class MeshByzantineProtection:
                 for node_id in self.quarantined_nodes
             },
         }
+

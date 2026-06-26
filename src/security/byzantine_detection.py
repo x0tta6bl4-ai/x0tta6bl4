@@ -4,6 +4,7 @@ Byzantine Attacks Detection
 Provides detection of Byzantine (malicious) nodes in distributed systems,
 consensus validation, node reputation tracking, and automated isolation.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -420,3 +421,4 @@ class ByzantineDetector:
                 "by_trust_level": by_trust_level,
             },
         }
+

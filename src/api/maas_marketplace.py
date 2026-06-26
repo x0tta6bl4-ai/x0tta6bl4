@@ -4,6 +4,7 @@ The real implementation lives in ``src.api.maas.endpoints.marketplace``.  Keep
 this module name as an alias so older imports and monkeypatches mutate the same
 module globals used by the endpoint functions.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -1228,3 +1229,4 @@ async def cancel_listing(
         _listings.pop(listing_id, None)
 
     return {"status": "cancelled"}
+

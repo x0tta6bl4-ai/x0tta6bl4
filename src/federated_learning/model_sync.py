@@ -7,6 +7,7 @@ Handles:
 - Version control
 - Conflict resolution
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -268,3 +269,4 @@ class ModelSynchronizer:
             "conflicts_count": len(self.sync_state.conflicts),
             "model_history_size": len(self.model_history),
         }
+

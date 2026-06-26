@@ -7,6 +7,7 @@ Provides document-based persistent storage using MongoDB with:
 - Change streams for real-time subscriptions
 - Snapshot support
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -689,3 +690,4 @@ class MongoDBEventStore(DatabaseBackend):
         Use with caution - primarily for admin tasks.
         """
         return await self._db.command(command, *args, **kwargs)
+

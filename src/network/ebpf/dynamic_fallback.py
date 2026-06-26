@@ -3,6 +3,7 @@ Dynamic Fallback Triggers for Mesh Routing
 
 Automatic reroute triggers based on eBPF latency measurements.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -449,3 +450,4 @@ def integrate_fallback_with_mapek(mapek_loop, ebpf_exporter):
     fallback_controller.register_fallback_recover(on_recover)
 
     return fallback_controller
+

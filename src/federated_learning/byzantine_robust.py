@@ -7,6 +7,7 @@ Improvements:
 - Adaptive parameter selection
 - Multi-Krum enhancements
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -509,3 +510,4 @@ def get_enhanced_aggregator(method: str = "enhanced_krum", **kwargs) -> Aggregat
     from .aggregators import get_aggregator
 
     return get_aggregator(method, **kwargs)
+

@@ -4,6 +4,7 @@ Aggregate - Domain-driven design aggregate implementation.
 Provides aggregate root, entity, and repository patterns for
 event-sourced domain models.
 """
+from __future__ import annotations
 
 import logging
 import uuid
@@ -421,3 +422,4 @@ class UserAggregate(AggregateRoot):
         self._email = state.get("email", "")
         self._name = state.get("name", "")
         self._is_active = state.get("is_active", True)
+

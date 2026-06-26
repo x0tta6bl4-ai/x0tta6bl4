@@ -3,6 +3,7 @@ x0tta6bl4 PQC Tunnel
 Post-Quantum encrypted tunnel between mesh nodes.
 Uses Kyber768 for key exchange + AES-256-GCM for data.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -612,3 +613,4 @@ if __name__ == "__main__":
 
     print(f"Encryption works: {original == decrypted}")
     print(f"Original size: {len(original)}, Encrypted size: {len(encrypted)}")
+

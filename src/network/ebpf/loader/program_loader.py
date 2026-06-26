@@ -6,6 +6,7 @@ Handles:
 - Program loading via bpftool
 - Program lifecycle management
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -619,3 +620,4 @@ class EBPFProgramLoader:
     def list_programs(self) -> Dict[str, Dict]:
         """Return all loaded programs."""
         return self.loaded_programs.copy()
+

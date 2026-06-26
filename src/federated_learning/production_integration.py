@@ -4,6 +4,7 @@ Federated Learning Production Integration
 Provides complete integration of FL into the main application,
 including monitoring, metrics, and production deployment.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -619,3 +620,4 @@ def create_fl_production_manager(
     )
 
     return FLProductionManager(config)
+

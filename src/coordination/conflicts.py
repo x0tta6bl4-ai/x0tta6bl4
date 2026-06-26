@@ -3,6 +3,7 @@ Conflict Detection and Resolution
 
 Provides automatic detection and resolution of conflicts between agents.
 """
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
@@ -565,3 +566,4 @@ class ConflictDetector:
             reverse=True
         )
         return sorted_conflicts[:limit]
+

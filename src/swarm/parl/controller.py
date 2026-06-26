@@ -13,6 +13,7 @@ Key Components:
 - TaskScheduler: Intelligent task distribution
 - ExperienceBuffer: PPO training data
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -812,3 +813,4 @@ async def execute_with_parl(
         return results
     finally:
         await controller.terminate()
+

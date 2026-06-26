@@ -2,6 +2,7 @@
 eBPF Loader for Stigmergy Routing.
 Manages the lifecycle of the BPF program and performs 'pheromone evaporation'.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -592,3 +593,4 @@ class StigmergyBPF:
         import socket
         import struct
         return socket.inet_ntoa(struct.pack("!I", ip_int))
+

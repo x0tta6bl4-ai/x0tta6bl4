@@ -16,6 +16,7 @@ Usage:
     # For verification (handles both old MD5 and new bcrypt)
     is_valid = migrator.verify_legacy_or_bcrypt(provided_password, stored_hash)
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -356,3 +357,4 @@ P2 (THIS MONTH):
   9. Add 2FA/TOTP support
   10. Implement security headers (CSP, HSTS, X-Frame-Options)
 """
+

@@ -18,6 +18,7 @@ Requirements:
     - BCC and bpftool installed
     - Linux kernel 5.8+
 """
+from __future__ import annotations
 
 import argparse
 import logging
@@ -565,3 +566,4 @@ Examples:
 
 if __name__ == "__main__":
     main()
+

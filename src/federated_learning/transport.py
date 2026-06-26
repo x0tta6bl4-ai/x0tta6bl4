@@ -4,6 +4,7 @@ FL Transport Layer - HTTP-based communication for Federated Learning.
 FLTransportServer: Runs on coordinator node, exposes FL API endpoints.
 FLTransportClient: Runs on worker nodes, communicates with coordinator.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional
@@ -227,3 +228,4 @@ class FLTransportClient:
             response = await client.get(f"{self.coordinator_url}/fl/round_info")
             response.raise_for_status()
             return response.json()
+

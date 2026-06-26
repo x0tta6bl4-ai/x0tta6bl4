@@ -2,6 +2,7 @@
 Адаптер для реальных mesh-протоколов (batman-adv, yggdrasil)
 Заменяет моки на реальные метрики
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -1138,3 +1139,4 @@ class MockMeshAdapter:
             "avg_throughput_mbps": random.uniform(5.0, 50.0),
         }
         return {k: round(v, 4) for k, v in stats.items()}
+

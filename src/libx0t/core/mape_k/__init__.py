@@ -46,6 +46,7 @@ Usage:
     # Run cycle
     result = await coordinator.run_full_cycle(task)
 """
+from __future__ import annotations
 
 # Models
 from .models import (
@@ -88,3 +89,4 @@ __all__ = [
     # Coordinator
     "MAPEKCoordinator",
 ]
+

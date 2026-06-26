@@ -5,6 +5,7 @@ Immutable Audit Trail
 Реализация неизменяемого аудит-трейла с использованием IPFS и Ethereum.
 Обеспечивает полную прозрачность и верифицируемость всех действий в системе.
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -292,3 +293,4 @@ class ImmutableAuditTrail:
             )
 
         return stats
+

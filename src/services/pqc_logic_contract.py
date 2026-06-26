@@ -2,6 +2,7 @@
 PQC Rotation Logic Contract for x0tta6bl4.
 Enforces formal invariants T1-T3 for Trust Plane stability.
 """
+from __future__ import annotations
 
 import logging
 from enum import Enum
@@ -92,3 +93,4 @@ class PQCRotationLogicContract:
             "violations": self.violations,
             "claim_boundary": "AlphaProof Nexus PQC trust state evidence."
         }
+

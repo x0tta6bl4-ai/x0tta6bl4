@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from typing import Optional
 
@@ -71,3 +72,4 @@ class AgentVoter:
         except Exception as e:
             logger.error(f"{self.agent_name} failed to decide: {e}")
             return VoteType.ABSTAIN
+

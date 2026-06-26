@@ -1,6 +1,7 @@
 """
 Core types for X0T Token Bridge.
 """
+from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -54,3 +55,4 @@ class BridgeConfig:
     gas_limit: int = 200000
     max_gas_price_gwei: float = 50.0
     allow_simulated_chain_writes: bool = False
+

@@ -3,6 +3,7 @@ API Endpoints для Ledger Drift Detection
 
 Обнаружение расхождений в ledger через GraphSAGE и Causal Analysis
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict
@@ -68,3 +69,4 @@ async def drift_detector_status():
     except Exception as e:
         logger.error(f"Ошибка при получении статуса: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Ошибка получения статуса detector")
+

@@ -7,6 +7,7 @@ Subclasses implement specific program loading logic (XDP, TC, etc.).
 BCC_STUB_MODE env var allows unit tests to instantiate loaders without
 root privileges or a real BCC installation.
 """
+from __future__ import annotations
 import logging
 import os
 from pathlib import Path
@@ -55,3 +56,4 @@ class EBPFLoader:
 
     def __del__(self):
         self.cleanup()
+

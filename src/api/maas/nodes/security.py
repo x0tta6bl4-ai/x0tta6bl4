@@ -1,6 +1,7 @@
 """
 MaaS Node Security and RBAC - granular admission control.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional, Set
@@ -197,3 +198,4 @@ def ensure_mesh_visibility_with_permission(
     operator.require_permission(required_permission)
     
     return operator
+

@@ -7,6 +7,7 @@ Features:
 - Msgpack serialization for efficiency
 - Versioned protocol for forward compatibility
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -448,3 +449,4 @@ def generate_keypair() -> Tuple[bytes, bytes]:
     )
     public_bytes = private_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
     return private_bytes, public_bytes
+

@@ -4,6 +4,7 @@ Edge Cache - Distributed caching for edge computing.
 Provides intelligent caching with multiple eviction policies,
 cache invalidation strategies, and distributed cache synchronization.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -791,3 +792,4 @@ class DistributedEdgeCache(EdgeCache[V]):
                 peer.invalidate_by_tag(tag, propagate=False)
             except Exception as e:
                 logger.warning(f"Tag invalidation propagation to {peer_id} failed: {e}")
+

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import logging
 import re
@@ -173,3 +174,4 @@ def record_audit_log(
 def _audit(db: Session, request: Request, action: str, **kwargs):
     """Shorthand for record_audit_log."""
     return record_audit_log(db, request, action, **kwargs)
+

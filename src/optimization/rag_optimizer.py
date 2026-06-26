@@ -3,6 +3,7 @@ RAG Optimization Module
 
 Query caching, semantic indexing, and retrieval acceleration
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -308,3 +309,4 @@ async def test_rag_optimization() -> Dict[str, Any]:
         "status": "success",
         "metrics": optimizer.get_metrics(),
     }
+

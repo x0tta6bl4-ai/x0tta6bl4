@@ -9,6 +9,7 @@ Features:
 - MTTR estimation
 - What-if analysis for routing changes
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -865,3 +866,4 @@ class ChaosScenarioRunner:
                 r.connectivity_maintained for r in self.results
             ),
         }
+

@@ -4,6 +4,7 @@ DNS-over-HTTPS (DoH) Resolver for x0tta6bl4 VPN
 Prevents DNS leaks by routing all DNS queries through encrypted HTTPS connections
 to privacy-focused DNS servers.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -551,3 +552,4 @@ if __name__ == "__main__":
         asyncio.run(test_doh_resolver())
     except KeyboardInterrupt:
         print("\nTest interrupted")
+

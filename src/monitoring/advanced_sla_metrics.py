@@ -8,6 +8,7 @@ Production-grade SLA tracking with:
 - Compliance reporting
 - Multi-level alerts
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -850,3 +851,4 @@ __all__ = [
     "AdvancedSLAManager",
     "get_advanced_sla_manager",
 ]
+

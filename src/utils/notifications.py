@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import json
 import logging
@@ -54,3 +55,4 @@ class Notifier:
 
 # Global instance
 notifier = Notifier()
+

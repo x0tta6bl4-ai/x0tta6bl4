@@ -9,6 +9,7 @@ This module provides:
 - Integration with AgentCoordinator for node discovery
 - Async message queue for consensus protocols
 """
+from __future__ import annotations
 
 import asyncio
 import json
@@ -469,3 +470,4 @@ __all__ = [
     "ConsensusTransport",
     "DistributedConsensusNode",
 ]
+

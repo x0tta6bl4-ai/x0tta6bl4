@@ -4,6 +4,7 @@ ML Anomaly Detection Module
 Neural network-based anomaly detection for system behavior.
 Detects unusual patterns in monitoring data and execution traces.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -407,3 +408,4 @@ if __name__ == "__main__":
     config = AnomalyConfig()
     system = AnomalyDetectionSystem(config)
     print(f"Anomaly Detection System initialized with threshold={config.threshold}")
+

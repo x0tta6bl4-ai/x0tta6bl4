@@ -1,6 +1,7 @@
 """
 Recovery Actions for MAPE-K
 """
+from __future__ import annotations
 import logging
 import os
 import shutil
@@ -109,3 +110,4 @@ class CircuitBreaker:
             logger.warning(
                 f"Circuit breaker OPENED after {self.state.failures} failures"
             )
+

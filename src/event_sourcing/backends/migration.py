@@ -13,6 +13,7 @@ Features:
 - Rollback capability
 - Resume from interruption
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -556,3 +557,4 @@ async def migrate_mongodb_to_postgresql(
     finally:
         await source.disconnect()
         await target.disconnect()
+

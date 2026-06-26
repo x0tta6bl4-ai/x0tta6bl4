@@ -2,6 +2,7 @@
 MeshRouter - AODV-like Routing Protocol для x0tta6bl4.
 Multi-hop forwarding с reactive route discovery.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -958,3 +959,4 @@ class MeshRouter:
             )
 
         return metrics
+

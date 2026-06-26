@@ -2,6 +2,7 @@
 Obfuscation Layer for x0tta6bl4 Mesh Network.
 Provides pluggable transport obfuscation to bypass DPI (Deep Packet Inspection).
 """
+from __future__ import annotations
 
 import socket
 import hashlib
@@ -198,3 +199,4 @@ class TransportManager:
     @classmethod
     def get_thinking_status(cls) -> Dict[str, Any]:
         return get_transport_thinking_status()
+

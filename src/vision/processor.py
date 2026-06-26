@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import os
 from pathlib import Path
@@ -153,3 +154,4 @@ class VisionProcessor:
 
         with Image.open(path) as image:
             return pytesseract.image_to_string(image).strip()
+

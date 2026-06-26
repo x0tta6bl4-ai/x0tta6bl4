@@ -2,6 +2,7 @@
 WebSocket транспорт с интегрированным Traffic Shaping.
 Обеспечивает передачу данных через WebSocket с обфускацией и шейпингом трафика.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -489,3 +490,4 @@ if __name__ == "__main__":
         asyncio.run(example_echo_server())
     else:
         asyncio.run(example_client())
+

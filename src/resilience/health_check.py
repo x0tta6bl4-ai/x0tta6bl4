@@ -5,6 +5,7 @@ Health Check Implementation
 Health check endpoints with graceful degradation support.
 Implements health monitoring patterns for distributed systems.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -460,3 +461,4 @@ __all__ = [
     "HealthCheckEndpoint",
     "GracefulDegradation",
 ]
+

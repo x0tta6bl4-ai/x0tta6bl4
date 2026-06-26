@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
@@ -431,3 +432,4 @@ __all__ = [
     "ProductionSystem",
     "get_production_system",
 ]
+

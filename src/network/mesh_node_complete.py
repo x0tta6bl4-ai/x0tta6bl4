@@ -2,6 +2,7 @@
 CompleteMeshNode - Полная интеграция Discovery + Routing + Transport.
 Готовый к использованию mesh node с application API.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -531,3 +532,4 @@ async def create_mesh_node(
     node = CompleteMeshNode(config)
     await node.start()
     return node
+

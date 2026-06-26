@@ -1,6 +1,7 @@
 """
 Repository implementations for mesh-related database models.
 """
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -365,3 +366,4 @@ class GlobalConfigRepository:
 
     def get_all(self) -> List[GlobalConfig]:
         return self.db.query(GlobalConfig).all()
+

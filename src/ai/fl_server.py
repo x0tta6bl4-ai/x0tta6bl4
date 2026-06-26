@@ -5,6 +5,7 @@ Standalone Federated Learning (Flower) Server
 Starts a production-ready Flower server for federated learning
 of the x0tta6bl4 GraphSAGE models.
 """
+from __future__ import annotations
 
 import argparse
 import logging
@@ -59,3 +60,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -4,6 +4,7 @@ Data structures for eBPF telemetry module.
 This module contains all data classes, enums, and configuration
 structures used throughout the telemetry package.
 """
+from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
@@ -150,3 +151,4 @@ __all__ = [
     "TelemetryEvent",
     "CollectionStats",
 ]
+

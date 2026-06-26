@@ -9,6 +9,7 @@ video calls and hard to block without breaking corporate apps.
 SECURITY: Uses ChaCha20-Poly1305 AEAD for authenticated encryption.
 This provides both confidentiality and integrity verification.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -248,3 +249,4 @@ def test_ghost_transport():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     test_ghost_transport()
+

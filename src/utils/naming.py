@@ -1,3 +1,4 @@
+from __future__ import annotations
 def to_x0tta6bl4_style(text: str) -> str:
     """
     Applies the x0tta6bl4 selective coding style:
@@ -70,3 +71,4 @@ def normalize_identifier(text: str) -> str:
     Normalizes a string to be used as an ID, applying the style.
     """
     return to_x0tta6bl4_style(text.replace(" ", "_"))
+

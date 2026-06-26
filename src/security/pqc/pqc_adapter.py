@@ -13,6 +13,7 @@ raises RuntimeError at __init__ time (fail-closed).
 Адаптер для библиотеки liboqs, предоставляющий интерфейсы
 для Kyber KEM и Dilithium signatures.
 """
+from __future__ import annotations
 import warnings
 
 warnings.warn(
@@ -207,3 +208,4 @@ class PQCAdapter:
                 return is_valid
             except oqs.MechanismNotSupportedError:
                 return False
+

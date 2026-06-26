@@ -17,6 +17,7 @@ Environment variables:
 
 Deployment addresses are loaded from src/dao/deployments/base_sepolia.json if present.
 """
+from __future__ import annotations
 
 # ================================================================================
 # SECURITY REQUIREMENTS FOR OPERATOR_PRIVATE_KEY (CRITICAL)
@@ -724,3 +725,4 @@ def info(ctx, address):
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     cli()
+

@@ -8,6 +8,7 @@ Uses eBPF for:
 - Session key caching
 - Handshake acceleration
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -310,3 +311,4 @@ class EnhancedPQCPerformanceOptimizer:
             }
         )
         return stats
+

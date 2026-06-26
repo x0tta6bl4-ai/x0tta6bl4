@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import aiohttp
 import xml.etree.ElementTree as ET
@@ -61,3 +62,4 @@ class NewsIngestor:
             flat_list = [item for sublist in results for item in sublist]
             logger.info(f"Successfully ingested {len(flat_list)} items from {len(self.feeds)} feeds.")
             return flat_list
+

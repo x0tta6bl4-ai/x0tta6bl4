@@ -5,6 +5,7 @@ MaaS Compatibility Endpoints
 Backwards-compatible aliases for historical client paths that are no longer
 first-class in the canonical MaaS v1 router layout.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -2692,3 +2693,4 @@ async def billing_pay_alias(
     )
 
     return response_payload
+

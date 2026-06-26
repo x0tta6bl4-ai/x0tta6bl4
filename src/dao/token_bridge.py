@@ -17,6 +17,7 @@ Architecture:
     Local mesh ops              Exchange/Wallet
     (fast, free)                (permanent, tradeable)
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -1621,3 +1622,4 @@ class EpochRewardScheduler:
             logger.info(f"Epoch rewards distributed: {tx_hash}")
         else:
             logger.error("Failed to distribute epoch rewards")
+

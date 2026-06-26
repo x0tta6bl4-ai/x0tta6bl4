@@ -7,6 +7,7 @@ Implements:
 - Adaptive load balancing
 - Anti-pattern detection and avoidance
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -773,3 +774,4 @@ class AdaptiveLoadBalancer:
     def get_load_distribution(self) -> Dict[str, int]:
         """Get current load distribution across proxies."""
         return dict(self._active_connections)
+

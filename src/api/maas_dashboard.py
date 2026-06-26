@@ -5,6 +5,7 @@ MaaS Dashboard (Production) — x0tta6bl4
 Aggregated summary for the management dashboard.
 Uses DB-backed data for all statistics including hardware attestation.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -774,3 +775,4 @@ async def get_mesh_nodes_summary(
         reason="nodes_read",
     )
     return payload
+

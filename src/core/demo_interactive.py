@@ -2,6 +2,7 @@
 Interactive Demo API для x0tta6bl4
 Позволяет пользователям "ломать" узлы и видеть self-healing в действии
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -317,3 +318,4 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8082)  # nosec B104
+

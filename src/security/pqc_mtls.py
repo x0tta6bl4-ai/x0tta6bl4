@@ -4,6 +4,7 @@ Backward-compatible shim for src.security.pqc_mtls.
 The implementation lives in src.libx0t.security.pqc_mtls.
 This shim keeps mutable globals/patch points working for legacy imports.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict
@@ -83,3 +84,4 @@ __all__ = [
     "test_pqc_mtls_setup",
     "_pqc_mtls_controller",
 ]
+

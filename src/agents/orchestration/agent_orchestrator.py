@@ -1,3 +1,4 @@
+from __future__ import annotations
 # 🤖 AI Agents Orchestrator - x0tta6bl4
 """
 Orchestrator for AI Agents - координирует работу всех агентов.
@@ -339,3 +340,4 @@ async def get_orchestrator() -> AgentOrchestrator:
     if _orchestrator_instance is None:
         _orchestrator_instance = AgentOrchestrator()
     return _orchestrator_instance
+

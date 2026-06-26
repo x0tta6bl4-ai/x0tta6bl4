@@ -1,3 +1,4 @@
+from __future__ import annotations
 # GraphSAGE Anomaly Detector - Enhanced Version
 # Improvements: Better feature normalization, adaptive thresholding, improved accuracy
 
@@ -600,3 +601,4 @@ def create_graphsage_v3_for_mapek() -> GraphSAGEAnomalyDetectorV3:
         use_adaptive_threshold=True,
         confidence_calibration=True,
     )
+

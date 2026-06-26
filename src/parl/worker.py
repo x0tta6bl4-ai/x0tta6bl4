@@ -4,6 +4,7 @@ PARL Agent Worker - Executes tasks in parallel mode
 Each worker maintains a local copy of the global policy and executes
 tasks asynchronously, collecting experience for policy updates.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -568,3 +569,4 @@ class AgentWorker:
     
     def __repr__(self) -> str:
         return f"AgentWorker(id={self.worker_id}, state={self._state.value})"
+

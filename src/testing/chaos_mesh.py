@@ -10,6 +10,7 @@ Scenarios:
 - LatencyInjection: Degraded connectivity
 - CPUStress: Resource exhaustion
 """
+from __future__ import annotations
 
 import logging
 import random
@@ -421,3 +422,4 @@ class ChaosMesh:
             )
             / len(self._results),
         }
+

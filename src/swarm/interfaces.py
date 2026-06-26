@@ -1,6 +1,7 @@
 """
 Abstract Base Classes for Swarm components.
 """
+from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
@@ -28,3 +29,4 @@ class SwarmNodeInterface(ABC):
     async def shutdown(self):
         """Graceful shutdown."""
         pass
+

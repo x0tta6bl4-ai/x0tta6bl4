@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import logging
 import os
@@ -285,3 +286,4 @@ class XrayManager:
             )
             logger.error(f"Docker API error: {e}")
             return False
+

@@ -2,6 +2,7 @@
 x0tta6bl4 Operator Dashboard.
 Visual interface for node stats and earnings.
 """
+from __future__ import annotations
 
 import json
 import os
@@ -79,3 +80,4 @@ def peers():
 if __name__ == "__main__":
     print("Starting Dashboard on http://0.0.0.0:8080")
     app.run(host="0.0.0.0", port=8080)  # nosec B104
+

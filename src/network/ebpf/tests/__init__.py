@@ -7,5 +7,7 @@ Comprehensive test suite for eBPF telemetry module including:
 - Mock-based tests for kernel interaction simulation
 - Error handling and edge case tests
 """
+from __future__ import annotations
 
 __version__ = "2.0.0"
+

@@ -3,6 +3,7 @@ Agent Coordination System for MaaS x0tta6bl4
 
 Provides automatic coordination between multiple AI agents working simultaneously.
 """
+from __future__ import annotations
 
 from .state import AgentState, AgentCoordinator, CoordinationLock
 from .events import Event, EventBus, EventType
@@ -25,3 +26,4 @@ __all__ = [
 ]
 
 __version__ = "1.0.0"
+

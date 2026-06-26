@@ -7,6 +7,7 @@ Optimizes the MAPE-K loop for faster recovery from failures with:
 - Early recovery detection
 - Adaptive monitoring intervals
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -689,3 +690,4 @@ def calculate_mttr_improvement(
         "percent_improvement": percent_improvement,
         "speedup_factor": baseline_mttr / optimized_mttr if optimized_mttr > 0 else 0,
     }
+

@@ -1,6 +1,7 @@
 """
 Utility functions for PQC Identity and DID integration in x0tta6bl4.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional
@@ -175,3 +176,4 @@ def extract_node_id_from_did(did: str) -> Optional[str]:
 
     node_id = parts[3].strip()
     return node_id or None
+

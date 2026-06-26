@@ -7,6 +7,7 @@ Re-exports:
     from src.core.app.graceful_shutdown import shutdown_manager, ...
     from src.core.app.app_bootstrap import app_bootstrap
 """
+from __future__ import annotations
 
 from src.core.app.app import (
     app,
@@ -50,3 +51,4 @@ __all__ = [
     "shutdown_manager",
     "app_bootstrap",
 ]
+

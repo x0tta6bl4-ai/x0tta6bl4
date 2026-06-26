@@ -4,6 +4,7 @@ Task Distributor - Intelligent task distribution across edge nodes.
 Provides multiple distribution strategies, load balancing, and
 fault-tolerant task routing for edge computing infrastructure.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -778,3 +779,4 @@ class TaskDistributor:
 
     async def shutdown(self) -> None:
         self._running = False
+

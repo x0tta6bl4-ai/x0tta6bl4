@@ -11,6 +11,7 @@ Key Features:
 - Parallel Plan phase for alternative strategies
 - Parallel Execute phase for independent actions
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -607,3 +608,4 @@ async def execute_mapek_cycle_with_parl(
         return await executor.execute_cycle(context)
     finally:
         await executor.terminate()
+

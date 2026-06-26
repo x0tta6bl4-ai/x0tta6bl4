@@ -5,6 +5,7 @@ Quantum-Safe (PQC) Swarm Agent
 An agent that implements NIST FIPS 203/204 Post-Quantum Cryptography
 (ML-KEM/Kyber and ML-DSA/Dilithium) for all communications.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -179,3 +180,4 @@ def create_pq_agent(
     if not specialization:
         specialization = "monitoring" # Default specialization
     return PQSecureAgent(agent_id, swarm_id, specialization, **kwargs)
+

@@ -3,6 +3,7 @@ OpenTelemetry Tracing Configuration and Utilities
 
 Provides distributed tracing with automatic span creation and context propagation.
 """
+from __future__ import annotations
 
 import functools
 import logging
@@ -465,3 +466,4 @@ def extract_trace_context(headers: Dict[str, str]) -> Optional[SpanContext]:
         logger.warning(f"Failed to parse traceparent: {e}")
     
     return None
+

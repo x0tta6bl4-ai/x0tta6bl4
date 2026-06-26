@@ -12,6 +12,7 @@ Features:
 - Lock-free data structures where possible
 - Performance optimized for high-frequency updates
 """
+from __future__ import annotations
 
 import logging
 import threading
@@ -379,3 +380,4 @@ def get_all_stats() -> dict[str, dict[str, Any]]:
             component_id: stats.get_stats_snapshot()
             for component_id, stats in _component_stats.items()
         }
+

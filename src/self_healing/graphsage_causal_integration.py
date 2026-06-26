@@ -4,6 +4,7 @@ GraphSAGE Causal Analysis Integration
 Improves integration between GraphSAGE anomaly detection and Causal Analysis Engine
 for complete root cause identification workflow.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional, Tuple
@@ -211,3 +212,4 @@ def create_graphsage_causal_integration(
     return GraphSAGECausalIntegration(
         graphsage_detector=graphsage_detector, causal_engine=causal_engine
     )
+

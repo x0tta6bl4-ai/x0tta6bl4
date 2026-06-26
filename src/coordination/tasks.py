@@ -3,6 +3,7 @@ Task Queue for Agent Coordination
 
 Provides a priority-based task queue with dependency tracking and assignment.
 """
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
@@ -576,3 +577,4 @@ def get_task_queue(project_root: str = ".") -> TaskQueue:
     if _task_queue is None:
         _task_queue = TaskQueue(project_root)
     return _task_queue
+

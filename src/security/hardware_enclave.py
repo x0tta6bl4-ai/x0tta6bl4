@@ -5,6 +5,7 @@ x0tta6bl4 Hardware Enclave Support — x0tta6bl4
 Provides abstractions for Trusted Platform Modules (TPM 2.0)
 and Intel SGX. Ensures root-of-trust originates from hardware.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -91,3 +92,4 @@ class AttestationService:
 
 # Singleton
 hsm = HardwareSecurityModule()
+

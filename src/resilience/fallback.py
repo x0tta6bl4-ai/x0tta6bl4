@@ -9,6 +9,7 @@ Graceful degradation patterns for resilient systems:
 - Circuit Fallback: Integrate with circuit breaker
 - Async Fallback: Asynchronous fallback execution
 """
+from __future__ import annotations
 
 import asyncio
 import functools
@@ -806,3 +807,4 @@ __all__ = [
     "with_fallback",
     "with_fallback_chain",
 ]
+

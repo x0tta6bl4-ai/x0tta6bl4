@@ -8,6 +8,7 @@ Implements:
 - Rate limiting per client
 - Request signing verification
 """
+from __future__ import annotations
 
 import hashlib
 import hmac
@@ -761,3 +762,4 @@ def create_auth_middleware(
         rate_limiter=RateLimiter(requests_per_minute=requests_per_minute),
         require_auth=require_auth,
     )
+

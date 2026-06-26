@@ -4,6 +4,7 @@ Chaos Engineering Framework
 Provides tools for simulating failures and chaos scenarios to test
 system resilience and recovery mechanisms.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -358,3 +359,4 @@ def create_chaos_scenario(
         target_component=target_component,
         custom_config=kwargs,
     )
+

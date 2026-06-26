@@ -10,6 +10,7 @@ Components:
 - Experience: Experience tuple for RL
 - Policy: Policy management
 """
+from __future__ import annotations
 
 from src.parl.controller import PARLController, PARLConfig, PARLStats
 from src.parl.worker import AgentWorker, WorkerState
@@ -40,3 +41,4 @@ __all__ = [
     "StepResult",
     "PARLMetrics",
 ]
+

@@ -6,6 +6,7 @@ Anomaly Detection, Smart Decision Making, and MLOps Integration.
 
 Uses lazy loading to avoid heavy dependencies (torch, numpy, transformers) at import time.
 """
+from __future__ import annotations
 
 import importlib
 import logging
@@ -62,3 +63,4 @@ def __getattr__(name):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = list(_LAZY_MAPPING.keys())
+

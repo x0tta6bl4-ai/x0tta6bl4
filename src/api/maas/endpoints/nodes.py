@@ -4,6 +4,7 @@ MaaS Nodes Endpoints - Node registration and management.
 Provides REST API endpoints for node registration, heartbeats, and revocation.
 Modular implementation using src.api.maas.nodes package.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime
@@ -664,3 +665,4 @@ async def refresh_measured_attestation_runtime_identity(
         "production_attestation_verifier_claim_allowed": verified_context.get("production_attestation_verifier_claim_allowed", False),
         "production_trust_finality_claim_allowed": False,
     }
+

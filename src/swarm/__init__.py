@@ -23,6 +23,7 @@ Example:
     >>> manager = SwarmConsensusManager(node_id="agent-1")
     >>> decision = await manager.decide("topic", ["a", "b"])
 """
+from __future__ import annotations
 
 from src.swarm.agent import (Agent, AgentCapability, AgentMessage, AgentState,
                              CapabilityScope, SpecializedAgent, TaskResult,
@@ -113,3 +114,4 @@ __all__ = [
     "KimiK25Integration",
     "create_swarm_intelligence",
 ]
+

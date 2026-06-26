@@ -8,6 +8,7 @@ Comprehensive edge case handling with:
 - Error condition handling
 - Concurrency edge cases
 """
+from __future__ import annotations
 
 import logging
 import threading
@@ -527,3 +528,4 @@ __all__ = [
     "TimingValidator",
     "EdgeCaseValidator",
 ]
+

@@ -1,3 +1,4 @@
+from __future__ import annotations
 # src/sales/payment_verification.py
 
 import logging
@@ -173,3 +174,4 @@ class BaseUSDCVerifier:
 
         except Exception as e:
             return {"verified": False, "error": f"Blockchain verification error: {str(e)}"}
+

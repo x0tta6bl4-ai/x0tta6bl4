@@ -6,6 +6,7 @@ Measures CPU usage, memory consumption, and performance impact of eBPF probes.
 
 Target: <2% CPU overhead (Stage 1 requirement)
 """
+from __future__ import annotations
 
 import logging
 import threading
@@ -451,3 +452,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

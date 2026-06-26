@@ -1,3 +1,4 @@
+from __future__ import annotations
 # 🤖 Auto-Healer Agent - x0tta6bl4
 """
 Auto-Healer Agent - автоматическое восстановление сервисов.
@@ -527,3 +528,4 @@ async def get_auto_healer() -> AutoHealerAgent:
     if _auto_healer_instance is None:
         _auto_healer_instance = AutoHealerAgent()
     return _auto_healer_instance
+

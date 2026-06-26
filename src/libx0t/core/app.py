@@ -1,4 +1,5 @@
 """FastAPI app with mTLS and real system status monitoring - P0#3-P0#4 implementation"""
+from __future__ import annotations
 
 import logging
 import os
@@ -825,3 +826,4 @@ if __name__ == "__main__":
 
     logger.info(f"Starting server on {settings.api_host}:{settings.api_port}...")
     uvicorn.run(app, host=settings.api_host, port=settings.api_port)
+

@@ -2,6 +2,7 @@
 Production-ready mTLS Controller with auto-rotation.
 Replaces TODO in spiffe_controller.py line 175.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -644,3 +645,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

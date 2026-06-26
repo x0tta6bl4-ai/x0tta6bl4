@@ -10,6 +10,7 @@ Components:
 3. Auto-Rerouting (3-5 sec) - Switch to backup paths
 4. P2P Reputation (continuous) - Track node reliability
 """
+from __future__ import annotations
 
 import asyncio
 import json
@@ -464,3 +465,4 @@ if __name__ == "__main__":
             print(f"  {k}: {v}")
 
     asyncio.run(test_shield())
+

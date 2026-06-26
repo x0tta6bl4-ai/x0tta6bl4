@@ -4,6 +4,7 @@ Dependency Health Checks for x0tta6bl4
 Provides comprehensive health checks for all optional dependencies
 with graceful degradation status reporting.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -458,3 +459,4 @@ def get_dependency_health_checker() -> DependencyHealthChecker:
 def check_dependencies_health() -> dict[str, Any]:
     """Convenience function to check dependency health"""
     return get_dependency_health_checker().get_health_status()
+

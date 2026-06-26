@@ -13,6 +13,7 @@ Methods:
     - stegomesh: Steganographic protocol mimicry
     - hybrid: Combination of multiple methods
 """
+from __future__ import annotations
 
 import argparse
 import asyncio
@@ -696,3 +697,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

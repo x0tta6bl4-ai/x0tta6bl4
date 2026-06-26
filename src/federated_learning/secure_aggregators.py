@@ -3,6 +3,7 @@ Privacy-Preserving Aggregators for Federated Learning.
 
 Extends base aggregators with differential privacy and secure aggregation.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional
@@ -503,3 +504,4 @@ def get_secure_aggregator(
     from .aggregators import get_aggregator
 
     return get_aggregator(method, **kwargs)
+

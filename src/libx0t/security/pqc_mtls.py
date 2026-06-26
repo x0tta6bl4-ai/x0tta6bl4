@@ -4,6 +4,7 @@ Post-Quantum mTLS Integration
 Integrates ML-KEM-768 and ML-DSA-65 with mTLS for quantum-resistant
 secure communication.
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -590,3 +591,4 @@ def test_pqc_mtls_setup() -> Dict[str, Any]:
         "channel_establishment": channel,
         "overall_status": "success" if key_init["status"] == "success" else "partial",
     }
+

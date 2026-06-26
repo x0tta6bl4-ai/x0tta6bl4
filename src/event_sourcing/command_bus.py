@@ -4,6 +4,7 @@ Command Bus - CQRS command handling infrastructure.
 Provides command dispatch, validation, and handler registration
 for the Command side of CQRS.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -367,3 +368,4 @@ class DeleteAggregateCommand(Command):
     """Command to delete an aggregate."""
     aggregate_id: str = ""
     reason: Optional[str] = None
+

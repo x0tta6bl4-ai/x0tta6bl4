@@ -11,6 +11,7 @@ Migration note:
   to inherit from the appropriate class in this hierarchy.
   The new classes are available immediately for new code.
 """
+from __future__ import annotations
 
 
 class X0tBaseError(Exception):
@@ -185,3 +186,4 @@ __all__ = [
     "ValidationError",
     "EBPFError",
 ]
+

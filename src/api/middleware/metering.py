@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 import logging
 import os
@@ -189,3 +190,4 @@ class MeteringMiddleware(BaseHTTPMiddleware):
                     raise
         finally:
             self._close_db(db, generator)
+

@@ -7,6 +7,7 @@ Prevents DNS, WebRTC, and IP leaks by implementing:
 3. Kill switch functionality
 4. Firewall configuration for leak protection
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -1477,3 +1478,4 @@ if __name__ == "__main__":
         asyncio.run(test_protection())
     except KeyboardInterrupt:
         print("\nTest interrupted")
+

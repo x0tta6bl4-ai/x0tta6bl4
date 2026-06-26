@@ -1,3 +1,4 @@
+from __future__ import annotations
 # 🤖 Documentation Agent - x0tta6bl4
 """
 Documentation Agent - автоматическое обновление документации.
@@ -499,3 +500,4 @@ def get_documentation_agent() -> DocumentationAgent:
     if _documentation_agent_instance is None:
         _documentation_agent_instance = DocumentationAgent()
     return _documentation_agent_instance
+

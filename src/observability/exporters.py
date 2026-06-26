@@ -3,6 +3,7 @@ OpenTelemetry Span Exporters
 
 Provides exporters for different backends: OTLP, Jaeger, Console.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -537,3 +538,4 @@ def get_exporter(config: Any) -> SpanExporter:
     else:
         logger.warning(f"Unknown exporter type: {exporter_type}, using console")
         return ConsoleSpanExporter()
+

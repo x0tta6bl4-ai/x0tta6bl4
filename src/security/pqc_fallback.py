@@ -1,6 +1,7 @@
 """
 PQC Fallback Handler with Alerting
 """
+from __future__ import annotations
 
 import logging
 
@@ -53,3 +54,4 @@ class PQCFallbackHandler:
         if is_fallback_enabled():
             disable_fallback()
             logger.info("✅ PQC fallback disabled - normal operation restored")
+

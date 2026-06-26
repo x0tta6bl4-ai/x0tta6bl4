@@ -1,6 +1,7 @@
 """
 MaaS Node Admission - registration, approval, and lifecycle management.
 """
+from __future__ import annotations
 
 import base64
 import binascii
@@ -1022,3 +1023,4 @@ RedactedMeasuredAttestationSmokeArtifact
 smoke_artifact_writer
 write_measured_attestation_verifier_smoke_artifact
 """
+

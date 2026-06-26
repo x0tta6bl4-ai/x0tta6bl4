@@ -8,6 +8,7 @@ Provides REST API for:
 - Geographic rotation control
 - Real-time metrics
 """
+from __future__ import annotations
 
 import asyncio
 import json
@@ -449,3 +450,4 @@ async def main():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
+

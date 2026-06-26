@@ -1,6 +1,7 @@
 """
 src.core.resilience — Circuit breaker, retry, reliability patterns.
 """
+from __future__ import annotations
 
 from src.core.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from src.core.resilience.connection_retry import RetryExhausted, RetryPolicy, with_retry
@@ -20,3 +21,4 @@ __all__ = [
     "mark_degraded_dependency",
     "set_degraded_dependencies_header",
 ]
+

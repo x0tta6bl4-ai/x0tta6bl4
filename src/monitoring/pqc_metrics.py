@@ -1,6 +1,7 @@
 """
 PQC Handshake Metrics and SLI/SLO
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -378,3 +379,4 @@ def record_key_rotation_failure(reason: str):
             )
     except Exception as e:
         logger.warning(f"Failed to send key rotation alert: {e}")
+

@@ -5,6 +5,7 @@ MAPE-K Threshold Manager
 Manages MAPE-K thresholds with DAO governance integration.
 Allows DAO to change thresholds and automatically applies them.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -507,3 +508,4 @@ def create_threshold_manager(
     )
 
     return manager
+

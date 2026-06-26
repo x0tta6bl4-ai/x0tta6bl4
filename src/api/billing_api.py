@@ -5,6 +5,7 @@ Billing API Endpoints for MaaS
 Handles Stripe Checkout sessions and Webhooks to automate
 subscription management and ZKP access.
 """
+from __future__ import annotations
 
 import os
 import logging
@@ -141,3 +142,4 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(None))
         logger.info(f"✅ Subscription activated for user {user_id}: {plan} until {expires_at}")
 
     return {"status": "success"}
+

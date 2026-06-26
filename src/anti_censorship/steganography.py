@@ -8,6 +8,7 @@ Provides multiple steganographic techniques for covert communication:
 - Video steganography (frame differencing)
 - Protocol steganography (DNS, HTTP headers)
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -1273,3 +1274,4 @@ def auto_extract(carrier: bytes, key: Optional[bytes] = None) -> ExtractionResul
     )
     engine = SteganographyEngine(config)
     return engine.auto_detect_and_extract(carrier)
+

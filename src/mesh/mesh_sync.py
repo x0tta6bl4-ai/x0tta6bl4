@@ -4,6 +4,7 @@ x0tta6bl4 Mesh Sync Daemon
 Syncs mesh state between local Ghost-Core API and NL peer.
 Runs on Athlon, polls both APIs and updates mesh_stats.json.
 """
+from __future__ import annotations
 import json
 import logging
 import os
@@ -125,3 +126,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

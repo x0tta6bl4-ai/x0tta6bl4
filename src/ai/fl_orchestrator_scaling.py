@@ -16,6 +16,7 @@ All patterns include:
 - SPIFFE identity validation
 - Failure recovery
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -743,3 +744,4 @@ def create_orchestrator(
         return HierarchicalOrchestrator(model, **kwargs)
     else:
         raise ValueError(f"Unknown orchestrator type: {orchestrator_type}")
+

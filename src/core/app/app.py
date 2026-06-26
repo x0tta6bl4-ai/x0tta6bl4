@@ -1,6 +1,7 @@
 """
 x0tta6bl4 gateway application entrypoint.
 """
+from __future__ import annotations
 
 import importlib
 import os
@@ -825,3 +826,4 @@ async def index_html():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=os.getenv("X0TTA6BL4_API_HOST", "127.0.0.1"), port=8000)
+

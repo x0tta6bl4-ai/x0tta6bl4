@@ -5,6 +5,7 @@ Implements MAPE-K cycle for PQC cryptographic session anomalies.
 
 Monitors PQC sessions, detects anomalies, plans remediation, and executes healing.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -1582,3 +1583,4 @@ if __name__ == "__main__":
         print("PQC healer test completed")
 
     asyncio.run(test_healer())
+

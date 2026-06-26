@@ -2,6 +2,7 @@
 Post-Quantum Decentralized Identity (PQC-DID) for x0tta6bl4 Mesh.
 Upgrades W3C DID Core 1.0 to Quantum-Resistant standards using ML-DSA (Dilithium) and ML-KEM (Kyber).
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -152,3 +153,4 @@ class PQCNodeIdentity:
         self.document = self._create_pqc_document()
         self.document.updated = time.time()
         return self.did
+

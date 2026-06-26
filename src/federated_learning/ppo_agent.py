@@ -11,6 +11,7 @@ Components:
 
 Reference: "Proximal Policy Optimization Algorithms" (Schulman et al., 2017)
 """
+from __future__ import annotations
 
 import logging
 import math
@@ -898,3 +899,4 @@ def train_ppo(
         history.append(episode_metrics)
 
     return history
+

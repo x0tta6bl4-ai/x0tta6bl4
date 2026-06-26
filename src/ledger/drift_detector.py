@@ -5,6 +5,7 @@ Ledger Drift Detector
 
 Phase 2: Drift Detection ✅ COMPLETE (Jan 7, 2026)
 """
+from __future__ import annotations
 
 import logging
 import re
@@ -920,3 +921,4 @@ def get_drift_detector() -> LedgerDriftDetector:
     if _drift_detector_instance is None:
         _drift_detector_instance = LedgerDriftDetector()
     return _drift_detector_instance
+

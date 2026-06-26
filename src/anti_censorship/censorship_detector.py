@@ -9,6 +9,7 @@ Detects various types of internet censorship and network interference:
 - Deep Packet Inspection
 - Throttling
 """
+from __future__ import annotations
 
 import logging
 import socket
@@ -1011,3 +1012,4 @@ __all__ = [
     "ProbeConfig",
     "CensorshipDetector",
 ]
+

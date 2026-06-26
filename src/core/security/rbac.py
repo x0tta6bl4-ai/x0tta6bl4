@@ -1,3 +1,4 @@
+from __future__ import annotations
 from enum import Enum
 
 
@@ -79,3 +80,4 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, set[MeshPermission]] = {
         MeshPermission.VPN_STATUS,
     }
 }
+

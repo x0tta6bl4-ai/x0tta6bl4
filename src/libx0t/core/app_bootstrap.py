@@ -1,4 +1,5 @@
 """Minimal FastAPI bootstrap - for P0#1 testing"""
+from __future__ import annotations
 
 import logging
 
@@ -41,3 +42,4 @@ if __name__ == "__main__":
 
     logger.info(f"Starting server on {settings.api_host}:{settings.api_port}...")
     uvicorn.run(app, host=settings.api_host, port=settings.api_port)
+

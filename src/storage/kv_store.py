@@ -2,6 +2,7 @@
 Distributed Key-Value Store (P1)
 Scaffold for mesh-based storage in x0tta6bl4
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict
@@ -24,3 +25,4 @@ class KVStore:
         if key in self.store:
             del self.store[key]
             logger.info(f"Deleted key={key}")
+

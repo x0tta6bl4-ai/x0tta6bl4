@@ -4,6 +4,7 @@ DAO Proposal for MAPE-K Threshold Changes
 
 Allows DAO to change MAPE-K thresholds through governance.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -208,3 +209,4 @@ if __name__ == "__main__":
     print(f"Created proposal: {proposal.id}")
     print(f"Title: {proposal.title}")
     print(f"Actions: {proposal.actions}")
+

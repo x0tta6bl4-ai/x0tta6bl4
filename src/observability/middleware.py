@@ -3,6 +3,7 @@ FastAPI Middleware for OpenTelemetry Tracing
 
 Provides automatic request tracing for FastAPI applications.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -383,3 +384,4 @@ def setup_tracing(
     )
     
     logger.info(f"Tracing middleware configured for {service_name}")
+

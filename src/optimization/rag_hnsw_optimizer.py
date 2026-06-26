@@ -4,6 +4,7 @@ Advanced HNSW Vector Search Optimization for RAG
 Provides adaptive parameter tuning, query rewriting, advanced caching,
 and performance optimization for HNSW-based similarity search.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -561,3 +562,4 @@ class HNSWPerformanceOptimizer:
 def create_hnsw_optimizer(max_cache_size: int = 1000) -> HNSWPerformanceOptimizer:
     """Factory function to create HNSW optimizer"""
     return HNSWPerformanceOptimizer(max_cache_size=max_cache_size)
+

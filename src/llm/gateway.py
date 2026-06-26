@@ -5,6 +5,7 @@ LLM Gateway - Multi-Provider Orchestration
 Central gateway for managing multiple LLM providers with
 automatic failover, load balancing, and intelligent routing.
 """
+from __future__ import annotations
 
 import logging
 import threading
@@ -623,3 +624,4 @@ __all__ = [
     "LLMGateway",
     "create_gateway",
 ]
+

@@ -5,6 +5,7 @@ Traffic Obfuscation Module
 Multi-layer traffic obfuscation for bypassing deep packet inspection.
 Includes XOR encryption, padding, packet shaping, and timing manipulation.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -813,3 +814,4 @@ __all__ = [
     "EncodingObfuscator",
     "TrafficObfuscator",
 ]
+

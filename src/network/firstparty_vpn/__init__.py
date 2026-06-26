@@ -4,6 +4,7 @@ This package contains the internal wire format, key schedule, and zero-trust
 session gate used by the new VPN stack. It is intentionally independent from
 third-party VPN protocols.
 """
+from __future__ import annotations
 
 from .crypto import (
     FrameCrypto,
@@ -1016,3 +1017,4 @@ __all__ = [
     "select_firstparty_tun_dataplane_endpoint",
     "tesla_key_commitment",
 ]
+

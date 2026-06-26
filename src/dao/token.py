@@ -7,6 +7,7 @@ Implements token economics for the mesh network:
 - Resource payment (bandwidth, storage, compute)
 - Reward distribution for node operators
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -472,3 +473,4 @@ def create_token_integrated_governance(token: MeshToken, node_id: str):
     gov.voting_power = token.get_voting_power_map()
 
     return gov
+

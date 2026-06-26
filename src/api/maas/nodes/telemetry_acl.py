@@ -1,6 +1,7 @@
 """
 MaaS Node Telemetry and ACL - telemetry readback and server-side ACL.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional
@@ -214,3 +215,4 @@ def list_all_mesh_nodes(
         "nodes": nodes,
         "count": len(nodes)
     }
+

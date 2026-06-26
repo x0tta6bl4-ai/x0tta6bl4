@@ -9,6 +9,7 @@ Strategy:
 3. Extract weight averaging into separate method
 4. Use early returns instead of nested if-else
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -213,3 +214,4 @@ class ByzantineRefactored:
             "suspected_byzantine": suspected,
             "time_ms": elapsed * 1000,
         }
+

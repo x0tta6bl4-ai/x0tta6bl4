@@ -6,6 +6,7 @@ Zero-Trust cryptographic operations with ML-KEM-768 and ML-DSA-65
 Provides post-quantum secure key exchange and verification for mesh networking.
 Integrates with eBPF XDP programs for kernel-space crypto operations.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -383,3 +384,4 @@ def get_pqc_gateway() -> EBPFPQCGateway:
     if _pqc_gateway is None:
         _pqc_gateway = EBPFPQCGateway()
     return _pqc_gateway
+

@@ -2,6 +2,7 @@
 Logic Contract for x0tta6bl4 Self-Healing.
 Implements formal invariant checks for the MAPE-K loop.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
@@ -105,3 +106,4 @@ class SelfHealingLogicContract:
             "safe_mode": self.is_in_safe_mode(),
             "claim_boundary": "AlphaProof Nexus formal state evidence."
         }
+

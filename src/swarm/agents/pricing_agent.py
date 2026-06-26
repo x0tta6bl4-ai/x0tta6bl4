@@ -2,6 +2,7 @@
 Dynamic Pricing Agent for MaaS Marketplace.
 Evolution of Swarm Intelligence (Q2 P4).
 """
+from __future__ import annotations
 
 import logging
 import inspect
@@ -194,3 +195,4 @@ class DynamicPricingAgent(Agent):
         status = super().get_status()
         status["optimized_count"] = self.completed_tasks
         return status
+

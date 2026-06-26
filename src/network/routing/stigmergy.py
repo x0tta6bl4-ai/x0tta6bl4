@@ -7,6 +7,7 @@ Concept:
 - Routes with higher scores are preferred.
 - Scores decay over time (evaporation), allowing the network to adapt to changes.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -165,3 +166,4 @@ class StigmergyRouter:
                 hop: round(r.score, 2) for hop, r in routes.items()
             }
         return snapshot
+

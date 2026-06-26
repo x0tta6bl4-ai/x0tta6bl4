@@ -7,6 +7,7 @@ Provides comprehensive monitoring for production deployment:
 - Dashboard data
 - Performance tracking
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -663,3 +664,4 @@ def get_production_monitor() -> ProductionMonitor:
     if _production_monitor is None:
         _production_monitor = ProductionMonitor()
     return _production_monitor
+

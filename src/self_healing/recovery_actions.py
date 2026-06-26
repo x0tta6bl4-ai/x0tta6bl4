@@ -3,6 +3,7 @@ Production-ready Recovery Actions for MAPE-K
 
 DEPRECATED: Use src.self_healing.recovery instead.
 """
+from __future__ import annotations
 import warnings
 
 from .recovery import (
@@ -28,3 +29,4 @@ __all__ = [
     "RecoveryActionType",
     "RecoveryResult",
 ]
+

@@ -4,6 +4,7 @@ Vector Index for RAG Pipeline
 
 HNSW-based vector index for semantic search in knowledge base.
 """
+from __future__ import annotations
 
 import concurrent.futures
 import json
@@ -342,3 +343,4 @@ class VectorIndex:
             "hnsw_available": HNSW_AVAILABLE,
             "embedding_model_available": SENTENCE_TRANSFORMERS_AVAILABLE,
         }
+

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import logging
 import os
@@ -274,3 +275,4 @@ async def production_lifespan(app: FastAPI):
 
     # Shutdown
     await optimization_engine.shutdown()
+

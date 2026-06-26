@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 from src.vision.processor import VisionProcessor
@@ -64,4 +65,5 @@ class SelfCorrectionEngine:
             
         with open(image_path, "rb") as f:
             return await self.debug_bytes(f.read(), context_metrics)
+
 

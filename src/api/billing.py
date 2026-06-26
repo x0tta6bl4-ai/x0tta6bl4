@@ -1,3 +1,4 @@
+from __future__ import annotations
 import hashlib
 import hmac
 import importlib
@@ -2027,3 +2028,4 @@ async def get_revenue_metrics(
         metadata=metadata,
     )
     return response
+

@@ -3,6 +3,7 @@ On-chain DAO Governance Integration for x0tta6bl4.
 
 Provides Python interface to MeshGovernance smart contract.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -769,3 +770,4 @@ class GovernanceContract:
         except Exception as e:
             logger.error(f"Failed to get proposal count: {e}")
             return 0
+

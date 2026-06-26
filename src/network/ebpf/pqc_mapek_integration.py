@@ -9,6 +9,7 @@ This module:
 3. Exports Prometheus metrics for PQC operations
 4. Enables adaptive threshold management via DAO governance
 """
+from __future__ import annotations
 
 import logging
 import threading
@@ -593,3 +594,4 @@ if __name__ == "__main__":
 
     # Start daemon
     daemon.start()
+

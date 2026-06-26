@@ -2,6 +2,7 @@
 Configuration for the AI Navigation System.
 Defines the workflow context and interest areas for the Visionary Feed.
 """
+from __future__ import annotations
 
 # Workflow Context: What matters for x0tta6bl4
 PROJECT_CONTEXT = {
@@ -71,3 +72,4 @@ SOURCES = [
         "summary": "Standards, PQC, and compliance updates.",
     },
 ]
+

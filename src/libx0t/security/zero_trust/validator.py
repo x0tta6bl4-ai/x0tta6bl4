@@ -2,6 +2,7 @@
 Zero Trust Validator Module
 Implements validation logic for Zero Trust architecture using SPIFFE/SPIRE.
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, Optional
@@ -148,3 +149,4 @@ class ZeroTrustValidator:
         except Exception as e:
             logger.error(f"Policy check error: {e}, defaulting to deny")
             return False  # Fail-closed for security
+

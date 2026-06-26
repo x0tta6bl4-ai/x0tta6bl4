@@ -11,6 +11,7 @@ Chaos Engineering Framework
 - Load testing
 - Recovery verification
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -236,3 +237,4 @@ class ChaosEngine:
                 for et in ChaosEventType
             },
         }
+

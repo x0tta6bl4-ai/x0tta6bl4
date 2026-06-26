@@ -1,6 +1,7 @@
 """
 MaaS Node Heartbeat - status updates and telemetry collection.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -397,3 +398,4 @@ def process_heartbeat(
         ),
         "raw_dataplane_probe_target_redacted": dataplane_probe_target is not None,
     }
+

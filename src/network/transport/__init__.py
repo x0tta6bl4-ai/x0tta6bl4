@@ -2,6 +2,7 @@
 Транспортный слой x0tta6bl4.
 Реализует сетевые протоколы с интегрированным шейпингом и обфускацией.
 """
+from __future__ import annotations
 
 from .udp_shaped import (PacketType, PeerInfo, ShapedUDPTransport,
                          UDPHolePuncher, UDPPacket)
@@ -23,3 +24,4 @@ __all__ = [
     "PeerInfo",
     "GhostPulseTransport",
 ]
+

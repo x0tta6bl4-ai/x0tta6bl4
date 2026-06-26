@@ -5,6 +5,7 @@ Digital Twins для Chaos Testing
 Цифровые двойники mesh-сети для тестирования без воздействия на production.
 Позволяет запускать chaos-тесты и проверять self-healing в безопасной среде.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -342,3 +343,4 @@ class DigitalTwinsSimulator:
             "avg_recovery_time": avg_recovery_time,
             "scenarios_tested": [r.scenario.value for r in self.chaos_results],
         }
+
