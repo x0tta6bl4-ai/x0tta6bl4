@@ -5,6 +5,7 @@ PQC Certificate Authority for x0tta6bl4 Mesh.
 Implements a second identity layer using ML-DSA-65 (Post-Quantum) 
 to sign and rotate node identities, augmenting standard SPIFFE SVIDs.
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -280,3 +281,4 @@ class PQCIdentityManager:
             },
         )
         return self.current_svid
+

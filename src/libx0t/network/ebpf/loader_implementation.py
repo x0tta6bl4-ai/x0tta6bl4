@@ -6,6 +6,7 @@ attachment, and lifecycle management for x0tta6bl4.
 
 All TODO items from loader.py are implemented here.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -318,3 +319,4 @@ def create_ebpf_loader(programs_dir: Optional[Path] = None) -> EBPFLoaderImpleme
         EBPFLoaderImplementation instance
     """
     return EBPFLoaderImplementation(programs_dir=programs_dir)
+

@@ -2,6 +2,7 @@
 Mesh healing logic for MeshNetworkManager.
 Handles aggressive healing, preemptive checks, and MTTR tracking.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -183,3 +184,4 @@ class MeshHealer:
         except Exception as e:
             logger.warning(f"MeshRouter unavailable: {e}")
             return None
+

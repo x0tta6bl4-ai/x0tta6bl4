@@ -2,6 +2,7 @@
 Security Scanning Integration for x0tta6bl4
 Integrates Bandit, Safety, Trivy for automated security checks
 """
+from __future__ import annotations
 
 import logging
 import subprocess
@@ -30,3 +31,4 @@ class SecurityScanner:
             ["trivy", "image", image], capture_output=True, text=True
         )
         return result.stdout
+

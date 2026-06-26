@@ -6,6 +6,7 @@ Abstract base class for all LLM providers in the x0tta6bl4 platform.
 Defines the common interface for text generation, chat completion,
 and embedding operations.
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
@@ -319,3 +320,4 @@ __all__ = [
     "ProviderCapabilityError",
     "BaseLLMProvider",
 ]
+

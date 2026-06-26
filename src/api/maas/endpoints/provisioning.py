@@ -5,6 +5,7 @@ MaaS Provisioning API for x0tta6bl4.
 Handles the "One-Click Deploy" wizard logic. Generates cryptographically
 signed installation scripts and tokens for new mesh nodes.
 """
+from __future__ import annotations
 
 import logging
 import uuid
@@ -388,3 +389,4 @@ async def generate_provisioning_setup(
 
 def include_provisioning_router(app: Any) -> None:
     app.include_router(router)
+

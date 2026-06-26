@@ -1,3 +1,4 @@
+from __future__ import annotations
 import hmac
 import os
 from typing import Optional
@@ -93,3 +94,4 @@ class AdminAuthMiddleware:
                 detail="Invalid admin token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+

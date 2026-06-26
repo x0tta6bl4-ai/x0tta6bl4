@@ -3,6 +3,7 @@ MaaS Billing Helpers - Utility functions for billing operations.
 
 Provides HMAC verification, idempotency handling, and billing calculations.
 """
+from __future__ import annotations
 
 import hashlib
 import hmac
@@ -586,3 +587,4 @@ __all__ = [
     "Invoice",
     "generate_invoice",
 ]
+

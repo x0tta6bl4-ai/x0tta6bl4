@@ -4,6 +4,7 @@ Caching Layer
 Provides distributed caching, cache invalidation, cache warming,
 and cache metrics.
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -408,3 +409,4 @@ def cached(
         return wrapper
 
     return decorator
+

@@ -4,6 +4,7 @@ Swarm Intelligence Phase 2 - Distributed Decision Making
 Provides consensus algorithms, voting mechanisms, and distributed
 decision making for swarm coordination.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -868,3 +869,4 @@ __all__ = [
     "RaftState",
     "RaftNode",
 ]
+

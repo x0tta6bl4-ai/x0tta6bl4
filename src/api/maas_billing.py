@@ -7,6 +7,7 @@ Redirects to modular billing router in src/api/maas/endpoints/billing.py.
 
 DEPRECATED: Use src.api.maas.endpoints.billing instead.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -733,3 +734,4 @@ async def pay_invoice_manual(
     inv.status = "paid"
     db.commit()
     return {"status": "paid", "invoice_id": invoice_id}
+

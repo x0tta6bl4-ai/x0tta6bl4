@@ -7,6 +7,7 @@ Implements:
 - Pedersen Commitments for secret sharing
 - Challenge-Response for verification
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -453,3 +454,4 @@ def verify_zkp_proof_simple(
     y_c = pow(public_key, challenge, P)
     right = (commitment * y_c) % P
     return left == right
+

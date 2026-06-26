@@ -1,6 +1,7 @@
 """
 eBPF Map Manager - Write and update eBPF maps from userspace
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -552,3 +553,4 @@ class EBPFMapManager:
                 },
             )
             return False
+

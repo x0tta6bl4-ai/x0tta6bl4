@@ -1,3 +1,4 @@
+from __future__ import annotations
 # 🤖 AI Agents package for x0tta6bl4
 """
 AI Agents for autonomous operations.
@@ -123,3 +124,4 @@ def __dir__() -> list[str]:
 
 # Version
 __version__ = "1.0.0"
+

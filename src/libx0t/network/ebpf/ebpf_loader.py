@@ -5,6 +5,7 @@ Loads and manages eBPF programs for observability
 Date: February 2, 2026
 Version: 1.0
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -514,3 +515,4 @@ def create_stub_program(program_path: str) -> EBPFProgram:
     return EBPFProgram(
         name=program_name, bpf=stub_program, program_path=program_path, loaded=False
     )
+

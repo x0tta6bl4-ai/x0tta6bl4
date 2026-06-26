@@ -10,6 +10,7 @@ x0tta6bl4 Sales Bot
 4. Бот проверяет транзакцию
 5. Бот выдаёт: ссылку + токен активации
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -779,3 +780,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

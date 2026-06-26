@@ -10,6 +10,7 @@ Requirements:
 Usage:
     python bcc_probes.py --interface eth0 --prometheus-port 9090
 """
+from __future__ import annotations
 
 import argparse
 import hashlib
@@ -809,3 +810,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

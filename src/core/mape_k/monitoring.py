@@ -3,6 +3,7 @@ Monitoring Phase for MAPE-K.
 
 Phase 1: Monitors system metrics and reasoning process.
 """
+from __future__ import annotations
 import hashlib
 import logging
 import time
@@ -302,3 +303,4 @@ class MonitoringPhase:
         if self.think_aloud:
             return self.think_aloud.get_thoughts()
         return []
+

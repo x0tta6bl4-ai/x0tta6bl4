@@ -10,6 +10,7 @@ Defines comprehensive alerting rules for:
 - Mesh network
 - SPIFFE/SPIRE
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -723,3 +724,4 @@ def get_alerting_rules() -> AlertingRules:
     if _alerting_rules is None:
         _alerting_rules = AlertingRules()
     return _alerting_rules
+

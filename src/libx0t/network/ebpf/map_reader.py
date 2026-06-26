@@ -4,6 +4,7 @@ eBPF Map Reader - Read eBPF maps from userspace
 This module provides utilities to read eBPF maps created by eBPF programs.
 Uses bpftool or direct syscalls to read map data.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -215,3 +216,4 @@ if __name__ == "__main__":
         print(f"Counters from '{args.counters}':")
         for key, value in counters.items():
             print(f"  {key}: {value}")
+

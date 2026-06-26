@@ -6,6 +6,7 @@ x0tta6bl4 Hybrid TLS Proof of Concept
 Демонстрирует гибридный ECDHE + PQC (Kyber/Dilithium) для mesh heartbeats.
 Использует библиотеку OQS.
 """
+from __future__ import annotations
 
 import json
 import time
@@ -109,3 +110,4 @@ def generate_report(path: str = "reports/pqc/hybrid_tls_report.json"):
 
 if __name__ == "__main__":
     generate_report()
+

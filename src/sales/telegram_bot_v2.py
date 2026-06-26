@@ -6,6 +6,7 @@ x0tta6bl4 Sales Bot v2.0
 Фокус: РЕЗУЛЬТАТЫ, не технологии.
 Цель: Крым, первые 100 пользователей за неделю.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -602,3 +603,4 @@ class TokenGenerator:
     def generate_order_id() -> str:
         """Generate unique order ID."""
         return f"ORD-{secrets.token_hex(6).upper()}"
+

@@ -4,6 +4,7 @@ Experimental VPN API Endpoints
 REST API endpoints for experimental VPN configuration and management.
 These endpoints use optimized parameters to bypass current blocking techniques.
 """
+from __future__ import annotations
 
 import hmac
 import json
@@ -677,3 +678,4 @@ async def delete_vpn_user(
         )
         logger.error(f"Error deleting experimental VPN user: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
+

@@ -4,6 +4,7 @@ DDoS Detection System
 Provides DDoS attack detection, rate limiting, traffic analysis,
 and automated mitigation.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -387,3 +388,4 @@ class DDoSDetector:
                 "learning": self.baseline_learning,
             },
         }
+

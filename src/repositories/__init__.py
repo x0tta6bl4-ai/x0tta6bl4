@@ -2,6 +2,7 @@
 Repositories module for x0tta6bl4
 Provides Repository Pattern implementation for database operations.
 """
+from __future__ import annotations
 
 from src.repositories.base import (
     BaseRepository,
@@ -42,3 +43,4 @@ __all__ = [
     "BillingWebhookEventRepository",
     "get_repository",
 ]
+

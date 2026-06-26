@@ -1,6 +1,7 @@
 """
 MAPE-K integration for Swarm Intelligence.
 """
+from __future__ import annotations
 import asyncio
 import logging
 import os
@@ -888,3 +889,4 @@ class MAPEKIntegration:
         if total == 0:
             return 0.5  # Unknown
         return data.get("successful", 0) / total
+

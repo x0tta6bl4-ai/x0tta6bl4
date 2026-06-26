@@ -4,6 +4,7 @@ Performance Optimization Core
 Caching strategies, quantization, and concurrency improvements
 for x0tta6bl4 v3.4.0 → v3.5.0
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -499,3 +500,4 @@ async def test_performance_optimization() -> Dict[str, Any]:
         "status": "success",
         "performance": optimizer.get_performance_report(),
     }
+

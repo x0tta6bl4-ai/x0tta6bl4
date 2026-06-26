@@ -26,6 +26,7 @@ Usage (new API):
 Usage (legacy API — still supported):
     from src.security.pqc import LibOQSBackend, HybridPQEncryption, LIBOQS_AVAILABLE
 """
+from __future__ import annotations
 
 # Version
 __version__ = "2.1.0"
@@ -141,3 +142,4 @@ __all__ = [
     "get_pqc_hybrid",
     "test_pqc_availability",
 ]
+

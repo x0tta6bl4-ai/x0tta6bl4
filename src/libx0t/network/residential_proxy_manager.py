@@ -9,6 +9,7 @@ Provides:
 - TLS fingerprint randomization
 - Integration with Xray proxy infrastructure
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -732,3 +733,4 @@ def create_proxy_pool_from_provider(
         proxies.append(proxy)
 
     return proxies
+

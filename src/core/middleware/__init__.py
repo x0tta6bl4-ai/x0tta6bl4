@@ -1,6 +1,7 @@
 """
 src.core.middleware — Request middleware (CORS, mTLS, rate-limit, tracing).
 """
+from __future__ import annotations
 
 from src.core.middleware.cors_config import (
     is_effective_production_mode,
@@ -18,3 +19,4 @@ __all__ = [
     "RateLimitMiddleware",
     "TracingMiddleware",
 ]
+

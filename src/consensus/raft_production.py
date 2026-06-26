@@ -8,6 +8,7 @@ Improves Raft consensus for production use:
 - Snapshot support
 - Performance optimizations
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -713,3 +714,4 @@ def get_production_raft_node(
             node_id=node_id, peers=peers, storage_path=storage_path
         )
     return _production_raft_node
+

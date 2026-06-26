@@ -11,6 +11,7 @@ FL Worker интегрируется с mesh узлом для участия в
 - Отправка обновлений в Coordinator
 - Получение глобальной модели обратно
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -369,3 +370,4 @@ class FLMeshWorker:
             "thinking": self.thinking_coach.status(),
             "last_thinking_context": self.last_thinking_context,
         }
+

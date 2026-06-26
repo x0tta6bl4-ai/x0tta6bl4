@@ -7,6 +7,7 @@ Provides mTLS support for inter-service communication with:
 - Automatic certificate rotation
 - Connection pooling with mTLS
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -390,3 +391,4 @@ class mtls_request:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.response:
             self.response.close()
+

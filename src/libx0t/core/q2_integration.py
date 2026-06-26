@@ -7,6 +7,7 @@ Integrates all Q2 components into main application:
 - Cilium eBPF Integration for network observability
 - Enhanced FL Aggregators for federated learning
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -378,3 +379,4 @@ def initialize_q2_integration(**kwargs) -> Q2Integration:
     global _q2_integration
     _q2_integration = Q2Integration(**kwargs)
     return _q2_integration
+

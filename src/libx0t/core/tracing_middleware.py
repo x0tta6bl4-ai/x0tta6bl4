@@ -8,6 +8,7 @@ Provides automatic request/response tracing with:
 - Error tracking
 - Correlation ID propagation
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -281,3 +282,4 @@ __all__ = [
     "db_tracer",
     "api_tracer",
 ]
+

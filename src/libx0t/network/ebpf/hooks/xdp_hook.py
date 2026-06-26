@@ -10,6 +10,7 @@ Use cases:
 - Packet filtering
 - Traffic sampling
 """
+from __future__ import annotations
 
 import logging
 import subprocess
@@ -254,3 +255,4 @@ class XDPHook:
     def list_attached_interfaces(self) -> list:
         """Return list of interfaces with XDP programs attached."""
         return list(self.attached_programs.keys())
+

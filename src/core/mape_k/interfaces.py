@@ -2,6 +2,7 @@
 Abstract Base Classes for MAPE-K components.
 Ensures consistency across different MAPE-K implementations.
 """
+from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -44,3 +45,4 @@ class KnowledgeInterface(ABC):
     def get_recommended_action(self, issue: str) -> str | None:
         """Get recommended action based on historical patterns."""
         pass
+

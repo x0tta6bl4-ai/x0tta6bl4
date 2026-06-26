@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import json
 import logging
@@ -91,3 +92,4 @@ class SessionPersistence:
     def clear(self):
         if self.storage_path.exists():
             self.storage_path.unlink()
+

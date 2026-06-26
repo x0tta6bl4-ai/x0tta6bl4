@@ -2,6 +2,7 @@
 x0tta6bl4 Mesh-VPN Bridge
 Integates SOCKS5 proxy with Mesh Network and Rotating Exit Nodes.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -457,3 +458,4 @@ if __name__ == "__main__":
         asyncio.run(bridge.start())
     except KeyboardInterrupt:
         pass
+

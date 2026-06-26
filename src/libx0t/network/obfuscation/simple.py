@@ -2,6 +2,7 @@
 Simple XOR-based Obfuscation.
 Not cryptographically secure, but sufficient to break simple static signature detection.
 """
+from __future__ import annotations
 
 import socket
 
@@ -68,3 +69,4 @@ class SimpleXORTransport(ObfuscationTransport):
     def deobfuscate(self, data: bytes) -> bytes:
         # XOR is symmetric
         return self.obfuscate(data)
+

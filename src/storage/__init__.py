@@ -7,6 +7,7 @@ Provides:
 - Vector index for semantic search
 - Knowledge Storage v2.0 (complete implementation)
 """
+from __future__ import annotations
 
 from src.storage.ipfs_client import IPFSClient, MockIPFSClient
 from src.storage.knowledge_storage_v2 import IncidentEntry, KnowledgeStorageV2
@@ -19,3 +20,4 @@ __all__ = [
     "KnowledgeStorageV2",
     "IncidentEntry",
 ]
+

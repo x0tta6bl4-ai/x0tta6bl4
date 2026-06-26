@@ -3,6 +3,7 @@ MAPE-K Cycle Coordinator.
 
 Coordinates all MAPE-K phases into a complete cycle.
 """
+from __future__ import annotations
 import hashlib
 import logging
 from typing import Any, Dict, Optional
@@ -240,3 +241,4 @@ class MAPEKCoordinator:
     def get_history(self) -> list:
         """Get reasoning history."""
         return self.reasoning_history.copy()
+

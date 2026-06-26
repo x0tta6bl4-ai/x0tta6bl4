@@ -8,6 +8,7 @@ Provides:
 - Correlation IDs for request tracking
 - Sensitive data masking
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -314,3 +315,4 @@ if __name__ == "__main__":
     logger.debug("Debug message")
     logger.warning("Password=secret123 should be masked")
     logger.error("Error with token=abc123def456")
+

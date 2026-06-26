@@ -3,6 +3,7 @@ Advanced Chaos Engineering Scenarios
 
 Extended chaos testing scenarios beyond basic node failures and partitions.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -472,3 +473,4 @@ class AdvancedChaosController:
 def create_advanced_chaos_controller() -> AdvancedChaosController:
     """Create an advanced chaos controller."""
     return AdvancedChaosController()
+

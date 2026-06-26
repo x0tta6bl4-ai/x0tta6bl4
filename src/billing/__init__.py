@@ -3,6 +3,7 @@ Billing Module - Payment processing and subscription management.
 
 Provides integration with payment providers (Stripe) for MaaS billing.
 """
+from __future__ import annotations
 
 from typing import Any
 
@@ -37,3 +38,4 @@ def __getattr__(name: str) -> Any:
 
 
 __version__ = "1.0.0"
+

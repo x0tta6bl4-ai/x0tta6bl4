@@ -4,6 +4,7 @@ eBPF → GraphSAGE Streaming Integration
 Streams eBPF telemetry into GraphSAGE graph in real-time for
 sub-millisecond anomaly detection.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -270,3 +271,4 @@ def integrate_ebpf_graphsage_mapek(mapek_loop, ebpf_exporter, graphsage_detector
         }
 
     return streaming
+

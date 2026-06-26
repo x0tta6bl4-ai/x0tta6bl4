@@ -9,6 +9,7 @@ This module validates eBPF programs before kernel loading to prevent:
 
 Follows Linux kernel eBPF verifier principles.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -367,3 +368,4 @@ class EBPFValidator:
 
         is_valid = len(errors) == 0
         return ValidationResult(is_valid, errors, warnings, metadata)
+

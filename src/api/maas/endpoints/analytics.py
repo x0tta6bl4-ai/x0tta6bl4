@@ -6,6 +6,7 @@ DB-backed metrics: node health, cost comparison, and time-series aggregation.
 All values are derived from real DB state (MeshNode.last_seen, invoices).
 Redis telemetry is used for real-time traffic/latency when available.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -453,3 +454,4 @@ async def get_marketplace_roi(
         reason="marketplace_roi_read",
     )
     return result
+

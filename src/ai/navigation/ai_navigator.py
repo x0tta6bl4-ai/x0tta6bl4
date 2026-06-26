@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import asyncio
 from typing import List, Dict, Any
@@ -146,3 +147,4 @@ if __name__ == "__main__":
             print(f"-> {s}")
 
     asyncio.run(run_demo())
+

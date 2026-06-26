@@ -1,6 +1,7 @@
 """
 src.core.security — RBAC, request validation, subprocess security.
 """
+from __future__ import annotations
 
 from src.core.security.rbac import MeshPermission
 from src.core.security.request_validation import RequestValidationMiddleware
@@ -23,3 +24,4 @@ __all__ = [
     "ValidationError",
     "SecurityError",
 ]
+

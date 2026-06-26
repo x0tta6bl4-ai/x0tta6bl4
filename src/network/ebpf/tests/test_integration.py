@@ -8,6 +8,7 @@ Tests cover:
 - Error recovery
 - Performance under load
 """
+from __future__ import annotations
 
 import time
 from unittest.mock import MagicMock, Mock, patch
@@ -478,3 +479,4 @@ class TestIntegrationRealWorldScenarios:
 
         # Verify export
         assert len(collector.prometheus.metrics) > 0
+

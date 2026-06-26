@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import logging
 import os
@@ -140,3 +141,4 @@ class PrometheusExporter:
         """Return all current metrics."""
         self._sync_with_ebpf()
         return dict(self.metrics)
+

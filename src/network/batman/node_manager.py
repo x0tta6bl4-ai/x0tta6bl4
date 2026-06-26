@@ -2,6 +2,7 @@
 Batman-adv Node Manager & Health Monitoring
 Lifecycle management and health checks for mesh nodes
 """
+from __future__ import annotations
 
 import asyncio
 import copy
@@ -1320,3 +1321,4 @@ def create_incident_workflow_for_node_manager(
                 pass
 
     return IncidentDAOWorkflow(governance=governance, executor=executor)
+

@@ -8,6 +8,7 @@ This module provides production-grade secret rotation with:
 - Structured logging and metrics
 - Health checks and validation
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -797,3 +798,4 @@ class RotationScheduler:
     def get_metrics(self) -> Dict[str, Any]:
         """Get scheduler metrics."""
         return self._metrics.copy()
+

@@ -3,6 +3,7 @@ MaaS ACL - Access Control List evaluation.
 
 Provides ACL policy management and evaluation for fine-grained access control.
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -646,3 +647,4 @@ __all__ = [
     "create_default_policies",
     "create_readonly_policy",
 ]
+

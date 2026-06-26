@@ -1,3 +1,4 @@
+from __future__ import annotations
 # 🤖 Log Analyzer Agent - x0tta6bl4
 """
 Log Analyzer Agent - анализ логов на ошибки, паттерн detection и root cause analysis.
@@ -467,3 +468,4 @@ async def get_log_analyzer() -> LogAnalyzerAgent:
     if _log_analyzer_instance is None:
         _log_analyzer_instance = LogAnalyzerAgent()
     return _log_analyzer_instance
+

@@ -4,6 +4,7 @@ Agent Coordination CLI
 
 Command-line interface for managing agent coordination.
 """
+from __future__ import annotations
 
 import argparse
 import json
@@ -446,3 +447,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

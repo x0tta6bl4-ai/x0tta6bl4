@@ -12,6 +12,7 @@ in the x0tta6bl4 mesh network, including:
 
 Integrates with Prometheus for metrics export and alerting.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -774,3 +775,4 @@ if __name__ == "__main__":
         await monitor.stop_monitoring()
 
     asyncio.run(main())
+

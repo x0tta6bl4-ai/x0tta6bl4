@@ -1,6 +1,7 @@
 """
 Utility functions for MAPE-K Self-Healing.
 """
+from __future__ import annotations
 import hashlib
 import logging
 from typing import Any, Dict, List, Optional
@@ -88,3 +89,4 @@ def _safe_downstream_evidence(
         "event_ids_truncated": len(safe_event_ids) > limit,
         "payloads_redacted": True,
     }
+

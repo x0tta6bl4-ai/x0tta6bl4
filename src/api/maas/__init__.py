@@ -44,6 +44,7 @@ API Endpoints:
         GET    /api/v1/maas/billing/estimate — Cost estimation
         GET    /api/v1/maas/billing/plans    — Available plans
 """
+from __future__ import annotations
 
 from importlib import import_module
 from typing import Any
@@ -171,3 +172,4 @@ def __getattr__(name: str) -> Any:
         return getattr(legacy, name)
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+

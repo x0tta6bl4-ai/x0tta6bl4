@@ -4,6 +4,7 @@ Native eBPF Metrics Exporter using BCC.
 Reads kernel-level metrics directly from eBPF maps and exposes them to Prometheus.
 Specifically designed for network_monitor.bpf.c.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -173,3 +174,4 @@ if __name__ == "__main__":
             time.sleep(10)
     except KeyboardInterrupt:
         exp.stop()
+

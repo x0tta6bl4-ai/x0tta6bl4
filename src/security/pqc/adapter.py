@@ -3,6 +3,7 @@ PQC Adapter - liboqs Python bindings wrapper.
 
 Provides unified interface to liboqs library for post-quantum cryptography.
 """
+from __future__ import annotations
 import logging
 import os
 import types
@@ -375,3 +376,4 @@ def create_kem_adapter(algorithm: str = "ML-KEM-768") -> PQCAdapter:
 def create_sig_adapter(algorithm: str = "ML-DSA-65") -> PQCAdapter:
     """Create signature-only adapter."""
     return PQCAdapter(sig_alg=algorithm)
+

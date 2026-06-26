@@ -1,6 +1,7 @@
 """
 Swarm Intelligence Module.
 """
+from __future__ import annotations
 from .types import (
     DecisionPriority,
     DecisionType,
@@ -27,3 +28,4 @@ __all__ = [
     "SwarmIntelligence",
     "create_swarm_intelligence",
 ]
+

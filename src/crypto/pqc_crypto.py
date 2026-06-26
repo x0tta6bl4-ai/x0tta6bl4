@@ -4,6 +4,7 @@ Post-Quantum Cryptography Module.
 Uses liboqs Kyber KEM for key encapsulation with AES-GCM for symmetric encryption.
 Falls back to mock (AES-GCM only) if liboqs is not available.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -146,3 +147,4 @@ class PQCCrypto:
     def is_available() -> bool:
         """Check if liboqs is available on this system."""
         return LIBOQS_AVAILABLE
+

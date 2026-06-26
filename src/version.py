@@ -20,6 +20,7 @@ Usage:
     >>> print(info['api_version'])
     '3.4.0'
 """
+from __future__ import annotations
 
 import os
 from dataclasses import dataclass
@@ -255,3 +256,4 @@ __all__ = [
 import logging
 logger = logging.getLogger(__name__)
 logger.debug(f"x0tta6bl4 version {__full_version__} loaded")
+

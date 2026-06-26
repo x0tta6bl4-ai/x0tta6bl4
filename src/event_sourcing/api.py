@@ -18,6 +18,7 @@ Integrates resilience patterns:
 - Circuit breaker for external dependencies
 - Fallback for graceful degradation
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -1310,3 +1311,4 @@ __all__ = [
     "ProjectionStatusResponse",
     "AggregateStateResponse",
 ]
+

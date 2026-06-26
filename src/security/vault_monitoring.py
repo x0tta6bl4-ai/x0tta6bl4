@@ -5,6 +5,7 @@ This module provides health monitoring, metrics collection, and alerting
 for Vault integration. It includes a background health check loop that
 monitors Vault availability and token status.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -470,3 +471,4 @@ class VaultMetricsReporter:
             True if alive, False otherwise
         """
         return self.vault_client.client is not None
+

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import logging
 import os
@@ -164,3 +165,4 @@ if __name__ == "__main__":
     # For one-off manual run:
     stats = agent.get_kpi_stats()
     print(agent.format_report(stats))
+

@@ -1,3 +1,4 @@
+from __future__ import annotations
 # Copyright 2024 x0tta6bl4 contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -231,3 +232,4 @@ def run_all_benchmarks() -> None:
 
 if __name__ == "__main__":
     run_all_benchmarks()
+

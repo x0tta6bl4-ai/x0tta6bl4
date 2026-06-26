@@ -4,6 +4,7 @@ API Endpoints for V3.0 Components
 
 REST API endpoints для управления и мониторинга компонентов v3.0.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional, Sequence
@@ -646,3 +647,4 @@ async def get_audit_statistics(
     except Exception as e:
         logger.error(f"Get audit statistics error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
+

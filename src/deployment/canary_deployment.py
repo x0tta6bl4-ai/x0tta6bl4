@@ -13,6 +13,7 @@ Features:
 - Prometheus metrics integration
 - CI/CD integration (GitLab, GitHub Actions, Jenkins, etc.)
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -1199,3 +1200,4 @@ class CanaryDeployment:
                 )
 
         return False
+

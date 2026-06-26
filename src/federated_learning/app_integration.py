@@ -3,6 +3,7 @@ Federated Learning Integration with Main Application.
 
 Integrates FL components into app.py startup and lifecycle.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional, TYPE_CHECKING
@@ -165,3 +166,4 @@ def create_fl_integration(
         FLAppIntegration instance
     """
     return FLAppIntegration(node_id=node_id, enable_fl=enable_fl, fl_config=kwargs)
+

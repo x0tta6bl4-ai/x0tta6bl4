@@ -3,6 +3,7 @@ PARL Type Definitions
 
 Core types for Parallel-Agent Reinforcement Learning.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
@@ -282,3 +283,4 @@ class PPOConfig:
     max_grad_norm: float = 0.5
     num_epochs: int = 4
     minibatch_size: int = 64
+

@@ -8,6 +8,7 @@ Integrates production-ready optimizations:
 - AODV fallback
 - Performance monitoring
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -298,3 +299,4 @@ class BatmanAdvOptimizations:
             config["gateway_selection_class"] = str(self.config.gateway_selection_class)
 
         return config
+

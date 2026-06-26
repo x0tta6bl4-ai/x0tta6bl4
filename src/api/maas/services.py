@@ -3,6 +3,7 @@ MaaS Services - Business logic services.
 
 Contains service classes for billing, mesh provisioning, usage metering, and auth.
 """
+from __future__ import annotations
 
 import hashlib
 import hmac
@@ -1615,3 +1616,4 @@ __all__ = [
     "PaymentProvider",
     "MetricsCollector",
 ]
+

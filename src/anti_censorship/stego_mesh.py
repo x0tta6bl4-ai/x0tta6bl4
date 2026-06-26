@@ -5,6 +5,7 @@ Steganographic Mesh Protocol v2.0 (Geneva-style)
 Реализация стеганографического mesh-протокола для обхода DPI.
 Включает мимикрию под HTTP/ICMP/DNS и генетические стратегии уклонения (Geneva).
 """
+from __future__ import annotations
 
 import hashlib
 import hmac
@@ -681,3 +682,4 @@ class StegoMeshProtocol:
             )
             logger.error(f"Decode error: {e}")
             return None
+

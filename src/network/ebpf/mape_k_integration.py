@@ -4,6 +4,7 @@ MAPE-K Integration for eBPF Observability
 Integrates eBPF telemetry into MAPE-K Monitor phase for real-time
 anomaly detection and self-healing.
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, Optional
@@ -164,3 +165,4 @@ def integrate_with_mapek(mapek_loop, ebpf_exporter):
         integration.trigger_mapek_alert(anomaly)
 
     return ebpf_metrics
+

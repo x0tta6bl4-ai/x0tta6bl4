@@ -10,6 +10,7 @@ DAO Knowledge Storage
 - Сохранение инцидентов и решений
 - Голосование по предложениям директив
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -309,3 +310,4 @@ class MockIPFSClient:
     async def pin(self, cid: str) -> bool:
         """Mock IPFS pin - always succeeds."""
         return True
+

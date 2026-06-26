@@ -10,6 +10,7 @@ Features:
 - Adaptive participation selection
 - Prometheus metrics integration
 """
+from __future__ import annotations
 
 import logging
 import random
@@ -729,3 +730,4 @@ class FederatedCoordinator:
                 }
                 for node_id, node in self.nodes.items()
             }
+

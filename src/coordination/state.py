@@ -4,6 +4,7 @@ Agent State Management and Coordination Locks
 Provides centralized state management and file-based locking for
 coordinating multiple AI agents working simultaneously.
 """
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
@@ -565,3 +566,4 @@ def get_coordinator(project_root: str = ".") -> AgentCoordinator:
     if _coordinator is None:
         _coordinator = AgentCoordinator(project_root)
     return _coordinator
+

@@ -4,6 +4,7 @@ Ring Buffer Reader for eBPF Events
 High-throughput reader for eBPF ring buffer events.
 Supports both ring buffer and perf event output.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -718,3 +719,4 @@ if __name__ == "__main__":
 
     # In production, this would run in a separate thread
     # and integrate with MAPE-K Monitor phase
+

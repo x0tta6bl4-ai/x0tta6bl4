@@ -11,7 +11,9 @@ Gossip-based ban propagation with optional eBPF XDP enforcement.
     # Propagate ban to neighbours via serialise_for_gossip()
     # and apply_gossip_update() on the receiving side.
 """
+from __future__ import annotations
 
 from .ban_list import BanEntry, BanReason, DistributedBanList
 
 __all__ = ["BanEntry", "BanReason", "DistributedBanList"]
+

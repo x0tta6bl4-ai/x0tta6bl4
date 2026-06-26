@@ -1,6 +1,7 @@
 """
 Repository implementations for billing and audit database models.
 """
+from __future__ import annotations
 
 from datetime import datetime
 from typing import List, Optional
@@ -138,3 +139,4 @@ class BillingWebhookEventRepository:
         self.db.commit()
         self.db.refresh(event)
         return event
+

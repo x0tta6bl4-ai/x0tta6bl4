@@ -13,6 +13,7 @@ The implementation starts a real ``spire-agent`` process. Tests may mock
 subprocess calls, but a regular file must never count as a ready SPIRE
 Workload API socket.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -734,3 +735,4 @@ plugins {{
 
         self._generated_config_path = None
         self.agent_process = None
+

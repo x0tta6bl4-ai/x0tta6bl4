@@ -5,6 +5,7 @@ Federated Learning с Differential Privacy
 Реализация федеративного обучения для GraphSAGE модели
 с дифференциальной приватностью для защиты данных узлов.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -649,3 +650,4 @@ class FederatedLearningCoordinator:
             },
         )
         return history
+

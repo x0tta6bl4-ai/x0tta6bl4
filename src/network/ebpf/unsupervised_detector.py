@@ -10,6 +10,7 @@ Features:
 - Automatic retraining on new data
 - Improved normalization and edge case handling
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -665,3 +666,4 @@ class UnsupervisedAnomalyDetector:
                 logger.info(f"📂 VAE normalization params loaded from {norm_path}")
         except Exception as e:
             logger.warning(f"⚠️ Failed to load VAE model: {e}")
+

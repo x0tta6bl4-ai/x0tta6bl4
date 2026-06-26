@@ -4,6 +4,7 @@ Semantic Caching for RAG Pipeline
 Implements intelligent caching for RAG queries using semantic similarity.
 Deduplicates similar queries and caches retrieval results for performance.
 """
+from __future__ import annotations
 
 import concurrent.futures
 import hashlib
@@ -382,3 +383,4 @@ class CachedRAGPipeline:
     def clear_expired_cache(self) -> int:
         """Clear expired cache entries"""
         return self.cache.clear_expired()
+

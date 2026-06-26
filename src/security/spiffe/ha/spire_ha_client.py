@@ -3,6 +3,7 @@ SPIRE Server HA Client.
 
 Поддерживает несколько SPIRE Server инстансов с автоматическим failover.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -231,3 +232,4 @@ class SPIREHAClient:
                 for s in self.servers
             ],
         }
+

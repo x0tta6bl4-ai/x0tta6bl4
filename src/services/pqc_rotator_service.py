@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import logging
 import os
@@ -378,3 +379,4 @@ if __name__ == "__main__":
         asyncio.run(rotate_identity())
     except KeyboardInterrupt:
         pass
+

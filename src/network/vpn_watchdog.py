@@ -15,6 +15,7 @@ Heals:
 
 Exposes Prometheus metrics on port 9091.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -1262,3 +1263,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

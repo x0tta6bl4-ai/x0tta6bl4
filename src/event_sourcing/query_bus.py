@@ -4,6 +4,7 @@ Query Bus - CQRS query handling infrastructure.
 Provides query dispatch, caching, and handler registration
 for the Query side of CQRS.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -442,3 +443,4 @@ class CountQuery(Query):
     """Query to count aggregates."""
     aggregate_type: Optional[str] = None
     filters: Dict[str, Any] = field(default_factory=dict)
+

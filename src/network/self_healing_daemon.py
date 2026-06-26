@@ -4,6 +4,7 @@ x0tta6bl4 Self-Healing Daemon
 Monitors singbox_tun latency AND VPN proxy health.
 Triggers healing when latency exceeds 150ms, packet loss occurs, or proxy is unhealthy.
 """
+from __future__ import annotations
 
 import os
 import signal
@@ -1064,3 +1065,4 @@ def run_daemon():
 
 if __name__ == "__main__":
     run_daemon()
+

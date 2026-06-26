@@ -14,6 +14,7 @@ Features:
 - Error handling и retry logic
 - Health checks после deployment
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -1206,3 +1207,4 @@ def deploy_multi_cloud(
 
     deployment = MultiCloudDeployment(config)
     return deployment.deploy()
+

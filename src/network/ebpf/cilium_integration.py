@@ -8,6 +8,7 @@ Integrates Cilium-inspired eBPF optimizations from paradox_zone:
 - Enhanced metrics collection
 - Zero Trust network policies
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -629,3 +630,4 @@ def create_cilium_integration(
         enable_flow_export=enable_flow_export,
         flow_export_endpoint=flow_export_endpoint,
     )
+

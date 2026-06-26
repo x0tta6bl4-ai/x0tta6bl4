@@ -4,6 +4,7 @@ MAPE-K V3.0 Integration
 
 Интеграция компонентов v3.0 (GraphSAGE, Stego-Mesh, Digital Twins) в production MAPE-K цикл.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional
@@ -275,3 +276,4 @@ def integrate_v3_into_mapek(mapek_cycle, enable_graphsage=True, enable_stego=Fal
         logger.info("✅ GraphSAGE integrated into MAPE-K Analyze phase")
 
     return v3_integration
+

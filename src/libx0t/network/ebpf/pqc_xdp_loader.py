@@ -5,6 +5,7 @@ Loads and manages XDP PQC verification programs with zero-trust security.
 
 Integrates with EBPFPQCGateway for cryptographic session management.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -264,3 +265,4 @@ if __name__ == "__main__":
                 time.sleep(10)
         except KeyboardInterrupt:
             loader.cleanup()
+

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from typing import Optional
 
@@ -32,3 +33,4 @@ class Node:
         tunnel = Tunnel(peer_address, self.pqc if secure else None)
         tunnel.handshake()
         return tunnel
+

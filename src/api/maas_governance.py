@@ -1,4 +1,5 @@
 """Compatibility wrapper for the modular MaaS governance endpoint."""
+from __future__ import annotations
 
 import sys
 
@@ -656,3 +657,4 @@ async def get_proposal(proposal_id: str, db: Session = Depends(get_db)):
         "execution_hash": p.execution_hash,
         "executed_at": p.executed_at.isoformat() if p.executed_at else None,
     }
+

@@ -8,6 +8,7 @@ Improved aggregators with:
 - Better error handling
 - Progress monitoring
 """
+from __future__ import annotations
 
 import logging
 import math
@@ -446,3 +447,4 @@ def get_enhanced_aggregator(
         )
 
     return aggregators[method](**kwargs)
+

@@ -2,6 +2,7 @@
 Repository Pattern Implementation for x0tta6bl4
 Provides abstraction layer for database operations.
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -454,3 +455,4 @@ def get_repository(
         Repository instance
     """
     return repository_class(db)
+

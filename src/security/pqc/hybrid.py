@@ -4,6 +4,7 @@ Hybrid Classical + Post-Quantum Cryptography.
 Combines classical algorithms (X25519, Ed25519) with PQC (ML-KEM, ML-DSA)
 for defense-in-depth security.
 """
+from __future__ import annotations
 import hashlib
 import logging
 import secrets
@@ -490,3 +491,4 @@ class HybridSignatureScheme:
     def is_available(self) -> bool:
         """Check if hybrid DSA is available."""
         return self.enabled
+

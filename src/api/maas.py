@@ -7,6 +7,7 @@ compatibility. Router aggregation keeps core endpoints wired as well.
 Legacy router is included FIRST so its routes (/deploy, /register, /login,
 /billing/webhook, etc.) take precedence over overlapping modular ones.
 """
+from __future__ import annotations
 
 from fastapi import APIRouter
 
@@ -35,3 +36,4 @@ router.include_router(_core_router)
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]
+

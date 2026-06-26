@@ -8,6 +8,7 @@ Combines:
 
 This transport provides both data-level and pattern-level obfuscation.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -200,3 +201,4 @@ class GhostPulseTransport:
             "timing_plan_replay": replay,
             "claim_boundary": PULSE_LOCAL_CLAIM_BOUNDARY
         }
+

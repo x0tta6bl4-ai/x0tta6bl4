@@ -2,6 +2,7 @@
 API Endpoints for Swarm Orchestration
 ======================================
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -204,3 +205,4 @@ async def submit_swarm_task(task: TaskRequest):
     except Exception as e:
         logger.error(f"Failed to submit task: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

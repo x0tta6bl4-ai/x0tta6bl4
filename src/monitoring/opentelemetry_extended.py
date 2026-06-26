@@ -9,6 +9,7 @@ Adds tracing support for:
 - Consensus (Raft) operations
 - CRDT synchronization
 """
+from __future__ import annotations
 
 import logging
 from contextlib import contextmanager
@@ -344,3 +345,4 @@ __all__ = [
     "get_crdt_spans",
     "get_contract_spans",
 ]
+

@@ -11,6 +11,7 @@ Implements:
 
 Zero Trust Principle: Never trust, always verify, limit blast radius.
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -924,3 +925,4 @@ class QuarantineZone:
             },
         )
         return allowed
+

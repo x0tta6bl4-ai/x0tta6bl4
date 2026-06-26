@@ -11,6 +11,7 @@ Full OpenTelemetry tracing for x0tta6bl4:
 - Integration with Jaeger/Zipkin/OTLP
 - FastAPI middleware integration
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -1437,3 +1438,4 @@ def create_event_sourcing_tracer() -> EventSourcingTracer:
 
 def create_database_tracer(backend_type: str) -> DatabaseTracer:
     return DatabaseTracer(backend_type)
+

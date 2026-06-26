@@ -12,6 +12,7 @@ Features:
 - Error handling and retry logic
 - Integration with WorkloadAPIClient
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -488,3 +489,4 @@ def create_auto_renew(
         renewal_threshold=renewal_threshold, check_interval=check_interval
     )
     return SPIFFEAutoRenew(client, config)
+

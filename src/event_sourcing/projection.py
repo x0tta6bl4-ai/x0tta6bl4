@@ -4,6 +4,7 @@ Projection - Read model projections for CQRS.
 Provides projection infrastructure for building read models
 from event streams.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -702,3 +703,4 @@ class EventStatisticsProjection(InMemoryProjection):
                 reverse=True
             )[:10],
         }
+

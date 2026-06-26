@@ -2,6 +2,7 @@
 Compatibility shim for Swarm Intelligence.
 Moved to src.swarm.intelligence package.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -1358,3 +1359,4 @@ __all__ = [
     "SwarmIntelligence",
     "create_swarm_intelligence",
 ]
+

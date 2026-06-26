@@ -1,3 +1,4 @@
+from __future__ import annotations
 import base64
 import json
 import logging
@@ -166,3 +167,4 @@ class TEEValidator:
     @staticmethod
     def _b64(value: bytes) -> str:
         return base64.b64encode(value).decode("ascii")
+

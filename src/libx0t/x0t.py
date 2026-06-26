@@ -2,6 +2,7 @@
 libx0t: The DeepTech Mesh SDK.
 Provides a simple interface for quantum-secure, self-healing mesh networking.
 """
+from __future__ import annotations
 
 import logging
 import asyncio
@@ -71,3 +72,4 @@ class MeshTunnel:
 
 # Singleton instance for quick access
 default_x0t = X0T()
+

@@ -18,6 +18,7 @@ Features:
 - ConsciousnessEngine integration for self-healing decisions
 - MAPE-K loop integration for autonomous operations
 """
+from __future__ import annotations
 
 from src.llm.local_llm import LocalLLM, LLAMA_AVAILABLE
 from src.llm.gateway import LLMGateway, LLMProvider, LLMConfig, create_gateway
@@ -81,3 +82,4 @@ __all__ = [
     "HealingDecision",
     "create_consciousness_integration",
 ]
+

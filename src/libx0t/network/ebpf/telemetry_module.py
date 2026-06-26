@@ -53,6 +53,7 @@ Date: February 2, 2026
 Version: 2.0
 Author: Senior Systems Engineer
 """
+from __future__ import annotations
 
 import ctypes
 import hashlib
@@ -1496,3 +1497,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Stopping...")
         collector.stop()
+

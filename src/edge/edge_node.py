@@ -4,6 +4,7 @@ Edge Node - Core edge computing node implementation.
 Provides local processing, caching, and task execution capabilities
 for distributed edge computing infrastructure.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -855,3 +856,4 @@ class EdgeNodeManager:
         resources = node.get_resources().to_dict()
         resources["network_mbps"] = resources.get("network_in_mbps", 0.0)
         return resources
+

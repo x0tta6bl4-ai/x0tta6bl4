@@ -11,6 +11,7 @@ Implements:
 
 Zero Trust Principle: Trust is never implicit and must be continuously earned.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -689,3 +690,4 @@ class ContinuousVerificationEngine:
                 "base_interval": self.base_interval,
                 "max_interval": self.max_interval,
             }
+

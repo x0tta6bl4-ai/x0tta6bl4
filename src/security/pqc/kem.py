@@ -3,6 +3,7 @@ ML-KEM-768 Key Encapsulation Mechanism.
 
 NIST FIPS 203 compliant key exchange.
 """
+from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 
@@ -207,3 +208,4 @@ class PQCKeyExchange:
     def is_available(self) -> bool:
         """Check if KEM is available."""
         return self.enabled
+

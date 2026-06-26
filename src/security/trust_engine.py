@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
@@ -58,3 +59,4 @@ class TrustEvaluator:
         trust = self.calculate_node_trust(node_id)
         # Low trust = Exponentially lower weight
         return trust ** 2
+

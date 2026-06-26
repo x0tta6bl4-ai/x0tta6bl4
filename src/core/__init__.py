@@ -5,6 +5,7 @@ NOTE: Migration to libx0t.core is in progress but not yet complete;
 src/core/*.py files are still the authoritative source.
 The warning below is suppressed until migration finishes.
 """
+from __future__ import annotations
 import logging
 from pathlib import Path
 
@@ -17,3 +18,4 @@ logger.debug("src.core: migration to libx0t.core pending.")
 _ALT = Path(__file__).resolve().parents[1] / 'libx0t' / 'core'
 if _ALT.exists() and str(_ALT) not in __path__:
     __path__.append(str(_ALT))
+

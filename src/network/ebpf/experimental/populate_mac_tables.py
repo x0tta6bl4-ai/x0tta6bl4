@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 import os
 import sys
 import subprocess
@@ -41,3 +42,4 @@ if __name__ == "__main__":
         sys.exit(1)
     
     populate_mac_tables(sys.argv[1], sys.argv[2], sys.argv[3])
+

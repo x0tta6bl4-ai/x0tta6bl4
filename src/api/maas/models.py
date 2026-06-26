@@ -3,6 +3,7 @@ MaaS API Pydantic Models.
 
 Contains all request and response models for the MaaS API endpoints.
 """
+from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -529,3 +530,4 @@ class LegacyBillingResponse(BaseModel):
     requests_limit: Optional[int] = None
     idempotent_replay: bool = False
     data: Optional[Dict[str, Any]] = None
+

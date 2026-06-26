@@ -1,6 +1,7 @@
 """
 MaaS Node Readiness - check local dependency status for node management.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict
@@ -89,3 +90,4 @@ async def node_readiness(
     for dependency in payload["degraded_dependencies"]:
         mark_degraded_dependency(request, dependency)
     return payload
+

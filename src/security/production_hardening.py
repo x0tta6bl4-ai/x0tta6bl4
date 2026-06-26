@@ -1,3 +1,4 @@
+from __future__ import annotations
 import hashlib
 import json
 import logging
@@ -464,3 +465,4 @@ __all__ = [
     "ProductionHardeningManager",
     "get_hardening_manager",
 ]
+

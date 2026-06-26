@@ -10,6 +10,7 @@ Features:
 - Model version management
 - Lightweight IPFS-style content addressing
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -554,3 +555,4 @@ def create_genesis_blockchain(
     blockchain.add_model_update(initial_weights, metadata)
 
     return blockchain
+

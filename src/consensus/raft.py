@@ -2,6 +2,7 @@
 Raft Consensus Algorithm (P1)
 Scaffold for distributed consensus in x0tta6bl4 mesh
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, List
@@ -28,3 +29,4 @@ class RaftNode:
     def append_entry(self, entry: Dict):
         self.log.append(entry)
         logger.info(f"Node {self.node_id} appended entry: {entry}")
+

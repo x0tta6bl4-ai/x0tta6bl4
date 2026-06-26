@@ -13,6 +13,7 @@ Key Features:
 
 Reference: NIST Post-Quantum Cryptography Standardization
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -644,3 +645,4 @@ __all__ = [
     "TunnelSession",
     "WANOverlayPQC",
 ]
+

@@ -7,6 +7,7 @@ Handles route failure detection and recovery:
 - Alternative path selection
 - Route error propagation
 """
+from __future__ import annotations
 
 import logging
 import time

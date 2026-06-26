@@ -8,6 +8,7 @@ Production-ready Zero Trust enforcement with:
 - Threat-based isolation
 - Audit logging
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -321,3 +322,4 @@ def get_zero_trust_enforcer() -> ZeroTrustEnforcer:
     if _zero_trust_enforcer is None:
         _zero_trust_enforcer = ZeroTrustEnforcer()
     return _zero_trust_enforcer
+

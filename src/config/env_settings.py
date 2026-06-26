@@ -2,6 +2,7 @@
 Centralized environment configuration for x0tta6bl4.
 Replaces scattered os.getenv() calls with a single validated settings object.
 """
+from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
@@ -163,3 +164,4 @@ def get_settings() -> AppSettings:
 
 
 settings = get_settings()
+

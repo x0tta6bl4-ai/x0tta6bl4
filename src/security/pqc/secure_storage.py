@@ -9,6 +9,7 @@ Provides memory-protected storage for PQC secret keys with:
 
 This module addresses CVE-2026-PQC-001: Secret Keys in Memory without Encryption.
 """
+from __future__ import annotations
 import ctypes
 import logging
 import secrets
@@ -375,3 +376,4 @@ def get_secure_storage() -> SecureKeyStorage:
     if _global_storage is None:
         _global_storage = SecureKeyStorage()
     return _global_storage
+

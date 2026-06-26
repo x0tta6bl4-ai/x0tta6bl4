@@ -3,6 +3,7 @@ Analysis Phase for MAPE-K.
 
 Phase 2: Analyzes problems and reasoning process.
 """
+from __future__ import annotations
 import logging
 from typing import Any
 
@@ -192,3 +193,4 @@ class AnalysisPhase:
         if self.think_aloud:
             return self.think_aloud.get_thoughts()
         return []
+

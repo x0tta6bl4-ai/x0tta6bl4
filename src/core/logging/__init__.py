@@ -1,6 +1,7 @@
 """
 src.core.logging — Logging configuration and structured log output.
 """
+from __future__ import annotations
 
 from src.core.logging.logging_config import RequestIdContextVar, setup_logging
 from src.core.logging.structured_logging import StructuredLogger
@@ -10,3 +11,4 @@ __all__ = [
     "setup_logging",
     "StructuredLogger",
 ]
+

@@ -6,6 +6,7 @@ Expands on the base prometheus_metrics.py with specialized metrics for:
 - DAO Governance (Voting, Proposals, Quadratic Voting)
 - eBPF Network Programs (Compilation, Execution, Telemetry)
 """
+from __future__ import annotations
 
 import logging
 from typing import Optional
@@ -547,3 +548,4 @@ __all__ = [
     "record_fl_aggregation",
     "get_extended_metrics_text",
 ]
+

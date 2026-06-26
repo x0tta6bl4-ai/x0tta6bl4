@@ -3,6 +3,7 @@ GraphSAGE Integration for Federated Learning.
 
 Integrates GraphSAGE model with FL coordinator for distributed training.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -426,3 +427,4 @@ class GraphSAGEDistributedTrainer:
             "thinking": self.thinking_coach.status(),
             "last_thinking_context": self.last_thinking_context,
         }
+

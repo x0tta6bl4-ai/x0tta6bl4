@@ -6,6 +6,7 @@ Ledger Integration Module
 - GraphSAGE для drift detection (Phase 2 - будет реализовано)
 - AI Agents для автообновления (Phase 3 - будет реализовано)
 """
+from __future__ import annotations
 
 from .rag_search import LedgerRAGSearch, get_ledger_rag
 
@@ -18,3 +19,4 @@ __all__ = ["LedgerRAGSearch", "get_ledger_rag"]
 
 if LedgerDriftDetector:
     __all__.append("LedgerDriftDetector")
+

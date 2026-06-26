@@ -4,6 +4,7 @@ FL Coordinator Singleton
 
 Глобальный доступ к FL Coordinator для использования в Telegram Bot и других компонентах.
 """
+from __future__ import annotations
 
 import logging
 from typing import Optional
@@ -53,3 +54,4 @@ async def initialize_fl_coordinator(config: Optional[CoordinatorConfig] = None):
     )
 
     logger.info("✅ FL Coordinator initialized")
+

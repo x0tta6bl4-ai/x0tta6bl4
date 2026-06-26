@@ -10,6 +10,7 @@ Production-ready optimizations for CRDT sync:
 - Performance monitoring
 - Batch operations
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -470,3 +471,4 @@ def get_crdt_optimizer(node_id: str) -> CRDTSyncOptimizer:
     if _crdt_optimizer is None:
         _crdt_optimizer = CRDTSyncOptimizer(node_id)
     return _crdt_optimizer
+

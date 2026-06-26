@@ -8,6 +8,7 @@ Complete implementation of Knowledge Storage with:
 - Vector Memory (HNSW) for RAG
 - SQLite for local cache
 """
+from __future__ import annotations
 
 import asyncio
 import json
@@ -400,3 +401,4 @@ class KnowledgeStorageV2:
         except Exception as e:
             logger.error(f"❌ Failed to get stats: {e}")
             return {}
+

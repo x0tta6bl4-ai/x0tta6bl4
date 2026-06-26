@@ -4,6 +4,7 @@ Maps mesh nodes to peaq Network Machine DIDs.
 
 Milestone 1 of peaq Grant Implementation.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -135,3 +136,4 @@ class PeaqIdentityAdapter:
 def get_node_peaq_identity(node_id: str) -> PeaqIdentityAdapter:
     """Factory function for node peaq identity."""
     return PeaqIdentityAdapter(node_id)
+

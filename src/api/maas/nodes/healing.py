@@ -1,6 +1,7 @@
 """
 MaaS Node Healing - trigger MAPE-K loop for specific nodes.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional, Sequence
@@ -348,3 +349,4 @@ async def trigger_node_healing(
     except Exception as e:
         logger.error(f"Healing failed for node {node_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Healing failed: {str(e)}")
+

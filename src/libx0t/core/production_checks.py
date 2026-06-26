@@ -4,6 +4,7 @@ Production Dependency Checks for x0tta6bl4
 Ensures all critical dependencies are available before starting in production mode.
 No graceful degradation for production-critical components.
 """
+from __future__ import annotations
 
 import os
 import sys
@@ -158,3 +159,4 @@ def get_dependency_status() -> List[Tuple[str, bool, str]]:
         status.append(("OpenTelemetry", False, "Not available"))
 
     return status
+

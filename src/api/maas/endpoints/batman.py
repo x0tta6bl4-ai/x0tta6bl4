@@ -7,6 +7,7 @@ Provides REST API endpoints for Batman-adv mesh networking:
 - Topology discovery
 - MAPE-K integration
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -2630,3 +2631,4 @@ async def get_mesh_batman_status(
 
 
 __all__ = ["router"]
+

@@ -5,6 +5,7 @@ Quantum Shield Bridge
 CLI entry point for Tauri to interact with QuantumShieldClient.
 Usage: python bridge.py <command> [args]
 """
+from __future__ import annotations
 
 import sys
 import asyncio
@@ -44,3 +45,4 @@ if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
     sys.path.insert(0, root)
     asyncio.run(main())
+

@@ -3,6 +3,7 @@ DAO Governance Module for x0tta6bl4.
 Implements decentralized decision making via weighted voting.
 Now with Quadratic Voting support and action dispatch.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -854,3 +855,4 @@ class GovernanceEngine:
             logger.info(f"Ledger updated: {self.ledger_path}")
         except OSError as e:
             logger.error(f"Failed to write ledger: {e}")
+

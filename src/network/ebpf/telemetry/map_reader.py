@@ -5,6 +5,7 @@ Supports multiple backends:
 1. BCC Python bindings (preferred)
 2. bpftool CLI (fallback)
 """
+from __future__ import annotations
 
 import importlib.util
 import hashlib
@@ -817,3 +818,4 @@ class MapReader:
 
 
 __all__ = ["MapReader"]
+

@@ -6,6 +6,7 @@ Handles:
 - Updating map entries
 - Collecting statistics
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -796,3 +797,4 @@ class EBPFMapManager:
                 extra={"map_names_redacted": True},
             )
             return []
+

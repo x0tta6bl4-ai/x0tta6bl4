@@ -11,6 +11,7 @@ The in-memory mock implementation is available only when explicitly
 enabled with ``X0TTA6BL4_FORCE_MOCK_SPIFFE=true`` for tests or local
 experiments; it is never treated as production SPIRE evidence.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -634,3 +635,4 @@ class WorkloadAPIClient:
         except ImportError as e:
             logger.warning(f"Auto-renewal not available: {e}")
             return None
+

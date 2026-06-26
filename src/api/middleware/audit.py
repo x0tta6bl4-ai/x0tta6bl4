@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 import logging
 import json
@@ -230,3 +231,4 @@ class AuditMiddleware(BaseHTTPMiddleware):
         close = getattr(db, "close", None)
         if callable(close):
             close()
+

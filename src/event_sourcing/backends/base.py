@@ -4,6 +4,7 @@ Abstract Base Class for Database Backends.
 Defines the interface that all database backends must implement
 for the Event Store.
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
@@ -376,3 +377,4 @@ class DatabaseConnectionError(Exception):
 class DatabaseQueryError(Exception):
     """Raised when a database query fails."""
     pass
+

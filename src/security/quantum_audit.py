@@ -4,6 +4,7 @@ Quantum-Ready Upgrade: Post-Quantum Audit
 Provides security audit for post-quantum cryptography,
 migration planning, and rollback strategy.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
@@ -299,3 +300,4 @@ class QuantumAuditor:
                 (validated / total_algorithms * 100) if total_algorithms > 0 else 0.0
             ),
         }
+

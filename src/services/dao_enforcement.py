@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import json
 from sqlalchemy.orm import Session
@@ -40,3 +41,4 @@ class DAOEnforcer:
         return True
 
 dao_enforcer = DAOEnforcer()
+

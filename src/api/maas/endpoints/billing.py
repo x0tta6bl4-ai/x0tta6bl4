@@ -3,6 +3,7 @@ MaaS Billing Endpoints - Billing and invoicing.
 
 Provides REST API endpoints for billing webhooks and usage reports.
 """
+from __future__ import annotations
 
 import hashlib
 import hmac
@@ -959,3 +960,4 @@ async def get_plan_limits(
     """Return plan limits for the current user."""
     plan = user.plan or "starter"
     return PLAN_REQUEST_LIMITS.get(plan, PLAN_REQUEST_LIMITS["starter"])
+

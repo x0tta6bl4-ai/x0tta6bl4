@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import hashlib
 import logging
@@ -320,3 +321,4 @@ class SecretsManager:
 
 # Global instance
 secrets_manager = SecretsManager()
+

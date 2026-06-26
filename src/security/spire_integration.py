@@ -4,6 +4,7 @@ SPIRE (SPIFFE Runtime Environment) Integration Module
 Provides utilities for mTLS and workload identity management using SPIRE.
 Supports local testing with Docker and production deployment with SPIRE agent.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -263,3 +264,4 @@ def wait_for_spire(timeout: int = 30, check_interval: int = 1) -> bool:
 def get_spire_client(config: Optional[SPIREConfig] = None) -> SPIREClient:
     """Get or create SPIRE client instance"""
     return SPIREClient(config)
+

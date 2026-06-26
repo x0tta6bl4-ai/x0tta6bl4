@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import os
 import time
@@ -55,3 +56,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

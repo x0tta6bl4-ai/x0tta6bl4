@@ -3,6 +3,7 @@
 Submodules are imported only when requested. This keeps unrelated routers from
 performing environment checks while another API module is being imported.
 """
+from __future__ import annotations
 
 from importlib import import_module
 from types import ModuleType
@@ -32,3 +33,4 @@ def __getattr__(name: str) -> ModuleType | None:
         module = None
     globals()[name] = module
     return module
+

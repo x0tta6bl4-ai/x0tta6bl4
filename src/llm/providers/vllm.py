@@ -5,6 +5,7 @@ vLLM LLM Provider
 Provider for vLLM high-performance inference server.
 Supports OpenAI-compatible API with enhanced throughput.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -354,3 +355,4 @@ class VLLMProvider(BaseLLMProvider):
 
 
 __all__ = ["VLLMProvider"]
+

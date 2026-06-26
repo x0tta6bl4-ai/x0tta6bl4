@@ -6,6 +6,7 @@ Provides both eBPF-based and software fallback rate limiting.
 eBPF is used when available (requires root + BCC), otherwise
 a Python-based token bucket implementation is used.
 """
+from __future__ import annotations
 import ctypes
 import hashlib
 import logging
@@ -1014,3 +1015,4 @@ class RateLimiterManager:
             },
         )
         return True
+

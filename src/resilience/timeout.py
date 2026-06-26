@@ -5,6 +5,7 @@ Timeout Pattern Implementation
 Timeout patterns with cascade protection for distributed systems.
 Prevents resource exhaustion and cascading failures.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -335,3 +336,4 @@ __all__ = [
     "TimeoutPattern",
     "TimeoutContext",
 ]
+

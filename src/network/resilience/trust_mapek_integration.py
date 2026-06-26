@@ -11,6 +11,7 @@ Key Features:
 - Trust recovery for healthy paths
 - Integration with Zero-Trust security framework
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -612,3 +613,4 @@ __all__ = [
     "TrustEvent",
     "TrustAwareMAPEK",
 ]
+

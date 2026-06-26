@@ -1,4 +1,5 @@
 """Compatibility alias for the DB-backed MaaS auth API."""
+from __future__ import annotations
 
 import logging
 import os
@@ -376,3 +377,4 @@ _legacy.router = router
 
 globals().update(_legacy.__dict__)
 _sys.modules[__name__] = _legacy
+

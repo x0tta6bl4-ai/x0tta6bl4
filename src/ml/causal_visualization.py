@@ -6,6 +6,7 @@ Supports multiple output formats: JSON API, Grafana dashboard, HTML demo.
 
 Target: Sales-ready visualization for email wave 3-4 demo.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import asdict, dataclass
@@ -491,3 +492,4 @@ class CausalAnalysisVisualizer:
         }
 
         return grafana_dashboard
+

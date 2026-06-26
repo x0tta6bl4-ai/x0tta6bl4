@@ -3,6 +3,7 @@ Global Formal Proof Registry for x0tta6bl4.
 Consolidates Logic Proof Fragments from all planes (MAPE-K, Trust, Dataplane).
 Enforces inter-plane invariants G1-G3.
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -94,3 +95,4 @@ class FormalProofRegistry:
         proof_body["proof_hash"] = hashlib.sha256(serialized.encode()).hexdigest()
 
         return proof_body
+

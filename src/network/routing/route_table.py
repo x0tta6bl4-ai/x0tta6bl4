@@ -6,6 +6,7 @@ Manages routing entries with support for:
 - Route caching and expiration
 - Route lookup and selection
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -237,3 +238,4 @@ class RouteTable:
                     break
         
         return disjoint
+

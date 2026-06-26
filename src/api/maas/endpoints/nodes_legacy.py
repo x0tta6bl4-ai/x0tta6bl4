@@ -3,6 +3,7 @@ MaaS Nodes Endpoints - Node registration and management.
 
 Provides REST API endpoints for node registration, heartbeats, and revocation.
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -1280,3 +1281,4 @@ async def request_reissue(
 
 
 __all__ = ["router"]
+

@@ -7,6 +7,7 @@ Usage:
     export MAAS_API_KEY="your_key"
     python -m src.agent.headless start
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -249,3 +250,4 @@ if __name__ == "__main__":
         asyncio.run(agent.start())
     except KeyboardInterrupt:
         pass
+

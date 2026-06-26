@@ -4,6 +4,7 @@ Practical Byzantine Fault Tolerance (PBFT) Implementation
 Provides a complete implementation of PBFT consensus algorithm
 for Byzantine fault-tolerant distributed decision making.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -915,3 +916,4 @@ __all__ = [
     "PBFTLogEntry",
     "PBFTNode",
 ]
+

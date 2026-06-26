@@ -1,3 +1,4 @@
+from __future__ import annotations
 # 🤖 Health Monitor Agent - x0tta6bl4
 """
 Health Monitor Agent - 24/7 мониторинг системы с автоматическими алертами.
@@ -407,3 +408,4 @@ async def get_health_monitor() -> HealthMonitorAgent:
     if _health_monitor_instance is None:
         _health_monitor_instance = HealthMonitorAgent()
     return _health_monitor_instance
+

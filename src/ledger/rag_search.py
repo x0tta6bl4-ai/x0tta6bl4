@@ -3,6 +3,7 @@ Ledger RAG Search Integration
 
 Использование существующего RAG pipeline для semantic search в CONTINUITY.md
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -964,3 +965,4 @@ def get_ledger_rag() -> LedgerRAGSearch:
     if _ledger_rag_instance is None:
         _ledger_rag_instance = LedgerRAGSearch()
     return _ledger_rag_instance
+

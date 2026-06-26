@@ -8,6 +8,7 @@ Production-ready network layer for Raft consensus:
 - Retry logic
 - Connection pooling
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -547,3 +548,4 @@ def get_raft_network_server(
             node_id=node_id, listen_address=listen_address
         )
     return _raft_network_server
+

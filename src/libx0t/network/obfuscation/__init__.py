@@ -1,6 +1,7 @@
 """
 Obfuscation Module Init.
 """
+from __future__ import annotations
 
 from .base import ObfuscationTransport, TransportManager
 from .domain_fronting import DomainFrontingTransport
@@ -28,3 +29,4 @@ __all__ = [
     "TrafficAnalyzer",
     "TRAFFIC_PROFILES",
 ]
+

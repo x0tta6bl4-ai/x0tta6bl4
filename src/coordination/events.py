@@ -3,6 +3,7 @@ Event Bus for Agent Communication
 
 Provides a publish-subscribe event system for inter-agent communication.
 """
+from __future__ import annotations
 
 import asyncio
 import json
@@ -429,3 +430,4 @@ def get_event_bus(project_root: str = ".") -> EventBus:
     if _event_bus is None:
         _event_bus = EventBus(project_root)
     return _event_bus
+

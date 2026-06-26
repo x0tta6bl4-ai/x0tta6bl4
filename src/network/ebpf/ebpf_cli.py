@@ -5,6 +5,7 @@ eBPF Management CLI - Command-line interface for eBPF orchestrator.
 This module provides a command-line interface for managing eBPF programs
 using the EBPFOrchestrator.
 """
+from __future__ import annotations
 
 import argparse
 import asyncio
@@ -423,3 +424,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

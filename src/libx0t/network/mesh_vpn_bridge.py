@@ -8,6 +8,7 @@ Features:
 - Multi-hop routing through mesh
 - Health monitoring and MAPE-K integration
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -564,3 +565,4 @@ if __name__ == "__main__":
         asyncio.run(bridge.start())
     except KeyboardInterrupt:
         pass
+

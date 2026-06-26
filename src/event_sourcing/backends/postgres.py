@@ -7,6 +7,7 @@ Provides ACID-compliant persistent storage using PostgreSQL with:
 - Efficient event streaming
 - Snapshot support
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -786,3 +787,4 @@ class PostgresEventStore(DatabaseBackend):
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(query, *args)
             return [dict(row) for row in rows]
+

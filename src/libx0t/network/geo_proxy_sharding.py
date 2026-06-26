@@ -9,6 +9,7 @@ Provides:
 - Health monitoring per region
 - Metrics and analytics
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -938,3 +939,4 @@ def create_geo_proxy_manager(
                 logger.warning(f"Unknown region for domain {domain}: {region_str}")
 
     return manager
+

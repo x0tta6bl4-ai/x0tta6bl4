@@ -1,4 +1,5 @@
 """Monitoring and observability modules for x0tta6bl4."""
+from __future__ import annotations
 
 from src.monitoring.opentelemetry_extended import (get_contract_spans,
                                                    get_crdt_spans,
@@ -52,3 +53,4 @@ __all__ = [
     "get_crdt_spans",
     "get_contract_spans",
 ]
+

@@ -12,6 +12,7 @@ Features:
 - Lock-free data structures where possible
 - Concurrent cycle execution with proper synchronization
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -380,3 +381,4 @@ class ThreadSafeMAPEKLoop:
             self.state_history.clear()
 
         logger.info(f"Reset all MAPE-K metrics for {self.component_name}")
+

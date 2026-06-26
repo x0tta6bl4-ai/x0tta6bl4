@@ -3,6 +3,7 @@ Causal Analysis API Endpoint
 
 FastAPI endpoint for serving causal analysis visualization data.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any
@@ -102,3 +103,4 @@ async def list_incidents() -> dict[str, Any]:
         )
 
     return {"incidents": incidents, "total": len(incidents)}
+

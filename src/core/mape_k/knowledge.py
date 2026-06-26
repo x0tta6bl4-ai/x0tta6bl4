@@ -3,6 +3,7 @@ Knowledge Phase for MAPE-K.
 
 Phase 5: Accumulates knowledge and generates meta-insights.
 """
+from __future__ import annotations
 import logging
 import time
 from typing import Any
@@ -235,3 +236,4 @@ class KnowledgePhase:
         if self.think_aloud:
             return self.think_aloud.get_thoughts()
         return []
+

@@ -4,6 +4,7 @@ Security manager for eBPF telemetry module.
 Handles input validation, data sanitization, and security checks
 for telemetry data.
 """
+from __future__ import annotations
 
 import logging
 import hashlib
@@ -367,3 +368,4 @@ class SecurityManager:
 
 
 __all__ = ["SecurityManager"]
+

@@ -4,6 +4,7 @@ Integration Layer: MAPE-K Orchestrator + AI Agents
 This module provides unified state management and coordination between
 the MAPE-K self-healing loop and the AI Agents system.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -356,3 +357,4 @@ async def create_integrated_system(
     logger.info("✅ Integrated system created and initialized")
 
     return integrator
+

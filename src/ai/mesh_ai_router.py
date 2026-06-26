@@ -10,6 +10,7 @@ Features:
 - Complexity-based routing
 - Federated learning support
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -676,3 +677,4 @@ async def demo():
 
 if __name__ == "__main__":
     asyncio.run(demo())
+

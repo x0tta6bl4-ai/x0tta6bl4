@@ -4,6 +4,7 @@ Centralized Configuration Management for x0tta6bl4
 Uses environment variables for all sensitive configuration.
 All secrets must be provided via .env file or environment.
 """
+from __future__ import annotations
 
 import os
 from typing import Dict, Optional
@@ -290,3 +291,4 @@ if os.getenv("ENVIRONMENT") != "testing":
         print("🔒 PRODUCTION MODE - All secrets required")
     else:
         print("🔓 DEVELOPMENT MODE - Using defaults where available")
+

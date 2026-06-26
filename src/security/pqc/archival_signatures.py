@@ -16,6 +16,7 @@ Note: SPHINCS+ signatures are larger (~8-50 KB) and slower than
 Dilithium/ML-DSA, so this is NOT for high-frequency operations.
 Use ML-DSA-65 for routine signing (heartbeats, tokens, etc.).
 """
+from __future__ import annotations
 
 import hashlib
 import hmac
@@ -288,3 +289,4 @@ class ArchivalSigner:
 def get_supported_archival_algorithms() -> list[str]:
     """Return list of supported archival signature algorithms."""
     return list(SPHINCS_PARAMS.keys())
+

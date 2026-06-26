@@ -6,6 +6,7 @@ Provides persistent storage backends for event sourcing:
 - MongoDB: Document-based storage for flexibility
 - Migration: Tools for migrating between backends
 """
+from __future__ import annotations
 
 from src.event_sourcing.backends.base import (
     DatabaseBackend,
@@ -46,3 +47,4 @@ __all__ = [
     "migrate_postgresql_to_mongodb",
     "migrate_mongodb_to_postgresql",
 ]
+

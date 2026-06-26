@@ -4,6 +4,7 @@ VPN API Endpoints
 
 REST API endpoints for VPN configuration and management.
 """
+from __future__ import annotations
 
 import hmac
 import logging
@@ -1016,3 +1017,4 @@ async def delete_vpn_user_by_id(
     except Exception as e:
         logger.error(f"Error downgrading user {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
+

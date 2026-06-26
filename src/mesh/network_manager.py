@@ -17,6 +17,7 @@ Example:
     ...     verification_mode=VerificationMode.FULL
     ... )
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -1796,3 +1797,4 @@ class MeshNetworkManager:
         if not durations:
             return 0.0
         return sum(durations) / len(durations)
+

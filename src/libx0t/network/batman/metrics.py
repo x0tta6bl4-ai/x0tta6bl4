@@ -13,6 +13,7 @@ Features:
 - Performance metrics
 - Integration with existing x0tta6bl4 metrics
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -799,3 +800,4 @@ def integrate_with_x0tta6bl4_metrics(collector: BatmanMetricsCollector) -> None:
         
     except ImportError:
         logger.warning("x0tta6bl4 metrics system not available")
+

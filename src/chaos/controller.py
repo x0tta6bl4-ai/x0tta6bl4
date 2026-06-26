@@ -2,6 +2,7 @@
 Chaos Engineering Controller
 Управляет chaos experiments и собирает метрики recovery
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -501,3 +502,4 @@ Recent Experiments:
             report += f"  - {exp.experiment_type.value}: {exp.status}\n"
 
         return report
+

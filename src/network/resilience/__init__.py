@@ -9,6 +9,7 @@ Key Components:
 - TrustAwareMAPEK: Trust score integration with MAPE-K loop
 - WANOverlayPQC: Post-quantum cryptography for WAN overlay
 """
+from __future__ import annotations
 
 from .make_never_break import (
     MakeNeverBreakEngine,
@@ -58,3 +59,4 @@ __all__ = [
     "TunnelSession",
     "WANOverlayPQC",
 ]
+

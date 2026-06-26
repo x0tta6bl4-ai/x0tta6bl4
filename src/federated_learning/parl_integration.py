@@ -5,6 +5,7 @@ Uses Kimi K2.5 Swarm Intelligence (PARL) to accelerate
 federated learning rounds by 4x-10x through parallel
 agent execution.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -342,3 +343,4 @@ async def execute_parallel_fl_round(
         return await orchestrator.execute_training_round(node_ids)
     finally:
         await orchestrator.terminate()
+

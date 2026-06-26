@@ -1,6 +1,7 @@
 """
 Recovery Actions for MAPE-K - Main Executor
 """
+from __future__ import annotations
 import logging
 import os
 import shutil
@@ -1129,3 +1130,4 @@ class RecoveryActionExecutor:
             "max_actions": self.rate_limiter.max_actions,
             "window_seconds": self.rate_limiter.window_seconds,
         }
+

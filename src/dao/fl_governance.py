@@ -4,6 +4,7 @@ FL Governance - Управление моделями через DAO.
 Позволяет сообществу голосовать за обновления AI моделей.
 Использует квадратичное голосование для защиты от "китов".
 """
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -294,3 +295,4 @@ class FLGovernanceDAO:
             "supermajority_reached": self.check_supermajority(proposal_id),
             "voters_count": len(self.votes.get(proposal_id, [])),
         }
+

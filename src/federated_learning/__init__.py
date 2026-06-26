@@ -13,6 +13,7 @@ Components:
 - Agent: PPO for routing decisions
 - LoRA Integration: Federated LoRA fine-tuning
 """
+from __future__ import annotations
 
 from .aggregators import (Aggregator, FedAvgAggregator, KrumAggregator,
                           MedianAggregator, TrimmedMeanAggregator,
@@ -132,3 +133,4 @@ __all__ = [
     "TopologyModelUpdate",
     "create_topology_aware_aggregator",
 ]
+

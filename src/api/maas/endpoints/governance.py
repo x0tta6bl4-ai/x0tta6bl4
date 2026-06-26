@@ -6,6 +6,7 @@ Decentralized decision making for mesh network parameters.
 Proposals, votes, and execution results are persisted to the DB.
 Execution finality is anchored by a SHA-256 hash of the full vote record.
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -1374,3 +1375,4 @@ async def get_proposal(
         "executed_at": p.executed_at.isoformat() if p.executed_at else None,
         "results": [],  # Added for test compatibility
     }
+

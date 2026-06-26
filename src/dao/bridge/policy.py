@@ -1,6 +1,7 @@
 """
 Policy evaluation for Token Bridge.
 """
+from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional, Tuple
 
@@ -50,3 +51,4 @@ def evaluate_bridge_policy(
         return False, decision, _policy_reason(decision) or "TokenBridge policy denied operation"
         
     return True, decision, _policy_reason(decision)
+

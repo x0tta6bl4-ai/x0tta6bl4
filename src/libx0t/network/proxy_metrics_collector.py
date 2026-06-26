@@ -7,6 +7,7 @@ Implements:
 - Performance analytics
 - Alerting on anomalies
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -444,3 +445,4 @@ def create_default_collector() -> ProxyMetricsCollector:
         collector.register_metric(name, metric_type, description)
 
     return collector
+

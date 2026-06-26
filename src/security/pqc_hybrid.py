@@ -5,6 +5,7 @@ Hybrid Post-Quantum Cryptography
 Implements hybrid mode: Classical (X25519) + Post-Quantum (ML-KEM-768)
 for maximum security and compatibility.
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -402,3 +403,4 @@ class HybridPQMeshSecurity:
             "backward_compatible": True,
             "peers_with_hybrid": len(self._peer_keys),
         }
+

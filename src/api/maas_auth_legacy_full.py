@@ -7,6 +7,7 @@ Redirects to modular auth router in src/api/maas/endpoints/auth.py.
 
 DEPRECATED: Use src.api.maas.auth or src.api.maas.endpoints.auth instead.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -900,3 +901,4 @@ __all__ = [
     "require_mesh_owner",
     "require_mesh_access",
 ]
+

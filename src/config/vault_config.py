@@ -4,6 +4,7 @@ Vault configuration management.
 This module provides configuration classes and utilities for Vault
 integration, including environment-based configuration loading.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -231,3 +232,4 @@ def validate_vault_config(config: VaultIntegrationConfig) -> list:
         errors.append("VAULT_TOKEN_REFRESH_THRESHOLD must be between 0 and 1")
 
     return errors
+

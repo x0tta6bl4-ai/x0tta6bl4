@@ -4,6 +4,7 @@ The canonical implementation lives in ``src.api.maas.endpoints.ledger``.  This
 module keeps old monkeypatch-based tests and callers working by routing the
 patchable globals here into the canonical endpoint functions before delegation.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import asdict, is_dataclass
@@ -510,3 +511,4 @@ async def event_trace_status():
             f"Ошибка при получении статуса EventBus traces: {e}", exc_info=True
         )
         raise HTTPException(status_code=500, detail="Internal server error")
+

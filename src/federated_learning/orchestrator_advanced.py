@@ -9,6 +9,7 @@ Provides enterprise-grade orchestration with:
 - Load forecasting and balancing
 - Cluster topology optimization
 """
+from __future__ import annotations
 
 import logging
 import statistics
@@ -621,3 +622,4 @@ class ClusterOptimizer:
             "thinking": self.thinking_coach.status(),
             "last_thinking_context": self.last_thinking_context,
         }
+

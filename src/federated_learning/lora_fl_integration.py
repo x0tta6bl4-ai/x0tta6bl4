@@ -10,6 +10,7 @@ Features:
 - PARL integration for parallel training
 - Privacy-preserving weight clipping
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -1072,3 +1073,4 @@ def create_lora_update(
         num_samples=num_samples,
         training_loss=training_loss,
     )
+

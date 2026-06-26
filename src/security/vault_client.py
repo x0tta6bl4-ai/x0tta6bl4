@@ -11,6 +11,7 @@ This module provides a robust async Vault client with:
 
 Compatible with hvac >= 2.0
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -634,3 +635,4 @@ class VaultClient:
                     self._authenticated = False
                     self._clear_cache()
                     logger.info("Vault connection closed")
+

@@ -9,6 +9,7 @@ Implementation of pluggable transports for censorship circumvention:
 
 Based on Tor Project's Pluggable Transport specification.
 """
+from __future__ import annotations
 
 import asyncio
 import aiohttp
@@ -743,3 +744,4 @@ __all__ = [
     "SnowflakeTransport",
     "create_transport",
 ]
+

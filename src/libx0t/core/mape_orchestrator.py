@@ -1,3 +1,4 @@
+from __future__ import annotations
 # src/core/mape_orchestrator.py
 import asyncio
 import hashlib
@@ -263,3 +264,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("MAPE-K цикл остановлен пользователем.")
+

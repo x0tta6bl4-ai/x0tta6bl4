@@ -19,6 +19,7 @@ MAPE-K Loop for Batman-adv:
 4. Execute phase: Apply healing actions (restart, reconfigure, isolate)
 5. Knowledge phase: Store outcomes for future learning
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -1449,3 +1450,4 @@ def integrate_with_existing_mapek(batman_loop: BatmanMAPEKLoop) -> None:
         
     except Exception as e:
         logger.error(f"Failed to integrate with existing MAPE-K: {e}")
+

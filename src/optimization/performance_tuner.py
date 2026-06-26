@@ -1,3 +1,4 @@
+from __future__ import annotations
 import functools
 import hashlib
 import logging
@@ -539,3 +540,4 @@ __all__ = [
     "PerformanceTuner",
     "get_performance_tuner",
 ]
+

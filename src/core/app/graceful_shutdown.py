@@ -8,6 +8,7 @@ Provides clean shutdown with:
 - Background task cleanup
 - Resource cleanup (DB, Redis, etc.)
 """
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -441,3 +442,4 @@ __all__ = [
     "close_redis_connections",
     "close_http_clients",
 ]
+
