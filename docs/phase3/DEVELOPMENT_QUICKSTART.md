@@ -66,7 +66,6 @@ Monitor → Analyze → Plan → Execute (Charter) → Knowledge
 - `src/mape_k/execute.py` - Policy execution with rollback
 - `src/mape_k/knowledge.py` - Learning system
 - `src/mape_k/orchestrator.py` - MAPE-K coordination
-- `src/integration/charter_client.py` - Charter API (real + mock)
 - `src/integration/alertmanager_client.py` - AlertManager webhook handler
 
 ### Test Locations
@@ -134,35 +133,6 @@ class Planner:
 2. Add to Execute implementation
 3. Add tests
 4. Document in MAPE_K_ARCHITECTURE.md
-
-### Connect Real Charter API
-
-1. Update Charter URL in config:
-```yaml
-execute:
-  charter_url: http://real-charter-endpoint:8000
-  use_mock: false
-```
-
-2. Configure API key:
-```bash
-export CHARTER_API_KEY=your-key-here
-```
-
-3. Test connection:
-```python
-from src.integration.charter_client import RealCharterClient
-import asyncio
-
-async def test():
-    client = RealCharterClient(base_url="http://charter:8000")
-    await client.connect()
-    state = await client.get_committee_state()
-    print(state)
-    await client.disconnect()
-
-asyncio.run(test())
-```
 
 ### Run Staging Deployment
 
@@ -246,17 +216,6 @@ for policy in policies:
     print(f"Policy {policy.id}: {len(policy.actions)} actions, score={policy.cost_benefit_score}")
 ```
 
-### Mock Charter for Testing
-```python
-from src.integration.charter_client import get_charter_client
-
-# Use mock for development
-charter = get_charter_client(use_mock=True)
-await charter.connect()
-policies = await charter.get_policies()
-print(f"Mock policies: {policies}")
-```
-
 ## 📊 Code Quality
 
 ### Run Linter
@@ -333,9 +292,6 @@ asyncio.run(orch.start())
 
 ### Issue: Prometheus not responding
 **Solution**: Check if running on port 9090, verify config: `curl http://localhost:9090/api/v1/status/config`
-
-### Issue: Charter API connection refused
-**Solution**: Ensure Charter is running or use mock mode: `get_charter_client(use_mock=True)`
 
 ### Issue: AlertManager webhook not receiving alerts
 **Solution**: Check webhook configuration in AlertManager config, verify port 5000 is open

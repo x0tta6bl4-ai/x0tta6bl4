@@ -1,3 +1,4 @@
+from __future__ import annotations
 import sys
 import os
 sys.path.append("/mnt/projects")
@@ -10,8 +11,9 @@ import struct
 import socket
 import asyncio
 import logging
-import subprocess
 from typing import Any, Dict, List, Optional, Union
+
+from src.core.security.subprocess_validator import safe_run
 
 # Manual import of GhostTransport to avoid any src issues
 from src.coordination.events import EventBus, EventType, get_event_bus
@@ -334,13 +336,13 @@ class GhostL3Server:
             tun_name = str(context.get("tun_name", self.tun_name))
             ifr = struct.pack('16sH', tun_name.encode()[:15], IFF_TUN | IFF_NO_PI)
             fcntl.ioctl(self.tun_fd, TUNSETIFF, ifr)
-            subprocess.run(
+            safe_run(
                 ["ip", "addr", "add", str(context.get("tun_cidr", self.tun_cidr)), "dev", tun_name],
                 check=True,
             )
-            subprocess.run(["ip", "link", "set", "dev", tun_name, "up"], check=True)
+            safe_run(["ip", "link", "set", "dev", tun_name, "up"], check=True)
             self._enable_ip_forward()
-            subprocess.run(
+            safe_run(
                 [
                     "iptables",
                     "-t",
@@ -400,3 +402,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
