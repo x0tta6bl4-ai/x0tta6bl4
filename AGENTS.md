@@ -177,7 +177,7 @@ Full framework at skill `x0tta6bl4-thinking-framework`.
 
 | Навык | Когда | Зачем |
 |:------|:------|:------|
-| **x0tta6bl4-job-search-strategy** | Стратегия поиска, portfolio, CV | Позиционирование AI Architect, этичный job search |
+| **x0tta6bl4-job-search-strategy** | Стратегия поиска, portfolio, CV | Позиционирование AI Architect, этичный job search. **Стрим Острикова:** личка > резюме, архитектурная секция > тестовое |
 | **x0tta6bl4-job-hunting** | Автоматизация откликов | HH.ru + RemoteOK — проверенные селекторы, EPIPE trap |
 | **hh-job-automation** | Только HH.ru | Playwright + browser_cookie3 |
 | **web-market-research** | Исследование рынка вакансий | React SPA парсинг через браузер |
@@ -197,7 +197,7 @@ Full framework at skill `x0tta6bl4-thinking-framework`.
 | Навык | Когда | Зачем |
 |:------|:------|:------|
 | **x0tta6bl4-thinking-framework** | **AUTO-APPLIED** — загружается автоматически | 14 видов мышления + 30 техник. Не загружать руками |
-| **x0tta6bl4-loop-designer** | Надо спроектировать агентский цикл | Цель → верификация → советник → гейты → план. Портал Looper (ksimback) |
+| **x0tta6bl4-loop-designer** | Надо спроектировать агентский цикл | Цель → верификация → советник → гейты → план. Портал Looper (ksimback). Шаблоны: loops.elorm.xyz |
 | **context-saver** | Контекст теряется, сессия длинная | Сохранить прогресс, восстановить после потери контекста |
 
 ### Алгоритм выбора навыка
