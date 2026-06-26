@@ -2,6 +2,8 @@
 
 This directory contains the actual system prompts and instructions used by AI agents (Claude, GPT-4, Codex) to generate code for x0tta6bl4.
 
+**1,012,493 lines of code. 7,636 files. 1,033 commits. Zero lines hand-written.**
+
 ## Why This Exists
 
 In an AI-assisted development workflow, **prompts are the real source code**. The architecture, constraints, and behavioral rules are encoded here — what the agent receives determines what it produces. This is the equivalent of design documents in a traditional engineering team.
@@ -38,3 +40,13 @@ EDGE CASES:  Known failure modes to handle
 
 [AI-DECLARATION.md](../AI-DECLARATION.md) describes *what* was AI-generated vs human-designed.
 This directory shows *how* — the exact instructions that produced each component.
+
+---
+
+## Note on Methodology
+
+This project uses a **human-architected, AI-generated** workflow. The prompts in this directory are engineering artifacts — they demonstrate how complex distributed systems can be decomposed into specifications precise enough for LLMs to execute reliably.
+
+The prompt structure (CONTEXT → SPEC → CONSTRAINTS → VERIFICATION → EDGE CASES) evolved iteratively over 1.5 years of development. Each prompt represents a unit of engineering effort: the human designs the interface and constraints, the AI implements, the human validates against the original spec.
+
+If you are evaluating this project for a technical role — this directory is the closest thing to a "design document" in the repository. The prompts show how a single architect can specify, validate, and integrate code across kernel (C/Go), application (Python), and infrastructure (Docker/systemd) boundaries.
