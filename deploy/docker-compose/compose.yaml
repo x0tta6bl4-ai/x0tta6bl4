@@ -124,10 +124,9 @@ services:
       - http_proxy=
       - https_proxy=
       - no_proxy=*
-      - SPIRE_SERVER_ADDRESS=89.125.1.107
-      - SPIRE_SERVER_PORT=8081
-      - JOIN_TOKEN=${NL_JOIN_TOKEN}
+    command: ["spire-agent", "run", "-config", "/etc/spire/agent-nl.conf"]
     volumes:
+      - ./spire-agent-nl.conf:/etc/spire/agent-nl.conf:ro
       - spire-socket-nl:/tmp/spire-agent
     networks:
       mesh-net:
