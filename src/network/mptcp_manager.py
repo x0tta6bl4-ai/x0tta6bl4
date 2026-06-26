@@ -5,14 +5,15 @@ MPTCP Manager for x0tta6bl4 Mesh.
 Enables Kernel-level Multi-path TCP (MPTCP) to aggregate multiple
 mesh links into a single logical high-speed connection.
 """
+from __future__ import annotations
 
 import hashlib
 import logging
 import os
-import subprocess
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
+from src.core.security.subprocess_validator import safe_run
 from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
@@ -411,7 +412,7 @@ class MPTCPManager:
         val = "1" if enabled else "0"
 
         def _executor(_operation: str, _context: Dict[str, Any]) -> SafeActuatorResult:
-            subprocess.run(["sysctl", "-w", f"net.mptcp.enabled={val}"], check=True)
+            safe_run(["sysctl", "-w", f"net.mptcp.enabled={val}"], check=True)
             logger.info("✅ MPTCP %s globally", "enabled" if enabled else "disabled")
             return SafeActuatorResult(
                 True,
@@ -474,8 +475,8 @@ class MPTCPManager:
                 )
                 return SafeActuatorResult(False, "MPTCP not supported by kernel")
             # Clear existing limits/endpoints for fresh config
-            subprocess.run(["ip", "mptcp", "endpoint", "flush"], capture_output=True)
-            subprocess.run(
+            safe_run(["ip", "mptcp", "endpoint", "flush"], capture_output=True)
+            safe_run(
                 [
                     "ip",
                     "mptcp",
@@ -578,3 +579,4 @@ class MPTCPManager:
             event_id,
             include_evidence=include_evidence,
         )
+

@@ -1,10 +1,75 @@
+from __future__ import annotations
 # Subprocess validation utilities
 import os
 import subprocess
 from pathlib import Path
 from typing import List
 
-ALLOWED_COMMANDS = {"bpftool", "batctl", "yggdrasilctl", "ip", "tc", "which", "ping"}
+ALLOWED_COMMANDS = {
+    "bpftool",
+    "batctl",
+    "yggdrasilctl",
+    "ip",
+    "tc",
+    "which",
+    "ping",
+    # Security infrastructure
+    "spire-server",
+    "spire-agent",
+    "spire-server.exe",
+    "spire-agent.exe",
+    # Python / scripting
+    "python3",
+    "python",
+    "bash",
+    "sh",
+    # System service management
+    "systemctl",
+    "systemd-run",
+    # Network / VPN
+    "xray",
+    "xray-linux-amd64",
+    "wireguard",
+    "wg",
+    "wg-quick",
+    "openvpn",
+    # Filesystem / diagnostics
+    "ls",
+    "cat",
+    "grep",
+    "awk",
+    "sed",
+    "tee",
+    "chmod",
+    "chown",
+    "mkdir",
+    "rm",
+    "mv",
+    "cp",
+    "ln",
+    "id",
+    "uname",
+    "hostname",
+    "df",
+    "du",
+    "free",
+    "ps",
+    "ss",
+    "tcpdump",
+    "curl",
+    "wget",
+    "git",
+    "make",
+    # Kubernetes / containers
+    "kubectl",
+    "docker",
+    "containerd",
+    # System config
+    "sudo",
+    "sysctl",
+    "iptables",
+    "nft",
+}
 
 DANGEROUS_ARGUMENT_CHARS = frozenset((";", "&", "|", "`", "$", "(", ")", "<", ">", "\n", "\r"))
 MAX_ARGUMENT_LENGTH = 512
@@ -136,3 +201,4 @@ def safe_run(cmd: List[str], **kwargs) -> subprocess.CompletedProcess:
     safe_kwargs["shell"] = False
     resolved_cmd = [_resolve_trusted_command(cmd[0]), *cmd[1:]]
     return subprocess.run(resolved_cmd, **safe_kwargs)
+

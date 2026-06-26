@@ -5,6 +5,7 @@ Quantum Shield Client Engine (Ghost Pulse Integrated) - Robust Version 6
 Advanced VPN client implementing Ghost Pulse Transport.
 Includes Kill Switch, IPv6 Leak Protection, and Auto-reconnect logic.
 """
+from __future__ import annotations
 
 import asyncio
 import fcntl
@@ -13,10 +14,11 @@ import logging
 import os
 import socket
 import struct
-import subprocess
 import sys
 import time
 from typing import Optional, Dict, Any, Callable
+
+from src.core.security.subprocess_validator import safe_run
 
 # Project root detection
 def get_project_root():
@@ -120,7 +122,7 @@ class QuantumShieldEngine:
         cmds.append(["ip", "route", "replace", "blackhole", "::/0"]) # Final IPv6 kill
 
         for cmd in cmds:
-            subprocess.run(["sudo", "-n"] + cmd, capture_output=True)
+            safe_run(["sudo", "-n"] + cmd, capture_output=True)
 
     async def start(self):
         if not self.setup_network():
@@ -171,9 +173,9 @@ class QuantumShieldEngine:
             try:
                 os.close(self.tun_fd)
                 # Cleanup interface
-                subprocess.run(["sudo", "-n", "ip", "link", "delete", TUN_INTERFACE_NAME], capture_output=True)
+                safe_run(["sudo", "-n", "ip", "link", "delete", TUN_INTERFACE_NAME], capture_output=True)
                 # Re-enable IPv6
-                subprocess.run(["sudo", "-n", "sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=0"], capture_output=True)
+                safe_run(["sudo", "-n", "sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=0"], capture_output=True)
             except Exception:
                 pass
             self.tun_fd = None
@@ -189,3 +191,4 @@ class QuantumShieldEngine:
             "received_kb": self.metrics["bytes_received"] // 1024,
             "packets": self.metrics["packets_sent"] + self.metrics["packets_received"]
         }
+
