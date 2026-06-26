@@ -1,0 +1,6 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY deploy/docker-compose/mesh_node.py /app/mesh_node.py
+COPY src /code/src
+ENV PYTHONPATH=/code
+CMD ["python3", "-u", "/app/mesh_node.py"]
