@@ -1,0 +1,32 @@
+{
+  "name": "x0tta6bl4 Badge: Quantum Pioneer",
+  "description": "Advocate for post-quantum readiness.",
+  "image": "ipfs://CID/qnt.png",
+  "external_url": "https://example.com/x0tta6bl4/badges",
+  "attributes": [
+    {
+      "trait_type": "Code",
+      "value": "QNT"
+    },
+    {
+      "trait_type": "Tier",
+      "value": 3
+    },
+    {
+      "trait_type": "Governance Weight",
+      "value": 2.0
+    },
+    {
+      "trait_type": "Domain",
+      "value": "cryptography"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "rare"
+    },
+    {
+      "trait_type": "Generated At",
+      "value": "2025-11-01T22:20:56.322156Z"
+    }
+  ]
+}

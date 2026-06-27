@@ -1,0 +1,64 @@
+# Production Configuration for x0tta6bl4 v3.0
+# ===========================================
+
+# V3.0 Component Settings
+v3_components:
+  graphsage:
+    enabled: true
+    in_channels: 10
+    hidden_channels: 64
+    num_layers: 3
+    device: "cpu"  # Use "cuda" if GPU available
+    confidence_threshold: 0.7
+    
+  stego_mesh:
+    enabled: true
+    master_key_path: "/etc/x0tta6bl4/stego_master.key"
+    default_protocol: "http"  # http, icmp, dns
+    enable_auto_rotation: true
+    
+  digital_twins:
+    enabled: false  # Only for testing
+    node_count: 100
+    chaos_testing_enabled: false
+    
+  federated_learning:
+    enabled: true
+    num_clients: 10
+    num_rounds: 50
+    target_epsilon: 1.0
+    target_delta: 1e-5
+    
+  audit_trail:
+    enabled: true
+    ipfs_enabled: true
+    ethereum_enabled: false  # Set to true when contract deployed
+    ethereum_contract_address: ""
+    merkle_tree_enabled: true
+
+# MAPE-K Integration
+mapek_integration:
+  enable_graphsage: true
+  enable_stego_mesh: true
+  enable_digital_twins: false
+  enable_audit_logging: true
+
+# Performance Settings
+performance:
+  graphsage_batch_size: 32
+  stego_mesh_overhead_limit: 0.3  # Max 30% overhead
+  audit_trail_batch_size: 100
+
+# Security Settings
+security:
+  stego_master_key_rotation_days: 30
+  audit_trail_retention_days: 365
+  federated_learning_privacy_budget: 1.0
+
+# Monitoring
+monitoring:
+  graphsage_metrics_enabled: true
+  stego_mesh_metrics_enabled: true
+  audit_trail_metrics_enabled: true
+  federated_learning_metrics_enabled: true
+

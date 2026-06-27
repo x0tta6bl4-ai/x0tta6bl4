@@ -1,0 +1,32 @@
+{
+  "name": "x0tta6bl4 Badge: Mesh Architect",
+  "description": "Contributor to mesh topology & design patterns.",
+  "image": "ipfs://CID/arch.png",
+  "external_url": "https://example.com/x0tta6bl4/badges",
+  "attributes": [
+    {
+      "trait_type": "Code",
+      "value": "ARCH"
+    },
+    {
+      "trait_type": "Tier",
+      "value": 2
+    },
+    {
+      "trait_type": "Governance Weight",
+      "value": 1.5
+    },
+    {
+      "trait_type": "Domain",
+      "value": "architecture"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "uncommon"
+    },
+    {
+      "trait_type": "Generated At",
+      "value": "2025-11-01T22:20:56.322156Z"
+    }
+  ]
+}

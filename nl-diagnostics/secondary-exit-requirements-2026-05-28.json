@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/build_secondary_exit_requirements.py",
+  "generated_at": "2026-05-28T03:42:21.104955+00:00",
+  "status": "requirements_ready_no_candidate",
+  "summary": {
+    "requirement_count": 8,
+    "missing_items": [
+      "NET-01"
+    ],
+    "blocked_items": [],
+    "candidate_configured": false,
+    "secondary_probe_status": "planning_template",
+    "manual_failover_readiness_status": "blocked_no_incident_trigger",
+    "manual_switch_allowed": false,
+    "candidate_score_status": "missing_candidates",
+    "candidate_viable_count": 0,
+    "spb_fallback_allowed": false,
+    "automatic_failover_allowed": false,
+    "nl_write_allowed": false
+  },
+  "requirements": [
+    {
+      "id": "SEL-01",
+      "group": "selection",
+      "title": "Use a new provider and region, not NL and not SPB",
+      "status": "ready_requirement",
+      "acceptance": "candidate provider, region, account, and host are documented as non-NL/non-SPB public metadata",
+      "evidence": [
+        "decision=observe",
+        "failure_domain=external_network",
+        "spb_excluded=true"
+      ],
+      "next_step": "choose a provider/region/account that is independent from NL and does not reuse SPB"
+    },
+    {
+      "id": "SEL-02",
+      "group": "selection",
+      "title": "Use a small, boring daily/emergency profile split",
+      "status": "ready_requirement",
+      "acceptance": "daily NL profile remains separate from emergency secondary profile; automatic switching stays disabled",
+      "evidence": [
+        "automatic_failover_allowed=false",
+        "manual_switch_allowed=false"
+      ],
+      "next_step": "document the secondary as an emergency profile only until manual process is tested"
+    },
+    {
+      "id": "SEL-03",
+      "group": "selection",
+      "title": "Score candidate metadata before choosing a secondary",
+      "status": "ready_no_candidates",
+      "acceptance": "candidate scorer exists and rejects NL, SPB, placeholders, private addresses, and secret-like material",
+      "evidence": [
+        "candidate_score_status=missing_candidates",
+        "candidate_count=0",
+        "viable_count=0",
+        "top_candidate_label=none"
+      ],
+      "next_step": "fill secondary-exit-candidates.example.json with public metadata for non-NL/non-SPB candidates"
+    },
+    {
+      "id": "SEC-01",
+      "group": "security",
+      "title": "Do not store VPN secrets in repo or reports",
+      "status": "ready_requirement",
+      "acceptance": "only public endpoint metadata is stored; no raw URI, UUID, private key, or bot token",
+      "evidence": [
+        "config_generator=nl-diagnostics/create_secondary_exit_config.py",
+        "probe=nl-diagnostics/probe_secondary_exit.py"
+      ],
+      "next_step": "generate the future probe config from public metadata only"
+    },
+    {
+      "id": "NET-01",
+      "group": "network",
+      "title": "Expose an independent public TCP health target",
+      "status": "missing_candidate",
+      "acceptance": "probe_secondary_exit.py can reach at least one configured TCP port without touching NL",
+      "evidence": [
+        "secondary_probe_status=planning_template",
+        "candidate_configured=false",
+        "candidate_label=secondary-placeholder",
+        "candidate_tcp_ports=[443]"
+      ],
+      "next_step": "configure a non-secret TCP probe target such as the future public 443 endpoint"
+    },
+    {
+      "id": "NET-02",
+      "group": "network",
+      "title": "Verify exit IP only after manual test-client activation",
+      "status": "ready_requirement",
+      "acceptance": "client exit probe is disabled until a manual test profile is activated on a client",
+      "evidence": [
+        "client probe uses local SOCKS only after manual activation",
+        "raw profile secrets remain outside reports"
+      ],
+      "next_step": "after secondary exists, enable client_probe only on a test client and compare expected exit IP"
+    },
+    {
+      "id": "OPS-01",
+      "group": "operations",
+      "title": "Keep failover manual and reversible",
+      "status": "ready_requirement",
+      "acceptance": "manual approval, rollback path, and return-to-NL verification are documented before any switch",
+      "evidence": [
+        "manual_failover_readiness_status=blocked_no_incident_trigger",
+        "manual_probe_allowed=false",
+        "manual_switch_allowed=false"
+      ],
+      "next_step": "write the exact client-side switch and rollback checklist after a real secondary endpoint exists"
+    },
+    {
+      "id": "OPS-02",
+      "group": "operations",
+      "title": "Use project-local temp space for diagnostic commands",
+      "status": "ready_requirement",
+      "acceptance": "commands that need temporary files can run with TMPDIR=/mnt/projects/.tmp while / is full",
+      "evidence": [
+        "local_root_filesystem_full=true",
+        "recommended_tmpdir=/mnt/projects/.tmp"
+      ],
+      "next_step": "prefix long local diagnostic/test commands with TMPDIR=/mnt/projects/.tmp until root disk is cleaned"
+    }
+  ],
+  "allowed_metadata": [
+    "label",
+    "provider name",
+    "region",
+    "public host/IP",
+    "public TCP probe ports",
+    "expected exit IP only after manual test-client activation"
+  ],
+  "forbidden_material": [
+    "raw VPN URI",
+    "UUID",
+    "private key",
+    "bot token",
+    "subscription link",
+    "NL endpoint",
+    "SPB endpoint"
+  ],
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}

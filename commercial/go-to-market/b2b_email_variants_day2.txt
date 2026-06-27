@@ -1,0 +1,161 @@
+=== FinCore ===
+Subject: FinCore: 7-Day Mesh Resilience Pilot to Cut Latency Risk
+
+Hi Svetlana,
+
+FinCore’s latency SLO tightening after Q3 incidents makes resilience visibility critical. x0tta6bl4 is a self-healing zero-trust mesh layer keeping internal services reachable during partial failures.
+
+Pilot (7 days):
+- Slot-based sync (no GPS)
+- mTLS / SPIFFE identity isolation
+- Adaptive ML routing (convergence < 2.4s → target < 2.0s)
+- Optional LoRa fallback for disconnected zones
+
+Deliverables:
+- Focused resilience audit (FinCore failure modes)
+- Kubernetes deployment playbook + fallback transport
+- OPA Zero-Trust policy examples
+- Metrics dashboard (latency, recovery, convergence)
+
+Commercial:
+200,000 RUB fixed • 7 days • ~6–8h engineer time on your side • Clear Go/No-Go.
+
+Two possible call slots: Tue 11:00 MSK / Wed 16:00 MSK. Any preference?
+
+Best,
+[ТВОЁ ИМЯ] • Founder, x0tta6bl4 • [Telegram] | [Email]
+
+---
+=== TeleGrid ===
+Subject: TeleGrid: Stabilize Edge Node Churn with a 7-Day Mesh Pilot
+
+Hi Andrei,
+
+Regional edge node churn affects TeleGrid’s routing consistency. We built x0tta6bl4: adaptive zero-trust mesh to sustain service reachability under partial outages.
+
+Pilot (7 days):
+- Slot sync (no GPS dependency)
+- SPIFFE identities + mTLS
+- Graph ML adaptive routing
+- LoRa fallback for fringe zones
+
+Deliverables: edge churn audit, deployment playbook, OPA examples, metrics dashboard.
+
+Fixed cost: 200,000 RUB. Scope call? Tue 14:00 / Wed 15:30 MSK.
+
+Regards,
+[ТВОЁ ИМЯ]
+
+---
+=== SecureLayer ===
+Subject: SecureLayer: Hybrid libp2p + mTLS Pilot to Harden Resilience
+
+Hi Irina,
+
+Sandbox limitations around mTLS can erode isolation. Our hybrid libp2p + SPIFFE approach (x0tta6bl4) keeps services reachable while preserving Zero-Trust posture.
+
+Pilot includes: slot sync, identity isolation, adaptive routing, fallback transport.
+
+Outcome: actionable resilience audit + deployment playbook.
+
+Slots: Tue 12:00 / Thu 11:30 MSK. Works?
+
+[ТВОЁ ИМЯ]
+
+---
+=== BankNova ===
+Subject: BankNova: Validate Post-Switch Resilience in 7-Day Mesh Pilot
+
+Hi Oleg,
+
+After the core switch upgrade BankNova can benchmark recovery paths. x0tta6bl4 self-healing mesh → MTTR target < 2.0s.
+
+Deliverables: audit, playbook, OPA policies, metrics dashboard.
+
+Call slots: Wed 10:00 / Thu 16:00 MSK.
+
+[ТВОЁ ИМЯ]
+
+---
+=== MedChain ===
+Subject: MedChain: Pre-Compliance Mesh Resilience Pilot (7 Days)
+
+Hi Anna,
+
+Upcoming HIPAA-like compliance stress tests: resilience insights matter. x0tta6bl4 = adaptive mesh + Zero-Trust identity plane.
+
+Pilot outputs: failure mode audit, playbook, policy examples, recovery metrics.
+
+Slots: Mon 15:00 / Wed 11:00 MSK.
+
+[ТВОЁ ИМЯ]
+
+---
+=== RetailMesh ===
+Subject: RetailMesh: Black Friday Resilience Pilot (7 Days)
+
+Hi Denis,
+
+Black Friday spike risk demands rapid recovery. Our self-healing mesh layer (x0tta6bl4) maintains internal reachability under partial degradation.
+
+Pilot: slot sync, SPIFFE identities, adaptive routing, fallback link.
+
+Call: Mon 14:00 / Tue 17:00 MSK?
+
+[ТВОЁ ИМЯ]
+
+---
+=== AeroLink ===
+Subject: AeroLink: Ensure Telemetry Continuity via Mesh Pilot
+
+Hi Marina,
+
+Flight telemetry continuity under partial outages = safety + ops stability. x0tta6bl4 improves convergence & MTTR with zero-trust routing.
+
+Pilot deliverables: telemetry resilience audit, playbook, OPA policies, metrics dashboard.
+
+Call slots: Tue 10:30 / Thu 14:30 MSK.
+
+[ТВОЁ ИМЯ]
+
+---
+=== DataOrbit ===
+Subject: DataOrbit: Event Streaming Resilience Mesh Pilot
+
+Hi Kirill,
+
+Increased reliance on event streaming amplifies failure impact. x0tta6bl4 mesh keeps pathways open, reduces MTTR.
+
+Pilot: identity isolation, adaptive routing, slot sync, fallback transport.
+
+Scope call: Wed 13:00 / Thu 15:00 MSK.
+
+[ТВОЁ ИМЯ]
+
+---
+=== AgriFlow ===
+Subject: AgriFlow: Rural Connectivity Mesh Pilot
+
+Hi Elena,
+
+Rural connectivity gaps affect sensor continuity. x0tta6bl4 mesh + LoRa fallback enhances resilience & data flow.
+
+Pilot includes: failure audit, playbook, routing adaptation, metrics board.
+
+Slots: Mon 16:00 / Tue 11:30 MSK.
+
+[ТВОЁ ИМЯ]
+
+---
+=== CyberTrace ===
+Subject: CyberTrace: Phase 2 Zero-Trust Resilience Mesh Pilot
+
+Hi Dmitry,
+
+Phase 2 Zero-Trust rollout can gain accelerated recovery metrics. x0tta6bl4 adds adaptive routing + strict identities.
+
+Pilot deliverables: audit, deployment guide, policy set, metrics.
+
+Call: Tue 15:00 / Wed 12:30 MSK.
+
+[ТВОЁ ИМЯ]

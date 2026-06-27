@@ -1,0 +1,175 @@
+---
+# Chaos Mesh Scenario 2: PQC Verification Failures
+# Tests MAPE-K response to repeated signature verification failures
+# Simulates potential cryptographic attack or key compromise
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pqc-chaos-injector
+  namespace: x0tta6bl4
+data:
+  inject_failures.py: |
+    #!/usr/bin/env python3
+    """
+    PQC Chaos Injector - Simulates signature verification failures
+    for testing MAPE-K self-healing response.
+    """
+    import sys
+    import time
+    import secrets
+    import hashlib
+    sys.path.insert(0, '/app')
+
+    from src.network.ebpf.pqc_verification_daemon import (
+        PQCVerificationEvent,
+        MockPQCVerificationDaemon,
+    )
+    from src.network.ebpf.pqc_mapek_integration import (
+        PQCMAPEKIntegration,
+        PQCAnomalyType,
+    )
+
+    def main():
+        print("=== PQC Chaos Injector Starting ===")
+
+        # Get daemon from running system or create mock
+        try:
+            from src.network.ebpf.pqc_mapek_integration import create_integrated_pqc_system
+            system = create_integrated_pqc_system(enable_prometheus=False)
+            daemon = system['daemon']
+            integration = system['integration']
+        except Exception as e:
+            print(f"Using standalone mock daemon: {e}")
+            daemon = MockPQCVerificationDaemon()
+            integration = PQCMAPEKIntegration(
+                pqc_daemon=daemon,
+                enable_metrics=False
+            )
+            daemon.anomaly_callback = integration.handle_daemon_anomaly
+
+        daemon.start()
+
+        # Inject failures
+        FAILURE_COUNT = 10
+        UNKNOWN_PUBKEY_COUNT = 5
+
+        print(f"Injecting {FAILURE_COUNT} verification failures...")
+        for i in range(FAILURE_COUNT):
+            # Register a pubkey first, then send invalid signature
+            pubkey_id = hashlib.sha256(f"chaos-peer-{i}".encode()).digest()[:16]
+            daemon.register_public_key(pubkey_id, secrets.token_bytes(1952))
+
+            event = PQCVerificationEvent(
+                session_id=secrets.token_bytes(16),
+                signature=b"INVALID_CHAOS_SIGNATURE" * 50,  # Invalid
+                payload_hash=secrets.token_bytes(32),
+                pubkey_id=pubkey_id,
+                timestamp=time.time_ns()
+            )
+            daemon.submit_event(event)
+            time.sleep(0.2)
+
+        print(f"Injecting {UNKNOWN_PUBKEY_COUNT} unknown pubkey events...")
+        for i in range(UNKNOWN_PUBKEY_COUNT):
+            event = PQCVerificationEvent(
+                session_id=secrets.token_bytes(16),
+                signature=secrets.token_bytes(100),
+                payload_hash=secrets.token_bytes(32),
+                pubkey_id=secrets.token_bytes(16),  # Unknown
+                timestamp=time.time_ns()
+            )
+            daemon.submit_event(event)
+            time.sleep(0.2)
+
+        # Wait and check results
+        time.sleep(2)
+
+        stats = daemon.get_stats()
+        mapek_metrics = integration.get_metrics_for_mapek()
+
+        print("\n=== Chaos Injection Results ===")
+        print(f"Events received: {stats.get('events_received', 0)}")
+        print(f"Verifications failed: {stats.get('verifications_failed', 0)}")
+        print(f"Unknown pubkeys: {stats.get('unknown_pubkey', 0)}")
+        print(f"MAPE-K anomalies: {mapek_metrics.get('pqc_anomalies_last_hour', 0)}")
+        print(f"Consecutive failures: {mapek_metrics.get('pqc_consecutive_failures', 0)}")
+
+        # Verify expected behavior
+        assert stats.get('unknown_pubkey', 0) >= UNKNOWN_PUBKEY_COUNT, \
+            "Unknown pubkey detection failed"
+        assert len(integration.anomaly_history) > 0, \
+            "No anomalies detected by MAPE-K"
+
+        # Check for escalation
+        escalated = any(
+            a.anomaly_type in [PQCAnomalyType.HIGH_FAILURE_RATE, PQCAnomalyType.VERIFICATION_FAILED]
+            for a in integration.anomaly_history
+        )
+        if escalated:
+            print("✓ MAPE-K escalation triggered as expected")
+        else:
+            print("✗ MAPE-K did not escalate (may need threshold adjustment)")
+
+        daemon.stop()
+        print("\n=== PQC Chaos Injection Complete ===")
+
+    if __name__ == '__main__':
+        main()
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pqc-chaos-injector
+  namespace: x0tta6bl4
+  labels:
+    chaos-scenario: pqc-failure
+    phase: "2"
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: injector
+          image: python:3.12-slim
+          command:
+            - /bin/bash
+            - -c
+            - |
+              pip install -q liboqs-python || true
+              python /scripts/inject_failures.py
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+            - name: app-code
+              mountPath: /app
+          env:
+            - name: PYTHONPATH
+              value: "/app"
+      volumes:
+        - name: scripts
+          configMap:
+            name: pqc-chaos-injector
+        - name: app-code
+          persistentVolumeClaim:
+            claimName: x0tta6bl4-code
+---
+# Alternative: Use PodChaos to kill PQC verifier
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: pqc-verifier-failure
+  namespace: x0tta6bl4
+  labels:
+    chaos-scenario: pqc-failure
+    phase: "2"
+spec:
+  action: pod-failure
+  mode: one
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      component: pqc-verifier
+  duration: "30s"

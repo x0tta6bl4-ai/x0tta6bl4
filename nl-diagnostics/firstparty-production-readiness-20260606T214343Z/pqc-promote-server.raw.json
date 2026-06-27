@@ -1,0 +1,22 @@
+{
+  "candidate_hash": "2f7cddc2822e82e68508553f3cdd0491f08b8a2d9534adea3fb59cf1c8c43a24",
+  "candidate_pqc_metadata": {
+    "expires_at": 1780785824,
+    "implementation_hash": "b95a180f5fc5ea45b6302ef436e83c0e0e7c5ad349a6324aafb355cd1b7ff7e4",
+    "issued_at": 1780782224,
+    "kem_algorithm": "ML-KEM-768",
+    "mode": "production",
+    "provider_id": "x0tta6bl4-firstparty-mlkem",
+    "reviewed": true,
+    "signature_algorithm": "ML-DSA-65"
+  },
+  "config": "/tmp/x0vpn-firstparty-production-readiness-20260606T214343Z.smN7GX/server.json",
+  "file_mutation_performed": true,
+  "mode": "pqc-promote-config",
+  "ok": true,
+  "os_mutation_performed": false,
+  "out_config": "/tmp/x0vpn-firstparty-production-readiness-20260606T214343Z.smN7GX/server.promoted.json",
+  "pqc_kat_suite_hash": "3145297acfacc697ee68332bda8f7e85bfaf3b0af8a6055789a8203a6fc9a165",
+  "pqc_manifest_hash": "d0ab38294a2835baf6332be4e7288625668a41d783c66602be07708aa5ed392a",
+  "runtime_metadata_matches_manifest_before": true
+}

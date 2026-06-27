@@ -1,0 +1,154 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: proxy-alerts
+  namespace: proxy-infrastructure
+  labels:
+    app: proxy-infrastructure
+    release: prometheus
+spec:
+  groups:
+  - name: proxy-pool
+    interval: 30s
+    rules:
+    - alert: ProxyPoolExhaustion
+      expr: |
+        (
+          sum(proxy_health_check{status="healthy"}) / sum(proxy_health_check)
+        ) < 0.3
+      for: 2m
+      labels:
+        severity: critical
+        component: proxy-pool
+      annotations:
+        summary: "Proxy pool exhaustion detected"
+        description: "Less than 30% of proxies are healthy. Current healthy: {{ $value | humanizePercentage }}"
+        runbook_url: "https://wiki.internal/proxy-pool-exhaustion"
+    
+    - alert: HighProxyLatency
+      expr: |
+        histogram_quantile(0.95, 
+          sum(rate(proxy_latency_ms_bucket[5m])) by (le, proxy_id)
+        ) > 2000
+      for: 5m
+      labels:
+        severity: warning
+        component: proxy-latency
+      annotations:
+        summary: "High proxy latency detected"
+        description: "P95 latency for proxy {{ $labels.proxy_id }} is {{ $value }}ms"
+    
+    - alert: ProxyFailureRate
+      expr: |
+        (
+          sum(rate(proxy_requests_failed[5m])) 
+          / 
+          sum(rate(proxy_requests_total[5m]))
+        ) > 0.1
+      for: 3m
+      labels:
+        severity: warning
+        component: proxy-failures
+      annotations:
+        summary: "High proxy failure rate"
+        description: "Proxy failure rate is {{ $value | humanizePercentage }}"
+    
+    - alert: ProxyAuthenticationFailures
+      expr: |
+        sum(rate(proxy_auth_failures_total[5m])) > 10
+      for: 2m
+      labels:
+        severity: critical
+        component: auth
+      annotations:
+        summary: "High authentication failure rate"
+        description: "{{ $value }} auth failures per second"
+    
+    - alert: TLSCertificateExpiry
+      expr: |
+        (
+          probe_ssl_earliest_cert_expiry - time()
+        ) / 86400 < 30
+      for: 1h
+      labels:
+        severity: warning
+        component: tls
+      annotations:
+        summary: "TLS certificate expiring soon"
+        description: "Certificate expires in {{ $value }} days"
+    
+    - alert: TLSCertificateExpiryCritical
+      expr: |
+        (
+          probe_ssl_earliest_cert_expiry - time()
+        ) / 86400 < 7
+      for: 1h
+      labels:
+        severity: critical
+        component: tls
+      annotations:
+        summary: "TLS certificate expiring within 7 days"
+        description: "Certificate expires in {{ $value }} days - RENEW NOW"
+  
+  - name: redis
+    interval: 30s
+    rules:
+    - alert: RedisMemoryHigh
+      expr: |
+        redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+      for: 5m
+      labels:
+        severity: warning
+        component: redis
+      annotations:
+        summary: "Redis memory usage high"
+        description: "Redis memory usage is {{ $value | humanizePercentage }}"
+    
+    - alert: RedisDown
+      expr: |
+        redis_up == 0
+      for: 1m
+      labels:
+        severity: critical
+        component: redis
+      annotations:
+        summary: "Redis instance down"
+        description: "Redis instance {{ $labels.instance }} is down"
+  
+  - name: infrastructure
+    interval: 30s
+    rules:
+    - alert: NodeHighCPU
+      expr: |
+        100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+      for: 5m
+      labels:
+        severity: warning
+        component: node
+      annotations:
+        summary: "High CPU usage on node"
+        description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+    
+    - alert: NodeHighMemory
+      expr: |
+        (
+          node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+        ) / node_memory_MemTotal_bytes > 0.9
+      for: 5m
+      labels:
+        severity: warning
+        component: node
+      annotations:
+        summary: "High memory usage on node"
+        description: "Memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+    
+    - alert: DDoSAttackDetected
+      expr: |
+        sum(rate(proxy_requests_total[1m])) > 10000
+      for: 2m
+      labels:
+        severity: critical
+        component: security
+      annotations:
+        summary: "Potential DDoS attack detected"
+        description: "Request rate is {{ $value }} req/s - possible DDoS"

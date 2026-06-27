@@ -1,0 +1,87 @@
+---
+# ServiceAccount for Vault
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault
+  namespace: vault
+  labels:
+    app: vault
+automountServiceAccountToken: true
+
+---
+# ClusterRole for Vault to access TokenReview API
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vault-auth-delegator
+  labels:
+    app: vault
+rules:
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+
+---
+# ClusterRoleBinding for Vault
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-auth-delegator
+  labels:
+    app: vault
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vault-auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: vault
+    namespace: vault
+
+---
+# ServiceAccount for proxy-api application
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: proxy-api
+  namespace: default
+  labels:
+    app: proxy-api
+automountServiceAccountToken: true
+
+---
+# Role for proxy-api to read its own service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: proxy-api-sa-reader
+  namespace: default
+  labels:
+    app: proxy-api
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    resourceNames: ["proxy-api"]
+    verbs: ["get"]
+
+---
+# RoleBinding for proxy-api
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: proxy-api-sa-reader
+  namespace: default
+  labels:
+    app: proxy-api
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: proxy-api-sa-reader
+subjects:
+  - kind: ServiceAccount
+    name: proxy-api
+    namespace: default

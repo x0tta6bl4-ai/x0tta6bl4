@@ -1,0 +1,105 @@
+{
+  "allowed": true,
+  "dataplane_validation": {
+    "captured_at": 1780780960,
+    "covered_path_labels": [
+      "local-loopback"
+    ],
+    "failed_reasons": [],
+    "min_successful_probes": 1,
+    "passed": true,
+    "plan_hash": "d11569ca43e3338663003cb08c32f1657baf1992baafd9f421954264d903f4ae",
+    "probe_matrix_hash": "5b5f1d18985192ab35ef9de7e64b1d20f7286a75ff5aeee63ab18c88a89ca6f2",
+    "required_path_labels": [
+      "local-loopback"
+    ],
+    "results": [
+      {
+        "latency_millis": 3324,
+        "path_label": "local-loopback",
+        "probe_id": "local-loopback-tcp-38425",
+        "remote_hash": "ee670a262179a94de6dbc61637eef485cf43d829cfedb4e20f9ab0f1f8da4e51",
+        "rx_bytes": 124,
+        "rx_frames": 1,
+        "success": true,
+        "transport": "tcp",
+        "tx_bytes": 124,
+        "tx_frames": 1
+      }
+    ],
+    "successful_probe_count": 1
+  },
+  "mode": "dataplane-readiness",
+  "mtu_validation": {
+    "captured_at": 1780780960,
+    "covered_path_labels": [
+      "local-loopback"
+    ],
+    "failed_reasons": [],
+    "min_successful_paths": 1,
+    "passed": true,
+    "plan_hash": "4fd3100b1ba4e6930132f53d7139d68f750d04156904e817831d25585d0a399e",
+    "probe_matrix_hash": "5b5f1d18985192ab35ef9de7e64b1d20f7286a75ff5aeee63ab18c88a89ca6f2",
+    "required_path_labels": [
+      "local-loopback"
+    ],
+    "results": [
+      {
+        "attempted_payload_sizes": [
+          1280
+        ],
+        "failed_attempt_count": 0,
+        "path_label": "local-loopback",
+        "probe_id": "local-loopback-tcp-38425",
+        "remote_hash": "ee670a262179a94de6dbc61637eef485cf43d829cfedb4e20f9ab0f1f8da4e51",
+        "selected_fragment_payload_size": 1216,
+        "selected_payload_size": 1280,
+        "success": true,
+        "transport": "tcp"
+      }
+    ],
+    "successful_path_count": 1
+  },
+  "ok": true,
+  "os_mutation_performed": false,
+  "required_dataplane_paths": [
+    "local-loopback"
+  ],
+  "required_dataplane_probe_matrix_hash": "5b5f1d18985192ab35ef9de7e64b1d20f7286a75ff5aeee63ab18c88a89ca6f2",
+  "required_dataplane_transports": [
+    [
+      "local-loopback",
+      "tcp"
+    ]
+  ],
+  "tun_dataplane_validation": {
+    "captured_at": 1780780960,
+    "covered_path_labels": [
+      "local-loopback"
+    ],
+    "failed_reasons": [],
+    "min_successful_paths": 1,
+    "passed": true,
+    "plan_hash": "9becd7c3ab1de9b4ba816a2305192d865acc7f780e95343e646d3ac1f72d6c29",
+    "probe_matrix_hash": "5b5f1d18985192ab35ef9de7e64b1d20f7286a75ff5aeee63ab18c88a89ca6f2",
+    "required_path_labels": [
+      "local-loopback"
+    ],
+    "results": [
+      {
+        "bytes_from_tun": 60,
+        "bytes_to_tun": 60,
+        "packets_from_tun": 1,
+        "packets_to_tun": 1,
+        "path_label": "local-loopback",
+        "probe_id": "local-loopback-tcp-38425",
+        "remote_hash": "ee670a262179a94de6dbc61637eef485cf43d829cfedb4e20f9ab0f1f8da4e51",
+        "rx_fragments": 1,
+        "success": true,
+        "transport": "tcp",
+        "tx_fragments": 1
+      }
+    ],
+    "successful_path_count": 1
+  }
+}

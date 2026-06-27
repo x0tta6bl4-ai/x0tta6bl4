@@ -1,0 +1,39 @@
+{
+  "adb": {
+    "adb_available": true,
+    "connected_device_count": 0,
+    "device_state_counts": {},
+    "raw_serials_stored": false
+  },
+  "checked_at": "2026-06-05T09:36:31Z",
+  "dataplane": {
+    "http_code": 0,
+    "ok": false,
+    "raw_response_stored": false,
+    "target_url_class": "https_generate_204",
+    "tool": "not_run"
+  },
+  "decision": "ANDROID_DEVICE_NOT_CONNECTED",
+  "matrix_recording": {
+    "attempted": false,
+    "reason": "record_matrix_not_requested",
+    "recorded": false
+  },
+  "ok": false,
+  "privacy": {
+    "output_privacy_ok": true,
+    "raw_adb_serial_stored": false,
+    "raw_connectivity_dump_stored": false,
+    "raw_email_stored": false,
+    "raw_ip_stored": false,
+    "raw_response_stored": false,
+    "raw_subscription_url_stored": false,
+    "raw_uuid_stored": false,
+    "raw_vpn_uri_stored": false
+  },
+  "vpn_runtime": {
+    "checked": false,
+    "raw_connectivity_dump_stored": false,
+    "vpn_transport_seen": false
+  }
+}

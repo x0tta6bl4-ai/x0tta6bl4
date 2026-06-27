@@ -1,0 +1,864 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 Production-Ready Monitoring",
+    "tags": ["x0tta6bl4", "mesh", "self-healing", "security", "production", "production-ready"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "node_id",
+          "type": "query",
+          "query": "label_values(x0tta6bl4_mesh_nodes_total, node_id)",
+          "current": {"value": "all", "text": "All"},
+          "options": [{"value": "all", "text": "All"}],
+          "multi": true,
+          "includeAll": true
+        },
+        {
+          "name": "service",
+          "type": "query",
+          "query": "label_values(http_requests_total, service)",
+          "current": {"value": "all", "text": "All"},
+          "multi": true,
+          "includeAll": true
+        },
+        {
+          "name": "time_range",
+          "type": "interval",
+          "query": "1m,5m,15m,30m,1h,6h,12h,24h",
+          "current": {"value": "1h", "text": "1h"}
+        },
+        {
+          "name": "environment",
+          "type": "query",
+          "query": "label_values(x0tta6bl4_mesh_nodes_total, environment)",
+          "current": {"value": "production", "text": "production"},
+          "multi": false
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "System Overview - Key Metrics",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(x0tta6bl4_mesh_nodes_total)",
+            "legendFormat": "Total Nodes",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 10, "color": "yellow"},
+                {"value": 50, "color": "green"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "auto"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Active Connections",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(x0tta6bl4_mesh_connections_active)",
+            "legendFormat": "Active",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "PQC Handshake Success Rate",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(x0tta6bl4_pqc_handshake_success_total[$time_range])) / sum(rate(x0tta6bl4_pqc_handshake_total[$time_range])) * 100",
+            "legendFormat": "Success Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 95, "color": "yellow"},
+                {"value": 99, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "MTTR (Mean Time To Recovery)",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(x0tta6bl4_self_healing_mttr_seconds_bucket[$time_range]))",
+            "legendFormat": "P95 MTTR",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 5, "color": "yellow"},
+                {"value": 10, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Mesh Network Health - Advanced",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(x0tta6bl4_mesh_nodes_total) by (node_id)",
+            "legendFormat": "Nodes: {{node_id}}",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(x0tta6bl4_mesh_connections_active) by (node_id)",
+            "legendFormat": "Connections: {{node_id}}",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(x0tta6bl4_mesh_latency_seconds_bucket[$time_range])) by (node_id)",
+            "legendFormat": "P50 Latency: {{node_id}}",
+            "refId": "C"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(x0tta6bl4_mesh_latency_seconds_bucket[$time_range])) by (node_id)",
+            "legendFormat": "P95 Latency: {{node_id}}",
+            "refId": "D"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(x0tta6bl4_mesh_latency_seconds_bucket[$time_range])) by (node_id)",
+            "legendFormat": "P99 Latency: {{node_id}}",
+            "refId": "E"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "pointSize": 5,
+              "showPoints": "never",
+              "fillOpacity": 10
+            }
+          }
+        },
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [0.1],
+                "type": "gt"
+              },
+              "operator": {"type": "and"},
+              "query": {
+                "params": ["D", "5m", "now"]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "5m",
+          "frequency": "10s",
+          "name": "High Mesh Latency (P95 > 100ms)",
+          "noDataState": "no_data"
+        }
+      },
+      {
+        "id": 6,
+        "title": "MAPE-K Cycle Performance - Detailed",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(x0tta6bl4_mape_k_cycle_duration_seconds_bucket[$time_range])) by (phase)",
+            "legendFormat": "P50 {{phase}}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(x0tta6bl4_mape_k_cycle_duration_seconds_bucket[$time_range])) by (phase)",
+            "legendFormat": "P95 {{phase}}",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(x0tta6bl4_mape_k_cycle_duration_seconds_bucket[$time_range])) by (phase)",
+            "legendFormat": "P99 {{phase}}",
+            "refId": "C"
+          },
+          {
+            "expr": "rate(x0tta6bl4_mapek_incidents_detected_total[$time_range])",
+            "legendFormat": "Incidents/sec",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth"
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "PQC Security Metrics - Heatmap",
+        "type": "heatmap",
+        "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(x0tta6bl4_pqc_handshake_duration_seconds_bucket[$time_range])) by (le)",
+            "format": "heatmap",
+            "legendFormat": "{{le}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "eBPF Observability",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_ebpf_packets_processed_total[$time_range]) by (node_id, program_id)",
+            "legendFormat": "Packets/sec: {{node_id}}/{{program_id}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(x0tta6bl4_ebpf_packet_drops_total[$time_range]) by (node_id, reason)",
+            "legendFormat": "Drops/sec: {{node_id}}/{{reason}}",
+            "refId": "B"
+          },
+          {
+            "expr": "x0tta6bl4_ebpf_cpu_overhead_percent",
+            "legendFormat": "CPU Overhead: {{node_id}}",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line"
+            }
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "SPIFFE/SPIRE Identity Management",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_spire_svid_issued_total[$time_range])",
+            "legendFormat": "SVIDs Issued/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_spire_svid_expiry_seconds",
+            "legendFormat": "SVID Expiry: {{spiffe_id}}",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(x0tta6bl4_spire_auth_success_total[$time_range])",
+            "legendFormat": "Auth Success/sec",
+            "refId": "C"
+          },
+          {
+            "expr": "rate(x0tta6bl4_spire_auth_failure_total[$time_range])",
+            "legendFormat": "Auth Failure/sec",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line"
+            }
+          }
+        },
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [0],
+                "type": "gt"
+              },
+              "operator": {"type": "and"},
+              "query": {
+                "params": ["D", "5m", "now"]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "1m",
+          "frequency": "10s",
+          "name": "SPIFFE Auth Failures Detected",
+          "noDataState": "no_data"
+        }
+      },
+      {
+        "id": 10,
+        "title": "Resource Utilization - Multi-Metric",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "x0tta6bl4_cpu_percent",
+            "legendFormat": "CPU: {{node_id}}",
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_memory_percent",
+            "legendFormat": "Memory: {{node_id}}",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(x0tta6bl4_network_throughput_bytes[$time_range])",
+            "legendFormat": "Network: {{node_id}}",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 20
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Network"},
+              "properties": [
+                {"id": "unit", "value": "Bps"}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 11,
+        "title": "Error Rates by Component - Bar Chart",
+        "type": "barchart",
+        "gridPos": {"x": 0, "y": 28, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(x0tta6bl4_errors_total[$time_range])) by (component, error_type)",
+            "legendFormat": "{{component}}/{{error_type}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "displayMode": "gradient",
+              "orientation": "horizontal"
+            }
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "OpenTelemetry Traces - Distribution",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 28, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(trace_duration_seconds_bucket[$time_range])) by (service_name, operation)",
+            "legendFormat": "P50 {{service_name}}/{{operation}}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(trace_duration_seconds_bucket[$time_range])) by (service_name, operation)",
+            "legendFormat": "P95 {{service_name}}/{{operation}}",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(trace_spans_total[$time_range]) by (service_name)",
+            "legendFormat": "Spans/sec: {{service_name}}",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "drawStyle": "line"
+            }
+          }
+        }
+      },
+      {
+        "id": 13,
+        "title": "Raft Consensus - Status Table",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 36, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "x0tta6bl4_raft_current_term",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_raft_node_state",
+            "format": "table",
+            "instant": true,
+            "refId": "B"
+          },
+          {
+            "expr": "x0tta6bl4_raft_leader",
+            "format": "table",
+            "instant": true,
+            "refId": "C"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "renameByName": {
+                "Value": "Value",
+                "node_id": "Node ID",
+                "term": "Term",
+                "state": "State",
+                "leader": "Leader"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "CRDT Sync Status",
+        "type": "stat",
+        "gridPos": {"x": 8, "y": 36, "w": 8, "h": 4},
+        "targets": [
+          {
+            "expr": "x0tta6bl4_crdt_sync_success_rate",
+            "legendFormat": "Success Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 95, "color": "yellow"},
+                {"value": 99, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 15,
+        "title": "Recovery Actions - Success Rate",
+        "type": "stat",
+        "gridPos": {"x": 16, "y": 36, "w": 8, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(x0tta6bl4_recovery_actions_success_total[$time_range])) / sum(rate(x0tta6bl4_recovery_actions_total[$time_range])) * 100",
+            "legendFormat": "Success Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 80, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 16,
+        "title": "Circuit Breaker & Rate Limiter Status",
+        "type": "table",
+        "gridPos": {"x": 8, "y": 40, "w": 16, "h": 8},
+        "targets": [
+          {
+            "expr": "x0tta6bl4_circuit_breaker_state",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_rate_limiter_current_actions",
+            "format": "table",
+            "instant": true,
+            "refId": "B"
+          },
+          {
+            "expr": "x0tta6bl4_rate_limiter_max_requests",
+            "format": "table",
+            "instant": true,
+            "refId": "C"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "renameByName": {
+                "Value": "Value",
+                "node_id": "Node ID",
+                "state": "State",
+                "current": "Current",
+                "max": "Max"
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {
+                "type": "value",
+                "options": {
+                  "0": {"text": "Closed", "color": "green"},
+                  "1": {"text": "Open", "color": "red"},
+                  "2": {"text": "Half-Open", "color": "yellow"}
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": 17,
+        "title": "Federated Learning Metrics",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 48, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_fl_round_total[$time_range])",
+            "legendFormat": "FL Rounds/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_fl_privacy_budget_epsilon",
+            "legendFormat": "Privacy Budget: {{node_id}}",
+            "refId": "B"
+          },
+          {
+            "expr": "x0tta6bl4_fl_model_accuracy",
+            "legendFormat": "Model Accuracy: {{node_id}}",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Model Accuracy"},
+              "properties": [
+                {"id": "unit", "value": "percentunit"}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 18,
+        "title": "GraphSAGE Analysis Metrics",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 48, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_graphsage_analysis_total[$time_range]) by (failure_type, severity)",
+            "legendFormat": "{{failure_type}}/{{severity}}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(x0tta6bl4_graphsage_analysis_duration_seconds_bucket[$time_range]))",
+            "legendFormat": "P95 Analysis Duration",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(x0tta6bl4_graphsage_confidence_bucket[$time_range]))",
+            "legendFormat": "P95 Confidence",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Confidence"},
+              "properties": [
+                {"id": "unit", "value": "percentunit"}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 19,
+        "title": "Batman-adv Mesh Metrics",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 56, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "x0tta6bl4_batman_originators_total",
+            "legendFormat": "Originators: {{node_id}}",
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_batman_gateways_total",
+            "legendFormat": "Gateways: {{node_id}}",
+            "refId": "B"
+          },
+          {
+            "expr": "x0tta6bl4_batman_tq_score",
+            "legendFormat": "TQ Score: {{node_id}}",
+            "refId": "C"
+          },
+          {
+            "expr": "x0tta6bl4_batman_multipath_active_paths",
+            "legendFormat": "Multipath Paths: {{node_id}}",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line"
+            }
+          }
+        }
+      },
+      {
+        "id": 20,
+        "title": "Zero Trust Enforcement",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 56, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_zero_trust_enforcement_allowed_total[$time_range])",
+            "legendFormat": "Allowed/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(x0tta6bl4_zero_trust_enforcement_denied_total[$time_range])",
+            "legendFormat": "Denied/sec",
+            "refId": "B"
+          },
+          {
+            "expr": "x0tta6bl4_zero_trust_trust_score",
+            "legendFormat": "Trust Score: {{node_id}}",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Trust Score"},
+              "properties": [
+                {"id": "unit", "value": "percentunit"}
+              ]
+            }
+          ]
+        },
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [10],
+                "type": "gt"
+              },
+              "operator": {"type": "and"},
+              "query": {
+                "params": ["B", "5m", "now"]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "5m",
+          "frequency": "10s",
+          "name": "High Zero Trust Denials",
+          "noDataState": "no_data"
+        }
+      },
+      {
+        "id": 21,
+        "title": "Alert Summary",
+        "type": "alertlist",
+        "gridPos": {"x": 0, "y": 64, "w": 24, "h": 8},
+        "targets": [
+          {
+            "refId": "A",
+            "queryType": "",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            }
+          }
+        ],
+        "options": {
+          "show": "current",
+          "sortOrder": 1,
+          "folderId": null,
+          "dashboardTags": []
+        }
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "enable": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "tags": ["deployment"],
+          "type": "tags"
+        },
+        {
+          "name": "Incidents",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "enable": true,
+          "iconColor": "rgba(255, 96, 96, 1)",
+          "tags": ["incident"],
+          "type": "tags"
+        }
+      ]
+    },
+    "links": [
+      {
+        "title": "Alerting Rules",
+        "type": "link",
+        "url": "/alerting/list",
+        "icon": "external link",
+        "tooltip": "View alerting rules"
+      },
+      {
+        "title": "Jaeger Traces",
+        "type": "link",
+        "url": "http://jaeger:16686",
+        "icon": "external link",
+        "tooltip": "View distributed traces"
+      },
+      {
+        "title": "Prometheus",
+        "type": "link",
+        "url": "http://prometheus:9090",
+        "icon": "external link",
+        "tooltip": "View Prometheus metrics"
+      }
+    ],
+    "version": 2,
+    "schemaVersion": 38
+  }
+}
+

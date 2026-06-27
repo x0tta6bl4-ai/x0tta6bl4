@@ -1,0 +1,57 @@
+{
+  "captured_at_utc": "2026-06-06T21:45:21.267330+00:00",
+  "checks": {
+    "dataplane_collected": true,
+    "external_policy_source_collected": true,
+    "generate_ok": true,
+    "identity_signer_collected": true,
+    "leak_protection_collected": true,
+    "linux_preflight_collected": true,
+    "os_mutation_performed_false": true,
+    "policy_snapshot_ok": true,
+    "pqc_collected": true,
+    "pqc_promote_client_ok": true,
+    "pqc_promote_server_ok": true,
+    "pqc_provider_gate_allowed": true,
+    "production_readiness_ok": true,
+    "rekey_policy_collected": true,
+    "rollout_gate_collected": true,
+    "server_ok": true,
+    "source_audit_collected": true,
+    "zero_trust_policy_collected": true
+  },
+  "collected": {
+    "dataplane": true,
+    "external_policy_source": true,
+    "identity_signer": true,
+    "leak_protection": true,
+    "linux_preflight": true,
+    "pqc": true,
+    "rekey_policy": true,
+    "rollout_gate": true,
+    "source_audit": true,
+    "zero_trust_policy": true
+  },
+  "decision_allowed": true,
+  "decision_reasons": [],
+  "deployment_epoch": "local-firstparty-production-readiness-20260606T214343Z",
+  "evidence_dir": "/mnt/projects/nl-diagnostics/firstparty-production-readiness-20260606T214343Z",
+  "mode": "firstparty-production-readiness-summary",
+  "no_nl_or_spb_writes_performed": true,
+  "ok": true,
+  "os_mutation_performed": false,
+  "pqc_provider_gate_reasons": [],
+  "pqc_runtime_metadata_matches_manifest": true,
+  "return_codes": {
+    "policy_snapshot": 0,
+    "pqc_promote_client": 0,
+    "pqc_promote_server": 0,
+    "production_readiness": 0
+  },
+  "server_bind_addr": [
+    "127.0.0.1",
+    53929
+  ],
+  "source_tree_hash": "74ae83244208bd720e3d8dd967b5630a5571aab968a878a919da22d6df31aa26",
+  "transport": "tcp"
+}

@@ -1,0 +1,143 @@
+services:
+  spire-server:
+    image: spire-server:latest
+    container_name: spire-server
+    hostname: spire-server
+    ports:
+      - "127.0.0.1:8081:8081"
+    networks:
+      mesh-net:
+        aliases:
+          - spire-server
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1',8081),2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  spire-agent:
+    image: spire-agent:latest
+    container_name: spire-agent
+    hostname: spire-agent
+    environment:
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - NO_PROXY=*
+      - http_proxy=
+      - https_proxy=
+      - no_proxy=*
+      - SPIRE_SERVER_ADDRESS=spire-server
+    volumes:
+      - spire-socket:/tmp/spire-agent
+    networks:
+      mesh-net:
+        aliases:
+          - spire-agent
+    depends_on:
+      spire-server:
+        condition: service_healthy
+
+  node-a:
+    image: mesh-node:latest
+    container_name: mesh-node-a
+    hostname: node-a
+    environment:
+      - NODE_ID=node-a
+      - PEERS=node-b,node-nl-bridge
+      - PEER_PORTS=9101,9102
+      - PORT=9100
+      - SVD_BYPASS=true
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - NO_PROXY=*
+      - http_proxy=
+      - https_proxy=
+      - no_proxy=*
+    volumes:
+      - spire-socket:/tmp/spire-agent:ro
+    networks:
+      mesh-net:
+        aliases:
+          - node-a
+    depends_on:
+      - spire-agent
+
+  node-b:
+    image: mesh-node:latest
+    container_name: mesh-node-b
+    hostname: node-b
+    environment:
+      - NODE_ID=node-b
+      - PEERS=node-a
+      - PEER_PORTS=9100
+      - PORT=9101
+      - SVD_BYPASS=true
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - NO_PROXY=*
+      - http_proxy=
+      - https_proxy=
+      - no_proxy=*
+    volumes:
+      - spire-socket:/tmp/spire-agent:ro
+    networks:
+      mesh-net:
+        aliases:
+          - node-b
+    depends_on:
+      - node-a
+
+  node-nl-bridge:
+    image: mesh-node:latest
+    container_name: mesh-node-nl-bridge
+    hostname: node-nl-bridge
+    environment:
+      - NODE_ID=node-nl-bridge
+      - PEERS=node-a,node-b,89.125.1.107
+      - PEER_PORTS=9100,9100,9101
+      - PORT=9102
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - NO_PROXY=*
+      - http_proxy=
+      - https_proxy=
+      - no_proxy=*
+      - SVD_BYPASS=true
+    volumes:
+      - spire-socket:/tmp/spire-agent:ro
+    networks:
+      mesh-net:
+        aliases:
+          - node-nl-bridge
+    depends_on:
+      - node-b
+
+  spire-agent-nl:
+    image: spire-agent:latest
+    container_name: spire-agent-nl
+    hostname: spire-agent-nl
+    environment:
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - NO_PROXY=*
+      - http_proxy=
+      - https_proxy=
+      - no_proxy=*
+    command: ["spire-agent", "run", "-config", "/etc/spire/agent-nl.conf"]
+    volumes:
+      - ./spire-agent-nl.conf:/etc/spire/agent-nl.conf:ro
+      - spire-socket-nl:/tmp/spire-agent
+    networks:
+      mesh-net:
+        aliases:
+          - spire-agent-nl
+    restart: always
+
+volumes:
+  spire-socket:
+  spire-socket-nl:
+
+networks:
+  mesh-net:
+    driver: bridge

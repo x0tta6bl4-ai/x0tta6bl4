@@ -1,0 +1,384 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/refresh_vpn_planning_reports.py",
+  "generated_at": "2026-05-28T03:42:31.210070+00:00",
+  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
+  "ok": true,
+  "summary": {
+    "decision": "observe",
+    "decision_confidence": "high",
+    "operator_status": "observe",
+    "boot_gap_watch_status": "watch",
+    "boot_gap_seconds": 21907,
+    "provider_packet_type": "provider_watch",
+    "provider_packet_stale": false,
+    "provider_packet_snapshot_age_seconds": 57,
+    "blocking_history_trend": "stable_no_probe_evidence",
+    "blocking_history_snapshot_count": 11,
+    "backlog_decision": "observe",
+    "manual_failover_status": "planning_not_active",
+    "manual_failover_readiness_status": "blocked_no_incident_trigger",
+    "manual_failover_probe_allowed": false,
+    "manual_failover_switch_allowed": false,
+    "secondary_candidate_score_status": "missing_candidates",
+    "secondary_candidate_viable_count": 0,
+    "secondary_exit_requirements_status": "requirements_ready_no_candidate",
+    "secondary_exit_requirements_missing": "NET-01",
+    "secondary_provider_shortlist_status": "shortlist_ready_no_endpoint",
+    "secondary_provider_shortlist_count": 5,
+    "secondary_provider_shortlist_endpoint_count": 0,
+    "secondary_candidate_intake_status": "awaiting_public_candidate_metadata",
+    "secondary_candidate_intake_allowed_fields": 7,
+    "secondary_provisioning_plan_status": "provisioning_plan_ready_no_endpoint",
+    "secondary_provisioning_external_action_required": true,
+    "secondary_provisioning_endpoint_count": 0,
+    "secondary_exit_flow_status": "blocked_missing_candidate",
+    "secondary_exit_flow_candidate_configured": false,
+    "secondary_exit_flow_manual_switch_allowed": false,
+    "secondary_manual_drill_status": "drill_plan_ready_blocked_no_endpoint",
+    "secondary_manual_drill_test_scope": "single_client",
+    "secondary_manual_drill_rollback_required": true,
+    "secondary_selection_packet_status": "selection_packet_ready_no_endpoint",
+    "secondary_selection_recommended_label": "upcloud-fi-hel",
+    "secondary_selection_backup_label": "ovhcloud-pl-waw",
+    "secondary_selection_option_count": 3,
+    "secondary_selection_may_create_endpoint_now": false,
+    "secondary_public_metadata_template_status": "public_metadata_template_ready_no_endpoint",
+    "secondary_public_metadata_selected_label": "upcloud-fi-hel",
+    "secondary_public_metadata_candidate_file_update_allowed": false,
+    "secondary_post_provision_validation_status": "post_provision_validation_ready_waiting_endpoint",
+    "secondary_post_provision_can_generate_probe_config": false,
+    "secondary_post_provision_can_run_public_probe": false,
+    "secondary_post_provision_test_client_allowed": false,
+    "local_diagnostic_environment_status": "watch_root_full_tmpdir_available",
+    "local_root_status": "critical_full",
+    "local_tmpdir_writable": true,
+    "local_recommended_tmpdir_prefix": "TMPDIR=/mnt/projects/.tmp",
+    "local_root_cleanup_plan_status": "manual_cleanup_plan_ready",
+    "local_root_cleanup_estimated_reclaim_gib": 3.24,
+    "local_root_cleanup_execute_allowed": false,
+    "local_root_cleanup_approval_packet_status": "cleanup_approval_packet_ready",
+    "local_root_cleanup_approval_required": true,
+    "local_root_cleanup_commands_executed": 0,
+    "incident_symptom_intake_status": "symptom_intake_ready_observe",
+    "incident_symptom_required_fields": 12,
+    "incident_symptom_forbidden_material": 12,
+    "nl_transport_probe_status": "healthy",
+    "nl_transport_probe_ok_count": "3/3",
+    "nl_transport_uptime_status": "stable_healthy",
+    "nl_transport_uptime_samples": 24,
+    "nl_transport_uptime_bad_streak": 0,
+    "secondary_probe_template_status": "planning_template",
+    "readiness_audit_status": "ready_local_with_future_blocks",
+    "readiness_missing": 0,
+    "incident_timeline_event_count": 22,
+    "incident_timeline_latest_type": "provider_watch",
+    "incident_timeline_latest_snapshot": "20260528T034120Z",
+    "nl_mutation_allowed": false,
+    "spb_fallback_allowed": false,
+    "automatic_failover_allowed": false
+  },
+  "steps": [
+    {
+      "id": "blocking_history",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/blocking-probe-history-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/blocking-probe-history-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "decision_report",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/current-vpn-decision-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/current-vpn-decision-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "boot_gap_watch",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/boot-gap-watch-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/boot-gap-watch-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "provider_packet",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "json: /mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T034120Z.json\nmarkdown: /mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T034120Z.md\n",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T034120Z.json",
+        "/mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T034120Z.md"
+      ]
+    },
+    {
+      "id": "improvement_backlog",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/vpn-improvement-backlog-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/vpn-improvement-backlog-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "manual_failover_plan",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/manual-failover-plan-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/manual-failover-plan-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "nl_transport_probe",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/nl-transport-probe-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/nl-transport-probe-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "nl_transport_uptime",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/nl-transport-uptime-history.jsonl",
+        "/mnt/projects/nl-diagnostics/nl-transport-uptime-summary-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_probe_template_check",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-probe-template-2026-05-28.json"
+      ]
+    },
+    {
+      "id": "manual_failover_readiness",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/manual-failover-readiness-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/manual-failover-readiness-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_candidate_score",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-candidate-score-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/secondary-exit-candidate-score-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_exit_requirements",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-requirements-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/secondary-exit-requirements-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_provider_shortlist",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-provider-shortlist-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/secondary-exit-provider-shortlist-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_candidate_intake",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-candidate-intake-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/secondary-exit-candidate-intake-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_provisioning_plan",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-provisioning-plan-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/secondary-exit-provisioning-plan-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_exit_flow",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-flow-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/secondary-exit-flow-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_manual_drill",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-manual-drill-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/secondary-exit-manual-drill-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_selection_packet",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-selection-packet-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/secondary-exit-selection-packet-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_public_metadata_template",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-public-metadata-template-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/secondary-exit-public-metadata-template-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_post_provision_validation",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-post-provision-validation-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/secondary-exit-post-provision-validation-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "local_diagnostic_environment",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/local-diagnostic-environment-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/local-diagnostic-environment-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "local_root_cleanup_plan",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/local-root-cleanup-plan-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/local-root-cleanup-plan-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "local_root_cleanup_approval_packet",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/local-root-cleanup-approval-packet-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/local-root-cleanup-approval-packet-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "operator_card",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/vpn-operator-card-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/vpn-operator-card-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "incident_symptom_intake",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/vpn-incident-symptom-intake-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/vpn-incident-symptom-intake-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "readiness_audit",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "incident_timeline",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/vpn-incident-timeline-2026-05-28.jsonl",
+        "/mnt/projects/nl-diagnostics/vpn-incident-timeline-2026-05-28.md"
+      ]
+    }
+  ],
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}

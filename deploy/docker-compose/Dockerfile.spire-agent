@@ -1,0 +1,11 @@
+# SPIRE Agent Dockerfile — uses local tarball (no network needed at build time)
+FROM python:3.12-slim
+
+COPY deploy/docker-compose/spire.tar.gz /tmp/spire.tar.gz
+RUN tar xzf /tmp/spire.tar.gz -C /tmp/ \
+    && cp /tmp/spire-1.15.1/bin/spire-agent /usr/local/bin/spire-agent \
+    && rm -rf /tmp/spire*
+
+COPY deploy/docker-compose/spire-agent.conf /etc/spire/agent.conf
+RUN mkdir -p /var/lib/spire/agent /tmp/spire-agent
+CMD ["spire-agent", "run", "-config", "/etc/spire/agent.conf"]

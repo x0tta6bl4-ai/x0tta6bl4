@@ -1,0 +1,17 @@
+{{- if .Values.configMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "x0tta6bl4.fullname" . }}-config
+  labels:
+    {{- include "x0tta6bl4.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.configMap.data }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- if not .Values.configMap.data }}
+  # Default configuration
+  log_level: {{ .Values.env.LOG_LEVEL | quote }}
+  environment: {{ .Values.env.ENVIRONMENT | quote }}
+  {{- end }}
+{{- end }}

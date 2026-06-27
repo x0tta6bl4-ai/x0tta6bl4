@@ -1,0 +1,16 @@
+{
+  "experiment_schedule": "0 */6 * * *",
+  "auto_rollback": true,
+  "max_concurrent_experiments": 2,
+  "critical_services": [
+    "telegram_bot_simple.py",
+    "xray",
+    "x-ui",
+    "mesh_router"
+  ],
+  "thresholds": {
+    "max_recovery_time_ms": 5000,
+    "min_availability_percent": 95.0,
+    "max_error_rate": 0.05
+  }
+}

@@ -1,0 +1,546 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/audit_vpn_plan_readiness.py",
+  "generated_at": "2026-05-28T03:42:31.056483+00:00",
+  "overall_status": "ready_local_with_future_blocks",
+  "ok": true,
+  "summary": {
+    "ready_local": 24,
+    "blocked_future_approval": 4,
+    "watch": 3,
+    "missing": 0,
+    "missing_items": [],
+    "watch_items": [
+      "BOOT-01",
+      "LOCALENV-01",
+      "LOCALCLEAN-01"
+    ],
+    "blocked_items": [
+      "FAILOVER-03",
+      "FAILOVER-06",
+      "GATE-01",
+      "FAILOVER-02"
+    ],
+    "operator_status": "observe",
+    "decision": "observe",
+    "boot_gap_watch_status": "watch",
+    "provider_packet_type": "provider_watch",
+    "provider_packet_stale": false,
+    "manual_failover_readiness_status": "blocked_no_incident_trigger",
+    "manual_failover_switch_allowed": false,
+    "secondary_candidate_score_status": "missing_candidates",
+    "secondary_exit_requirements_status": "requirements_ready_no_candidate",
+    "secondary_provider_shortlist_status": "shortlist_ready_no_endpoint",
+    "secondary_provider_shortlist_count": 5,
+    "secondary_provider_shortlist_endpoint_count": 0,
+    "secondary_candidate_intake_status": "awaiting_public_candidate_metadata",
+    "secondary_provisioning_plan_status": "provisioning_plan_ready_no_endpoint",
+    "secondary_provisioning_external_action_required": true,
+    "secondary_provisioning_endpoint_count": 0,
+    "secondary_exit_flow_status": "blocked_missing_candidate",
+    "secondary_exit_flow_candidate_configured": false,
+    "secondary_exit_flow_manual_switch_allowed": false,
+    "secondary_manual_drill_status": "drill_plan_ready_blocked_no_endpoint",
+    "secondary_manual_drill_test_scope": "single_client",
+    "secondary_manual_drill_rollback_required": true,
+    "secondary_selection_packet_status": "selection_packet_ready_no_endpoint",
+    "secondary_selection_recommended_label": "upcloud-fi-hel",
+    "secondary_selection_backup_label": "ovhcloud-pl-waw",
+    "secondary_selection_option_count": 3,
+    "secondary_selection_may_create_endpoint_now": false,
+    "secondary_public_metadata_template_status": "public_metadata_template_ready_no_endpoint",
+    "secondary_public_metadata_selected_label": "upcloud-fi-hel",
+    "secondary_public_metadata_candidate_file_update_allowed": false,
+    "secondary_post_provision_validation_status": "post_provision_validation_ready_waiting_endpoint",
+    "secondary_post_provision_can_generate_probe_config": false,
+    "secondary_post_provision_can_run_public_probe": false,
+    "secondary_post_provision_test_client_allowed": false,
+    "local_diagnostic_environment_status": "watch_root_full_tmpdir_available",
+    "local_root_status": "critical_full",
+    "local_tmpdir_writable": true,
+    "local_root_cleanup_plan_status": "manual_cleanup_plan_ready",
+    "local_root_cleanup_estimated_reclaim_gib": 3.24,
+    "local_root_cleanup_execute_allowed": false,
+    "local_root_cleanup_approval_packet_status": "cleanup_approval_packet_ready",
+    "local_root_cleanup_approval_required": true,
+    "local_root_cleanup_commands_executed": 0,
+    "incident_symptom_intake_status": "symptom_intake_ready_observe",
+    "incident_symptom_required_fields": 12,
+    "incident_symptom_forbidden_material": 12,
+    "transport_probe_status": "healthy",
+    "transport_uptime_status": "stable_healthy",
+    "nl_write_allowed": false,
+    "spb_fallback_allowed": false,
+    "automatic_failover_allowed": false
+  },
+  "items": [
+    {
+      "id": "EVIDENCE-01",
+      "title": "Latest read-only snapshot is the shared evidence anchor",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
+        "refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
+        "latest_snapshot=20260528T034120Z",
+        "snapshot_exists=true",
+        "snapshot_age_seconds=71",
+        "fresh=true"
+      ],
+      "next_step": "collect a fresh read-only snapshot during the next visible outage"
+    },
+    {
+      "id": "DECISION-01",
+      "title": "Current decision blocks mutation and automatic profile changes",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "decision=observe",
+        "transport_status=healthy",
+        "failure_domain=external_network",
+        "safe_flags=true"
+      ],
+      "next_step": "keep decision=observe unless a fresh snapshot changes the failure domain"
+    },
+    {
+      "id": "BOOT-01",
+      "title": "Boot-gap provider signal is tracked separately from restart decisions",
+      "status": "watch",
+      "ok": true,
+      "evidence": [
+        "boot_gap_watch_status=watch",
+        "boot_gap_seconds=21907",
+        "provider_status=recent_boot_gap",
+        "transport_status=healthy",
+        "safe_flags=true"
+      ],
+      "next_step": "keep provider boot gap on watch while current transport remains healthy/advisory"
+    },
+    {
+      "id": "PROVIDER-01",
+      "title": "Provider packet is generated from the same read-only snapshot",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "provider_packet_type=provider_watch",
+        "snapshot_stale=false",
+        "packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
+        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
+        "same_snapshot=true",
+        "safe_flags=true"
+      ],
+      "next_step": "use the packet for provider questions only when fresh evidence points to provider or host failure"
+    },
+    {
+      "id": "EVIDENCE-02",
+      "title": "Blocking/app probe history is available as trend evidence",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "snapshot_count=11",
+        "trend=stable_no_probe_evidence",
+        "latest_probe_snapshot=20260528T034120Z",
+        "latest_targets_ok=8/8"
+      ],
+      "next_step": "use probes as app/path evidence, not as an x-ui restart trigger"
+    },
+    {
+      "id": "REFRESH-01",
+      "title": "One refresh command rebuilds the local planning reports",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "refresh_ok=true",
+        "operator_status=observe",
+        "manual_failover_status=planning_not_active",
+        "safe_flags=true"
+      ],
+      "next_step": "run refresh after every new snapshot before deciding on action"
+    },
+    {
+      "id": "LOCALENV-01",
+      "title": "Local diagnostic host has a writable project temp directory",
+      "status": "watch",
+      "ok": true,
+      "evidence": [
+        "local_environment_status=watch_root_full_tmpdir_available",
+        "root_status=critical_full",
+        "root_used_percent=94.9",
+        "root_free_gib=0.0",
+        "tmp_status=critical_full",
+        "diagnostic_tmpdir=/mnt/projects/.tmp",
+        "diagnostic_tmpdir_writable=true",
+        "recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp",
+        "cleanup_required=true",
+        "safe_flags=true"
+      ],
+      "next_step": "keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval"
+    },
+    {
+      "id": "LOCALCLEAN-01",
+      "title": "Local root cleanup plan is prepared but execution is blocked",
+      "status": "watch",
+      "ok": true,
+      "evidence": [
+        "cleanup_plan_status=manual_cleanup_plan_ready",
+        "root_status=critical_full",
+        "root_free_gib=0.0",
+        "existing_candidate_count=5",
+        "estimated_reclaim_gib=3.24",
+        "top_candidate_id=APT-CACHE-01",
+        "cleanup_execute_allowed=false",
+        "safe_flags=true"
+      ],
+      "next_step": "review local cleanup candidates and execute cleanup only after separate local approval"
+    },
+    {
+      "id": "LOCALCLEAN-02",
+      "title": "Local cleanup approval packet is prepared without executing commands",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "cleanup_approval_packet_status=cleanup_approval_packet_ready",
+        "first_review_id=APT-CACHE-01",
+        "command_preview_count=5",
+        "approval_required=true",
+        "commands_executed=0",
+        "cleanup_execute_allowed=false",
+        "safe_flags=true"
+      ],
+      "next_step": "run only prechecks now; execute cleanup previews only after separate local cleanup approval"
+    },
+    {
+      "id": "OPERATOR-01",
+      "title": "Short incident card exists for the next outage",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "operator_status=observe",
+        "plain_action=VPN core is healthy. Do not restart NL; collect fresh evidence during the next visible outage.",
+        "blocking_history_trend=stable_no_probe_evidence",
+        "safe_flags=true"
+      ],
+      "next_step": "start incidents from the operator card, then collect fresh evidence"
+    },
+    {
+      "id": "INCIDENT-01",
+      "title": "Incident symptom intake is safe to use without collecting secrets",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "incident_symptom_intake_status=symptom_intake_ready_observe",
+        "decision=observe",
+        "operator_status=observe",
+        "failure_domain=external_network",
+        "transport_status=healthy",
+        "required_field_count=12",
+        "forbidden_material_count=12",
+        "safe_flags=true"
+      ],
+      "next_step": "use this template for user-visible symptoms and reject any pasted VPN secrets"
+    },
+    {
+      "id": "FAILOVER-03",
+      "title": "Manual failover readiness gate blocks unsafe switching",
+      "status": "blocked_future_approval",
+      "ok": true,
+      "evidence": [
+        "manual_failover_readiness_status=blocked_no_incident_trigger",
+        "manual_probe_allowed=false",
+        "manual_switch_allowed=false",
+        "secondary_probe_status=planning_template",
+        "candidate_configured=false",
+        "spb_excluded=true",
+        "safe_flags=true"
+      ],
+      "next_step": "keep manual switch blocked until a fresh incident trigger and healthy non-NL/non-SPB secondary exist"
+    },
+    {
+      "id": "FAILOVER-05",
+      "title": "Secondary candidate scorer is available before provider choice",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_candidate_score_status=missing_candidates",
+        "candidate_count=0",
+        "viable_count=0",
+        "rejected_count=0",
+        "top_candidate_label=none",
+        "safe_flags=true"
+      ],
+      "next_step": "score only public metadata for non-NL/non-SPB candidates before generating a probe config"
+    },
+    {
+      "id": "FAILOVER-04",
+      "title": "Secondary exit requirements are documented without secrets",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_exit_requirements_status=requirements_ready_no_candidate",
+        "candidate_configured=false",
+        "missing_items=NET-01",
+        "blocked_items=none",
+        "manual_switch_allowed=false",
+        "safe_flags=true"
+      ],
+      "next_step": "choose a real non-NL/non-SPB provider/region and fill only public endpoint metadata"
+    },
+    {
+      "id": "FAILOVER-08",
+      "title": "Secondary provider shortlist exists without endpoint secrets",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_provider_shortlist_status=shortlist_ready_no_endpoint",
+        "shortlist_count=5",
+        "source_count=9",
+        "endpoint_count=0",
+        "candidate_configured=false",
+        "invalid_source_refs=none",
+        "safe_flags=true"
+      ],
+      "next_step": "provision one shortlisted non-NL/non-SPB option, then add only public host/IP metadata"
+    },
+    {
+      "id": "FAILOVER-07",
+      "title": "Secondary candidate intake checklist exists without secrets",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_candidate_intake_status=awaiting_public_candidate_metadata",
+        "candidate_file=/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json",
+        "candidate_count=0",
+        "viable_count=0",
+        "allowed_field_count=7",
+        "forbidden_material_count=7",
+        "safe_flags=true"
+      ],
+      "next_step": "fill only public metadata in the local candidate file, then rerun scorer and refresh"
+    },
+    {
+      "id": "FAILOVER-09",
+      "title": "Secondary provisioning plan blocks secrets and automation",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_provisioning_plan_status=provisioning_plan_ready_no_endpoint",
+        "preferred_labels=upcloud-fi-hel,ovhcloud-pl-waw,hetzner-de-or-fi",
+        "endpoint_count=0",
+        "external_action_required=true",
+        "candidate_file=/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json",
+        "safe_sources=true",
+        "safe_flags=true"
+      ],
+      "next_step": "perform the provider-console provisioning step externally, then store only public endpoint metadata"
+    },
+    {
+      "id": "FAILOVER-06",
+      "title": "Secondary exit operating flow blocks unsafe activation",
+      "status": "blocked_future_approval",
+      "ok": true,
+      "evidence": [
+        "secondary_exit_flow_status=blocked_missing_candidate",
+        "candidate_viable_count=0",
+        "candidate_configured=false",
+        "secondary_probe_status=planning_template",
+        "manual_probe_allowed=false",
+        "manual_switch_allowed=false",
+        "safe_flags=true"
+      ],
+      "next_step": "fill public metadata for a non-NL/non-SPB candidate, then generate and run the safe probe config"
+    },
+    {
+      "id": "FAILOVER-10",
+      "title": "Secondary manual drill is test-only and rollback-gated",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_manual_drill_status=drill_plan_ready_blocked_no_endpoint",
+        "manual_probe_allowed=false",
+        "manual_switch_allowed=false",
+        "test_scope=single_client",
+        "bulk_user_switch_allowed=false",
+        "rollback_required=true",
+        "safe_flags=true"
+      ],
+      "next_step": "after a secondary endpoint exists, run the drill on one test client and roll back to NL"
+    },
+    {
+      "id": "FAILOVER-11",
+      "title": "Secondary provider selection packet gives a safe decision order",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_selection_packet_status=selection_packet_ready_no_endpoint",
+        "recommended_label=upcloud-fi-hel",
+        "backup_label=ovhcloud-pl-waw",
+        "decision_option_count=3",
+        "endpoint_count=0",
+        "may_create_endpoint_now=false",
+        "safe_flags=true"
+      ],
+      "next_step": "pick the primary label externally, then store only public endpoint metadata after provisioning"
+    },
+    {
+      "id": "FAILOVER-12",
+      "title": "Secondary public metadata template is ready without secrets",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_public_metadata_template_status=public_metadata_template_ready_no_endpoint",
+        "selected_label=upcloud-fi-hel",
+        "selected_provider=UpCloud",
+        "candidate_file=/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json",
+        "template_candidate_count=1",
+        "candidate_file_update_allowed=false",
+        "forbidden_material_count=11",
+        "safe_flags=true"
+      ],
+      "next_step": "after external provisioning, replace only host with public IP/DNS and rerun scorer"
+    },
+    {
+      "id": "FAILOVER-13",
+      "title": "Secondary post-provision validation is ordered before client tests",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_post_provision_validation_status=post_provision_validation_ready_waiting_endpoint",
+        "selected_label=upcloud-fi-hel",
+        "candidate_score_status=missing_candidates",
+        "viable_count=0",
+        "secondary_probe_status=planning_template",
+        "can_generate_probe_config=false",
+        "can_run_public_probe=false",
+        "test_client_allowed=false",
+        "safe_flags=true"
+      ],
+      "next_step": "after endpoint provisioning, score public metadata, generate probe config, and run public probe first"
+    },
+    {
+      "id": "TRANSPORT-01",
+      "title": "Outside-in NL TCP port probe is available",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "transport_probe_status=healthy",
+        "transport_probe_ok_count=3/3",
+        "failure_domain_hint=none",
+        "safe_flags=true"
+      ],
+      "next_step": "if any public NL port fails, collect a fresh read-only snapshot and compare listeners"
+    },
+    {
+      "id": "UPTIME-01",
+      "title": "Outside-in NL TCP uptime history is recorded locally",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "uptime_status=stable_healthy",
+        "sample_count=24",
+        "latest_status=healthy",
+        "consecutive_non_healthy=0",
+        "safe_flags=true"
+      ],
+      "next_step": "if uptime history becomes watch, collect a fresh read-only snapshot and provider packet"
+    },
+    {
+      "id": "SCHEDULER-01",
+      "title": "Local uptime systemd timer templates are prepared but not installed",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "service_exists=true",
+        "timer_exists=true",
+        "expected_commands=true",
+        "tmpdir_environment=Environment=TMPDIR=/mnt/projects/.tmp",
+        "forbidden_word=none"
+      ],
+      "next_step": "install/enable the local timer only after separate local host approval"
+    },
+    {
+      "id": "SOURCE-01",
+      "title": "NL source reconciliation is locally closed and deploy-blocked",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "nl_write_allowed=false",
+        "deployable_to_nl=false",
+        "missing_local_source=0",
+        "local_name_drift=0",
+        "accepted_local_delta=5"
+      ],
+      "next_step": "keep services/nl-server as reviewed local source until a separate NL write approval exists"
+    },
+    {
+      "id": "PREFLIGHT-01",
+      "title": "Preflight validator passes while deploy remains blocked",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "preflight_ok=true",
+        "deploy_status=local_ready_but_deploy_blocked",
+        "nl_write_allowed=false",
+        "check_count=70"
+      ],
+      "next_step": "run preflight again before any maintenance window"
+    },
+    {
+      "id": "GATE-01",
+      "title": "Future NL write is blocked until the exact approval phrase",
+      "status": "blocked_future_approval",
+      "ok": true,
+      "evidence": [
+        "approval_phrase_present=true",
+        "required_phrase=approve NL write for health shell split only",
+        "nl_write_allowed=false",
+        "deploy_status=local_ready_but_deploy_blocked"
+      ],
+      "next_step": "do not stage files to NL before the exact approval phrase is given"
+    },
+    {
+      "id": "SPB-01",
+      "title": "SPB remains excluded from recovery",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "decision_spb_fallback_allowed=false",
+        "refresh_spb_fallback_allowed=false",
+        "manual_failover_spb_fallback_allowed=false",
+        "secondary_spb_fallback_allowed=false",
+        "manifest_spb_enabled=false",
+        "plain_true_marker_absent=true"
+      ],
+      "next_step": "keep SPB disabled until it has its own explicit reactivation plan"
+    },
+    {
+      "id": "FAILOVER-01",
+      "title": "Manual failover is documented but inactive",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "manual_failover_status=planning_not_active",
+        "spb_fallback_allowed=false",
+        "automatic_failover_allowed=false",
+        "safe_flags=true"
+      ],
+      "next_step": "keep failover manual-only and require fresh evidence before any client switch"
+    },
+    {
+      "id": "FAILOVER-02",
+      "title": "Secondary exit probe is only a safe template until a new node exists",
+      "status": "blocked_future_approval",
+      "ok": true,
+      "evidence": [
+        "secondary_probe_status=planning_template",
+        "candidate_configured=false",
+        "spb_fallback_allowed=false",
+        "automatic_failover_allowed=false"
+      ],
+      "next_step": "choose a new non-NL/non-SPB provider/region before any emergency profile test"
+    }
+  ],
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}

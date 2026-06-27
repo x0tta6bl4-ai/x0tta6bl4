@@ -1,0 +1,326 @@
+---
+# Pod Security Policy for Vault
+# Note: PSP is deprecated in K8s 1.21+, use Pod Security Standards instead
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: vault
+  namespace: vault
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfiles: 'runtime/default'
+    apparmor.security.beta.kubernetes.io/allowedProfiles: 'runtime/default'
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'RunAsAny'
+  readOnlyRootFilesystem: true
+
+---
+# Pod Security Standards (replacement for PSP)
+# Enforce restricted profile on Vault namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+
+---
+# Network Policy - Deny all ingress by default
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: vault
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Network Policy - Deny all egress by default
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: vault
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+
+---
+# Network Policy - Allow Vault internal communication
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vault-internal
+  namespace: vault
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+      ports:
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 8201
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+      ports:
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 8201
+
+---
+# Network Policy - Allow ingress from specific namespaces
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vault-ingress-allowed
+  namespace: vault
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from proxy-api namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: default
+        - namespaceSelector:
+            matchLabels:
+              name: proxy-api
+        - namespaceSelector:
+            matchLabels:
+              name: production
+      ports:
+        - protocol: TCP
+          port: 8200
+    # Allow from monitoring namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 9090
+
+---
+# Network Policy - Allow egress to required services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vault-egress-allowed
+  namespace: vault
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow HTTPS for cloud APIs (KMS, etc.)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow Kubernetes API
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8  # Adjust based on your cluster CIDR
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow internal communication
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+
+---
+# Kyverno Policy - Require non-root user
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-non-root-vault
+  annotations:
+    policies.kyverno.io/title: Require Non-Root User for Vault
+    policies.kyverno.io/category: Security
+    policies.kyverno.io/severity: high
+spec:
+  validationFailureAction: enforce
+  background: true
+  rules:
+    - name: check-run-as-non-root
+      match:
+        resources:
+          kinds:
+            - Pod
+          namespaces:
+            - vault
+      validate:
+        message: "Vault pods must run as non-root user"
+        pattern:
+          spec:
+            securityContext:
+              runAsNonRoot: true
+            containers:
+              - securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop:
+                      - ALL
+
+---
+# Kyverno Policy - Require resource limits
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resources-vault
+  annotations:
+    policies.kyverno.io/title: Require Resource Limits for Vault
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+spec:
+  validationFailureAction: enforce
+  background: true
+  rules:
+    - name: check-resource-limits
+      match:
+        resources:
+          kinds:
+            - Pod
+          namespaces:
+            - vault
+      validate:
+        message: "Vault pods must have resource limits defined"
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  limits:
+                    memory: "?*"
+                    cpu: "?*"
+                  requests:
+                    memory: "?*"
+                    cpu: "?*"
+
+---
+# Kyverno Policy - Restrict image registries
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-image-registries-vault
+  annotations:
+    policies.kyverno.io/title: Restrict Image Registries for Vault
+    policies.kyverno.io/category: Security
+    policies.kyverno.io/severity: high
+spec:
+  validationFailureAction: enforce
+  background: true
+  rules:
+    - name: validate-registries
+      match:
+        resources:
+          kinds:
+            - Pod
+          namespaces:
+            - vault
+      validate:
+        message: "Vault images must come from approved registries"
+        pattern:
+          spec:
+            containers:
+              - image: "hashicorp/vault:* | docker.io/hashicorp/vault:*"
+
+---
+# OPA/Gatekeeper Policy - Disallow privileged containers
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sPSPPrivilegedContainer
+metadata:
+  name: vault-no-privileged
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces: ["vault"]
+  parameters:
+    exemptImages: []
+
+---
+# Falco Rule - Detect Vault access anomalies
+apiVersion: falco.org/v1
+kind: FalcoRule
+metadata:
+  name: vault-access-anomalies
+  namespace: falco
+spec:
+  rules: |
+    - rule: Vault Unusual Access
+      desc: Detect unusual access patterns to Vault
+      condition: >
+        spawned_process and
+        (proc.name = "vault" or proc.name contains "vault-") and
+        (not proc.args contains "status" and
+         not proc.args contains "read" and
+         not proc.args contains "list")
+      output: >
+        Unusual Vault command execution
+        (user=%user.name command=%proc.cmdline)
+      priority: WARNING
+
+    - rule: Vault Root Token Usage
+      desc: Detect usage of root token
+      condition: >
+        spawned_process and
+        proc.name = "vault" and
+        proc.args contains "root"
+      output: >
+        Vault root token may have been used
+        (user=%user.name command=%proc.cmdline)
+      priority: CRITICAL

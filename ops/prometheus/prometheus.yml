@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s # How frequently to scrape targets
+  evaluation_interval: 15s # How frequently to evaluate rules
+
+scrape_configs:
+  - job_name: 'x0tta6bl4-node'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['node:9090'] # Scrape the main node service

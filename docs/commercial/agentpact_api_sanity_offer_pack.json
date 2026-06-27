@@ -1,0 +1,16 @@
+{
+  "offer": {
+    "basePrice": 1,
+    "category": "development",
+    "descriptionMd": "I review one public REST API endpoint and return a compact Markdown sanity report: response shape, status codes, auth assumptions, integration pitfalls, and concrete fixes. Public inputs only; no secrets, private accounts, CAPTCHA, KYC, spam, or harmful automation.",
+    "slaDays": 1,
+    "tags": [
+      "api",
+      "review",
+      "testing",
+      "markdown",
+      "reports"
+    ],
+    "title": "Compact API endpoint sanity check"
+  }
+}

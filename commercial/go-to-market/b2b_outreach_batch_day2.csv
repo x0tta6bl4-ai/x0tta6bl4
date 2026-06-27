@@ -1,0 +1,11 @@
+Company,Contact Name,Role,Email,Status,Personalization
+FinCore,Svetlana Mikhailova,CTO,svetlana.m@fincore.example,Pending,"Latency SLO tightening after Q3 incidents"
+TeleGrid,Andrei Petrov,Head of Network,andrei.petrov@telegrid.example,Pending,"Edge node churn in regional clusters"
+SecureLayer,Irina Volkova,Security Lead,irina.volkova@securelayer.example,Pending,"Interest in mTLS hardening + sandbox escape"
+BankNova,Oleg Smirnov,Platform Architect,oleg.smirnov@banknova.example,Pending,"Recent core switch upgrade—validate resilience"
+MedChain,Anna Sokolova,DevOps Lead,anna.sokolova@medchain.example,Pending,"HIPAA-like compliance stress tests upcoming"
+RetailMesh,Denis Fedorov,Infrastructure Lead,denis.fedorov@retailmesh.example,Pending,"Black Friday load spike preparation"
+AeroLink,Marina Belaya,SRE Lead,marina.belaya@aerolink.example,Pending,"Flight telemetry continuity under partial outages"
+DataOrbit,Kirill Antonov,Cloud Engineer,kirill.antonov@dataorbit.example,Pending,"Increased reliance on event streaming layer"
+AgriFlow,Elena Kovalenko,IoT Network Lead,elena.kovalenko@agriflow.example,Pending,"Rural connectivity gaps affecting sensors"
+CyberTrace,Dmitry Pavlov,CISO,dmitry.pavlov@cybertrace.example,Pending,"Zero-Trust rollout phase 2 alignment"

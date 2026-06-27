@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: x0tta6bl4
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: x0tta6bl4-role
+  namespace: default
+rules:
+# Allow reading ConfigMaps and Secrets
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+# Allow reading endpoints for service discovery
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get", "list", "watch"]
+# Allow reading pods for mesh topology
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: x0tta6bl4-rolebinding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: x0tta6bl4
+  namespace: default
+roleRef:
+  kind: Role
+  name: x0tta6bl4-role
+  apiGroup: rbac.authorization.k8s.io
+

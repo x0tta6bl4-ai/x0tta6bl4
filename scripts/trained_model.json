@@ -1,0 +1,592 @@
+{
+  "global_model": {
+    "patterns": {
+      "pattern:raise": 595,
+      "decorator:dataclass": 2130,
+      "decorator:classmethod": 255,
+      "decorator:staticmethod": 350,
+      "naming:snake_case": 1885,
+      "pattern:try_except": 1365,
+      "pattern:type_hints": 1655,
+      "pattern:dataclass": 1130,
+      "pattern:logging": 1565,
+      "decorator:abstractmethod": 60,
+      "pattern:asyncio": 670,
+      "pattern:async": 785,
+      "pattern:await": 710,
+      "decorator:router": 245,
+      "decorator:limiter": 145,
+      "decorator:cached": 5,
+      "pattern:mocking": 105,
+      "decorator:discovery": 25,
+      "decorator:app": 335,
+      "decorator:wraps": 55,
+      "pattern:testing": 15,
+      "decorator:property": 205,
+      "decorator:circuit_breaker": 5,
+      "decorator:retry": 5,
+      "decorator:handle_error_decorator": 5,
+      "decorator:asynccontextmanager": 15,
+      "decorator:lru_cache": 5,
+      "decorator:b": 10,
+      "decorator:d": 10,
+      "decorator:field_validator": 15,
+      "decorator:pytest": 15,
+      "decorator:contextmanager": 240,
+      "decorator:tracer": 5,
+      "decorator:tracing_manager": 5,
+      "decorator:node": 25,
+      "decorator:self": 30,
+      "decorator:middleware": 5,
+      "decorator:functools": 20,
+      "decorator:optimizer": 10,
+      "decorator:x0tta6bl4_support": 10,
+      "decorator:BotFather": 10,
+      "decorator:context": 20,
+      "decorator:enforcer": 10,
+      "decorator:with_retry": 10,
+      "decorator:transport": 10,
+      "decorator:server": 5
+    },
+    "imports": {
+      "__future__": 70,
+      "sys": 120,
+      ".": 5,
+      "hashlib": 275,
+      "hmac": 55,
+      "json": 455,
+      "os": 355,
+      "platform": 15,
+      "subprocess": 115,
+      "time": 835,
+      "uuid": 50,
+      "dataclasses": 1150,
+      "typing": 1685,
+      "pathlib": 295,
+      "logging": 1565,
+      "numpy": 150,
+      "enum": 665,
+      "abc": 50,
+      "datetime": 670,
+      "asyncio": 620,
+      "random": 155,
+      "struct": 65,
+      "cryptography.hazmat.primitives.ciphers": 15,
+      "cryptography.hazmat.backends": 35,
+      "httpx": 25,
+      "fastapi": 90,
+      "slowapi": 25,
+      "slowapi.util": 25,
+      "pydantic": 65,
+      "sqlalchemy.orm": 25,
+      "src.database": 15,
+      "src.core.circuit_breaker": 15,
+      "src.ledger.drift_detector": 5,
+      "src.ledger.rag_search": 5,
+      "secrets": 80,
+      "bcrypt": 15,
+      "vpn_config_generator": 5,
+      "src.core.cache": 5,
+      "new_vpn_config_generator": 5,
+      "src.monitoring.metrics": 10,
+      "src.chaos.controller": 5,
+      "argparse": 55,
+      "signal": 30,
+      "src.network.discovery": 15,
+      "src.network.batman.node_manager": 20,
+      "src.network.obfuscation": 20,
+      "src.network.obfuscation.traffic_shaping": 5,
+      "collections": 260,
+      "fastapi.responses": 10,
+      "src.core.status_collector": 5,
+      "src.core.mtls_middleware": 5,
+      "src.core.rate_limit_middleware": 5,
+      "src.core.tracing_middleware": 5,
+      "src.core.request_validation": 5,
+      "src.core.graceful_shutdown": 5,
+      "functools": 65,
+      "unittest.mock": 5,
+      "src.ml.causal_analysis": 5,
+      "src.ml.causal_visualization": 5,
+      "math": 40,
+      "src.self_healing.mape_k_integrated": 5,
+      "fastapi.middleware.cors": 5,
+      "traceback": 5,
+      "contextlib": 45,
+      "logging.handlers": 5,
+      "re": 60,
+      "structlog": 5,
+      ".consciousness": 5,
+      "..monitoring.prometheus_client": 5,
+      "..mesh.network_manager": 5,
+      "..security.zero_trust": 5,
+      "..dao.ipfs_logger": 5,
+      "threading": 120,
+      ".thread_safe_stats": 5,
+      "tracemalloc": 5,
+      "psutil": 15,
+      "ssl": 55,
+      "starlette.middleware.base": 20,
+      "starlette.requests": 20,
+      "starlette.responses": 20,
+      "cryptography": 25,
+      "socket": 60,
+      "email.mime.text": 10,
+      "urllib.request": 10,
+      "pydantic_settings": 5,
+      "contextvars": 5,
+      "decimal": 15,
+      "src.dao.token": 10,
+      "src.dao.quadratic_voting": 10,
+      "src.dao.governance": 15,
+      "ipfshttpclient": 5,
+      "src.dao.mapek_threshold_proposal": 5,
+      "src.storage.ipfs_client": 15,
+      "web3": 5,
+      "eth_account": 5,
+      "eth_utils": 5,
+      "src.dao.token_bridge": 5,
+      "sqlalchemy": 10,
+      "sqlalchemy.ext.declarative": 5,
+      "src.core.safe_subprocess": 10,
+      ".multi_tenancy": 5,
+      ".rbac": 5,
+      ".audit": 5,
+      ".sla": 5,
+      ".protocol": 55,
+      ".aggregators": 25,
+      "..core.consciousness": 10,
+      ".coordinator": 25,
+      ".secure_aggregators": 5,
+      ".model_sync": 5,
+      ".mesh_worker": 5,
+      "statistics": 45,
+      "cryptography.hazmat.primitives": 30,
+      "cryptography.hazmat.primitives.asymmetric.ed25519": 5,
+      "cryptography.hazmat.primitives.serialization": 5,
+      ".privacy": 10,
+      ".consensus": 5,
+      ".ppo_agent": 5,
+      ".blockchain": 5,
+      "shutil": 15,
+      "tempfile": 25,
+      ".feature_flags": 5,
+      "src.rag.pipeline": 10,
+      "src.storage.vector_index": 20,
+      "src.rag.chunker": 15,
+      ".rag_search": 5,
+      "src.core.subprocess_validator": 10,
+      "networkx": 10,
+      ".causal_analysis": 5,
+      "src.ml.graphsage_anomaly_detector": 5,
+      "src.ml.production_anomaly_detector": 5,
+      "src.ml.ensemble_anomaly_detector": 5,
+      "src.ml.rag": 5,
+      "src.ml.lora": 5,
+      "src.ml.anomaly": 5,
+      "src.ml.decision": 5,
+      "src.ml.mlops": 5,
+      "pytest": 10,
+      "prometheus_client": 55,
+      "src.monitoring.prometheus_extended": 5,
+      "src.monitoring.opentelemetry_tracing": 5,
+      "src.monitoring.opentelemetry_extended": 5,
+      "aiohttp": 25,
+      "urllib.parse": 5,
+      "src.network.residential_proxy_manager": 25,
+      "src.network.transport.udp_shaped": 10,
+      "src.network.routing": 5,
+      "..core.thread_safe_stats": 10,
+      "src.network.mesh_node": 5,
+      "src.network.mesh_router": 5,
+      "src.crypto.pqc_crypto": 5,
+      "src.dao.token_rewards": 5,
+      "jwt": 5,
+      "aiohttp.web_middlewares": 5,
+      "yaml": 15,
+      "cryptography.fernet": 5,
+      "cryptography.hazmat.primitives.kdf.pbkdf2": 5,
+      "base64": 5,
+      "aiohttp_cors": 5,
+      "src.network.proxy_config_manager": 5,
+      "src.network.proxy_control_plane": 5,
+      "src.network.proxy_selection_algorithm": 5,
+      "src.network.reputation_scoring": 5,
+      "src.network.proxy_metrics_collector": 5,
+      "src.network.proxy_auth_middleware": 5,
+      "src.core.connection_retry": 5,
+      ".dns_over_https": 5,
+      ".obfuscation.base": 5,
+      ".obfuscation.faketls": 5,
+      ".obfuscation.shadowsocks": 5,
+      ".obfuscation.domain_fronting": 5,
+      ".obfuscation.traffic_shaping": 5,
+      "sqlite3": 10,
+      "queue": 5,
+      "cProfile": 5,
+      "pstats": 5,
+      "ast": 5,
+      ".code_quality_analyzer": 5,
+      "..core.mape_k_thread_safe": 5,
+      ".optimizer": 5,
+      "concurrent.futures": 15,
+      "requests": 15,
+      "src.sales.payment_verification": 5,
+      "cryptography.hazmat.primitives.kdf.hkdf": 15,
+      "src.security.spiffe": 10,
+      "src.security.spiffe.mtls": 5,
+      "src.monitoring.pqc_metrics": 5,
+      "src.security.post_quantum_liboqs": 10,
+      ".pqc_core": 5,
+      "hvac": 5,
+      "hvac.exceptions": 5,
+      "hvac.api.auth_methods": 5,
+      "string": 5,
+      ".vault_client": 10,
+      ".vault_secrets": 10,
+      "src.security.spiffe.workload.api_client": 5,
+      ".vault_auth": 5,
+      ".vault_monitoring": 5,
+      "..network.ebpf.loader": 5,
+      "..network.ebpf.bcc_probes": 5,
+      ".mape_k": 10,
+      "src.self_healing.mape_k": 10,
+      "src.security.spiffe.workload": 5,
+      "..security.ebpf_pqc_gateway": 5,
+      "..network.ebpf.pqc_xdp_loader": 5,
+      "src.network.mesh_node_complete": 5,
+      "src.network.batman.topology": 5,
+      "src.services.node_manager_service": 5,
+      ".digital_twin": 5,
+      "src.storage.knowledge_storage_v2": 10,
+      "src.swarm.agent": 10,
+      "heapq": 10,
+      "PIL": 5,
+      "src.swarm.orchestrator": 5,
+      "src.swarm.parl.controller": 10,
+      "flask": 10,
+      "src.westworld.anti_delos_charter": 5,
+      "Crypto.Cipher": 5,
+      "Crypto.Util": 5,
+      "..ppo_agent": 5,
+      "..coordinator": 5,
+      "..protocol": 5,
+      "..privacy": 5,
+      "..blockchain": 5,
+      "..aggregators": 5,
+      "src.simulation.digital_twin": 5,
+      ".twin_integration": 5,
+      "src.ml.lora.config": 20,
+      "src.ml.lora.adapter": 15,
+      "src.ml.lora.trainer": 5,
+      "src.ml.lora.advanced": 5,
+      "...core.thread_safe_stats": 5,
+      ".signed_gossip": 5,
+      ".quorum_validation": 5,
+      "ipaddress": 5,
+      ".loader": 10,
+      "..batman.topology": 5,
+      "...monitoring.metrics": 5,
+      "bcc": 5,
+      "src.network.ebpf.ebpf_orchestrator": 5,
+      "src.network.ebpf.loader": 25,
+      "src.network.ebpf.bcc_probes": 5,
+      "src.network.ebpf.metrics_exporter": 15,
+      "src.network.ebpf.cilium_integration": 10,
+      "src.network.ebpf.dynamic_fallback": 10,
+      "src.network.ebpf.mape_k_integration": 10,
+      "src.network.ebpf.ringbuf_reader": 10,
+      "src.network.ebpf.explainer": 5,
+      "...security.ebpf_pqc_gateway": 5,
+      ".base": 25,
+      "cryptography.hazmat.primitives.ciphers.aead": 5,
+      ".simple": 5,
+      ".faketls": 5,
+      ".shadowsocks": 5,
+      ".domain_fronting": 5,
+      ".traffic_shaping": 5,
+      ".mesh_router": 5,
+      ".websocket_shaped": 5,
+      ".udp_shaped": 5,
+      "src.network.ebpf.orchestrator": 5,
+      "cryptography.hazmat.primitives.asymmetric": 10,
+      ".pqc_adapter": 5,
+      ".hybrid_tls": 5,
+      "oqs": 5,
+      "cryptography.x509.oid": 10,
+      "cryptography.x509.extensions": 5,
+      ".controller": 5,
+      ".agent": 5,
+      ".manager": 5,
+      "..workload": 15,
+      "..agent": 5,
+      "..mtls.tls_context": 5,
+      "..certificate_validator": 5,
+      "..server.client": 5,
+      ".spiffe_controller": 5,
+      ".tls_context": 10,
+      ".mtls_controller_production": 5,
+      ".api_client": 5
+    },
+    "decorators": {
+      "dataclass": 2130,
+      "classmethod": 255,
+      "staticmethod": 350,
+      "abstractmethod": 60,
+      "router": 245,
+      "limiter": 145,
+      "cached": 5,
+      "discovery": 25,
+      "app": 335,
+      "wraps": 55,
+      "property": 205,
+      "circuit_breaker": 5,
+      "retry": 5,
+      "handle_error_decorator": 5,
+      "asynccontextmanager": 15,
+      "lru_cache": 5,
+      "b": 10,
+      "d": 10,
+      "field_validator": 15,
+      "pytest": 15,
+      "contextmanager": 240,
+      "tracer": 5,
+      "tracing_manager": 5,
+      "node": 25,
+      "self": 30,
+      "middleware": 5,
+      "functools": 20,
+      "optimizer": 10,
+      "x0tta6bl4_support": 10,
+      "BotFather": 10,
+      "context": 20,
+      "enforcer": 10,
+      "with_retry": 10,
+      "transport": 10,
+      "server": 5
+    },
+    "naming_conventions": {},
+    "async_ratio": 0.23065221525004753,
+    "test_coverage_ratio": 0.0
+  },
+  "report": {
+    "training_time_seconds": 3.6840145587921143,
+    "total_files": 399,
+    "total_patterns": 46,
+    "total_rounds": 5,
+    "async_ratio": 23.1,
+    "top_patterns": [
+      [
+        "decorator:dataclass",
+        2130
+      ],
+      [
+        "naming:snake_case",
+        1885
+      ],
+      [
+        "pattern:type_hints",
+        1655
+      ],
+      [
+        "pattern:logging",
+        1565
+      ],
+      [
+        "pattern:try_except",
+        1365
+      ],
+      [
+        "pattern:dataclass",
+        1130
+      ],
+      [
+        "pattern:async",
+        785
+      ],
+      [
+        "pattern:await",
+        710
+      ],
+      [
+        "pattern:asyncio",
+        670
+      ],
+      [
+        "pattern:raise",
+        595
+      ],
+      [
+        "decorator:staticmethod",
+        350
+      ],
+      [
+        "decorator:app",
+        335
+      ],
+      [
+        "decorator:classmethod",
+        255
+      ],
+      [
+        "decorator:router",
+        245
+      ],
+      [
+        "decorator:contextmanager",
+        240
+      ],
+      [
+        "decorator:property",
+        205
+      ],
+      [
+        "decorator:limiter",
+        145
+      ],
+      [
+        "pattern:mocking",
+        105
+      ],
+      [
+        "decorator:abstractmethod",
+        60
+      ],
+      [
+        "decorator:wraps",
+        55
+      ]
+    ],
+    "top_imports": [
+      [
+        "typing",
+        1685
+      ],
+      [
+        "logging",
+        1565
+      ],
+      [
+        "dataclasses",
+        1150
+      ],
+      [
+        "time",
+        835
+      ],
+      [
+        "datetime",
+        670
+      ],
+      [
+        "enum",
+        665
+      ],
+      [
+        "asyncio",
+        620
+      ],
+      [
+        "json",
+        455
+      ],
+      [
+        "os",
+        355
+      ],
+      [
+        "pathlib",
+        295
+      ],
+      [
+        "hashlib",
+        275
+      ],
+      [
+        "collections",
+        260
+      ],
+      [
+        "random",
+        155
+      ],
+      [
+        "numpy",
+        150
+      ],
+      [
+        "sys",
+        120
+      ],
+      [
+        "threading",
+        120
+      ],
+      [
+        "subprocess",
+        115
+      ],
+      [
+        "fastapi",
+        90
+      ],
+      [
+        "secrets",
+        80
+      ],
+      [
+        "__future__",
+        70
+      ]
+    ],
+    "top_decorators": [
+      [
+        "dataclass",
+        2130
+      ],
+      [
+        "staticmethod",
+        350
+      ],
+      [
+        "app",
+        335
+      ],
+      [
+        "classmethod",
+        255
+      ],
+      [
+        "router",
+        245
+      ],
+      [
+        "contextmanager",
+        240
+      ],
+      [
+        "property",
+        205
+      ],
+      [
+        "limiter",
+        145
+      ],
+      [
+        "abstractmethod",
+        60
+      ],
+      [
+        "wraps",
+        55
+      ]
+    ],
+    "modules": {
+      "src": {
+        "files": 399,
+        "classes": 1304,
+        "functions": 5259
+      }
+    }
+  }
+}

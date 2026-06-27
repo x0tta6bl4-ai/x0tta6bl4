@@ -1,0 +1,76 @@
+{
+  "blockers": [],
+  "config_patch_preview": null,
+  "current_evidence": {
+    "runtime_reason": "telegram media edges are slow from the current egress path",
+    "telegram_media_status": "degraded",
+    "warp_status": "healthy",
+    "xray_outbound_tags": [
+      "direct",
+      "warp",
+      "blocked"
+    ],
+    "xray_routing_rule_count": 10
+  },
+  "decision": "TELEGRAM_MEDIA_WARP_ROUTE_READY_TO_STAGE",
+  "generated_at": "2026-06-02T03:34:26Z",
+  "operator_steps": [
+    "take a fresh read-only snapshot and confirm warp-svc is active plus 127.0.0.1:40000 accepts SOCKS",
+    "backup /usr/local/x-ui/bin/config.json",
+    "insert target_rule before the final direct tcp/udp catch-all rule",
+    "run xray -test against the staged config",
+    "restart only x-ui in a maintenance window",
+    "test Telegram media through client profiles and compare direct vs WARP egress",
+    "rollback from backup if Telegram media or normal browsing regresses"
+  ],
+  "plan_id": "nl-telegram-media-warp-route-plan-2026-06-02",
+  "privacy": {
+    "output_privacy_ok": true,
+    "raw_client_rows_stored": false,
+    "raw_credentials_stored": false,
+    "raw_ip_user_stored": false,
+    "raw_subscription_url_stored": false,
+    "raw_uuid_stored": false
+  },
+  "problem": {
+    "likely_failure_domain": "telegram_media_egress_route",
+    "selected_bypass": "route Telegram media/data-center IPv4 ranges through existing Xray WARP outbound",
+    "symptom": "telegram_media_slow"
+  },
+  "rollout": {
+    "applies_to": "/usr/local/x-ui/bin/config.json",
+    "forbidden_restarts": [
+      "ghost-access-nl-xhttp.service",
+      "ghost-access-nl-https-ws.service",
+      "telegram-bot-simple.service",
+      "nginx"
+    ],
+    "mutation_scope": "routing.rules only",
+    "requires_config_backup": true,
+    "requires_explicit_operator_confirm": "APPLY_TELEGRAM_MEDIA_WARP_ROUTE",
+    "requires_fresh_readonly_snapshot": true,
+    "requires_xray_config_test_before_restart": true,
+    "restart_scope": [
+      "x-ui"
+    ],
+    "rollback": "restore config backup, run xray config test, restart x-ui once"
+  },
+  "target_rule": {
+    "ip": [
+      "91.108.4.0/22",
+      "91.108.8.0/22",
+      "91.108.12.0/22",
+      "91.108.16.0/22",
+      "91.108.20.0/22",
+      "91.108.56.0/22",
+      "149.154.160.0/20"
+    ],
+    "outboundTag": "warp",
+    "type": "field"
+  },
+  "target_rule_source": {
+    "basis": "Telegram AS / data-center IPv4 ranges used by current local probes and public AS/CIDR references",
+    "ipv6_deferred": true,
+    "refresh_required_before_deploy": true
+  }
+}

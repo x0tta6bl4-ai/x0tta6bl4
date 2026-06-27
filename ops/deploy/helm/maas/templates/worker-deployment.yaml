@@ -1,0 +1,159 @@
+{{/*
+MaaS Worker Deployment - Background job processing
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "maas.fullname" . }}-worker
+  labels:
+    {{- include "maas.worker.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.worker.autoscaling.enabled }}
+  replicas: {{ .Values.worker.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "maas.worker.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+      labels:
+        {{- include "maas.worker.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "maas.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.api.podSecurityContext | nindent 8 }}
+      containers:
+        - name: worker
+          securityContext:
+            {{- toYaml .Values.api.containerSecurityContext | nindent 12 }}
+          image: {{ include "maas.worker.image" . }}
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            # Application settings
+            - name: APP_NAME
+              value: "maas-worker"
+            - name: ENVIRONMENT
+              value: {{ .Values.global.environment | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.logging.level | quote }}
+            
+            # Worker settings
+            - name: WORKER_CONCURRENCY
+              value: {{ .Values.worker.concurrency | quote }}
+            - name: WORKER_QUEUES
+              value: {{ .Values.worker.queues | quote }}
+            
+            # Database
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "maas.fullname" . }}-secrets
+                  key: database-url
+            
+            # Redis (Celery broker)
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "maas.fullname" . }}-secrets
+                  key: redis-url
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "maas.fullname" . }}-secrets
+                  key: redis-url
+            - name: CELERY_RESULT_BACKEND
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "maas.fullname" . }}-secrets
+                  key: redis-url
+            
+            # Stripe
+            {{- if .Values.stripe.enabled }}
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "maas.fullname" . }}-secrets
+                  key: stripe-secret-key
+            {{- end }}
+            
+            # SPIRE/SPIFFE
+            {{- if .Values.spire.enabled }}
+            - name: SPIFFE_ENDPOINT
+              value: "unix:///spire/agent/socket/agent.sock"
+            {{- end }}
+            
+            # Feature flags
+            - name: FEATURE_PQC_ENABLED
+              value: {{ .Values.features.pqcEnabled | quote }}
+            - name: FEATURE_MESH_PROVISIONING
+              value: {{ .Values.features.meshProvisioning | quote }}
+            - name: FEATURE_BILLING_INTEGRATION
+              value: {{ .Values.features.billingIntegration | quote }}
+          
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "celery -A maas.worker inspect ping -d celery@$HOSTNAME"
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "celery -A maas.worker inspect ping -d celery@$HOSTNAME"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          
+          {{- if .Values.spire.enabled }}
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /spire/agent/socket
+              readOnly: true
+          {{- end }}
+      
+      {{- if .Values.spire.enabled }}
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/agent/socket
+            type: Directory
+      {{- end }}
+      
+      {{- with .Values.worker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 300  # Longer for graceful worker shutdown

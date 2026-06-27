@@ -1,0 +1,6 @@
+timestamp_utc=20260608T200327Z
+server=89.125.1.107
+incident=ghost-vpn restart loop due UDP 4433 already held by ghost-pulse-vpn.service
+action=ssh root@89.125.1.107 systemctl disable --now ghost-vpn.service ghost-tcp-bridge.service && systemctl reset-failed ghost-vpn.service ghost-tcp-bridge.service
+rollback=ssh root@89.125.1.107 systemctl enable --now ghost-vpn.service ghost-tcp-bridge.service
+expected_result=ghost-vpn no longer auto-restarts every 5s; ghost-pulse-vpn remains owner of UDP 4433

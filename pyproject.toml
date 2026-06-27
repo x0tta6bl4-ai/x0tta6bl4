@@ -1,0 +1,314 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "x0tta6bl4"
+# Version is read from VERSION file at build time
+# For development, update VERSION file: echo "3.4.0" > VERSION
+version = "3.4.0"
+description = "Experimental mesh networking, post-quantum transport, eBPF dataplane, identity, and resilience tooling."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "x0tta6bl4 Team", email = "contact@x0tta6bl4.com" },
+]
+
+# Core dependencies based on requirements.txt and consolidated file
+dependencies = [
+    "fastapi>=0.119.1",
+    "uvicorn==0.41.0",
+    "starlette>=1.3.1",
+    "pydantic==2.12.5",
+    "python-dotenv==1.2.2",
+    "httpx==0.28.1",
+    "requests==2.33.0",
+    "cryptography==49.0.0",
+    "torch==2.10.0",
+    "pyjwt>=2.13.0",
+    "bcrypt==5.0.0",
+    "pyyaml==6.0.3",
+    "click==8.3.1",
+    "numpy==2.3.4",
+    "psutil==7.2.2",
+    "structlog==25.5.0",
+    "orjson==3.11.7",
+    "passlib==1.7.4",
+    "redis==7.2.0",
+    "slowapi==0.1.9",
+    "networkx==3.4.2",
+    "aiofiles==25.1.0",
+    "aiohttp>=3.13.3",
+    "asyncio-mqtt==0.16.2",
+    "python-multipart>=0.0.27",
+    "python-dateutil==2.9.0.post0",
+    "pytz==2025.2",
+    "sse-starlette==3.2.0",
+    "urllib3>=2.7.0",
+    "psycopg2-binary==2.9.11",
+    "alembic==1.18.4",
+    "jinja2>=3.1.6",
+    "idna>=3.15",
+    "protobuf>=6.33.5",
+    "pyasn1>=0.6.3",
+    "pynacl>=1.6.2",
+    "werkzeug>=3.1.5",
+    "oqs>=0.8.0.0",
+    "certifi>=2024.7.4",
+    "pillow>=10.3.0",
+    "setuptools>=78.1.1",
+    "filelock>=3.20.3",
+    "configobj>=5.0.9",
+    "yt-dlp>=2026.2.21",
+]
+
+[project.optional-dependencies]
+# Dependencies for development, testing, and CI
+dev = [
+    "black==26.3.1",
+    "flake8==7.3.0",
+    "mypy==1.19.1",
+    "pytest==9.0.3",
+    "pytest-asyncio==1.3.0",
+    "pytest-cov==7.0.0",
+    "pytest-benchmark==5.2.3",
+    "bandit==1.9.3",
+    "safety==3.7.0",
+    "pre-commit==4.5.1",
+    "ruff", # From roadmap
+    "pip-audit", # From roadmap
+
+    "pytest-mock==3.15.1",
+    "pyelftools>=0.30",  # For eBPF ELF parsing
+    "virtualenv>=20.36.1",
+    "wheel>=0.46.2",
+]
+
+# Dependencies for Machine Learning models and tasks
+ml = [
+    "pandas==2.3.3",
+    "scikit-learn==1.7.2",
+    "scipy==1.16.2",
+    "sentence-transformers==5.2.3",
+    "torch-geometric==2.7.0",
+    "transformers==5.2.0",
+    "joblib==1.5.3",
+    "nltk==3.9.4",
+    "matplotlib==3.10.8",
+    "seaborn==0.13.2",
+    "plotly==6.5.2",
+]
+
+# Optional local CPU LLM runtime (installed explicitly)
+local-llm = [
+    "llama-cpp-python==0.3.16",
+]
+
+# Dependencies for LoRA / PEFT
+lora = [
+    "peft>=0.2",
+]
+
+# Dependencies for monitoring and observability
+monitoring = [
+    "prometheus-client==0.24.1",
+    "opentelemetry-api==1.39.1",
+    "opentelemetry-sdk==1.39.1",
+    "opentelemetry-exporter-otlp-proto-grpc==1.39.1",
+    "opentelemetry-semantic-conventions==0.60b1",
+]
+
+# Dependencies for Telegram bots
+bots = [
+    "aiogram>=3.0.0", # Upgraded to resolve dependency conflict
+    "python-telegram-bot>=20.0",
+    "qrcode[pil]==8.2",
+]
+
+# Dependencies for eBPF observability and security
+ebpf = [
+    "bcc>=0.1.10",
+]
+
+# Dependencies for Blockchain / DAO integration
+blockchain = [
+    "web3>=7.15.0",
+]
+
+# Group to install all optional dependencies
+all = [
+    "x0tta6bl4[dev]",
+    "x0tta6bl4[ml]",
+    "x0tta6bl4[lora]",
+    "x0tta6bl4[monitoring]",
+    "x0tta6bl4[bots]",
+    "x0tta6bl4[ebpf]",
+    "x0tta6bl4[blockchain]",
+    "x0tta6bl4[monetization]",
+]
+
+[project.urls]
+
+Homepage = "https://github.com/x0tta6bl4/x0tta6bl4"
+
+Repository = "https://github.com/x0tta6bl4/x0tta6bl4"
+
+"Bug Tracker" = "https://github.com/x0tta6bl4/x0tta6bl4/issues"
+
+
+[tool.pytest.ini_options]
+pytest_plugins = ["pytest_mock"]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --maxfail=10"
+asyncio_mode = "auto"
+norecursedirs = ".git .pytest_cache __pycache__ *.egg-info dist build .venv node_modules .hermes"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "security: security related tests",
+    "pqc: post-quantum cryptography tests",
+    "mesh: mesh network tests",
+    "api: api tests",
+    "performance: wall-clock timing assertions; scale thresholds via CI_LATENCY_FACTOR env var",
+]
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+]
+
+
+
+
+
+
+
+[tool.coverage.run]
+
+
+
+source = [
+    "src/core",
+    "src/api",
+    "src/monitoring",
+    "src/optimization",
+    "src/resilience",
+    "src/storage",
+    "src/security",
+    "src/self_healing",
+]
+
+
+
+omit = [
+
+
+
+    "*/tests/*",
+
+
+
+    "*/test_*.py",
+
+
+
+    "*/__pycache__/*",
+
+
+
+    "*/site-packages/*",
+    "src/experiments/*",
+    "src/legacy/*",
+    "src/manual_scripts/*",
+
+
+
+]
+
+
+
+
+
+
+
+[tool.coverage.report]
+
+
+
+precision = 2
+
+
+
+exclude_lines = [
+
+
+
+    "pragma: no cover",
+
+
+
+    "def __repr__",
+
+
+
+    "raise AssertionError",
+
+
+
+    "raise NotImplementedError",
+
+
+
+    "if __name__ == .__main__.:",
+
+
+
+    "if TYPE_CHECKING:",
+
+
+
+    "class .*\bProtocol\\):",
+
+
+
+    "@(abc\\.)?abstractmethod",
+
+
+
+]
+
+
+
+
+
+
+
+[tool.coverage.html]
+
+
+
+directory = "htmlcov"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "TCH"]
+ignore = ["E501"]
+
+[tool.ruff.isort]
+known-first-party = ["src"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["src.crypto.*", "src.security.*"]
+disallow_untyped_defs = true
+check_untyped_defs = true

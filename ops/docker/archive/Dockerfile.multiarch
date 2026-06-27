@@ -1,0 +1,70 @@
+# ── x0tta6bl4 MaaS — Multi-arch Dockerfile (amd64 + arm64)
+# Build: docker buildx build --platform linux/amd64,linux/arm64 --push -t registry/mesh-node:v1.0.0 .
+#
+# Target: edge devices (arm64/Raspberry Pi 4+) and server nodes (amd64).
+# Final image: ~45MB (distroless/static-debian12 base).
+
+# ── Stage 1: Build (Go gRPC proxy) ────────────────────────────────────────────
+FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS go-builder
+
+ARG TARGETOS
+ARG TARGETARCH
+
+WORKDIR /build
+COPY integration/go.mod integration/go.sum ./
+RUN go mod download
+
+COPY integration/ .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -ldflags="-s -w -X main.version=${VERSION:-dev}" \
+    -o grpc-proxy ./grpc-proxy.go
+
+# ── Stage 2: Build (Python mesh-node) ─────────────────────────────────────────
+FROM --platform=$BUILDPLATFORM python:3.11-slim AS py-builder
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir --target=/app/deps -r requirements.txt
+
+COPY src/ ./src/
+
+# ── Stage 3: Final image ───────────────────────────────────────────────────────
+FROM gcr.io/distroless/python3-debian12:nonroot
+
+# Labels for SBOM / cosign attestation
+LABEL org.opencontainers.image.title="x0tta6bl4 mesh-node"
+LABEL org.opencontainers.image.description="x0tta MaaS mesh node — PQC + batman-adv + MAPE-K"
+LABEL org.opencontainers.image.version="${VERSION:-dev}"
+LABEL org.opencontainers.image.vendor="x0tta6bl4"
+LABEL org.opencontainers.image.licenses="Proprietary"
+LABEL org.opencontainers.image.source="https://gitlab.com/x0tta/x0tta6bl4"
+
+WORKDIR /app
+
+# Copy Python deps and source
+COPY --from=py-builder /app/deps /app/deps
+COPY --from=py-builder /app/src  /app/src
+
+# Copy gRPC proxy binary (multi-arch native)
+COPY --from=go-builder /build/grpc-proxy /usr/local/bin/grpc-proxy
+
+ENV PYTHONPATH=/app/deps
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Non-root user (distroless uses uid 65532 = nonroot)
+USER nonroot:nonroot
+
+EXPOSE 8080 9090 50051
+
+# Health check via gRPC health protocol
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["/usr/local/bin/grpc-proxy", "-health-check"] || exit 1
+
+ENTRYPOINT ["python3", "-m", "src.libx0t.main"]
+
+# ── arm64 optimisation note ────────────────────────────────────────────────────
+# For Raspberry Pi 4 / Jetson edge deployments:
+#   - batman-adv kernel module must be pre-installed on host
+#   - eBPF stub mode auto-activates when BCC unavailable (BCC_STUB_MODE=true)
+#   - PQC fallback to kyber512 on memory-constrained devices (<512MB RAM)

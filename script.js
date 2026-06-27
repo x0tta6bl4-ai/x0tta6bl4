@@ -1,0 +1,158 @@
+document.addEventListener('DOMContentLoaded', () => {
+    const connectBtn = document.getElementById('connect-btn');
+    const statusText = document.getElementById('status-text');
+    const powerIcon = document.getElementById('power-icon');
+    const statusGlow = document.getElementById('status-glow');
+    
+    const zkpContainer = document.getElementById('zkp-container');
+    const zkpStepText = document.getElementById('zkp-step-text');
+    const zkpBar = document.getElementById('zkp-bar');
+    const zkpPercent = document.getElementById('zkp-percent');
+    
+    let isConnected = false;
+    let currentLang = 'EN';
+
+    const langBtn = document.getElementById('lang-btn');
+    langBtn.addEventListener('click', () => {
+        currentLang = currentLang === 'EN' ? 'RU' : 'EN';
+        langBtn.innerText = currentLang === 'EN' ? 'RU' : 'EN';
+        
+        // Update all translatable elements
+        document.querySelectorAll('[data-en]').forEach(el => {
+            el.innerText = el.getAttribute(`data-${currentLang.toLowerCase()}`);
+        });
+    });
+
+    async function showZKPFlow() {
+        zkpContainer.classList.remove('hidden');
+        const steps = [
+            { text: 'Generating Commitment', p: 33, dot: 'step-1' },
+            { text: 'Solving Challenge', p: 66, dot: 'step-2' },
+            { text: 'Finalizing Attestation', p: 100, dot: 'step-3' }
+        ];
+
+        for (const step of steps) {
+            zkpStepText.innerText = step.text;
+            zkpBar.style.width = `${step.p}%`;
+            zkpPercent.innerText = `${step.p}%`;
+            document.getElementById(step.dot).classList.replace('bg-zinc-700', 'bg-emerald-500');
+            await new Promise(r => setTimeout(r, 800)); // Simulate work
+        }
+        
+        await new Promise(r => setTimeout(r, 400));
+        zkpContainer.classList.add('hidden');
+        // Reset dots for next time
+        ['step-1', 'step-2', 'step-3'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('bg-emerald-500');
+            if (el) el.classList.add('bg-zinc-700');
+        });
+    }
+
+    const planCard = document.getElementById('plan-card');
+    const upgradeModal = document.getElementById('upgrade-modal');
+    const closeModal = document.getElementById('close-modal');
+    const buyProBtn = document.getElementById('buy-pro-btn');
+
+    if (planCard) {
+        planCard.addEventListener('click', () => {
+            upgradeModal.classList.remove('hidden');
+        });
+    }
+
+    if (closeModal) {
+        closeModal.addEventListener('click', () => {
+            upgradeModal.classList.add('hidden');
+        });
+    }
+
+    if (buyProBtn) {
+        buyProBtn.addEventListener('click', async () => {
+            buyProBtn.innerText = 'Redirecting...';
+            try {
+                const response = await fetch('/billing/checkout', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({user_id: 1001, plan: 'pro'})
+                });
+                const data = await response.json();
+                window.open(data.checkout_url, '_blank');
+            } catch (e) {
+                console.error("Payment failed", e);
+            }
+        });
+    }
+
+    // Initial status check
+    async function checkStatus() {
+        try {
+            const res = await fetch('/api/vpn/status');
+            const data = await res.json();
+            if (data.status === "Connected") {
+                isConnected = true;
+                statusText.innerText = 'Connected (Ghost)';
+                statusText.classList.add('text-emerald-400');
+                powerIcon.classList.add('text-emerald-400');
+                statusGlow.classList.add('bg-emerald-500');
+                connectBtn.classList.add('shadow-[0_0_50px_rgba(16,185,129,0.2)]');
+            }
+        } catch (e) {}
+    }
+    checkStatus();
+
+    connectBtn.addEventListener('click', async () => {
+        if (!isConnected) {
+            statusText.innerText = 'Initializing...';
+            connectBtn.classList.add('border-emerald-500/50');
+            
+            try {
+                // 1. Show ZKP Animation
+                await showZKPFlow();
+
+                // 2. Call Backend
+                let response_json = await fetch('/api/vpn/toggle', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ active: true })
+                });
+                let data = await response_json.json();
+                
+                if (data.status === "Connected") {
+                    isConnected = true;
+                    statusText.innerText = 'Connected (Ghost)';
+                    statusText.classList.remove('text-zinc-500');
+                    statusText.classList.add('text-emerald-400');
+                    powerIcon.classList.remove('text-zinc-700');
+                    powerIcon.classList.add('text-emerald-400');
+                    statusGlow.classList.add('bg-emerald-500');
+                    connectBtn.classList.add('shadow-[0_0_50px_rgba(16,185,129,0.2)]');
+                    console.log("✅ Securely Connected via Ghost Protocol");
+                } else {
+                    throw new Error(data.message || "Failed to connect");
+                }
+            } catch (error) {
+                console.error("Connection failed:", error);
+                statusText.innerText = 'Error: Check Backend';
+                setTimeout(() => {
+                    statusText.innerText = 'Disconnected';
+                    connectBtn.classList.remove('border-emerald-500/50');
+                }, 3000);
+            }
+        } else {
+            // Disconnecting
+            await fetch('/api/vpn/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ active: false })
+            });
+            isConnected = false;
+            statusText.innerText = 'Disconnected';
+            statusText.classList.remove('text-emerald-400');
+            statusText.classList.add('text-zinc-500');
+            powerIcon.classList.remove('text-emerald-400');
+            powerIcon.classList.add('text-zinc-700');
+            statusGlow.classList.remove('bg-emerald-500');
+            connectBtn.classList.remove('border-emerald-500/50', 'shadow-[0_0_50px_rgba(16,185,129,0.2)]');
+        }
+    });
+});

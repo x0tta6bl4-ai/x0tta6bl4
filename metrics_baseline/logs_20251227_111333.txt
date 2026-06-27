@@ -1,0 +1,45 @@
+/usr/local/lib/python3.11/site-packages/oqs/__init__.py:1: UserWarning: liboqs version (major, minor) 0.15.0 differs from liboqs-python version 0.14.1
+  from oqs.oqs import (
+INFO:x0tta6bl4:✅ Using real PQC backend (liboqs) - Post-Quantum Secure
+INFO:src.security.post_quantum_liboqs:✅ LibOQS Backend initialized: KEM=Kyber768, SIG=ML-DSA-65
+INFO:src.security.post_quantum_liboqs:✅ LibOQS Backend initialized: KEM=Kyber768, SIG=ML-DSA-65
+INFO:src.security.post_quantum_liboqs:✅ PQ Mesh Security initialized for node-01
+WARNING:src.ml.graphsage_anomaly_detector:⚠️ GraphSAGE: torch not available, using rule-based fallback
+INFO:src.dao.governance:Created proposal prop_1766820213_node-01: Test Proposal
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:src.core.feature_flags:Feature Flags - Enabled: graphsage_enabled, spiffe_enabled, ebpf_enabled, fl_enabled, dao_enabled
+INFO:src.core.feature_flags:Feature Flags - Disabled: byzantine_protection, failover_enabled, pqc_beacons, minimal_mode
+WARNING:x0tta6bl4:⚠️ SPIFFE/mTLS initialization failed: name 'SPIFFE_SDK_AVAILABLE' is not defined, continuing without it
+INFO:src.mesh.slot_sync:[node-01] SlotSync started
+INFO:src.network.routing.mesh_router:MeshRouter started for node-01
+INFO:x0tta6bl4:🚀 x0tta6bl4 services started
+INFO:x0tta6bl4:Starting background AI model training...
+INFO:     Application startup complete.
+INFO:src.ml.graphsage_anomaly_detector:Training GraphSAGE v2 model: 50 nodes, 100 edges
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+WARNING:x0tta6bl4:Background training failed: 'NoneType' object has no attribute 'tensor', continuing without it
+INFO:     172.17.0.1:51616 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:52828 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:52838 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     172.17.0.1:46176 - "GET /cgi-bin/luci/%3Bstok%3D/locale HTTP/1.1" 404 Not Found
+INFO:     172.17.0.1:46734 - "GET / HTTP/1.1" 404 Not Found
+INFO:     172.17.0.1:34658 - "GET /developmentserver/metadatauploader HTTP/1.1" 404 Not Found
+INFO:     172.17.0.1:42538 - "POST /hello.world?%ADd+allow_url_include%3d1+%ADd+auto_prepend_file%3dphp://input HTTP/1.1" 404 Not Found
+INFO:     172.17.0.1:42544 - "POST /?%ADd+allow_url_include%3d1+%ADd+auto_prepend_file%3dphp://input HTTP/1.1" 404 Not Found
+INFO:     172.17.0.1:44134 - "POST / HTTP/1.1" 404 Not Found
+INFO:     172.17.0.1:54412 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:60506 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:60510 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     172.17.0.1:60558 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     172.17.0.1:60562 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     172.17.0.1:34138 - "OPTIONS / HTTP/1.1" 404 Not Found
+INFO:     172.17.0.1:49498 - "GET /SDK/webLanguage HTTP/1.1" 404 Not Found
+INFO:     172.17.0.1:49418 - "GET / HTTP/1.1" 404 Not Found
+INFO:     172.17.0.1:49432 - "POST /cgi-bin/login HTTP/1.1" 404 Not Found
+INFO:     172.17.0.1:37048 - "GET / HTTP/1.1" 404 Not Found
+INFO:     172.17.0.1:58662 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:58664 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     172.17.0.1:49964 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:49062 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:49076 - "GET /metrics HTTP/1.1" 200 OK

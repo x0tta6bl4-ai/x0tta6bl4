@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/audit_manual_failover_readiness.py",
+  "generated_at": "2026-05-28T03:42:20.640016+00:00",
+  "status": "blocked_no_incident_trigger",
+  "manual_probe_allowed": false,
+  "manual_switch_allowed": false,
+  "summary": {
+    "decision": "observe",
+    "decision_confidence": "high",
+    "overall_status": "advisory",
+    "transport_status": "healthy",
+    "failure_domain": "external_network",
+    "provider_status": "recent_boot_gap",
+    "manual_failover_status": "planning_not_active",
+    "secondary_probe_status": "planning_template",
+    "candidate_configured": false,
+    "spb_excluded": true,
+    "automatic_failover_allowed": false,
+    "nl_write_allowed": false
+  },
+  "gates": [
+    {
+      "id": "TRIGGER-01",
+      "title": "Incident evidence justifies considering failover",
+      "status": "blocked",
+      "ok": false,
+      "evidence": [
+        "decision=observe",
+        "failure_domain=external_network",
+        "transport_status=healthy",
+        "provider_status=recent_boot_gap"
+      ],
+      "next_step": "stay on observe while NL transport is healthy and no incident trigger exists"
+    },
+    {
+      "id": "LOCAL-01",
+      "title": "Local client is not the failure domain",
+      "status": "pass",
+      "ok": true,
+      "evidence": [
+        "decision=observe",
+        "failure_domain=external_network"
+      ],
+      "next_step": "fix local route/SOCKS/client before any failover work"
+    },
+    {
+      "id": "SECONDARY-01",
+      "title": "Secondary exit candidate is configured",
+      "status": "blocked",
+      "ok": false,
+      "evidence": [
+        "secondary_status=planning_template",
+        "candidate_configured=false",
+        "candidate_label=secondary-placeholder",
+        "candidate_provider=TBD-new-provider-not-NL-not-SPB",
+        "candidate_region=TBD-new-region"
+      ],
+      "next_step": "choose a new non-SPB provider/region and generate a safe public probe config"
+    },
+    {
+      "id": "SECONDARY-02",
+      "title": "Secondary exit health is verified enough for the requested action",
+      "status": "blocked",
+      "ok": false,
+      "evidence": [
+        "secondary_status=planning_template"
+      ],
+      "next_step": "run probe_secondary_exit.py against the secondary public endpoint before any profile test"
+    },
+    {
+      "id": "SPB-01",
+      "title": "SPB is excluded from failover",
+      "status": "pass",
+      "ok": true,
+      "evidence": [
+        "failover_spb_fallback_allowed=false",
+        "secondary_spb_fallback_allowed=false",
+        "candidate_configured=false",
+        "candidate_has_spb_marker=false"
+      ],
+      "next_step": "do not use SPB or SPB sync scripts as emergency recovery"
+    },
+    {
+      "id": "MANUAL-01",
+      "title": "Failover remains manual and NL read-only",
+      "status": "pass",
+      "ok": true,
+      "evidence": [
+        "automatic_failover_allowed=false",
+        "nl_mutation_allowed=false",
+        "secondary_automatic_failover_allowed=false",
+        "secondary_nl_mutation_allowed=false"
+      ],
+      "next_step": "keep switching manual-only and keep NL unchanged during failover diagnosis"
+    }
+  ],
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}

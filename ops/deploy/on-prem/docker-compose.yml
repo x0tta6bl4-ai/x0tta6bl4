@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # x0tta6bl4 MaaS Control Plane
+  control-plane:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.prod
+    image: x0tta6bl4/control-plane:latest
+    container_name: x0t-control-plane
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://x0t_user:x0t_pass@db:5432/x0tta6bl4_maas
+      - REDIS_URL=redis://redis:6379/0
+      - VAULT_URL=http://vault:8200
+      - OIDC_ISSUER=${OIDC_ISSUER}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
+      - MAAS_TOKEN_SECRET=${MAAS_TOKEN_SECRET}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+      - vault
+
+  # Persistent Storage
+  db:
+    image: postgres:15-alpine
+    container_name: x0t-db
+    restart: always
+    environment:
+      - POSTGRES_USER=x0t_user
+      - POSTGRES_PASSWORD=x0t_pass
+      - POSTGRES_DB=x0tta6bl4_maas
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Caching Layer
+  redis:
+    image: redis:7-alpine
+    container_name: x0t-redis
+    restart: always
+    volumes:
+      - redis_data:/data
+
+  # Secret Management
+  vault:
+    image: hashicorp/vault:1.13
+    container_name: x0t-vault
+    restart: always
+    ports:
+      - "8200:8200"
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=x0t-root-token
+      - VAULT_ADDR=http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+
+  # Monitoring (Prometheus)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: x0t-prometheus
+    restart: always
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:

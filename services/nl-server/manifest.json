@@ -1,0 +1,829 @@
+{
+  "schema_version": 1,
+  "status": "planning_only",
+  "nl_write_allowed": false,
+  "source_profile": "nl-diagnostics/nl-server-profile/20260527T173222Z",
+  "gap_report": "nl-diagnostics/nl-profile-gap-analysis-20260527T173222Z.md",
+  "gap_summary": {
+    "accepted_local_delta": 5,
+    "redacted_review_only": 2,
+    "redacted_template_only": 1,
+    "same_hash_elsewhere": 18,
+    "server_backup_only": 4,
+    "server_runtime_artifact": 4
+  },
+  "quarantine_policy": {
+    "tool": "services/nl-server/tools/pull_candidate_readonly.py",
+    "default_mode": "dry_run",
+    "quarantine_path": "services/nl-server/.quarantine/incoming",
+    "git_ignored": true,
+    "nl_write_allowed": false,
+    "promotion_requires_manual_review": true
+  },
+  "quarantine_batches": [
+    {
+      "batch_id": "20260527T055602Z",
+      "priority": "P1",
+      "accepted": 13,
+      "blocked": 0,
+      "report": "nl-diagnostics/nl-p1-quarantine-intake-2026-05-27.md",
+      "promoted_to_source": "partial"
+    },
+    {
+      "batch_id": "20260527T060043Z",
+      "priority": "P2",
+      "accepted": 10,
+      "blocked": 2,
+      "blocked_reason": "vpn_uri pattern detected; files not saved",
+      "report": "nl-diagnostics/nl-p2-quarantine-intake-2026-05-27.md",
+      "promoted_to_source": "partial"
+    }
+  ],
+  "inactive_integrations": [
+    {
+      "name": "spb_standalone_xray",
+      "enabled": false,
+      "reason": "SPB server is disabled and is not used in the current VPN path",
+      "report": "nl-diagnostics/nl-spb-integration-status-2026-05-27.md",
+      "related_source": "services/nl-server/ghost-access/sync_spb_standalone_clients.py",
+      "deployable_to_nl": false
+    }
+  ],
+  "accepted_local_deltas": [
+    {
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/vps_build_runtime_state.py",
+      "local_path": "services/nl-server/mesh-runtime/vps_build_runtime_state.py",
+      "remote_sha256": "7f3df8157545fd5248b202fac761f5dca40ff69357c61e76fcc9e5f3c5d51dd1",
+      "local_sha256": "d168e1e3ff493dd5be7fa59d5186b09a37e8d7645ab62ad1e192ab1bf9274d61",
+      "deployable_to_nl": false,
+      "reason": "local policy fix: Telegram media degraded with healthy transport is advisory/observe, ports match current NL, x-ui path prefers /usr/local/x-ui/bin/config.json; trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+    },
+    {
+      "remote_path": "/mnt/projects/src/network/ghost_vpn_protocol.py",
+      "local_path": "services/nl-server/ghost-vpn/ghost_vpn_protocol.py",
+      "remote_sha256": "aa05113520d86653348fb0f287a63cbcb5b42d26a83a1ff5e4c464d24cc60de2",
+      "local_sha256": "09a10e7d57cfab80ea116972df7f82ef80bc72ac9fddf2ca835c1ff0f51a2e01",
+      "deployable_to_nl": false,
+      "reason": "local import compatibility fallback for workspace tests; not applied to NL; trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+    },
+    {
+      "remote_path": "/mnt/projects/src/network/ghost_vpn_server.py",
+      "local_path": "services/nl-server/ghost-vpn/ghost_vpn_server.py",
+      "remote_sha256": "d51a7a742d8a73a81d40dfa9cc4c782a5fff1642aa1461b5c96c3777ee898b1e",
+      "local_sha256": "d0f7efd8ab0a935872bb3a82e9829af9645d2f385421999cf3d4432e4bfcfdba",
+      "deployable_to_nl": false,
+      "reason": "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+    },
+    {
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/apply_config_auto.py",
+      "local_path": "services/nl-server/mesh-runtime/apply_config_auto.py",
+      "remote_sha256": "75f99b59f48d3248853be9adb99f45cc5eff33569ae639c873fcfc00e8356159",
+      "local_sha256": "f57c38a8e373e2bf85396cc725ae2e436ce0c5ffe04fb9be653fd2f64a24e24c",
+      "deployable_to_nl": false,
+      "reason": "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+    },
+    {
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/full_stealth_config.py",
+      "local_path": "services/nl-server/mesh-runtime/full_stealth_config.py",
+      "remote_sha256": "dfc8e76cc74a8be9a41018dcb3b3abad5f8791ec1b769e293a2c1eb5c4dc8e8b",
+      "local_sha256": "78901e0bf6a85153cc06afe23080e212d9d3bb6b9623b417d1cca01f11ab9640",
+      "deployable_to_nl": false,
+      "reason": "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+    }
+  ],
+  "source_promotion_status": {
+    "local_source_only": true,
+    "deployable_to_nl": false,
+    "promoted_count": 22,
+    "tests": [
+      "python3 services/nl-server/tests/test_vps_build_runtime_state.py",
+      "python3 services/nl-server/tests/test_profile_status_and_ghost_protocol.py",
+      "python3 services/nl-server/tests/test_listener_and_profile_hint.py",
+      "python3 services/nl-server/tests/test_activity_sync_and_tcp_bridge.py",
+      "python3 services/nl-server/tests/test_ghost_vpn_runtime_source.py",
+      "python3 services/nl-server/tests/test_auto_monitor_source.py",
+      "python3 services/nl-server/tests/test_apply_config_auto_source.py",
+      "python3 services/nl-server/tests/test_full_stealth_config_source.py",
+      "python3 services/nl-server/tests/test_rotation_timer_source.py",
+      "python3 services/nl-server/tests/test_spb_standalone_sync_source.py",
+      "python3 services/nl-server/tests/test_current_nl_runtime_source.py",
+      "python3 services/nl-server/tests/test_templates.py",
+      "python3 services/nl-server/tests/test_health_action_policy.py",
+      "python3 nl-diagnostics/test_analyze_nl_profile_gaps.py",
+      "python3 services/nl-server/tools/validate_preflight_readiness.py"
+    ],
+    "preflight_validator": {
+      "path": "services/nl-server/tools/validate_preflight_readiness.py",
+      "sha256": "108c43038d2d3022c35867ccd783e9468b2f8d81ea82114f4df186466988b786",
+      "expected_deploy_status": "local_ready_but_deploy_blocked"
+    },
+    "redaction_tool": {
+      "path": "services/nl-server/tools/pull_candidate_redacted.py",
+      "sha256": "8220573a8c6b21f7ed0c7c087222e94990fb548c301cffd9714e9f1c308a82fb",
+      "raw_saved_locally": false
+    },
+    "redacted_templates": [
+      {
+        "component": "ghost-vpn",
+        "remote_path": "/etc/ghost-access/nl-beta-2443.json",
+        "path": "services/nl-server/templates/nl-beta-2443.example.json",
+        "sha256": "fddb80fa17036907700afa6dc43bb7f739bd65cdf2a749f1f50485326ba24f29",
+        "metadata_path": "services/nl-server/templates/nl-beta-2443.example.json.meta.json",
+        "metadata_sha256": "154607b14aee4b01c9f7bc3e972c0ad35d05af33c00dfc40ae78f5bc013a7303",
+        "raw_sha256": "3e9af013222ae98619f03a7b88301b76223c7f149450d65978a26dd48766d29d",
+        "raw_saved_locally": false,
+        "deployable_to_nl": false,
+        "production_values_saved": false
+      }
+    ],
+    "redacted_review_files": [
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/redacted/ghost-access/issue_offline_subscription.redacted.py",
+        "sha256": "22490b4f33889f11d05396e147734c43e44ed188af5c0e385c8c74b81135a8f6",
+        "raw_sha256": "aa358dd59d03b1a5130bf06fc88ab9c45f80d057c8ce6ec5b1e0f8f636ae0552",
+        "deployable_to_nl": false
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/redacted/ghost-access/telegram_bot_simple.redacted.py",
+        "sha256": "8b04072e8f9ab785ead08b4d08c4e27102ffda463060edfb77761a6931923d61",
+        "raw_sha256": "b593ddd82b3542e02e8a6fc17b558d957d780326ab86b5f7bd203d8d1d5b2f93",
+        "deployable_to_nl": false,
+        "local_formatting_note": "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+      }
+    ],
+    "local_policy_files": [
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/health_action_policy.py",
+        "sha256": "d024cc0fb51686f7aa92140802216845372530fa733fdd8841fdd07e52d3c828",
+        "source_batch": null,
+        "deployable_to_nl": false,
+        "purpose": "pure local mutation gate for future x-ui restart wrapper"
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/health_check_readonly.sh",
+        "sha256": "d13e034f5b719866bbe94625a780d5bb462c9e8b62f1c9c0130ebc7f30b98122",
+        "source_batch": null,
+        "deployable_to_nl": false,
+        "purpose": "future read-only health wrapper; no systemctl"
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/health_heal_xui.sh",
+        "sha256": "a707b50dbc45b8c2b430654a7361360aae76615e8c72c89364223afc60cfb344",
+        "source_batch": null,
+        "deployable_to_nl": false,
+        "purpose": "future dry-run-first x-ui heal wrapper gated by env flags"
+      }
+    ],
+    "promoted_files": [
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/build_runtime_state.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "f0b2b7eea367545a9c3c366b7a10943a3870aebe87b7071e6ebbae9c2b09fa91",
+        "changed_after_intake": false
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/apply_config_auto.py",
+        "source_batch": "20260527T060043Z",
+        "sha256": "f57c38a8e373e2bf85396cc725ae2e436ce0c5ffe04fb9be653fd2f64a24e24c",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "local_notes": [
+          "runtime tool backs up and writes /usr/local/x-ui/bin/config.json",
+          "runtime tool validates with xray binary",
+          "local tests cover pure config transforms without executing top-level /opt side effects"
+        ],
+        "local_changes": [
+          "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+        ]
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/full_stealth_config.py",
+        "source_batch": "20260527T060043Z",
+        "sha256": "78901e0bf6a85153cc06afe23080e212d9d3bb6b9623b417d1cca01f11ab9640",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "local_notes": [
+          "runtime tool writes /usr/local/x-ui/bin/config.json",
+          "runtime tool writes /opt/x0tta6bl4-mesh/configs/rotation_metadata.json",
+          "local tests cover rotation helpers and static mutation guard only"
+        ],
+        "local_changes": [
+          "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+        ]
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/rotation_timer.sh",
+        "source_batch": "20260527T060043Z",
+        "sha256": "af80c172b893c399eb51c8e9b0aae33de51261ce545cab5f2905e994fe8a568e",
+        "changed_after_intake": false,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "local_notes": [
+          "runtime tool runs full_stealth_config.py",
+          "runtime tool signals Xray with pkill -USR1",
+          "local tests cover shell syntax and static mutation guard only"
+        ]
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/health_check.sh",
+        "source_batch": "20260527T055602Z",
+        "sha256": "3b70430c20c8b828834fc01fc772cb09e149dd3c355fe59f782f9829d71f2590",
+        "changed_after_intake": false,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "local_notes": [
+          "runtime script can restart x-ui with systemctl",
+          "runtime script writes restart cooldown state",
+          "local tests cover shell syntax and static mutation evidence only"
+        ]
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/listener_loss_signal.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "905a4891482418a428d37ab247820f3cc5f58bfe8db1c2e1f28c3db3663e63e4",
+        "changed_after_intake": false
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/publish_client_profile_hint.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "7937206dfc78f47551b79dc597b2682cc30ba25adf2e6994829336388d8133b9",
+        "changed_after_intake": false
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/vps_build_runtime_state.py",
+        "source_batch": "20260527T060043Z",
+        "sha256": "d168e1e3ff493dd5be7fa59d5186b09a37e8d7645ab62ad1e192ab1bf9274d61",
+        "changed_after_intake": true,
+        "local_changes": [
+          "Telegram media degraded with healthy transport now maps to advisory/observe",
+          "default public ports match current NL x-ui shape: 443,2083,39829",
+          "x-ui config path prefers /usr/local/x-ui/bin/config.json",
+          "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+        ],
+        "deployable_to_nl": false
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/profile_status_api.py",
+        "source_batch": "20260527T060043Z",
+        "sha256": "ea47410d580c830de8fc2b56b9e4991f0766f1f7a1f315b85c24f61eaa74080e",
+        "changed_after_intake": false
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/monitor.py",
+        "source_batch": "20260527T060043Z",
+        "sha256": "33027cb107c643018e9b89ad00545f46418619c8193679234cb7bdce566d80f4",
+        "changed_after_intake": false
+      },
+      {
+        "component": "mesh-runtime",
+        "path": "services/nl-server/mesh-runtime/auto_monitor.py",
+        "source_batch": "20260527T060043Z",
+        "sha256": "904007827c4e1203ac2dac8f0974dee19d37fb6c84c41a511588a5f588a96671",
+        "changed_after_intake": false,
+        "deployable_to_nl": false,
+        "local_review_class": "B",
+        "local_notes": [
+          "runtime monitor writes local alert/log files",
+          "runtime monitor invokes build_runtime_state.py",
+          "test coverage avoids top-level /opt log directory creation"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/check_bot_user_chains.py",
+        "source_batch": "20260527T060043Z",
+        "sha256": "62ffaca72e3e093714758add99ec259708eecfe754f8e6de1a961ea3ac31135b",
+        "changed_after_intake": false
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/run_vpn_delivery_canary.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "269fb1d88cf6e88f79c020682686019cbb829399aaf98d6ca1a46d36c8f7e050",
+        "changed_after_intake": false,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "local_notes": [
+          "runtime tool can write x-ui database client state",
+          "runtime tool can alter Xray runtime users",
+          "local tests cover syntax and static mutation evidence only"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/run_vpn_service_access_agent.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "41b6a912e5c02e294777f517206651cd5712a470651b4fc9a948712a7291ee7f",
+        "changed_after_intake": false,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "local_notes": [
+          "runtime tool probes external services through direct/http/socks paths",
+          "runtime tool reads subscription token from Ghost Access database",
+          "runtime tool can invoke the delivery canary"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/sync_xray_device_activity.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "2d716478bd8a3c6926c315ae476173934d4cd310433c831c3f0dd20c4e1db745",
+        "changed_after_intake": false
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/sync_spb_standalone_clients.py",
+        "source_batch": "20260527T060043Z",
+        "sha256": "62f60f62e4d81849bdb1a03c8e647f9622cf7802ef499f650830b77282e5a5d8",
+        "changed_after_intake": false,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "operational_status": "inactive_spb_disabled",
+        "local_notes": [
+          "SPB server is disabled and is not used in the current VPN path",
+          "runtime tool reads active UUIDs from NL over ssh/sqlite",
+          "runtime tool writes remote SPB Xray config and restarts remote xray"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/xray_runtime_user_manager.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "3802f64e80e43fd8bdcf36afab6636b7b8a157ec018b2328d1ee258d517c08b4",
+        "changed_after_intake": false,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "local_notes": [
+          "runtime tool can alter Xray inbound users through the runtime API",
+          "local tests cover syntax and manifest gating only"
+        ]
+      },
+      {
+        "component": "ghost-access",
+        "path": "services/nl-server/ghost-access/xui_client_manager.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "104acccf5ef345e17f7b64c9e85975c2f35b20900b90c291922a3f81b2248769",
+        "changed_after_intake": false,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "local_notes": [
+          "runtime tool writes x-ui sqlite client settings",
+          "runtime tool can migrate client accounting rows",
+          "local tests cover syntax and manifest gating only"
+        ]
+      },
+      {
+        "component": "ghost-vpn",
+        "path": "services/nl-server/ghost-vpn/ghost_vpn_protocol.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "09a10e7d57cfab80ea116972df7f82ef80bc72ac9fddf2ca835c1ff0f51a2e01",
+        "changed_after_intake": true,
+        "local_changes": [
+          "fallback ObfuscationProfile enum added for local workspace import compatibility",
+          "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+        ],
+        "deployable_to_nl": false
+      },
+      {
+        "component": "ghost-vpn",
+        "path": "services/nl-server/ghost-vpn/ghost_tcp_bridge.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "f2d6cfb176ded07b305f0794f2a5abbc678ac498821e5741e1fe5ce73194ba06",
+        "changed_after_intake": false
+      },
+      {
+        "component": "ghost-vpn",
+        "path": "services/nl-server/ghost-vpn/ghost_vpn_server.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "d0f7efd8ab0a935872bb3a82e9829af9645d2f385421999cf3d4432e4bfcfdba",
+        "changed_after_intake": true,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "local_notes": [
+          "runtime server creates TUN interface",
+          "runtime server changes sysctl/ip_forward and iptables",
+          "runtime server changes host routes"
+        ],
+        "local_changes": [
+          "trailing whitespace trimmed for repository diff hygiene; no runtime logic changes"
+        ]
+      },
+      {
+        "component": "ghost-vpn",
+        "path": "services/nl-server/ghost-vpn/ghost_vpn_client.py",
+        "source_batch": "20260527T055602Z",
+        "sha256": "f214ee0990f5833b42545efc9e8d3c49db05912778f24455a900243fa9f85510",
+        "changed_after_intake": false,
+        "deployable_to_nl": false,
+        "local_review_class": "C",
+        "local_notes": [
+          "runtime client creates TUN interface",
+          "runtime client changes ip rules and routes",
+          "runtime client may reconnect and switch profiles"
+        ]
+      }
+    ]
+  },
+  "source_candidates": [
+    {
+      "component": "mesh-runtime",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/build_runtime_state.py",
+      "intended_local_path": "services/nl-server/mesh-runtime/build_runtime_state.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/build_runtime_state.py"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "mesh-runtime",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/listener_loss_signal.py",
+      "intended_local_path": "services/nl-server/mesh-runtime/listener_loss_signal.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/listener_loss_signal.py"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "mesh-runtime",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/publish_client_profile_hint.py",
+      "intended_local_path": "services/nl-server/mesh-runtime/publish_client_profile_hint.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/publish_client_profile_hint.py"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "mesh-runtime",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/health_check.sh",
+      "intended_local_path": "services/nl-server/mesh-runtime/health_check.sh",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/health_check.sh"
+      ],
+      "local_drift_candidates": [
+        "scripts/health_check.sh",
+        "backup-20260410-090811/scripts/health_check.sh"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "mesh-runtime",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/apply_config_auto.py",
+      "intended_local_path": "services/nl-server/mesh-runtime/apply_config_auto.py",
+      "current_gap_status": "accepted_local_delta",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/apply_config_auto.py"
+      ],
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true,
+      "deployable_to_nl": false
+    },
+    {
+      "component": "mesh-runtime",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/auto_monitor.py",
+      "intended_local_path": "services/nl-server/mesh-runtime/auto_monitor.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/auto_monitor.py"
+      ],
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "mesh-runtime",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/full_stealth_config.py",
+      "intended_local_path": "services/nl-server/mesh-runtime/full_stealth_config.py",
+      "current_gap_status": "accepted_local_delta",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/full_stealth_config.py"
+      ],
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true,
+      "deployable_to_nl": false
+    },
+    {
+      "component": "mesh-runtime",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/monitor.py",
+      "intended_local_path": "services/nl-server/mesh-runtime/monitor.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/monitor.py"
+      ],
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "mesh-runtime",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/profile_status_api.py",
+      "intended_local_path": "services/nl-server/mesh-runtime/profile_status_api.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/profile_status_api.py"
+      ],
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "mesh-runtime",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/rotation_timer.sh",
+      "intended_local_path": "services/nl-server/mesh-runtime/rotation_timer.sh",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/rotation_timer.sh"
+      ],
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "mesh-runtime",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/vps_build_runtime_state.py",
+      "intended_local_path": "services/nl-server/mesh-runtime/vps_build_runtime_state.py",
+      "current_gap_status": "accepted_local_delta",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/vps_build_runtime_state.py"
+      ],
+      "deployable_to_nl": false,
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/run_vpn_delivery_canary.py",
+      "intended_local_path": "services/nl-server/ghost-access/run_vpn_delivery_canary.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/run_vpn_delivery_canary.py"
+      ],
+      "local_drift_candidates": [
+        "backup-20260410-090811/scripts/run_vpn_delivery_canary.py"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/run_vpn_service_access_agent.py",
+      "intended_local_path": "services/nl-server/ghost-access/run_vpn_service_access_agent.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/run_vpn_service_access_agent.py"
+      ],
+      "local_drift_candidates": [
+        "backup-20260410-090811/scripts/run_vpn_service_access_agent.py"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/sync_xray_device_activity.py",
+      "intended_local_path": "services/nl-server/ghost-access/sync_xray_device_activity.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/sync_xray_device_activity.py"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/xray_runtime_user_manager.py",
+      "intended_local_path": "services/nl-server/ghost-access/xray_runtime_user_manager.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/xray_runtime_user_manager.py"
+      ],
+      "local_drift_candidates": [
+        "backup-20260410-090811/scripts/xray_runtime_user_manager.py"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/xui_client_manager.py",
+      "intended_local_path": "services/nl-server/ghost-access/xui_client_manager.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/xui_client_manager.py"
+      ],
+      "local_drift_candidates": [
+        "backup-20260410-090811/scripts/xui_client_manager.py"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/check_bot_user_chains.py",
+      "intended_local_path": "services/nl-server/ghost-access/check_bot_user_chains.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/check_bot_user_chains.py"
+      ],
+      "local_drift_candidates": [
+        "backup-20260410-090811/scripts/check_bot_user_chains.py"
+      ],
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/issue_offline_subscription.py",
+      "intended_local_path": "services/nl-server/ghost-access/issue_offline_subscription.py",
+      "current_gap_status": "redacted_review_only",
+      "local_matches": [
+        "services/nl-server/redacted/ghost-access/issue_offline_subscription.redacted.py"
+      ],
+      "deployable_to_nl": false,
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/run_telegram_bot_simple.sh",
+      "intended_local_path": "services/nl-server/ghost-access/run_telegram_bot_simple.sh",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "backup-20260410-090811/scripts/run_telegram_bot_simple.sh"
+      ],
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/sync_spb_standalone_clients.py",
+      "intended_local_path": "services/nl-server/ghost-access/sync_spb_standalone_clients.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/sync_spb_standalone_clients.py"
+      ],
+      "operational_status": "inactive_spb_disabled",
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/telegram_bot_simple.py",
+      "intended_local_path": "services/nl-server/ghost-access/telegram_bot_simple.py",
+      "current_gap_status": "redacted_review_only",
+      "local_matches": [
+        "services/nl-server/redacted/ghost-access/telegram_bot_simple.redacted.py"
+      ],
+      "deployable_to_nl": false,
+      "priority": "P2",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-vpn",
+      "remote_path": "/mnt/projects/src/network/ghost_vpn_server.py",
+      "intended_local_path": "services/nl-server/ghost-vpn/ghost_vpn_server.py",
+      "current_gap_status": "accepted_local_delta",
+      "local_matches": [
+        "services/nl-server/ghost-vpn/ghost_vpn_server.py"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true,
+      "deployable_to_nl": false
+    },
+    {
+      "component": "ghost-vpn",
+      "remote_path": "/mnt/projects/src/network/ghost_vpn_client.py",
+      "intended_local_path": "services/nl-server/ghost-vpn/ghost_vpn_client.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-vpn/ghost_vpn_client.py"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-vpn",
+      "remote_path": "/mnt/projects/src/network/ghost_vpn_protocol.py",
+      "intended_local_path": "services/nl-server/ghost-vpn/ghost_vpn_protocol.py",
+      "current_gap_status": "accepted_local_delta",
+      "local_matches": [
+        "services/nl-server/ghost-vpn/ghost_vpn_protocol.py"
+      ],
+      "deployable_to_nl": false,
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    },
+    {
+      "component": "ghost-vpn",
+      "remote_path": "/mnt/projects/scripts/ghost_tcp_bridge.py",
+      "intended_local_path": "services/nl-server/ghost-vpn/ghost_tcp_bridge.py",
+      "current_gap_status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-vpn/ghost_tcp_bridge.py"
+      ],
+      "priority": "P1",
+      "review_required": true,
+      "secret_review_required": true
+    }
+  ],
+  "template_candidates": [
+    {
+      "remote_path": "/etc/ghost-access/nl-beta-2443.json",
+      "intended_local_path": "services/nl-server/templates/nl-beta-2443.example.json",
+      "current_gap_status": "redacted_template_created",
+      "local_matches": [
+        "services/nl-server/templates/nl-beta-2443.example.json"
+      ],
+      "raw_saved_locally": false,
+      "deployable_to_nl": false,
+      "redaction_required": [
+        "uuid",
+        "privateKey",
+        "publicKey",
+        "shortId",
+        "password",
+        "subscription_url"
+      ]
+    },
+    {
+      "remote_path": "/usr/local/x-ui/bin/config.json",
+      "intended_local_path": "services/nl-server/templates/x-ui-config-shape.example.json",
+      "current_gap_status": "server_runtime_artifact",
+      "redaction_required": [
+        "clients",
+        "uuid",
+        "privateKey",
+        "publicKey",
+        "shortIds",
+        "fallback secrets"
+      ]
+    }
+  ],
+  "runtime_only_artifacts": [
+    "/usr/local/x-ui/x-ui",
+    "/usr/local/x-ui/bin/xray-linux-amd64.real",
+    "/usr/local/x-ui/bin/config.json",
+    "/etc/x-ui/x-ui.db"
+  ],
+  "backup_only_artifacts": [
+    "/opt/ghost-access-bot/current/scripts/issue_offline_subscription.py.bak-20260501T084846Z",
+    "/opt/ghost-access-bot/current/scripts/run_vpn_service_access_agent.py.bak-20260425T100742Z",
+    "/opt/ghost-access-bot/current/scripts/run_vpn_service_access_agent.py.bak-20260429T180618Z",
+    "/opt/ghost-access-bot/current/scripts/sync_xray_device_activity.py.bak-20260425T105720Z"
+  ],
+  "acceptance_gates_before_deploy": [
+    "fresh read-only nl-server-profile",
+    "fresh vpn snapshot classification",
+    "source hash comparison against intended deploy files",
+    "secret scan with no real secrets",
+    "local import/syntax tests",
+    "x-ui db backup command prepared",
+    "x-ui generated config backup command prepared",
+    "rollback command prepared",
+    "explicit operator approval"
+  ]
+}

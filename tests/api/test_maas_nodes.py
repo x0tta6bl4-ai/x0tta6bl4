@@ -1,0 +1,2358 @@
+"""
+Integration tests for MaaS Node Management.
+
+Architecture note:
+- maas_legacy router is registered FIRST and shadows most node endpoints.
+  Legacy uses mesh_provisioner (in-memory) for mesh lookup, not SQLAlchemy DB.
+  Tests for: register, pending, approve, revoke, nodes/all → go through legacy
+  and require creating meshes via POST /deploy.
+
+- maas_nodes.py endpoints that are NOT shadowed by legacy:
+    POST /{mesh_id}/nodes/{node_id}/heartbeat  — uses SQLAlchemy MeshNode
+    POST /{mesh_id}/nodes/check-access          — uses SQLAlchemy MeshNode + ACLPolicy
+
+Tests are split accordingly: legacy-flow tests use the full API, heartbeat and
+check-access tests create nodes directly in DB.
+"""
+
+import json
+import os
+import time
+import uuid
+from datetime import datetime, timedelta
+
+import jwt
+import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from src.core.app import app
+from src.database import (
+    ACLPolicy, Base, MarketplaceEscrow, MarketplaceListing,
+    MeshInstance, MeshNode, User, get_db,
+)
+from src.api.maas.nodes import hash_node_runtime_credential
+from src.services.maas_auth_service import find_user_by_api_key
+
+_TEST_DB_PATH = f"./test_nodes_{uuid.uuid4().hex}.db"
+engine = create_engine(
+    f"sqlite:///{_TEST_DB_PATH}", connect_args={"check_same_thread": False}
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def _runtime_credential_for_node(node_id: str) -> str:
+    return f"x0tn_test_{node_id}"
+
+
+def _runtime_headers_for_node(node_id: str) -> dict[str, str]:
+    return {"X-API-Key": _runtime_credential_for_node(node_id)}
+
+
+def _runtime_identity_proof_for_node(node_id: str, *, nonce: str = "stable") -> dict[str, str]:
+    return {
+        "binding_type": "local_spiffe_hint",
+        "spiffe_id": f"spiffe://x0tta6bl4.mesh/node/{node_id}",
+        "nonce": nonce,
+    }
+
+
+def _verified_runtime_identity_headers_for_node(
+    node_id: str,
+    *,
+    digest: str | None = None,
+) -> dict[str, str]:
+    return {
+        "X-API-Key": _runtime_credential_for_node(node_id),
+        "X-Verified-Spiffe-ID": f"spiffe://x0tta6bl4.mesh/node/{node_id}",
+        "X-Verified-SVID-SHA256": digest or f"sha256:{node_id}:trusted-svid",
+        "X-Verified-Identity-Source": "envoy-mtls",
+    }
+
+
+def _jwt_svid_material_for_node(
+    node_id: str,
+    *,
+    audience: str = "x0tta6bl4-maas",
+    issuer: str = "spiffe://x0tta6bl4.mesh",
+) -> tuple[str, str, object, str]:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key()))
+    public_jwk["kid"] = f"test-{node_id}"
+    token = _jwt_svid_token_for_node(
+        node_id,
+        private_key,
+        public_jwk["kid"],
+        audience=audience,
+        issuer=issuer,
+    )
+    return token, json.dumps({"keys": [public_jwk]}), private_key, public_jwk["kid"]
+
+
+def _jwt_svid_token_for_node(
+    node_id: str,
+    private_key: object,
+    kid: str,
+    *,
+    audience: str = "x0tta6bl4-maas",
+    issuer: str = "spiffe://x0tta6bl4.mesh",
+) -> str:
+    now = int(time.time())
+    return jwt.encode(
+        {
+            "sub": f"spiffe://x0tta6bl4.mesh/node/{node_id}",
+            "aud": audience,
+            "iss": issuer,
+            "iat": now,
+            "exp": now + 600,
+        },
+        private_key,
+        algorithm="RS256",
+        headers={"kid": kid},
+    )
+
+
+def _jwt_svid_headers_for_node(node_id: str, token: str) -> dict[str, str]:
+    return {
+        "X-API-Key": _runtime_credential_for_node(node_id),
+        "X-SPIFFE-JWT-SVID": token,
+    }
+
+
+def _runtime_expires_at() -> datetime:
+    return datetime.utcnow() + timedelta(hours=1)
+
+
+def override_get_db():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture(scope="module")
+def client():
+    Base.metadata.create_all(bind=engine)
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.pop(get_db, None)
+    Base.metadata.drop_all(bind=engine)
+    if os.path.exists(_TEST_DB_PATH):
+        os.remove(_TEST_DB_PATH)
+
+
+@pytest.fixture(scope="module")
+def node_data(client):
+    """
+    Set up:
+    - admin user (owns the mesh; admin bypasses all RBAC checks)
+    - regular user (for RBAC 403 checks — lacks node:revoke / require_role("operator"))
+    - mesh deployed via API as admin → goes into mesh_provisioner (in-memory)
+
+    Why admin instead of operator:
+      operator role lacks 'mesh:create', so deploy returns 403.
+      admin bypasses all require_role/require_permission checks AND owns the mesh.
+    """
+    email_admin = f"nd-adm-{uuid.uuid4().hex[:8]}@test.com"
+    email_usr = f"nd-usr-{uuid.uuid4().hex[:8]}@test.com"
+
+    r = client.post("/api/v1/maas/auth/register",
+                    json={"email": email_admin, "password": "password123"})
+    admin_token = r.json()["access_token"]
+
+    r = client.post("/api/v1/maas/auth/register",
+                    json={"email": email_usr, "password": "password123"})
+    usr_token = r.json()["access_token"]
+
+    # Elevate admin directly in DB
+    db = TestingSessionLocal()
+    admin = find_user_by_api_key(db, admin_token)
+    admin.role = "admin"
+    db.commit()
+    db.close()
+
+    # Deploy mesh as admin — adds to mesh_provisioner (in-memory)
+    r = client.post(
+        "/api/v1/maas/deploy",
+        json={"name": "Node Test Mesh", "nodes": 1},
+        headers={"X-API-Key": admin_token},
+    )
+    assert r.status_code in [200, 201], f"Deploy failed: {r.text}"
+    deploy_data = r.json()
+    mesh_id = deploy_data["mesh_id"]
+    join_token = deploy_data["join_config"]["token"]
+
+    return {
+        "admin_token": admin_token,
+        "usr_token": usr_token,
+        "mesh_id": mesh_id,
+        "join_token": join_token,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Node Registration (legacy flow — uses mesh_provisioner)
+# ---------------------------------------------------------------------------
+
+class TestNodeRegistration:
+    def test_register_success(self, client, node_data):
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/register",
+            json={"enrollment_token": node_data["join_token"], "device_class": "gateway"},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["status"] == "pending_approval"
+        assert "node_id" in data
+
+    def test_register_generates_auto_node_id(self, client, node_data):
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/register",
+            json={"enrollment_token": node_data["join_token"]},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["node_id"].startswith("node-")
+
+    def test_register_custom_node_id(self, client, node_data):
+        custom_id = f"custom-{uuid.uuid4().hex[:8]}"
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/register",
+            json={"enrollment_token": node_data["join_token"], "node_id": custom_id},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["node_id"] == custom_id
+
+    def test_register_invalid_token(self, client, node_data):
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/register",
+            json={"enrollment_token": "wrong-token-1234567890"},  # ≥16 chars but wrong
+        )
+        assert r.status_code == 401
+
+    def test_register_unknown_mesh(self, client):
+        r = client.post(
+            "/api/v1/maas/mesh-nonexistent-xyz/nodes/register",
+            json={"enrollment_token": "any-token-1234567890"},  # ≥16 chars
+        )
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# List Pending (legacy flow — same in-memory pending store as register/approve)
+# ---------------------------------------------------------------------------
+
+class TestListPending:
+    def test_requires_auth(self, client, node_data):
+        r = client.get(f"/api/v1/maas/{node_data['mesh_id']}/nodes/pending")
+        assert r.status_code == 401
+
+    def test_user_role_forbidden(self, client, node_data):
+        r = client.get(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/pending",
+            headers={"X-API-Key": node_data["usr_token"]},
+        )
+        assert r.status_code == 403
+
+    def test_operator_sees_pending_nodes(self, client, node_data):
+        # Register a node so there's something pending
+        r_reg = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/register",
+            json={"enrollment_token": node_data["join_token"], "device_class": "sensor"},
+        )
+        registered_id = r_reg.json()["node_id"]
+
+        r = client.get(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/pending",
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert r.status_code == 200, r.text
+        pending = r.json()["pending"]
+        assert registered_id in pending
+
+
+# ---------------------------------------------------------------------------
+# Approve (legacy flow — owner can approve via get_current_user)
+# ---------------------------------------------------------------------------
+
+class TestApprove:
+    def _register(self, client, node_data):
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/register",
+            json={"enrollment_token": node_data["join_token"]},
+        )
+        return r.json()["node_id"]
+
+    def test_approve_success(self, client, node_data):
+        nid = self._register(client, node_data)
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/{nid}/approve",
+            json={},
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["status"] == "approved"
+        assert "join_token" in data
+
+    def test_approve_returns_pqc_token(self, client, node_data):
+        nid = self._register(client, node_data)
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/{nid}/approve",
+            json={},
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        token = r.json()["join_token"]
+        # PQC or HMAC-signed token must have "token" and "signature" keys
+        assert "token" in token
+        assert "signature" in token
+
+    def test_approve_unknown_node(self, client, node_data):
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/ghost-node-xyz/approve",
+            json={},
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert r.status_code == 404
+
+    def test_approved_node_absent_from_pending(self, client, node_data):
+        nid = self._register(client, node_data)
+        client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/{nid}/approve",
+            json={},
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        r = client.get(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/pending",
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert nid not in r.json()["pending"]
+
+
+# ---------------------------------------------------------------------------
+# Revoke (legacy flow — requires node:revoke permission + ownership)
+# ---------------------------------------------------------------------------
+
+class TestRevoke:
+    def _registered_and_approved(self, client, node_data):
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/register",
+            json={"enrollment_token": node_data["join_token"]},
+        )
+        nid = r.json()["node_id"]
+        client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/{nid}/approve",
+            json={},
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        return nid
+
+    def test_revoke_requires_permission(self, client, node_data):
+        """Foreign users get anti-enumeration 404 from the legacy owner check."""
+        nid = self._registered_and_approved(client, node_data)
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/{nid}/revoke",
+            json={},
+            headers={"X-API-Key": node_data["usr_token"]},
+        )
+        assert r.status_code == 404
+
+    def test_revoke_success(self, client, node_data):
+        nid = self._registered_and_approved(client, node_data)
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/{nid}/revoke",
+            json={},
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["status"] == "revoked"
+        assert data["node_id"] == nid
+
+    def test_revoke_unknown_node(self, client, node_data):
+        r = client.post(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/nonexistent-nd/revoke",
+            json={},
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# List All Nodes (DB-backed maas_nodes route — operator + ownership)
+# ---------------------------------------------------------------------------
+
+class TestListAllNodes:
+    def test_requires_operator(self, client, node_data):
+        r = client.get(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/all",
+            headers={"X-API-Key": node_data["usr_token"]},
+        )
+        assert r.status_code == 403
+
+    def test_requires_auth(self, client, node_data):
+        r = client.get(f"/api/v1/maas/{node_data['mesh_id']}/nodes/all")
+        assert r.status_code == 401
+
+    def test_operator_gets_list(self, client, node_data):
+        r = client.get(
+            f"/api/v1/maas/{node_data['mesh_id']}/nodes/all",
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert r.status_code == 200, r.text
+        # Legacy returns a list of node dicts
+        data = r.json()
+        assert isinstance(data, (list, dict))
+
+
+# ---------------------------------------------------------------------------
+# Heartbeat (maas_nodes.py — unique route, uses SQLAlchemy DB)
+# ---------------------------------------------------------------------------
+
+class TestHeartbeat:
+    def _db_node(
+        self,
+        mesh_id="mesh-hb-test",
+        status="approved",
+        with_mesh=False,
+        enclave_enabled=False,
+        runtime_identity_binding_type=None,
+        runtime_identity_binding_hash=None,
+        runtime_identity_last_verified_at=None,
+    ):
+        db = TestingSessionLocal()
+        nid = f"hb-{uuid.uuid4().hex[:8]}"
+        if with_mesh and not db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first():
+            db.add(MeshInstance(
+                id=mesh_id,
+                name="Runtime Action Identity Test Mesh",
+                owner_id="runtime-action-owner",
+                status="active",
+            ))
+        db.add(MeshNode(
+            id=nid, mesh_id=mesh_id,
+            device_class="edge", status=status,
+            enclave_enabled=enclave_enabled,
+            runtime_credential_hash=hash_node_runtime_credential(
+                _runtime_credential_for_node(nid)
+            ),
+            runtime_credential_expires_at=_runtime_expires_at(),
+            runtime_identity_binding_type=runtime_identity_binding_type,
+            runtime_identity_binding_hash=runtime_identity_binding_hash,
+            runtime_identity_bound_at=runtime_identity_last_verified_at,
+            runtime_identity_last_verified_at=runtime_identity_last_verified_at,
+        ))
+        db.commit()
+        db.close()
+        return nid, mesh_id
+
+    def test_heartbeat_success(self, client):
+        nid, mesh_id = self._db_node()
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["node_id"] == nid
+        assert data["mesh_id"] == mesh_id
+        assert "last_seen" in data
+
+    def test_heartbeat_updates_last_seen_in_db(self, client):
+        nid, mesh_id = self._db_node()
+        client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        db = TestingSessionLocal()
+        node = db.query(MeshNode).filter(MeshNode.id == nid).first()
+        assert node.last_seen is not None
+        db.close()
+
+    def test_heartbeat_healthy_sets_approved(self, client):
+        nid, mesh_id = self._db_node()
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert r.json()["node_status"] == "approved"
+
+    def test_heartbeat_unhealthy_sets_degraded(self, client):
+        nid, mesh_id = self._db_node()
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "unhealthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert r.json()["node_status"] == "degraded"
+
+    def test_heartbeat_degraded_sets_degraded(self, client):
+        nid, mesh_id = self._db_node()
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "degraded"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["node_status"] == "degraded"
+
+    def test_heartbeat_unknown_node_404(self, client):
+        r = client.post(
+            "/api/v1/maas/mesh-hb-test/nodes/ghost-node/heartbeat",
+            json={"status": "healthy"},
+        )
+        assert r.status_code == 404
+
+    def test_heartbeat_rejects_pending_node(self, client):
+        nid, mesh_id = self._db_node(status="pending")
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert r.status_code == 403
+        assert r.json()["detail"] == "Node must be approved before runtime access"
+
+    def test_heartbeat_rejects_revoked_node(self, client):
+        nid, mesh_id = self._db_node(status="revoked")
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert r.status_code == 403
+        assert r.json()["detail"] == "Node must be approved before runtime access"
+
+    def test_heartbeat_rejects_expired_runtime_credential(self, client):
+        nid, mesh_id = self._db_node()
+        db = TestingSessionLocal()
+        node = db.query(MeshNode).filter(MeshNode.id == nid).first()
+        node.runtime_credential_expires_at = datetime.utcnow() - timedelta(seconds=1)
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+
+        assert r.status_code == 401
+        assert r.json()["detail"] == "Node runtime credential expired"
+
+    def test_runtime_credential_rotation_invalidates_old_credential(self, client):
+        nid, mesh_id = self._db_node()
+        old_credential = _runtime_credential_for_node(nid)
+
+        rotate = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers={"X-API-Key": old_credential},
+        )
+        assert rotate.status_code == 200, rotate.text
+        rotated = rotate.json()
+        new_credential = rotated["node_runtime_credential"]
+        assert new_credential != old_credential
+        assert rotated["raw_runtime_credential_returned_once"] is True
+        assert rotated["node_runtime_credential_expires_at"]
+
+        old_hb = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers={"X-API-Key": old_credential},
+        )
+        assert old_hb.status_code == 401
+
+        new_hb = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers={"X-API-Key": new_credential},
+        )
+        assert new_hb.status_code == 200, new_hb.text
+
+    def test_operator_can_rotate_expired_runtime_credential(self, client, node_data):
+        nid, mesh_id = self._db_node()
+        db = TestingSessionLocal()
+        node = db.query(MeshNode).filter(MeshNode.id == nid).first()
+        node.runtime_credential_expires_at = datetime.utcnow() - timedelta(seconds=1)
+        db.commit()
+        db.close()
+
+        rotate = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert rotate.status_code == 200, rotate.text
+        new_credential = rotate.json()["node_runtime_credential"]
+
+        hb = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers={"X-API-Key": new_credential},
+        )
+        assert hb.status_code == 200, hb.text
+
+    def test_operator_binds_runtime_identity_without_raw_storage(self, client, node_data):
+        nid, mesh_id = self._db_node()
+        proof = _runtime_identity_proof_for_node(nid)
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind",
+            json=proof,
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+
+        assert bind.status_code == 200, bind.text
+        body = bind.json()
+        assert body["status"] == "bound"
+        assert body["runtime_identity_binding_type"] == "local_spiffe_hint"
+        assert len(body["runtime_identity_binding_hash_prefix"]) == 12
+        assert body["raw_runtime_identity_proof_redacted"] is True
+        assert body["live_spiffe_svid_claim_allowed"] is False
+        assert "spiffe://" not in bind.text
+
+        db = TestingSessionLocal()
+        node = db.query(MeshNode).filter(MeshNode.id == nid).first()
+        assert node.runtime_identity_binding_type == "local_spiffe_hint"
+        assert isinstance(node.runtime_identity_binding_hash, str)
+        assert len(node.runtime_identity_binding_hash) == 64
+        assert node.runtime_identity_bound_at is not None
+        assert node.runtime_identity_last_verified_at is not None
+        db.close()
+
+    def test_bound_node_rotation_requires_matching_identity_proof(self, client, node_data):
+        nid, mesh_id = self._db_node()
+        old_credential = _runtime_credential_for_node(nid)
+        proof = _runtime_identity_proof_for_node(nid)
+        wrong_proof = _runtime_identity_proof_for_node(
+            f"{nid}-other",
+            nonce="wrong",
+        )
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind",
+            json=proof,
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert bind.status_code == 200, bind.text
+
+        missing = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers={"X-API-Key": old_credential},
+        )
+        assert missing.status_code == 401
+        assert missing.json()["detail"] == "Valid runtime identity proof required"
+
+        wrong = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600, "identity_proof": wrong_proof},
+            headers={"X-API-Key": old_credential},
+        )
+        assert wrong.status_code == 401
+
+        matched = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600, "identity_proof": proof},
+            headers={"X-API-Key": old_credential},
+        )
+        assert matched.status_code == 200, matched.text
+        assert matched.json()["node_runtime_credential"] != old_credential
+
+    def test_manual_bind_rejects_verified_spiffe_svid_type(self, client, node_data):
+        nid, mesh_id = self._db_node()
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind",
+            json={
+                "binding_type": "verified_spiffe_svid",
+                "spiffe_id": f"spiffe://x0tta6bl4.mesh/node/{nid}",
+                "attestation_digest": "sha256:manual",
+            },
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+
+        assert bind.status_code == 400
+        assert "verified runtime identity bind endpoint" in bind.json()["detail"]
+
+    def test_bind_verified_runtime_identity_requires_trusted_proxy(
+        self,
+        client,
+        monkeypatch,
+    ):
+        nid, mesh_id = self._db_node()
+        monkeypatch.delenv("MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ENABLED", raising=False)
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-verified",
+            headers=_verified_runtime_identity_headers_for_node(nid),
+        )
+
+        assert bind.status_code == 401
+        assert "untrusted_runtime_identity_proxy" in bind.json()["detail"]
+
+    def test_verified_spiffe_svid_binding_requires_trusted_headers_for_rotation(
+        self,
+        client,
+        monkeypatch,
+    ):
+        nid, mesh_id = self._db_node()
+        old_credential = _runtime_credential_for_node(nid)
+        monkeypatch.setenv("MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ENABLED", "true")
+        monkeypatch.setenv("MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ALLOW_TESTCLIENT", "true")
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-verified",
+            headers=_verified_runtime_identity_headers_for_node(nid),
+        )
+        assert bind.status_code == 200, bind.text
+        body = bind.json()
+        assert body["runtime_identity_binding_type"] == "verified_spiffe_svid"
+        assert body["live_spiffe_svid_claim_allowed"] is True
+        assert body["trusted_runtime_identity_proxy_claim_allowed"] is True
+        assert body["production_trust_finality_claim_allowed"] is False
+        assert "spiffe://" not in bind.text
+
+        self_reported = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={
+                "ttl_seconds": 3600,
+                "identity_proof": {
+                    "binding_type": "verified_spiffe_svid",
+                    "spiffe_id": f"spiffe://x0tta6bl4.mesh/node/{nid}",
+                    "attestation_digest": f"sha256:{nid}:trusted-svid",
+                },
+            },
+            headers={"X-API-Key": old_credential},
+        )
+        assert self_reported.status_code == 401
+        assert "Trusted verified runtime identity required" in self_reported.json()["detail"]
+
+        rotated = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers=_verified_runtime_identity_headers_for_node(nid),
+        )
+        assert rotated.status_code == 200, rotated.text
+        assert rotated.json()["node_runtime_credential"] != old_credential
+
+    def test_verified_spiffe_svid_binding_gates_heartbeat(
+        self,
+        client,
+        monkeypatch,
+    ):
+        nid, mesh_id = self._db_node()
+        monkeypatch.setenv("MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ENABLED", "true")
+        monkeypatch.setenv("MAAS_TRUSTED_RUNTIME_IDENTITY_PROXY_ALLOW_TESTCLIENT", "true")
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-verified",
+            headers=_verified_runtime_identity_headers_for_node(nid),
+        )
+        assert bind.status_code == 200, bind.text
+
+        missing = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert missing.status_code == 401
+        assert "Trusted verified runtime identity required" in missing.json()["detail"]
+
+        heartbeat = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_verified_runtime_identity_headers_for_node(nid),
+        )
+        assert heartbeat.status_code == 200, heartbeat.text
+
+    def test_bind_jwt_svid_runtime_identity_requires_enabled_verifier(
+        self,
+        client,
+        monkeypatch,
+    ):
+        nid, mesh_id = self._db_node()
+        token, jwks, _, _ = _jwt_svid_material_for_node(nid)
+        monkeypatch.delenv("MAAS_JWT_SVID_VERIFIER_ENABLED", raising=False)
+        monkeypatch.setenv("MAAS_JWT_SVID_JWKS_JSON", jwks)
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-jwt-svid",
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+
+        assert bind.status_code == 401
+        assert "jwt_svid_verifier_disabled" in bind.json()["detail"]
+
+    def test_verified_jwt_svid_binding_requires_signed_token_for_rotation(
+        self,
+        client,
+        monkeypatch,
+    ):
+        nid, mesh_id = self._db_node()
+        old_credential = _runtime_credential_for_node(nid)
+        token, jwks, private_key, kid = _jwt_svid_material_for_node(nid)
+        wrong_audience_token = _jwt_svid_token_for_node(
+            nid,
+            private_key,
+            kid,
+            audience="wrong-audience",
+        )
+        monkeypatch.setenv("MAAS_JWT_SVID_VERIFIER_ENABLED", "true")
+        monkeypatch.setenv("MAAS_JWT_SVID_JWKS_JSON", jwks)
+        monkeypatch.setenv("MAAS_JWT_SVID_TRUST_DOMAIN", "x0tta6bl4.mesh")
+        monkeypatch.setenv("MAAS_JWT_SVID_ISSUER", "spiffe://x0tta6bl4.mesh")
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-jwt-svid",
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+        assert bind.status_code == 200, bind.text
+        body = bind.json()
+        assert body["runtime_identity_binding_type"] == "verified_jwt_svid"
+        assert body["live_spiffe_svid_claim_allowed"] is True
+        assert body["trusted_runtime_identity_proxy_claim_allowed"] is False
+        assert body["api_side_jwt_svid_verification_claim_allowed"] is True
+        assert body["production_trust_finality_claim_allowed"] is False
+        assert "spiffe://" not in bind.text
+        assert token not in bind.text
+
+        self_reported = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={
+                "ttl_seconds": 3600,
+                "identity_proof": {
+                    "binding_type": "verified_jwt_svid",
+                    "spiffe_id": f"spiffe://x0tta6bl4.mesh/node/{nid}",
+                    "attestation_digest": "jwt-svid:self-reported",
+                },
+            },
+            headers={"X-API-Key": old_credential},
+        )
+        assert self_reported.status_code == 401
+        assert "Verified JWT-SVID runtime identity required" in self_reported.json()["detail"]
+
+        wrong_audience = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers=_jwt_svid_headers_for_node(nid, wrong_audience_token),
+        )
+        assert wrong_audience.status_code == 401
+        assert "jwt_svid_invalid_audience" in wrong_audience.json()["detail"]
+
+        rotated = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-credential/rotate",
+            json={"ttl_seconds": 3600},
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+        assert rotated.status_code == 200, rotated.text
+        assert rotated.json()["node_runtime_credential"] != old_credential
+
+    def test_verified_jwt_svid_binding_gates_heartbeat_and_node_config(
+        self,
+        client,
+        monkeypatch,
+    ):
+        mesh_id = f"mesh-runtime-action-{uuid.uuid4().hex[:8]}"
+        nid, mesh_id = self._db_node(mesh_id=mesh_id, with_mesh=True)
+        token, jwks, private_key, kid = _jwt_svid_material_for_node(nid)
+        wrong_audience_token = _jwt_svid_token_for_node(
+            nid,
+            private_key,
+            kid,
+            audience="wrong-audience",
+        )
+        monkeypatch.setenv("MAAS_JWT_SVID_VERIFIER_ENABLED", "true")
+        monkeypatch.setenv("MAAS_JWT_SVID_JWKS_JSON", jwks)
+        monkeypatch.setenv("MAAS_JWT_SVID_TRUST_DOMAIN", "x0tta6bl4.mesh")
+        monkeypatch.setenv("MAAS_JWT_SVID_ISSUER", "spiffe://x0tta6bl4.mesh")
+
+        bind = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/bind-jwt-svid",
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+        assert bind.status_code == 200, bind.text
+
+        heartbeat_missing_svid = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert heartbeat_missing_svid.status_code == 401
+        assert "Verified JWT-SVID runtime identity required" in (
+            heartbeat_missing_svid.json()["detail"]
+        )
+
+        config_missing_svid = client.get(
+            f"/api/v1/maas/{mesh_id}/node-config/{nid}",
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert config_missing_svid.status_code == 401
+        assert "Verified JWT-SVID runtime identity required" in (
+            config_missing_svid.json()["detail"]
+        )
+
+        heartbeat_wrong_audience = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_jwt_svid_headers_for_node(nid, wrong_audience_token),
+        )
+        assert heartbeat_wrong_audience.status_code == 401
+        assert "jwt_svid_invalid_audience" in heartbeat_wrong_audience.json()["detail"]
+
+        config_valid = client.get(
+            f"/api/v1/maas/{mesh_id}/node-config/{nid}",
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+        assert config_valid.status_code == 200, config_valid.text
+        assert config_valid.json()["node_id"] == nid
+
+        heartbeat_valid = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_jwt_svid_headers_for_node(nid, token),
+        )
+        assert heartbeat_valid.status_code == 200, heartbeat_valid.text
+
+    def test_measured_attestation_binding_requires_fresh_runtime_refresh(
+        self,
+        client,
+        monkeypatch,
+    ):
+        from src.api.maas.nodes import (
+            hash_node_runtime_identity_binding,
+            hash_verified_measured_attestation,
+        )
+
+        mesh_id = f"mesh-measured-runtime-{uuid.uuid4().hex[:8]}"
+        attestation_data = {
+            "provider": "mock",
+            "report_data": f"TRUSTED_X0T:{uuid.uuid4().hex}:runtime",
+        }
+        attestation_digest = hash_verified_measured_attestation(attestation_data)
+        binding_hash = hash_node_runtime_identity_binding(
+            {
+                "binding_type": "measured_attestation",
+                "attestation_digest": attestation_digest,
+            }
+        )
+        nid, mesh_id = self._db_node(
+            mesh_id=mesh_id,
+            with_mesh=True,
+            enclave_enabled=True,
+            runtime_identity_binding_type="measured_attestation",
+            runtime_identity_binding_hash=binding_hash,
+            runtime_identity_last_verified_at=datetime.utcnow() - timedelta(days=2),
+        )
+
+        stale_heartbeat = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert stale_heartbeat.status_code == 401
+        assert stale_heartbeat.json()["detail"] == "Fresh measured attestation required"
+
+        stale_config = client.get(
+            f"/api/v1/maas/{mesh_id}/node-config/{nid}",
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert stale_config.status_code == 401
+        assert stale_config.json()["detail"] == "Fresh measured attestation required"
+
+        monkeypatch.setenv("MAAS_ALLOW_MOCK_TEE_ATTESTATION", "true")
+        refresh = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/runtime-identity/refresh-measured-attestation",
+            json={"attestation_data": attestation_data},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert refresh.status_code == 200, refresh.text
+        body = refresh.json()
+        assert body["runtime_identity_binding_type"] == "measured_attestation"
+        assert body["raw_runtime_identity_proof_redacted"] is True
+        assert body["attestation_verifier_backend"] == "mock_local_allowlist"
+        assert body["attestation_verifier_provenance"]["raw_attestation_redacted"] is True
+        assert body["production_attestation_verifier_claim_allowed"] is False
+        assert attestation_data["report_data"] not in refresh.text
+
+        fresh_config = client.get(
+            f"/api/v1/maas/{mesh_id}/node-config/{nid}",
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert fresh_config.status_code == 200, fresh_config.text
+        assert fresh_config.json()["node_id"] == nid
+
+        fresh_heartbeat = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert fresh_heartbeat.status_code == 200, fresh_heartbeat.text
+
+    def test_heartbeat_exports_telemetry_for_analytics(self, client, monkeypatch):
+        nid, mesh_id = self._db_node()
+        captured = {}
+
+        def fake_export(node_id, payload):
+            captured["node_id"] = node_id
+            captured["payload"] = payload
+
+        monkeypatch.setattr("src.api.maas_nodes._set_external_telemetry", fake_export)
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={
+                "status": "healthy",
+                "cpu_percent": 23.5,
+                "mem_percent": 44.1,
+                "latency_ms": 12.7,
+                "traffic_mbps": 88.9,
+                "active_connections": 15,
+            },
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["telemetry_exported"] is True
+        assert captured["node_id"] == nid
+        assert captured["payload"]["mesh_id"] == mesh_id
+        assert captured["payload"]["latency_ms"] == 12.7
+        assert captured["payload"]["traffic_mbps"] == 88.9
+        assert captured["payload"]["active_connections"] == 15
+
+    def test_heartbeat_uses_custom_metrics_fallback_for_export(self, client, monkeypatch):
+        nid, mesh_id = self._db_node()
+        captured = {}
+
+        def fake_export(node_id, payload):
+            captured["node_id"] = node_id
+            captured["payload"] = payload
+
+        monkeypatch.setattr("src.api.maas_nodes._set_external_telemetry", fake_export)
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={
+                "status": "healthy",
+                "custom_metrics": {"latency_ms": "33.3", "traffic_mbps": "120.2"},
+            },
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["telemetry_exported"] is True
+        assert captured["payload"]["latency_ms"] == 33.3
+        assert captured["payload"]["traffic_mbps"] == 120.2
+
+    def test_heartbeat_export_failure_is_non_blocking(self, client, monkeypatch):
+        nid, mesh_id = self._db_node()
+
+        def broken_export(*args, **kwargs):
+            raise RuntimeError("redis unavailable")
+
+        monkeypatch.setattr("src.api.maas_nodes._set_external_telemetry", broken_export)
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["telemetry_exported"] is False
+
+    def test_heartbeat_invalid_status_422(self, client):
+        nid, mesh_id = self._db_node()
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "exploding"},
+        )
+        assert r.status_code == 422
+
+    def test_heartbeat_auto_releases_escrow(self, client):
+        nid, mesh_id = self._db_node()
+
+        db = TestingSessionLocal()
+        # Need an owner user in DB for the escrow (use admin — created in node_data fixture)
+        op = db.query(User).filter(User.role == "admin").first()
+        if op is None:
+            op = User(
+                id=f"adm-{uuid.uuid4().hex[:8]}",
+                email=f"heartbeat-admin-{uuid.uuid4().hex[:8]}@test.local",
+                password_hash="test-hash",
+                api_key=f"hb-admin-{uuid.uuid4().hex}",
+                role="admin",
+            )
+            db.add(op)
+            db.flush()
+        listing = MarketplaceListing(
+            id=f"lst-{uuid.uuid4().hex[:8]}",
+            owner_id=op.id,
+            node_id=nid,
+            price_per_hour=100,
+            status="escrow",
+        )
+        db.add(listing)
+        db.flush()
+        escrow = MarketplaceEscrow(
+            id=f"esc-{uuid.uuid4().hex[:8]}",
+            listing_id=listing.id,
+            renter_id=op.id,
+            amount_cents=100,
+            status="held",
+        )
+        db.add(escrow)
+        db.commit()
+        escrow_id = escrow.id
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy"},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["escrow_released"] == escrow_id
+
+        db = TestingSessionLocal()
+        e = db.query(MarketplaceEscrow).filter(MarketplaceEscrow.id == escrow_id).first()
+        assert e.status == "released"
+        assert e.released_at is not None
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Node Telemetry Readback (maas_nodes.py — unique route, SQLAlchemy + telemetry backend)
+# ---------------------------------------------------------------------------
+
+class TestNodeTelemetryReadback:
+    def _db_node(self, mesh_id="mesh-telemetry-test"):
+        db = TestingSessionLocal()
+        nid = f"telem-{uuid.uuid4().hex[:8]}"
+        db.add(MeshNode(
+            id=nid, mesh_id=mesh_id,
+            device_class="edge", status="approved",
+            runtime_credential_hash=hash_node_runtime_credential(
+                _runtime_credential_for_node(nid)
+            ),
+            runtime_credential_expires_at=_runtime_expires_at(),
+        ))
+        db.commit()
+        db.close()
+        return nid, mesh_id
+
+    def _create_operator(self, client):
+        email = f"telem-op-{uuid.uuid4().hex[:8]}@test.com"
+        r = client.post(
+            "/api/v1/maas/auth/register",
+            json={"email": email, "password": "password123"},
+        )
+        assert r.status_code == 200, r.text
+        token = r.json()["access_token"]
+        db = TestingSessionLocal()
+        user = find_user_by_api_key(db, token)
+        user.role = "operator"
+        user_id = user.id
+        db.commit()
+        db.close()
+        return token, user_id
+
+    def _db_node_with_owner(self, owner_id: str):
+        mesh_id = f"mesh-telemetry-{uuid.uuid4().hex[:8]}"
+        node_id = f"telem-{uuid.uuid4().hex[:8]}"
+        db = TestingSessionLocal()
+        db.add(MeshInstance(
+            id=mesh_id,
+            name="Telemetry Access Test Mesh",
+            owner_id=owner_id,
+            status="active",
+        ))
+        db.add(MeshNode(
+            id=node_id,
+            mesh_id=mesh_id,
+            device_class="edge",
+            status="approved",
+            runtime_credential_hash=hash_node_runtime_credential(
+                _runtime_credential_for_node(node_id)
+            ),
+            runtime_credential_expires_at=_runtime_expires_at(),
+        ))
+        db.commit()
+        db.close()
+        return node_id, mesh_id
+
+    def test_requires_auth(self, client):
+        nid, mesh_id = self._db_node()
+        r = client.get(f"/api/v1/maas/{mesh_id}/nodes/{nid}/telemetry")
+        assert r.status_code == 401
+
+    def test_user_role_forbidden(self, client, node_data):
+        nid, mesh_id = self._db_node()
+        r = client.get(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/telemetry",
+            headers={"X-API-Key": node_data["usr_token"]},
+        )
+        assert r.status_code == 403
+
+    def test_unknown_node_returns_404(self, client, node_data):
+        r = client.get(
+            "/api/v1/maas/mesh-telemetry-test/nodes/node-missing/telemetry",
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert r.status_code == 404
+
+    def test_returns_snapshot_and_history_after_heartbeat(self, client, node_data):
+        nid, mesh_id = self._db_node()
+        hb = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={
+                "status": "healthy",
+                "latency_ms": 14.2,
+                "traffic_mbps": 77.7,
+                "custom_metrics": {"source": "integration-test"},
+            },
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert hb.status_code == 200, hb.text
+
+        r = client.get(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/telemetry?history_limit=5",
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["mesh_id"] == mesh_id
+        assert data["node_id"] == nid
+        assert isinstance(data["snapshot"], dict)
+        assert data["snapshot"].get("latency_ms") == 14.2
+        assert data["snapshot"].get("traffic_mbps") == 77.7
+        assert isinstance(data["history"], list)
+        assert data["history_count"] >= 1
+        latest = data["history"][0]
+        assert latest.get("latency_ms") == 14.2
+        assert latest.get("traffic_mbps") == 77.7
+
+    def test_history_limit_is_enforced(self, client, node_data):
+        nid, mesh_id = self._db_node()
+        for idx in range(3):
+            hb = client.post(
+                f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+                json={
+                    "status": "healthy",
+                    "latency_ms": 10.0 + idx,
+                    "traffic_mbps": 50.0 + idx,
+                },
+                headers=_runtime_headers_for_node(nid),
+            )
+            assert hb.status_code == 200, hb.text
+
+        r = client.get(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/telemetry?history_limit=2",
+            headers={"X-API-Key": node_data["admin_token"]},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["history_count"] == 2
+
+    def test_operator_owner_can_read_telemetry(self, client):
+        op_token, op_user_id = self._create_operator(client)
+        nid, mesh_id = self._db_node_with_owner(op_user_id)
+        hb = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/heartbeat",
+            json={"status": "healthy", "latency_ms": 21.0, "traffic_mbps": 101.0},
+            headers=_runtime_headers_for_node(nid),
+        )
+        assert hb.status_code == 200, hb.text
+
+        r = client.get(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/telemetry",
+            headers={"X-API-Key": op_token},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["node_id"] == nid
+
+    def test_operator_cannot_read_foreign_mesh_telemetry(self, client, node_data):
+        op_token, _ = self._create_operator(client)
+        db = TestingSessionLocal()
+        admin = find_user_by_api_key(db, node_data["admin_token"])
+        admin_id = admin.id
+        db.close()
+        nid, mesh_id = self._db_node_with_owner(admin_id)
+
+        r = client.get(
+            f"/api/v1/maas/{mesh_id}/nodes/{nid}/telemetry",
+            headers={"X-API-Key": op_token},
+        )
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Check-Access ACL (maas_nodes.py — unique route, uses SQLAlchemy DB)
+# ---------------------------------------------------------------------------
+
+class TestCheckAccess:
+    _mesh_id = "mesh-acl-test"
+
+    def _node(self, acl_profile="default", status="approved"):
+        db = TestingSessionLocal()
+        nid = f"acl-{uuid.uuid4().hex[:8]}"
+        db.add(MeshNode(
+            id=nid, mesh_id=self._mesh_id,
+            device_class="edge", status=status,
+            acl_profile=acl_profile,
+        ))
+        db.commit()
+        db.close()
+        return nid
+
+    @staticmethod
+    def _admin_headers(node_data):
+        return {"X-API-Key": node_data["admin_token"]}
+
+    def test_default_deny_no_policies(self, client, node_data):
+        src = self._node("zone-a")
+        tgt = self._node("zone-b")
+        r = client.post(
+            f"/api/v1/maas/{self._mesh_id}/nodes/check-access",
+            json={"source_node_id": src, "target_node_id": tgt},
+            headers=self._admin_headers(node_data),
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["verdict"] == "deny"
+        assert data["policy_id"] is None
+
+    def test_allow_with_matching_policy(self, client, node_data):
+        src = self._node("frontend")
+        tgt = self._node("backend")
+
+        db = TestingSessionLocal()
+        db.add(ACLPolicy(
+            id=f"pol-{uuid.uuid4().hex[:8]}",
+            mesh_id=self._mesh_id,
+            source_tag="frontend",
+            target_tag="backend",
+            action="allow",
+        ))
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/{self._mesh_id}/nodes/check-access",
+            json={"source_node_id": src, "target_node_id": tgt},
+            headers=self._admin_headers(node_data),
+        )
+        assert r.json()["verdict"] == "allow"
+        assert r.json()["policy_id"] is not None
+
+    def test_explicit_deny_policy(self, client, node_data):
+        src = self._node("untrusted")
+        tgt = self._node("critical")
+
+        db = TestingSessionLocal()
+        db.add(ACLPolicy(
+            id=f"pol-{uuid.uuid4().hex[:8]}",
+            mesh_id=self._mesh_id,
+            source_tag="untrusted",
+            target_tag="critical",
+            action="deny",
+        ))
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/{self._mesh_id}/nodes/check-access",
+            json={"source_node_id": src, "target_node_id": tgt},
+            headers=self._admin_headers(node_data),
+        )
+        assert r.json()["verdict"] == "deny"
+
+    def test_wildcard_policy(self, client, node_data):
+        src = self._node("admin")
+        tgt = self._node("any-zone")
+
+        db = TestingSessionLocal()
+        db.add(ACLPolicy(
+            id=f"pol-{uuid.uuid4().hex[:8]}",
+            mesh_id=self._mesh_id,
+            source_tag="admin",
+            target_tag="*",
+            action="allow",
+        ))
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/{self._mesh_id}/nodes/check-access",
+            json={"source_node_id": src, "target_node_id": tgt},
+            headers=self._admin_headers(node_data),
+        )
+        assert r.json()["verdict"] == "allow"
+
+    def test_unknown_nodes_404(self, client, node_data):
+        r = client.post(
+            f"/api/v1/maas/{self._mesh_id}/nodes/check-access",
+            json={"source_node_id": "ghost-a", "target_node_id": "ghost-b"},
+            headers=self._admin_headers(node_data),
+        )
+        assert r.status_code == 404
+
+    def test_denies_if_source_not_approved_even_with_allow_policy(self, client, node_data):
+        src = self._node("frontend", status="pending")
+        tgt = self._node("backend", status="approved")
+
+        db = TestingSessionLocal()
+        db.add(ACLPolicy(
+            id=f"pol-{uuid.uuid4().hex[:8]}",
+            mesh_id=self._mesh_id,
+            source_tag="frontend",
+            target_tag="backend",
+            action="allow",
+        ))
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/{self._mesh_id}/nodes/check-access",
+            json={"source_node_id": src, "target_node_id": tgt},
+            headers=self._admin_headers(node_data),
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["verdict"] == "deny"
+        assert data["policy_id"] is None
+        assert data["reason"] == "source or target node is not approved"
+
+    def test_denies_if_target_not_approved_even_with_allow_policy(self, client, node_data):
+        src = self._node("frontend", status="approved")
+        tgt = self._node("backend", status="revoked")
+
+        db = TestingSessionLocal()
+        db.add(ACLPolicy(
+            id=f"pol-{uuid.uuid4().hex[:8]}",
+            mesh_id=self._mesh_id,
+            source_tag="frontend",
+            target_tag="backend",
+            action="allow",
+        ))
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/{self._mesh_id}/nodes/check-access",
+            json={"source_node_id": src, "target_node_id": tgt},
+            headers=self._admin_headers(node_data),
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["verdict"] == "deny"
+        assert data["policy_id"] is None
+        assert data["reason"] == "source or target node is not approved"
+
+
+class TestApproveNodeSafety:
+    """Direct safety checks for approve_node flow in src.api.maas_nodes."""
+
+    @pytest.mark.asyncio
+    async def test_approve_node_expired_mesh_token_does_not_commit_status(self):
+        from fastapi import HTTPException
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.api.maas_nodes import approve_node
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        admin = User(
+            id=f"adm-{uuid.uuid4().hex[:8]}",
+            email=f"approve-admin-{uuid.uuid4().hex[:8]}@test.local",
+            password_hash="test-hash",
+            api_key=f"approve-admin-{uuid.uuid4().hex}",
+            role="admin",
+        )
+        db.add(admin)
+
+        mesh_id = f"mesh-expired-{uuid.uuid4().hex[:8]}"
+        node_id = f"node-expired-{uuid.uuid4().hex[:8]}"
+        db.add(
+            MeshInstance(
+                id=mesh_id,
+                name="Expired Token Mesh",
+                owner_id=admin.id,
+                join_token="expired-token",
+                join_token_expires_at=datetime.utcnow(),
+                status="active",
+            )
+        )
+        db.add(
+            MeshNode(
+                id=node_id,
+                mesh_id=mesh_id,
+                device_class="edge",
+                status="pending",
+            )
+        )
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc:
+            await approve_node(mesh_id=mesh_id, node_id=node_id, db=db, current_user=admin)
+        assert exc.value.status_code == 409
+
+        node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
+        assert node.status == "pending"
+        db.close()
+
+    @pytest.mark.asyncio
+    async def test_approve_node_rejects_revoked_status(self):
+        from fastapi import HTTPException
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.api.maas_nodes import approve_node
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        admin = User(
+            id=f"adm-{uuid.uuid4().hex[:8]}",
+            email=f"approve-admin2-{uuid.uuid4().hex[:8]}@test.local",
+            password_hash="test-hash",
+            api_key=f"approve-admin2-{uuid.uuid4().hex}",
+            role="admin",
+        )
+        db.add(admin)
+
+        mesh_id = f"mesh-revoked-{uuid.uuid4().hex[:8]}"
+        node_id = f"node-revoked-{uuid.uuid4().hex[:8]}"
+        db.add(
+            MeshInstance(
+                id=mesh_id,
+                name="Revoked Token Mesh",
+                owner_id=admin.id,
+                join_token="valid-token",
+                join_token_expires_at=datetime.utcnow() + timedelta(days=365),
+                status="active",
+            )
+        )
+        db.add(
+            MeshNode(
+                id=node_id,
+                mesh_id=mesh_id,
+                device_class="edge",
+                status="revoked",
+            )
+        )
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc:
+            await approve_node(mesh_id=mesh_id, node_id=node_id, db=db, current_user=admin)
+        assert exc.value.status_code == 409
+        assert "cannot be approved" in str(exc.value.detail).lower()
+
+        node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
+        assert node.status == "revoked"
+        db.close()
+
+
+class TestDBBackedAdmissionMeasuredAttestation:
+    """Direct checks for the DB-backed node admission core."""
+
+    def _db(self):
+        engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+        )
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        return Session()
+
+    def _admin_mesh_node(
+        self,
+        db,
+        *,
+        enclave_enabled=True,
+        status="pending",
+    ):
+        admin = User(
+            id=f"adm-{uuid.uuid4().hex[:8]}",
+            email=f"admission-admin-{uuid.uuid4().hex[:8]}@test.local",
+            password_hash="test-hash",
+            api_key=f"admission-admin-{uuid.uuid4().hex}",
+            role="admin",
+        )
+        mesh_id = f"mesh-att-{uuid.uuid4().hex[:8]}"
+        node_id = f"node-att-{uuid.uuid4().hex[:8]}"
+        db.add(admin)
+        db.add(
+            MeshInstance(
+                id=mesh_id,
+                name="Measured Attestation Mesh",
+                owner_id=admin.id,
+                join_token="valid-token-for-attestation",
+                join_token_expires_at=datetime.utcnow() + timedelta(days=1),
+                status="active",
+            )
+        )
+        db.add(
+            MeshNode(
+                id=node_id,
+                mesh_id=mesh_id,
+                device_class="edge",
+                status=status,
+                hardware_id=f"hw-{node_id}",
+                enclave_enabled=enclave_enabled,
+            )
+        )
+        db.commit()
+        return admin, mesh_id, node_id
+
+    def test_register_node_preserves_enclave_enabled_intent(self):
+        from src.api.maas.nodes.admission import register_node
+
+        db = self._db()
+        mesh_id = f"mesh-reg-att-{uuid.uuid4().hex[:8]}"
+        db.add(
+            MeshInstance(
+                id=mesh_id,
+                name="Register Attestation Mesh",
+                owner_id="owner",
+                join_token="register-token-for-attestation",
+                join_token_expires_at=datetime.utcnow() + timedelta(days=1),
+                status="active",
+            )
+        )
+        db.commit()
+
+        result = register_node(
+            mesh_id,
+            "register-token-for-attestation",
+            db,
+            node_id=f"node-reg-att-{uuid.uuid4().hex[:8]}",
+            hardware_id="hw-register-attestation",
+            enclave_enabled=True,
+        )
+
+        node = db.query(MeshNode).filter(MeshNode.id == result["node_id"]).first()
+        assert node.enclave_enabled is True
+        assert node.hardware_id == "hw-register-attestation"
+        db.close()
+
+    def test_enclave_approval_requires_attestation_data(self):
+        from fastapi import HTTPException
+        from src.api.maas.nodes.admission import approve_node
+
+        db = self._db()
+        admin, mesh_id, node_id = self._admin_mesh_node(db, enclave_enabled=True)
+
+        with pytest.raises(HTTPException) as exc:
+            approve_node(mesh_id, node_id, db, admin)
+
+        assert exc.value.status_code == 400
+        assert exc.value.detail == "Hardware attestation required for this node"
+        node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
+        assert node.status == "pending"
+        assert node.runtime_identity_binding_hash is None
+        db.close()
+
+    def test_mock_attestation_is_rejected_unless_explicitly_enabled(self, monkeypatch):
+        from fastapi import HTTPException
+        from src.api.maas.nodes.admission import approve_node
+
+        monkeypatch.delenv("MAAS_ALLOW_MOCK_TEE_ATTESTATION", raising=False)
+        db = self._db()
+        admin, mesh_id, node_id = self._admin_mesh_node(db, enclave_enabled=True)
+
+        with pytest.raises(HTTPException) as exc:
+            approve_node(
+                mesh_id,
+                node_id,
+                db,
+                admin,
+                attestation_data={
+                    "provider": "mock",
+                    "report_data": f"TRUSTED_X0T:{node_id}",
+                },
+            )
+
+        assert exc.value.status_code == 403
+        assert exc.value.detail == "Invalid hardware attestation report"
+        node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
+        assert node.status == "pending"
+        assert node.runtime_identity_binding_hash is None
+        db.close()
+
+    def test_valid_measured_attestation_approves_and_binds_hash_only(self, monkeypatch):
+        from src.api.maas.nodes.admission import approve_node
+
+        monkeypatch.setenv("MAAS_ALLOW_MOCK_TEE_ATTESTATION", "true")
+        db = self._db()
+        admin, mesh_id, node_id = self._admin_mesh_node(db, enclave_enabled=True)
+        report_data = f"TRUSTED_X0T:{node_id}:measurement"
+
+        response = approve_node(
+            mesh_id,
+            node_id,
+            db,
+            admin,
+            attestation_data={"provider": "mock", "report_data": report_data},
+        )
+
+        assert response["status"] == "approved"
+        assert response["hardware_attestation_verified"] is True
+        assert response["raw_hardware_attestation_redacted"] is True
+        assert response["attestation_verifier_backend"] == "mock_local_allowlist"
+        assert response["attestation_verifier_provenance"]["raw_attestation_redacted"] is True
+        assert response["production_attestation_verifier_claim_allowed"] is False
+        assert report_data not in json.dumps(response)
+
+        node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
+        assert node.status == "approved"
+        assert node.runtime_identity_binding_type == "measured_attestation"
+        assert isinstance(node.runtime_identity_binding_hash, str)
+        assert len(node.runtime_identity_binding_hash) == 64
+        assert node.runtime_identity_bound_at is not None
+        assert node.runtime_identity_last_verified_at is not None
+        db.close()
+
+    def test_sgx_command_attestation_records_verifier_provenance(self, monkeypatch):
+        from src.api.maas.nodes.admission import approve_node
+
+        class _Result:
+            returncode = 0
+            stdout = json.dumps(
+                {
+                    "valid": True,
+                    "verifier_id": "dcap-local",
+                    "policy_id": "sgx-prod-policy",
+                    "production_verifier_claim_allowed": True,
+                }
+            )
+            stderr = ""
+
+        monkeypatch.setenv("X0TTA6BL4_SGX_VERIFIER_CMD", "/opt/x0t/sgx-verify --json")
+        monkeypatch.setattr(
+            "src.security.tee_attestation.subprocess.run",
+            lambda *args, **kwargs: _Result(),
+        )
+        db = self._db()
+        admin, mesh_id, node_id = self._admin_mesh_node(db, enclave_enabled=True)
+
+        response = approve_node(
+            mesh_id,
+            node_id,
+            db,
+            admin,
+            attestation_data={
+                "provider": "sgx",
+                "report_data": f"measurement:{node_id}",
+                "quote": "quote-bytes",
+                "signature": "signature-bytes",
+            },
+        )
+
+        assert response["status"] == "approved"
+        assert response["attestation_verifier_backend"] == "sgx_command"
+        provenance = response["attestation_verifier_provenance"]
+        assert provenance["backend_kind"] == "local_command"
+        assert provenance["executable_name"] == "sgx-verify"
+        assert provenance["raw_command_redacted"] is True
+        assert provenance["verifier_id"] == "dcap-local"
+        assert response["production_attestation_verifier_claim_allowed"] is True
+        assert "/opt/x0t/sgx-verify" not in json.dumps(response)
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for node utility functions (no TestClient needed)
+# ---------------------------------------------------------------------------
+
+class TestNodeUtilityFunctions:
+    """Direct tests for _to_optional_float, _export_analytics_telemetry,
+    _read_external_telemetry, _read_external_telemetry_history.
+    No TestClient is needed — functions are tested directly via import.
+    """
+
+    def test_to_optional_float_none_returns_none(self):
+        from src.api.maas_nodes import _to_optional_float
+        assert _to_optional_float(None) is None
+
+    def test_to_optional_float_valid_converts(self):
+        from src.api.maas_nodes import _to_optional_float
+        assert _to_optional_float("3.14") == pytest.approx(3.14)
+        assert _to_optional_float(42) == pytest.approx(42.0)
+
+    def test_to_optional_float_invalid_returns_none(self):
+        from src.api.maas_nodes import _to_optional_float
+        assert _to_optional_float("not_a_number") is None
+        assert _to_optional_float([1, 2]) is None
+
+    def test_export_analytics_telemetry_none_exporter_returns_false(self):
+        from unittest.mock import patch
+        import src.api.maas_nodes as nmod
+        with patch.object(nmod, "_set_external_telemetry", None):
+            result = nmod._export_analytics_telemetry("n1", {"k": "v"})
+        assert result is False
+
+    def test_export_analytics_telemetry_success_returns_true(self):
+        from unittest.mock import MagicMock, patch
+        import src.api.maas_nodes as nmod
+        mock_exporter = MagicMock()
+        with patch.object(nmod, "_set_external_telemetry", mock_exporter):
+            result = nmod._export_analytics_telemetry("n1", {"k": "v"})
+        assert result is True
+        mock_exporter.assert_called_once_with("n1", {"k": "v"})
+
+    def test_export_analytics_telemetry_exception_returns_false(self):
+        from unittest.mock import MagicMock, patch
+        import src.api.maas_nodes as nmod
+        mock_exporter = MagicMock(side_effect=RuntimeError("write error"))
+        with patch.object(nmod, "_set_external_telemetry", mock_exporter):
+            result = nmod._export_analytics_telemetry("n-err", {})
+        assert result is False
+
+    def test_read_external_telemetry_none_getter_returns_empty(self):
+        from unittest.mock import patch
+        import src.api.maas_nodes as nmod
+        with patch.object(nmod, "_get_external_telemetry", None):
+            result = nmod._read_external_telemetry("n1")
+        assert result == {}
+
+    def test_read_external_telemetry_non_dict_returns_empty(self):
+        from unittest.mock import MagicMock, patch
+        import src.api.maas_nodes as nmod
+        with patch.object(nmod, "_get_external_telemetry", MagicMock(return_value=["list"])):
+            result = nmod._read_external_telemetry("n1")
+        assert result == {}
+
+    def test_read_external_telemetry_exception_returns_empty(self):
+        from unittest.mock import MagicMock, patch
+        import src.api.maas_nodes as nmod
+        with patch.object(nmod, "_get_external_telemetry", MagicMock(side_effect=Exception("err"))):
+            result = nmod._read_external_telemetry("n-err")
+        assert result == {}
+
+    def test_read_external_telemetry_normalizes_maas_telemetry_shape(self):
+        from unittest.mock import MagicMock, patch
+        import src.api.maas_nodes as nmod
+        payload = {"status": "Degraded", "latency": 14.2, "neighbors": "3"}
+        with patch.object(nmod, "_get_external_telemetry", MagicMock(return_value=payload)):
+            result = nmod._read_external_telemetry("n1")
+        assert result["status"] == "degraded"
+        assert result["latency"] == 14.2
+        assert result["latency_ms"] == 14.2
+        assert result["neighbors_count"] == 3
+
+    def test_read_external_telemetry_history_none_getter_returns_empty_list(self):
+        from unittest.mock import patch
+        import src.api.maas_nodes as nmod
+        with patch.object(nmod, "_get_external_telemetry_history", None):
+            result = nmod._read_external_telemetry_history("n1", 10)
+        assert result == []
+
+    def test_read_external_telemetry_history_non_list_returns_empty_list(self):
+        from unittest.mock import MagicMock, patch
+        import src.api.maas_nodes as nmod
+        with patch.object(nmod, "_get_external_telemetry_history", MagicMock(return_value={"k": "v"})):
+            result = nmod._read_external_telemetry_history("n1", 10)
+        assert result == []
+
+    def test_read_external_telemetry_history_filters_non_dicts(self):
+        from unittest.mock import MagicMock, patch
+        import src.api.maas_nodes as nmod
+        with patch.object(nmod, "_get_external_telemetry_history",
+                          MagicMock(return_value=[{"ok": True}, "bad", 42, {"also": "ok"}])):
+            result = nmod._read_external_telemetry_history("n1", 10)
+        assert result == [{"ok": True}, {"also": "ok"}]
+
+    def test_read_external_telemetry_history_normalizes_entries(self):
+        from unittest.mock import MagicMock, patch
+        import src.api.maas_nodes as nmod
+        payload = [
+            {"status": "HEALTHY", "latency": 9.5, "neighbors": 2},
+            {"status": "degraded", "latency_ms": 17.0},
+        ]
+        with patch.object(nmod, "_get_external_telemetry_history", MagicMock(return_value=payload)):
+            result = nmod._read_external_telemetry_history("n1", 10)
+        assert result[0]["status"] == "healthy"
+        assert result[0]["latency_ms"] == 9.5
+        assert result[0]["neighbors_count"] == 2
+        assert result[1]["status"] == "degraded"
+        assert result[1]["latency_ms"] == 17.0
+
+    def test_read_external_telemetry_history_exception_returns_empty_list(self):
+        from unittest.mock import MagicMock, patch
+        import src.api.maas_nodes as nmod
+        with patch.object(nmod, "_get_external_telemetry_history",
+                          MagicMock(side_effect=Exception("err"))):
+            result = nmod._read_external_telemetry_history("n-err", 5)
+        assert result == []
+
+    # _build_analytics_telemetry_payload branch coverage
+
+    def test_build_analytics_telemetry_payload_latency_from_req(self):
+        """latency_ms set on req → included in payload."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", latency_ms=25.0)
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert payload["latency_ms"] == 25.0
+
+    def test_build_analytics_telemetry_payload_latency_from_custom_metrics(self):
+        """latency_ms not on req but in custom_metrics → used."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", custom_metrics={"latency_ms": 15.5})
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert payload["latency_ms"] == 15.5
+
+    def test_build_analytics_telemetry_payload_negative_latency_excluded(self):
+        """Negative latency → NOT included in payload."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", latency_ms=-1.0)
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert "latency_ms" not in payload
+
+    def test_build_analytics_telemetry_payload_traffic_from_req(self):
+        """traffic_mbps set on req → included in payload."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", traffic_mbps=100.0)
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert payload["traffic_mbps"] == 100.0
+
+    def test_build_analytics_telemetry_payload_traffic_from_custom_metrics(self):
+        """traffic_mbps not on req but in custom_metrics → used."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", custom_metrics={"traffic_mbps": 50.0})
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert payload["traffic_mbps"] == 50.0
+
+    def test_build_analytics_telemetry_payload_negative_traffic_excluded(self):
+        """Negative traffic → NOT included in payload."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", traffic_mbps=-5.0)
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert "traffic_mbps" not in payload
+
+    def test_build_analytics_telemetry_payload_core_fields_always_present(self):
+        """Core fields always present regardless of optional values."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="degraded", cpu_percent=55.0)
+        payload = _build_analytics_telemetry_payload("mesh-x", "node-y", req, "2026-02-22T12:00:00")
+        assert payload["mesh_id"] == "mesh-x"
+        assert payload["node_id"] == "node-y"
+        assert payload["status"] == "degraded"
+        assert payload["cpu_percent"] == 55.0
+        assert payload["timestamp"] == "2026-02-22T12:00:00"
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _to_optional_float
+# ---------------------------------------------------------------------------
+
+class TestToOptionalFloat:
+    """Direct tests for _to_optional_float conversion helper."""
+
+    def test_none_returns_none(self):
+        from src.api.maas_nodes import _to_optional_float
+        assert _to_optional_float(None) is None
+
+    def test_valid_int_returns_float(self):
+        from src.api.maas_nodes import _to_optional_float
+        result = _to_optional_float(42)
+        assert result == 42.0
+        assert isinstance(result, float)
+
+    def test_valid_string_returns_float(self):
+        from src.api.maas_nodes import _to_optional_float
+        result = _to_optional_float("3.14")
+        assert abs(result - 3.14) < 1e-9
+
+    def test_invalid_string_returns_none(self):
+        from src.api.maas_nodes import _to_optional_float
+        assert _to_optional_float("not-a-number") is None
+
+    def test_invalid_type_returns_none(self):
+        from src.api.maas_nodes import _to_optional_float
+        assert _to_optional_float({"key": "value"}) is None
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _export_analytics_telemetry,
+# _read_external_telemetry, _read_external_telemetry_history
+# ---------------------------------------------------------------------------
+
+class TestExternalTelemetryHelpers:
+    """Tests for telemetry import/export helper functions."""
+
+    def test_export_returns_false_when_setter_is_none(self):
+        from unittest.mock import patch
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _export_analytics_telemetry
+        with patch.object(mod, "_set_external_telemetry", None):
+            result = _export_analytics_telemetry("node-x", {"cpu": 10.0})
+        assert result is False
+
+    def test_export_returns_true_when_setter_succeeds(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _export_analytics_telemetry
+        mock_setter = MagicMock()
+        with patch.object(mod, "_set_external_telemetry", mock_setter):
+            result = _export_analytics_telemetry("node-x", {"cpu": 10.0})
+        assert result is True
+        mock_setter.assert_called_once_with("node-x", {"cpu": 10.0})
+
+    def test_export_returns_false_when_setter_raises(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _export_analytics_telemetry
+        mock_setter = MagicMock(side_effect=Exception("redis down"))
+        with patch.object(mod, "_set_external_telemetry", mock_setter):
+            result = _export_analytics_telemetry("node-x", {"cpu": 10.0})
+        assert result is False
+
+    def test_read_external_returns_empty_when_getter_is_none(self):
+        from unittest.mock import patch
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry
+        with patch.object(mod, "_get_external_telemetry", None):
+            result = _read_external_telemetry("node-x")
+        assert result == {}
+
+    def test_read_external_returns_empty_when_getter_raises(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry
+        mock_getter = MagicMock(side_effect=Exception("timeout"))
+        with patch.object(mod, "_get_external_telemetry", mock_getter):
+            result = _read_external_telemetry("node-x")
+        assert result == {}
+
+    def test_read_external_returns_empty_when_result_not_dict(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry
+        mock_getter = MagicMock(return_value=["not", "a", "dict"])
+        with patch.object(mod, "_get_external_telemetry", mock_getter):
+            result = _read_external_telemetry("node-x")
+        assert result == {}
+
+    def test_read_external_returns_dict_when_getter_succeeds(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry
+        mock_getter = MagicMock(return_value={"cpu": 42.0})
+        with patch.object(mod, "_get_external_telemetry", mock_getter):
+            result = _read_external_telemetry("node-x")
+        assert result == {"cpu": 42.0}
+
+    def test_read_history_returns_empty_when_getter_is_none(self):
+        from unittest.mock import patch
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry_history
+        with patch.object(mod, "_get_external_telemetry_history", None):
+            result = _read_external_telemetry_history("node-x", limit=5)
+        assert result == []
+
+    def test_read_history_returns_empty_when_getter_raises(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry_history
+        mock_getter = MagicMock(side_effect=Exception("oops"))
+        with patch.object(mod, "_get_external_telemetry_history", mock_getter):
+            result = _read_external_telemetry_history("node-x", limit=5)
+        assert result == []
+
+    def test_read_history_returns_empty_when_result_not_list(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry_history
+        mock_getter = MagicMock(return_value={"not": "a list"})
+        with patch.object(mod, "_get_external_telemetry_history", mock_getter):
+            result = _read_external_telemetry_history("node-x", limit=5)
+        assert result == []
+
+    def test_read_history_filters_non_dicts(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry_history
+        mock_getter = MagicMock(return_value=[{"cpu": 1}, "bad", 42, {"mem": 2}])
+        with patch.object(mod, "_get_external_telemetry_history", mock_getter):
+            result = _read_external_telemetry_history("node-x", limit=10)
+        assert result == [{"cpu": 1}, {"mem": 2}]
+
+    def test_read_history_normalizes_maas_telemetry_aliases(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry_history
+        mock_getter = MagicMock(return_value=[{"latency": 11.0, "neighbors": "4", "status": "HEALTHY"}])
+        with patch.object(mod, "_get_external_telemetry_history", mock_getter):
+            result = _read_external_telemetry_history("node-x", limit=10)
+        assert result == [{
+            "latency": 11.0,
+            "latency_ms": 11.0,
+            "neighbors": "4",
+            "neighbors_count": 4,
+            "status": "healthy",
+        }]
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for MeshOperator methods
+# (uses custom_permissions to avoid DB permission resolution)
+# ---------------------------------------------------------------------------
+
+class TestMeshOperatorMethods:
+    """Direct tests for MeshOperator.has_permission, require_permission,
+    has_any_permission, has_all_permissions using custom_permissions injection."""
+
+    def _make_operator(self, permissions_set):
+        """Build a MeshOperator with an in-memory DB and custom permissions."""
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.database import Base, User
+        from src.api.maas_nodes import MeshOperator
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        user = User(
+            id="u-test",
+            email="test@mesh.com",
+            password_hash="$2b$12$fakehash" + "x" * 53,
+            api_key="test-key-abc",
+            role="operator",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        op = MeshOperator(
+            user=user,
+            mesh_id="mesh-unit-test",
+            db=db,
+            custom_permissions=permissions_set,
+        )
+        db.close()
+        return op
+
+    def test_has_permission_returns_true_when_present(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ, MeshPermission.NODE_READ})
+        assert op.has_permission(MeshPermission.MESH_READ) is True
+
+    def test_has_permission_returns_false_when_absent(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ})
+        assert op.has_permission(MeshPermission.NODE_DELETE) is False
+
+    def test_require_permission_passes_when_granted(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.TELEMETRY_READ})
+        op.require_permission(MeshPermission.TELEMETRY_READ)  # should not raise
+
+    def test_require_permission_raises_403_when_not_granted(self):
+        from fastapi import HTTPException
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ})
+        with pytest.raises(HTTPException) as exc:
+            op.require_permission(MeshPermission.ACL_WRITE)
+        assert exc.value.status_code == 403
+
+    def test_has_any_permission_true_when_at_least_one_matches(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ})
+        result = op.has_any_permission({MeshPermission.MESH_READ, MeshPermission.NODE_DELETE})
+        assert result is True
+
+    def test_has_any_permission_false_when_none_match(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ})
+        result = op.has_any_permission({MeshPermission.NODE_DELETE, MeshPermission.ACL_WRITE})
+        assert result is False
+
+    def test_has_all_permissions_true_when_superset(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({
+            MeshPermission.MESH_READ, MeshPermission.NODE_READ, MeshPermission.TELEMETRY_READ
+        })
+        result = op.has_all_permissions({MeshPermission.MESH_READ, MeshPermission.NODE_READ})
+        assert result is True
+
+    def test_has_all_permissions_false_when_one_missing(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ})
+        result = op.has_all_permissions({MeshPermission.MESH_READ, MeshPermission.NODE_DELETE})
+        assert result is False
+
+    def test_empty_permissions_set_denies_all(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator(set())
+        assert op.has_permission(MeshPermission.MESH_READ) is False
+        assert op.has_any_permission({MeshPermission.MESH_READ}) is False
+        assert op.has_all_permissions(set()) is True  # empty subset is always True
+
+    def test_expand_permission_aliases_maps_view_to_read(self):
+        from src.api.maas_nodes import MeshPermission, _expand_permission_aliases
+        expanded = _expand_permission_aliases({MeshPermission.TELEMETRY_VIEW, MeshPermission.ACL_UPDATE})
+        assert MeshPermission.TELEMETRY_READ in expanded
+        assert MeshPermission.TELEMETRY_VIEW in expanded
+        assert MeshPermission.ACL_WRITE in expanded
+        assert MeshPermission.ACL_UPDATE in expanded
+
+    def test_owner_role_includes_node_management_permissions(self):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.database import Base, User, MeshInstance
+        from src.api.maas_nodes import MeshOperator, MeshPermission
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        owner = User(
+            id="owner-1",
+            email="owner@example.com",
+            password_hash="$2b$12$fakehash" + "x" * 53,
+            api_key="owner-key",
+            role="user",
+        )
+        db.add(owner)
+        db.add(
+            MeshInstance(
+                id="mesh-owner-perms",
+                name="Owner Mesh",
+                owner_id=owner.id,
+                status="active",
+            )
+        )
+        db.commit()
+        db.refresh(owner)
+
+        operator = MeshOperator(owner, "mesh-owner-perms", db)
+        assert operator.has_permission(MeshPermission.NODE_APPROVE) is True
+        assert operator.has_permission(MeshPermission.NODE_REVOKE) is True
+        assert operator.has_permission(MeshPermission.NODE_HEAL) is True
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _check_permission and _ensure_mesh_visibility
+# ---------------------------------------------------------------------------
+
+class TestCheckPermissionAndEnsureVisibility:
+    """Tests for _check_permission and _ensure_mesh_visibility with in-memory DB."""
+
+    def _setup_db_with_mesh_and_user(self, user_role="operator", is_owner=False):
+        """Create an in-memory DB with a MeshInstance and User."""
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.database import Base, User, MeshInstance
+        import uuid as _uuid
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        user_id = f"u-{_uuid.uuid4().hex[:6]}"
+        mesh_id = f"mesh-{_uuid.uuid4().hex[:6]}"
+
+        user = User(
+            id=user_id,
+            email=f"test-{_uuid.uuid4().hex[:8]}@mesh.com",
+            password_hash="$2b$12$fakehash" + "x" * 53,
+            api_key=f"key-{_uuid.uuid4().hex}",
+            role=user_role,
+        )
+        db.add(user)
+
+        owner_id = user_id if is_owner else "other-owner"
+        mesh = MeshInstance(
+            id=mesh_id,
+            name="Test Mesh",
+            owner_id=owner_id,
+        )
+        db.add(mesh)
+        db.commit()
+        db.refresh(user)
+        db.refresh(mesh)
+
+        return db, user, mesh_id
+
+    def test_check_permission_true_for_admin(self):
+        """Admin role gets all permissions from ROLE_PERMISSIONS."""
+        from src.api.maas_nodes import _check_permission, MeshPermission
+        db, user, mesh_id = self._setup_db_with_mesh_and_user(user_role="admin")
+        try:
+            result = _check_permission(user, mesh_id, MeshPermission.MESH_DELETE, db)
+            assert result is True
+        finally:
+            db.close()
+
+    def test_check_permission_false_for_operator_without_mesh_delete(self):
+        """Operator role doesn't have MESH_DELETE permission."""
+        from src.api.maas_nodes import _check_permission, MeshPermission
+        db, user, mesh_id = self._setup_db_with_mesh_and_user(user_role="operator")
+        try:
+            result = _check_permission(user, mesh_id, MeshPermission.MESH_DELETE, db)
+            assert result is False
+        finally:
+            db.close()
+
+    def test_ensure_mesh_visibility_raises_404_when_mesh_missing(self):
+        """_ensure_mesh_visibility raises 404 when mesh doesn't exist."""
+        from fastapi import HTTPException
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.database import Base, User
+        from src.api.maas_nodes import _ensure_mesh_visibility, MeshPermission
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        user = User(
+            id="u-miss", email="miss@test.com",
+            password_hash="$2b$12$fakehash" + "x" * 53,
+            api_key="key-miss", role="operator",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        with pytest.raises(HTTPException) as exc:
+            _ensure_mesh_visibility("nonexistent-mesh", user, db, MeshPermission.MESH_READ)
+        assert exc.value.status_code == 404
+        db.close()
+
+    def test_ensure_mesh_visibility_admin_always_passes(self):
+        """Admin role bypasses permission check → no exception raised."""
+        from src.api.maas_nodes import _ensure_mesh_visibility, MeshPermission
+        db, user, mesh_id = self._setup_db_with_mesh_and_user(user_role="admin")
+        try:
+            # Should not raise even for high-privilege operations
+            _ensure_mesh_visibility(mesh_id, user, db, MeshPermission.MESH_DELETE)
+        finally:
+            db.close()
+
+    def test_ensure_mesh_visibility_raises_403_for_non_owner_without_perm(self):
+        """Non-owner operator without explicit permission → 403."""
+        from fastapi import HTTPException
+        from src.api.maas_nodes import _ensure_mesh_visibility, MeshPermission
+        db, user, mesh_id = self._setup_db_with_mesh_and_user(
+            user_role="operator", is_owner=False
+        )
+        try:
+            with pytest.raises(HTTPException) as exc:
+                # MESH_DELETE is not in operator's default permissions
+                _ensure_mesh_visibility(mesh_id, user, db, MeshPermission.MESH_DELETE)
+            assert exc.value.status_code == 403
+        finally:
+            db.close()

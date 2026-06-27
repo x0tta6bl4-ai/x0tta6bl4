@@ -1,0 +1,49 @@
+{{/*
+MaaS API Ingress
+*/}}
+{{- if .Values.api.ingress.enabled }}
+apiVersion: {{ include "maas.ingress.apiVersion" . }}
+kind: Ingress
+metadata:
+  name: {{ include "maas.fullname" . }}-api
+  labels:
+    {{- include "maas.api.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.api.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.api.ingress.className }}
+  ingressClassName: {{ .Values.api.ingress.className }}
+  {{- end }}
+  {{- if .Values.api.ingress.tls }}
+  tls:
+    {{- range .Values.api.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.api.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              {{- if eq (include "maas.ingress.apiVersion" $) "networking.k8s.io/v1" }}
+              service:
+                name: {{ include "maas.fullname" $ }}-api
+                port:
+                  number: {{ $.Values.api.service.port }}
+              {{- else }}
+              serviceName: {{ include "maas.fullname" $ }}-api
+              servicePort: {{ $.Values.api.service.port }}
+              {{- end }}
+          {{- end }}
+    {{- end }}
+{{- end }}

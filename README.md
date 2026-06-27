@@ -1,144 +1,144 @@
-# x0tta6bl4 🔐 Quantum-Resistant Mesh VPN
+# x0tta6bl4 — Self-Healing Mesh Networking Platform
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](.github/workflows/codeql.yml)
-![Status](https://img.shields.io/badge/status-production--ready-green)
-![PQC](https://img.shields.io/badge/PQC-ML--KEM--768-blue)
+![Status](https://img.shields.io/badge/status-experimental-yellow)
 ![ZTCR](https://img.shields.io/badge/ZTCR-29%2F29%20tests-brightgreen)
-![CVEs](https://img.shields.io/badge/CVEs-20%20patched-brightgreen)
 
-**Post-quantum cryptography · eBPF/XDP dataplane · Autonomous self-healing**
-Independent engineering project by [x0tta6bl4](https://github.com/x0tta6bl4-ai).
+**Post-quantum cryptography · eBPF/XDP kernel dataplane · Autonomous self-healing**  
+Independent engineering project by [x0tta6bl4](https://github.com/x0tta6bl4-ai).  
 *AI-assisted: see [AI-DECLARATION.md](AI-DECLARATION.md) and [system prompts](/.prompts/).*
 
 ---
 
 ## System Architecture
 
-```
-┌─────────────────────────────────────────────────────┐
-│  Layer 10: Identity (архетип, миссия)                │
-├─────────────────────────────────────────────────────┤
-│  Layer 9: Token Economy (X0T)                        │
-├─────────────────────────────────────────────────────┤
-│  Layer 8: DAO Governance                             │
-├─────────────────────────────────────────────────────┤
-│  Layer 7: Swarm Intelligence (PBFT consensus)        │
-├─────────────────────────────────────────────────────┤
-│  Layer 6: Meta-Cognitive MAPE-K                      │
-├─────────────────────────────────────────────────────┤
-│  Layer 5: ML/AI Stack (micro_tensor, MeshGNN)        │
-├─────────────────────────────────────────────────────┤
-│  Layer 4: Mesh Transport + Data Sync (CRDT, DHT)     │
-├─────────────────────────────────────────────────────┤
-│  Layer 3: Anti-Censorship (6 mechanisms)             │
-├─────────────────────────────────────────────────────┤
-│  Layer 2: PQC Cryptography (ML-KEM/ML-DSA)           │
-├─────────────────────────────────────────────────────┤
-│  Layer 1: eBPF/XDP Dataplane (kernel)                │
-└─────────────────────────────────────────────────────┘
-```
+```mermaid
+graph TB
+    subgraph APP["Application Layer"]
+        API[FastAPI / MaaS API]
+        Billing[Billing & Access Control]
+    end
 
----
+    subgraph CONTROL["Control Plane"]
+        MAPEK[MAPE-K Self-Healing<br/>Monitor→Analyze→Plan→Execute]
+        ZTCR[ZTCR Security<br/>SignedCommand + PBFT + SVID]
+        EventBus[Async EventBus]
+    end
 
-## Infrastructure (Live)
+    subgraph MESH["Mesh Layer"]
+        DHT[DHT Peer Discovery]
+        CRDT[CRDT State Sync]
+        VPN[First-party VPN<br/>Ghost Transport]
+    end
 
-| Component | Location | Status | Notes |
-|-----------|----------|--------|-------|
-| **NL VPS** (89.125.1.107) | Netherlands | ✅ Production | SPIRE, mesh-node x2, Ghost VPN, x-ui |
-| **Docker Compose** | Local | ✅ Running | mesh-node-a/b + bridge → NL |
-| **k3d K8s Cluster** | Local | ✅ Running | 3 nodes (k3s v1.31.5), mesh consensus |
-| **SPIRE Server** | NL + Docker | ✅ Active | Trust domain: x0tta6bl4.mesh |
-| **Health Monitor** | Cronjob | ✅ Every 5min | 10 services + 2 mesh nodes checked |
-| **CVE Monitor** | Cronjob | ✅ Daily 6:00 | Dependabot tracking, auto-patch |
-| **GitMark RAG** | Cronjob | ✅ Daily 5:00 | Codebase knowledge base rebuild |
+    subgraph TRANSPORT["Transport Security"]
+        PQC[Hybrid TLS 1.3<br/>ML-KEM-768 + X25519<br/>ML-DSA-65 + ECDSA]
+        SPIRE[SPIRE/SPIFFE mTLS<br/>Identity & Attestation]
+    end
 
-### Mesh Network Topology
+    subgraph KERNEL["Kernel Dataplane"]
+        XDP[eBPF/XDP<br/>Packet Filter & Forward]
+        AFXDP[AF_XDP Ring Buffers<br/>Kernel↔Userspace Zero-Copy]
+    end
 
-```
-k3d K8s (localhost)
-  └─ mesh-k8s-1 ↔ mesh-k8s-2 ↔ mesh-k8s-3
-
-Docker (localhost)
-  └─ node-a ↔ node-b ↔ bridge → NL:9100
-
-NL VPS (89.125.1.107)
-  └─ spire-server → nl-node-1 ↔ nl-node-2
+    KERNEL --> TRANSPORT
+    TRANSPORT --> MESH
+    MESH --> CONTROL
+    CONTROL --> APP
 ```
 
 ---
 
 ## PQC Hybrid Handshake
 
-```
-Alice (Mesh Node A)           Bob (Mesh Node B)
-    │                              │
-    │  Phase 1: Key Exchange       │
-    │  Generate X25519 keypair     │
-    │  Generate ML-KEM-768 keypair │
-    │─── ClientHello ─────────────►│
-    │    (classical PK + PQC PK)   │
-    │                              │ Encapsulate both keys
-    │◄── ServerHello (ciphertext) ─│
-    │  Decapsulate → shared secret │
-    │                              │
-    │  Phase 2: Authentication     │
-    │  Sign with ML-DSA-65         │
-    │─── Signature + SVID ────────►│
-    │                              │ Verify signature + chain
-    │                              │
-    │  Phase 3: Secure Channel     │
-    │◄══ Encrypted traffic ═══════►│
-    │      (AES-256-GCM)           │
+```mermaid
+sequenceDiagram
+    participant Alice as Mesh Node A
+    participant Bob as Mesh Node B
+
+    Note over Alice,Bob: Phase 1: Key Exchange
+    Alice->>Alice: Generate X25519 keypair<br/>Generate ML-KEM-768 keypair
+    Alice->>Bob: ClientHello (classical PK + PQC PK)
+    Bob->>Bob: Encapsulate against both keys
+    Bob->>Alice: ServerHello (ciphertext)
+    Alice->>Alice: Decapsulate → shared secret
+
+    Note over Alice,Bob: Phase 2: Authentication
+    Alice->>Alice: Sign transcript with ML-DSA-65
+    Alice->>Bob: Signature + SPIFFE SVID
+    Bob->>Bob: Verify signature + SVID chain
+
+    Note over Alice,Bob: Phase 3: Secure Channel
+    Alice->>Bob: Encrypted mesh traffic (AES-256-GCM)
 ```
 
 ---
 
-## Security
+## MAPE-K Self-Healing Loop
 
-| Check | Status |
-|-------|--------|
-| **Subprocess safety** | ✅ `safe_run` — 54 allowed commands |
-| **Bandit scan** | ✅ 0 HIGH, 0 CRITICAL |
-| **CodeQL** | ✅ 0 open alerts |
-| **Dependabot** | ✅ Auto-patching, 33 alerts remaining |
-| **CVEs patched** | ✅ 20 (yt-dlp, starlette, PyJWT, python-multipart, cryptography) |
-| **ZTCR** | ✅ 29/29 chaos tests passed |
-| **SPIRE mTLS** | ✅ Production on NL VPS |
+```mermaid
+graph LR
+    M[Monitor<br/>CPU / Memory / Network<br/>Peer Health] --> A[Analyze<br/>Anomaly Detection<br/>Pattern Correlation]
+    A --> P[Plan<br/>Recovery Strategy<br/>Risk Assessment]
+    P --> E[Execute<br/>Signed Commands<br/>Verified Actions]
+    E --> K[Knowledge Base<br/>Incident History<br/>Effectiveness Metrics]
+
+    K -.-> M
+    K -.-> A
+    K -.-> P
+```
 
 ---
 
-## Components
+## Human vs AI
+
+This project follows a **human-architected, AI-generated** development model.
+
+| Aspect | Human | AI Agents |
+|--------|-------|-----------|
+| **Architecture** | System design, component boundaries, data flows | — |
+| **Implementation** | — | PQC stack, MAPE-K loop, eBPF/C code, MaaS API, tests |
+| **Integration** | Making components work together, debugging | — |
+| **Validation** | Test design, benchmark analysis, live deployment | Test generation, CI pipeline |
+| **Prompts** | Written in `/.prompts/` | — |
+
+> See [AI-DECLARATION.md](AI-DECLARATION.md) for per-component breakdown.
+> See [/.prompts/](/.prompts/) for the exact system prompts used.
+
+---
+
+## Implemented Components
 
 | Component | Lines | Description |
 |-----------|-------|-------------|
-| Post-Quantum Crypto | ~3,500 | ML-KEM-768 + ML-DSA-65 via liboqs, hybrid TLS 1.3 |
-| MAPE-K Self-Healing | ~1,900 | Full loop: Monitor → Analyze → Plan → Execute → Knowledge |
-| MaaS API | ~5,000 | FastAPI REST API, 46 route handlers |
-| Anti-Censorship | ~2,000 | 6 mechanisms: Ghost Protocol, Geneva, StegoMesh |
-| eBPF/XDP | ~1,500 | Kernel-level packet processing |
-| Ghost Transport | ~2,000 | Experimental VPN, Docker-ready |
-| ML Stack | ~1,000 | micro_tensor, MeshGNN, LoRA (pure NumPy) |
-| Swarm | ~1,500 | PBFT consensus, AnomalyConsensusManager |
-| **AI Skills** | ~40 | 40 Hermes skills for automation |
+| Post-Quantum Crypto (PQC) | ~3,500 | ML-KEM-768/1024 + ML-DSA-65/87 via liboqs, hybrid TLS 1.3, SPIRE/SPIFFE mTLS |
+| MAPE-K Self-Healing | ~1,900 | Full control loop (Monitor → Analyze → Plan → Execute → Knowledge) |
+| MaaS API | ~5,000 | Mesh-as-a-Service REST API, FastAPI, 46 route handlers |
+| Anti-Censorship | ~2,000 | DPI bypass, traffic obfuscation, protocol camouflage |
+| eBPF/XDP Dataplane | ~1,500 | Kernel-level packet processing, AF_XDP ring buffers |
+| Ghost Transport (VPN) | ~2,000 | Experimental STL-encapsulated transport, Docker-ready |
+| Billing & Access Control | ~1,200 | Subscription tiers, token-gated access, usage metering |
+| LoRA Fine-Tuning (ML) | ~1,000 | Low-Rank Adaptation for federated learning (pure NumPy) |
 
-> **Total:** ~805K+ lines Python, 1,300 lines Go
+> **Total source:** ~357,000 lines of Python (excluding comments and blanks), 1,300 lines Go.
 
 ### Benchmarks (r8169 NIC, Intel i5)
 
 | Metric | Value | Conditions |
 |--------|-------|------------|
-| XDP TX | 142,000 PPS | pktgen → XDP_TX |
-| XDP RX | 49,000 PPS | XDP_DROP raw |
-| PQC Handshake | <50 ms | ML-KEM-768 + ML-DSA-65 |
-| MAPE-K MTTD | <20 s | Actual detection |
+| XDP TX Throughput | 142,000 PPS | pktgen → XDP_TX |
+| XDP RX Throughput | 49,000 PPS | XDP_DROP raw |
+| PQC Handshake | <50 ms | ML-KEM-768 + ML-DSA-65, localhost |
+| MAPE-K MTTD | <20 s | Actual detection time |
 | MAPE-K MTTR | ~3 min | Autonomous recovery |
+| Dependencies | 72 (was 342) | After cleanup |
 
 ---
 
 ## Honest Assessment
 
-**What this is:** Full-stack DePIN platform demonstrating systems engineering across cryptography, kernel networking, distributed systems, and DevOps automation. 805K+ lines, 2,288+ commits, solo developer with AI agents.
+**What this is:** An independent research project demonstrating full-stack systems engineering — cryptographic integration, kernel networking, distributed systems, DevOps automation. The code compiles and tests pass.
 
 **What this is NOT:**
 
@@ -146,22 +146,15 @@ Alice (Mesh Node A)           Bob (Mesh Node B)
 |-------|--------|
 | 99.97% uptime SLA | ❌ No evidence |
 | 1M PPS throughput | ❌ 142k PPS on consumer hardware |
-| Formally audited crypto | ❌ liboqs integration, no formal audit |
-| DAO / community | ❌ Solo project |
-| Commercial service | ❌ Research project |
-
-**What works NOW:**
-
-| Component | Status |
-|-----------|--------|
-| PQC (ML-KEM + ML-DSA) | ✅ Verified |
-| ZTCR (29/29 chaos tests) | ✅ Verified |
-| SPIRE Docker stack | ✅ Running |
-| Mesh network (3 layers) | ✅ K8s + Docker + NL |
-| MAPE-K self-healing | ✅ Production on NL |
-| Health monitoring | ✅ Automated cronjobs |
-| Loop engineering (40 skills) | ✅ Hermes Agent |
-| CVE patching | ✅ 20 patched, daily monitor |
+| Formally audited cryptography | ❌ liboqs integration, no audit |
+| DAO / community governance | ❌ Solo project |
+| Official commercial service | ❌ Experimental research project |
+| Production deployment | ❌ Retired 2026-06 — replaced by Docker Compose |
+| **ZTCR (Zero-Trust Chaos Resilience)** | ✅ 29/29 tests — SignedCommand + PBFT + SVID |
+| **Security hardened** | ✅ 36 subprocess → safe_run, allowlist 54 commands, 0 HIGH bandit |
+| **reverse-skill (RE/pentest)** | ✅ 23 modules, routing matrix |
+| **SPIRE Docker stack** | ✅ localhost:8081 — server + agent + mesh-2node |
+| **LoRA ML fine-tuning** | ✅ Pure NumPy, federated-learning ready |
 
 ---
 
@@ -173,55 +166,53 @@ cd x0tta6bl4
 uv sync
 ```
 
-### Local mesh (Docker)
+### Local mesh (SPIRE + 2 nodes)
 
 ```bash
 docker compose -f deploy/docker-compose/compose.yaml up -d
 curl -s http://localhost:9100/health
+docker logs mesh-node-a -f | grep "consensus"
 ```
 
-### Kubernetes (k3d)
+### Run core tests
 
 ```bash
-k3d cluster create x0tta6bl4 --agents 2
-kubectl apply -f k8s/mesh/
-```
-
-### Run tests
-
-```bash
-# ZTCR chaos tests
-python3 -m pytest tests/unit/self_healing/ -v
+# ZTCR chaos resilience tests
+python3 -m pytest tests/unit/self_healing/test_svid_signer.py \
+  tests/unit/self_healing/test_anomaly_consensus.py \
+  tests/unit/self_healing/test_spire_crash_chaos.py -v --tb=short
 
 # PQC smoke test
 python3 scripts/benchmark_pqc.py
+```
 
-# Full test suite
-python3 -m pytest tests/ -v --tb=short
+### See MAPE-K healing in action
+
+```bash
+# Start the mesh
+docker compose -f deploy/docker-compose/compose.yaml up -d
+
+# Kill a node
+docker kill mesh-node-a
+
+# Watch autonomous recovery (expect <3 min)
+docker logs mesh-node-a -f | grep -E "MAPE-K|recovery|healing"
 ```
 
 ---
 
-## Skills (40 AI-automation skills)
+## Reproducibility
 
-| Category | Count | Examples |
-|----------|:-----:|----------|
-| Architecture & Analysis | 6 | depin-architecture, loop-designer |
-| Code Quality & Tech Debt | 8 | tech-debt-elimination, git-hygiene |
-| Infrastructure & Deploy | 8 | remote-deploy, mesh-local-deploy |
-| ML/AI | 2 | mesh-gnn, depin-architecture |
-| Job Search & Visibility | 5 | job-search-strategy, honest-audit |
-| Meta & Automation | 3 | loop-designer, context-saver |
+Every component can be verified locally:
 
----
-
-## Technologies
-
-**Languages:** Python 3.12, Go, Solidity, eBPF/C
-**Crypto:** liboqs, ML-KEM-768, ML-DSA-65, SPIRE/SPIFFE
-**Networking:** eBPF/XDP, AF_XDP, WireGuard, Yggdrasil IPv6
-**Infrastructure:** Docker, Kubernetes (k3d), SPIRE, FastAPI
-**Security:** CodeQL, Dependabot, Bandit, ZTCR chaos testing
+| Component | Command | Expected |
+|-----------|---------|----------|
+| PQC handshake | `python3 scripts/benchmark_pqc.py` | <50ms handshake |
+| MAPE-K loop | `python3 -m pytest tests/unit/self_healing/test_mape_k.py -v` | 4/4 passed |
+| ZTCR chaos | `python3 -m pytest tests/unit/self_healing/ -v` | 29/29 passed |
+| eBPF attach | `sudo python3 -c "from src.network.ebpf.xdp_manager import XDPManager"` | Import OK |
+| SPIRE stack | `docker compose -f deploy/docker-compose/compose.yaml ps` | 4 containers running |
+| LoRA training | `python3 -c "from src.ml.lora.trainer import LoRATrainer; print('OK')"` | Import OK |
 
 ---
 
@@ -233,38 +224,47 @@ python3 -m pytest tests/ -v --tb=short
 
 ---
 
-## x0tta6bl4 — Пост-квантовая self-healing mesh-сеть
+*Independent engineering project. Verified by machines, not marketing.*
+
+---
+
+## x0tta6bl4 — Само-восстанавливающаяся mesh-сеть
+
+[![Лицензия](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](.github/workflows/codeql.yml)
+
+---
 
 ### О проекте
 
-x0tta6bl4 — платформа для mesh-сетей с постквантовой криптографией (ML-KEM-768 / ML-DSA-65 через liboqs), eBPF/XDP dataplane и автономным самовосстановлением MAPE-K. Разрабатывается с 2025 года одним человеком с AI-агентами.
+x0tta6bl4 — платформа для mesh-сетей с постквантовой криптографией (ML-KEM/ML-DSA через liboqs), eBPF/XDP dataplane и автономным самовосстановлением MAPE-K. Разрабатывается с 2025 года одним человеком с AI-агентами в свободное время.
 
-### Инфраструктура (работает)
+### Реализованные компоненты
 
-| Компонент | Расположение | Статус |
-|-----------|-------------|--------|
-| **NL VPS** (89.125.1.107) | Нидерланды | ✅ Production |
-| **Docker Compose** | Локально | ✅ Running |
-| **K8s (k3d)** | Локально | ✅ Running |
-| **SPIRE** | NL + Docker | ✅ Active |
-| **Health Monitor** | Cronjob | ✅ Каждые 5 минут |
-| **CVE Monitor** | Cronjob | ✅ Ежедневно |
+| Компонент | Строк | Описание |
+|-----------|-------|----------|
+| PQC | ~3,500 | ML-KEM-768/1024 + ML-DSA-65/87 через liboqs, гибридный TLS 1.3 |
+| MAPE-K | ~1,900 | Полный цикл: мониторинг → анализ → план → восстановление |
+| MaaS API | ~5,000 | REST API для управления mesh-узлами, FastAPI |
+| eBPF/XDP | ~1,500 | Обработка пакетов на уровне ядра Linux |
+| Ghost Transport | ~2,000 | Экспериментальный транспорт, Docker-ready |
 
-### Mesh-сеть
+### Быстрый старт
 
+```bash
+git clone https://github.com/x0tta6bl4-ai/x0tta6bl4.git
+cd x0tta6bl4
+uv sync
 ```
-k3d K8s → mesh-k8s-1 ↔ mesh-k8s-2 ↔ mesh-k8s-3
-Docker   → node-a ↔ node-b ↔ bridge → NL:9100
-NL VPS   → spire-server → nl-node-1 ↔ nl-node-2
+
+### Локальный запуск (Docker)
+
+```bash
+docker compose up ghost-vpn-server ghost-vpn-redis -d
+docker compose up mesh-node-a mesh-node-b -d
 ```
 
-### Безопасность
-
-- 20 CVE исправлено
-- 29/29 chaos-тестов пройдено
-- 54 команды в allowlist
-- SPIRE mTLS на production
-- Health monitoring каждые 5 минут
+---
 
 ### Контакты
 

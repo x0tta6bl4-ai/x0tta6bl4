@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  control-plane:
+    image: x0tta6bl4-app:staging
+    container_name: x0tta6bl4-control-plane-staging
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - NODE_ID=control-plane-staging
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=INFO
+      - LD_LIBRARY_PATH=/usr/local/lib:/usr/lib
+      - OQS_DIR=/usr/local
+    restart: unless-stopped
+    networks:
+      - x0tta6bl4_staging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  x0tta6bl4_staging:
+    driver: bridge
+

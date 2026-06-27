@@ -1,0 +1,35 @@
+{
+  "generated_at": "2025-11-01T06:55:00Z",
+  "timeline": [
+    { "label": "Phase 1", "weeks": 12 },
+    { "label": "Phase 2", "weeks": 12 },
+    { "label": "Phase 3", "weeks": 16 }
+  ],
+  "budget": {
+    "total": 540000,
+    "items": [
+      { "name": "Engineering", "amount": 360000 },
+      { "name": "Infra", "amount": 90000 },
+      { "name": "Security", "amount": 30000 },
+      { "name": "Community", "amount": 30000 },
+      { "name": "Ops", "amount": 30000 }
+    ]
+  },
+  "team": {
+    "roles": [
+      { "role": "Mesh", "fte": 4 },
+      { "role": "CJDNS", "fte": 2 },
+      { "role": "Testing", "fte": 1 },
+      { "role": "DevOps", "fte": 1 },
+      { "role": "Security", "fte": 1 }
+    ]
+  },
+  "success_criteria": [
+    "MTTR ≤ 7s",
+    "Uptime ≥ 95%",
+    "50+ production nodes",
+    "Latency < 50ms",
+    "CI/CD pass rate 100%"
+  ],
+  "vote_status": { "status": "Voting Open", "yes": 0, "no": 0 }
+}

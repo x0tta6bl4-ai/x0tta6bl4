@@ -1,0 +1,38 @@
+[run]
+source =
+    src/core
+    src/api
+    src/monitoring
+    src/optimization
+    src/resilience
+    src/storage
+    src/security
+    src/self_healing
+omit =
+    */tests/*
+    */migrations/*
+    setup.py
+    conftest.py
+    src/experiments/*
+    src/legacy/*
+    src/manual_scripts/*
+    src/core/app_bootstrap.py
+    src/core/app_full.py
+    src/core/app_minimal_with_*.py
+
+[paths]
+source =
+    src
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+    @abc.abstractmethod
+
+fail_under = 75

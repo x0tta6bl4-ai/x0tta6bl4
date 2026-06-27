@@ -1,0 +1,122 @@
+{
+  "apply_transcript_start_ids": [
+    "apply_client_config_after_approval",
+    "build_completion_audit_after_post_apply",
+    "client_doctor_post_apply",
+    "client_health_post_apply",
+    "copy_handoff_to_nl_after_approval",
+    "install_server_service_after_approval",
+    "server_health_post_apply",
+    "verify_apply_packet_hash",
+    "verify_authorization_summary_hash",
+    "verify_handoff_archive_hash_and_mode",
+    "verify_handoff_manifest_hash_and_mode",
+    "verify_handoff_summary_hash",
+    "verify_nl_port_still_free_readonly"
+  ],
+  "approval_phrase_required": "APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT",
+  "approval_present": false,
+  "checks": {
+    "apply_dryrun_exit_zero": true,
+    "apply_transcript_complete": true,
+    "apply_transcript_excludes_rollback": true,
+    "audit_only_runs_dryrun_scripts": true,
+    "dryrun_env_safe": true,
+    "dryrun_transcripts_have_no_finish_events": true,
+    "guard_blocks_execute_without_dryrun_pair": true,
+    "guard_blocks_wrong_approval": true,
+    "guard_checks_do_not_start_steps": true,
+    "no_legacy_command_findings": true,
+    "no_nl_or_spb_writes_performed": true,
+    "operator_summary_approval_guarded": true,
+    "operator_summary_no_mutation": true,
+    "operator_summary_ok": true,
+    "os_mutation_not_performed": true,
+    "rollback_dryrun_exit_zero": true,
+    "rollback_transcript_complete": true,
+    "rollback_transcript_contains_only_rollback": true,
+    "script_hashes_match_summary": true,
+    "script_paths_present": true,
+    "scripts_syntax_ok": true
+  },
+  "dryrun_results": {
+    "apply": {
+      "event_count": 26,
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "production-handoff-20260607T010220Z/MANIFEST.secret-free.json)\" = '600' && test \"$(sha256sum /home/x0ttta6bl4/.local/share/x0tta-firstparty-vpn/handoffs/firstparty-production-handoff-20260607T010220Z/MANIFEST.secret-free.json | awk '{print $1}')\" = a02ec8feaf77eeb5b3b6976be9df27f4e6324776137c002f530262fc6c799633\n==> verify_nl_port_still_free_readonly\n[dry-run] ssh nl 'ss -H -lnt '\"'\"'( sport = :40467 )'\"'\"' || true'\n==> copy_handoff_to_nl_after_approval\n[dry-run] APPROVAL=\"${APPROVAL:-}\"; test \"$APPROVAL\" = APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT && ssh nl 'mkdir -p /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z' && rsync -a --chmod=D700,F600 /home/x0ttta6bl4/.local/share/x0tta-firstparty-vpn/handoffs/firstparty-production-handoff-20260607T010220Z/ nl:/root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/\n==> install_server_service_after_approval\n[dry-run] APPROVAL=\"${APPROVAL:-}\"; test \"$APPROVAL\" = APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT && sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py install-server-service --config /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/server.json --service-name x0tta-firstparty-vpn.service --allow-os-mutation --enable-now --uplink-interface eth0\n==> server_health_post_apply\n[dry-run] bash -o pipefail -c 'mkdir -p /mnt/projects/nl-diagnostics/firstparty-production-postapply-evidence/20260607T025858Z && ssh nl '\"'\"'sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py server-health --config /etc/x0tta-firstparty-vpn-server/server.json --service-name x0tta-firstparty-vpn.service --uplink-interface eth0'\"'\"' | tee /mnt/projects/nl-diagnostics/firstparty-production-postapply-evidence/20260607T025858Z/server-health.json'\n==> apply_client_config_after_approval\n[dry-run] APPROVAL=\"${APPROVAL:-}\"; test \"$APPROVAL\" = APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT && sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py install-client-service --config /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/client.json --service-name x0tta-firstparty-vpn-client.service --allow-os-mutation --enable-now --install-config-sync --require-readiness --require-post-install-health\n==> client_health_post_apply\n[dry-run] bash -o pipefail -c 'mkdir -p /mnt/projects/nl-diagnostics/firstparty-production-postapply-evidence/20260607T025858Z && sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py client-health --config /etc/x0tta-firstparty-vpn-client/client.json --service-name x0tta-firstparty-vpn-client.service | tee /mnt/projects/nl-diagnostics/firstparty-production-postapply-evidence/20260607T025858Z/client-health.json'\n==> client_doctor_post_apply\n[dry-run] bash -o pipefail -c 'mkdir -p /mnt/projects/nl-diagnostics/firstparty-production-postapply-evidence/20260607T025858Z && sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py client-doctor --config /etc/x0tta-firstparty-vpn-client/client.json --service-name x0tta-firstparty-vpn-client.service --require-installed-health | tee /mnt/projects/nl-diagnostics/firstparty-production-postapply-evidence/20260607T025858Z/client-doctor.json'\n==> build_completion_audit_after_post_apply\n[dry-run] python3 nl-diagnostics/build_firstparty_production_completion_audit.py --write --json --server-health /mnt/projects/nl-diagnostics/firstparty-production-postapply-evidence/20260607T025858Z/server-health.json --client-health /mnt/projects/nl-diagnostics/firstparty-production-postapply-evidence/20260607T025858Z/client-health.json --client-doctor /mnt/projects/nl-diagnostics/firstparty-production-postapply-evidence/20260607T025858Z/client-doctor.json\ntranscript: /mnt/projects/nl-diagnostics/firstparty-production-operator-dryrun-audit-20260607T032932Z/apply-dryrun.jsonl\n",
+      "transcript_path": "/mnt/projects/nl-diagnostics/firstparty-production-operator-dryrun-audit-20260607T032932Z/apply-dryrun.jsonl"
+    },
+    "rollback": {
+      "event_count": 4,
+      "exit_code": 0,
+      "stderr_tail": "",
+      "stdout_tail": "dry-run only: set EXECUTE=1 DRY_RUN=0 and APPROVAL=APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT to run\n==> rollback_client_policy_and_service_after_approval\n[dry-run] APPROVAL=\"${APPROVAL:-}\"; test \"$APPROVAL\" = APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT && sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py client-policy-rollback --config /etc/x0tta-firstparty-vpn-client/client.json --allow-os-mutation --enable-kill-switch && sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py uninstall-client-service --service-name x0tta-firstparty-vpn-client.service --allow-os-mutation\n==> rollback_server_service_after_approval\n[dry-run] APPROVAL=\"${APPROVAL:-}\"; test \"$APPROVAL\" = APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT && sudo python3 /root/x0tta-firstparty-vpn/production-firstparty-handoff-20260607T010221Z/x0vpn_node.py uninstall-server-service --service-name x0tta-firstparty-vpn.service --allow-os-mutation\ntranscript: /mnt/projects/nl-diagnostics/firstparty-production-operator-dryrun-audit-20260607T032932Z/rollback-dryrun.jsonl\n",
+      "transcript_path": "/mnt/projects/nl-diagnostics/firstparty-production-operator-dryrun-audit-20260607T032932Z/rollback-dryrun.jsonl"
+    }
+  },
+  "evidence_dir": "/mnt/projects/nl-diagnostics/firstparty-production-operator-dryrun-audit-20260607T032932Z",
+  "expected_apply_command_ids": [
+    "apply_client_config_after_approval",
+    "build_completion_audit_after_post_apply",
+    "client_doctor_post_apply",
+    "client_health_post_apply",
+    "copy_handoff_to_nl_after_approval",
+    "install_server_service_after_approval",
+    "server_health_post_apply",
+    "verify_apply_packet_hash",
+    "verify_authorization_summary_hash",
+    "verify_handoff_archive_hash_and_mode",
+    "verify_handoff_manifest_hash_and_mode",
+    "verify_handoff_summary_hash",
+    "verify_nl_port_still_free_readonly"
+  ],
+  "expected_rollback_command_ids": [
+    "rollback_client_policy_and_service_after_approval",
+    "rollback_server_service_after_approval"
+  ],
+  "failed_checks": [],
+  "generated_at": "2026-06-07T03:29:32Z",
+  "guard_results": {
+    "execute_without_dryrun_pair": {
+      "event_count": 0,
+      "exit_code": 41,
+      "stderr_tail": "execution requires both EXECUTE=1 and DRY_RUN=0\n",
+      "stdout_tail": "",
+      "transcript_path": "/mnt/projects/nl-diagnostics/firstparty-production-operator-dryrun-audit-20260607T032932Z/guard-requires-execute-and-dryrun.jsonl"
+    },
+    "wrong_approval": {
+      "event_count": 0,
+      "exit_code": 42,
+      "stderr_tail": "execution requires APPROVAL=APPLY_FIRSTPARTY_VPN_PRODUCTION_ROLLOUT\n",
+      "stdout_tail": "",
+      "transcript_path": "/mnt/projects/nl-diagnostics/firstparty-production-operator-dryrun-audit-20260607T032932Z/guard-requires-approval.jsonl"
+    }
+  },
+  "manual_approval_still_required": true,
+  "mode": "firstparty-production-operator-dryrun-audit-summary",
+  "no_nl_or_spb_writes_performed": true,
+  "ok": true,
+  "operator_summary_path": "/mnt/projects/nl-diagnostics/firstparty-production-operator-script-20260607T031825Z/summary.json",
+  "operator_summary_sha256": "df0712efc7090e851b2177ca7ebdefd3d9e71c7732d03d9bd81ab7f6596597bb",
+  "os_mutation_performed": false,
+  "production_mutation_allowed": false,
+  "rollback_transcript_start_ids": [
+    "rollback_client_policy_and_service_after_approval",
+    "rollback_server_service_after_approval"
+  ],
+  "script_hashes": {
+    "apply_script_sha256": "0178497548fc78d61da01c55175d53b49a4f4412460bc1fe8a942e8b71e21160",
+    "rollback_script_sha256": "499236f37195ed89976d5f2032ff90d281e550ebc8470040cefc0717c91a9e2f"
+  },
+  "script_paths": {
+    "apply": "/mnt/projects/nl-diagnostics/firstparty-production-operator-script-20260607T031825Z/apply-firstparty-production.sh",
+    "rollback": "/mnt/projects/nl-diagnostics/firstparty-production-operator-script-20260607T031825Z/rollback-firstparty-production.sh"
+  },
+  "transcript_paths": {
+    "apply": "/mnt/projects/nl-diagnostics/firstparty-production-operator-dryrun-audit-20260607T032932Z/apply-dryrun.jsonl",
+    "guard_requires_approval": "/mnt/projects/nl-diagnostics/firstparty-production-operator-dryrun-audit-20260607T032932Z/guard-requires-approval.jsonl",
+    "guard_requires_pair": "/mnt/projects/nl-diagnostics/firstparty-production-operator-dryrun-audit-20260607T032932Z/guard-requires-execute-and-dryrun.jsonl",
+    "rollback": "/mnt/projects/nl-diagnostics/firstparty-production-operator-dryrun-audit-20260607T032932Z/rollback-dryrun.jsonl"
+  }
+}

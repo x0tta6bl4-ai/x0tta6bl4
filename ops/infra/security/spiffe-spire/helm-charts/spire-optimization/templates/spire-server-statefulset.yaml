@@ -1,0 +1,167 @@
+{{- range $region, $config := .Values.spire.servers }}
+{{- if $config.enabled }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spire-server-{{ $region }}
+  labels:
+    app: spire-server
+    region: {{ $region }}
+    component: spire-server
+spec:
+  serviceName: spire-server-{{ $region }}
+  replicas: {{ $config.replicas }}
+  selector:
+    matchLabels:
+      app: spire-server
+      region: {{ $region }}
+  template:
+    metadata:
+      labels:
+        app: spire-server
+        region: {{ $region }}
+        component: spire-server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ $config.monitoring.prometheus.port }}"
+    spec:
+      {{- if $.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml $.Values.global.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: spire-server
+          image: spire/spire-server:1.8.5
+          imagePullPolicy: IfNotPresent
+          command:
+            - spire-server
+            - run
+            - -config
+            - /etc/spire/config/server.conf
+          ports:
+            - name: grpc
+              containerPort: 8081
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ $config.monitoring.prometheus.port }}
+              protocol: TCP
+          env:
+            - name: REGION
+              value: {{ $region }}
+            - name: SPIRE_TRUST_DOMAIN
+              value: {{ $.Values.spire.global.trustDomain }}
+            - name: AWS_REGION
+              value: {{ $config.region }}
+          volumeMounts:
+            - name: spire-config
+              mountPath: /etc/spire/config
+              readOnly: true
+            - name: spire-data
+              mountPath: /opt/spire/data
+            - name: spire-plugins
+              mountPath: /etc/spire/plugins
+              readOnly: true
+          {{- if $config.backup.enabled }}
+            - name: backup-config
+              mountPath: /etc/backup
+              readOnly: true
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 5
+
+        {{- if $config.monitoring.enabled }}
+        - name: prometheus-exporter
+          image: prom/prometheus:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - prometheus
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --web.console.libraries=/etc/prometheus/console_libraries
+            - --web.console.templates=/etc/prometheus/consoles
+            - --web.enable-lifecycle
+          ports:
+            - name: prometheus
+              containerPort: 9090
+              protocol: TCP
+          volumeMounts:
+            - name: prometheus-config
+              mountPath: /etc/prometheus
+              readOnly: true
+            - name: prometheus-data
+              mountPath: /prometheus
+          resources:
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+        {{- end }}
+
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-server-config-{{ $region }}
+        - name: spire-plugins
+          configMap:
+            name: spire-plugins-config-{{ $region }}
+        {{- if $config.backup.enabled }}
+        - name: backup-config
+          configMap:
+            name: spire-backup-config-{{ $region }}
+        {{- end }}
+        {{- if $config.monitoring.enabled }}
+        - name: prometheus-config
+          configMap:
+            name: prometheus-config-{{ $region }}
+        - name: prometheus-data
+          emptyDir: {}
+        {{- end }}
+
+  volumeClaimTemplates:
+    - metadata:
+        name: spire-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        {{- if $.Values.global.storageClass }}
+        storageClassName: {{ $.Values.global.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: 20Gi
+
+  {{- if $config.ha.enabled }}
+  {{- if $config.ha.raft.enabled }}
+  # Конфигурация для HA с Raft
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
+  {{- end }}
+  {{- end }}
+
+{{- end }}
+{{- end }}

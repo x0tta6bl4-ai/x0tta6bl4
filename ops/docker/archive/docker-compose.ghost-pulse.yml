@@ -1,0 +1,19 @@
+services:
+  ghost-pulse-vpn:
+    build:
+      context: .
+      dockerfile: Dockerfile.ghost-pulse
+    container_name: x0tta-ghost-pulse
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    environment:
+      VPN_ENCRYPTION_KEY: ${VPN_ENCRYPTION_KEY:?set encryption key}
+      VPN_PORT: 9999
+      PULSE_MODE: ${PULSE_MODE:-corporate}
+      PULSE_SEED: ${PULSE_SEED:-20260521}
+    volumes:
+      - .:/app
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN

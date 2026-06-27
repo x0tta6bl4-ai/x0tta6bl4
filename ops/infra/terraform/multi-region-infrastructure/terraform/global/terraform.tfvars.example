@@ -1,0 +1,91 @@
+# Пример файла с переменными для глобальной Terraform конфигурации
+# Скопируйте этот файл в terraform.tfvars и заполните реальными значениями
+
+# Основная информация о проекте
+project_name = "x0tta6bl4"
+environment  = "production"
+domain_name  = "x0tta6bl4.com"
+
+# Cloudflare настройки
+cloudflare_api_token = "your-cloudflare-api-token-here"
+cloudflare_zone_id   = "your-cloudflare-zone-id-here"
+
+# AWS настройки
+aws_account_id = "123456789012"
+
+# Глобальные теги
+global_tags = {
+  Project     = "x0tta6bl4"
+  Environment = "production"
+  ManagedBy   = "terraform"
+  Owner       = "devops-team"
+  CostCenter  = "engineering"
+}
+
+# Конфигурация мониторинга
+monitoring_config = {
+  enable_cloudwatch_dashboard = true
+  enable_global_alerts        = true
+  alert_email_endpoints       = [
+    "alerts@x0tta6bl4.com",
+    "oncall@x0tta6bl4.com"
+  ]
+  log_retention_days = 30
+}
+
+# Конфигурация безопасности
+security_config = {
+  enable_kms_encryption = true
+  enable_ssh_access     = false
+  allowed_ssh_cidrs     = [
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16"
+  ]
+  enable_vpc_flow_logs = true
+}
+
+# Конфигурация резервного копирования
+backup_config = {
+  enable_cross_region_backup = true
+  backup_retention_days      = 30
+  backup_window             = "03:00-04:00"
+  enable_encryption         = true
+}
+
+# Конфигурация сети
+network_config = {
+  enable_transit_gateway = true
+  enable_vpc_peering     = false
+  dns_domain_name       = "x0tta6bl4.internal"
+}
+
+# Региональные настройки (используются в региональных конфигурациях)
+regional_config = {
+  us_east_1 = {
+    primary_az  = "us-east-1a"
+    secondary_az = "us-east-1b"
+    instance_types = {
+      eks = "t3.medium"
+      rds = "db.t3.medium"
+    }
+  }
+
+  eu_west_1 = {
+    primary_az  = "eu-west-1a"
+    secondary_az = "eu-west-1b"
+    instance_types = {
+      eks = "t3.medium"
+      rds = "db.t3.medium"
+    }
+  }
+
+  ap_southeast_1 = {
+    primary_az  = "ap-southeast-1a"
+    secondary_az = "ap-southeast-1b"
+    instance_types = {
+      eks = "t3.medium"
+      rds = "db.t3.medium"
+    }
+  }
+}

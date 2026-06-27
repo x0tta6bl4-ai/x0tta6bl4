@@ -1,0 +1,3 @@
+"""
+Vault integration tests.
+"""

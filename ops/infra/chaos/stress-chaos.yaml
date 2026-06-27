@@ -1,0 +1,69 @@
+# CPU Stress Test
+# Тестирование поведения при высокой CPU нагрузке
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: mesh-cpu-stress
+  namespace: x0tta6bl4
+  labels:
+    scenario: cpu-stress
+spec:
+  mode: fixed-percent
+  value: "30"  # Stress 30% of pods
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app.kubernetes.io/name: x0tta6bl4
+  stressors:
+    cpu:
+      workers: 2
+      load: 80  # 80% CPU load per worker
+  duration: "180s"
+  scheduler:
+    cron: "0 3 * * *"  # Daily at 3 AM
+---
+# Memory Stress Test
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: mesh-memory-stress
+  namespace: x0tta6bl4
+  labels:
+    scenario: memory-stress
+spec:
+  mode: fixed
+  value: "2"
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app.kubernetes.io/name: x0tta6bl4
+  stressors:
+    memory:
+      workers: 1
+      size: "256MB"
+  duration: "120s"
+---
+# IO Stress (Disk)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: IOChaos
+metadata:
+  name: mesh-io-delay
+  namespace: x0tta6bl4
+  labels:
+    scenario: io-stress
+spec:
+  action: latency
+  mode: fixed-percent
+  value: "25"
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app.kubernetes.io/name: x0tta6bl4
+  volumePath: /var/lib/x0tta6bl4
+  path: "*"
+  delay: "50ms"
+  percent: 50
+  duration: "120s"

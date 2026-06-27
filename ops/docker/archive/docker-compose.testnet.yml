@@ -1,0 +1,73 @@
+version: '3.9'
+
+services:
+  node-1:
+    extends:
+      service: node
+      file: docker-compose.yml
+    container_name: x0tta6bl4-node-1
+    environment:
+      NODE_ID: node-001
+      # Fixed IP for easier testnet setup and Prometheus scraping
+      # Ensure these IPs are within the subnet defined for x0tta6bl4_testnet_network
+      # e.g., for 172.20.0.0/24 subnet, use 172.20.0.10, 172.20.0.11, etc.
+      BOOTSTRAP_NODES: "node-2:8080:node-002,node-3:8080:node-003"
+    networks:
+      x0tta6bl4_testnet_network:
+        ipv4_address: 172.20.0.10
+
+  node-2:
+    extends:
+      service: node
+      file: docker-compose.yml
+    container_name: x0tta6bl4-node-2
+    environment:
+      NODE_ID: node-002
+      BOOTSTRAP_NODES: "node-1:8080:node-001,node-3:8080:node-003"
+    networks:
+      x0tta6bl4_testnet_network:
+        ipv4_address: 172.20.0.11
+
+  node-3:
+    extends:
+      service: node
+      file: docker-compose.yml
+    container_name: x0tta6bl4-node-3
+    environment:
+      NODE_ID: node-003
+      BOOTSTRAP_NODES: "node-1:8080:node-001,node-2:8080:node-002"
+    networks:
+      x0tta6bl4_testnet_network:
+        ipv4_address: 172.20.0.12
+
+  redis:
+    extends:
+      service: redis
+      file: docker-compose.yml
+    networks:
+      - x0tta6bl4_testnet_network
+
+  prometheus:
+    extends:
+      service: prometheus
+      file: docker-compose.yml
+    volumes:
+      # Override Prometheus config for testnet to include multiple nodes
+      - ./prometheus/prometheus-testnet.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - x0tta6bl4_testnet_network
+
+  grafana:
+    extends:
+      service: grafana
+      file: docker-compose.yml
+    networks:
+      - x0tta6bl4_testnet_network
+
+networks:
+  x0tta6bl4_testnet_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24

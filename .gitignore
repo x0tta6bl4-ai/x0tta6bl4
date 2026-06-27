@@ -1,0 +1,537 @@
+# x0tta6bl4 root .gitignore
+# Python
+.venv*/
+venv/
+ENV/
+env/
+test_venv/
+rate_limiting_venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.coverage
+build/
+dist/
+
+# Local generated artifacts
+.codegraph/
+.kilo/
+.playwright-mcp/
+.tmp/
+coverage*.xml
+junit.xml
+*.out
+*.pid
+.paradox
+.paradox.log
+.secrets.baseline
+detect_secrets_*_scan.json
+release_v3.3/
+System Volume Information/
+prometheus_data/
+alertmanager_data/
+results/
+test-results/
+nl-diagnostics/snapshots/
+nl-diagnostics/nl-server-profile/
+cad-scratch/
+composite-cassettes/
+open-design-*.png
+другие проекты/
+node_stats.json
+x0tta6bl4_framework_execution.json
+data/deep_intelligence.json
+PRIVATE_KEY_VALUE
+PUBLIC_KEY_VALUE
+deploy/proxy/*.pem
+
+# Generated verification history. Commit only the specific bundles referenced
+# by committed LATEST reports; use git add -f for intentional evidence bundles.
+docs/verification/ghost-pulse-*/
+
+# Local compiled artifacts. Some historical objects are tracked intentionally;
+# these rules prevent new build outputs from polluting status.
+**/*.o
+/ebpf/prod/prod
+
+# Accidental root artifacts from shell/pip output
+/=*
+/130
+/1462
+/202
+/514
+/66
+
+# Archives & Artifacts
+archive/artifacts/
+archive/legacy/
+
+# Solidity Build Artifacts (auto-generated)
+artifacts/
+cache/
+src/dao/contracts/artifacts/
+src/dao/contracts/cache/
+archive/snapshots/
+*.tar.gz
+*.zip
+*.snapshot
+*.bak
+*.log
+*.tmp
+
+# Large assets
+assets/media/photos/
+assets/media/videos/
+Camera/
+15.09/
+фрезер/
+
+# Node / JS
+node_modules/
+
+# Terraform
+.terraform/
+
+# Misc
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Test & Coverage Artifacts
+junit.xml
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Security scan reports
+selfscan_*.txt
+x0tta6bl4_selfscan_report.txt
+secrets_scan_*.txt
+project_files_list.txt
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Large local artifacts & backups
+backups/
+docker-data-old/
+offload/
+backup_sessions/
+data/live_captures/
+bin/xray
+bin/xray.zip
+bin/geoip.dat
+ai-actuator
+x0t-agent-smoke
+data-16bbdde1-92ce-4f6f-ac13-c7217d4cd06a-*/
+
+# Large design/source assets
+*.cdr
+
+# === x0tta6bl4 Repository Hygiene Rules (extended) ===
+
+# Virtual environments
+**/venv/
+**/venv*/
+**/.venv/
+**/ENV/
+**/virtualenv/
+**/.virtualenv/
+**/python-*/
+**/site-packages/
+
+# Databases (only migrations in Git)
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.db-shm
+**/*.db-wal
+**/*.db-journal
+
+# Vector indexes (store in S3/MinIO)
+**/*.faiss
+**/*.hnsw
+**/*.ivf
+**/*.pq
+**/*.idx
+**/*.index
+**/chroma/
+**/.chroma/
+
+# Archives (keep manifests only)
+**/*.tar
+**/*.tar.gz
+**/*.tgz
+**/*.tar.xz
+**/*.tar.bz2
+**/*.zip
+**/*.rar
+**/*.7z
+**/*.gz
+**/*.xz
+**/*.bz2
+
+# Pickle / serialization
+**/*.pkl
+**/*.pickle
+**/*.joblib
+**/*.npy
+**/*.npz
+
+# Node.js
+**/.npm/
+**/.yarn/
+**/.pnp.*
+**/yarn.lock
+**/package-lock.json
+
+# Python extras
+**/.mypy_cache/
+**/.ruff_cache/
+**/.ipynb_checkpoints/
+
+# IDE
+**/.idea/
+**/.windsurf/
+**/.worktrees/
+**/*.swp
+**/*.swo
+**/*~
+**/.DS_Store
+
+# Logs / dumps
+**/*.pcap
+**/*.pcapng
+**/*.cap
+**/core.*
+!src/dao/bridge/core.py
+**/*.dump
+**/*.mem
+
+# Temp
+**/tmp/
+**/temp/
+**/.temp/
+**/.tmp/
+
+# DVC tracked data (keep .gitkeep)
+/data/raw/*
+!/data/raw/.gitkeep
+/data/processed/*
+!/data/processed/.gitkeep
+/data/embeddings/*
+!/data/embeddings/.gitkeep
+
+# Caches
+.cache/
+**/.cache/
+*.cache
+
+# Secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.ide
+!.env.development
+**/*.secret
+**/*.key
+**/secrets/
+# Local AI tool permission snapshots (can include plaintext creds)
+.claude/settings.local.json
+.claude/.fuse_hidden*
+
+# FUSE hidden files (temporary files from FUSE filesystems)
+.fuse_hidden*
+
+# PhotoRec recovery files (personal data recovery)
+photorec.cfg
+photorec.ses
+recovered_photos/
+
+# Personal photo archives (NOT FOR GIT)
+ALL_IMAGES_FINAL/
+ALL_RECOVERED_PHOTOS/
+FAMILY_ARCHIVE/
+FINAL_FAMILY_ARCHIVE/
+MY_PHOTOS_RECOVERED/
+PHOTOS_COLLECTION/
+RECOVERED_2016/
+RECOVERED_STREAMS/
+RECOVERY_BATCHES/
+
+# Google OAuth credentials (contains client_id, client_secret)
+credentials.json
+token.json
+
+# Backup files with sensitive data
+*.sql
+backup_*.sql
+
+# Outreach tracking with email data
+crm_outreach_tracking.csv
+
+# Logs with potentially sensitive data
+*.log
+agent_logs/
+.logs/
+
+# External artifacts
+/external_artifacts/releases/*
+!/external_artifacts/releases/.gitkeep
+/external_artifacts/snapshots/*
+!/external_artifacts/snapshots/.gitkeep
+/external_artifacts/backups/*
+!/external_artifacts/backups/.gitkeep
+
+# Helm chart packages
+**/charts/*.tgz
+!**/charts/Chart.yaml
+reports/
+metrics/
+.snapshots/
+x0tta6bl4-mesh-mvp/
+x0tta6bl4_paradox_zone/
+LocalDesk
+mutants/
+www/
+
+# ML model files (use DVC/LFS for large models)
+**/*.gguf
+**/*.bin
+**/*.safetensors
+**/*.onnx
+models/
+
+# Browser test artifacts
+playwright-report/
+
+# Trash directories (Linux GUI trash)
+.Trash-*/
+
+# Docker disk images
+docker-ext4/
+
+# Local swarm artifacts
+LOCAL_SWARM_RECEIVE.txt
+
+# Local development artifacts (not for repo)
+.dev_systemd/
+.stashflag
+
+# Hermes agent plans (local session state)
+.hermes/plans/*.md
+.hermes/plans/agents/
+
+# Staging artifacts
+Dockerfile.staging
+
+# Generated commercial evidence bundles
+commercial/products/*/out/
+
+# Legacy test stubs
+tests/legacy/
+
+# Migration scripts (one-time use)
+scripts/migrations/
+scripts/add_future_annotations.py
+scripts/replace_subprocess.py
+
+# VPN configuration generators (local)
+scripts/vpn/
+scripts/fix_ntfs_reboot.sh
+
+# Job hunter scripts (personal)
+scripts/hh_auto_bot.py
+scripts/job_hunter.py
+
+# Audit scripts (one-time)
+scripts/audit_health_check.sh
+
+# Personal archives (Cyrillic named)
+СЕМЕЙНЫЙ_АРХИВ_ИТОГ/
+
+# VPN junk from previous sessions
+final_vpn.py
+x0t_ghost_vpn.py
+x0t_real_vpn.py
+
+# API response files with potential secrets (testing artifacts)
+response.json
+k6-v*-linux-amd64/
+
+# Public GitHub cleanup: keep sales/customer scratchpads out of main
+beta-customers/
+WEB3_GO_TO_MARKET/
+
+# Public GitHub cleanup: keep local debug scratch out of main
+check_pqc_debug*.py
+debug_algos.py
+debug_liboqs.py
+debug_pytest.sh
+debug_test_imports.py
+diagnose_imports.py
+diagnose_imports_v2.py
+diagnose_imports_v3.py
+diagnose.sh
+demo_provisioning.py
+current_config.json
+correct-config.json
+
+# Agent/IDE workspace
+.mimocode/
+.tmp_readiness_launch.json
+
+# AI tooling (local hooks, not part of product)
+claude-hook.py
+claude-hook-README.md
+claude-review.py
+claude-review.sh
+
+# Bounty fixes (separate projects, not main repo)
+cilium-identity-cache-fix/
+citadel_bridge/
+cockroachdb-bounty-fix/
+gofiber-bounty-fix/
+traefik-bounty-fix/
+
+# CTF / educational
+ethernaut-ctf/
+ethernaut-solutions/
+
+# eBPF kernel headers (large, build-time)
+ebpf/kernel/
+
+# Temp / scratch
+test.json
+tma_mockup.html
+weekly-summary.json
+local_mesh/
+agent/x0t-agent
+
+# Bounty/gas scripts (not production)
+scripts/ops/mine_testnet_gas.py
+scripts/ops/autonomous_gas_claim.py
+scripts/ops/automate_wormhole_bounty.py
+scripts/ops/estimate_gas_calc.py
+scripts/ops/stress_test_gas.py
+scripts/ops/smart_submitter.py
+scripts/ops/browser_submitter.py
+scripts/ops/browser_submitter_v2.py
+scripts/ops/browser_diagnostic.py
+scripts/ops/generate_battle_plan.py
+scripts/ops/monitor_agentpact_deals.py
+scripts/ops/run_miner.sh
+scripts/ops/publish_habr_article.py
+scripts/ops/tmp_fix_api_access.py
+
+# Marketing (separate concern)
+marketing/
+
+# NL diagnostics incident packets (diagnostic artifacts)
+nl-diagnostics/provider-incident-packets/
+
+# Bounty scripts in dao contracts
+src/dao/contracts/scripts/stress_test_gas.js
+/bounties/
+
+# === Generated build artifacts (not source) ===
+
+# GitMark memory bank (rebuilt by script)
+.gitmark-memory/
+
+# Root scratch test files
+/test_heartbeat.py
+/test_router.py
+/test_routes.py
+/test_output.txt
+
+# Agent analysis scratch
+/docs/agent-analysis/
+
+
+# === BUILD ARTIFACTS ===
+__pycache__/
+*.pyc
+*.pyo
+htmlcov/
+playwright-report/
+test-results/
+dist/
+build/
+*.egg-info/
+.eggs/
+*.egg
+.coverage
+*.log
+
+# === PERSONAL / UNRELATED ===
+recovered_photos/
+СЕМЕЙНЫЙ_АРХИВ_ИТОГ/
+home_backups/
+sh-kvartira-redesign/
+другие проекты/
+cad-scratch/
+composite-cassettes/
+data-16bbdde1-92ce-4f6f-ac13-c7217d4cd06a-1781211800-85b837ba-batch-0000/
+auto-warp-config/
+
+# === TEMP / CACHE ===
+cache/
+tmp/
+output/
+results/
+reports/
+artifacts/
+external_artifacts/
+load/
+logs/
+node_modules/
+k6-v0.49.0-linux-amd64/
+pytest-of-x0ttta6bl4/
+System Volume Information/
+user_data/
+.github/
+pitch-deck/
+
+# === DOCKER GARBAGE ===
+docker-data-old/
+docker-ext4/
+
+# === TEST OUTPUT ===
+data/
+mesh_proof_data/
+metrics_baseline/
+mutants/
+staging/
+benchmarks/
+
+# === THIRD PARTY ===
+github.com/
+ethernaut-ctf/
+ethernaut-solutions/
+bounties/
+
+# === LARGE BINARY FILES (never track in git) ===
+docker_storage.img
+*.gguf
+bin/xray
+bin/xray.zip
+bin/geoip.dat
+k6-*/
+x0t-agent-smoke
+ai-actuator
+local-aggregator
+afxdp_bridge_v2
+prod
+
+# === BACKUP FILES ===
+*.bak
+
+# === BUILD ARTIFACTS ===
+*.egg-info/
+src/__pycache__/

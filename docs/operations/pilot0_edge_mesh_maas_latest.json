@@ -1,0 +1,175 @@
+{
+  "artifacts": {
+    "json": "docs/operations/pilot0_edge_mesh_maas_20260607T182650Z.json",
+    "latest_json": "docs/operations/pilot0_edge_mesh_maas_latest.json",
+    "latest_markdown": "docs/operations/pilot0_edge_mesh_maas_latest.md",
+    "markdown": "docs/operations/pilot0_edge_mesh_maas_20260607T182650Z.md"
+  },
+  "blocked_strong_claims": [
+    "traffic_delivery_claim_allowed",
+    "customer_traffic_claim_allowed",
+    "external_reachability_claim_allowed",
+    "external_dpi_bypass_claim_allowed",
+    "settlement_finality_claim_allowed",
+    "production_slo_claim_allowed",
+    "production_readiness_claim_allowed"
+  ],
+  "claim_boundary": "Pilot 0 Edge Mesh MaaS is a local/lab operator scenario. It proves that a temporary MaaS API can start, a locally built Go agent can register, be approved, fetch node-config, send heartbeat telemetry, and exercise a bounded operator heal path with redacted evidence. It does not prove live customer traffic, external reachability, external DPI bypass, settlement finality, production SLOs, durable infrastructure convergence, or production readiness.",
+  "claim_gate": {
+    "bounded_restored_dataplane_claim_allowed": true,
+    "customer_traffic_claim_allowed": false,
+    "external_dpi_bypass_claim_allowed": false,
+    "external_reachability_claim_allowed": false,
+    "local_heal_control_action_claim_allowed": true,
+    "local_heartbeat_persisted_claim_allowed": true,
+    "local_maas_api_started_claim_allowed": true,
+    "local_mesh_deploy_claim_allowed": true,
+    "production_readiness_claim_allowed": false,
+    "production_slo_claim_allowed": false,
+    "raw_credentials_redacted": true,
+    "raw_targets_redacted": true,
+    "real_go_agent_build_claim_allowed": true,
+    "real_go_agent_connected_claim_allowed": true,
+    "requires_separate_external_evidence_for_strong_claims": true,
+    "settlement_finality_claim_allowed": false,
+    "traffic_delivery_claim_allowed": false
+  },
+  "dataplane_probe_target": {
+    "local_listener_target": true,
+    "loopback_lab_target": true,
+    "raw_value_redacted": true,
+    "requested_raw_value_redacted": true,
+    "requested_sha256": "12ca17b49af2289436f303e0166030a21e525d266e209267433801a8fd4071a0",
+    "sha256": "510b274b2f508e8a0f7159f7acd677e4b064993b0dd5fb3aa331161b1d108118"
+  },
+  "decision": "PILOT0_EDGE_MESH_MAAS_READY",
+  "evidence": {
+    "agent": {
+      "binary_built": true,
+      "config_file_temporary": true,
+      "heartbeat_observed": true,
+      "node_config_fetch_observed": true,
+      "node_runtime_credential_expiry_stored": true,
+      "node_runtime_credential_hash_stored": true,
+      "node_runtime_credential_rotation_observed": true,
+      "operator_heal_observed": true,
+      "process_started": true,
+      "raw_node_runtime_credential_redacted": true
+    },
+    "all_stage_names": [
+      "agent_heartbeat_persisted",
+      "agent_node_config_fetch_observed",
+      "agent_node_marked_offline_for_local_heal",
+      "agent_node_runtime_credential_metadata_stored",
+      "agent_registration_pending",
+      "cross_node_credential_rejected",
+      "enrollment_token_node_config_rejected",
+      "go_agent_build",
+      "go_agent_started",
+      "heartbeat_path_body_node_mismatch_rejected",
+      "local_maas_api_started",
+      "mesh_deploy",
+      "missing_heartbeat_credential_rejected",
+      "old_rotated_runtime_credential_rejected",
+      "operator_approved_agent_node",
+      "operator_heal_after_real_agent_heartbeat",
+      "operator_register",
+      "revoked_node_credential_rejected",
+      "secondary_node_approved_for_negative_acl",
+      "secondary_node_registered_for_negative_acl",
+      "secondary_node_revoked_for_negative_acl",
+      "secondary_node_runtime_credential_rotated",
+      "temporary_operator_role_assigned",
+      "wrong_heartbeat_credential_rejected"
+    ],
+    "checked_stages": [
+      "agent_heartbeat_persisted",
+      "agent_node_config_fetch_observed",
+      "agent_node_marked_offline_for_local_heal",
+      "agent_node_runtime_credential_metadata_stored",
+      "agent_registration_pending",
+      "go_agent_build",
+      "go_agent_started",
+      "local_maas_api_started",
+      "mesh_deploy",
+      "operator_approved_agent_node",
+      "operator_heal_after_real_agent_heartbeat"
+    ],
+    "entities": {
+      "mesh": {
+        "present": true,
+        "raw_value_redacted": true,
+        "sha256": "3c9e24ceb370940fc45680ec4eb0890cdb1849c813738cac2d9323ece1dc6c2c"
+      },
+      "node": {
+        "present": true,
+        "raw_value_redacted": true,
+        "sha256": "e8f1611719f765a3064eb817f434e4248185c0888be1d8e68ffbba61cafac816"
+      }
+    },
+    "event_project_root": "/mnt/projects/.tmp/pilot0-edge-mesh-maas/20260607T182650Z",
+    "healing_surface": {
+      "components_healed": 1,
+      "customer_traffic_claim_allowed": false,
+      "dataplane_confirmed": true,
+      "external_reachability_claim_allowed": false,
+      "healing_claim": "local_control_action_applied",
+      "observed": true,
+      "post_action_dataplane_revalidated": true,
+      "post_action_revalidation_present": true,
+      "post_heal_node_status": "healthy",
+      "production_readiness_claim_allowed": false,
+      "production_slo_claim_allowed": false,
+      "raw_target_redacted": true,
+      "restored_dataplane_claim_allowed": true,
+      "status": "healed",
+      "traffic_delivery_claim_allowed": false
+    },
+    "source_decision": "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY",
+    "source_duration_ms": 63092.929,
+    "source_failure": null,
+    "source_ready": true,
+    "source_schema": "x0tta6bl4.maas_real_agent_control_loop_smoke.v1",
+    "source_verifier": "scripts/ops/verify_maas_real_agent_control_loop.py",
+    "temporary_database": {
+      "path": "/mnt/projects/.tmp/pilot0-edge-mesh-maas/20260607T182650Z/maas-real-agent-smoke.db",
+      "temporary_sqlite": true
+    }
+  },
+  "failures": [],
+  "generated_at_utc": "2026-06-07T18:26:50Z",
+  "operator_visible_results": {
+    "agent_node_approved": true,
+    "agent_node_registered": true,
+    "evidence_report_generated": true,
+    "heal_seen": true,
+    "heartbeat_seen": true,
+    "maas_api_started": true,
+    "mesh_deployed": true,
+    "node_config_seen": true,
+    "production_overclaim_blocked": true
+  },
+  "pilot": {
+    "local_or_lab_only": true,
+    "name": "Pilot 0: Edge Mesh MaaS",
+    "operator_runbook": "docs/runbooks/PILOT0_EDGE_MESH_MAAS.md",
+    "scenario": "local_or_lab_real_agent_control_loop"
+  },
+  "ready": true,
+  "schema": "x0tta6bl4.pilot0_edge_mesh_maas.v1",
+  "summary": {
+    "agent_node_approved": true,
+    "agent_node_registered": true,
+    "agent_report_decision": "MAAS_REAL_AGENT_CONTROL_LOOP_SMOKE_READY",
+    "agent_report_ready": true,
+    "evidence_report_generated": true,
+    "heal_seen": true,
+    "heartbeat_seen": true,
+    "maas_api_started": true,
+    "mesh_deployed": true,
+    "node_config_seen": true,
+    "production_overclaim_blocked": true,
+    "required_stages_passed": 11,
+    "required_stages_total": 11
+  }
+}

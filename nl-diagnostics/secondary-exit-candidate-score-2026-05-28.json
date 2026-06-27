@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/score_secondary_exit_candidates.py",
+  "generated_at": "2026-05-28T03:42:20.801844+00:00",
+  "candidate_file": "/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json",
+  "status": "missing_candidates",
+  "summary": {
+    "candidate_count": 0,
+    "viable_count": 0,
+    "rejected_count": 0,
+    "top_candidate_label": "none",
+    "nl_write_allowed": false,
+    "spb_fallback_allowed": false,
+    "automatic_failover_allowed": false
+  },
+  "candidates": [],
+  "next_step": "fill public metadata for at least one non-NL/non-SPB candidate",
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}

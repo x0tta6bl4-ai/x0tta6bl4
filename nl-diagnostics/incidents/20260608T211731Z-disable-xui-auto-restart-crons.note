@@ -1,0 +1,7 @@
+timestamp_utc=20260608T211731Z
+server=89.125.1.107
+reason=production VPN instability; cron jobs can restart x-ui.service and drop all VLESS users
+actions=backup and comment /etc/cron.d/port-fallback active line; backup and comment root crontab proactive_auditor active line
+no_action=no x-ui/xray restart; no service stop
+rollback=on NL: cp /root/x0tta-vpn-fix-20260608T211731Z/port-fallback.before /etc/cron.d/port-fallback && crontab /root/x0tta-vpn-fix-20260608T211731Z/root.crontab.before
+expected=no automatic x-ui restarts from port-fallback/proactive_auditor; existing x-ui and Ghost Access listeners stay up

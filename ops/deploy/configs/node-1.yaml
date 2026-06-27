@@ -1,0 +1,4 @@
+mesh_backend: simulation
+node_id: node-1
+phi_target: 1.618
+sacred_frequency: 108

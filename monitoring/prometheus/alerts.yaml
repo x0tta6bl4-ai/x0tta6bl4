@@ -1,0 +1,105 @@
+# Prometheus Alert Rules for x0tta6bl4
+
+groups:
+  - name: x0tta6bl4_alerts
+    interval: 30s
+    rules:
+      # Health Check Alerts
+      - alert: X0TTA6BL4HealthCheckFailed
+        expr: up{job="x0tta6bl4"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "x0tta6bl4 health check failed"
+          description: "Service {{ $labels.instance }} is down for more than 2 minutes"
+
+      # Dependency Health Alerts
+      - alert: X0TTA6BL4CriticalDependencyMissing
+        expr: x0tta6bl4_dependencies_health{status="required",available="false"} == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical dependency missing in production"
+          description: "Dependency {{ $labels.dependency }} is required but unavailable"
+
+      # PQC Handshake Failures
+      - alert: X0TTA6BL4PQCHandshakeFailure
+        expr: rate(x0tta6bl4_pqc_handshake_failures_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High PQC handshake failure rate"
+          description: "PQC handshake failure rate is {{ $value }} failures/sec"
+
+      # SPIFFE Certificate Expiry
+      - alert: X0TTA6BL4SPIFFECertificateExpiring
+        expr: x0tta6bl4_spiffe_certificates_expiring > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SPIFFE certificate expiring soon"
+          description: "{{ $value }} SPIFFE certificates expiring within 1 hour"
+
+      # High Error Rate
+      - alert: X0TTA6BL4HighErrorRate
+        expr: rate(x0tta6bl4_errors_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors/sec"
+
+      # High Latency
+      - alert: X0TTA6BL4HighLatency
+        expr: histogram_quantile(0.95, rate(x0tta6bl4_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency detected"
+          description: "p95 latency is {{ $value }}s"
+
+      # MAPE-K Cycle Failures
+      - alert: X0TTA6BL4MAPEKCycleFailure
+        expr: rate(x0tta6bl4_mapek_cycle_failures_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MAPE-K cycle failures detected"
+          description: "MAPE-K cycle failure rate is {{ $value }} failures/sec"
+
+      # Resource Exhaustion
+      - alert: X0TTA6BL4HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{pod=~"x0tta6bl4.*"}[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}%"
+
+      - alert: X0TTA6BL4HighMemoryUsage
+        expr: container_memory_usage_bytes{pod=~"x0tta6bl4.*"} / container_spec_memory_limit_bytes > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}%"
+
+      # Pod Restarts
+      - alert: X0TTA6BL4FrequentRestarts
+        expr: rate(kube_pod_container_status_restarts_total{pod=~"x0tta6bl4.*"}[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Frequent pod restarts"
+          description: "Pod {{ $labels.pod }} is restarting frequently"
+

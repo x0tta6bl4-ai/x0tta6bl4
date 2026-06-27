@@ -1,0 +1,58 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/security_review-gap-record.json",
+      "role": "evidence_gap_record",
+      "sha256": "e91965ccc42b9b12475f01d93ae956308c37641d65ecdc852ac0837cae7fe38f"
+    }
+  ],
+  "bundle": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z",
+  "claim_boundary": {
+    "claim_verified": false,
+    "note": "Required external evidence is absent; proof gate must reject this claim."
+  },
+  "claim_id": "security_review",
+  "commands": [
+    {
+      "args": [
+        "/usr/bin/python3",
+        "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+        "--claim",
+        "security_review"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "dry_run": false,
+  "failures": [
+    "missing external input: reviewer identity",
+    "missing external input: review scope covering pulse transport",
+    "missing external input: critical finding count from completed review",
+    "missing external input: high finding count from completed review"
+  ],
+  "gap_artifact_role": "evidence_gap_record",
+  "measurements": {
+    "open_critical_findings": null,
+    "open_high_findings": null,
+    "reviewer": "",
+    "scope_includes_pulse_transport": false
+  },
+  "missing_inputs": [
+    "reviewer identity",
+    "review scope covering pulse transport",
+    "critical finding count from completed review",
+    "high finding count from completed review"
+  ],
+  "mode": "EXTERNAL_EVIDENCE_GAP_RECORD",
+  "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
+  "required_artifact_roles": [
+    "reviewer_identity",
+    "review_scope",
+    "findings_report"
+  ],
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "INCOMPLETE",
+  "template": false,
+  "title": "Security review with no open high-severity findings"
+}

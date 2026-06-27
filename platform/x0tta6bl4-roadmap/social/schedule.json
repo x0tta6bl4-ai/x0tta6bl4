@@ -1,0 +1,12 @@
+{
+  "phase": "1",
+  "start_date": "2025-11-11",
+  "communications_schedule": [
+    { "day": 1, "channel": "twitter", "type": "launch", "asset": "twitter_posts.md#post-1" },
+    { "day": 1, "channel": "discord", "type": "launch", "asset": "discord_announcements.md#announcement-1" },
+    { "day": 2, "channel": "discord", "type": "status", "asset": "discord_announcements.md#announcement-2" },
+    { "day": 3, "channel": "twitter", "type": "metrics-teaser", "asset": "twitter_posts.md#post-4" },
+    { "day": 4, "channel": "reddit", "type": "progress-summary", "asset": "reddit_posts.md#variant-1" },
+    { "day": 6, "channel": "twitter", "type": "vote-final-push", "asset": "twitter_posts.md#post-5" }
+  ]
+}

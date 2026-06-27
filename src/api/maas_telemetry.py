@@ -1,0 +1,636 @@
+"""Compatibility module for MaaS telemetry.
+
+Expose ``src.api.maas.endpoints.telemetry`` under the historical
+``src.api.maas_telemetry`` import path, including underscored helper functions
+used by MaaS node heartbeat/readback code.
+"""
+
+from __future__ import annotations
+
+import sys
+
+from src.api.maas.endpoints import telemetry as _telemetry
+
+import logging
+import os
+import time
+import json
+import threading
+from typing import Any, Dict, List, Optional
+from collections import OrderedDict
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+import redis
+
+from src.database import MeshNode, get_db
+from src.api.maas_auth import get_current_user_from_maas
+from src.core.resilience.reliability_policy import mark_degraded_dependency
+from src.network.reputation_scoring import ReputationScoringSystem
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/v1/maas", tags=["MaaS Telemetry"])
+
+# Global Reputation System for MaaS
+reputation_system = ReputationScoringSystem()
+
+# Redis Setup
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+TELEMETRY_TTL_SECONDS = 300
+TELEMETRY_HISTORY_MAX_ITEMS = 2000
+TELEMETRY_HISTORY_TTL_SECONDS = 7 * 24 * 60 * 60
+MAX_FALLBACK_ENTRIES = 10000  # Prevent unbounded memory growth
+FALLBACK_EVICTION_BATCH = 1000  # Evict this many entries when over limit
+try:
+    r_client = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
+    r_client.ping()
+    REDIS_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"⚠️ Redis connection failed: {e}. Falling back to memory.")
+    r_client = None
+    REDIS_AVAILABLE = False
+
+
+class LRUCache:
+    """
+    Thread-safe LRU cache for telemetry fallback.
+    
+    Uses OrderedDict for O(1) access and eviction.
+    Automatically evicts least-recently-used entries when capacity is exceeded.
+    """
+    
+    def __init__(self, max_size: int = MAX_FALLBACK_ENTRIES):
+        self._cache: OrderedDict[str, Any] = OrderedDict()
+        self._lock = threading.Lock()
+        self._max_size = max_size
+        self._hits = 0
+        self._misses = 0
+        self._evictions = 0
+    
+    def get(self, key: str) -> Optional[Any]:
+        """Get item and move to end (most recently used)."""
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                self._hits += 1
+                return self._cache[key]
+            self._misses += 1
+            return None
+    
+    def set(self, key: str, value: Any) -> None:
+        """Set item, evicting LRU entries if necessary."""
+        with self._lock:
+            if key in self._cache:
+                # Update existing and move to end
+                self._cache[key] = value
+                self._cache.move_to_end(key)
+            else:
+                # Add new entry
+                self._cache[key] = value
+                
+                # Evict LRU entries if over capacity
+                while len(self._cache) > self._max_size:
+                    oldest_key = next(iter(self._cache))
+                    del self._cache[oldest_key]
+                    self._evictions += 1
+    
+    def delete(self, key: str) -> bool:
+        """Delete an item from the cache."""
+        with self._lock:
+            if key in self._cache:
+                del self._cache[key]
+                return True
+            return False
+    
+    def keys(self) -> List[str]:
+        """Get all keys (for cleanup operations)."""
+        with self._lock:
+            return list(self._cache.keys())
+    
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._cache)
+
+    def __getitem__(self, key: str) -> Any:
+        value = self.get(key)
+        if value is None and key not in self._cache:
+            raise KeyError(key)
+        return value
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.set(key, value)
+
+    def __contains__(self, key: str) -> bool:
+        with self._lock:
+            return key in self._cache
+
+    def clear(self) -> None:
+        """Clear all entries from the cache."""
+        with self._lock:
+            self._cache.clear()
+            self._hits = 0
+            self._misses = 0
+            self._evictions = 0
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get cache statistics."""
+        with self._lock:
+            total_requests = self._hits + self._misses
+            hit_rate = self._hits / total_requests if total_requests > 0 else 0.0
+            return {
+                "size": len(self._cache),
+                "max_size": self._max_size,
+                "hits": self._hits,
+                "misses": self._misses,
+                "hit_rate": hit_rate,
+                "evictions": self._evictions,
+            }
+
+
+# Global LRU cache for telemetry fallback
+_LOCAL_TELEMETRY_FALLBACK = LRUCache(max_size=MAX_FALLBACK_ENTRIES)
+
+class NodeHeartbeatRequest(BaseModel):
+    node_id: str
+    cpu_usage: float
+    memory_usage: float
+    neighbors_count: int
+    routing_table_size: int
+    uptime: float
+    latency_ms: float = 0.0
+    error_reports: Optional[List[Dict[str, Any]]] = None
+    pheromones: Optional[Dict[str, Dict[str, float]]] = None
+
+
+def _extract_pheromone_score(raw: Any) -> float:
+    """Accept legacy numeric weights and richer score-bearing payloads."""
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return float(raw)
+    if isinstance(raw, dict):
+        for key in ("score", "weight", "latency_score"):
+            value = raw.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value)
+    return 0.0
+
+
+def _derive_topology_status(
+    telemetry: Optional[Dict[str, Any]],
+    db_status: Optional[str],
+) -> str:
+    """Normalize node status for topology consumers across mixed payload shapes."""
+    raw_status = None
+    has_telemetry = isinstance(telemetry, dict) and bool(telemetry)
+    if isinstance(telemetry, dict):
+        value = telemetry.get("status")
+        if isinstance(value, str):
+            raw_status = value.strip().lower()
+
+    if not raw_status and isinstance(db_status, str):
+        raw_status = db_status.strip().lower()
+
+    if raw_status in {"degraded", "unhealthy"}:
+        return "degraded"
+    if has_telemetry:
+        return "healthy"
+    return "offline"
+
+
+def _store_local_fallback(key: str, history_key: str, data: Dict) -> None:
+    """Store telemetry data in LRU cache fallback.
+    
+    Uses LRU eviction to maintain bounded memory usage.
+    History is stored as a separate key with list of entries.
+    """
+    # Store current snapshot
+    _LOCAL_TELEMETRY_FALLBACK.set(key, data)
+    
+    # Update history (stored as list under history key)
+    history = _LOCAL_TELEMETRY_FALLBACK.get(history_key)
+    if history is None:
+        history = []
+    elif not isinstance(history, list):
+        history = []
+    
+    # Prepend new data and trim to max items
+    history.insert(0, data)
+    if len(history) > TELEMETRY_HISTORY_MAX_ITEMS:
+        history = history[:TELEMETRY_HISTORY_MAX_ITEMS]
+    
+    _LOCAL_TELEMETRY_FALLBACK.set(history_key, history)
+
+
+def _set_telemetry(
+    node_id: str,
+    data: Dict,
+    degraded_dependencies: Optional[set[str]] = None,
+):
+    key = f"maas:telemetry:{node_id}"
+    history_key = f"{key}:history"
+    if REDIS_AVAILABLE:
+        payload = json.dumps(data)
+        try:
+            r_client.setex(key, TELEMETRY_TTL_SECONDS, payload) # 5 min TTL
+            pipeline = r_client.pipeline()
+            pipeline.lpush(history_key, payload)
+            pipeline.ltrim(history_key, 0, TELEMETRY_HISTORY_MAX_ITEMS - 1)
+            pipeline.expire(history_key, TELEMETRY_HISTORY_TTL_SECONDS)
+            pipeline.execute()
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to persist telemetry history for {node_id}: {e}")
+            if degraded_dependencies is not None:
+                degraded_dependencies.add("redis")
+            _store_local_fallback(key, history_key, data)
+    else:
+        # Use local fallback when Redis is not available
+        if degraded_dependencies is not None:
+            degraded_dependencies.add("redis")
+        _store_local_fallback(key, history_key, data)
+
+
+def _get_telemetry(
+    node_id: str,
+    degraded_dependencies: Optional[set[str]] = None,
+) -> Dict:
+    key = f"maas:telemetry:{node_id}"
+    if REDIS_AVAILABLE:
+        try:
+            raw = r_client.get(key)
+            return json.loads(raw) if raw else {}
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to read telemetry snapshot for {node_id}: {e}")
+            if degraded_dependencies is not None:
+                degraded_dependencies.add("redis")
+            fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
+            return fallback if isinstance(fallback, dict) else {}
+    else:
+        # Use local fallback when Redis is not available
+        if degraded_dependencies is not None:
+            degraded_dependencies.add("redis")
+        fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
+        return fallback if isinstance(fallback, dict) else {}
+
+
+def _get_telemetry_history(
+    node_id: str,
+    limit: int = 100,
+    degraded_dependencies: Optional[set[str]] = None,
+) -> List[Dict]:
+    if limit <= 0:
+        return []
+    key = f"maas:telemetry:{node_id}:history"
+    if REDIS_AVAILABLE:
+        try:
+            raw_items = r_client.lrange(key, 0, limit - 1)
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to read telemetry history for {node_id}: {e}")
+            if degraded_dependencies is not None:
+                degraded_dependencies.add("redis")
+            fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
+            if isinstance(fallback, list):
+                return [entry for entry in fallback[:limit] if isinstance(entry, dict)]
+            return []
+        results: List[Dict] = []
+        for item in raw_items or []:
+            try:
+                parsed = json.loads(item) if isinstance(item, str) else item
+                if isinstance(parsed, dict):
+                    results.append(parsed)
+            except Exception:
+                continue
+        return results
+    else:
+        # Use local fallback when Redis is not available
+        if degraded_dependencies is not None:
+            degraded_dependencies.add("redis")
+        fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
+        if isinstance(fallback, list):
+            return [entry for entry in fallback[:limit] if isinstance(entry, dict)]
+        return []
+
+
+def get_fallback_cache_stats() -> Dict[str, Any]:
+    """Get statistics for the telemetry fallback cache."""
+    return _LOCAL_TELEMETRY_FALLBACK.get_stats()
+
+
+class NodeUptimeTracker:
+    """Tracks long-term node uptime in Redis or memory."""
+
+    def __init__(self, window_hours: int = 24):
+        self.window_seconds = window_hours * 3600
+
+    def record_heartbeat(self, node_id: str):
+        key = f"maas:uptime:{node_id}"
+        now = time.time()
+        if REDIS_AVAILABLE:
+            try:
+                # Store timestamps of heartbeats in a sorted set
+                r_client.zadd(key, {str(now): now})
+                # Evict old heartbeats
+                r_client.zremrangebyscore(key, 0, now - self.window_seconds)
+                # Keep TTL
+                r_client.expire(key, self.window_seconds)
+            except Exception as e:
+                logger.warning(f"⚠️ Uptime tracking failed for {node_id}: {e}")
+
+    def get_uptime_percent(self, node_id: str) -> float:
+        """
+        Calculate uptime % based on received heartbeats vs expected (1/min).
+        Returns 0.0 to 1.0.
+        """
+        key = f"maas:uptime:{node_id}"
+        if REDIS_AVAILABLE:
+            try:
+                now = time.time()
+                count = r_client.zcount(key, now - self.window_seconds, now)
+                # Expect 60 heartbeats per hour -> 1440 per 24h
+                expected = self.window_seconds / 60
+                return min(count / expected, 1.0)
+            except Exception:
+                return 0.0
+        return 0.0
+
+
+# Singleton Tracker
+uptime_tracker = NodeUptimeTracker()
+
+
+def _telemetry_db_session_available(db: Any) -> bool:
+    return all(hasattr(db, attr) for attr in ("query", "commit"))
+
+
+def _mesh_node_model_available() -> bool:
+    return all(
+        hasattr(MeshNode, attr)
+        for attr in ("id", "mesh_id", "status", "last_seen", "ip_address", "device_class")
+    )
+
+
+def _redis_persistence_ready() -> bool:
+    return REDIS_AVAILABLE and r_client is not None
+
+
+def _fallback_cache_available() -> bool:
+    return all(
+        callable(getattr(_LOCAL_TELEMETRY_FALLBACK, attr, None))
+        for attr in ("get", "set", "get_stats")
+    )
+
+
+def _uptime_tracker_available() -> bool:
+    return all(
+        callable(getattr(uptime_tracker, attr, None))
+        for attr in ("record_heartbeat", "get_uptime_percent")
+    )
+
+
+def _reputation_system_available() -> bool:
+    return all(
+        callable(getattr(reputation_system, attr, None))
+        for attr in ("record_proxy_result", "get_proxy_trust")
+    )
+
+
+def _telemetry_readiness_status(db: Any) -> Dict[str, Any]:
+    telemetry_db_ready = _telemetry_db_session_available(db)
+    mesh_node_model_ready = _mesh_node_model_available()
+    redis_persistence_ready = _redis_persistence_ready()
+    fallback_cache_ready = _fallback_cache_available()
+    uptime_tracker_ready = _uptime_tracker_available()
+    settlement_uptime_ready = redis_persistence_ready and uptime_tracker_ready
+    reputation_system_ready = _reputation_system_available()
+    metrics_export_ready = callable(_record_heartbeat_metric)
+    auth_dependency_ready = callable(get_current_user_from_maas)
+    telemetry_runtime_ready = (
+        telemetry_db_ready
+        and mesh_node_model_ready
+        and fallback_cache_ready
+        and uptime_tracker_ready
+        and reputation_system_ready
+        and metrics_export_ready
+        and auth_dependency_ready
+    )
+
+    degraded_dependencies = []
+    if not telemetry_db_ready:
+        degraded_dependencies.append("database")
+    if not mesh_node_model_ready:
+        degraded_dependencies.append("mesh_node_model")
+    if not redis_persistence_ready:
+        degraded_dependencies.append("redis")
+    if not fallback_cache_ready:
+        degraded_dependencies.append("fallback_cache")
+    if not uptime_tracker_ready:
+        degraded_dependencies.append("uptime_tracker")
+    if not reputation_system_ready:
+        degraded_dependencies.append("reputation_system")
+    if not metrics_export_ready:
+        degraded_dependencies.append("heartbeat_metrics")
+    if not auth_dependency_ready:
+        degraded_dependencies.append("auth")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "full_mode_only",
+        "route_present_in_light_mode": False,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "telemetry_runtime_ready": telemetry_runtime_ready,
+        "telemetry_db_ready": telemetry_db_ready,
+        "mesh_node_model_ready": mesh_node_model_ready,
+        "redis_persistence_ready": redis_persistence_ready,
+        "fallback_cache_ready": fallback_cache_ready,
+        "uptime_tracker_ready": uptime_tracker_ready,
+        "settlement_uptime_ready": settlement_uptime_ready,
+        "reputation_system_ready": reputation_system_ready,
+        "metrics_export_ready": metrics_export_ready,
+        "auth_dependency_ready": auth_dependency_ready,
+        "legacy_route_shadowing": {
+            "shadowed_by_legacy": [
+                "POST /heartbeat",
+                "GET /{mesh_id}/topology",
+            ],
+            "import_level_runtime_users": [
+                "src.api.maas_nodes",
+                "src.services.marketplace_settlement",
+            ],
+            "boundary": (
+                "Legacy maas router is registered before maas_telemetry, so "
+                "HTTP heartbeat and topology requests are handled by legacy "
+                "routes. The Redis/fallback telemetry helpers and uptime tracker "
+                "remain active for maas_nodes imports and marketplace settlement."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": (
+                "Telemetry heartbeat updates MeshNode status, last_seen, and "
+                "observed IP address through SQLAlchemy."
+            ),
+            "mesh_node_model": (
+                "Topology and heartbeat paths depend on MeshNode identity, mesh, "
+                "status, last_seen, IP, and device class fields."
+            ),
+            "redis": (
+                "Redis is the durable high-frequency telemetry and uptime store. "
+                "Snapshot/history helpers fall back to local memory, but settlement "
+                "uptime uses the Redis-backed uptime tracker."
+            ),
+            "fallback_cache": (
+                "LRU fallback keeps node telemetry snapshots/history bounded when "
+                "Redis is unavailable."
+            ),
+            "uptime_tracker": (
+                "Marketplace settlement imports uptime_tracker and requires uptime "
+                "samples to decide escrow release/refund."
+            ),
+            "reputation_system": (
+                "Heartbeat processing feeds proxy success and latency into "
+                "ReputationScoringSystem."
+            ),
+            "heartbeat_metrics": (
+                "Heartbeat processing exports MaaS heartbeat metrics."
+            ),
+            "auth": (
+                "Topology route depends on maas_auth.get_current_user_from_maas."
+            ),
+        },
+        "claim_boundary": (
+            "Telemetry readiness separates route availability from Redis-backed "
+            "persistence, bounded local fallback, DB MeshNode updates, reputation "
+            "scoring, metrics export, settlement uptime, and legacy route precedence. "
+            "It does not prove that agents are actively sending fresh telemetry."
+        ),
+    }
+
+
+@router.get("/telemetry/readiness")
+async def telemetry_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _telemetry_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
+
+
+@router.post("/heartbeat")
+async def heartbeat(
+    req: NodeHeartbeatRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    node = db.query(MeshNode).filter(MeshNode.id == req.node_id).first()
+    if not node:
+        logger.warning(f"🚨 UNKNOWN NODE HEARTBEAT: {req.node_id}")
+        raise HTTPException(status_code=404, detail="Node not registered")
+    
+    # Fast DB update
+    node.status = "healthy"
+    node.last_seen = datetime.utcnow()
+
+    # Capture IP address for eBPF filtering and geographic analytics
+    client_ip = request.client.host if request.client else None
+    if client_ip:
+        node.ip_address = client_ip
+        
+    db.commit()
+
+    # Track long-term uptime for settlement
+    uptime_tracker.record_heartbeat(req.node_id)
+    _record_heartbeat_metric(req.node_id)
+
+    
+    # Update Reputation based on heartbeat data
+    has_errors = bool(req.error_reports)
+    error_type = req.error_reports[0].get("type") if has_errors else None
+    
+    await reputation_system.record_proxy_result(
+        proxy_id=req.node_id,
+        success=not has_errors,
+        latency_ms=req.latency_ms,
+        error_type=error_type
+    )
+    
+    # Store high-frequency data in Redis
+    trust_score = 0.5
+    proxy_trust = reputation_system.get_proxy_trust(req.node_id)
+    if proxy_trust:
+        trust_score = proxy_trust.trust_score
+
+    telemetry_data = {
+        "status": node.status,
+        "cpu": req.cpu_usage,
+        "mem": req.memory_usage,
+        "neighbors": req.neighbors_count,
+        "uptime": req.uptime,
+        "latency": req.latency_ms,
+        "last_seen": node.last_seen.isoformat(),
+        "reputation": trust_score,
+    }
+    if req.pheromones:
+        telemetry_data["pheromones"] = req.pheromones
+    degraded_dependencies: set[str] = set()
+    _set_telemetry(req.node_id, telemetry_data, degraded_dependencies=degraded_dependencies)
+    for dependency in degraded_dependencies:
+        mark_degraded_dependency(request, dependency)
+    
+    return {"status": "ack", "mesh_id": node.mesh_id, "trust_score": trust_score}
+
+@router.get("/{mesh_id}/topology")
+async def get_topology(
+    mesh_id: str, 
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_from_maas)
+):
+    """Returns nodes and links for the D3.js dashboard from Redis."""
+    nodes = db.query(MeshNode).filter(MeshNode.mesh_id == mesh_id).all()
+    
+    result_nodes = []
+    links = []
+    seen_links = set()
+    degraded_dependencies: set[str] = set()
+    
+    for n in nodes:
+        telemetry = _get_telemetry(n.id, degraded_dependencies=degraded_dependencies)
+        result_nodes.append({
+            "id": n.id,
+            "class": n.device_class,
+            "status": _derive_topology_status(telemetry, n.status),
+            "telemetry": telemetry,
+            "pqc_enabled": True # All MaaS nodes have PQC by default
+        })
+        
+        # Extract links from pheromones
+        if telemetry and "pheromones" in telemetry:
+            pheromones = telemetry["pheromones"]
+            if isinstance(pheromones, dict):
+                for _destination_id, paths in pheromones.items():
+                    if not isinstance(paths, dict):
+                        continue
+                    for neighbor_id, raw_score in paths.items():
+                        if not isinstance(neighbor_id, str) or not neighbor_id:
+                            continue
+                        link_key = tuple(sorted([n.id, neighbor_id]))
+                        if link_key in seen_links:
+                            continue
+
+                        links.append({
+                            "source": n.id,
+                            "target": neighbor_id,
+                            "quality": _extract_pheromone_score(raw_score),
+                            "secure": True, # PQC Tunnel
+                            "type": "pqc-mesh"
+                        })
+                        seen_links.add(link_key)
+    for dependency in degraded_dependencies:
+        mark_degraded_dependency(request, dependency)
+
+    return {"nodes": result_nodes, "links": links}

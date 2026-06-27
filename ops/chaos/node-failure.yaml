@@ -1,0 +1,170 @@
+---
+# Litmus ChaosEngine — random mesh-node kill experiment
+# Targets: x0tta-production namespace, mesh-node DaemonSet pods
+# Validates: MTTR < 2.5 s, self-healing loop recovery within 60 s
+
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: mesh-node-random-kill
+  namespace: x0tta-production
+  labels:
+    app.kubernetes.io/part-of: x0tta-mesh
+    chaos.suite: nightly
+spec:
+  appinfo:
+    appns: x0tta-production
+    applabel: app=mesh-node
+    appkind: daemonset
+
+  engineState: active
+  chaosServiceAccount: litmus-admin
+
+  # Abort if steady-state fails pre-flight
+  jobCleanUpPolicy: retain
+
+  experiments:
+    - name: pod-delete
+      spec:
+        components:
+          env:
+            # ── Scope ─────────────────────────────────────────────────────────
+            - name: TOTAL_CHAOS_DURATION
+              value: "60"        # 60 s fault window
+            - name: CHAOS_INTERVAL
+              value: "10"        # kill a pod every 10 s
+            - name: PODS_AFFECTED_PERC
+              value: "20"        # kill 20% of mesh-nodes at a time
+            - name: FORCE
+              value: "false"     # graceful SIGTERM so OS tears down batman-adv cleanly
+
+            # ── Targeting ─────────────────────────────────────────────────────
+            - name: TARGET_POD
+              value: ""          # empty = random selection
+            - name: NODE_LABEL
+              value: "x0tta.io/mesh-role=relay"  # only hit relay nodes
+
+            # ── Steady-state probes ───────────────────────────────────────────
+            - name: SEQUENCE
+              value: "parallel"
+
+        probe:
+          # Probe 1: mesh topology API must keep returning 200
+          - name: topology-api-probe
+            type: httpProbe
+            mode: Continuous
+            runProperties:
+              probeTimeout: 2000
+              interval: 3
+              retry: 2
+              probePollingInterval: 1
+              initialDelaySeconds: 5
+            httpProbe/inputs:
+              url: http://mesh-api.x0tta-production.svc/mesh/topology
+              insecureSkipVerify: false
+              method:
+                get:
+                  criteria: ==
+                  responseCode: "200"
+
+          # Probe 2: active node count must stay above minimum threshold
+          - name: min-active-nodes-probe
+            type: cmdProbe
+            mode: Edge
+            runProperties:
+              probeTimeout: 5000
+              interval: 10
+              retry: 3
+            cmdProbe/inputs:
+              command: >
+                kubectl get pods -n x0tta-production -l app=mesh-node
+                --field-selector=status.phase=Running
+                --no-headers | wc -l
+              comparator:
+                type: int
+                criteria: ">="
+                value: "3"        # minimum 3 healthy nodes at all times
+              source:
+                image: bitnami/kubectl:latest
+
+          # Probe 3: MTTR measured via Prometheus query
+          - name: mttr-sla-probe
+            type: promProbe
+            mode: Edge
+            runProperties:
+              probeTimeout: 10000
+              interval: 15
+              retry: 2
+              initialDelaySeconds: 65
+            promProbe/inputs:
+              endpoint: http://prometheus.monitoring.svc:9090
+              query: >
+                histogram_quantile(0.95,
+                  rate(mesh_heal_duration_seconds_bucket[2m])
+                ) * 1000
+              comparator:
+                criteria: "<="
+                value: "2500"   # p95 MTTR must be <= 2500 ms
+---
+# ChaosResult resource (auto-created by Litmus; defined here for reference)
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosResult
+metadata:
+  name: mesh-node-random-kill-pod-delete
+  namespace: x0tta-production
+spec:
+  engine: mesh-node-random-kill
+  experiment: pod-delete
+---
+# Network partition variant — simulates split-brain scenario
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: mesh-network-partition
+  namespace: x0tta-production
+  labels:
+    app.kubernetes.io/part-of: x0tta-mesh
+    chaos.suite: weekly
+spec:
+  appinfo:
+    appns: x0tta-production
+    applabel: app=mesh-node
+    appkind: daemonset
+  engineState: active
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: pod-network-partition
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "30"
+            - name: NETWORK_INTERFACE
+              value: bat0              # batman-adv interface
+            - name: DESTINATION_IPS
+              value: ""                # all destinations
+            - name: DESTINATION_HOSTS
+              value: ""
+            - name: PODS_AFFECTED_PERC
+              value: "33"
+        probe:
+          - name: batman-adv-recovery-probe
+            type: cmdProbe
+            mode: Edge
+            runProperties:
+              probeTimeout: 15000
+              interval: 5
+              retry: 5
+              initialDelaySeconds: 35
+            cmdProbe/inputs:
+              command: >
+                kubectl exec -n x0tta-production
+                $(kubectl get pod -n x0tta-production -l app=mesh-node
+                  -o jsonpath='{.items[0].metadata.name}')
+                -- batctl meshif bat0 n 2>/dev/null | wc -l
+              comparator:
+                type: int
+                criteria: ">="
+                value: "2"
+              source:
+                image: bitnami/kubectl:latest

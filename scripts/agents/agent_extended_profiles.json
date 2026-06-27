@@ -1,0 +1,94 @@
+{
+  "profiles": [
+    {
+      "agent_id": "agent-1",
+      "role": "architect",
+      "skill_name": "x0tta6bl4-mesh-orchestrator",
+      "skill_path": "skills/x0tta6bl4-mesh-orchestrator/SKILL.md",
+      "role_file": "ai/roles/architect.md",
+      "command": "python3 -m pytest -q --no-cov tests/unit/core/test_app_endpoints.py tests/unit/core/test_demo_api_unit.py",
+      "critical": true
+    },
+    {
+      "agent_id": "agent-2",
+      "role": "security",
+      "skill_name": "security-audit",
+      "skill_path": "skills/security-audit/SKILL.md",
+      "role_file": null,
+      "command": "python3 skills/security-audit/scripts/check_crypto.py",
+      "critical": false
+    },
+    {
+      "agent_id": "agent-3",
+      "role": "network",
+      "skill_name": "deploy-mesh-node",
+      "skill_path": "skills/deploy-mesh-node/SKILL.md",
+      "role_file": null,
+      "command": "python3 -m pytest -q --no-cov tests/unit/network/routing/test_mesh_router_unit.py tests/unit/network/test_mesh_routing_unit.py tests/network/test_mesh_router.py",
+      "critical": true
+    },
+    {
+      "agent_id": "agent-4",
+      "role": "quality",
+      "skill_name": "test-coverage-boost",
+      "skill_path": "skills/test-coverage-boost/SKILL.md",
+      "role_file": "ai/roles/ops.md",
+      "command": "python3 skills/test-coverage-boost/scripts/coverage_gaps.py",
+      "critical": true
+    },
+    {
+      "agent_id": "agent-5",
+      "role": "kimi-live-bridge",
+      "skill_name": "x0tta6bl4-kimi-bridge",
+      "skill_path": "src/swarm/kimi_live_bridge.py",
+      "role_file": "ai/roles/kimi_bridge.md",
+      "command": "python3 src/swarm/kimi_live_bridge.py",
+      "critical": true
+    },
+    {
+      "agent_id": "agent-6",
+      "role": "chaos-engineer",
+      "skill_name": "chaos-engineering",
+      "skill_path": "src/chaos/",
+      "role_file": "ai/roles/chaos_engineer.md",
+      "command": "python3 scripts/agents/chaos_engineer_agent.py --mode scheduled",
+      "critical": true
+    },
+    {
+      "agent_id": "agent-7",
+      "role": "finops-agent",
+      "skill_name": "finops-optimization",
+      "skill_path": "src/billing/",
+      "role_file": "ai/roles/finops_agent.md",
+      "command": "python3 scripts/agents/finops_agent.py",
+      "critical": true
+    },
+    {
+      "agent_id": "agent-8",
+      "role": "compliance-agent",
+      "skill_name": "compliance-audit",
+      "skill_path": "compliance/",
+      "role_file": "ai/roles/compliance_agent.md",
+      "command": "python3 scripts/agents/compliance_agent.py",
+      "critical": true
+    },
+    {
+      "agent_id": "agent-9",
+      "role": "sre-agent",
+      "skill_name": "sre-monitoring",
+      "skill_path": "observability/",
+      "role_file": "ai/roles/sre_agent.md",
+      "command": "python3 scripts/agents/sre_agent.py",
+      "critical": true
+    },
+    {
+      "agent_id": "agent-10",
+      "role": "docs-agent",
+      "skill_name": "docs-management",
+      "skill_path": "docs/",
+      "role_file": "ai/roles/docs_agent.md",
+      "command": "python3 scripts/agents/docs_agent.py",
+      "critical": false
+    }
+  ]
+}

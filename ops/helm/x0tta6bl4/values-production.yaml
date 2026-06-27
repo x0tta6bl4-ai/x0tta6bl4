@@ -1,0 +1,230 @@
+replicaCount: 3
+
+image:
+  repository: x0tta6bl4/x0tta6bl4
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+
+service:
+  type: ClusterIP
+  port: 8000
+  targetPort: 8000
+  annotations: {}
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+  hosts:
+    - host: api.x0tta6bl4.mesh
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: x0tta6bl4-tls
+      hosts:
+        - api.x0tta6bl4.mesh
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+startupProbe:
+  httpGet:
+    path: /health/startup
+    port: 8000
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 30
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - x0tta6bl4
+          topologyKey: kubernetes.io/hostname
+
+env:
+  - name: LOG_LEVEL
+    value: "INFO"
+  - name: ENVIRONMENT
+    value: "production"
+  - name: WORKERS
+    value: "4"
+  - name: SPIRE_TRUST_DOMAIN
+    value: "x0tta6bl4.mesh"
+
+envFrom:
+  - configMapRef:
+      name: app-config
+  - secretRef:
+      name: app-secrets
+
+volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+  - name: cache
+    mountPath: /app/cache
+
+volumes:
+  - name: tmp
+    emptyDir: {}
+  - name: cache
+    emptyDir: {}
+
+persistence:
+  enabled: true
+  storageClassName: fast-ssd
+  size: 10Gi
+  mountPath: /data
+
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  path: /metrics
+
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: [""]
+      resources: ["secrets"]
+      verbs: ["get", "list"]
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+database:
+  host: postgres.x0tta6bl4-db.svc.cluster.local
+  port: 5432
+  name: x0tta6bl4
+  poolSize: 20
+  maxOverflow: 10
+
+redis:
+  enabled: true
+  host: redis.default.svc.cluster.local
+  port: 6379
+
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    retention: 30d
+  grafana:
+    enabled: true
+
+spire:
+  enabled: true
+  trustDomain: x0tta6bl4.mesh
+  serverAddress: spire-server.spire.svc.cluster.local:8081
+  agentAddress: spire-agent.spire.svc.cluster.local:8082
+  workloadSocket: /tmp/spire-agent/public/api.sock
+
+securityPolicy:
+  enabled: true
+  policyLevel: strict
+  mtls:
+    enabled: true
+    enforceMode: STRICT
+
+backupPolicy:
+  enabled: true
+  schedule: "0 2 * * *"
+  retention: 30d
+  storageSize: 50Gi
+
+disasterRecovery:
+  enabled: true
+  rtoMinutes: 15
+  rpoMinutes: 5
+  backupLocation: s3://x0tta6bl4-backups
+
+compliance:
+  enabled: true
+  standards:
+    - SOC2
+    - HIPAA
+    - GDPR
+  auditLogging: true
+  encryptionAtRest: true

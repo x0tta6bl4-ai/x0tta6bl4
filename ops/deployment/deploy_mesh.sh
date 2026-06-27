@@ -1,0 +1,47 @@
+#!/bin/bash
+NODE1=${X0TTA6BL4_NODE1_IP:-"root@89.125.1.107"}
+NODE2=${X0TTA6BL4_NODE2_IP:-"root@77.83.245.27"}
+
+echo "🚀 ЗАПУСК MESH-СЕТИ x0tta6bl4"
+echo "================================="
+
+# Функция деплоя на узел
+deploy_to_node() {
+    SERVER=$1
+    echo "📦 Деплой на $SERVER..."
+    
+    # Создаем папки
+    ssh -o StrictHostKeyChecking=no "$SERVER" "mkdir -p /opt/x0tta6bl4/brain_core"
+    
+    # Копируем ядро
+    scp -o StrictHostKeyChecking=no ../src/core/consciousness.py "$SERVER":/opt/x0tta6bl4/brain_core/
+    
+    # Копируем НОВЫЙ мозг (с API)
+    scp -o StrictHostKeyChecking=no run_brain_mesh.py "$SERVER":/opt/x0tta6bl4/
+    
+    # Ставим aiohttp
+    ssh -o StrictHostKeyChecking=no "$SERVER" "apt-get update >/dev/null 2>&1 && apt-get install -y python3-pip >/dev/null 2>&1 && pip3 install psutil aiohttp >/dev/null 2>&1"
+    
+    # Обновляем systemd (команда запуска изменилась на run_brain_mesh.py)
+    ssh -o StrictHostKeyChecking=no "$SERVER" "sed -i 's/run_brain.py/run_brain_mesh.py/' /etc/systemd/system/x0tta6bl4-brain.service || true"
+    
+    # Если файла сервиса нет - копируем
+    scp -o StrictHostKeyChecking=no systemd/x0tta6bl4-brain.service "$SERVER":/etc/systemd/system/
+    
+    # Перезапуск
+    ssh -o StrictHostKeyChecking=no "$SERVER" "systemctl daemon-reload && systemctl enable x0tta6bl4-brain && systemctl restart x0tta6bl4-brain"
+    
+    echo "✅ $SERVER обновлен."
+}
+
+# Деплой на NODE 1 (обновление)
+deploy_to_node "$NODE1"
+
+# Деплой на NODE 2 (новый)
+deploy_to_node "$NODE2"
+
+echo "================================="
+echo "🌐 MESH-СЕТЬ ЗАПУЩЕНА!"
+echo "Проверка статуса:"
+echo "Node 1: curl http://89.125.1.107:9090/metrics"
+echo "Node 2: curl http://77.83.245.27:9090/metrics"

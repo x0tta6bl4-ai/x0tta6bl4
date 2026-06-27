@@ -1,0 +1,335 @@
+# Analysis Templates for Canary Deployments
+---
+# Smoke Test Analysis
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: smoke-test
+  namespace: x0tta6bl4-production
+spec:
+  args:
+    - name: service-name
+  metrics:
+    - name: smoke-test
+      provider:
+        job:
+          spec:
+            backoffLimit: 1
+            template:
+              spec:
+                containers:
+                  - name: smoke-test
+                    image: curlimages/curl:latest
+                    command:
+                      - /bin/sh
+                      - -c
+                      - |
+                        set -e
+
+                        SERVICE="{{args.service-name}}"
+
+                        # Health check
+                        echo "Testing health endpoint..."
+                        curl -sf "http://${SERVICE}:8081/health" || exit 1
+
+                        # Metrics endpoint
+                        echo "Testing metrics endpoint..."
+                        curl -sf "http://${SERVICE}:9090/metrics" | head -5 || exit 1
+
+                        # Basic API test
+                        echo "Testing API endpoint..."
+                        curl -sf "http://${SERVICE}:8081/api/v1/status" || exit 1
+
+                        echo "Smoke tests passed"
+                restartPolicy: Never
+      successCondition: result.phase == "Succeeded"
+      failureCondition: result.phase == "Failed"
+      count: 1
+---
+# Error Rate Analysis (Prometheus)
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: error-rate-analysis
+  namespace: x0tta6bl4-production
+spec:
+  args:
+    - name: service-name
+  metrics:
+    - name: error-rate
+      interval: 1m
+      count: 5
+      successCondition: result[0] < 0.05
+      failureCondition: result[0] >= 0.10
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            sum(rate(http_requests_total{service="{{args.service-name}}", status=~"5.."}[5m])) /
+            sum(rate(http_requests_total{service="{{args.service-name}}"}[5m]))
+
+    - name: success-rate
+      interval: 1m
+      count: 5
+      successCondition: result[0] > 0.95
+      failureCondition: result[0] < 0.90
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            sum(rate(http_requests_total{service="{{args.service-name}}", status=~"2.."}[5m])) /
+            sum(rate(http_requests_total{service="{{args.service-name}}"}[5m]))
+---
+# Latency Analysis (Prometheus)
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: latency-analysis
+  namespace: x0tta6bl4-production
+spec:
+  args:
+    - name: service-name
+  metrics:
+    - name: p50-latency
+      interval: 1m
+      count: 5
+      successCondition: result[0] < 100
+      failureCondition: result[0] >= 200
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            histogram_quantile(0.50,
+              sum(rate(http_request_duration_seconds_bucket{service="{{args.service-name}}"}[5m])) by (le)
+            ) * 1000
+
+    - name: p99-latency
+      interval: 1m
+      count: 5
+      successCondition: result[0] < 500
+      failureCondition: result[0] >= 1000
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            histogram_quantile(0.99,
+              sum(rate(http_request_duration_seconds_bucket{service="{{args.service-name}}"}[5m])) by (le)
+            ) * 1000
+
+    - name: latency-comparison
+      interval: 2m
+      count: 3
+      # Canary latency should not be more than 20% higher than stable
+      successCondition: result[0] < 1.2
+      failureCondition: result[0] >= 1.5
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            (
+              histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="{{args.service-name}}", rollouts_pod_template_hash=~"canary.*"}[5m])) by (le))
+            ) / (
+              histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="{{args.service-name}}", rollouts_pod_template_hash=~"stable.*"}[5m])) by (le))
+            )
+---
+# Full Analysis (combines multiple metrics)
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: full-analysis
+  namespace: x0tta6bl4-production
+spec:
+  args:
+    - name: service-name
+  metrics:
+    # Error rate
+    - name: error-rate
+      interval: 2m
+      count: 5
+      successCondition: result[0] < 0.02
+      failureCondition: result[0] >= 0.05
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            sum(rate(http_requests_total{service="{{args.service-name}}", status=~"5.."}[5m])) /
+            sum(rate(http_requests_total{service="{{args.service-name}}"}[5m]))
+
+    # Latency P99
+    - name: p99-latency
+      interval: 2m
+      count: 5
+      successCondition: result[0] < 500
+      failureCondition: result[0] >= 1000
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            histogram_quantile(0.99,
+              sum(rate(http_request_duration_seconds_bucket{service="{{args.service-name}}"}[5m])) by (le)
+            ) * 1000
+
+    # Pod restarts
+    - name: pod-restarts
+      interval: 2m
+      count: 3
+      successCondition: result[0] == 0
+      failureCondition: result[0] > 2
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            sum(increase(kube_pod_container_status_restarts_total{
+              namespace="x0tta6bl4-production",
+              pod=~"proxy-api-.*"
+            }[10m]))
+
+    # Memory usage
+    - name: memory-usage
+      interval: 2m
+      count: 3
+      successCondition: result[0] < 0.85
+      failureCondition: result[0] >= 0.95
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            avg(container_memory_usage_bytes{
+              namespace="x0tta6bl4-production",
+              pod=~"proxy-api-.*",
+              container="proxy-api"
+            }) / avg(kube_pod_container_resource_limits{
+              namespace="x0tta6bl4-production",
+              pod=~"proxy-api-.*",
+              container="proxy-api",
+              resource="memory"
+            })
+
+    # CPU usage
+    - name: cpu-usage
+      interval: 2m
+      count: 3
+      successCondition: result[0] < 0.80
+      failureCondition: result[0] >= 0.95
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            avg(rate(container_cpu_usage_seconds_total{
+              namespace="x0tta6bl4-production",
+              pod=~"proxy-api-.*",
+              container="proxy-api"
+            }[5m])) / avg(kube_pod_container_resource_limits{
+              namespace="x0tta6bl4-production",
+              pod=~"proxy-api-.*",
+              container="proxy-api",
+              resource="cpu"
+            })
+---
+# Pre-Promotion Analysis
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: pre-promotion-analysis
+  namespace: x0tta6bl4-production
+spec:
+  metrics:
+    # Final health check
+    - name: final-health-check
+      provider:
+        job:
+          spec:
+            backoffLimit: 2
+            template:
+              spec:
+                containers:
+                  - name: health-check
+                    image: curlimages/curl:latest
+                    command:
+                      - /bin/sh
+                      - -c
+                      - |
+                        set -e
+
+                        # Check all canary pods are healthy
+                        for i in 1 2 3; do
+                          echo "Health check attempt $i..."
+                          curl -sf http://proxy-api-canary:8081/health || exit 1
+                          sleep 5
+                        done
+
+                        echo "All health checks passed"
+                restartPolicy: Never
+      successCondition: result.phase == "Succeeded"
+      failureCondition: result.phase == "Failed"
+      count: 1
+
+    # Ensure no errors in last 5 minutes
+    - name: no-recent-errors
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring:9090
+          query: |
+            sum(increase(http_requests_total{
+              service="proxy-api",
+              status=~"5..",
+              rollouts_pod_template_hash=~"canary.*"
+            }[5m])) or vector(0)
+      successCondition: result[0] < 5
+      failureCondition: result[0] >= 10
+      count: 1
+---
+# Rollback Notification
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: rollback-notification
+  namespace: x0tta6bl4-production
+spec:
+  metrics:
+    - name: send-notification
+      provider:
+        job:
+          spec:
+            backoffLimit: 1
+            template:
+              spec:
+                containers:
+                  - name: notify
+                    image: curlimages/curl:latest
+                    env:
+                      - name: SLACK_WEBHOOK_URL
+                        valueFrom:
+                          secretKeyRef:
+                            name: slack-webhook
+                            key: url
+                    command:
+                      - /bin/sh
+                      - -c
+                      - |
+                        curl -X POST "$SLACK_WEBHOOK_URL" \
+                          -H "Content-Type: application/json" \
+                          -d '{
+                            "text": "Canary deployment for proxy-api was aborted and rolled back",
+                            "attachments": [{
+                              "color": "#E96D76",
+                              "fields": [
+                                {"title": "Application", "value": "proxy-api", "short": true},
+                                {"title": "Environment", "value": "production", "short": true},
+                                {"title": "Action", "value": "Rollback initiated", "short": false}
+                              ]
+                            }]
+                          }'
+                restartPolicy: Never
+      successCondition: result.phase == "Succeeded"
+      count: 1

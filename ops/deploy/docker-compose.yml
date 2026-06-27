@@ -1,0 +1,130 @@
+# x0tta6bl4 Testnet: 3 mesh nodes + monitoring stack
+# Usage: cd deploy && docker compose up -d
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: x0tta6bl4-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus-testnet.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - x0tta6bl4-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: x0tta6bl4-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-x0tta6bl4}
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - x0tta6bl4-net
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: x0tta6bl4-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - x0tta6bl4-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  mesh-node-1:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.mesh-node
+    container_name: x0tta6bl4-node-1
+    environment:
+      - NODE_ID=node-1
+      - REDIS_URL=redis://redis:6379/0
+      - TESTING=false
+      - MTLS_ENABLED=false
+      - TRACING_ENABLED=true
+      - RATE_LIMIT_ENABLED=true
+    ports:
+      - "8001:8080"
+    networks:
+      - x0tta6bl4-net
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN
+
+  mesh-node-2:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.mesh-node
+    container_name: x0tta6bl4-node-2
+    environment:
+      - NODE_ID=node-2
+      - REDIS_URL=redis://redis:6379/0
+      - TESTING=false
+      - MTLS_ENABLED=false
+      - TRACING_ENABLED=true
+    ports:
+      - "8002:8080"
+    networks:
+      - x0tta6bl4-net
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN
+
+  mesh-node-3:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.mesh-node
+    container_name: x0tta6bl4-node-3
+    environment:
+      - NODE_ID=node-3
+      - REDIS_URL=redis://redis:6379/0
+      - TESTING=false
+      - MTLS_ENABLED=false
+      - TRACING_ENABLED=true
+    ports:
+      - "8003:8080"
+    networks:
+      - x0tta6bl4-net
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN
+
+networks:
+  x0tta6bl4-net:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  redis-data:

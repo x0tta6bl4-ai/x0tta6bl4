@@ -1,0 +1,13 @@
+# SPIRE Server Dockerfile — uses local tarball (no network needed at build time)
+FROM python:3.12-slim
+
+# Use pre-downloaded tarball from build context (deploy/docker-compose/spire.tar.gz)
+COPY deploy/docker-compose/spire.tar.gz /tmp/spire.tar.gz
+RUN tar xzf /tmp/spire.tar.gz -C /tmp/ \
+    && cp /tmp/spire-1.15.1/bin/spire-server /usr/local/bin/spire-server \
+    && rm -rf /tmp/spire*
+
+COPY deploy/docker-compose/spire-server.conf /etc/spire/server.conf
+RUN mkdir -p /var/lib/spire/server /tmp/spire-server
+EXPOSE 8081
+CMD ["spire-server", "run", "-config", "/etc/spire/server.conf"]

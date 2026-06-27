@@ -1,0 +1,112 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+ENV/
+env/
+.venv
+node_modules/ # Exclude node_modules
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+tests/
+test_*.py
+*_test.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.gemini
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Development files
+.env
+.env.local
+.env.*.local
+*.log
+*.tmp
+*.bak
+
+# Data
+data/
+datasets/
+*.db
+*.sqlite
+*.sqlite3
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+!deploy/docker-compose/spire.tar.gz
+*.rar
+
+# Cache
+.cache/
+.pip/
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+build/
+dist/
+*.whl
+*.tar.gz
+
+# Local development
+local/
+staging/
+backups/
+backup-*/
+archive/
+nl-diagnostics/snapshots/
+
+# Large files
+*.model
+*.pkl
+*.h5
+*.ckpt
+
+# OS
+Thumbs.db
+.DS_Store

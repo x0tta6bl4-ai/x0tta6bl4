@@ -1,0 +1,16 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "port": 10000,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "f56fb669-32ec-4142-b2fe-8b65c4321102",
+            "email": "admin@x0tta6bl4.com"
+          },
+          {
+            "id": 

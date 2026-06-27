@@ -1,0 +1,31 @@
+{
+  "artifact_identity": {
+    "artifact_id": "synthetic-dpi-smoke-20260531T070552Z",
+    "captured_at_utc": "2026-05-31T07:05:52Z",
+    "claim_id": "synthetic_dpi_smoke",
+    "schema_version": "x0tta6bl4.synthetic_dpi_smoke.v1"
+  },
+  "claim_boundary": {
+    "customer_traffic_confirmed": false,
+    "durable_censorship_bypass_confirmed": false,
+    "external_dpi_tested": false,
+    "limitations": [
+      "Uses localhost and TEST-NET addresses.",
+      "Does not transit external network boundaries.",
+      "Does not encounter real DPI or middleboxes."
+    ],
+    "production_ready": false,
+    "summary": "This is a SYNTHETIC LOCAL SMOKE TEST."
+  },
+  "measurements": {
+    "baseline_successful": false,
+    "baseline_url": "http://192.0.2.1/",
+    "treatment_successful": true,
+    "treatment_url": "http://127.0.0.1:18081/"
+  },
+  "result_summary": {
+    "decision": "SYNTHETIC_SMOKE_PASS",
+    "mechanics_verified": true
+  },
+  "status": "SYNTHETIC_TEST_ONLY"
+}

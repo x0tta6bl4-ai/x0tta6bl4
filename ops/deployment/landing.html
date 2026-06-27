@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 | The Immortal Network</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        neon: '#00ff00',
+                        dark: '#050505',
+                        panel: '#111',
+                    },
+                    fontFamily: {
+                        mono: ['Courier New', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #050505; color: #e0e0e0; font-family: 'Courier New', monospace; }
+        .neon-text { text-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00; }
+        .neon-border { border: 1px solid #333; transition: 0.3s; }
+        .neon-border:hover { border-color: #00ff00; box-shadow: 0 0 15px rgba(0, 255, 0, 0.2); }
+        .glitch { animation: glitch 1s linear infinite; }
+        @keyframes glitch {
+            2%, 64% { transform: translate(2px,0) skew(0deg); }
+            4%, 60% { transform: translate(-2px,0) skew(0deg); }
+            62% { transform: translate(0,0) skew(5deg); }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- NAVBAR -->
+    <nav class="fixed w-full z-50 bg-dark/90 border-b border-gray-800 backdrop-blur-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-xl font-bold text-white tracking-widest">x0tta6bl4</span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#status" class="text-gray-300 hover:text-neon px-3 py-2 rounded-md text-sm font-medium">STATUS</a>
+                        <a href="#manifesto" class="text-gray-300 hover:text-neon px-3 py-2 rounded-md text-sm font-medium">MANIFESTO</a>
+                        <a href="#buy" class="bg-neon text-black hover:bg-green-400 px-4 py-2 rounded-md text-sm font-bold shadow-[0_0_10px_rgba(0,255,0,0.5)]">GET NODE KEY</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- HERO SECTION -->
+    <div class="relative bg-dark overflow-hidden pt-32 pb-16 sm:pb-24">
+        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center text-center">
+            <div class="text-neon text-sm tracking-[0.3em] mb-4 animate-pulse">SYSTEM ONLINE // PHI-RATIO: HARMONIC</div>
+            <h1 class="text-4xl sm:text-6xl font-extrabold text-white tracking-tight mb-8">
+                СЕТЬ, КОТОРУЮ<br>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-green-700 glitch">НЕЛЬЗЯ ВЫКЛЮЧИТЬ</span>
+            </h1>
+            <p class="mt-4 max-w-2xl text-xl text-gray-400 mx-auto">
+                Децентрализованная mesh-инфраструктура нового поколения. 
+                Самовосстанавливающаяся. Анонимная. Твоя.
+            </p>
+            <div class="mt-10 flex justify-center gap-4">
+                <a href="#buy" class="px-8 py-4 border border-neon text-neon hover:bg-neon hover:text-black transition-all font-bold uppercase tracking-wider">
+                    Стать Оператором Узла
+                </a>
+                <a href="dashboard.html" target="_blank" class="px-8 py-4 border border-gray-600 text-gray-400 hover:border-white hover:text-white transition-all uppercase tracking-wider">
+                    Смотреть Live Demo
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- LIVE STATUS PREVIEW -->
+    <div id="status" class="py-12 bg-panel border-y border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+                <div class="p-6 neon-border rounded bg-dark">
+                    <div class="text-4xl font-bold text-white mb-2" id="node-count">3</div>
+                    <div class="text-sm text-gray-500 uppercase tracking-widest">Active Nodes</div>
+                </div>
+                <div class="p-6 neon-border rounded bg-dark">
+                    <div class="text-4xl font-bold text-yellow-500 mb-2">100%</div>
+                    <div class="text-sm text-gray-500 uppercase tracking-widest">Uptime</div>
+                </div>
+                <div class="p-6 neon-border rounded bg-dark">
+                    <div class="text-4xl font-bold text-neon mb-2">HARMONIC</div>
+                    <div class="text-sm text-gray-500 uppercase tracking-widest">System State</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MANIFESTO -->
+    <div id="manifesto" class="py-24 bg-dark">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 class="text-3xl font-bold text-white mb-8 border-l-4 border-neon pl-4">ПОЧЕМУ ЭТО ВАЖНО?</h2>
+            <div class="prose prose-invert text-gray-400 space-y-6 text-lg">
+                <p>
+                    Интернет умирает. Корпорации контролируют сервера. Правительства контролируют кабели. 
+                    Ваш доступ к информации может быть отключен одним нажатием рубильника.
+                </p>
+                <p>
+                    <strong class="text-white">x0tta6bl4</strong> — это ответ. Это не просто VPN. Это живая сеть, 
+                    где каждый узел является сервером, маршрутизатором и хранилищем одновременно.
+                </p>
+                <ul class="list-disc pl-6 space-y-2 marker:text-neon">
+                    <li>Нет центрального сервера = Нельзя заблокировать.</li>
+                    <li>Динамическая маршрутизация = Трафик всегда найдет путь.</li>
+                    <li>Искусственное сознание = Сеть сама оптимизирует себя.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRICING / OFFER -->
+    <div id="buy" class="py-24 bg-panel relative overflow-hidden">
+        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon to-transparent opacity-50"></div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 class="text-3xl font-bold text-white mb-4">GENESIS NODE KEY</h2>
+            <p class="text-gray-400 mb-12">Получи полный контроль над своим цифровым суверенитетом.</p>
+            
+            <div class="max-w-md mx-auto bg-dark border border-neon p-8 rounded-lg shadow-[0_0_30px_rgba(0,255,0,0.1)] relative">
+                <div class="absolute top-4 right-4 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">LIMITED SUPPLY</div>
+                
+                <div class="text-5xl font-bold text-white mb-4">$500 <span class="text-lg text-gray-500 font-normal">/ lifetime</span></div>
+                
+                <ul class="text-left text-gray-300 space-y-4 mb-8 border-t border-gray-800 pt-6">
+                    <li class="flex items-center"><span class="text-neon mr-2">✓</span> Криптографический ключ оператора</li>
+                    <li class="flex items-center"><span class="text-neon mr-2">✓</span> Полный исходный код (Python/Go)</li>
+                    <li class="flex items-center"><span class="text-neon mr-2">✓</span> Доступ в закрытое DAO</li>
+                    <li class="flex items-center"><span class="text-neon mr-2">✓</span> Право голоса в развитии сети</li>
+                    <li class="flex items-center"><span class="text-neon mr-2">✓</span> 24/7 Приоритетная поддержка</li>
+                </ul>
+
+                <a href="https://t.me/x0tta6bl4_admin" target="_blank" class="block w-full bg-neon text-black font-bold text-xl py-4 rounded hover:bg-green-400 transition-colors">
+                    КУПИТЬ КЛЮЧ
+                </a>
+                <p class="mt-4 text-xs text-gray-500">Принимаем USDT, BTC, ETH. Выдача ключа моментально.</p>
+            </div>
+            
+            <div class="mt-8 text-gray-500">
+                Осталось ключей этой партии: <span class="text-white font-bold">17</span> из 20
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-dark py-12 border-t border-gray-900">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <div class="text-2xl font-bold text-gray-700 mb-4">x0tta6bl4</div>
+            <div class="flex justify-center space-x-6 text-gray-500 text-sm">
+                <a href="#" class="hover:text-neon">GitHub</a>
+                <a href="#" class="hover:text-neon">Telegram</a>
+                <a href="#" class="hover:text-neon">Docs</a>
+            </div>
+            <div class="mt-8 text-xs text-gray-800">
+                &copy; 2025 Paradox Zone. All systems operational.
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Simple metric fetcher to update node count
+        async function updateStats() {
+            try {
+                const res = await fetch('http://89.125.1.107:9092/metrics'); // Direct API call
+                // Note: This might fail if Mixed Content (HTTP vs HTTPS). 
+                // But assuming user visits HTTP site.
+                if(res.ok) {
+                    const data = await res.json();
+                    if(data.peers_count) {
+                        document.getElementById('node-count').innerText = data.peers_count;
+                    }
+                }
+            } catch(e) {
+                console.log("Stats fetch failed, using static");
+            }
+        }
+        updateStats();
+    </script>
+
+</body>
+</html>

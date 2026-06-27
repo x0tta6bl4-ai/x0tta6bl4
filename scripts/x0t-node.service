@@ -1,0 +1,14 @@
+[Unit]
+Description=x0tta6bl4 Mesh VPN Node
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/x0tta6bl4
+Environment=NODE_ID=node-vps
+ExecStart=/usr/bin/python3 -u -m src.network.mesh_vpn_bridge
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,134 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - rbac.yaml
+  - network-policy.yaml
+  - pdb.yaml
+
+namePrefix: prod-
+namespace: x0tta6bl4-production
+
+replicas:
+  - name: x0tta6bl4
+    count: 5
+
+commonLabels:
+  environment: production
+  tier: critical
+
+commonAnnotations:
+  environment: production
+  owner: platform-team
+  oncall: sre-team
+
+# Image configuration
+images:
+  - name: x0tta6bl4/proxy-orchestrator
+    newTag: v1.0.0
+
+# Production-specific patches
+patches:
+  # Deployment patches
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: x0tta6bl4
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 5
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ENVIRONMENT
+          value: production
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: LOG_LEVEL
+          value: INFO
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: REDIS_SENTINEL_HOSTS
+          value: "redis-node-0.redis-headless:26379,redis-node-1.redis-headless:26379,redis-node-2.redis-headless:26379"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: REDIS_SENTINEL_MASTER
+          value: "mymaster"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: REQUEST_VALIDATION_ENABLED
+          value: "true"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: GRACEFUL_SHUTDOWN_ENABLED
+          value: "true"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SHUTDOWN_TIMEOUT
+          value: "30"
+      # Add topology spread constraints
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: x0tta6bl4
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: x0tta6bl4
+      # Add pod anti-affinity
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: x0tta6bl4
+                topologyKey: kubernetes.io/hostname
+
+  # Service patches
+  - target:
+      kind: Service
+      name: x0tta6bl4
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          service.beta.kubernetes.io/aws-load-balancer-type: nlb
+          service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+
+configMapGenerator:
+  - name: production-config
+    literals:
+      - ENVIRONMENT=production
+      - LOG_FORMAT=json
+      - METRICS_ENABLED=true
+      - TRACING_ENABLED=true
+      - TRACING_SAMPLE_RATE=0.1
+
+secretGenerator: []

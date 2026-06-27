@@ -1,0 +1,254 @@
+{
+  "dashboard": {
+    "annotations": {
+      "list": []
+    },
+    "editable": true,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": null,
+    "links": [],
+    "panels": [
+      {
+        "id": 0,
+        "title": "GraphSAGE Anomaly Detection",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 1,
+        "title": "Inference Latency",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_graphsage_inference_latency_ms",
+            "legendFormat": "Latency",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "showLegend": true,
+            "placement": "right"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Model Accuracy",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_graphsage_accuracy{type='current'}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "percentage",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "red",
+                  "value": 90
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Anomalies Detected",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(x0tta6bl4_graphsage_anomalies_detected_total[1h])",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "",
+            "decimals": 0,
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 1,
+        "title": "RAG Pipeline",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 4,
+        "title": "Retrieval Latency",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_rag_retrieval_latency_ms",
+            "legendFormat": "Latency",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "showLegend": true,
+            "placement": "right"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Documents Indexed",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_rag_documents_indexed",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "",
+            "decimals": 0,
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "LoRA Fine-tuning",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 6,
+        "title": "Training Loss",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_lora_training_loss",
+            "legendFormat": "Loss",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "showLegend": true,
+            "placement": "right"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Trainable Parameters",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_lora_trainable_parameters",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "",
+            "decimals": 0,
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 38,
+    "style": "dark",
+    "tags": [
+      "x0tta6bl4"
+    ],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "x0tta6bl4 ML Pipeline",
+    "uid": "ml_pipeline",
+    "version": 0,
+    "description": "Machine Learning model performance and training metrics"
+  }
+}

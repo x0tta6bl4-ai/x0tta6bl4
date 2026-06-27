@@ -1,0 +1,409 @@
+{
+  "matrix_id": "nl-anti-block-client-compatibility-matrix-2026-06-02",
+  "decision": "CLIENT_MATRIX_PARTIAL_REAL_DEVICES_REQUIRED",
+  "generated_local_date": "2026-06-02",
+  "privacy_rule": {
+    "raw_secret_material_stored": false,
+    "forbidden_fields": [
+      "subscription_url",
+      "subscription_token",
+      "vless_link",
+      "uuid",
+      "raw_ip",
+      "email",
+      "telegram_id",
+      "client_hash"
+    ]
+  },
+  "evidence_recorder": {
+    "path": "services/nl-server/ghost-access/record_client_compatibility.py",
+    "mode": "local_privacy_safe_cli",
+    "rejects": [
+      "vpn_uri",
+      "subscription_path",
+      "uuid",
+      "raw_ip",
+      "email",
+      "secret_like_field"
+    ]
+  },
+  "local_client_inventory": {
+    "checked_at": "2026-06-01T22:46:19Z",
+    "source": "local_v2rayn_gui_db",
+    "db_present": true,
+    "ok": true,
+    "diagnosis": "local_v2rayn_db_contains_fallback_profiles",
+    "privacy": {
+      "output_privacy_ok": true,
+      "raw_subscription_url_stored": false,
+      "raw_vpn_uri_stored": false,
+      "raw_uuid_stored": false,
+      "raw_address_stored": false
+    },
+    "profile_inventory": {
+      "profile_rows": 8,
+      "subscription_profile_rows": 4,
+      "counts": {
+        "reality": 6,
+        "xhttp": 1,
+        "ws": 1,
+        "other": 0
+      },
+      "ports": [
+        443,
+        2083,
+        8443,
+        39829
+      ]
+    },
+    "subscription_inventory": {
+      "enabled_subscriptions": 1,
+      "aggregate": {
+        "counts": {
+          "reality": 2,
+          "xhttp": 1,
+          "ws": 1,
+          "other": 0
+        },
+        "ports": [
+          443,
+          2083,
+          8443
+        ]
+      },
+      "fetches": [
+        {
+          "fetch_ok": true,
+          "line_count": 4,
+          "counts": {
+            "reality": 2,
+            "xhttp": 1,
+            "ws": 1,
+            "other": 0
+          },
+          "ports": [
+            443,
+            2083,
+            8443
+          ]
+        }
+      ]
+    }
+  },
+  "local_v2rayn_fallback_import_live": {
+    "checked_at": "2026-06-01T22:46:19Z",
+    "source": "local_v2rayn_gui_db",
+    "decision": "APPLIED_TO_LIVE_DB",
+    "ok": true,
+    "applied_to_live_db": true,
+    "restarted_v2rayn": false,
+    "backup_path": "/home/x0ttta6bl4/.local/share/v2rayN/diag-backups/live-fallback-sync-20260601T224617Z/guiNDB.db.bak-v2rayn-fallbacks-20260601T224618Z",
+    "inserted_profiles": {
+      "counts": {
+        "reality": 0,
+        "xhttp": 1,
+        "ws": 1,
+        "other": 0
+      },
+      "ports": [
+        8443
+      ],
+      "total": 2
+    },
+    "remaining_missing_after_live": {
+      "counts": {
+        "reality": 0,
+        "xhttp": 0,
+        "ws": 0,
+        "other": 0
+      },
+      "ports": [],
+      "total": 0
+    },
+    "privacy": {
+      "output_privacy_ok": true,
+      "raw_subscription_url_stored": false,
+      "raw_vpn_uri_stored": false,
+      "raw_uuid_stored": false,
+      "raw_address_stored": false
+    }
+  },
+  "local_v2rayn_fallback_import_copy_test": {
+    "checked_at": "2026-06-01T22:30:02Z",
+    "source": "local_v2rayn_gui_db_copy",
+    "decision": "APPLIED_TO_COPY",
+    "ok": true,
+    "applied_to_live_db": false,
+    "inserted_profiles": {
+      "counts": {
+        "reality": 0,
+        "xhttp": 1,
+        "ws": 1,
+        "other": 0
+      },
+      "ports": [
+        8443
+      ],
+      "total": 2
+    },
+    "remaining_missing_after_copy": {
+      "counts": {
+        "reality": 0,
+        "xhttp": 0,
+        "ws": 0,
+        "other": 0
+      },
+      "ports": [],
+      "total": 0
+    },
+    "copy_inventory_after_import": {
+      "counts": {
+        "reality": 6,
+        "xhttp": 1,
+        "ws": 1,
+        "other": 0
+      },
+      "ports": [
+        443,
+        2083,
+        8443,
+        39829
+      ]
+    },
+    "privacy": {
+      "output_privacy_ok": true,
+      "raw_subscription_url_stored": false,
+      "raw_vpn_uri_stored": false,
+      "raw_uuid_stored": false,
+      "raw_address_stored": false
+    }
+  },
+  "local_v2rayn_dataplane_probe": {
+    "checked_at": "2026-06-01T23:03:50Z",
+    "ok": true,
+    "passed_transports": [
+      "ws",
+      "xhttp"
+    ],
+    "profile_count": 2,
+    "results": [
+      {
+        "transport": "ws",
+        "port": 8443,
+        "ok": true,
+        "http_code": 204,
+        "total_s": 0.555399,
+        "error_type": null
+      },
+      {
+        "transport": "xhttp",
+        "port": 8443,
+        "ok": true,
+        "http_code": 204,
+        "total_s": 0.490398,
+        "error_type": null
+      }
+    ],
+    "source": "local_v2rayn_db_profiles_with_v2rayn_bundled_xray",
+    "target_url_class": "https_generate_204",
+    "privacy": {
+      "output_privacy_ok": true,
+      "raw_address_stored": false,
+      "raw_path_stored": false,
+      "raw_sni_stored": false,
+      "raw_uuid_stored": false,
+      "raw_vpn_uri_stored": false
+    }
+  },
+  "server_side_evidence": [
+    {
+      "case": "subscription_contains_legacy_and_fallback_profiles",
+      "status": "pass",
+      "transports": [
+        "reality",
+        "xhttp",
+        "ws"
+      ],
+      "line_count": 20,
+      "counts": {
+        "xhttp": 5,
+        "ws": 5,
+        "reality": 10,
+        "other": 0
+      },
+      "ports": [
+        443,
+        2083,
+        8443
+      ]
+    },
+    {
+      "case": "legacy_reality_canary_after_rollback_restore",
+      "status": "pass",
+      "transport": "reality",
+      "port": 443,
+      "http_code": 204,
+      "total_s": 0.054668
+    },
+    {
+      "case": "secondary_reality_canary_after_rollback_restore",
+      "status": "pass",
+      "transport": "reality",
+      "port": 2083,
+      "http_code": 204,
+      "total_s": 0.049161
+    },
+    {
+      "case": "xhttp_fallback_readiness",
+      "status": "pass",
+      "transport": "xhttp",
+      "port": 8443,
+      "ghost_xhttp_ready": true,
+      "nginx_counter_present": true
+    },
+    {
+      "case": "websocket_fallback_readiness",
+      "status": "pass",
+      "transport": "ws",
+      "port": 8443,
+      "ghost_https_ws_ready": true,
+      "nginx_counter_present": true
+    },
+    {
+      "case": "delivery_only_rollback_drill",
+      "status": "pass",
+      "decision": "ROLLBACK_APPLIED",
+      "flags_sequence": [
+        "1",
+        "0",
+        "1"
+      ],
+      "critical_services_stayed_active": true
+    }
+  ],
+  "real_client_checks": [
+    {
+      "client": "v2rayN",
+      "network_type": "desktop",
+      "transport": "xhttp",
+      "port": 8443,
+      "status": "pass",
+      "checked_at": "2026-06-01T23:03:50Z",
+      "client_version": "unknown",
+      "symptom": "bundled Xray profile probe HTTP 204",
+      "raw_secret_material_stored": false
+    },
+    {
+      "client": "v2rayN",
+      "network_type": "desktop",
+      "transport": "ws",
+      "port": 8443,
+      "status": "pass",
+      "checked_at": "2026-06-01T23:03:50Z",
+      "client_version": "unknown",
+      "symptom": "bundled Xray profile probe HTTP 204",
+      "raw_secret_material_stored": false
+    },
+    {
+      "client": "v2rayN",
+      "network_type": "windows",
+      "transport": "reality",
+      "port": 443,
+      "status": "not_tested"
+    },
+    {
+      "client": "Happ/Hiddify",
+      "network_type": "mobile",
+      "transport": "xhttp",
+      "port": 8443,
+      "status": "not_tested"
+    },
+    {
+      "client": "Happ/Hiddify",
+      "network_type": "mobile",
+      "transport": "ws",
+      "port": 8443,
+      "status": "not_tested"
+    },
+    {
+      "client": "Happ/Hiddify",
+      "network_type": "mobile",
+      "transport": "reality",
+      "port": 443,
+      "status": "not_tested"
+    },
+    {
+      "client": "any",
+      "network_type": "work-wifi",
+      "transport": "xhttp",
+      "port": 8443,
+      "status": "not_tested"
+    },
+    {
+      "client": "any",
+      "network_type": "work-wifi",
+      "transport": "ws",
+      "port": 8443,
+      "status": "not_tested"
+    },
+    {
+      "client": "remote-user-city-case",
+      "network_type": "unknown",
+      "transport": "preferred-working-fallback",
+      "port": null,
+      "status": "not_tested"
+    }
+  ],
+  "completion_rule": {
+    "android_happ_or_hiddify_required": true,
+    "mobile_network_required": true,
+    "restricted_or_work_wifi_required": true,
+    "current_status": "not_complete",
+    "evidence": {
+      "desktop_v2rayn": true,
+      "android_happ_or_hiddify": false,
+      "mobile_network": false,
+      "restricted_or_work_wifi": false
+    },
+    "missing_requirements": [
+      "android_happ_or_hiddify",
+      "mobile_network",
+      "restricted_or_work_wifi"
+    ],
+    "next_required_checks": [
+      {
+        "requirement": "android_happ_or_hiddify",
+        "client": "Happ",
+        "network_type": "mobile",
+        "transport": "reality",
+        "port": 443
+      },
+      {
+        "requirement": "restricted_or_work_wifi",
+        "client": "any",
+        "network_type": "work-wifi",
+        "transport": "reality",
+        "port": 443
+      }
+    ],
+    "desktop_v2rayn_required": true,
+    "evidence_session": {
+      "id": "nl-anti-block-2026-06-02",
+      "started_at": "2026-06-02T00:00:00Z",
+      "required_transport": "reality",
+      "required_port": 443,
+      "required_for_network_types": [
+        "mobile",
+        "restricted-wifi",
+        "work-wifi"
+      ],
+      "session_bound_current_passing_checks": 0,
+      "session_bound_requirements": {
+        "android_happ_or_hiddify": false,
+        "mobile_network": false,
+        "restricted_or_work_wifi": false
+      }
+    }
+  },
+  "last_updated_utc": "2026-06-06T15:47:37Z"
+}

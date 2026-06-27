@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh Ghost Access client compatibility summary
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=30s
+Persistent=true
+Unit=ghost-access-client-compatibility-summary.service
+
+[Install]
+WantedBy=timers.target

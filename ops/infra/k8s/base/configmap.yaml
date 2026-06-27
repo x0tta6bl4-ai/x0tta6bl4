@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x0tta6bl4-config
+  namespace: x0tta6bl4
+data:
+  LOG_LEVEL: "INFO"
+  SPIFFE_TRUST_DOMAIN: "x0tta6bl4.mesh"
+  SPIRE_SERVER_ADDR: "spire-server.spire:8081"
+  METRICS_ENABLED: "true"
+  METRICS_PORT: "9090"
+  PROFILING_ENABLED: "false"
+  
+  mape_k_config.yaml: |
+    monitor:
+      interval: 5
+      timeout: 30
+    analyzer:
+      rules_engine: "rete"
+      cache_enabled: true
+    planner:
+      optimization: "greedy"
+    executor:
+      max_parallel: 3
+      retry_count: 3

@@ -1,0 +1,1441 @@
+"""
+OpenTelemetry Tracing Implementation - Production Ready
+
+Full OpenTelemetry tracing for x0tta6bl4:
+- Distributed tracing with context propagation
+- MAPE-K cycle spans
+- Network adaptation spans
+- RAG retrieval spans
+- Custom spans for all components
+- Trace sampling configuration
+- Integration with Jaeger/Zipkin/OTLP
+- FastAPI middleware integration
+"""
+from __future__ import annotations
+
+import logging
+import os
+import asyncio
+import hashlib
+from contextlib import asynccontextmanager, contextmanager
+from dataclasses import dataclass
+from functools import wraps
+from typing import Any, Callable, Dict, Optional, ParamSpec, TypeVar
+
+from src.core.thinking.agent_thinking import AgentThinkingCoach
+
+logger = logging.getLogger(__name__)
+P = ParamSpec("P")
+T = TypeVar("T")
+
+# Try to import OpenTelemetry
+try:
+    from opentelemetry import trace
+    from opentelemetry.context import Context, attach, detach, set_value
+    from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import \
+        OTLPSpanExporter
+    from opentelemetry.exporter.zipkin.json import ZipkinExporter
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+    from opentelemetry.propagate import extract, inject, set_global_textmap
+    from opentelemetry.propagators.b3 import B3MultiFormat
+    from opentelemetry.propagators.composite import CompositeHTTPPropagator
+    from opentelemetry.propagators.tracecontext import \
+        TraceContextTextMapPropagator
+    from opentelemetry.sdk.resources import (SERVICE_NAME, SERVICE_VERSION,
+                                             Resource)
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import (BatchSpanProcessor,
+                                                ConsoleSpanExporter)
+    from opentelemetry.sdk.trace.sampling import (ALWAYS_OFF, ALWAYS_ON,
+                                                  ParentBased,
+                                                  TraceIdRatioBased)
+    from opentelemetry.trace import Status, StatusCode
+
+    OPENTELEMETRY_AVAILABLE = True
+except ImportError:
+    OPENTELEMETRY_AVAILABLE = False
+    trace = None  # type: ignore
+    Status = None  # type: ignore
+    StatusCode = None  # type: ignore
+    Context = None  # type: ignore
+    extract = None  # type: ignore
+    inject = None  # type: ignore
+    TracerProvider = None  # type: ignore
+    BatchSpanProcessor = None  # type: ignore
+    ConsoleSpanExporter = None  # type: ignore
+    JaegerExporter = None  # type: ignore
+    ZipkinExporter = None  # type: ignore
+    OTLPSpanExporter = None  # type: ignore
+    TraceIdRatioBased = None  # type: ignore
+    ALWAYS_ON = None  # type: ignore
+    ALWAYS_OFF = None  # type: ignore
+    Resource = None  # type: ignore
+    FastAPIInstrumentor = None  # type: ignore
+    HTTPXClientInstrumentor = None  # type: ignore
+
+# Backward/forward compatibility alias used by newer modules.
+OTEL_AVAILABLE = OPENTELEMETRY_AVAILABLE
+
+
+def _safe_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_count_bucket(value: int) -> str:
+    if value <= 0:
+        return "0"
+    if value <= 3:
+        return "1-3"
+    if value <= 10:
+        return "4-10"
+    if value <= 100:
+        return "11-100"
+    return "100+"
+
+
+def _safe_number_band(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "non_numeric"
+    if value < 0:
+        return "negative"
+    if value == 0:
+        return "0"
+    if value <= 1:
+        return "0-1"
+    if value <= 10:
+        return "1-10"
+    if value <= 100:
+        return "10-100"
+    if value <= 1000:
+        return "100-1000"
+    return "1000+"
+
+
+def _safe_mapping_summary(mapping: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    values = mapping or {}
+    return {
+        "key_count_bucket": _safe_count_bucket(len(values)),
+        "key_hashes": sorted(_safe_hash(key) for key in values.keys()),
+        "value_type_counts": {
+            type(value).__name__: sum(
+                1 for item in values.values() if type(item).__name__ == type(value).__name__
+            )
+            for value in values.values()
+        },
+    }
+
+
+class TracingManager:
+    """
+    OpenTelemetry Tracing Manager.
+
+    Provides distributed tracing for x0tta6bl4 components.
+    """
+
+    def __init__(
+        self,
+        service_name: str = "x0tta6bl4",
+        service_version: str = "3.1",
+        jaeger_endpoint: Optional[str] = None,
+        zipkin_endpoint: Optional[str] = None,
+        otlp_endpoint: Optional[str] = None,
+        enable_console: bool = False,
+        trace_sampling_ratio: float = 1.0,
+        enable_fastapi_instrumentation: bool = True,
+    ):
+        """
+        Initialize tracing manager with full distributed tracing support.
+
+        Args:
+            service_name: Service name for traces
+            service_version: Service version
+            jaeger_endpoint: Jaeger collector endpoint (e.g., "http://localhost:14268/api/traces")
+            zipkin_endpoint: Zipkin collector endpoint (e.g., "http://localhost:9411/api/v2/spans")
+            otlp_endpoint: OTLP collector endpoint (e.g., "http://localhost:4317")
+            enable_console: Enable console exporter for debugging
+            trace_sampling_ratio: Sampling ratio (0.0-1.0, default: 1.0 = 100%)
+            enable_fastapi_instrumentation: Enable automatic FastAPI instrumentation
+        """
+        self.service_name = service_name
+        self.service_version = service_version
+        self.tracer: Optional[Any] = None
+        self.sampling_ratio = trace_sampling_ratio
+        self.thinking_coach = AgentThinkingCoach(
+            agent_id=f"tracing-manager:{_safe_hash(service_name)}",
+            role="monitoring",
+            capabilities=("ops", "quality"),
+        )
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "tracing_manager_init",
+                "goal": "Initialize tracing manager without raw endpoint data",
+                "signals": {
+                    "service_hash": _safe_hash(service_name),
+                    "service_version_hash": _safe_hash(service_version),
+                    "jaeger_endpoint_configured": bool(jaeger_endpoint),
+                    "zipkin_endpoint_configured": bool(zipkin_endpoint),
+                    "otlp_endpoint_configured": bool(otlp_endpoint),
+                    "console_enabled": enable_console,
+                    "sampling_ratio_band": _safe_number_band(trace_sampling_ratio),
+                    "fastapi_instrumentation_requested": enable_fastapi_instrumentation,
+                    "opentelemetry_available": OPENTELEMETRY_AVAILABLE,
+                },
+                "safety_boundary": (
+                    "Keep service names, endpoint URLs, span names, trace ids, span ids, "
+                    "headers, metric values, and exception messages out of thinking context."
+                ),
+            }
+        )
+
+        if not OPENTELEMETRY_AVAILABLE:
+            logger.warning(
+                "⚠️ OpenTelemetry not available. Install: pip install opentelemetry-api opentelemetry-sdk"
+            )
+            self._record_thinking(
+                "tracing_manager_disabled",
+                "Disable tracing manager when OpenTelemetry is unavailable",
+                {"opentelemetry_available": False, "tracer_configured": False},
+            )
+            return
+
+        try:
+            # Create resource with service metadata
+            resource = Resource.create(
+                {
+                    SERVICE_NAME: service_name,
+                    SERVICE_VERSION: service_version,
+                    "deployment.environment": os.getenv("ENVIRONMENT", "production"),
+                    "service.namespace": "x0tta6bl4-mesh",
+                }
+            )
+
+            # Configure advanced sampling with ParentBased support
+            # ParentBased sampler respects parent trace decisions for distributed tracing
+            if trace_sampling_ratio >= 1.0:
+                base_sampler = ALWAYS_ON
+            elif trace_sampling_ratio <= 0.0:
+                base_sampler = ALWAYS_OFF
+            else:
+                base_sampler = TraceIdRatioBased(trace_sampling_ratio)
+
+            # Use ParentBased sampler for production (respects parent trace decisions)
+            # This ensures consistent sampling across distributed services
+            sampler = ParentBased(root=base_sampler)
+
+            # Create tracer provider with sampling
+            provider = TracerProvider(resource=resource, sampler=sampler)
+
+            # Add exporters
+            exporters_configured = False
+
+            if otlp_endpoint:
+                try:
+                    otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+                    # Configure BatchSpanProcessor with optimized settings for production
+                    batch_processor = BatchSpanProcessor(
+                        otlp_exporter,
+                        max_queue_size=2048,  # Larger queue for high throughput
+                        export_timeout_millis=30000,  # 30s timeout
+                        schedule_delay_millis=5000,  # 5s batch interval
+                    )
+                    provider.add_span_processor(batch_processor)
+                    logger.info(
+                        f"✅ OTLP exporter configured: {otlp_endpoint} (optimized batch settings)"
+                    )
+                    exporters_configured = True
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to configure OTLP exporter: {e}")
+
+            if jaeger_endpoint:
+                try:
+                    jaeger_exporter = JaegerExporter(
+                        agent_host_name=(
+                            jaeger_endpoint.split("://")[1].split(":")[0]
+                            if "://" in jaeger_endpoint
+                            else "localhost"
+                        ),
+                        agent_port=14268,
+                        collector_endpoint=jaeger_endpoint,
+                    )
+                    # Optimized batch processor for Jaeger
+                    batch_processor = BatchSpanProcessor(
+                        jaeger_exporter,
+                        max_queue_size=2048,
+                        export_timeout_millis=30000,
+                        schedule_delay_millis=5000,
+                    )
+                    provider.add_span_processor(batch_processor)
+                    logger.info(
+                        f"✅ Jaeger exporter configured: {jaeger_endpoint} (optimized batch settings)"
+                    )
+                    exporters_configured = True
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to configure Jaeger exporter: {e}")
+
+            if zipkin_endpoint:
+                try:
+                    zipkin_exporter = ZipkinExporter(endpoint=zipkin_endpoint)
+                    # Optimized batch processor for Zipkin
+                    batch_processor = BatchSpanProcessor(
+                        zipkin_exporter,
+                        max_queue_size=2048,
+                        export_timeout_millis=30000,
+                        schedule_delay_millis=5000,
+                    )
+                    provider.add_span_processor(batch_processor)
+                    logger.info(
+                        f"✅ Zipkin exporter configured: {zipkin_endpoint} (optimized batch settings)"
+                    )
+                    exporters_configured = True
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to configure Zipkin exporter: {e}")
+
+            if enable_console or not exporters_configured:
+                console_exporter = ConsoleSpanExporter()
+                provider.add_span_processor(BatchSpanProcessor(console_exporter))
+                logger.info("✅ Console exporter enabled")
+
+            # Set global tracer provider
+            trace.set_tracer_provider(provider)
+
+            # Configure context propagation (W3C TraceContext + B3)
+            propagator = CompositeHTTPPropagator(
+                [TraceContextTextMapPropagator(), B3MultiFormat()]
+            )
+            set_global_textmap(propagator)
+            logger.info("✅ Context propagation configured (W3C TraceContext + B3)")
+
+            # Get tracer
+            self.tracer = trace.get_tracer(service_name, service_version)
+
+            # Enable FastAPI instrumentation if requested
+            if enable_fastapi_instrumentation and FastAPIInstrumentor:
+                try:
+                    FastAPIInstrumentor.instrument()
+                    HTTPXClientInstrumentor().instrument()
+                    logger.info("✅ FastAPI and HTTPX instrumentation enabled")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to enable FastAPI instrumentation: {e}")
+
+            logger.info(
+                f"✅ OpenTelemetry tracing initialized for {service_name} v{service_version} (sampling: {trace_sampling_ratio*100}%)"
+            )
+            self._record_thinking(
+                "tracing_manager_initialized",
+                "Complete tracing manager initialization",
+                {
+                    "tracer_configured": self.tracer is not None,
+                    "sampling_ratio_band": _safe_number_band(trace_sampling_ratio),
+                    "exporters_requested": {
+                        "jaeger": bool(jaeger_endpoint),
+                        "zipkin": bool(zipkin_endpoint),
+                        "otlp": bool(otlp_endpoint),
+                        "console": enable_console or not exporters_configured,
+                    },
+                    "fastapi_instrumentation_requested": enable_fastapi_instrumentation,
+                },
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize OpenTelemetry tracing: {e}")
+            self.tracer = None
+            self._record_thinking(
+                "tracing_manager_init_failed",
+                "Disable tracing after initialization failure",
+                {
+                    "tracer_configured": False,
+                    "error_type": type(e).__name__,
+                },
+            )
+
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        signals: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": task_type,
+                "goal": goal,
+                "signals": signals or {},
+                "constraints": {
+                    "redact_service_names": True,
+                    "redact_endpoints": True,
+                    "redact_span_names": True,
+                    "redact_trace_ids": True,
+                    "redact_headers": True,
+                    "redact_exception_messages": True,
+                    "preserve_tracing_decision": True,
+                },
+                "safety_boundary": (
+                    "Use hashes, booleans, counts, bands, phases, and error types only."
+                ),
+            }
+        )
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        return {
+            "thinking": self.thinking_coach.status(),
+            "last_thinking_context": self.last_thinking_context,
+        }
+
+    @contextmanager
+    def span(self, name: str, attributes: Optional[Dict[str, Any]] = None):
+        """
+        Create a tracing span.
+
+        Args:
+            name: Span name
+            attributes: Span attributes
+
+        Example:
+            with tracing_manager.span("mape_k_cycle"):
+                # Your code here
+        """
+        if not self.tracer:
+            self._record_thinking(
+                "tracing_span",
+                "Skip span creation when tracer is unavailable",
+                {
+                    "span_hash": _safe_hash(name),
+                    "attributes": _safe_mapping_summary(attributes),
+                    "tracer_configured": False,
+                },
+            )
+            yield
+            return
+
+        try:
+            with self.tracer.start_as_current_span(name) as span:
+                if attributes:
+                    for key, value in attributes.items():
+                        span.set_attribute(key, str(value))
+                self._record_thinking(
+                    "tracing_span",
+                    "Create tracing span with redacted attribute summary",
+                    {
+                        "span_hash": _safe_hash(name),
+                        "attributes": _safe_mapping_summary(attributes),
+                        "tracer_configured": True,
+                    },
+                )
+                yield span
+        except Exception as e:
+            self._record_thinking(
+                "tracing_span",
+                "Record tracing span failure",
+                {
+                    "span_hash": _safe_hash(name),
+                    "attributes": _safe_mapping_summary(attributes),
+                    "error_type": type(e).__name__,
+                },
+            )
+            logger.warning(f"Tracing span error: {e}")
+            yield
+
+    def trace_mape_k_cycle(
+        self,
+        phase: str,
+        metrics: Optional[Dict[str, Any]] = None,
+        parent_span: Optional[Any] = None,
+    ):
+        """
+        Trace MAPE-K cycle phase with full context.
+
+        Args:
+            phase: Phase name (monitor, analyze, plan, execute, knowledge)
+            metrics: Optional metrics to add as attributes
+            parent_span: Parent span for distributed tracing
+
+        Returns:
+            Context manager for the span
+        """
+        if not self.tracer:
+            self._record_thinking(
+                "trace_mape_k_cycle",
+                "Skip MAPE-K phase trace when tracer is unavailable",
+                {
+                    "phase": phase,
+                    "metrics": _safe_mapping_summary(metrics),
+                    "tracer_configured": False,
+                },
+            )
+
+            @contextmanager
+            def noop():
+                yield None
+
+            return noop()
+
+        @contextmanager
+        def span_context():
+            try:
+                span_name = f"mape_k.{phase}"
+                with self.tracer.start_as_current_span(span_name) as span:
+                    span.set_attribute("mape_k.phase", phase)
+                    span.set_attribute(
+                        "mape_k.cycle_id",
+                        metrics.get("cycle_id", "unknown") if metrics else "unknown",
+                    )
+
+                    if metrics:
+                        for key, value in metrics.items():
+                            if key != "cycle_id":  # Already set above
+                                span.set_attribute(f"mape_k.{key}", str(value))
+
+                    # Add phase-specific attributes
+                    if phase == "monitor":
+                        span.set_attribute(
+                            "mape_k.metrics_count", len(metrics) if metrics else 0
+                        )
+                    elif phase == "analyze":
+                        span.set_attribute(
+                            "mape_k.anomalies_detected",
+                            metrics.get("anomalies_count", 0) if metrics else 0,
+                        )
+                    elif phase == "plan":
+                        span.set_attribute(
+                            "mape_k.strategies_considered",
+                            metrics.get("strategies_count", 0) if metrics else 0,
+                        )
+                    elif phase == "execute":
+                        span.set_attribute(
+                            "mape_k.action_type",
+                            metrics.get("action", "unknown") if metrics else "unknown",
+                        )
+                    elif phase == "knowledge":
+                        span.set_attribute(
+                            "mape_k.knowledge_updated",
+                            (
+                                metrics.get("knowledge_updated", False)
+                                if metrics
+                                else False
+                            ),
+                        )
+
+                    self._record_thinking(
+                        "trace_mape_k_cycle",
+                        "Trace MAPE-K phase with redacted metrics summary",
+                        {
+                            "phase": phase,
+                            "span_hash": _safe_hash(span_name),
+                            "cycle_hash": _safe_hash(
+                                metrics.get("cycle_id") if metrics else "unknown"
+                            ),
+                            "metrics": _safe_mapping_summary(metrics),
+                            "tracer_configured": True,
+                        },
+                    )
+                    yield span
+            except Exception as e:
+                self._record_thinking(
+                    "trace_mape_k_cycle",
+                    "Record MAPE-K phase tracing failure",
+                    {
+                        "phase": phase,
+                        "metrics": _safe_mapping_summary(metrics),
+                        "error_type": type(e).__name__,
+                    },
+                )
+                logger.warning(f"MAPE-K tracing error: {e}")
+                yield None
+
+        return span_context()
+
+    def trace_full_mape_k_cycle(self, cycle_id: str, node_id: str):
+        """
+        Trace complete MAPE-K cycle with all phases.
+
+        Args:
+            cycle_id: Unique cycle identifier
+            node_id: Node identifier
+
+        Returns:
+            Context manager for the full cycle span
+        """
+        if not self.tracer:
+            self._record_thinking(
+                "trace_full_mape_k_cycle",
+                "Skip full MAPE-K trace when tracer is unavailable",
+                {
+                    "cycle_hash": _safe_hash(cycle_id),
+                    "node_hash": _safe_hash(node_id),
+                    "tracer_configured": False,
+                },
+            )
+
+            @contextmanager
+            def noop():
+                yield None
+
+            return noop()
+
+        @contextmanager
+        def cycle_span():
+            try:
+                with self.tracer.start_as_current_span(
+                    "mape_k.full_cycle"
+                ) as cycle_span:
+                    cycle_span.set_attribute("mape_k.cycle_id", cycle_id)
+                    cycle_span.set_attribute("mape_k.node_id", node_id)
+                    cycle_span.set_attribute(
+                        "mape_k.phases", "monitor,analyze,plan,execute,knowledge"
+                    )
+                    self._record_thinking(
+                        "trace_full_mape_k_cycle",
+                        "Trace full MAPE-K cycle safely",
+                        {
+                            "cycle_hash": _safe_hash(cycle_id),
+                            "node_hash": _safe_hash(node_id),
+                            "phase_count": 5,
+                            "tracer_configured": True,
+                        },
+                    )
+                    yield cycle_span
+            except Exception as e:
+                self._record_thinking(
+                    "trace_full_mape_k_cycle",
+                    "Record full MAPE-K cycle tracing failure",
+                    {
+                        "cycle_hash": _safe_hash(cycle_id),
+                        "node_hash": _safe_hash(node_id),
+                        "error_type": type(e).__name__,
+                    },
+                )
+                logger.warning(f"Full MAPE-K cycle tracing error: {e}")
+                yield None
+
+        return cycle_span()
+
+    def trace_network_adaptation(
+        self, action: str, details: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Trace network adaptation action.
+
+        Args:
+            action: Action name (route_switch, failover, etc.)
+            details: Optional details to add as attributes
+        """
+        if not self.tracer:
+            self._record_thinking(
+                "trace_network_adaptation",
+                "Skip network adaptation trace when tracer is unavailable",
+                {
+                    "action_hash": _safe_hash(action),
+                    "details": _safe_mapping_summary(details),
+                    "tracer_configured": False,
+                },
+            )
+            return
+
+        try:
+            with self.tracer.start_as_current_span(
+                f"network.adaptation.{action}"
+            ) as span:
+                span.set_attribute("network.action", action)
+                if details:
+                    for key, value in details.items():
+                        span.set_attribute(f"network.{key}", str(value))
+                self._record_thinking(
+                    "trace_network_adaptation",
+                    "Trace network adaptation action safely",
+                    {
+                        "action_hash": _safe_hash(action),
+                        "details": _safe_mapping_summary(details),
+                        "tracer_configured": True,
+                    },
+                )
+        except Exception as e:
+            self._record_thinking(
+                "trace_network_adaptation",
+                "Record network adaptation tracing failure",
+                {
+                    "action_hash": _safe_hash(action),
+                    "details": _safe_mapping_summary(details),
+                    "error_type": type(e).__name__,
+                },
+            )
+            logger.warning(f"Network adaptation tracing error: {e}")
+
+    def trace_rag_retrieval(self, query: str, results_count: int, latency_ms: float):
+        """
+        Trace RAG retrieval operation.
+
+        Args:
+            query: Query string
+            results_count: Number of results
+            latency_ms: Latency in milliseconds
+        """
+        if not self.tracer:
+            self._record_thinking(
+                "trace_rag_retrieval",
+                "Skip RAG retrieval trace when tracer is unavailable",
+                {
+                    "query_length": len(query),
+                    "results_count_bucket": _safe_count_bucket(results_count),
+                    "latency_band": _safe_number_band(latency_ms),
+                    "tracer_configured": False,
+                },
+            )
+            return
+
+        try:
+            with self.tracer.start_as_current_span("rag.retrieval") as span:
+                span.set_attribute("rag.query_length", len(query))
+                span.set_attribute("rag.results_count", results_count)
+                span.set_attribute("rag.latency_ms", latency_ms)
+                self._record_thinking(
+                    "trace_rag_retrieval",
+                    "Trace RAG retrieval safely",
+                    {
+                        "query_length": len(query),
+                        "results_count_bucket": _safe_count_bucket(results_count),
+                        "latency_band": _safe_number_band(latency_ms),
+                        "tracer_configured": True,
+                    },
+                )
+        except Exception as e:
+            self._record_thinking(
+                "trace_rag_retrieval",
+                "Record RAG retrieval tracing failure",
+                {
+                    "query_length": len(query),
+                    "results_count_bucket": _safe_count_bucket(results_count),
+                    "latency_band": _safe_number_band(latency_ms),
+                    "error_type": type(e).__name__,
+                },
+            )
+            logger.warning(f"RAG tracing error: {e}")
+
+    def trace_function(
+        self,
+        span_name: Optional[str] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ):
+        """
+        Decorator for automatic function tracing.
+
+        Args:
+            span_name: Custom span name (default: function name)
+            attributes: Additional span attributes
+
+        Example:
+            @tracing_manager.trace_function(span_name="custom_operation")
+            def my_function():
+                pass
+        """
+
+        def decorator(func: Callable) -> Callable:
+            self._record_thinking(
+                "trace_function_decorator",
+                "Prepare function tracing decorator safely",
+                {
+                    "span_hash": _safe_hash(span_name or f"{func.__module__}.{func.__name__}"),
+                    "function_hash": _safe_hash(func.__name__),
+                    "module_hash": _safe_hash(func.__module__),
+                    "attributes": _safe_mapping_summary(attributes),
+                },
+            )
+
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                if not self.tracer:
+                    return func(*args, **kwargs)
+
+                name = span_name or f"{func.__module__}.{func.__name__}"
+                with self.tracer.start_as_current_span(name) as span:
+                    if attributes:
+                        for key, value in attributes.items():
+                            span.set_attribute(key, str(value))
+
+                    # Add function metadata
+                    span.set_attribute("function.name", func.__name__)
+                    span.set_attribute("function.module", func.__module__)
+
+                    try:
+                        result = func(*args, **kwargs)
+                        span.set_status(Status(StatusCode.OK))
+                        self._record_thinking(
+                            "trace_function_execution",
+                            "Record traced function success",
+                            {
+                                "span_hash": _safe_hash(name),
+                                "function_hash": _safe_hash(func.__name__),
+                                "module_hash": _safe_hash(func.__module__),
+                                "success": True,
+                            },
+                        )
+                        return result
+                    except Exception as e:
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        span.record_exception(e)
+                        self._record_thinking(
+                            "trace_function_execution",
+                            "Record traced function failure",
+                            {
+                                "span_hash": _safe_hash(name),
+                                "function_hash": _safe_hash(func.__name__),
+                                "module_hash": _safe_hash(func.__module__),
+                                "success": False,
+                                "error_type": type(e).__name__,
+                            },
+                        )
+                        raise
+
+            return wrapper
+
+        return decorator
+
+    def create_span_from_context(
+        self,
+        span_name: str,
+        context: Optional[Context] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ):
+        """
+        Create a span from existing context (for distributed tracing).
+
+        Args:
+            span_name: Span name
+            context: Existing context (extracted from headers)
+            attributes: Span attributes
+
+        Returns:
+            Context manager for the span
+        """
+        if not self.tracer:
+            self._record_thinking(
+                "trace_span_from_context",
+                "Skip context-derived span when tracer is unavailable",
+                {
+                    "span_hash": _safe_hash(span_name),
+                    "has_context": context is not None,
+                    "attributes": _safe_mapping_summary(attributes),
+                    "tracer_configured": False,
+                },
+            )
+
+            @contextmanager
+            def noop():
+                yield None
+
+            return noop()
+
+        @contextmanager
+        def span_context():
+            try:
+                if context:
+                    token = attach(context)
+                else:
+                    token = None
+
+                with self.tracer.start_as_current_span(span_name) as span:
+                    if attributes:
+                        for key, value in attributes.items():
+                            span.set_attribute(key, str(value))
+                    self._record_thinking(
+                        "trace_span_from_context",
+                        "Create context-derived tracing span safely",
+                        {
+                            "span_hash": _safe_hash(span_name),
+                            "has_context": context is not None,
+                            "attributes": _safe_mapping_summary(attributes),
+                            "tracer_configured": True,
+                        },
+                    )
+                    yield span
+            finally:
+                if token:
+                    detach(token)
+
+        return span_context()
+
+    def extract_context_from_headers(
+        self, headers: Dict[str, str]
+    ) -> Optional[Context]:
+        """
+        Extract trace context from HTTP headers.
+
+        Args:
+            headers: HTTP headers dictionary
+
+        Returns:
+            Extracted context or None
+        """
+        if not OPENTELEMETRY_AVAILABLE or not extract:
+            self._record_thinking(
+                "trace_context_extract",
+                "Skip trace context extraction when propagator is unavailable",
+                {
+                    "header_summary": _safe_mapping_summary(headers),
+                    "opentelemetry_available": OPENTELEMETRY_AVAILABLE,
+                    "extract_available": bool(extract),
+                },
+            )
+            return None
+
+        try:
+            # Convert headers to format expected by extract
+            carrier = {k.lower(): v for k, v in headers.items()}
+            context = extract(carrier)
+            self._record_thinking(
+                "trace_context_extract",
+                "Extract trace context from headers safely",
+                {
+                    "header_summary": _safe_mapping_summary(headers),
+                    "context_present": context is not None,
+                },
+            )
+            return context
+        except Exception as e:
+            self._record_thinking(
+                "trace_context_extract",
+                "Record trace context extraction failure",
+                {
+                    "header_summary": _safe_mapping_summary(headers),
+                    "error_type": type(e).__name__,
+                },
+            )
+            logger.warning(f"Failed to extract context from headers: {e}")
+            return None
+
+    def inject_context_to_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
+        """
+        Inject trace context into HTTP headers.
+
+        Args:
+            headers: HTTP headers dictionary
+
+        Returns:
+            Headers with injected trace context
+        """
+        if not OPENTELEMETRY_AVAILABLE or not inject:
+            self._record_thinking(
+                "trace_context_inject",
+                "Skip trace context injection when propagator is unavailable",
+                {
+                    "header_summary": _safe_mapping_summary(headers),
+                    "opentelemetry_available": OPENTELEMETRY_AVAILABLE,
+                    "inject_available": bool(inject),
+                },
+            )
+            return headers
+
+        try:
+            carrier = {}
+            inject(carrier)
+            # Merge with existing headers
+            headers.update({k: v for k, v in carrier.items() if isinstance(v, str)})
+            self._record_thinking(
+                "trace_context_inject",
+                "Inject trace context into headers safely",
+                {
+                    "input_header_summary": _safe_mapping_summary(headers),
+                    "carrier_key_count_bucket": _safe_count_bucket(len(carrier)),
+                },
+            )
+            return headers
+        except Exception as e:
+            self._record_thinking(
+                "trace_context_inject",
+                "Record trace context injection failure",
+                {
+                    "header_summary": _safe_mapping_summary(headers),
+                    "error_type": type(e).__name__,
+                },
+            )
+            logger.warning(f"Failed to inject context to headers: {e}")
+            return headers
+
+    def add_span_event(
+        self,
+        span: Any,
+        name: str,
+        attributes: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[float] = None,
+    ):
+        """
+        Add an event to a span.
+
+        Args:
+            span: Span object
+            name: Event name
+            attributes: Event attributes
+            timestamp: Optional timestamp (Unix timestamp)
+        """
+        if not span:
+            self._record_thinking(
+                "trace_span_event",
+                "Skip span event when span is unavailable",
+                {
+                    "event_hash": _safe_hash(name),
+                    "attributes": _safe_mapping_summary(attributes),
+                    "span_present": False,
+                },
+            )
+            return
+
+        try:
+            span.add_event(name, attributes=attributes or {}, timestamp=timestamp)
+            self._record_thinking(
+                "trace_span_event",
+                "Add tracing span event safely",
+                {
+                    "event_hash": _safe_hash(name),
+                    "attributes": _safe_mapping_summary(attributes),
+                    "span_present": True,
+                    "has_timestamp": timestamp is not None,
+                },
+            )
+        except Exception as e:
+            self._record_thinking(
+                "trace_span_event",
+                "Record tracing span event failure",
+                {
+                    "event_hash": _safe_hash(name),
+                    "attributes": _safe_mapping_summary(attributes),
+                    "error_type": type(e).__name__,
+                },
+            )
+            logger.warning(f"Failed to add span event: {e}")
+
+    def get_current_span(self) -> Optional[Any]:
+        """
+        Get the current active span.
+
+        Returns:
+            Current span or None
+        """
+        if not OPENTELEMETRY_AVAILABLE or not self.tracer:
+            self._record_thinking(
+                "trace_current_span",
+                "Skip current span lookup when tracer is unavailable",
+                {
+                    "opentelemetry_available": OPENTELEMETRY_AVAILABLE,
+                    "tracer_configured": self.tracer is not None,
+                },
+            )
+            return None
+
+        try:
+            span = trace.get_current_span()
+            self._record_thinking(
+                "trace_current_span",
+                "Lookup current tracing span safely",
+                {"span_present": span is not None},
+            )
+            return span
+        except Exception:
+            self._record_thinking(
+                "trace_current_span",
+                "Record current span lookup failure",
+                {"error": True},
+            )
+            return None
+
+    def get_current_trace_id(self) -> Optional[str]:
+        """
+        Get the current trace ID.
+
+        Returns:
+            Trace ID as hex string or None
+        """
+        span = self.get_current_span()
+        if not span:
+            return None
+
+        try:
+            context = span.get_span_context()
+            trace_id = format(context.trace_id, "032x")
+            self._record_thinking(
+                "trace_current_trace_id",
+                "Read current trace id safely",
+                {"trace_hash": _safe_hash(trace_id), "trace_present": True},
+            )
+            return trace_id
+        except Exception:
+            self._record_thinking(
+                "trace_current_trace_id",
+                "Record current trace id lookup failure",
+                {"trace_present": False},
+            )
+            return None
+
+    def get_current_span_id(self) -> Optional[str]:
+        """
+        Get the current span ID.
+
+        Returns:
+            Span ID as hex string or None
+        """
+        span = self.get_current_span()
+        if not span:
+            return None
+
+        try:
+            context = span.get_span_context()
+            span_id = format(context.span_id, "016x")
+            self._record_thinking(
+                "trace_current_span_id",
+                "Read current span id safely",
+                {"span_hash": _safe_hash(span_id), "span_present": True},
+            )
+            return span_id
+        except Exception:
+            self._record_thinking(
+                "trace_current_span_id",
+                "Record current span id lookup failure",
+                {"span_present": False},
+            )
+            return None
+
+
+# Global tracing manager instance
+_tracing_manager: Optional[TracingManager] = None
+
+
+def get_tracing_manager() -> Optional[TracingManager]:
+    """Get global tracing manager instance"""
+    return _tracing_manager
+
+
+def initialize_tracing(
+    service_name: str = "x0tta6bl4",
+    service_version: str = "3.1",
+    jaeger_endpoint: Optional[str] = None,
+    zipkin_endpoint: Optional[str] = None,
+    otlp_endpoint: Optional[str] = None,
+    enable_console: bool = False,
+    trace_sampling_ratio: Optional[float] = None,
+    enable_fastapi_instrumentation: bool = True,
+) -> TracingManager:
+    """
+    Initialize global tracing manager with full distributed tracing support.
+
+    Args:
+        service_name: Service name
+        service_version: Service version
+        jaeger_endpoint: Jaeger collector endpoint
+        zipkin_endpoint: Zipkin collector endpoint
+        otlp_endpoint: OTLP collector endpoint
+        enable_console: Enable console exporter
+        trace_sampling_ratio: Sampling ratio (0.0-1.0). If None, uses env var OTEL_TRACES_SAMPLER_ARG or 1.0
+        enable_fastapi_instrumentation: Enable automatic FastAPI instrumentation
+
+    Returns:
+        TracingManager instance
+    """
+    global _tracing_manager
+
+    # Get sampling ratio from env or parameter
+    if trace_sampling_ratio is None:
+        trace_sampling_ratio = float(os.getenv("OTEL_TRACES_SAMPLER_ARG", "1.0"))
+
+    _tracing_manager = TracingManager(
+        service_name=service_name,
+        service_version=service_version,
+        jaeger_endpoint=jaeger_endpoint,
+        zipkin_endpoint=zipkin_endpoint,
+        otlp_endpoint=otlp_endpoint,
+        enable_console=enable_console,
+        trace_sampling_ratio=trace_sampling_ratio,
+        enable_fastapi_instrumentation=enable_fastapi_instrumentation,
+    )
+
+    return _tracing_manager
+
+
+@dataclass
+class TracingConfig:
+    """Forward-compatible configuration model for tracing setup."""
+
+    service_name: str = "x0tta6bl4"
+    service_version: str = "3.1"
+    environment: str = "production"
+    exporter_type: str = "jaeger"  # jaeger, otlp, none
+    jaeger_host: str = "localhost"
+    jaeger_port: int = 6831
+    otlp_endpoint: str = "http://localhost:4317"
+    otlp_insecure: bool = True
+    sample_rate: float = 1.0
+    resource_attributes: Optional[Dict[str, Any]] = None
+
+
+def configure_tracing(config: TracingConfig) -> TracingManager:
+    """
+    Forward-compatible wrapper around legacy initialize_tracing().
+    """
+    jaeger_endpoint: Optional[str] = None
+    otlp_endpoint: Optional[str] = None
+
+    if config.exporter_type == "jaeger":
+        # Keep collector style endpoint expected by legacy initializer.
+        jaeger_endpoint = f"http://{config.jaeger_host}:14268/api/traces"
+    elif config.exporter_type == "otlp":
+        otlp_endpoint = config.otlp_endpoint
+
+    return initialize_tracing(
+        service_name=config.service_name,
+        service_version=config.service_version,
+        jaeger_endpoint=jaeger_endpoint,
+        otlp_endpoint=otlp_endpoint,
+        trace_sampling_ratio=config.sample_rate,
+    )
+
+
+class NoOpSpan:
+    """No-op span object."""
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        return None
+
+    def set_status(self, status: Any) -> None:
+        return None
+
+    def record_exception(self, exception: Exception) -> None:
+        return None
+
+    def add_event(
+        self,
+        name: str,
+        attributes: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[float] = None,
+    ) -> None:
+        return None
+
+
+class NoOpTracer:
+    """No-op tracer for compatibility paths."""
+
+    @contextmanager
+    def start_as_current_span(self, name: str, **kwargs):
+        yield NoOpSpan()
+
+    @contextmanager
+    def start_span(self, name: str, **kwargs):
+        yield NoOpSpan()
+
+
+def get_tracer(name: str) -> Any:
+    """Get a tracer using global manager with safe fallback."""
+    manager = get_tracing_manager()
+    if OPENTELEMETRY_AVAILABLE and manager and manager.tracer:
+        return trace.get_tracer(name)
+    return NoOpTracer()
+
+
+def traced(
+    name: Optional[str] = None,
+    attributes: Optional[Dict[str, Any]] = None,
+):
+    """
+    Forward-compatible decorator for sync/async functions.
+    """
+
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
+        span_name = name or func.__name__
+
+        @wraps(func)
+        async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            tracer = get_tracer(func.__module__)
+            with tracer.start_as_current_span(span_name) as span:
+                if attributes:
+                    for key, value in attributes.items():
+                        span.set_attribute(key, str(value))
+                try:
+                    result = await func(*args, **kwargs)
+                    if OPENTELEMETRY_AVAILABLE and Status and StatusCode:
+                        span.set_status(Status(StatusCode.OK))
+                    return result
+                except Exception as exc:
+                    if OPENTELEMETRY_AVAILABLE and Status and StatusCode:
+                        span.set_status(Status(StatusCode.ERROR, str(exc)))
+                        span.record_exception(exc)
+                    raise
+
+        @wraps(func)
+        def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            tracer = get_tracer(func.__module__)
+            with tracer.start_as_current_span(span_name) as span:
+                if attributes:
+                    for key, value in attributes.items():
+                        span.set_attribute(key, str(value))
+                try:
+                    result = func(*args, **kwargs)
+                    if OPENTELEMETRY_AVAILABLE and Status and StatusCode:
+                        span.set_status(Status(StatusCode.OK))
+                    return result
+                except Exception as exc:
+                    if OPENTELEMETRY_AVAILABLE and Status and StatusCode:
+                        span.set_status(Status(StatusCode.ERROR, str(exc)))
+                        span.record_exception(exc)
+                    raise
+
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper
+        return sync_wrapper
+
+    return decorator
+
+
+class TracingContext:
+    """
+    Async context helper for newer modules.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        tracer_name: str = "x0tta6bl4",
+        attributes: Optional[Dict[str, Any]] = None,
+    ):
+        self._name = name
+        self._tracer_name = tracer_name
+        self._attributes = attributes or {}
+        self._cm = None
+        self._span = None
+
+    async def __aenter__(self):
+        tracer = get_tracer(self._tracer_name)
+        self._cm = tracer.start_as_current_span(self._name)
+        self._span = self._cm.__enter__()
+        for key, value in self._attributes.items():
+            self._span.set_attribute(key, str(value))
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._cm is not None:
+            self._cm.__exit__(exc_type, exc, tb)
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        if self._span is not None:
+            self._span.set_attribute(key, str(value))
+
+    def add_event(
+        self,
+        name: str,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        if self._span is not None:
+            self._span.add_event(name, attributes=attributes or {})
+
+
+class EdgeComputingTracer:
+    """High-level tracer helpers for Edge module."""
+
+    @asynccontextmanager
+    async def trace_node_operation(self, node_id: str, operation: str):
+        async with TracingContext(
+            f"node.{operation}",
+            "edge-computing",
+            {"node.id": node_id, "operation": operation},
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_task_execution(self, task_id: str, task_type: str):
+        async with TracingContext(
+            "task.execute",
+            "edge-computing",
+            {"task.id": task_id, "task.type": task_type},
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_cache_operation(self, operation: str, key: str):
+        async with TracingContext(
+            f"cache.{operation}",
+            "edge-computing",
+            {"cache.operation": operation, "cache.key": key},
+        ) as ctx:
+            yield ctx
+
+
+class EventSourcingTracer:
+    """High-level tracer helpers for Event Sourcing module."""
+
+    @asynccontextmanager
+    async def trace_event_append(self, stream_id: str, event_count: int):
+        async with TracingContext(
+            "event.append",
+            "event-sourcing",
+            {"stream.id": stream_id, "event.count": event_count},
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_event_read(self, stream_id: str, from_version: int):
+        async with TracingContext(
+            "event.read",
+            "event-sourcing",
+            {"stream.id": stream_id, "from_version": from_version},
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_command_execution(self, command_type: str, aggregate_id: str):
+        async with TracingContext(
+            "command.execute",
+            "event-sourcing",
+            {"command.type": command_type, "aggregate.id": aggregate_id},
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_projection_processing(self, projection_name: str, event_count: int):
+        async with TracingContext(
+            "projection.process",
+            "event-sourcing",
+            {"projection.name": projection_name, "event.count": event_count},
+        ) as ctx:
+            yield ctx
+
+
+class DatabaseTracer:
+    """High-level tracer helpers for DB module."""
+
+    def __init__(self, backend_type: str):
+        self._backend_type = backend_type
+
+    @asynccontextmanager
+    async def trace_query(self, operation: str, table: str):
+        async with TracingContext(
+            f"db.{operation}",
+            f"db.{self._backend_type}",
+            {
+                "db.system": self._backend_type,
+                "db.operation": operation,
+                "db.table": table,
+            },
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_transaction(self, operations: int = 1):
+        async with TracingContext(
+            "db.transaction",
+            f"db.{self._backend_type}",
+            {
+                "db.system": self._backend_type,
+                "db.transaction.operations": operations,
+            },
+        ) as ctx:
+            yield ctx
+
+
+def create_edge_tracer() -> EdgeComputingTracer:
+    return EdgeComputingTracer()
+
+
+def create_event_sourcing_tracer() -> EventSourcingTracer:
+    return EventSourcingTracer()
+
+
+def create_database_tracer(backend_type: str) -> DatabaseTracer:
+    return DatabaseTracer(backend_type)
+

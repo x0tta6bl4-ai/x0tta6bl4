@@ -1,0 +1,21 @@
+# Falco rules for privileged batman-adv workloads
+- rule: Unexpected Module Load in B.A.T.M.A.N Pod
+  desc: Detect loading of non-whitelisted kernel modules
+  condition: spawned_process and container and 
+             (container.image.repository contains "batman-adv") and
+             proc.name = "modprobe" and
+             not (proc.args contains "batman_adv")
+  output: |
+    Suspicious module load in batman-adv pod (user=%user.name command=%proc.cmdline container=%container.id)
+  priority: WARNING
+  tags: [network, module_load]
+
+- rule: Batman Pod Shell Access
+  desc: Interactive shell in privileged batman pod
+  condition: spawned_process and container and 
+             (container.image.repository contains "batman-adv") and
+             proc.name in (bash, sh, zsh)
+  output: |
+    Shell spawned in privileged batman-adv pod (user=%user.name tty=%proc.tty container=%container.id)
+  priority: CRITICAL
+  tags: [shell, privileged]

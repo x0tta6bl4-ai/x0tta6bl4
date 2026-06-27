@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/build_local_root_cleanup_approval_packet.py",
+  "generated_at": "2026-05-28T03:42:29.941357+00:00",
+  "status": "cleanup_approval_packet_ready",
+  "ok": true,
+  "summary": {
+    "root_status": "critical_full",
+    "root_free_gib": 0.0,
+    "diagnostic_tmpdir": "/mnt/projects/.tmp",
+    "diagnostic_tmpdir_writable": true,
+    "cleanup_plan_status": "manual_cleanup_plan_ready",
+    "existing_candidate_count": 5,
+    "estimated_reclaim_gib": 3.24,
+    "first_review_id": "APT-CACHE-01",
+    "command_preview_count": 5,
+    "approval_required": true,
+    "commands_executed": 0,
+    "cleanup_execute_allowed": false,
+    "nl_write_allowed": false,
+    "spb_fallback_allowed": false,
+    "automatic_failover_allowed": false
+  },
+  "precheck_commands": [
+    "df -h / /tmp /mnt/projects",
+    "TMPDIR=/mnt/projects/.tmp python3 nl-diagnostics/audit_local_diagnostic_environment.py",
+    "TMPDIR=/mnt/projects/.tmp python3 nl-diagnostics/plan_local_root_cleanup.py"
+  ],
+  "command_previews": [
+    {
+      "id": "APT-CACHE-01",
+      "path": "/var/cache/apt/archives",
+      "size_gib": 0.85,
+      "risk": "low_standard_cache",
+      "approval_level": "single_command_approval",
+      "command_preview": "sudo apt-get clean",
+      "may_execute_after_approval": false
+    },
+    {
+      "id": "JOURNAL-01",
+      "path": "/var/log/journal",
+      "size_gib": 0.71,
+      "risk": "medium_keep_recent_logs",
+      "approval_level": "confirm_log_retention_approval",
+      "command_preview": "sudo journalctl --vacuum-size=500M",
+      "may_execute_after_approval": false
+    },
+    {
+      "id": "TMP-ANTIGRAVITY-01",
+      "path": "/tmp/antigravity_restore",
+      "size_gib": 0.67,
+      "risk": "medium_manual_review",
+      "approval_level": "manual_path_review_required",
+      "command_preview": "sudo rm -rf /tmp/antigravity_restore",
+      "may_execute_after_approval": false
+    },
+    {
+      "id": "TMP-ANTIGRAVITY-02",
+      "path": "/tmp/antigravity_restore_correct",
+      "size_gib": 0.6,
+      "risk": "medium_manual_review",
+      "approval_level": "manual_path_review_required",
+      "command_preview": "sudo rm -rf /tmp/antigravity_restore_correct",
+      "may_execute_after_approval": false
+    },
+    {
+      "id": "VARTMP-01",
+      "path": "/var/tmp",
+      "size_gib": 0.41,
+      "risk": "high_manual_review",
+      "approval_level": "manual_path_review_required",
+      "command_preview": "sudo find /var/tmp -mindepth 1 -maxdepth 1 -mtime +7 -print",
+      "may_execute_after_approval": false
+    }
+  ],
+  "postcheck_commands": [
+    "df -h / /tmp /mnt/projects",
+    "TMPDIR=/mnt/projects/.tmp python3 nl-diagnostics/audit_local_diagnostic_environment.py",
+    "TMPDIR=/mnt/projects/.tmp python3 nl-diagnostics/refresh_vpn_planning_reports.py --snapshot /mnt/projects/nl-diagnostics/snapshots/20260528T021824Z"
+  ],
+  "execution_rules": [
+    "Do not execute any command preview without separate local cleanup approval.",
+    "Prefer APT-CACHE-01 before manual rm -rf candidates.",
+    "Review /tmp/antigravity_restore* contents before approving deletion.",
+    "Keep TMPDIR=/mnt/projects/.tmp until root free space is no longer critical.",
+    "This packet does not permit NL writes or SPB fallback."
+  ],
+  "mutation_allowed": false,
+  "cleanup_execute_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}

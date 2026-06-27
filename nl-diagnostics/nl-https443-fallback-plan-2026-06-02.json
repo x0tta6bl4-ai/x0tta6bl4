@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/build_nl_https443_fallback_plan.py",
+  "generated_at": "2026-06-02T19:14:27.837042+00:00",
+  "decision": "HTTPS443_FALLBACK_REQUIRED",
+  "status": "ready_to_prepare_secondary_https443_endpoint",
+  "ok": true,
+  "summary": {
+    "profile_dir": "/mnt/projects/nl-diagnostics/nl-server-profile/20260602T181820Z",
+    "server_state_verified": true,
+    "current_gap_verified": true,
+    "user_report_all_config_ports_failed": true,
+    "work_network_cause_verified": false,
+    "verified_gap": "no XHTTP/WS fallback on public standard HTTPS 443",
+    "public_443_owner": "xray",
+    "public_443_protocol": "VLESS Reality TCP",
+    "fallback_public_port": 8443,
+    "fallback_transport": "xhttp",
+    "nginx_https_port": 8443,
+    "local_transport_probe_status": "healthy",
+    "secondary_provisioning_status": "provisioning_plan_ready_no_endpoint",
+    "recommended_primary_path": "new_or_independent_https443_endpoint",
+    "in_place_nl_443_change_allowed_now": false,
+    "nl_write_allowed": false,
+    "spb_fallback_allowed": false,
+    "automatic_failover_allowed": false
+  },
+  "recommended_path": [
+    {
+      "id": "PREP-01",
+      "title": "Keep current NL Reality 443 alive during preparation",
+      "reason": "public 443 currently serves existing Reality clients",
+      "mutation_allowed": false
+    },
+    {
+      "id": "EDGE-01",
+      "title": "Prepare an independent public HTTPS 443 fallback endpoint",
+      "reason": "this avoids moving the current NL 443 listener before replacement is proven",
+      "minimum_endpoint_shape": {
+        "public_tcp_port": 443,
+        "tls_terminator": "nginx_or_equivalent",
+        "fallback_transports": [
+          "xhttp",
+          "ws"
+        ],
+        "paths": [
+          "/ghost-xhttp",
+          "/ghost-ws"
+        ],
+        "profile_secret_storage_in_repo": false
+      }
+    },
+    {
+      "id": "CANARY-01",
+      "title": "Canary with one admin client before subscription promotion",
+      "required_evidence": [
+        "tcp_443_reachable_from_non-server_network",
+        "xhttp_dataplane_ok",
+        "ws_dataplane_ok",
+        "work_wifi_or_restricted_wifi_pass",
+        "mobile_network_pass"
+      ]
+    },
+    {
+      "id": "SUBSCRIPTION-01",
+      "title": "Promote HTTPS 443 fallback first only after canary passes",
+      "resulting_order": [
+        "xhttp:443",
+        "ws:443",
+        "reality:443",
+        "reality:2083",
+        "reality:39829"
+      ]
+    }
+  ],
+  "rejected_shortcuts": [
+    "try more current ports",
+    "move NL public 443 from Reality to nginx without tested replacement",
+    "enable automatic failover",
+    "use SPB fallback",
+    "store raw VPN URIs or UUIDs in local reports"
+  ],
+  "approval_gate": {
+    "required_for_any_nl_write": true,
+    "confirm_token": "APPLY_HTTPS443_FALLBACK_PLAN",
+    "allowed_before_confirm": [
+      "local plan generation",
+      "read-only NL profile refresh",
+      "public TCP probe of a non-secret candidate endpoint"
+    ],
+    "forbidden_before_confirm": [
+      "restart x-ui",
+      "reload nginx",
+      "edit x-ui database",
+      "edit /usr/local/x-ui/bin/config.json",
+      "change systemd units on NL",
+      "change bot subscription delivery on NL"
+    ]
+  },
+  "acceptance_criteria": [
+    "public HTTPS 443 fallback endpoint exists and is not the current raw Reality listener",
+    "XHTTP and WebSocket dataplane tests pass through public 443",
+    "subscription output contains xhttp:443 before legacy Reality entries",
+    "at least one work/restricted Wi-Fi client passes",
+    "at least one mobile network client passes",
+    "rollback keeps the old NL Reality 443 profile available"
+  ],
+  "gates": [
+    {
+      "id": "STATE-01",
+      "title": "Current NL 443 owner is known",
+      "status": "pass",
+      "ok": true,
+      "evidence": [
+        "profile_dir=/mnt/projects/nl-diagnostics/nl-server-profile/20260602T181820Z",
+        "public_443_owner=xray",
+        "reality_443=true",
+        "nginx_8443_owner=nginx"
+      ],
+      "next_step": "refresh the read-only NL profile before any future staging"
+    },
+    {
+      "id": "FALLBACK-01",
+      "title": "Existing fallback is on 8443, not standard 443",
+      "status": "pass",
+      "ok": true,
+      "evidence": [
+        "audit_required_transport=xhttp",
+        "audit_required_port=8443",
+        "rollout_has_xhttp_8443=true",
+        "rollout_has_ws_8443=true"
+      ],
+      "next_step": "stop treating additional port tries as the main fix"
+    },
+    {
+      "id": "USER-01",
+      "title": "User reports every configured port failed",
+      "status": "pass",
+      "ok": true,
+      "evidence": [
+        "user_report_all_config_ports_failed=true",
+        "local_transport_probe_status=healthy",
+        "local_transport_probe_ports=443,2083,39829"
+      ],
+      "next_step": "treat the work-network cause as unverified but stop relying on current ports"
+    },
+    {
+      "id": "BLAST-01",
+      "title": "In-place 443 move would affect existing Reality users",
+      "status": "blocked",
+      "ok": true,
+      "evidence": [
+        "public_443_owner=xray",
+        "reality_443=true",
+        "safe_in_place_move=false"
+      ],
+      "next_step": "do not move public 443 from Reality to nginx until a tested replacement path exists"
+    },
+    {
+      "id": "SECONDARY-01",
+      "title": "Independent HTTPS 443 endpoint is the low-blast-radius path",
+      "status": "ready",
+      "ok": true,
+      "evidence": [
+        "secondary_provisioning_status=provisioning_plan_ready_no_endpoint",
+        "secondary_endpoint_count=0",
+        "required_public_port=443"
+      ],
+      "next_step": "provision and validate a non-NL/non-SPB endpoint with public HTTPS 443 before user migration"
+    }
+  ],
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}

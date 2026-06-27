@@ -1,0 +1,261 @@
+---
+# CronJob for automated Vault backups
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vault-backup
+  namespace: vault
+  labels:
+    app: vault
+    component: backup
+spec:
+  schedule: "0 */6 * * *"  # Every 6 hours
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: vault
+            component: backup
+        spec:
+          serviceAccountName: vault-backup
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+          containers:
+            - name: vault-backup
+              image: hashicorp/vault:1.15.0
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  
+                  # Configuration
+                  VAULT_ADDR="https://vault.vault.svc.cluster.local:8200"
+                  BACKUP_BUCKET="${S3_BUCKET:-vault-backups}"
+                  BACKUP_PREFIX="${S3_PREFIX:-backups}"
+                  RETENTION_DAYS="${RETENTION_DAYS:-30}"
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  BACKUP_FILE="vault-backup-${TIMESTAMP}.snap"
+                  
+                  echo "Starting Vault backup at $(date)"
+                  
+                  # Wait for Vault to be ready
+                  until vault status > /dev/null 2>&1; do
+                    echo "Waiting for Vault..."
+                    sleep 5
+                  done
+                  
+                  # Check if Vault is initialized and unsealed
+                  VAULT_STATUS=$(vault status -format=json 2>/dev/null || echo '{}')
+                  INIT_STATUS=$(echo "$VAULT_STATUS" | jq -r '.initialized // false')
+                  SEAL_STATUS=$(echo "$VAULT_STATUS" | jq -r '.sealed // true')
+                  
+                  if [ "$INIT_STATUS" != "true" ]; then
+                    echo "ERROR: Vault is not initialized"
+                    exit 1
+                  fi
+                  
+                  if [ "$SEAL_STATUS" = "true" ]; then
+                    echo "ERROR: Vault is sealed"
+                    exit 1
+                  fi
+                  
+                  # Create snapshot
+                  echo "Creating Raft snapshot..."
+                  vault operator raft snapshot save /tmp/${BACKUP_FILE}
+                  
+                  # Verify snapshot
+                  if [ ! -f "/tmp/${BACKUP_FILE}" ]; then
+                    echo "ERROR: Snapshot file not created"
+                    exit 1
+                  fi
+                  
+                  BACKUP_SIZE=$(du -h /tmp/${BACKUP_FILE} | cut -f1)
+                  echo "Snapshot created: ${BACKUP_FILE} (${BACKUP_SIZE})"
+                  
+                  # Calculate checksum
+                  cd /tmp
+                  sha256sum ${BACKUP_FILE} > ${BACKUP_FILE}.sha256
+                  
+                  # Upload to S3
+                  echo "Uploading to S3..."
+                  aws s3 cp /tmp/${BACKUP_FILE} s3://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${BACKUP_FILE}
+                  aws s3 cp /tmp/${BACKUP_FILE}.sha256 s3://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${BACKUP_FILE}.sha256
+                  
+                  # Verify upload
+                  if aws s3 ls s3://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${BACKUP_FILE} > /dev/null 2>&1; then
+                    echo "Backup uploaded successfully"
+                  else
+                    echo "ERROR: Backup upload failed"
+                    exit 1
+                  fi
+                  
+                  # Cleanup old backups
+                  echo "Cleaning up backups older than ${RETENTION_DAYS} days..."
+                  aws s3 ls s3://${BACKUP_BUCKET}/${BACKUP_PREFIX}/ | \
+                    awk '{print $4}' | \
+                    grep "vault-backup-.*\.snap$" | \
+                    while read file; do
+                      file_date=$(echo $file | grep -oP '\d{8}')
+                      current_date=$(date +%Y%m%d)
+                      age_days=$(( (current_date - file_date) ))
+                      
+                      if [ $age_days -gt ${RETENTION_DAYS} ]; then
+                        echo "Deleting old backup: $file"
+                        aws s3 rm s3://${BACKUP_BUCKET}/${BACKUP_PREFIX}/$file
+                        aws s3 rm s3://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${file}.sha256 || true
+                      fi
+                    done
+                  
+                  # Cleanup local files
+                  rm -f /tmp/${BACKUP_FILE} /tmp/${BACKUP_FILE}.sha256
+                  
+                  echo "Backup completed successfully at $(date)"
+              env:
+                - name: VAULT_ADDR
+                  value: "https://vault.vault.svc.cluster.local:8200"
+                - name: VAULT_SKIP_VERIFY
+                  value: "true"
+                - name: S3_BUCKET
+                  valueFrom:
+                    configMapKeyRef:
+                      name: vault-backup-config
+                      key: s3-bucket
+                      optional: true
+                - name: S3_PREFIX
+                  valueFrom:
+                    configMapKeyRef:
+                      name: vault-backup-config
+                      key: s3-prefix
+                      optional: true
+                - name: RETENTION_DAYS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: vault-backup-config
+                      key: retention-days
+                      optional: true
+                - name: AWS_REGION
+                  valueFrom:
+                    configMapKeyRef:
+                      name: vault-backup-config
+                      key: aws-region
+                      optional: true
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+          volumes:
+            - name: tmp
+              emptyDir: {}
+
+---
+# ConfigMap for backup configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-backup-config
+  namespace: vault
+data:
+  s3-bucket: "my-vault-backups"
+  s3-prefix: "production"
+  retention-days: "30"
+  aws-region: "us-east-1"
+
+---
+# ServiceAccount for backup job
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-backup
+  namespace: vault
+  annotations:
+    # If using IRSA for AWS
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/vault-backup-role
+
+---
+# Role for backup job
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-backup
+  namespace: vault
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+
+---
+# RoleBinding for backup job
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-backup
+  namespace: vault
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-backup
+subjects:
+  - kind: ServiceAccount
+    name: vault-backup
+    namespace: vault
+
+---
+# PrometheusRule for backup monitoring
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vault-backup-alerts
+  namespace: monitoring
+spec:
+  groups:
+    - name: vault-backup
+      rules:
+        - alert: VaultBackupFailed
+          expr: kube_job_status_failed{job_name=~"vault-backup-.*"} == 1
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault backup job failed"
+            description: "Vault backup job {{ $labels.job_name }} failed"
+
+        - alert: VaultBackupNotRunning
+          expr: time() - kube_cronjob_status_last_successful_time{cronjob="vault-backup"} > 21600
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Vault backup not running"
+            description: "Vault backup has not run successfully in over 6 hours"
+
+        - alert: VaultBackupOld
+          expr: time() - kube_cronjob_status_last_successful_time{cronjob="vault-backup"} > 86400
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault backup is old"
+            description: "Last successful Vault backup was more than 24 hours ago"
