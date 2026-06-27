@@ -4,7 +4,7 @@
 [![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](.github/workflows/codeql.yml)
 ![Status](https://img.shields.io/badge/status-production--ready-green)
 ![ZTCR](https://img.shields.io/badge/ZTCR-29%2F29%20tests-brightgreen)
-![CVEs](https://img.shields.io/badge/CVEs-20%20patched-brightgreen)
+![CVEs](https://img.shields.io/badge/CVEs-8%20fixed-brightgreen)
 
 **Post-quantum cryptography · eBPF/XDP kernel dataplane · Autonomous self-healing**  
 Independent engineering project by [x0tta6bl4](https://github.com/x0tta6bl4-ai).  
@@ -164,21 +164,21 @@ This project follows a **human-architected, AI-generated** development model.
 |-----------|-------|-------------|
 | Post-Quantum Crypto (PQC) | ~3,500 | ML-KEM-768/1024 + ML-DSA-65/87 via liboqs, hybrid TLS 1.3, SPIRE/SPIFFE mTLS |
 | MAPE-K Self-Healing | ~1,900 | Full control loop (Monitor → Analyze → Plan → Execute → Knowledge) |
-| MaaS API | ~5,000 | Mesh-as-a-Service REST API, FastAPI, 46 route handlers |
+| MaaS API | ~5,000 | Mesh-as-a-Service REST API, FastAPI, 35+ route handlers |
 | Anti-Censorship | ~2,000 | DPI bypass, traffic obfuscation, protocol camouflage |
 | eBPF/XDP Dataplane | ~1,500 | Kernel-level packet processing, AF_XDP ring buffers |
 | Ghost Transport (VPN) | ~2,000 | Experimental STL-encapsulated transport, Docker-ready |
 | Billing & Access Control | ~1,200 | Subscription tiers, token-gated access, usage metering |
 | LoRA Fine-Tuning (ML) | ~1,000 | Low-Rank Adaptation for federated learning (pure NumPy) |
-| AI Skills | ~40 | 40 Hermes skills for automation (loop engineering, CI/CD, deployment) |
+| AI Skills | ~60 | 60 Hermes skills for automation (loop engineering, CI/CD, deployment) |
 
-> **Total source:** ~805K+ lines of Python, 1,300 lines Go. 2,288+ commits.
+> **Total source:** ~921K+ lines of Python, ~20K lines Go. 1,172+ commits.
 
 ### Benchmarks (r8169 NIC, Intel i5)
 
 | Metric | Value | Conditions |
 |--------|-------|------------|
-| XDP TX Throughput | 142,000 PPS | pktgen → XDP_TX |
+| XDP TX Throughput | 141,667 PPS | pktgen → XDP_TX |
 | XDP RX Throughput | 49,000 PPS | XDP_DROP raw |
 | PQC Handshake | <50 ms | ML-KEM-768 + ML-DSA-65, localhost |
 | MAPE-K MTTD | <20 s | Actual detection time |
@@ -191,11 +191,11 @@ This project follows a **human-architected, AI-generated** development model.
 
 | Check | Status |
 |-------|--------|
-| **Subprocess safety** | ✅ `safe_run` — 54 allowed commands |
+| **Subprocess safety** | ✅ `safe_run` — 43 allowed commands |
 | **Bandit scan** | ✅ 0 HIGH, 0 CRITICAL |
 | **CodeQL** | ✅ 0 open alerts |
-| **Dependabot** | ✅ Auto-patching, 33 alerts remaining |
-| **CVEs patched** | ✅ 20 (yt-dlp, starlette, PyJWT, python-multipart, cryptography) |
+| **Dependabot** | ✅ Auto-patching active |
+| **CVEs fixed** | ✅ 8 (eBPF, Domain Fronting, PQC, SPIFFE) |
 | **ZTCR** | ✅ 29/29 chaos tests passed |
 | **SPIRE mTLS** | ✅ Production on NL VPS |
 
@@ -216,14 +216,10 @@ This project follows a **human-architected, AI-generated** development model.
 | Official commercial service | ❌ Experimental research project |
 | Production deployment | ❌ Retired 2026-06 — replaced by Docker Compose |
 | **ZTCR (Zero-Trust Chaos Resilience)** | ✅ 29/29 tests — SignedCommand + PBFT + SVID |
-| **Security hardened** | ✅ 36 subprocess → safe_run, allowlist 54 commands, 0 HIGH bandit |
-| **reverse-skill (RE/pentest)** | ✅ 23 modules, routing matrix |
+| **Security hardened** | ✅ 43 subprocess → safe_run, 0 HIGH bandit |
+| **reverse-skill (RE/pentest)** | ✅ 28 modules, routing matrix |
 | **SPIRE Docker stack** | ✅ localhost:8081 — server + agent + mesh-2node |
 | **LoRA ML fine-tuning** | ✅ Pure NumPy, federated-learning ready |
-| **K8s Mesh** | ✅ k3d cluster with 3 mesh nodes, consensus working |
-| **Docker→NL Bridge** | ✅ Local mesh connected to NL VPS via bridge node |
-| **Health Monitoring** | ✅ Automated cronjob checking 10 services every 5 min |
-| **CVE Monitoring** | ✅ Daily Dependabot scan, 20 CVEs patched |
 
 ---
 
@@ -313,7 +309,7 @@ Every component can be verified locally:
 [![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](.github/workflows/codeql.yml)
 ![Статус](https://img.shields.io/badge/status-production--ready-green)
 ![ZTCR](https://img.shields.io/badge/ZTCR-29%2F29%20tests-brightgreen)
-![CVEs](https://img.shields.io/badge/CVEs-20%20patched-brightgreen)
+![CVEs](https://img.shields.io/badge/CVEs-8%20fixed-brightgreen)
 
 **Постквантовая криптография · eBPF/XDP ядро · Автономное самовосстановление**  
 Независимый инженерный проект [x0tta6bl4](https://github.com/x0tta6bl4-ai).  
@@ -473,21 +469,21 @@ graph LR
 |-----------|-------|----------|
 | PQC (постквантовая криптография) | ~3,500 | ML-KEM-768/1024 + ML-DSA-65/87 через liboqs, гибридный TLS 1.3 |
 | MAPE-K самовосстановление | ~1,900 | Полный цикл: мониторинг → анализ → план → восстановление |
-| MaaS API | ~5,000 | REST API для управления mesh-узлами, FastAPI |
+| MaaS API | ~5,000 | REST API для управления mesh-узлами, FastAPI, 35+ обработчиков |
 | Anti-Censorship | ~2,000 | Обход DPI, маскировка трафика, камуфляж протоколов |
 | eBPF/XDP | ~1,500 | Обработка пакетов на уровне ядра Linux |
 | Ghost Transport | ~2,000 | Экспериментальный транспорт, Docker-ready |
 | Биллинг | ~1,200 | Подписки, токен-доступ, учёт использования |
 | LoRA (ML) | ~1,000 | Низкоранговая адаптация для federated learning (чистый NumPy) |
-| AI Skills | ~40 | 40 навыков Hermes для автоматизации (loop engineering, CI/CD, деплой) |
+| AI Skills | ~60 | 60 навыков Hermes для автоматизации (loop engineering, CI/CD, деплой) |
 
-> **Всего:** ~805K+ строк Python, 1,300 строк Go. 2,288+ коммитов.
+> **Всего:** ~921K+ строк Python, ~20K строк Go. 1,172+ коммитов.
 
 ### Бенчмарки (r8169 NIC, Intel i5)
 
 | Метрика | Значение | Условия |
 |---------|---------|---------|
-| XDP TX пропускная способность | 142,000 PPS | pktgen → XDP_TX |
+| XDP TX пропускная способность | 141,667 PPS | pktgen → XDP_TX |
 | XDP RX пропускная способность | 49,000 PPS | XDP_DROP raw |
 | PQC handshake | <50 мс | ML-KEM-768 + ML-DSA-65, localhost |
 | MAPE-K MTTD | <20 с | Реальное время обнаружения |
@@ -500,11 +496,11 @@ graph LR
 
 | Проверка | Статус |
 |----------|--------|
-| **Безопасность subprocess** | ✅ `safe_run` — 54 разрешённые команды |
+| **Безопасность subprocess** | ✅ `safe_run` — 43 разрешённые команды |
 | **Bandit** | ✅ 0 HIGH, 0 CRITICAL |
 | **CodeQL** | ✅ 0 открытых алертов |
-| **Dependabot** | ✅ Авто-патчи, 33 алерта осталось |
-| **CVE исправлены** | ✅ 20 (yt-dlp, starlette, PyJWT, python-multipart, cryptography) |
+| **Dependabot** | ✅ Авто-патчи активны |
+| **CVE исправлены** | ✅ 8 (eBPF, Domain Fronting, PQC, SPIFFE) |
 | **ZTCR** | ✅ 29/29 chaos-тестов пройдено |
 | **SPIRE mTLS** | ✅ Production на NL VPS |
 
@@ -525,14 +521,10 @@ graph LR
 | Коммерческий сервис | ❌ Исследовательский проект |
 | Production деплой | ❌ Завершён 2026-06 — заменён Docker Compose |
 | **ZTCR** | ✅ 29/29 тестов — SignedCommand + PBFT + SVID |
-| **Хардening безопасности** | ✅ 36 subprocess → safe_run, allowlist 54 команды, 0 HIGH bandit |
-| **reverse-skill (RE/pentest)** | ✅ 23 модуля, матрица маршрутизации |
+| **Хардening безопасности** | ✅ 43 subprocess → safe_run, 0 HIGH bandit |
+| **reverse-skill (RE/pentest)** | ✅ 28 модулей, матрица маршрутизации |
 | **SPIRE Docker стек** | ✅ localhost:8081 — server + agent + mesh-2node |
 | **LoRA ML** | ✅ Чистый NumPy, federated-learning ready |
-| **K8s Mesh** | ✅ k3d кластер с 3 mesh-нодами, консенсус работает |
-| **Docker→NL Bridge** | ✅ Локальный mesh подключён к NL VPS через bridge |
-| **Мониторинг здоровья** | ✅ Автоматический cronjob проверяет 10 сервисов каждые 5 минут |
-| **Мониторинг CVE** | ✅ Ежедневный Dependabot, 20 CVE исправлено |
 
 ---
 
