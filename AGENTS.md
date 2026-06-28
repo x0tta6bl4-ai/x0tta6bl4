@@ -28,12 +28,13 @@ Tone:
 
 ## Project Reality (CODEX.md v2.4)
 
-This project has a formal operating manual at `/mnt/projects/CODEX.md`.
+This project has a formal operating manual at `/mnt/projects/CODEX.md` (also at `~/x0tta6bl4_clean/CODEX.md` as mirror).
 Load it before complex tasks. Key facts:
 
 **Who we are:** Developer from Crimea under sanctions. Zero budget. Solo.
 **What we build:** Self-healing mesh networking platform with PQC (ML-KEM + ML-DSA) and eBPF dataplane.
-**Codebase:** ~470K Python, 1,097 src files, 1,309 test files, 1M+ total.
+**Codebase:** ~470K Python, 1,097 src files, 1,309 test files, 7,690 tracked files.  
+**Location:** `/mnt/projects` (NTFS HDD), зеркало в `~/x0tta6bl4_clean/`.
 **Real components:** PQC (51 files), mesh (74 files), eBPF (36 files), MAPE-K (~1900 lines).
 **What we DON'T have (contrary to old presentations):** BGP/OSPF/MPLS, GOST crypto, 5G, SNMP agent, 99.97% uptime evidence, 153k ops/sec benchmarks. Do not claim these.
 

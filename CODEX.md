@@ -1,7 +1,7 @@
 # x0tta6bl4 CODEX — AI Agent Operating Manual
 
-> **Version:** 2.6  
-> **Last updated:** 2026-06-25  
+> **Version:** 2.7  
+> **Last updated:** 2026-06-28  
 > **Purpose:** Фактологический слой для AI-агентов: что есть, чего нет, как не налажать.  
 > **Не повторяет AGENTS.md** — здесь только рабочие инструкции с артефактами.
 
@@ -11,7 +11,8 @@
 
 **Кто мы:** Solo-разработчик из Крыма под санкциями, zero budget.  
 **Что строим:** Само-восстанавливающуюся mesh-сеть с PQC (ML-KEM + ML-DSA) и eBPF dataplane.  
-**Репозиторий:** `/mnt/projects` — Python monorepo.
+**Репозиторий:** `/mnt/projects` — Python monorepo (NTFS, 334G/466G, 7,690 tracked files).  
+**Зеркало (sparse):** `~/x0tta6bl4_clean/` (только последние коммиты, branch: update-readme).
 
 ---
 
@@ -36,10 +37,21 @@
 | **API gateway** | 🟡 Code only | 2026-06-25 | health только локально |
 | **Real-readiness gate** | 🟡 70/70 checks | 2026-06-15 | Только локально |
 
-### VPS Production (УТРАЧЕНО)
-- VPS `89.125.1.107` — **аренда закончилась, выключен 2026-06-25**
-- SPIRE server/agent, mesh-node, ghost-access, x-ui — всё было на NL  
-- Локальная замена: `docker compose -f deploy/docker-compose/compose.yaml up -d`
+### VPS Production (ВОССТАНОВЛЕН 2026-06-28)
+- VPS `89.125.1.107` (01164.com) — **Активен с 2026-06-26**
+- Ubuntu 24.04 KVM, 3.8GB RAM, 40GB диск (50% занято), load ~0.15
+- **Активные сервисы:**
+  - `x-ui` (xray VLESS Reality) — :443
+  - `SPIRE Server` + `SPIRE Agent` — :8081, :10443
+  - `mesh-node` (2 процесса) — :9100, :9101
+  - `x0t-agent` (FirstParty VPN) — :22080
+  - `Ghost VPN v2.0` (PQC + Stego + DNS) — :4434
+  - `Ghost Core API` — :8000 (видит ATHLON-NODE-01, 100% coherence)
+  - `ghost-access-bot` — :8880
+  - `nginx` — 6 сайтов (x0tta6bl4, x402-api, ghost-access-sub, citadel_bridge, dotup, x-ui-ssl)
+  - `open5gs` AMF (:9090) + Docker UPF/AMF
+  - `warp-svc` (WARP) — :40000
+- **Mesh:** Athlon ↔ NL — связь есть (peer ATHLON-NODE-01 NORMAL)
 
 ---
 
@@ -191,7 +203,7 @@ python3 scripts/benchmark_pqc.py
 # gitmark memory bank
 python3 scripts/gitmark_memory_bank.py build --root /mnt/projects --out-dir /mnt/projects/.gitmark-memory --profile rag
 
-# NL VPN health (DEAD — VPS выключен 2026-06-25)
+# NL VPN health (ACTIVE — VPS поднят 2026-06-26, 89.125.1.107)
 # Вместо этого — локальный mesh:
 docker compose -f deploy/docker-compose/compose.yaml up -d
 docker logs mesh-node-a -f
