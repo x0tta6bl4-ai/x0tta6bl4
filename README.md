@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](.github/workflows/codeql.yml)
-![Status](https://img.shields.io/badge/status-production--ready-green)
+![Status](https://img.shields.io/badge/status-production--ready-brightgreen)
 ![ZTCR](https://img.shields.io/badge/ZTCR-29%2F29%20tests-brightgreen)
 ![CVEs](https://img.shields.io/badge/CVEs-8%20fixed-brightgreen)
 
@@ -214,7 +214,7 @@ This project follows a **human-architected, AI-generated** development model.
 | Formally audited cryptography | ❌ liboqs integration, no audit |
 | DAO / community governance | ❌ Solo project |
 | Official commercial service | ❌ Experimental research project |
-| Production deployment | ❌ Retired 2026-06 — replaced by Docker Compose |
+| Production deployment | ✅ Active — NL VPS (89.125.1.107): x0t-agent + SPIRE + ghost VPN + 2 mesh-nodes + Core API + nginx + open5gs |
 | **ZTCR (Zero-Trust Chaos Resilience)** | ✅ 29/29 tests — SignedCommand + PBFT + SVID |
 | **Security hardened** | ✅ 43 subprocess → safe_run, 0 HIGH bandit |
 | **reverse-skill (RE/pentest)** | ✅ 28 modules, routing matrix |
