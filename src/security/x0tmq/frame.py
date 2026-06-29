@@ -16,6 +16,15 @@ from typing import Optional
 _X25_INIT = 0xFFFF
 _STX_V2 = 0xFD
 
+# CRC_EXTRA bytes for custom x0tMQ message IDs (MAVLink v2 protocol).
+# These MUST be identical on GCS and UAV for frames to validate.
+CRC_EXTRA: dict[int, int] = {
+    50000: 0xAB,  # x0CHUNK
+    50001: 0xBC,  # X0_SESSION_INIT
+    50002: 0xCD,  # X0_SIGNED_CMD
+    50003: 0xDE,  # X0_SESSION_ACK
+}
+
 
 def _crc_accumulate(b: int, crc: int) -> int:
     """MAVLink CRC-16-CCITT accumulator (standard x25 flavor)."""
@@ -71,10 +80,12 @@ class MavlinkV2Frame:
         self.incompat_flags = incompat_flags
         self.compat_flags = compat_flags
 
-    def serialize(self, crc_extra: int = 0) -> bytes:
+    def serialize(self, crc_extra: int | None = None) -> bytes:
         plen = len(self.payload)
+        if crc_extra is None:
+            crc_extra = CRC_EXTRA.get(self.msg_id, 0)
         header = struct.pack(
-            "<BBBBBBBBB",
+            "<BBBBBBBBBB",
             _STX_V2,
             plen,
             self.incompat_flags,
@@ -92,8 +103,16 @@ class MavlinkV2Frame:
 
     @classmethod
     def deserialize(
-        cls, data: bytes, crc_extra: int = 0
+        cls, data: bytes, crc_extra: int | None = None
     ) -> Optional["MavlinkV2Frame"]:
+        if crc_extra is None:
+            # Try to infer crc_extra from the msg_id embedded in the data.
+            # data[7:10] is the 24-bit msg_id in little-endian.
+            if len(data) >= 10:
+                inferred_id = data[7] | (data[8] << 8) | (data[9] << 16)
+                crc_extra = CRC_EXTRA.get(inferred_id, 0)
+            else:
+                crc_extra = 0
         if len(data) < 12:
             return None
         if data[0] != _STX_V2:
@@ -109,7 +128,7 @@ class MavlinkV2Frame:
             sys_id,
             comp_id,
             b0, b1, b2,
-        ) = struct.unpack("<BBBBBBBBB", data[0:10])
+        ) = struct.unpack("<BBBBBBBBB", data[1:10])
         msg_id = b0 | (b1 << 8) | (b2 << 16)
         payload = data[10: 10 + plen]
         expected_crc = struct.unpack("<H", data[10 + plen: 12 + plen])[0]
