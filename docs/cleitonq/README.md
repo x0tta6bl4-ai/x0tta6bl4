@@ -1,5 +1,5 @@
-# CleitonQ
-### Relay-Transparent Post-Quantum Authentication for MAVLink v2
+# x0tMQ
+### x0tta6bl4 MAVLink Quantum — Post-Quantum Authentication for MAVLink v2
 
 **Status:** Internet-Draft (Standards Track) · Expires: December 2026
 
@@ -17,15 +17,15 @@ MAVLink v2 — the standard protocol for UAVs, ground stations, and robotics —
 
 Bolting on post-quantum signatures (ML-DSA) directly breaks standard relays — they discard trailing authentication bytes as malformed garbage.
 
-## The Solution: CLEITONQ_CHUNK
+## The Solution: x0CHUNK
 
-Instead of appending signatures to existing frames, CleitonQ **fragments** the PQ payload into 245-byte chunks. Each chunk is a perfectly valid, standalone MAVLink v2 frame that passes transparently through legacy infrastructure.
+Instead of appending signatures to existing frames, x0tMQ **fragments** the PQ payload into 245-byte chunks. Each chunk is a perfectly valid, standalone MAVLink v2 frame that passes transparently through legacy infrastructure.
 
 ```mermaid
 sequenceDiagram
-    participant GCS as GCS (CleitonQ)
+    participant GCS as GCS (x0tMQ)
     participant Relay as Standard Relay (No PQC)
-    participant UAV as Drone (CleitonQ)
+    participant UAV as Drone (x0tMQ)
 
     Note over GCS: Signs command with ML-DSA-87
     Note over GCS: Fragments signature into 245B chunks
@@ -44,7 +44,7 @@ sequenceDiagram
 
 ### Why this works
 
-| Property | Standard MAVLink | CleitonQ |
+| Property | Standard MAVLink | x0tMQ |
 |----------|-----------------|----------|
 | Relay compatibility | ✅ Forwarded | ✅ Forwarded (opaque valid frames) |
 | Asymmetric auth | ❌ HMAC only | ✅ ML-DSA-87 (FIPS 204) |
@@ -59,11 +59,11 @@ sequenceDiagram
 
 | MSG_ID | Name | Purpose |
 |--------|------|---------|
-| 50000 | `CLEITONQ_CHUNK` | 245-byte fragment of a PQ payload |
-| 50001 | `CLEITONQ_SESSION_INIT` | ML-KEM-1024 ciphertext + session ID |
-| 50002 | `CLEITONQ_SIGNED_CMD` | ML-DSA-87 signature over a command |
+| 50000 | `x0CHUNK` | 245-byte fragment of a PQ payload |
+| 50001 | `X0_SESSION_INIT` | ML-KEM-1024 ciphertext + session ID |
+| 50002 | `X0_SIGNED_CMD` | ML-DSA-87 signature over a command |
 
-### CLEITONQ_CHUNK Frame Structure
+### x0CHUNK Frame Structure
 
 ```
 Offset  Size  Field
@@ -118,7 +118,7 @@ Measured on **ARM64 Neoverse-N2** @ 2.8 GHz (liboqs reference implementation):
 | ML-DSA-87 Sign (256 B) | **509 μs** | Per critical command |
 | ML-DSA-87 Verify (256 B) | ~**480 μs** | Onboard FCS |
 | HMAC-SHA3-256 (32 B) | **1.1 μs** | Per telemetry packet (100 Hz+) |
-| CLEITONQ_CHUNK fragment | <**10 μs** | Per chunk (zero-copy) |
+| x0CHUNK fragment | <**10 μs** | Per chunk (zero-copy) |
 | Reassembly + CRC verify | <**5 μs** | Per chunk |
 
 These are **reference implementation** numbers. Optimized assembly or hardware-accelerated crypto (ARM Crypto Extensions, TPM) improves by 2-5x.
@@ -133,7 +133,7 @@ A malicious relay can't strip auth data because:
 2. **Missing chunks detected at receiver** — CRC fails on reassembly if any chunk is missing.
 3. **Out-of-order chunks rejected** — seq ordering in MAVLink header.
 
-Standard relays forward CLEITONQ_CHUNK frames as opaque valid traffic. No modification to relay infrastructure required.
+Standard relays forward x0CHUNK frames as opaque valid traffic. No modification to relay infrastructure required.
 
 ---
 
@@ -161,19 +161,19 @@ cd x0tta6bl4
 
 ### Read the Draft
 
-Full specification: [`docs/rfc/draft-cleitonq-mavlink-pqc.md`](https://github.com/x0tta6bl4-ai/x0tta6bl4/blob/main/docs/rfc/draft-cleitonq-mavlink-pqc.md)
+Full specification: [`docs/rfc/draft-x0tmq-mavlink-pqc.md`](https://github.com/x0tta6bl4-ai/x0tta6bl4/blob/main/docs/rfc/draft-x0tmq-mavlink-pqc.md)
 
 ### Reference Implementation
 
-Main code: [`src/security/cleitonq/`](https://github.com/x0tta6bl4-ai/x0tta6bl4/tree/main/src/security/cleitonq)
+Main code: [`src/security/x0tmq/`](https://github.com/x0tta6bl4-ai/x0tta6bl4/tree/main/src/security/x0tmq)
 
 | Module | File | Lines | Role |
 |--------|------|-------|------|
 | PQC core (ML-KEM-1024) | `src/network/firstparty_vpn/mlkem.py` | 899 | FIPS 203 keygen, encaps, decaps |
 | PQC core (ML-DSA-87) | `src/network/firstparty_vpn/mldsa.py` | 1440 | FIPS 204 keygen, sign, verify |
-| Frame codec | `src/security/cleitonq/frame.py` | ~120 | MAVLink v2 framing + CRC-16-CCITT |
-| Chunking | `src/security/cleitonq/chunk.py` | ~130 | CLEITONQ_CHUNK frag/defrag |
-| Session manager | `src/security/cleitonq/session.py` | ~250 | SESSION_INIT + SIGNED_CMD + HMAC |
+| Frame codec | `src/security/x0tmq/frame.py` | ~120 | MAVLink v2 framing + CRC-16-CCITT |
+| Chunking | `src/security/x0tmq/chunk.py` | ~130 | x0CHUNK frag/defrag |
+| Session manager | `src/security/x0tmq/session.py` | ~250 | SESSION_INIT + SIGNED_CMD + HMAC |
 
 ### Run Tests
 
@@ -184,10 +184,10 @@ python3 -c "from src.network.firstparty_vpn.mlkem import mlkem_encapsulate, mlke
 # Verify ML-DSA-87 signing flow
 python3 -c "from src.network.firstparty_vpn.mldsa import mldsa_reference_sign, mldsa_derive_reference_keypair; print('ML-DSA OK')"
 
-# Simulate CLEITONQ_CHUNK relay-transparent fragmentation
+# Simulate x0CHUNK relay-transparent fragmentation
 python3 -c "
-from src.security.cleitonq import CleitonqChunker
-c = CleitonqChunker(1, 1)
+from src.security.x0tmq import X0Chunker
+c = X0Chunker(1, 1)
 frames = c.fragment(42, b'hello' * 100)
 print(f'Fragmented into {len(frames)} frames')
 reassembled = frames[0]  # must feed all
@@ -201,7 +201,7 @@ for f in frames:
 
 ## License
 
-The CleitonQ specification (IETF draft) is licensed under [CC-BY-4.0](LICENSE).  
+The x0tMQ specification (IETF draft) is licensed under [CC-BY-4.0](LICENSE).  
 Reference implementations are licensed under [Apache-2.0](LICENSE-CODE).
 
 ---

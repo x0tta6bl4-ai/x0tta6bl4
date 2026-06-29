@@ -1,8 +1,11 @@
-"""CLEITONQ_CHUNK: relay-transparent fragmentation for MAVLink v2.
+"""x0CHUNK: relay-transparent fragmentation for MAVLink v2.
+
+x0tMQ — x0tta6bl4 MAVLink Quantum.
 
 Fragments post-quantum payloads (ML-KEM ciphertexts, ML-DSA signatures)
 into 245-byte chunks, each wrapped as a valid MAVLink v2 frame with
-MSG_ID 50000.  Legacy relays forward these frames as opaque valid data.
+MSG_ID X0_CHUNK_MSG_ID (50000).  Legacy relays forward these frames
+as opaque valid data.
 
 Reassembly is keyed by (sys_id, comp_id, session_id).
 """
@@ -15,29 +18,27 @@ from typing import Dict, List, Optional, Tuple
 from .frame import MavlinkV2Frame
 
 
-# MAVLink message ID reserved for CleitonQ chunk transport.
-CLEITONQ_CHUNK_MSG_ID = 50000
+X0_CHUNK_MSG_ID = 50000          # x0CHUNK fragment
+X0_SESSION_INIT_ID = 50001       # ML-KEM-1024 ciphertext
+X0_SIGNED_CMD_ID = 50002         # ML-DSA-87 signature
+X0_SESSION_ACK_ID = 50003        # Session acknowledgment (UAV → GCS)
 
-# Payload data per chunk (MAVLink v2 MTU is 280; we leave room for
-# header overhead and CRC).
 _CHUNK_DATA_BYTES = 245
-
-# Chunk-wire header: src_msgid(2) chunk_idx(2) total_chunks(2) session_id(4)
 _CHUNK_HEADER_FMT = "<HHHI"
 _CHUNK_HEADER_BYTES = struct.calcsize(_CHUNK_HEADER_FMT)
 
 
-class CleitonqChunker:
-    """Fragment and reassemble PQ payloads through CLEITONQ_CHUNK frames.
+class X0Chunker:
+    """Fragment and reassemble PQ payloads through x0CHUNK frames.
 
     Usage (sender):
-        chunker = CleitonqChunker(sys_id=1, comp_id=1)
+        chunker = X0Chunker(sys_id=1, comp_id=1)
         frames = chunker.fragment(session_id=42, data=pq_ciphertext)
         for frame in frames:
             serialized = frame.serialize()
 
     Usage (receiver):
-        chunker = CleitonqChunker(sys_id=2, comp_id=2)
+        chunker = X0Chunker(sys_id=2, comp_id=2)
         reassembled = chunker.process_chunk(incoming_frame)
         if reassembled is not None:
             # payload fully received
@@ -46,11 +47,10 @@ class CleitonqChunker:
     def __init__(self, sys_id: int, comp_id: int) -> None:
         self._sys_id = sys_id
         self._comp_id = comp_id
-        # (sys_id, comp_id, session_id) -> {chunk_idx: data}
         self._buffers: Dict[Tuple[int, int, int], Dict[int, bytes]] = {}
 
     def fragment(self, session_id: int, data: bytes) -> List[MavlinkV2Frame]:
-        """Split *data* into CLEITONQ_CHUNK frames.
+        """Split *data* into x0CHUNK frames.
 
         Each frame carries *session_id* and chunk metadata so the
         receiver can reassemble across independent MAVLink streams.
@@ -59,13 +59,13 @@ class CleitonqChunker:
         frames: List[MavlinkV2Frame] = []
         for idx in range(total):
             start = idx * _CHUNK_DATA_BYTES
-            chunk = data[start : start + _CHUNK_DATA_BYTES]
-            payload = struct.pack(_CHUNK_HEADER_FMT, idx, total, session_id) + chunk
+            chunk = data[start: start + _CHUNK_DATA_BYTES]
+            payload = struct.pack(_CHUNK_HEADER_FMT, X0_CHUNK_MSG_ID, idx, total, session_id) + chunk
             frames.append(
                 MavlinkV2Frame(
                     sys_id=self._sys_id,
                     comp_id=self._comp_id,
-                    msg_id=CLEITONQ_CHUNK_MSG_ID,
+                    msg_id=X0_CHUNK_MSG_ID,
                     payload=payload,
                     seq=idx,
                 )
@@ -73,18 +73,18 @@ class CleitonqChunker:
         return frames
 
     def process_chunk(self, frame: MavlinkV2Frame) -> Optional[bytes]:
-        """Feed one incoming CLEITONQ_CHUNK frame.
+        """Feed one incoming x0CHUNK frame.
 
         Returns the reassembled payload when all chunks for a session
         have arrived, otherwise *None*.
         """
-        if frame.msg_id != CLEITONQ_CHUNK_MSG_ID:
+        if frame.msg_id != X0_CHUNK_MSG_ID:
             return None
         raw = frame.payload
         if len(raw) < _CHUNK_HEADER_BYTES:
             return None
 
-        chunk_idx, total_chunks, session_id = struct.unpack(
+        src_msgid, chunk_idx, total_chunks, session_id = struct.unpack(
             _CHUNK_HEADER_FMT, raw[:_CHUNK_HEADER_BYTES]
         )
         data = raw[_CHUNK_HEADER_BYTES:]
@@ -98,9 +98,7 @@ class CleitonqChunker:
             if len(parts) == total_chunks:
                 del self._buffers[key]
                 return b"".join(parts)
-            # Missing a chunk — unlikely given the len check, but be safe.
             return None
-
         return None
 
     def flush_session(self, session_id: int) -> None:

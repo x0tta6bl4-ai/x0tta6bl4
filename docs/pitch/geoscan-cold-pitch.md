@@ -56,8 +56,8 @@
 - Готовый ответ на требования импортозамещения в части защищённой связи
 - Материал для патентования и публикаций
 
-Полная спецификация: [github.com/x0tta6bl4-ai/x0tta6bl4/docs/rfc/draft-cleitonq-mavlink-pqc.md](https://github.com/x0tta6bl4-ai/x0tta6bl4/docs/rfc/draft-cleitonq-mavlink-pqc.md)
-Код: `src/security/cleitonq/`
+Полная спецификация: [github.com/x0tta6bl4-ai/x0tta6bl4/docs/rfc/draft-x0tmq-mavlink-pqc.md](https://github.com/x0tta6bl4-ai/x0tta6bl4/blob/main/docs/rfc/draft-x0tmq-mavlink-pqc.md)
+Код: `src/security/x0tmq/`
 
 Готов к созвону для обсуждения технических деталей.
 

@@ -1,4 +1,4 @@
-# CleitonQ — Cold Pitch: QApp (ООО «КуАпп»)
+# CleitonQ (x0tMQ) — Cold Pitch: QApp (ООО «КуАпп»)
 
 **Кому:** CTO / Руководитель R&D
 **От:** x0tta6bl4
@@ -13,7 +13,7 @@
 
 Меня зовут x0tta6bl4. Я разрабатываю открытую Zero-Trust mesh-платформу с eBPF-датаплейном и постквантовой криптографией (проект x0tta6bl4, Apache-2.0, ~1172 коммита, 921K+ LOC).
 
-Недавно я завершил спецификацию **CleitonQ** — расширения протокола MAVLink v2 для прозрачной ретрансляции постквантовой аутентификации через legacy-оборудование. Это IETF-стиль Internet-Draft, реализующий:
+Недавно я завершил спецификацию **CleitonQ (x0tMQ)** — расширения протокола MAVLink v2 для прозрачной ретрансляции постквантовой аутентификации через legacy-оборудование. Это IETF-стиль Internet-Draft, реализующий:
 
 - **ML-KEM-1024** (FIPS 203) — защищённое согласование сессионных ключей
 - **ML-DSA-87** (FIPS 204) — подпись критических команд управления
@@ -29,7 +29,7 @@
 | ML-DSA-87 sign (256 B) | 509 μs |
 | HMAC-SHA3-256 | 1.1 μs |
 
-Документ доступен: [github.com/x0tta6bl4-ai/x0tta6bl4/docs/rfc/draft-cleitonq-mavlink-pqc.md](https://github.com/x0tta6bl4-ai/x0tta6bl4)
+Документ доступен: [github.com/x0tta6bl4-ai/x0tta6bl4/docs/rfc/draft-x0tmq-mavlink-pqc.md](https://github.com/x0tta6bl4-ai/x0tta6bl4/blob/main/docs/rfc/draft-x0tmq-mavlink-pqc.md)
 
 ---
 
@@ -48,7 +48,7 @@
 ### Что нужно от вас
 
 15-минутный созвон чтобы:
-- Показать архитектуру CleitonQ и код
+- Показать архитектуру CleitonQ (x0tMQ) и код
 - Обсудить формат теста
 - Понять, какие алгоритмы из вашего SDK мы можем подставить вместо liboqs
 
@@ -64,7 +64,7 @@ Mail: x0tta6bl4@proton.me
 ## Инструкция по отправке
 
 1. Найти контакт CTO QApp через их сайт или LinkedIn
-2. Отправить письмо с темой **«Интеграция PQC SDK в eBPF/MAVLink транспорт — CleitonQ»**
+2. Отправить письмо с темой **«Интеграция PQC SDK в eBPF/MAVLink транспорт — CleitonQ (x0tMQ)»**
 3. Приложить ссылку на репозиторий и IETF draft
 4. Создать заметку в календаре — если не ответят за 5 рабочих дней, напомнить
 
