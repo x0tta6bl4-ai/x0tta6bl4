@@ -1,3 +1,13 @@
+# Local gitignores
+.dev_env.*
+.env.*
+!.env.production
+
+# Test artifacts
+test_*.db
+x0tta6bl4*.db*
+TMP_*
+
 # Private data (not in repo)
 .private/
 
