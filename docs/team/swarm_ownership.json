@@ -125,6 +125,7 @@
         "RC1_RELEASE_NOTES.md",
         "README.md",
         "AI-DECLARATION.md",
+        ".github/",
         ".prompts/",
         "docs/release/",
         "docs/05-operations/",
