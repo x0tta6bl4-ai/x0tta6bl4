@@ -245,7 +245,20 @@
         "x0tta6bl4-project-audit-2026-06-06.md",
         "_config.yml",
         "index.md",
-        "config/dao_policy.json"
+        "config/dao_policy.json",
+        "anti-geolocation-system/",
+        "deploy.sh",
+        "index.sh",
+        "install.sh",
+        "start.sh",
+        "RC1_MANIFEST.json",
+        "audit_report.json",
+        "x0tta6bl4-API.postman_collection.json",
+        "xray_config_warp.json",
+        "xray_main_config.json",
+        "config.hmac",
+        "archive/",
+        "docs/reference/"
       ]
     },
     "codex": {
