@@ -1,8 +1,10 @@
 """MAVLink v2 frame codec for x0tMQ transport layer.
 
+x0tMQ — x0tta6bl4 MAVLink Quantum: post-quantum authentication for UAVs.
+
 Simplified MAVLink v2 framing with CRC-16-CCITT-accumulated checksums,
 compatible with standard MAVLink relays.  Only the subset needed for
-X0TMQ_CHUNK, X0TMQ_SESSION_INIT, and X0TMQ_SIGNED_CMD.
+x0CHUNK, X0_SESSION_INIT, and X0_SIGNED_CMD.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ _STX_V2 = 0xFD
 
 
 def _crc_accumulate(b: int, crc: int) -> int:
-    """MAVLink CRC-16-CCITT accumulator (standard x25 flavour)."""
+    """MAVLink CRC-16-CCITT accumulator (standard x25 flavor)."""
     accum = b ^ (crc & 0xFF)
     accum ^= (accum << 4) & 0xFF
     return (crc >> 8) ^ (accum << 8) ^ (accum << 3) ^ (accum >> 4)
@@ -84,7 +86,7 @@ class MavlinkV2Frame:
             (self.msg_id >> 8) & 0xFF,
             (self.msg_id >> 16) & 0xFF,
         )
-        packet = header[1:] + self.payload  # CRC covers everything after STX
+        packet = header[1:] + self.payload
         crc = _crc_ccitt(packet, crc_extra)
         return header + self.payload + struct.pack("<H", crc)
 
@@ -106,23 +108,16 @@ class MavlinkV2Frame:
             seq,
             sys_id,
             comp_id,
-            b0,
-            b1,
-            b2,
+            b0, b1, b2,
         ) = struct.unpack("<BBBBBBBBB", data[0:10])
         msg_id = b0 | (b1 << 8) | (b2 << 16)
-        payload = data[10 : 10 + plen]
-        expected_crc = struct.unpack("<H", data[10 + plen : 12 + plen])[0]
-        if _crc_ccitt(data[1 : 10 + plen], crc_extra) != expected_crc:
+        payload = data[10: 10 + plen]
+        expected_crc = struct.unpack("<H", data[10 + plen: 12 + plen])[0]
+        if _crc_ccitt(data[1: 10 + plen], crc_extra) != expected_crc:
             return None
         return cls(
-            sys_id,
-            comp_id,
-            msg_id,
-            payload,
-            seq=seq,
-            incompat_flags=inc_flags,
-            compat_flags=cmp_flags,
+            sys_id, comp_id, msg_id, payload,
+            seq=seq, incompat_flags=inc_flags, compat_flags=cmp_flags,
         )
 
     def __repr__(self) -> str:

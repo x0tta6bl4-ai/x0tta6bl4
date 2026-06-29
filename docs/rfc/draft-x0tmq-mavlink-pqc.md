@@ -1,4 +1,4 @@
-# x0tMQ: Post-Quantum Cryptography Extension for MAVLink v2 Protocol
+# x0tMQ: MAVLink v2 Post-Quantum Authentication Protocol
 
     draft-x0tta6bl4-x0tmq-mavlink-pqc-00
 
@@ -10,16 +10,17 @@
 
 ## Abstract
 
-This document specifies x0tMQ, a backward-compatible extension to the
-MAVLink v2 protocol (MAVLink 2.0) that adds support for post-quantum
-asymmetric authentication and session key establishment.  MAVLink v2
-currently relies solely on HMAC-SHA256 symmetric signatures, which are
-vulnerable to pre-key compromise and lack forward secrecy.  x0tMQ
-introduces three new message types — X0TMQ_SESSION_INIT,
-X0TMQ_SIGNED_CMD, and X0TMQ_CHUNK — encapsulating post-quantum
-primitives defined in NIST FIPS 203 (ML-KEM) and FIPS 204 (ML-DSA)
-within standard MAVLink v2 frames, enabling transparent relay through
-legacy infrastructure without hardware modification.
+This document specifies x0tMQ (x0tta6bl4 MAVLink Quantum), a
+backward-compatible extension to the MAVLink v2 protocol (MAVLink 2.0)
+that adds support for post-quantum asymmetric authentication and
+session key establishment.  MAVLink v2 currently relies solely on
+HMAC-SHA256 symmetric signatures, which are vulnerable to pre-key
+compromise and lack forward secrecy.  x0tMQ introduces three new
+message types — X0_SESSION_INIT, X0_SIGNED_CMD, and x0CHUNK —
+encapsulating post-quantum primitives defined in NIST FIPS 203
+(ML-KEM) and FIPS 204 (ML-DSA) within standard MAVLink v2 frames,
+enabling transparent relay through legacy infrastructure without
+hardware modification.
 
 ## Status of This Memo
 
@@ -59,10 +60,10 @@ in the Revised BSD License.
 2.  Conventions and Terminology
 3.  Protocol Overview
 4.  Message Types
-    4.1  X0TMQ_SESSION_INIT (MSG_ID 50001)
-    4.2  X0TMQ_SIGNED_CMD (MSG_ID 50002)
-    4.3  X0TMQ_CHUNK (MSG_ID 50000)
-5.  X0TMQ_CHUNK Fragmentation
+    4.1  X0_SESSION_INIT (MSG_ID 50001)
+    4.2  X0_SIGNED_CMD (MSG_ID 50002)
+    4.3  x0CHUNK (MSG_ID 50000)
+5.  x0CHUNK Fragmentation
 6.  Cryptographic Algorithms
     6.1  ML-KEM-1024 (FIPS 203)
     6.2  ML-DSA-87 (FIPS 204)
@@ -132,21 +133,21 @@ x0tMQ operates in three phases during a MAVLink session:
 
    Phase 1 — Session Key Establishment
        The GCS generates an ML-KEM-1024 keypair and sends the public
-       key encapsulated as a X0TMQ_SESSION_INIT message.  The FCS
+       key encapsulated as a X0_SESSION_INIT message.  The FCS
        decapsulates the session key.  Both sides now share a
        symmetric session key with forward secrecy.
 
    Phase 2 — Ongoing Command Authentication
        Every critical command (arm/disarm, geofence update, waypoint
        override) is signed by the sender using ML-DSA-87.  The
-       signature is transmitted as a X0TMQ_SIGNED_CMD message
+       signature is transmitted as a X0_SIGNED_CMD message
        that pairs with the preceding command message.  For
        high-frequency telemetry, HMAC-SHA3-256 provides lightweight
        per-packet authentication.
 
    Phase 3 — Transparent Relay via Chunking
        ML-DSA-87 signatures are ~2.4 KB, exceeding the nominal
-       MAVLink v2 payload limit of 280 bytes.  X0TMQ_CHUNK
+       MAVLink v2 payload limit of 280 bytes.  x0CHUNK
        fragments the signature into 245-byte segments, each
        encapsulated in a valid MAVLink frame with MSG_ID 50000,
        INCOMPAT_FLAGS = 0, and a correct CRC-16-CCITT checksum.
@@ -166,7 +167,7 @@ common header fields:
     compid:      component identifier
     msgid:       message ID as specified per type below
 
-### 4.1  X0TMQ_SESSION_INIT (MSG_ID 50001)
+### 4.1  X0_SESSION_INIT (MSG_ID 50001)
 
 **Purpose:** Transmit an ML-KEM-1024 encapsulation key from GCS to FCS
 for session key establishment.
@@ -193,7 +194,7 @@ The FCS decapsulates the ciphertext to obtain the 32-byte session
 key.  The ciphertext field uses the standard ML-KEM-1024 encapsulation
 output as defined in [FIPS203] Section 7.2.
 
-### 4.2  X0TMQ_SIGNED_CMD (MSG_ID 50002)
+### 4.2  X0_SIGNED_CMD (MSG_ID 50002)
 
 **Purpose:** Provide an ML-DSA-87 signature over a preceding command
 message.
@@ -220,7 +221,7 @@ The receiving FCS buffers the command identified by cmd_seq and
 applies it only after successful ML-DSA-87 signature verification
 against the GCS's registered public key.
 
-### 4.3  X0TMQ_CHUNK (MSG_ID 50000)
+### 4.3  x0CHUNK (MSG_ID 50000)
 
 **Purpose:** Fragment a large x0tMQ message (SESSION_INIT or
 SIGNED_CMD) into relay-transparent MAVLink frames.
@@ -250,7 +251,7 @@ The receiving endpoint reconstructs the original message by
 concatenating all chunks in order of chunk_idx, then verifying the
 CRC-16-CCITT over the full reassembled payload.
 
-## 5.  X0TMQ_CHUNK Fragmentation
+## 5.  x0CHUNK Fragmentation
 
 Fragmentation is REQUIRED for any x0tMQ message whose payload
 exceeds the MAVLink v2 maximum payload of 280 bytes (or the
@@ -258,7 +259,7 @@ effective path MTU when relay constraints are tighter).
 
 The replay protection model is built around two mechanisms:
 
-   1.  **Seq ordering**: X0TMQ_CHUNK frames carry a unique seq
+   1.  **Seq ordering**: x0CHUNK frames carry a unique seq
        value in their MAVLink header, incremented per chunk from the
        same origin.  Receivers MUST reject chunks with seq values
        below the previous validated chunk from the same origin.
@@ -292,7 +293,7 @@ be emitted.
     adversaries [NISTPQ].
 
 Ciphertext size in ML-KEM-1024 is 1568 bytes, which MUST be
-fragmented via X0TMQ_CHUNK if the MAVLink frame cannot
+fragmented via x0CHUNK if the MAVLink frame cannot
 accommodate the full payload in a single message.
 
 ### 6.2  ML-DSA-87 (FIPS 204)
@@ -304,7 +305,7 @@ accommodate the full payload in a single message.
 -   **Sign**: 509 microseconds for a 256-byte payload (ARM64 Neoverse-N2).
 -   **Verify**: Comparable or lower latency, depending on architecture.
 -   **Signature size**: Variable, nominally 2429 bytes.
-    MUST be fragmented via X0TMQ_CHUNK.
+    MUST be fragmented via x0CHUNK.
 -   **Security strength**: Category 5 [NISTPQ].
 
 ### 6.3  HMAC-SHA3-256
@@ -331,11 +332,11 @@ Step 1 — GCS generates an ML-KEM-1024 keypair (ek, dk).
 
 Step 2 — GCS encapsulates: (ct, ss) = ML-KEM-1024.Encaps(ek).
 
-Step 3 — GCS frames ct as X0TMQ_SESSION_INIT (MSG_ID 50001),
-    possibly fragmented via X0TMQ_CHUNK (MSG_ID 50000) if ct
+Step 3 — GCS frames ct as X0_SESSION_INIT (MSG_ID 50001),
+    possibly fragmented via x0CHUNK (MSG_ID 50000) if ct
     exceeds MTU.
 
-Step 4 — FCS receives all X0TMQ_CHUNK frames, reassembles, and
+Step 4 — FCS receives all x0CHUNK frames, reassembles, and
     decapsulates: ss = ML-KEM-1024.Decaps(dk, ct).
 
 Step 5 — Both sides derive three keys from ss via HKDF-SHA3-256
@@ -345,7 +346,7 @@ Step 5 — Both sides derive three keys from ss via HKDF-SHA3-256
         K_auth = HKDF(ss, "x0tmq-auth-key")  — for HMAC-SHA3-256
         K_enc  = HKDF(ss, "x0tmq-enc-key")   — reserved
 
-Step 6 — FCS sends X0TMQ_SESSION_ACK (provisional MSG_ID 50003,
+Step 6 — FCS sends X0_SESSION_ACK (provisional MSG_ID 50003,
     specification forthcoming) confirming session establishment.
 
 The session_id (16 bytes, generated and included in SESSION_INIT)
@@ -361,18 +362,18 @@ MAV_CMD_COMPONENT_ARM_DISARM, MAV_CMD_NAV_WAYPOINT), it MUST:
    1.  Transmit the original command in a standard MAVLink command
        message.
 
-   2.  Transmit a X0TMQ_SIGNED_CMD (MSG_ID 50002) message that
+   2.  Transmit a X0_SIGNED_CMD (MSG_ID 50002) message that
        references the command by its MAVLink seq number and carries
        an ML-DSA-87 signature over (cmd_seq || session_id || nonce ||
        original_payload).
 
-   3.  Optionally fragment the SIGNED_CMD via X0TMQ_CHUNK.
+   3.  Optionally fragment the SIGNED_CMD via x0CHUNK.
 
 The receiving FCS:
 
    1.  Buffers the command message upon reception.
 
-   2.  Reassembles the SIGNED_CMD from X0TMQ_CHUNK frames, if
+   2.  Reassembles the SIGNED_CMD from x0CHUNK frames, if
        fragmented.
 
    3.  Verifies the ML-DSA-87 signature using the GCS's public key
@@ -419,13 +420,13 @@ or a hardware security module (HSM).
 ### 10.1  Relay-Striping Attacks
 
 A malicious relay MAY strip appended authentication frames.  x0tMQ
-mitigates this by using X0TMQ_CHUNK fragmentation with
+mitigates this by using x0CHUNK fragmentation with
 CRC-16-CCITT verification per chunk, ensuring that missing or
 truncated chunks are detected at the receiver before reassembly.
 
 ### 10.2  Replay Attacks
 
-Each X0TMQ_SIGNED_CMD contains a unique nonce and a session_id.
+Each X0_SIGNED_CMD contains a unique nonce and a session_id.
 Receivers MUST reject messages with duplicate (session_id, nonce)
 tuples within the session lifetime.
 
@@ -472,9 +473,9 @@ from the MAVLink reserved range (50000-65535):
     +-----------+---------------------+------------+
     | MSG_ID    | Name                | Reference  |
     +-----------+---------------------+------------+
-    | 50000     | X0TMQ_CHUNK      | Section 4.3|
-    | 50001     | X0TMQ_SESSION_INIT | Section 4.1|
-    | 50002     | X0TMQ_SIGNED_CMD  | Section 4.2|
+    | 50000     | x0CHUNK      | Section 4.3|
+    | 50001     | X0_SESSION_INIT | Section 4.1|
+    | 50002     | X0_SIGNED_CMD  | Section 4.2|
     +-----------+---------------------+------------+
 
 The MAVLink message registry is maintained at
