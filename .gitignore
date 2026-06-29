@@ -1,3 +1,6 @@
+# Private data (not in repo)
+.private/
+
 # x0tta6bl4 root .gitignore
 # Python
 .venv*/
