@@ -675,6 +675,8 @@ def _call_yggdrasil_with_api_evidence(func, request: Request, *, operation: str)
         if "unexpected keyword" not in message and "positional argument" not in message:
             raise
         result = func()
+    except Exception:
+        return {"error": "internal error", "operation": operation, "status": "failed"}
     if isinstance(result, dict):
         return {
             **result,
