@@ -156,7 +156,11 @@ async def run_health_bot(
         dry_run=req.dry_run,
         token_header=x_agent_token,
     )
-    return _health_bot.run_once(auto_heal=req.auto_heal, dry_run=req.dry_run)
+    try:
+        result = _health_bot.run_once(auto_heal=req.auto_heal, dry_run=req.dry_run)
+    except Exception:
+        return {"error": "health bot failed", "status": "error"}
+    return result
 
 
 @router.get("/health/history")
