@@ -1,7 +1,7 @@
 # x0tta6bl4 — Self-Healing Mesh Networking Platform
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![CodeQL](https://img.shields.io/badge/CodeQL-30%20open-yellow)](https://github.com/x0tta6bl4-ai/x0tta6bl4/security/code-scanning)
+[![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](https://github.com/x0tta6bl4-ai/x0tta6bl4/security/code-scanning)
 ![Status](https://img.shields.io/badge/status-experimental-orange)
 ![Tests](https://img.shields.io/badge/tests-215%2F240%20passing-yellowgreen)
 ![CVEs](https://img.shields.io/badge/CVEs-8%20fixed-brightgreen)
