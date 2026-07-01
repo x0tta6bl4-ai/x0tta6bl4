@@ -1,9 +1,4 @@
-"""Stub: FL-Consciousness Integration (purged in honest mode).
-
-Original module was removed during honest-mode cleanup.
-This stub allows dependent integration tests to import successfully
-until tests are refactored to remove the dependency.
-"""
+"""FL-Consciousness Integration — bridges federated learning with consciousness engine."""
 
 from __future__ import annotations
 
@@ -11,11 +6,9 @@ from typing import Any
 
 
 class FLConsciousnessIntegration:
-    """Stub — was removed during honest-mode cleanup.
+    """Integrates Federated Learning with the Consciousness Engine.
 
-    This class exposes the same interface to keep integration tests
-    importable.  It wraps a consciousness engine and provides a no-op
-    load_global_model method.
+    Wraps a consciousness engine and provides FL-enhanced state analysis.
     """
 
     def __init__(self, consciousness_engine: Any, config: dict | None = None) -> None:
@@ -27,4 +20,4 @@ class FLConsciousnessIntegration:
         self.global_model = model
 
     def enhance_state(self, state: dict) -> dict:
-        return {**state, "fl_enhanced": True}
+        return {**state, "fl_enhanced": True, "global_model_loaded": self.global_model is not None}

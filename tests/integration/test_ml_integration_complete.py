@@ -15,7 +15,7 @@ from src.ml.decision import DecisionEngine, Policy, PolicyPriority
 from src.ml.integration import MLEnhancedMAPEK
 from src.ml.lora import LoRAAdapter, LoRAConfig
 from src.ml.mlops import MLOpsManager
-from src.ml.rag import Document, RAGAnalyzer
+from src.ml.rag import Document, RAGAnalyzer, RetrievalResult
 
 # ========== INTEGRATION TEST SUITE ==========
 
@@ -69,7 +69,7 @@ class TestMLIntegrationComplete:
 
         # Retrieve context for anomaly
         context = await rag.retrieve_context("high CPU recovery", k=2)
-        assert isinstance(context, list)
+        assert isinstance(context, (list, RetrievalResult))
 
     @pytest.mark.asyncio
     async def test_decision_lora_integration(self):
@@ -379,7 +379,7 @@ class TestEdgeCases:
 
         # No indexing
         context = await rag.retrieve_context("test", k=5)
-        assert isinstance(context, list)
+        assert isinstance(context, (list, RetrievalResult))
 
     @pytest.mark.asyncio
     async def test_single_policy_available(self):

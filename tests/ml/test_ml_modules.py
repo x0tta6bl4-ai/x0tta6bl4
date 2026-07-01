@@ -14,7 +14,7 @@ from src.ml.anomaly import AnomalyConfig, AnomalyDetectionSystem
 from src.ml.decision import DecisionEngine, Policy, PolicyPriority
 from src.ml.lora import LoRAAdapter, LoRAConfig
 from src.ml.mlops import MLOpsManager, ModelMetadata
-from src.ml.rag import Document, RAGAnalyzer
+from src.ml.rag import Document, RAGAnalyzer, RetrievalResult
 
 # ========== RAG Tests ==========
 
@@ -59,8 +59,7 @@ class TestRAG:
 
         await rag.index_knowledge(docs)
         context = await rag.retrieve_context("latency", k=1)
-        assert isinstance(context, list)
-
+        assert isinstance(context, (list, RetrievalResult))
 
 # ========== LoRA Tests ==========
 

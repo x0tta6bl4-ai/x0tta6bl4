@@ -74,6 +74,11 @@ class LoRAConfig:
         )
 
     @property
+    def r(self) -> int:
+        """Alias for rank — backward compat with test stubs."""
+        return self.rank
+
+    @property
     def scaling(self) -> float:
         """
         Compute the LoRA scaling factor.
