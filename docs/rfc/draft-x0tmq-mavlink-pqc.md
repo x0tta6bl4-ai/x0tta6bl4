@@ -272,7 +272,7 @@ The replay protection model is built around two mechanisms:
 On reception of the final chunk (where chunk_idx == total_chunks - 1),
 the reassembler verifies the complete CRC-16-CCITT over the full
 payload.  If verification fails, all chunks for that message MUST be
-discarded and a X0TMQ_NACK (deferred to future specification) MAY
+discarded and a X0_NACK (deferred to future specification) MAY
 be emitted.
 
 ## 6.  Cryptographic Algorithms
