@@ -92,16 +92,16 @@ Offset  Size  Field
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Phase 1: Session Establishment                          │
-│  GCS → UAV: X0TMQ_SESSION_INIT (ML-KEM-1024 ct)      │
+│  GCS → UAV: X0_SESSION_INIT (ML-KEM-1024 ct)      │
 │  UAV: Decapsulates → HKDF → K_cmd, K_auth, K_enc        │
-│  UAV → GCS: X0TMQ_SESSION_ACK                         │
+│  UAV → GCS: X0_SESSION_ACK                         │
 ├─────────────────────────────────────────────────────────┤
 │  Phase 2: Normal Operation                               │
 │  Telemetry: HMAC-SHA3-256 (K_auth) — 1.1 μs/pkt         │
 │  Critical Cmd: ML-DSA-87 (K_cmd) — 509 μs/cmd           │
 ├─────────────────────────────────────────────────────────┤
 │  Phase 3: Re-key (every 15 min or 100k packets)          │
-│  GCS → UAV: New X0TMQ_SESSION_INIT                   │
+│  GCS → UAV: New X0_SESSION_INIT                   │
 └─────────────────────────────────────────────────────────┘
 ```
 
