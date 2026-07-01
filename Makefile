@@ -307,24 +307,31 @@ install:
 	pip install -r requirements-staging.txt
 	@echo "✅ Dependencies installed"
 
+torch-install:
+	@echo "🔥 Installing CPU-only PyTorch..."
+	pip install torch --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -1
+	@echo "✅ PyTorch installed. Run after every 'uv sync'"
+
+post-sync: torch-install
+
 test-unit:
 	@echo "🧪 Running unit tests..."
-	pytest tests/ -v --tb=short
+	PYTHONPATH='' uv run pytest tests/ -v --tb=short
 	@echo "✅ Tests passed"
 
 test-coverage:
 	@echo "📊 Running tests with coverage..."
-	pytest tests/ --cov=src --cov-report=html --cov-report=term
+	PYTHONPATH='' uv run pytest tests/ --cov=src --cov-report=html --cov-report=term
 	@echo "✅ Coverage report generated in htmlcov/"
 
 test-fast:
 	@echo "⚡ Running fast tests (excluding slow, no coverage)..."
-	python3 -m pytest tests/ -m "not slow" -q -o "addopts=-q"
+	PYTHONPATH='' uv run pytest tests/ -m "not slow" -q -o "addopts=-q"
 	@echo "✅ Fast tests passed"
 
 test-ml:
 	@echo "🧪 Running ML tests..."
-	python3 -m pytest tests/unit/ml/test_micro_tensor.py tests/unit/ml/test_mesh_gnn.py -q -o "addopts=-q"
+	PYTHONPATH='' uv run pytest tests/unit/ml/test_micro_tensor.py tests/unit/ml/test_mesh_gnn.py -q -o "addopts=-q"
 	@echo "✅ ML tests passed"
 
 security:

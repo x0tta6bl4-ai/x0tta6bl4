@@ -24,10 +24,10 @@ dependencies = [
     "starlette>=1.3.1",
     "pydantic==2.12.5",
     "python-dotenv==1.2.2",
-    "httpx==0.28.1",
+    "httpx[socks]==0.28.1",
     "requests==2.33.0",
     "cryptography==49.0.0",
-    "torch==2.10.0",
+    # torch — CPU-only: pip install torch --index-url https://download.pytorch.org/whl/cpu
     "pyjwt>=2.13.0",
     "bcrypt==5.0.0",
     "pyyaml==6.0.3",
@@ -52,6 +52,7 @@ dependencies = [
     "alembic==1.18.4",
     "jinja2>=3.1.6",
     "idna>=3.15",
+    "dnspython>=2.8.0",
     "protobuf>=6.33.5",
     "pyasn1>=0.6.3",
     "pynacl>=1.6.2",
@@ -63,6 +64,18 @@ dependencies = [
     "filelock>=3.20.3",
     "configobj>=5.0.9",
     "yt-dlp>=2026.2.21",
+    "zvec>=0.5.1",
+    "pydantic-settings>=2.14.2",
+    "hvac>=2.4.0",
+    "stripe>=15.3.0",
+    "web3>=7.16.0",
+    "prometheus-client>=0.24.1",
+    "playwright>=1.60.0",
+    "dnspython>=2.8.0",
+    "email-validator>=2.3.0",
+    "chardet>=7.4.3",
+    "colorama>=0.4.6",
+    "mcp>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -180,6 +193,8 @@ filterwarnings = [
     "error",
     "ignore::UserWarning",
     "ignore::DeprecationWarning",
+    'ignore::pytest.PytestDeprecationWarning',
+    'ignore::ResourceWarning',
 ]
 
 
@@ -312,3 +327,8 @@ warn_unused_configs = true
 module = ["src.crypto.*", "src.security.*"]
 disallow_untyped_defs = true
 check_untyped_defs = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
