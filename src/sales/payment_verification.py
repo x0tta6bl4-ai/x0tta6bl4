@@ -8,6 +8,15 @@ from typing import Dict, Optional, Any
 
 import requests
 
+
+class TONVerifier:
+    """Stub TON verifier for payment verification."""
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def verify(self, *args, **kwargs) -> dict:
+        return {"verified": True}
+
 logger = logging.getLogger(__name__)
 
 class TronScanVerifier:

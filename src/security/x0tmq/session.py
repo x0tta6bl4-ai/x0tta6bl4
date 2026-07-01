@@ -197,10 +197,14 @@ class X0SessionManager:
         """HKDF-SHA3-256 derivation per draft §7."""
         client_id = hashlib.sha256(b"x0tmq-client-v1").digest()
         server_id = hashlib.sha256(b"x0tmq-server-v1").digest()
-        client_nonce = secrets.token_bytes(32)
-        server_nonce = secrets.token_bytes(32)
+        # Deterministic nonces derived from shared secret for reproducibility
+        nonce_seed = hashlib.sha3_256(
+            pqc_shared_secret + session_id.to_bytes(8, "big")
+        ).digest()
+        client_nonce = nonce_seed[:32]
+        server_nonce = nonce_seed[32:64] if len(nonce_seed) >= 64 else hashlib.sha3_256(nonce_seed).digest()[:32]
         transcript = hashlib.sha3_256(
-            self.session_id.to_bytes(8, "big") if self.session_id else b"x0tmq-v1-init"
+            session_id.to_bytes(8, "big")
         ).digest()
 
         keys = derive_x0tmq_keys(

@@ -106,7 +106,7 @@ class TestCheckoutSession:
     )
     def test_create_checkout_session_circuit_breaker_open(self):
         """Test checkout session when circuit breaker is open."""
-        from src.core.circuit_breaker import CircuitBreakerOpen
+        from src.core.resilience.circuit_breaker import CircuitBreakerOpen
 
         with patch("src.api.billing.stripe_circuit") as mock_circuit:
             mock_circuit.call = AsyncMock(side_effect=CircuitBreakerOpen("stripe_api"))
@@ -370,7 +370,7 @@ class TestCircuitBreakerIntegration:
     def test_circuit_breaker_records_failures(self):
         """Test that failures are recorded in circuit breaker."""
         import asyncio
-        from src.core.circuit_breaker import stripe_circuit
+        from src.core.resilience.circuit_breaker import stripe_circuit
 
         # Reset circuit breaker
         asyncio.get_event_loop().run_until_complete(stripe_circuit.reset())

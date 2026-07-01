@@ -17,7 +17,6 @@ _HEAVY_MOCKS = {
     "kubernetes": types.ModuleType("kubernetes"),
     "flwr": types.ModuleType("flwr"),
     "eth_account": types.ModuleType("eth_account"),
-    "web3": types.ModuleType("web3"),
     "sentence_transformers": types.ModuleType("sentence_transformers"),
     "oqs": types.ModuleType("oqs"),
     "liboqs": types.ModuleType("liboqs"),
@@ -51,6 +50,7 @@ _prom.CONTENT_TYPE_LATEST = "text/plain"
 _prom.REGISTRY = types.SimpleNamespace(
     _names_to_collectors={},
 )
+_prom.start_http_server = lambda *a, **kw: None
 
 # Now safe to import everything else
 import asyncio
@@ -315,3 +315,10 @@ def mock_pqc():
 def mock_ml():
     with mock.patch("src.ml.graphsage_anomaly_detector.GraphSAGEAnomalyDetector") as mock_detector:
         yield mock_detector
+
+
+def latency_threshold(seconds: float = 5.0) -> float:
+    """Return latency threshold scaled by CI_LATENCY_FACTOR env var."""
+    import os
+    factor = float(os.getenv("CI_LATENCY_FACTOR", "1.0"))
+    return seconds * factor

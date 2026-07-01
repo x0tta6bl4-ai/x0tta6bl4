@@ -63,7 +63,7 @@ class TestMavlinkV2Frame:
 class TestX0Chunker:
     def test_fragment_and_reassemble(self) -> None:
         chunker = X0Chunker(sys_id=1, comp_id=2)
-        original = bytes(range(500))  # ~500 bytes, will span 3 chunks
+        original = bytes(range(256)) * 2  # 512 bytes, will span 3 chunks
         frames = chunker.fragment(session_id=42, data=original)
         assert len(frames) == 3  # 500 / 245 = 3 chunks
 

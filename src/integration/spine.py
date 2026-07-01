@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional, Protocol
 
 from src.coordination.events import EventBus, EventType
 
+SAFE_ACTUATOR_EVIDENCE_METADATA_SCHEMA = "x0tta6bl4.safe_actuator.evidence_metadata.v2.0"
+
 
 CLAIM_BOUNDARY = (
     "Local integration spine contract only. It proves fail-closed wiring "

@@ -22,6 +22,11 @@ from starlette.responses import Response
 
 logger = logging.getLogger(__name__)
 
+# Re-export the credential masking function from the canonical location
+from src.core.middleware.tracing_middleware import (  # noqa: F401
+    _masked_credential_id,
+)
+
 # Context variable for request correlation ID
 correlation_id_var: ContextVar[Optional[str]] = ContextVar(
     "correlation_id", default=None

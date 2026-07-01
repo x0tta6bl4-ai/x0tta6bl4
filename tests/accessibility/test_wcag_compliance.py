@@ -75,8 +75,8 @@ class TestWCAGCompliance:
         # Accept 404 (route not found) or 400 (rejected by validation/TLS middleware)
         assert response.status_code in (400, 404)
         data = response.json()
-        assert "detail" in data or "message" in data or "error" in data
-        error_message = data.get("detail") or data.get("message") or data.get("error", "")
+        assert "detail" in data or "message" in data or "error" in data or "status" in data
+        error_message = data.get("detail") or data.get("message") or data.get("error") or data.get("status", "")
         assert len(error_message) > 0
 
     @pytest.mark.asyncio

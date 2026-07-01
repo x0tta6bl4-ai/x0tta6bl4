@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from src.core.health.dependency_health import DependencyHealthChecker, check_dependencies_health
 from src.core.health.health import get_health, get_health_with_dependencies
+from src.core.health.health import check_cli  # noqa: F401
 from src.core.health.health_check import (
     CheckResult,
     HealthChecker,

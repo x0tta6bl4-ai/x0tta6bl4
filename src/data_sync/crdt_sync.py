@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Optional, Set
 
 # Import CRDT implementations from crdt.py
+from .crdt import GCounter, LWWRegister, ORSet  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

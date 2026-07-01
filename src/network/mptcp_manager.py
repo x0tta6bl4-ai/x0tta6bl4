@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
@@ -25,6 +26,7 @@ from src.services.service_event_identity import service_event_identity
 logger = logging.getLogger(__name__)
 
 _SERVICE_AGENT = "mptcp-manager"
+_STATUS_SOURCE_AGENT = _SERVICE_AGENT
 
 MPTCP_MANAGER_CLAIM_BOUNDARY = (
     "MPTCP manager control event only. It records local identity, policy, and "
