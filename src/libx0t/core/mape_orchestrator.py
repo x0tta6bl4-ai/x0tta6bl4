@@ -265,3 +265,10 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("MAPE-K цикл остановлен пользователем.")
 
+# Re-export from canonical location for symbols moved to subpackage
+from src.core.mape_k.mape_orchestrator import (  # noqa: F401, E402
+    AlertSeverity,
+    HealingAction,
+    HealingActionType,
+)
+from src.core.resilience_patterns import CircuitBreaker  # noqa: F401, E402

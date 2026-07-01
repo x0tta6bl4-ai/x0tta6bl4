@@ -19,7 +19,7 @@ with patch("slowapi.Limiter") as MockLimiter:
 
     from src.api.billing import router as billing_router
     from src.api.billing import stripe_webhook
-    from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
+    from src.core.resilience.circuit_breaker import CircuitBreakerOpen, stripe_circuit
     from src.database import Base, License
     from src.database import User, get_db
 
@@ -279,7 +279,7 @@ async def test_stripe_webhook_success(
 
     # Mock TokenGenerator
     mocker.patch(
-        "src.sales.telegram_bot.TokenGenerator.generate",
+        "src.sales.telegram_bot_v2.TokenGenerator.generate",
         return_value="mock_license_token",
     )
     mocker.patch("src.api.billing.XrayManager.add_user", new=AsyncMock(return_value=True))
@@ -333,7 +333,7 @@ async def test_stripe_webhook_idempotent_replay_by_event_id(
     db_session.commit()
 
     mock_token = mocker.patch(
-        "src.sales.telegram_bot.TokenGenerator.generate",
+        "src.sales.telegram_bot_v2.TokenGenerator.generate",
         return_value="idem_license_token",
     )
     mocker.patch("src.api.billing.XrayManager.add_user", new=AsyncMock(return_value=True))
@@ -380,7 +380,7 @@ async def test_stripe_webhook_event_id_payload_mismatch_returns_409(
     db_session.commit()
 
     mocker.patch(
-        "src.sales.telegram_bot.TokenGenerator.generate",
+        "src.sales.telegram_bot_v2.TokenGenerator.generate",
         return_value="idem_conflict_license",
     )
     mocker.patch("src.api.billing.XrayManager.add_user", new=AsyncMock(return_value=True))
@@ -560,7 +560,7 @@ async def test_stripe_webhook_invoice_paid(
     db_session.refresh(user)
 
     mocker.patch(
-        "src.sales.telegram_bot.TokenGenerator.generate",
+        "src.sales.telegram_bot_v2.TokenGenerator.generate",
         return_value="mock_invoice_license",
     )
     mocker.patch("src.api.billing.XrayManager.add_user", new=AsyncMock(return_value=True))
@@ -615,7 +615,7 @@ async def test_stripe_webhook_customer_subscription_created(
     db_session.refresh(user)
 
     mocker.patch(
-        "src.sales.telegram_bot.TokenGenerator.generate",
+        "src.sales.telegram_bot_v2.TokenGenerator.generate",
         return_value="mock_sub_license",
     )
     mocker.patch("src.api.billing.XrayManager.add_user", new=AsyncMock(return_value=True))
@@ -685,7 +685,7 @@ async def test_stripe_webhook_missing_email_payload(
     assert db_session.query(User).filter(User.email == user_email).first() is None
 
     mocker.patch(
-        "src.sales.telegram_bot.TokenGenerator.generate",
+        "src.sales.telegram_bot_v2.TokenGenerator.generate",
         return_value="mock_license_token",
     )
 
@@ -727,7 +727,7 @@ async def test_stripe_webhook_db_rollback_on_error(
     db_session.commit()
 
     mocker.patch(
-        "src.sales.telegram_bot.TokenGenerator.generate",
+        "src.sales.telegram_bot_v2.TokenGenerator.generate",
         side_effect=Exception("DB error"),
     )
     mocker.patch.dict(

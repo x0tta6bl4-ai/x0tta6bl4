@@ -15,7 +15,7 @@ SECURITY_PIN_FIXES = {
     "gitpython": "3.1.50",
     "idna": "3.15",
     "mako": "1.3.12",
-    "python-multipart": "0.0.27",
+    "python-multipart": "0.0.32",
     "urllib3": "2.7.0",
 }
 
