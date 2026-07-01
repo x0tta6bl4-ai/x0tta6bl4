@@ -272,12 +272,19 @@ class ProductionAnomalyDetector:
 _SINGLETON_INSTANCE: ProductionAnomalyDetector | None = None
 
 
-def get_production_anomaly_detector(config: dict | None = None) -> ProductionAnomalyDetector:
+def get_production_anomaly_detector(
+    config: dict | None = None,
+    **kwargs: object,
+) -> ProductionAnomalyDetector:
     """Get or create the singleton ProductionAnomalyDetector."""
     global _SINGLETON_INSTANCE
+    merged_config: dict = {}
+    if config is not None:
+        merged_config.update(config)
+    merged_config.update({k: v for k, v in kwargs.items() if isinstance(v, (int, float))})
     if _SINGLETON_INSTANCE is None:
         _SINGLETON_INSTANCE = ProductionAnomalyDetector(
-            sensitivity=(config or {}).get("sensitivity", 2.0),
-            min_history=(config or {}).get("min_history", 50),
+            sensitivity=merged_config.get("sensitivity", 2.0),
+            min_history=merged_config.get("min_history", 50),
         )
     return _SINGLETON_INSTANCE
