@@ -11,6 +11,59 @@ TMP_*
 # Private data (not in repo)
 .private/
 
+# === SEPARATE SUBPROJECTS (not in monorepo root) ===
+x0tta6bl4-app/
+x0tta6bl4-landing/
+x0tta6bl4-pwa/
+x0tta6bl4-roadmap/
+x0tta6bl4-xray-vps/
+mesh-operator/
+
+# === DUPLICATE DEPLOY DIRECTORIES ===
+deploy_ghost/
+deployment/
+docker/
+
+# === ROOT COPIES OF EXISTING DEPLOY SUBS ===
+helm/
+k8s/
+
+# === ONE-TIME / DEPRECATED SCRIPTS ===
+scripts/deprecated/
+scripts/hh_chat_*.py
+scripts/hh_send_messages.py
+scripts/hh_send_to_chat.py
+scripts/hh_chat_monitor.py
+scripts/hh_chat_replier.py
+scripts/hh_chat_responder.py
+scripts/hh_chat_worker.py
+
+# === SEPARATE INFRA PROJECTS ===
+terraform/
+ansible/
+archive/
+
+# === OLD SEPARATE PROJECTS ===
+torrserver/
+torserver/
+dr/
+edge/
+
+# === GENERATED EVIDENCE BUNDLES ===
+commercial/products/out/
+
+# === PERSONAL VPN SCRIPTS ===
+"vpn xray/"
+
+# === OLD LANDING PAGES ===
+grafana/
+grafana_dashboards/
+prometheus/
+frontend/
+go-to-market/
+product/
+products/
+
 # x0tta6bl4 root .gitignore
 # Python
 .venv*/
@@ -498,52 +551,3 @@ cache/
 tmp/
 output/
 results/
-reports/
-artifacts/
-external_artifacts/
-load/
-logs/
-node_modules/
-k6-v0.49.0-linux-amd64/
-pytest-of-x0ttta6bl4/
-System Volume Information/
-user_data/
-pitch-deck/
-
-# === DOCKER GARBAGE ===
-docker-data-old/
-docker-ext4/
-
-# === TEST OUTPUT ===
-data/
-mesh_proof_data/
-metrics_baseline/
-mutants/
-staging/
-benchmarks/
-
-# === THIRD PARTY ===
-github.com/
-ethernaut-ctf/
-ethernaut-solutions/
-bounties/
-
-# === LARGE BINARY FILES (never track in git) ===
-docker_storage.img
-*.gguf
-bin/xray
-bin/xray.zip
-bin/geoip.dat
-k6-*/
-x0t-agent-smoke
-ai-actuator
-local-aggregator
-afxdp_bridge_v2
-prod
-
-# === BACKUP FILES ===
-*.bak
-
-# === BUILD ARTIFACTS ===
-*.egg-info/
-src/__pycache__/
