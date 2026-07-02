@@ -551,3 +551,6 @@ cache/
 tmp/
 output/
 results/
+
+# Local sensitive legal and bankruptcy documents
+docs/legal/
