@@ -7,18 +7,18 @@ from datetime import datetime, timezone
 import json
 from typing import Callable, Literal, Protocol, TYPE_CHECKING
 
-from .applied_state import (
+from ..applied_state import (
     LinuxAppliedStateCommandRunner,
     LinuxAppliedStateEvidence,
     collect_linux_applied_state_snapshot,
     evaluate_linux_applied_state,
 )
-from .dataplane_validation import (
+from ..dataplane_validation import (
     DataplaneTransport,
     DataplaneValidationEvidence,
     TunDataplaneValidationEvidence,
 )
-from .linux_policy import (
+from ..linux_policy import (
     LinuxNetworkPolicyConfig,
     LinuxNetworkPolicyPlanner,
     LinuxPolicyCommand,
@@ -26,9 +26,9 @@ from .linux_policy import (
     LinuxServerNatPlanner,
     LinuxServerVpnListener,
 )
-from .leak_protection import LinuxLeakProtectionEvidence, evaluate_linux_leak_protection
-from .mtu import MtuValidationEvidence
-from .ops import (
+from ..leak_protection import LinuxLeakProtectionEvidence, evaluate_linux_leak_protection
+from ..mtu import MtuValidationEvidence
+from ..ops import (
     CommandPlanEvidence,
     OperatorApproval,
     RolloutGateDecision,
@@ -38,8 +38,8 @@ from .ops import (
     evaluate_rollout_gate,
     hash_identifier,
 )
-from .pqc import PqcImplementationManifest, PqcKatResult, PqcProviderGateDecision
-from .preflight import (
+from ..pqc import PqcImplementationManifest, PqcKatResult, PqcProviderGateDecision
+from ..preflight import (
     BinaryExists,
     LinuxHostFacts,
     LinuxPreflightConfig,
@@ -47,36 +47,36 @@ from .preflight import (
     PathExists,
     evaluate_linux_deployment_preflight,
 )
-from .production_control import (
+from ..production_control import (
     ExternalPolicySnapshotSourceEvidence,
     FirstPartyIdentitySignerManifest,
     IdentitySignerConformanceEvidence,
     IdentitySignerKatResult,
     ProductionIdentitySignerGateDecision,
 )
-from .production_readiness import (
+from ..production_readiness import (
     FullVpnProductionReadinessDecision,
     FullVpnProductionReadinessEvidence,
     FullVpnProductionReadinessRequirements,
     evaluate_full_vpn_production_readiness,
 )
-from .rekey_policy import FirstPartyRekeyPolicyDecision
-from .source_audit import FirstPartySourceAuditEvidence
-from .tun import LinuxTunConfig, LinuxTunDevice
-from .zero_trust import ZeroTrustPolicyEvidence
+from ..rekey_policy import FirstPartyRekeyPolicyDecision
+from ..source_audit import FirstPartySourceAuditEvidence
+from ..tun import LinuxTunConfig, LinuxTunDevice
+from ..zero_trust import ZeroTrustPolicyEvidence
 
 if TYPE_CHECKING:
     from .admission import FirstPartySessionAdmissionRegistry
     from .camouflage import CamouflagePolicy, CamouflageProfile
-    from .dataplane_validation import DataplaneEndpointCandidate
+    from ..dataplane_validation import DataplaneEndpointCandidate
     from .fragmentation import PacketFragmenter, PacketReassembler
     from .handshake import FirstPartyHandshakeAccept, FirstPartyHandshakeHello
     from .identity import IdentityVerifier, RevocationList
-    from .pqc import PqcSessionSecretMaterial
+    from ..pqc import PqcSessionSecretMaterial
     from .service import FirstPartyDataplaneBind
     from .session import SessionContext
-    from .tun import TunDevice, TunReturnTransport
-    from .zero_trust import ZeroTrustPolicy
+    from ..tun import TunDevice, TunReturnTransport
+    from ..zero_trust import ZeroTrustPolicy
 
 
 class FirstPartyVpnDeploymentError(ValueError):
@@ -1267,7 +1267,7 @@ def build_firstparty_admission_tun_server_activator(
         _packet: FirstPartyVpnDeploymentPacket,
     ) -> FirstPartyVpnDataplaneActivationResult:
         from .service import FirstPartyDataplaneBind
-        from .tun import open_threaded_firstparty_admission_tun_server
+        from ..tun import open_threaded_firstparty_admission_tun_server
 
         bind = FirstPartyDataplaneBind.from_server_nat(
             config.server_nat,
@@ -1547,7 +1547,7 @@ def build_firstparty_admission_tun_client_activators(
             raise FirstPartyVpnDeploymentError(
                 "admission TUN client requires activated TUN"
             )
-        from .tun import open_threaded_firstparty_admission_tun_client_pump
+        from ..tun import open_threaded_firstparty_admission_tun_client_pump
 
         resource = open_threaded_firstparty_admission_tun_client_pump(
             hello=hello,

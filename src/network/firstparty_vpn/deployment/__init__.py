@@ -5,7 +5,7 @@ Re-exports from core.py and models.py for the parent package.
 
 from __future__ import annotations
 
-from .core import (
+from .executor import (
     FirstPartyVpnDeploymentExecutor,
 )
 from .models import (

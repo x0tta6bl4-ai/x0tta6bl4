@@ -1,0 +1,40 @@
+{
+  "active_count": 4,
+  "files_scanned": 109,
+  "finding_count": 91,
+  "findings": [
+    {
+      "caveated": false,
+      "kind": "production-ready",
+      "line": 7,
+      "path": "docs/commercial/PEAQ_GRANT_APPLICATION.md",
+      "text": "I propose to integrate the **x0tta6bl4** post-quantum transport layer as an optional security module for the peaq ecosystem. As a solo developer with a proven track record in high-performance networking (eBPF/XDP), I have built a production-ready, post-quantum mesh protocol that is now live on Base Sepolia testnet.",
+      "zone": "active_claim_surface"
+    },
+    {
+      "caveated": false,
+      "kind": "production-ready",
+      "line": 156,
+      "path": "docs/commercial/content/demo_video_script.md",
+      "text": "**Voiceover:** \"x0tta6bl4 \u2014 the post-quantum transport layer for the DePIN economy. Open source. Production-ready under active verification. Quantum-resistant.\"",
+      "zone": "active_claim_surface"
+    },
+    {
+      "caveated": false,
+      "kind": "production-ready",
+      "line": 21,
+      "path": "docs/commercial/submission_packets/peaq/application.md",
+      "text": "**x0tta6bl4** is under active development for DePIN-grade transport: a production-ready, self-healing Mesh-as-a-Service (MaaS) platform secured by NIST-standardized post-quantum cryptography.",
+      "zone": "active_claim_surface"
+    },
+    {
+      "caveated": false,
+      "kind": "production-ready",
+      "line": 284,
+      "path": "docs/commercial/submission_packets/peaq/application.md",
+      "text": "3. **Mainnet Deployment Package** \u2014 Production-ready artifacts under active verification:",
+      "zone": "active_claim_surface"
+    }
+  ],
+  "zone": "active_claim_surface"
+}

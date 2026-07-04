@@ -1,0 +1,32 @@
+{
+  "active_count": 3,
+  "files_scanned": 1843,
+  "finding_count": 43,
+  "findings": [
+    {
+      "caveated": false,
+      "kind": "field-validated",
+      "line": 50,
+      "path": "docs/verification/open5gs-http-bridge-20260615T110721Z/README.md",
+      "text": "- **Field-validated deployment** \u2014 This is VPS-hosted, not field-deployed",
+      "zone": "authoritative"
+    },
+    {
+      "caveated": false,
+      "kind": "production-traffic",
+      "line": 77,
+      "path": "docs/verification/open5gs-http-bridge-20260615T110721Z/README.md",
+      "text": "- No production traffic proof",
+      "zone": "authoritative"
+    },
+    {
+      "caveated": false,
+      "kind": "production-traffic",
+      "line": 46,
+      "path": "docs/verification/xdp-live-attach-20260615T133855Z/README.md",
+      "text": "- Production traffic delivery",
+      "zone": "authoritative"
+    }
+  ],
+  "zone": "authoritative"
+}
