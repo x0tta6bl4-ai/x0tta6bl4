@@ -81,13 +81,13 @@ from .dataplane_validation import (
     evaluate_dataplane_validation,
     evaluate_tun_dataplane_validation,
 )
+from .deployment.executor import FirstPartyVpnDeploymentExecutor
 from .deployment import (
     FirstPartyVpnDataplaneActivationResult,
     FirstPartyVpnDeploymentConfig,
     FirstPartyVpnDeploymentError,
     FirstPartyVpnDeploymentEvidence,
     FirstPartyVpnDeploymentExecutionEvidence,
-    FirstPartyVpnDeploymentExecutor,
     FirstPartyVpnDeploymentMutationBlocked,
     FirstPartyVpnDeploymentPacket,
     FirstPartyVpnDeploymentPlanHashes,

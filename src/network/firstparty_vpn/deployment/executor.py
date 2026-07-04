@@ -66,15 +66,15 @@ from ..tun import LinuxTunConfig, LinuxTunDevice
 from ..zero_trust import ZeroTrustPolicyEvidence
 
 if TYPE_CHECKING:
-    from .admission import FirstPartySessionAdmissionRegistry
-    from .camouflage import CamouflagePolicy, CamouflageProfile
+    from ..admission import FirstPartySessionAdmissionRegistry
+    from ..camouflage import CamouflagePolicy, CamouflageProfile
     from ..dataplane_validation import DataplaneEndpointCandidate
-    from .fragmentation import PacketFragmenter, PacketReassembler
-    from .handshake import FirstPartyHandshakeAccept, FirstPartyHandshakeHello
-    from .identity import IdentityVerifier, RevocationList
+    from ..fragmentation import PacketFragmenter, PacketReassembler
+    from ..handshake import FirstPartyHandshakeAccept, FirstPartyHandshakeHello
+    from ..identity import IdentityVerifier, RevocationList
     from ..pqc import PqcSessionSecretMaterial
-    from .service import FirstPartyDataplaneBind
-    from .session import SessionContext
+    from ..service import FirstPartyDataplaneBind
+    from ..session import SessionContext
     from ..tun import TunDevice, TunReturnTransport
     from ..zero_trust import ZeroTrustPolicy
 
@@ -1214,7 +1214,7 @@ def build_firstparty_dataplane_activator(
     def activate(
         _packet: FirstPartyVpnDeploymentPacket,
     ) -> FirstPartyVpnDataplaneActivationResult:
-        from .service import FirstPartyDataplaneBind
+        from ..service import FirstPartyDataplaneBind
 
         bind = FirstPartyDataplaneBind.from_server_nat(
             config.server_nat,
@@ -1266,7 +1266,7 @@ def build_firstparty_admission_tun_server_activator(
     def activate(
         _packet: FirstPartyVpnDeploymentPacket,
     ) -> FirstPartyVpnDataplaneActivationResult:
-        from .service import FirstPartyDataplaneBind
+        from ..service import FirstPartyDataplaneBind
         from ..tun import open_threaded_firstparty_admission_tun_server
 
         bind = FirstPartyDataplaneBind.from_server_nat(
