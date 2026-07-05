@@ -1,0 +1,22 @@
+apiVersion: v2
+name: maas-edge-computing
+description: MaaS Edge Computing - Distributed edge node management and task execution
+
+type: application
+version: 1.0.0
+appVersion: "3.3.0"
+
+maintainers:
+  - name: MaaS Team
+    email: team@maas-platform.io
+
+sources:
+  - https://github.com/maas-platform/maas-edge-computing
+
+keywords:
+  - edge-computing
+  - distributed
+  - task-execution
+  - caching
+
+home: https://maas-platform.io

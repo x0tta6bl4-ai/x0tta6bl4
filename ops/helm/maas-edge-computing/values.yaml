@@ -1,0 +1,245 @@
+# Default values for maas-edge-computing
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Edge Computing Controller
+controller:
+  replicaCount: 2
+  
+  image:
+    repository: maas/edge-controller
+    pullPolicy: IfNotPresent
+    tag: "3.3.0"
+  
+  service:
+    type: ClusterIP
+    port: 8080
+    annotations: {}
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# Edge Nodes
+edgeNodes:
+  # Default edge node configuration
+  defaults:
+    heartbeatInterval: 30s
+    taskTimeout: 300s
+    maxConcurrentTasks: 10
+    drainTimeout: 60s
+  
+  # Auto-registration settings
+  autoRegistration:
+    enabled: true
+    tokenSecret: edge-registration-token
+    tokenExpiry: 24h
+
+# Task Distribution
+taskDistribution:
+  # Distribution strategy: round_robin, least_loaded, capability_based, adaptive
+  strategy: adaptive
+  
+  # Retry settings
+  retry:
+    maxAttempts: 3
+    backoffMultiplier: 2
+    initialDelay: 1s
+    maxDelay: 30s
+  
+  # Priority queues
+  priorityQueues:
+    enabled: true
+    levels:
+      - name: critical
+        weight: 100
+      - name: high
+        weight: 50
+      - name: normal
+        weight: 10
+      - name: low
+        weight: 1
+
+# Edge Cache
+cache:
+  enabled: true
+  
+  # Cache backend: memory, redis
+  backend: memory
+  
+  # Memory cache settings
+  memory:
+    maxSize: 100MB
+    evictionPolicy: lru  # lru, lfu, adaptive
+  
+  # Redis cache settings (if backend is redis)
+  redis:
+    enabled: false
+    host: redis.default.svc.cluster.local
+    port: 6379
+    database: 0
+    password: ""
+    tls: false
+  
+  # TTL settings
+  defaultTTL: 3600s
+  maxTTL: 86400s
+
+# Resilience Patterns
+resilience:
+  # Rate Limiter
+  rateLimiter:
+    enabled: true
+    algorithm: token_bucket  # token_bucket, sliding_window, leaky_bucket
+    requestsPerSecond: 100
+    burstSize: 200
+  
+  # Bulkhead
+  bulkhead:
+    enabled: true
+    maxConcurrentCalls: 50
+    maxWaitDuration: 5s
+  
+  # Circuit Breaker
+  circuitBreaker:
+    enabled: true
+    failureRateThreshold: 50
+    slowCallRateThreshold: 50
+    slowCallDurationThreshold: 2s
+    waitDurationInOpenState: 30s
+    permittedNumberOfCallsInHalfOpenState: 10
+    slidingWindowSize: 100
+  
+  # Retry
+  retry:
+    enabled: true
+    maxAttempts: 3
+    waitDuration: 1s
+    exponentialBackoffMultiplier: 2
+
+# Monitoring
+monitoring:
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 30s
+    labels: {}
+  
+  prometheusRules:
+    enabled: true
+    namespace: monitoring
+    rules:
+      - alert: EdgeNodeOffline
+        expr: edge_node_status == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Edge node is offline
+          description: "Edge node {{ $labels.node_id }} has been offline for 2 minutes"
+      
+      - alert: EdgeTaskQueueBacklog
+        expr: edge_tasks_pending > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High task queue backlog
+          description: "{{ $value }} tasks pending in queue"
+      
+      - alert: EdgeCacheHitRateLow
+        expr: rate(edge_cache_hits_total[5m]) / rate(edge_cache_requests_total[5m]) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Low cache hit rate
+          description: "Cache hit rate is {{ $value | humanizePercentage }}"
+
+# OpenTelemetry Tracing
+tracing:
+  enabled: true
+  exporter:
+    type: jaeger
+    jaeger:
+      host: jaeger-collector.observability.svc.cluster.local
+      port: 6831
+  sampling:
+    rate: 1.0
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod Security
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+# Node selector, tolerations, affinity
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+
+# Ingress
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: edge.maas.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Health checks
+healthCheck:
+  liveness:
+    path: /edge/health
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  readiness:
+    path: /edge/health
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+# Config
+config:
+  logLevel: INFO
+  edgeNode:
+    heartbeatInterval: 30s
+    taskTimeout: 300s
+  cache:
+    defaultTTL: 3600
+    maxSize: 100MB
