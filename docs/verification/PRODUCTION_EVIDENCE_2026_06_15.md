@@ -97,13 +97,15 @@
 4. **Agents work** — Earning agents running and monitoring
 5. **Infrastructure stable** — All services accessible externally
 
-## What This Does NOT Prove
+## Current Truth Boundary
 
-1. **Production traffic** — No real customer payments yet
-2. **Scale** — Single VPS, no load testing
-3. **Security audit** — No penetration testing
-4. **Compliance** — No SOC2, GDPR certification
-5. **Revenue** — Wallet balance is 0 USDC
+This evidence does not prove production traffic, scale, audit completion, or external certification.
+
+1. **Production traffic** — no real customer payments yet; not a current production claim
+2. **Scale** — single VPS, no load testing
+3. **Security audit** — no penetration testing
+4. **Compliance** — no SOC2, GDPR certification
+5. **Revenue** — wallet balance is 0 USDC
 
 ## Next Steps
 

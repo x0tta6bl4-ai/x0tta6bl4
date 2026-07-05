@@ -1,11 +1,11 @@
 {
   "artifacts": {
-    "proof_bundle_json": "docs/verification/ghost-pulse-proof-gate-20260525T044523Z/proof.json",
-    "proof_bundle_md": "docs/verification/ghost-pulse-proof-gate-20260525T044523Z/summary.md",
+    "proof_bundle_json": "docs/verification/ghost-pulse-proof-gate-20260703T210337Z/proof.json",
+    "proof_bundle_md": "docs/verification/ghost-pulse-proof-gate-20260703T210337Z/summary.md",
     "proof_latest_json": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json",
     "proof_latest_md": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-proof-gate-20260525T044523Z",
+  "bundle": "docs/verification/ghost-pulse-proof-gate-20260703T210337Z",
   "claim_boundary": {
     "kernel_attach_verified": true,
     "production_ready": false,
@@ -15,6 +15,15 @@
   "claim_boundary_note": "Only the local timing replay, false-claim hygiene, and artifact chain can be proven from current repo-local evidence. DPI, whitelist, kernel attach, and production claims require the external evidence files listed in required_external_evidence. Replacement-candidate preflight is supporting evidence only and never promotes claims.",
   "decision": "GHOST_PULSE_PROOF_INCOMPLETE",
   "failures": [
+    "suite verifier: false_claim_scan target size_bytes mismatch: src/network/obfuscation/whitelist_mimicry.py",
+    "suite verifier: false_claim_scan target sha256 mismatch: src/network/obfuscation/whitelist_mimicry.py",
+    "suite verifier: false_claim_scan target size_bytes mismatch: docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md",
+    "suite verifier: false_claim_scan target sha256 mismatch: docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md",
+    "suite verifier: false_claim_scan target size_bytes mismatch: src/network/transport/pulse_transport.py",
+    "suite verifier: false_claim_scan target sha256 mismatch: src/network/transport/pulse_transport.py",
+    "local_timing_replay: local or matrix replay evidence is not fully replayable",
+    "false_claim_hygiene: false_claim_scan is not PASS",
+    "artifact_chain: artifact_integrity or artifact-chain verification is not PASS",
     "dpi_lab: status must be VERIFIED",
     "dpi_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
     "dpi_lab: missing_inputs must be absent or empty for VERIFIED evidence",
@@ -74,6 +83,9 @@
     "production_readiness: references must be a non-empty list"
   ],
   "not_verified_yet": [
+    "local_timing_replay",
+    "false_claim_hygiene",
+    "artifact_chain",
     "dpi_lab",
     "whitelist_lab",
     "security_review",
@@ -82,26 +94,32 @@
   "proof_rows": [
     {
       "claim_id": "local_timing_replay",
-      "errors": [],
+      "errors": [
+        "local or matrix replay evidence is not fully replayable"
+      ],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
       "sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
-      "status": "VERIFIED",
+      "status": "INVALID",
       "title": "Seeded local timing plan replay"
     },
     {
       "claim_id": "false_claim_hygiene",
-      "errors": [],
+      "errors": [
+        "false_claim_scan is not PASS"
+      ],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
       "sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
-      "status": "VERIFIED",
+      "status": "INVALID",
       "title": "False-claim hygiene scan"
     },
     {
       "claim_id": "artifact_chain",
-      "errors": [],
+      "errors": [
+        "artifact_integrity or artifact-chain verification is not PASS"
+      ],
       "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
       "sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
-      "status": "VERIFIED",
+      "status": "INVALID",
       "title": "Latest artifact chain integrity"
     },
     {
@@ -566,5 +584,5 @@
   "schema": "x0tta6bl4.ghost_pulse.proof_gate.v1",
   "suite": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
   "suite_sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
-  "timestamp_utc": "2026-05-25T04:45:23.098081+00:00"
+  "timestamp_utc": "2026-07-03T21:03:37.338534+00:00"
 }

@@ -1,6 +1,6 @@
 # x0tta6bl4_pulse Proof Gate
 
-Timestamp: `2026-05-25T04:45:23.098081+00:00`
+Timestamp: `2026-07-03T21:03:37.338534+00:00`
 
 Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
@@ -23,9 +23,9 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
 | Claim | Status | Evidence |
 | --- | --- | --- |
-| local_timing_replay | `VERIFIED` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
-| false_claim_hygiene | `VERIFIED` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
-| artifact_chain | `VERIFIED` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
+| local_timing_replay | `INVALID` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
+| false_claim_hygiene | `INVALID` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
+| artifact_chain | `INVALID` | `docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json` |
 | kernel_attach | `VERIFIED` | `docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json` |
 | packet_capture | `VERIFIED` | `docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.json` |
 | baseline_timing_comparison | `VERIFIED` | `docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json` |
@@ -36,6 +36,9 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
 ## Missing Or Invalid Evidence
 
+- local_timing_replay
+- false_claim_hygiene
+- artifact_chain
 - dpi_lab
 - whitelist_lab
 - security_review
@@ -43,6 +46,15 @@ Decision: `GHOST_PULSE_PROOF_INCOMPLETE`
 
 ## Failures
 
+- suite verifier: false_claim_scan target size_bytes mismatch: src/network/obfuscation/whitelist_mimicry.py
+- suite verifier: false_claim_scan target sha256 mismatch: src/network/obfuscation/whitelist_mimicry.py
+- suite verifier: false_claim_scan target size_bytes mismatch: docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md
+- suite verifier: false_claim_scan target sha256 mismatch: docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md
+- suite verifier: false_claim_scan target size_bytes mismatch: src/network/transport/pulse_transport.py
+- suite verifier: false_claim_scan target sha256 mismatch: src/network/transport/pulse_transport.py
+- local_timing_replay: local or matrix replay evidence is not fully replayable
+- false_claim_hygiene: false_claim_scan is not PASS
+- artifact_chain: artifact_integrity or artifact-chain verification is not PASS
 - dpi_lab: status must be VERIFIED
 - dpi_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD
 - dpi_lab: missing_inputs must be absent or empty for VERIFIED evidence

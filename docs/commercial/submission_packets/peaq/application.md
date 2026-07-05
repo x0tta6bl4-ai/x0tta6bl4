@@ -18,7 +18,8 @@
 
 ## 1. Executive Summary
 
-**x0tta6bl4** is a production-ready, self-healing Mesh-as-a-Service (MaaS) platform secured by NIST-standardized post-quantum cryptography. We propose to build a **native peaq integration layer** that gives peaq DePIN machines three capabilities no other network currently offers: quantum-resistant inter-node transport, kernel-level DPI bypass for censorship resistance, and autonomous self-healing with zero manual intervention.
+**x0tta6bl4** is under active development for DePIN-grade transport: a production-ready, self-healing Mesh-as-a-Service (MaaS) platform secured by NIST-standardized post-quantum cryptography.
+This wording is aspirational/current-verification wording, not a verified current production claim.
 
 The peaq ecosystem coordinates thousands of DePIN machines — sensors, relays, compute nodes, and IoT devices. These machines communicate over standard TCP/IP with classical encryption (RSA/ECC), making them vulnerable to "harvest now, decrypt later" quantum attacks. They are also susceptible to state-level censorship via deep packet inspection (DPI), and node failures require manual recovery, creating downtime that erodes trust in decentralized infrastructure.
 
@@ -96,7 +97,8 @@ A plugin that extends peaq's node management with autonomous failure detection, 
 | Knowledge Sharing | Federated semantic (93% MTTR reduction) | None | None |
 | Safe Execution | Bounded actuator with oscillation guards | Unbounded | Unbounded |
 
-**No other peaq grantee or DePIN project offers post-quantum cryptography as a default transport feature.** This is our primary differentiator and the strongest argument for peaq ecosystem value.
+**No other peaq grantee or DePIN project currently offers post-quantum cryptography as a default transport feature in verified production evidence.** This is our primary differentiator and the strongest argument for peaq ecosystem value.
+This statement is aspirational and operator-confirmed, not a current verified production claim.
 
 ### 3.3 Existing Technical Assets (Ready to Deploy)
 
@@ -279,7 +281,7 @@ The following components are already built, tested, and verified:
    - Measure MTTR: target <3 minutes (vs. hours with manual recovery)
    - Verify PQC key persistence across recovery cycles
 
-3. **Mainnet Deployment Package** — Production-ready artifacts:
+3. **Mainnet Deployment Package** — Production-ready artifacts under active verification:
    - Hardened peaq-x0t adapter binary (Go, static compilation)
    - Signed eBPF objects (Ghost Pulse) for peaq mainnet kernel versions
    - SPIFFE/SPIRE registration scripts for peaq mainnet
