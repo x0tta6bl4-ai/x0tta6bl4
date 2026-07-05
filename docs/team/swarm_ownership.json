@@ -22,7 +22,8 @@
     "scripts/start-local-proxy.sh",
     "scripts/telegram_bot_simple.py",
     "scripts/xray_client_naming.py",
-    "scripts/xui_client_manager.py"
+    "scripts/xui_client_manager.py",
+    "uv.lock"
   ],
   "agents": {
     "agent1-ml-core": {
