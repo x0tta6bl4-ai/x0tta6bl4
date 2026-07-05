@@ -537,7 +537,7 @@
       "decision": "CLIENT_MATRIX_PARTIAL_REAL_DEVICES_REQUIRED",
       "endpoint": "/client-compatibility",
       "json": "nl-diagnostics/nl-anti-block-client-compatibility-runtime-summary-2026-06-02.json",
-      "local_v2rayn_dataplane_probe_ok": true,
+      "local_v2rayn_dataplane_probe_ok": null,
       "markdown": "nl-diagnostics/nl-anti-block-client-compatibility-runtime-summary-2026-06-02.md",
       "missing_requirements": [
         "android_happ_or_hiddify",
@@ -554,15 +554,7 @@
       "passing_real_client_checks": 2,
       "privacy": {
         "output_privacy_ok": true,
-        "raw_email_stored": false,
-        "raw_ip_stored": false,
-        "raw_phone_stored": false,
-        "raw_real_client_rows_returned": false,
-        "raw_reporter_identifier_stored": false,
-        "raw_subscription_url_stored": false,
-        "raw_telegram_handle_stored": false,
-        "raw_uuid_stored": false,
-        "raw_vpn_uri_stored": false
+        "raw_real_client_rows_returned": false
       },
       "publisher": "services/nl-server/ghost-access/build_client_compatibility_runtime_summary.py",
       "real_client_checks": 9,
@@ -582,7 +574,7 @@
     }
   },
   "decision": "PRODUCTION_CANDIDATE_GOAL_NOT_MARKED_COMPLETE",
-  "generated_at": "2026-06-06T15:47:38Z",
+  "generated_at": "2026-07-02T13:55:18Z",
   "generated_local_date": "2026-06-02",
   "generator": "services/nl-server/ghost-access/build_anti_block_production_audit.py",
   "live_evidence": {

@@ -1,22 +1,22 @@
 # Local Diagnostic Environment Audit
 
-generated_at: `2026-05-28T03:42:23.036672+00:00`
-status: `watch_root_full_tmpdir_available`
+generated_at: `2026-07-02T13:55:15.266210+00:00`
+status: `ok`
 ok: `true`
 
 ## Summary
 
 ```text
-root_status=critical_full
-root_used_percent=94.9
-root_free_gib=0.0
-tmp_status=critical_full
+root_status=ok
+root_used_percent=85.1
+root_free_gib=10.39
+tmp_status=ok
 projects_status=ok
-projects_free_gib=61.17
+projects_free_gib=320.56
 diagnostic_tmpdir=/mnt/projects/.tmp
 diagnostic_tmpdir_exists=true
 diagnostic_tmpdir_writable=true
-cleanup_required=true
+cleanup_required=false
 recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
 nl_write_allowed=false
 spb_fallback_allowed=false
@@ -27,14 +27,14 @@ automatic_failover_allowed=false
 
 | Path | Status | Used | Free GiB |
 |---|---|---:|---:|
-| `/` | `critical_full` | 94.9% | 0.0 |
-| `/tmp` | `critical_full` | 94.9% | 0.0 |
-| `/mnt/projects` | `ok` | 86.9% | 61.17 |
+| `/` | `ok` | 85.1% | 10.39 |
+| `/tmp` | `ok` | 85.1% | 10.39 |
+| `/mnt/projects` | `ok` | 31.1% | 320.56 |
 
 ## Cleanup Candidates
 
-- `/tmp/antigravity_restore` exists=true action=manual_review_before_delete
-- `/tmp/antigravity_restore_correct` exists=true action=manual_review_before_delete
+- `/tmp/antigravity_restore` exists=false action=manual_review_before_delete
+- `/tmp/antigravity_restore_correct` exists=false action=manual_review_before_delete
 
 ## Notes
 

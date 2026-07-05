@@ -1,6 +1,6 @@
 # VPN Incident Timeline
 
-event_count: `22`
+event_count: `29`
 
 ## Recent Events
 
@@ -28,6 +28,13 @@ event_count: `22`
 | `2026-05-28T03:15:13.660263+00:00` | `20260528T031418Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
 | `2026-05-28T03:26:59.064905+00:00` | `20260528T032605Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
 | `2026-05-28T03:42:31.196258+00:00` | `20260528T034120Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
+| `2026-07-02T13:44:37.390588+00:00` | `20260702T132514Z` | `provider_ticket` | `provider_ticket` | `healthy` | `suspect_active` | `15` | open or update provider packet from fresh evidence |
+| `2026-07-02T13:44:55.463541+00:00` | `20260702T132514Z` | `provider_ticket` | `provider_ticket` | `healthy` | `suspect_active` | `15` | open or update provider packet from fresh evidence |
+| `2026-07-02T13:48:12.213887+00:00` | `20260702T134728Z` | `provider_ticket` | `provider_ticket` | `healthy` | `suspect_active` | `15` | open or update provider packet from fresh evidence |
+| `2026-07-02T13:49:20.325547+00:00` | `20260702T134835Z` | `provider_ticket` | `provider_ticket` | `healthy` | `suspect_active` | `15` | open or update provider packet from fresh evidence |
+| `2026-07-02T13:51:20.949639+00:00` | `20260702T135036Z` | `provider_ticket` | `provider_ticket` | `healthy` | `suspect_active` | `15` | open or update provider packet from fresh evidence |
+| `2026-07-02T13:52:55.591188+00:00` | `20260702T135211Z` | `provider_ticket` | `provider_ticket` | `healthy` | `suspect_active` | `15` | open or update provider packet from fresh evidence |
+| `2026-07-02T13:55:16.175003+00:00` | `20260702T135431Z` | `provider_ticket` | `provider_ticket` | `healthy` | `suspect_active` | `15` | open or update provider packet from fresh evidence |
 
 ## Guardrails
 

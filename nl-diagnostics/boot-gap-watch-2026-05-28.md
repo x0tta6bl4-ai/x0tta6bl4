@@ -1,18 +1,18 @@
 # Boot Gap Watch
 
-generated_at: `2026-05-28T03:42:16.919835+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z`
+generated_at: `2026-07-02T13:55:13.939921+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z`
 
 ## Summary
 
 ```text
-status=watch
-boot_gap_seconds=21907
-overall_status=advisory
+status=provider_ticket
+boot_gap_seconds=15
+overall_status=provider_outage
 transport_status=healthy
-provider_status=recent_boot_gap
-failure_domain=external_network
-recommended_action=observe provider signal; do not restart NL while transport is healthy/advisory
+provider_status=suspect_active
+failure_domain=provider_host
+recommended_action=build provider incident packet from the same fresh snapshot
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false
@@ -21,17 +21,18 @@ automatic_failover_allowed=false
 ## Boot Window
 
 ```text
-previous_boot_first_entry=Wed 2026-05-27 02:50:41 UTC
-previous_boot_last_entry=Wed 2026-05-27 08:53:30 UTC
-current_boot_first_entry=Wed 2026-05-27 14:58:37 UTC
+previous_boot_first_entry=Thu 2026-07-02 06:50:26 UTC
+previous_boot_last_entry=Thu 2026-07-02 09:48:58 UTC
+current_boot_first_entry=Thu 2026-07-02 09:49:13 UTC
 ```
 
 ## Unclean Boot Lines
 
-- May 27 14:58:38 01164.com systemd-journald[302]: File /var/log/journal/e4584c4328b15cd591d7d5c553802e8a/system.journal corrupted or uncleanly shut down, renaming and replacing.
+- none
 
 ## Provider Signal Lines
 
-- none
+- Jul 02 09:48:53 01164.com qemu-ga[858]: info: guest-shutdown called, mode: powerdown
+- Jul 02 09:48:53 01164.com systemd-logind[662]: System is powering down (hypervisor initiated shutdown).
 
 No NL or SPB writes were performed by this boot-gap watch report.
