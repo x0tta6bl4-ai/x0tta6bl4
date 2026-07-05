@@ -1,0 +1,249 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: x0tta6bl4
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'x0tta6bl4-mesh'
+        phi_aware: 'true'
+    
+    # Правила записи для φ-метрик
+    rule_files:
+      - '/etc/prometheus/rules/*.yml'
+    
+    scrape_configs:
+      # Consciousness Engine метрики
+      - job_name: 'consciousness-engine'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - x0tta6bl4
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: mesh-node
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: instance
+        metric_relabel_configs:
+          # Фильтруем только φ-метрики
+          - source_labels: [__name__]
+            regex: 'consciousness_.*|mesh_.*|phi_.*'
+            action: keep
+      
+      # eBPF экспортер для low-level метрик
+      - job_name: 'ebpf-exporter'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - x0tta6bl4
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_component]
+            action: keep
+            regex: ebpf-sidecar
+      
+      # SPIFFE/SPIRE метрики (Zero-Trust)
+      - job_name: 'spire-server'
+        static_configs:
+          - targets: ['spire-server:8080']
+      
+      # Mesh routing метрики
+      - job_name: 'mesh-router'
+        kubernetes_sd_configs:
+          - role: service
+            namespaces:
+              names:
+                - x0tta6bl4
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app]
+            action: keep
+            regex: mesh-router
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: x0tta6bl4
+data:
+  consciousness_rules.yml: |
+    groups:
+      - name: consciousness_metrics
+        interval: 10s
+        rules:
+          # φ-ratio p95 за последние 5 минут
+          - record: consciousness:phi_ratio:p95
+            expr: histogram_quantile(0.95, rate(consciousness_phi_ratio_bucket[5m]))
+          
+          # Среднее состояние сознания (числовое)
+          - record: consciousness:state:avg
+            expr: avg_over_time(consciousness_state[5m])
+          
+          # Частота переходов состояний (volatility)
+          - record: consciousness:state:volatility
+            expr: |
+              sum(changes(consciousness_state[5m])) by (instance)
+          
+          # Mesh health composite score
+          - record: mesh:health:composite
+            expr: |
+              (
+                consciousness_harmony_index * 0.4 +
+                consciousness_frequency_alignment * 0.3 +
+                (1 - consciousness_entropy) * 0.3
+              )
+      
+      - name: mesh_performance
+        interval: 30s
+        rules:
+          # MTTR p95 (целевое значение: 3.14 минут)
+          - record: mesh:mttr:p95
+            expr: histogram_quantile(0.95, rate(mesh_recovery_seconds_bucket[5m])) / 60
+          
+          # Latency p95 (целевое значение: 82-87ms)
+          - record: mesh:latency:p95
+            expr: histogram_quantile(0.95, rate(mesh_latency_milliseconds_bucket[1m]))
+          
+          # Packet loss percentage
+          - record: mesh:packet_loss:percent
+            expr: |
+              100 * (
+                rate(mesh_packets_lost_total[5m]) /
+                (rate(mesh_packets_sent_total[5m]) + rate(mesh_packets_lost_total[5m]))
+              )
+      
+      - name: consciousness_alerts
+        interval: 30s
+        rules:
+          # Алерт: Система в MYSTICAL состоянии
+          - alert: ConsciousnessMystical
+            expr: consciousness_state == 1
+            for: 2m
+            labels:
+              severity: critical
+              phi_state: mystical
+            annotations:
+              summary: "Система в критическом состоянии (MYSTICAL)"
+              description: "φ-ratio = {{ $value | humanize }} < 0.8. Активировано аварийное самовосстановление."
+          
+          # Алерт: Деградация φ-ratio
+          - alert: PhiRatioDegrading
+            expr: |
+              (
+                consciousness:phi_ratio:p95 - 
+                consciousness:phi_ratio:p95 offset 10m
+              ) < -0.2
+            for: 5m
+            labels:
+              severity: warning
+              phi_state: degrading
+            annotations:
+              summary: "Быстрая деградация φ-ratio"
+              description: "φ-ratio упал на {{ $value | humanize }} за последние 10 минут"
+          
+          # Алерт: Высокая волатильность состояний
+          - alert: ConsciousnessVolatility
+            expr: consciousness:state:volatility > 5
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Высокая частота переходов состояний"
+              description: "{{ $value }} переходов за 5 минут (нестабильность системы)"
+          
+          # Алерт: MTTR превышает целевое значение
+          - alert: MTTRExceeded
+            expr: mesh:mttr:p95 > 3.8
+            for: 5m
+            labels:
+              severity: warning
+              slo: mttr
+            annotations:
+              summary: "MTTR превышает целевое значение π+0.66"
+              description: "Текущий MTTR: {{ $value | humanize }}m (цель: 3.14-3.80m)"
+          
+          # Алерт: Потеря пакетов выше нормы
+          - alert: HighPacketLoss
+            expr: mesh:packet_loss:percent > 1.6
+            for: 3m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Потери пакетов выше целевого значения"
+              description: "Текущие потери: {{ $value | humanizePerce}}% (цель: <1.6%)"
+
+---
+# Deployment Prometheus
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: x0tta6bl4
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.52.0
+        args:
+          - '--config.file=/etc/prometheus/prometheus.yml'
+          - '--storage.tsdb.path=/prometheus'
+          - '--storage.tsdb.retention.time=30d'
+          - '--web.enable-lifecycle'
+          - '--web.enable-admin-api'
+        ports:
+        - containerPort: 9090
+          name: http
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus
+        - name: rules
+          mountPath: /etc/prometheus/rules
+        - name: storage
+          mountPath: /prometheus
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1"
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+      volumes:
+      - name: config
+        configMap:
+          name: prometheus-config
+      - name: rules
+        configMap:
+          name: prometheus-rules
+      - name: storage
+        persistentVolumeClaim:
+          claimName: prometheus-storage
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: x0tta6bl4
+spec:
+  selector:
+    app: prometheus
+  ports:
+  - port: 9090
+    targetPort: 9090
+  type: ClusterIP
+

@@ -1,0 +1,179 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: proxy-webhooks
+  namespace: proxy-infrastructure
+  labels:
+    alertmanagerConfig: proxy
+spec:
+  route:
+    receiver: default
+    groupBy: ['alertname', 'severity']
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    routes:
+    - receiver: critical-webhooks
+      match:
+        severity: critical
+      continue: true
+    - receiver: slack-notifications
+      match:
+        severity: warning
+      continue: true
+    - receiver: telegram-notifications
+      match:
+        severity: warning
+      continue: true
+  
+  receivers:
+  - name: default
+    webhookConfigs:
+    - url: 'http://proxy-webhook-receiver.proxy-infrastructure:8080/webhook'
+      sendResolved: true
+      httpConfig:
+        headers:
+          X-Webhook-Source: alertmanager
+  
+  - name: critical-webhooks
+    webhookConfigs:
+    - url: 'http://proxy-webhook-receiver.proxy-infrastructure:8080/webhook/critical'
+      sendResolved: true
+      httpConfig:
+        headers:
+          X-Webhook-Source: alertmanager
+          X-Priority: critical
+  
+  - name: slack-notifications
+    slackConfigs:
+    - apiURL:
+        name: webhook-secrets
+        key: slack-webhook-url
+      channel: '#proxy-alerts'
+      title: '{{ template "proxy.title" . }}'
+      text: '{{ template "proxy.message" . }}'
+      sendResolved: true
+      color: '{{ if eq .Status "firing" }}{{ if eq .CommonLabels.severity "critical" }}danger{{ else }}warning{{ end }}{{ else }}good{{ end }}'
+      actions:
+      - type: button
+        text: 'View Dashboard'
+        url: 'https://grafana.internal/d/proxy-health'
+      - type: button
+        text: 'Runbook'
+        url: '{{ .CommonAnnotations.runbook_url }}'
+  
+  - name: telegram-notifications
+    telegramConfigs:
+    - apiURL: 'https://api.telegram.org'
+      botToken:
+        name: webhook-secrets
+        key: telegram-bot-token
+      chatID:
+        name: webhook-secrets
+        key: telegram-chat-id
+      message: |
+        {{ if eq .Status "firing" }}🔥{{ else }}✅{{ end }} <b>{{ .CommonLabels.alertname }}</b>
+        
+        Severity: {{ .CommonLabels.severity }}
+        {{ range .Alerts }}
+        {{ .Annotations.summary }}
+        {{ .Annotations.description }}
+        {{ end }}
+      parseMode: HTML
+      sendResolved: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proxy-webhook-receiver
+  namespace: proxy-infrastructure
+  labels:
+    app: proxy-webhook-receiver
+    component: webhook
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: proxy-webhook-receiver
+  template:
+    metadata:
+      labels:
+        app: proxy-webhook-receiver
+        component: webhook
+    spec:
+      containers:
+      - name: webhook-receiver
+        image: x0tta6bl4/webhook-receiver:v1.0.0
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: WEBHOOK_PORT
+          value: "8080"
+        - name: DISCORD_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: webhook-secrets
+              key: discord-webhook-url
+              optional: true
+        - name: CUSTOM_WEBHOOK_ENDPOINTS
+          valueFrom:
+            secretKeyRef:
+              name: webhook-secrets
+              key: custom-webhooks
+              optional: true
+        - name: RATE_LIMIT_REQUESTS
+          value: "100"
+        - name: RATE_LIMIT_WINDOW
+          value: "60"
+        - name: RETRY_MAX_ATTEMPTS
+          value: "5"
+        - name: RETRY_BACKOFF_BASE
+          value: "2"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy-webhook-receiver
+  namespace: proxy-infrastructure
+  labels:
+    app: proxy-webhook-receiver
+spec:
+  selector:
+    app: proxy-webhook-receiver
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: webhook-secrets
+  namespace: proxy-infrastructure
+type: Opaque
+stringData:
+  slack-webhook-url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  telegram-bot-token: "YOUR_BOT_TOKEN"
+  telegram-chat-id: "YOUR_CHAT_ID"
+  discord-webhook-url: "https://discord.com/api/webhooks/YOUR/WEBHOOK"
+  custom-webhooks: '[{"url":"https://your-api.com/webhook","headers":{"Authorization":"Bearer token"}}]'
