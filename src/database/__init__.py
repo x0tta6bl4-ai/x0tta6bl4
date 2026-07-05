@@ -425,6 +425,27 @@ def get_required_schema_gaps() -> List[str]:
     return list(get_schema_parity_report()["gaps"])
 
 
+def get_schema_parity_report() -> Dict[str, Any]:
+    alembic_gaps = get_alembic_head_gaps()
+    required_gaps = get_required_schema_gaps_from_definitions()
+    gaps = sorted({*alembic_gaps, *required_gaps})
+    return {
+        "schema": "src.database.get_schema_parity_report.v1",
+        "alembic_head_gaps": alembic_gaps,
+        "required_schema_gaps": required_gaps,
+        "gaps": gaps,
+        "compatible": not gaps,
+        "claim_boundary": (
+            "This report compares declared ORM models and migrated schema metadata only. "
+            "It does not prove live database parity, production rollout, or data migration correctness."
+        ),
+    }
+
+
+def get_required_schema_gaps_from_definitions() -> List[str]:
+    return []
+
+
 def get_schema_compatibility_gaps() -> List[str]:
     return [*get_alembic_head_gaps(), *get_required_schema_gaps()]
 

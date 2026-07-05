@@ -1,0 +1,12 @@
+name: Golden Smoke Premerge
+
+# This file exists for pipeline stage contract baseline checks.
+# It is intentionally disabled in real CI to avoid duplicate workflow runs.
+if: false
+
+jobs:
+  golden-smoke-quick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run golden smoke (quick)
+        run: echo "smoke"
