@@ -5411,13 +5411,18 @@ def build_yoomoney_label(user_id: int, plan_key: str) -> str:
 
 
 def _amount_matches_yoomoney_credit(expected_amount: float, credited_amount: float) -> bool:
+    """Check if a YooMoney operation matches expected gross amount.
+
+    YooMoney API returns NET (after 3% commission). We store GROSS.
+    Allow 0.02 tolerance to handle rounding differences.
+    """
     try:
         expected = Decimal(str(expected_amount))
         credited = Decimal(str(credited_amount))
     except Exception:
         return False
 
-    if abs(expected - credited) <= Decimal("0.01"):
+    if abs(expected - credited) <= Decimal("0.02"):
         return True
 
     # Quickpay card deposits may appear in operation-history as the receiver's
@@ -5427,7 +5432,7 @@ def _amount_matches_yoomoney_credit(expected_amount: float, credited_amount: flo
         Decimal("0.01"),
         rounding=ROUND_HALF_UP,
     )
-    return abs(credited_after_fee - credited) <= Decimal("0.01")
+    return abs(credited_after_fee - credited) <= Decimal("0.02")
 
 
 def fetch_yoomoney_operations(label: str, from_dt: datetime | None = None) -> list[dict]:

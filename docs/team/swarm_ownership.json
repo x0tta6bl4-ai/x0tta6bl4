@@ -23,7 +23,10 @@
     "scripts/telegram_bot_simple.py",
     "scripts/xray_client_naming.py",
     "scripts/xui_client_manager.py",
-    "uv.lock"
+    "uv.lock",
+    "src/api/billing.py",
+    "tests/unit/api/test_yoomoney_webhook_unit.py",
+    "scripts/check_vulnerable_deps.py"
   ],
   "agents": {
     "agent1-ml-core": {

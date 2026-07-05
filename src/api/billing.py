@@ -12,7 +12,8 @@ import threading
 from typing import Any, Dict, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from decimal import Decimal, ROUND_HALF_UP
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -44,12 +45,14 @@ limiter = Limiter(key_func=get_remote_address)
 _BILLING_CONFIG_SOURCE_AGENT = "billing-api-config-read"
 _BILLING_CHECKOUT_SOURCE_AGENT = "billing-api-checkout-session"
 _BILLING_WEBHOOK_SOURCE_AGENT = "billing-api-stripe-webhook"
+_BILLING_YOOMONEY_WEBHOOK_SOURCE_AGENT = "billing-api-yoomoney-webhook"
 _BILLING_ORDER_STATUS_SOURCE_AGENT = "billing-api-order-status-read"
 _BILLING_REVENUE_METRICS_SOURCE_AGENT = "billing-api-revenue-metrics-read"
 
 _BILLING_CONFIG_LAYER = "api_billing_config_observed_state"
 _BILLING_CHECKOUT_LAYER = "api_billing_checkout_intent"
 _BILLING_WEBHOOK_LAYER = "api_billing_webhook_lifecycle"
+_BILLING_YOOMONEY_WEBHOOK_LAYER = "api_billing_yoomoney_webhook_lifecycle"
 _BILLING_ORDER_STATUS_LAYER = "api_billing_order_status_observed_state"
 _BILLING_REVENUE_METRICS_LAYER = "api_billing_revenue_observed_state"
 
@@ -2028,4 +2031,267 @@ async def get_revenue_metrics(
         metadata=metadata,
     )
     return response
+
+
+# ---------------------------------------------------------------------------
+# YooMoney webhook
+# ---------------------------------------------------------------------------
+
+_YOOMONEY_COMMISSION_RATE = Decimal("0.03")
+
+
+def _verify_yoomoney_signature(params: Dict[str, str], secret: str) -> bool:
+    """Verify YooMoney webhook HMAC-SHA1 signature.
+
+    YooMoney signs all parameters except sha1_hash by concatenating
+    values sorted alphabetically by key, then computing HMAC-SHA1.
+    """
+    received_hash = params.get("sha1_hash", "")
+    if not received_hash:
+        return False
+
+    sorted_keys = sorted(k for k in params if k != "sha1_hash")
+    data = "".join(params[k] for k in sorted_keys)
+    expected = hmac.new(
+        secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha1
+    ).hexdigest()
+    return hmac.compare_digest(expected, received_hash)
+
+
+def _yoomoney_net_to_gross(net_amount: Decimal) -> Decimal:
+    """Convert YooMoney net amount (post-commission) to gross.
+
+    YooMoney charges 3% commission on quickpay card deposits.
+    The operation-history API returns the net amount credited to receiver.
+    """
+    return (net_amount / (Decimal("1") - _YOOMONEY_COMMISSION_RATE)).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+
+
+def _yoomoney_amount_matches(expected_gross: Decimal, received_net: Decimal) -> bool:
+    """Check if a YooMoney operation matches expected gross amount.
+
+    YooMoney API returns NET (after 3% commission). We store GROSS.
+    Allow 0.02 tolerance to handle rounding differences.
+    """
+    if abs(expected_gross - received_net) <= Decimal("0.02"):
+        return True
+
+    expected_as_net = (expected_gross * (Decimal("1") - _YOOMONEY_COMMISSION_RATE)).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    return abs(expected_as_net - received_net) <= Decimal("0.02")
+
+
+@router.post("/webhook/yoomoney")
+@limiter.limit("30/minute")
+async def yoomoney_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+    notification_type: str = Form(...),
+    operation_id: str = Form(...),
+    amount: str = Form(...),
+    label: str = Form(""),
+    datetime: str = Form(""),
+    sender: str = Form(""),
+    codepro: str = Form(""),
+    sha1_hash: str = Form(""),
+):
+    """Handle YooMoney payment notification webhook.
+
+    YooMoney sends form-encoded POST with:
+    - notification_type: e.g. 'p2p-incoming'
+    - operation_id: unique operation ID
+    - amount: credited amount (NET, after 3% commission)
+    - label: payment label (format: yoomoney_{mode}:{payment_id}:{plan_key})
+    - datetime: operation timestamp
+    - sender: payer info (card/phone)
+    - codepro: 'true' if protection code was used
+    - sha1_hash: HMAC-SHA1 signature
+    """
+    started = time.monotonic()
+    common_metadata: Dict[str, Any] = {
+        "notification_type_bucket": str(notification_type or "unknown")[:80],
+        "operation_id_hash": _redacted_sha256_prefix(operation_id),
+        "amount_raw": str(amount),
+        "label_present": bool(label),
+        "signature_verified": False,
+        "payment_matched": False,
+        "payment_id": None,
+        "plan_key": None,
+        "gross_amount_computed": None,
+    }
+
+    try:
+        secret = _require_env("YOOMONEY_NOTIFICATION_SECRET")
+    except HTTPException as exc:
+        _publish_billing_api_event(
+            request,
+            source_agent=_BILLING_YOOMONEY_WEBHOOK_SOURCE_AGENT,
+            layer=_BILLING_YOOMONEY_WEBHOOK_LAYER,
+            stage="yoomoney_webhook_receive",
+            operation="yoomoney_webhook",
+            status_value="blocked",
+            http_status_code=exc.status_code,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+            control_action=True,
+            metadata={**common_metadata, "reason": "missing_notification_secret"},
+        )
+        raise
+
+    all_params = {
+        "notification_type": notification_type,
+        "operation_id": operation_id,
+        "amount": amount,
+        "label": label,
+        "datetime": datetime,
+        "sender": sender,
+        "codepro": codepro,
+        "sha1_hash": sha1_hash,
+    }
+    if not _verify_yoomoney_signature(all_params, secret):
+        _publish_billing_api_event(
+            request,
+            source_agent=_BILLING_YOOMONEY_WEBHOOK_SOURCE_AGENT,
+            layer=_BILLING_YOOMONEY_WEBHOOK_LAYER,
+            stage="yoomoney_webhook_receive",
+            operation="yoomoney_webhook",
+            status_value="blocked",
+            http_status_code=403,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+            control_action=True,
+            metadata={**common_metadata, "reason": "signature_invalid"},
+        )
+        raise HTTPException(status_code=403, detail="Invalid signature")
+
+    common_metadata["signature_verified"] = True
+
+    if notification_type != "p2p-incoming":
+        logger.info("yoomoney webhook: ignoring notification_type=%s", notification_type)
+        _publish_billing_api_event(
+            request,
+            source_agent=_BILLING_YOOMONEY_WEBHOOK_SOURCE_AGENT,
+            layer=_BILLING_YOOMONEY_WEBHOOK_LAYER,
+            stage="yoomoney_webhook_receive",
+            operation="yoomoney_webhook",
+            status_value="ignored",
+            http_status_code=200,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+            read_only=True,
+            metadata=common_metadata,
+        )
+        return {"status": "ok"}
+
+    # Parse label: yoomoney_{mode}:{payment_id}:{plan_key}
+    parts = label.split(":")
+    if len(parts) >= 2:
+        common_metadata["payment_id"] = parts[1]
+    if len(parts) >= 3:
+        common_metadata["plan_key"] = parts[2]
+
+    try:
+        net_amount = Decimal(amount)
+    except Exception:
+        net_amount = Decimal("0")
+
+    gross_amount = _yoomoney_net_to_gross(net_amount)
+    common_metadata["gross_amount_computed"] = str(gross_amount)
+
+    payment_id = common_metadata.get("payment_id")
+    if not payment_id:
+        logger.warning("yoomoney webhook: no payment_id in label=%s", label)
+        _publish_billing_api_event(
+            request,
+            source_agent=_BILLING_YOOMONEY_WEBHOOK_SOURCE_AGENT,
+            layer=_BILLING_YOOMONEY_WEBHOOK_LAYER,
+            stage="yoomoney_webhook_receive",
+            operation="yoomoney_webhook",
+            status_value="ignored",
+            http_status_code=200,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+            read_only=True,
+            metadata={**common_metadata, "reason": "no_payment_id_in_label"},
+        )
+        return {"status": "ok"}
+
+    payment = db.query(Payment).filter(Payment.payment_id == payment_id).first()
+    if not payment:
+        logger.warning("yoomoney webhook: payment not found payment_id=%s", payment_id)
+        _publish_billing_api_event(
+            request,
+            source_agent=_BILLING_YOOMONEY_WEBHOOK_SOURCE_AGENT,
+            layer=_BILLING_YOOMONEY_WEBHOOK_LAYER,
+            stage="yoomoney_webhook_receive",
+            operation="yoomoney_webhook",
+            status_value="ignored",
+            http_status_code=200,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+            read_only=True,
+            metadata={**common_metadata, "reason": "payment_not_found"},
+        )
+        return {"status": "ok"}
+
+    expected_gross = Decimal(str(payment.amount or 0))
+    if not _yoomoney_amount_matches(expected_gross, net_amount):
+        logger.warning(
+            "yoomoney webhook: amount mismatch payment_id=%s expected_gross=%s received_net=%s",
+            payment_id,
+            expected_gross,
+            net_amount,
+        )
+        _publish_billing_api_event(
+            request,
+            source_agent=_BILLING_YOOMONEY_WEBHOOK_SOURCE_AGENT,
+            layer=_BILLING_YOOMONEY_WEBHOOK_LAYER,
+            stage="yoomoney_webhook_receive",
+            operation="yoomoney_webhook",
+            status_value="rejected",
+            http_status_code=200,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+            read_only=True,
+            metadata={**common_metadata, "reason": "amount_mismatch"},
+        )
+        return {"status": "ok"}
+
+    if payment.status == "paid":
+        _publish_billing_api_event(
+            request,
+            source_agent=_BILLING_YOOMONEY_WEBHOOK_SOURCE_AGENT,
+            layer=_BILLING_YOOMONEY_WEBHOOK_LAYER,
+            stage="yoomoney_webhook_receive",
+            operation="yoomoney_webhook",
+            status_value="replayed",
+            http_status_code=200,
+            duration_ms=(time.monotonic() - started) * 1000.0,
+            read_only=True,
+            metadata={**common_metadata, "reason": "already_paid"},
+        )
+        return {"status": "ok"}
+
+    payment.status = "paid"
+    payment.paid_at = datetime.datetime.utcnow()
+    db.commit()
+
+    common_metadata["payment_matched"] = True
+    _publish_billing_api_event(
+        request,
+        source_agent=_BILLING_YOOMONEY_WEBHOOK_SOURCE_AGENT,
+        layer=_BILLING_YOOMONEY_WEBHOOK_LAYER,
+        stage="yoomoney_webhook_receive",
+        operation="yoomoney_webhook",
+        status_value="success",
+        http_status_code=200,
+        duration_ms=(time.monotonic() - started) * 1000.0,
+        metadata=common_metadata,
+    )
+
+    logger.info(
+        "yoomoney webhook: payment confirmed payment_id=%s gross=%s net=%s",
+        payment_id,
+        gross_amount,
+        net_amount,
+    )
+
+    return {"status": "ok"}
 
