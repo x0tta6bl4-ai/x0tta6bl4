@@ -1,0 +1,58 @@
+# Chaos Mesh: Network Partition (split-brain scenario)
+# Tests: Mesh survives 50% network split
+#
+# Critical for: Distributed consensus, DAO voting, SPIRE attestation
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: partition-50pct
+  namespace: mesh-system
+spec:
+  action: partition
+  mode: fixed-percent
+  value: "50"
+  selector:
+    namespaces:
+      - mesh-system
+    labelSelectors:
+      app.kubernetes.io/component: mesh-node
+  direction: both
+  duration: "30s"
+---
+# Packet loss scenario
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: packet-loss-20pct
+  namespace: mesh-system
+spec:
+  action: loss
+  mode: all
+  selector:
+    namespaces:
+      - mesh-system
+    labelSelectors:
+      app.kubernetes.io/component: mesh-node
+  loss:
+    loss: "20"
+    correlation: "25"
+  duration: "60s"
+  direction: both
+---
+# DNS chaos (simulate DNS failure)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: DNSChaos
+metadata:
+  name: dns-error
+  namespace: mesh-system
+spec:
+  action: error
+  mode: fixed-percent
+  value: "10"  # 10% DNS failures
+  selector:
+    namespaces:
+      - mesh-system
+  patterns:
+    - "*.mesh-system.svc.cluster.local"
+  duration: "30s"
