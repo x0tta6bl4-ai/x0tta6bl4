@@ -1,0 +1,36 @@
+[Unit]
+Description=x0tta6bl4 mesh node
+After=network-online.target spire-agent.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/x0tta6bl4/venv/bin/python -m src.network.mesh_node
+Restart=always
+RestartSec=10
+StartLimitInterval=120
+StartLimitBurst=3
+
+# Security hardening
+User=x0tta6bl4
+Group=x0tta6bl4
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/x0tta6bl4/var /opt/x0tta6bl4/sockets /opt/x0tta6bl4/run
+ProtectKernelTunables=false
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+# Resources (VPS с 3.8GB RAM)
+MemoryMax=2G
+CPUQuota=85%
+TasksMax=512
+
+# Environment
+Environment="PYTHONUNBUFFERED=1"
+Environment="X0TTA6BL4_ENV=production"
+
+[Install]
+WantedBy=multi-user.target

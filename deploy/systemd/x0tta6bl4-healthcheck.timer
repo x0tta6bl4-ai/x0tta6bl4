@@ -1,0 +1,10 @@
+[Unit]
+Description=Run x0tta6bl4 healthcheck every 60s
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=60
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
