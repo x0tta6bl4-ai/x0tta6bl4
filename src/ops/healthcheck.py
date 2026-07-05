@@ -105,6 +105,32 @@ def ghost_bot():
     return False, status
 
 
+@check("spire_jwt_svid")
+def spire_jwt_svid():
+    """Verify JWT-SVID can be fetched from SPIRE agent."""
+    spire_agent = os.getenv("X0_SPIRE_AGENT_BIN", "/opt/spire/bin/spire-agent")
+    socket_path = os.getenv("X0_SPIRE_SOCKET", "/opt/spire/sockets/agent.sock")
+
+    if not Path(socket_path).exists():
+        return False, "socket not found"
+
+    try:
+        r = subprocess.run(
+            [spire_agent, "api", "fetch",
+             "-socketPath", socket_path,
+             "-jwt",
+             "-audience", "x0tta6bl4.mesh"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode != 0:
+            return False, f"rc={r.returncode}: {r.stderr[:60]}"
+        if "svid" in r.stdout.lower() or "token" in r.stdout.lower():
+            return True, "JWT-SVID fetched"
+        return False, "no token in response"
+    except Exception as e:
+        return False, str(e)[:60]
+
+
 def send_telegram_alert(failed_checks):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("TELEGRAM: no token/chat_id configured, skipping alert", file=sys.stderr)
