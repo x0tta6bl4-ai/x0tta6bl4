@@ -74,12 +74,18 @@ def build_report(root: Path, return_packet_path: Path) -> Dict[str, Any]:
     finding_count = _finding_count(text, parsed) if not source_errors else 0
     clear = not source_errors and finding_count == 0
     decision = "OPERATOR_BUNDLE_CONTENT_SCAN_CLEAR" if clear else "OPERATOR_BUNDLE_CONTENT_SCAN_BLOCKED"
+    secret_scan_decision = (
+        "OPERATOR_BUNDLE_SECRET_SCAN_CLEAR"
+        if clear
+        else "OPERATOR_BUNDLE_SECRET_SCAN_BLOCKED"
+    )
     return {
         "schema_version": "x0tta6bl4-integration-spine-operator-bundle-content-scan-v2",
         "generated_at": utc_now(),
         "status": "VERIFIED HERE",
         "ok": True,
         "content_scan_decision": decision,
+        "secret_scan_decision": secret_scan_decision,
         "ready_for_stage": clear,
         "goal_can_be_marked_complete": False,
         "claim_boundary": (
@@ -96,6 +102,8 @@ def build_report(root: Path, return_packet_path: Path) -> Dict[str, Any]:
             "content_scan_findings": finding_count,
             "content_scan_source_errors": len(source_errors),
             "content_scan_clear": clear,
+            "secret_scan_findings": finding_count,
+            "secret_scan_clear": clear,
             "return_packet_json_valid": parsed is not None,
         },
     }

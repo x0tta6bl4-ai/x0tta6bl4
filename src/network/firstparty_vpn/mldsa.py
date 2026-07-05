@@ -311,7 +311,7 @@ def mldsa_decompose(value: int, gamma2: int) -> tuple[int, int]:
     r = mldsa_reduce(value)
     for high in range(modulus):
         low = mldsa_centered_reduce(r - high * 2 * gamma2)
-        if -gamma2 < low <= gamma2:
+        if -gamma2 <= low <= gamma2:
             return high, low
     raise MlDsaShapeError("ML-DSA decomposition failed")
 
@@ -803,7 +803,10 @@ def mldsa_reference_sign(
         if not _mldsa_low_bits_within_bound(w, cs2, params):
             continue
         ct0 = _mldsa_sparse_mul_vector(challenge_poly, components.t0)
-        hints = _mldsa_make_hint_vector(ct0, w, cs2, params)
+        try:
+            hints = _mldsa_make_hint_vector(ct0, w, cs2, params)
+        except MlDsaShapeError:
+            continue
         if _mldsa_hint_weight(hints) > params.omega:
             continue
         return mldsa_encode_signature(challenge, z, hints, params)

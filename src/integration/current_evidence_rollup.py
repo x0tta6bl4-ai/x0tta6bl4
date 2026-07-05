@@ -738,7 +738,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--image-digests", default=DEFAULT_IMAGE_DIGESTS)
     parser.add_argument("--semantic-queue", default=DEFAULT_SEMANTIC_QUEUE)
     parser.add_argument("--output-json", default=DEFAULT_OUTPUT)
-    parser.add_argument("--require-complete", action="store_true", help="return 2 unless the rollup is complete")
+    parser.add_argument("--require-complete", action="store_true", help="Return 2 unless the rollup is complete.")
+    parser.add_argument(
+        "--require-ready",
+        action="store_true",
+        help="Alias for --require-complete and also return 2 when any blocker remains.",
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
@@ -776,6 +781,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
     )
     if args.require_complete and report["completion_decision"] != "COMPLETE":
+        return 2
+    if args.require_ready and (report.get("completion_decision") != "COMPLETE" or not report.get("x0t_contract_surface_clear") is True):
         return 2
     return 0
 

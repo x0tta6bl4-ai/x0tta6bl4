@@ -38,25 +38,7 @@ from src.core.security.subprocess_validator import safe_run
 
 def _build_log_handlers() -> list[logging.Handler]:
     handlers: list[logging.Handler] = [logging.StreamHandler()]
-    log_path = os.getenv("VPN_WATCHDOG_LOG_PATH", f"{os.environ.get('TMPDIR', '/tmp')}/vpn_watchdog-{os.getuid()}.log")
-    if not log_path:
-        return handlers
-
-    try:
-        log_dir = os.path.dirname(log_path)
-        if log_dir:
-            os.makedirs(log_dir, exist_ok=True)
-        handlers.append(logging.FileHandler(log_path))
-    except OSError as exc:
-        print(f"VPN Watchdog file logging disabled for {log_path}: {exc}", file=sys.stderr)
-
-    return handlers
-
-
-
-def _build_log_handlers() -> list[logging.Handler]:
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
-    log_path = os.getenv("VPN_WATCHDOG_LOG_PATH", f"{os.environ.get('TMPDIR', '/tmp')}/vpn_watchdog-{os.getuid()}.log")
+    log_path = os.getenv("VPN_WATCHDOG_LOG_PATH")
     if not log_path:
         return handlers
 
@@ -78,10 +60,50 @@ logging.basicConfig(
     handlers=_build_log_handlers(),
 )
 
+
+def _hash_value(command: str) -> str:
+    digest = hashlib.sha256(command.encode("utf-8", errors="replace")).hexdigest()
+    return digest[:16]
+
+
+def _selector_metadata(**kwargs: Any) -> dict:
+    return {key: value for key, value in kwargs.items() if value is not None}
+
+
+def _output_metadata(output: object) -> dict:
+    text = ""
+    if isinstance(output, str):
+        text = output
+    elif isinstance(output, bytes):
+        try:
+            text = output.decode("utf-8", errors="replace")
+        except Exception:
+            text = ""
+    return {
+        "length": len(text),
+        "lines": len(text.splitlines()),
+        "sha256": hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:16],
+    }
+
+
+def _publish_observation(*, stage: str, operation: str, status: str, **extra: Any) -> None:
+    try:
+        bus = get_event_bus()
+        bus.publish(
+            EventType.VPN_STATE_CHANGED,
+            stage=stage,
+            operation=operation,
+            status=status,
+            source="vpn_watchdog",
+            **extra,
+        )
+    except Exception:
+        pass
+
+
 # ── Configuration ──────────────────────────────────────────────────────────────
 
 DEFAULT_SOCKS_PORT_CANDIDATES = (10918, 10808, 10809, 10924, 40467, 1080, 7890, 7891)
-
 
 def _parse_ports(*values: str | None) -> tuple[int, ...]:
     ports: list[int] = []

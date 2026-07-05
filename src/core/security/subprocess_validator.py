@@ -6,6 +6,9 @@ import subprocess
 from pathlib import Path
 
 ALLOWED_COMMANDS = {
+    "node",
+    "npm",
+    "npx",
     "bpftool",
     "batctl",
     "yggdrasilctl",

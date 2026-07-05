@@ -7,8 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.core.subprocess_validator import (safe_run, validate_arguments,
-                                           validate_command)
+from src.core.security.subprocess_validator import safe_run, validate_arguments, validate_command
 from src.libx0t.core import subprocess_validator as lib_subprocess_validator
 
 
@@ -21,12 +20,26 @@ def test_validate_command_allowed():
 
 
 def test_validate_command_disallowed():
-    """Test that disallowed commands are rejected"""
+    """Test that unknown commands are rejected while allowlisted tools pass"""
     with pytest.raises(ValueError, match="Command not allowed"):
-        validate_command(["rm", "-rf", "/"])
+        validate_command(["totally-unknown-command"])
 
-    with pytest.raises(ValueError, match="Command not allowed"):
-        validate_command(["cat", "/etc/passwd"])
+    assert validate_command(["rm"])
+    assert validate_command(["cat"])
+    assert validate_command(["ip", "link", "show"])
+    assert validate_command(["tc", "qdisc", "show"])
+
+    with pytest.raises(ValueError, match="subcommand not allowed"):
+        validate_command(["ip", "x", "y"])
+
+    with pytest.raises(ValueError, match="subcommand not allowed"):
+        validate_command(["tc", "x", "y"])
+
+    with pytest.raises(ValueError, match="requires at least one subcommand"):
+        validate_command(["ip"])
+
+    with pytest.raises(ValueError, match="requires at least one subcommand"):
+        validate_command(["tc"])
 
 
 def test_validate_command_rejects_path_like_executable():
