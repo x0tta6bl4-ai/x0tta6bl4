@@ -1,0 +1,112 @@
+# ArgoCD AppProject for x0tta6bl4
+# Defines permissions and allowed resources for the project
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: x0tta6bl4
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Zero Trust Mesh Intelligence Platform
+
+  # Source repositories
+  sourceRepos:
+    - 'https://github.com/x0tta6bl4/mesh.git'
+    - 'https://charts.bitnami.com/bitnami'
+    - 'https://prometheus-community.github.io/helm-charts'
+
+  # Allowed destinations
+  destinations:
+    - namespace: x0tta6bl4
+      server: https://kubernetes.default.svc
+    - namespace: x0tta6bl4-staging
+      server: https://kubernetes.default.svc
+    - namespace: x0tta6bl4-production
+      server: https://kubernetes.default.svc
+    - namespace: proxy-infrastructure
+      server: https://kubernetes.default.svc
+
+  # Allowed cluster resources
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'apiextensions.k8s.io'
+      kind: CustomResourceDefinition
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+
+  # Allowed namespace resources
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: '*'
+    - group: 'apps'
+      kind: '*'
+    - group: 'batch'
+      kind: '*'
+    - group: 'autoscaling'
+      kind: '*'
+    - group: 'policy'
+      kind: '*'
+    - group: 'networking.k8s.io'
+      kind: '*'
+    - group: 'monitoring.coreos.com'
+      kind: '*'
+    - group: 'argoproj.io'
+      kind: Rollout
+    - group: 'argoproj.io'
+      kind: AnalysisTemplate
+    - group: 'argoproj.io'
+      kind: AnalysisRun
+
+  # Deny certain resources in namespaces
+  namespaceResourceBlacklist:
+    - group: ''
+      kind: ResourceQuota
+    - group: ''
+      kind: LimitRange
+
+  # Role definitions for project
+  roles:
+    - name: developer
+      description: Developer access
+      policies:
+        - p, proj:x0tta6bl4:developer, applications, get, x0tta6bl4/*, allow
+        - p, proj:x0tta6bl4:developer, applications, sync, x0tta6bl4/*-staging, allow
+        - p, proj:x0tta6bl4:developer, logs, get, x0tta6bl4/*, allow
+      groups:
+        - developers
+
+    - name: deployer
+      description: Deployment access
+      policies:
+        - p, proj:x0tta6bl4:deployer, applications, *, x0tta6bl4/*, allow
+        - p, proj:x0tta6bl4:deployer, logs, get, x0tta6bl4/*, allow
+        - p, proj:x0tta6bl4:deployer, exec, create, x0tta6bl4/*, allow
+      groups:
+        - deployers
+        - sre
+
+  # Sync windows for production
+  syncWindows:
+    - kind: deny
+      schedule: '0 22 * * 5'  # Friday 22:00
+      duration: 60h           # Until Monday 10:00
+      applications:
+        - '*-production'
+      manualSync: true
+    - kind: allow
+      schedule: '0 10 * * 1-5'  # Weekdays 10:00-18:00
+      duration: 8h
+      applications:
+        - '*-production'
+
+  # Signature verification (optional)
+  signatureKeys: []
+
+  # Orphaned resources monitoring
+  orphanedResources:
+    warn: true
+    ignore: []

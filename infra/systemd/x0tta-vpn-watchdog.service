@@ -1,0 +1,24 @@
+[Unit]
+Description=x0tta6bl4 VPN watchdog metrics
+Documentation=file:/mnt/projects/docs/runbooks/NL_VPN_HEALTH.md
+Requires=x0tta-vpn-route-bypass.service
+After=network-online.target x0tta-vpn-route-bypass.service x0tta-node.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/mnt/projects
+Environment=VPN_SERVER=89.125.1.107
+Environment=VPN_PORT=39829
+Environment=VPN_SOCKS_HOST=127.0.0.1
+Environment=VPN_SOCKS_PORT_CANDIDATES=10918,10808,10809,10924,40467,1080,7890,7891
+Environment=VPN_WATCHDOG_METRICS_PORT=9091
+Environment=VPN_WATCHDOG_ENABLE_HEAL=false
+Environment=VPN_WATCHDOG_LOG_PATH=/var/log/x0tta6bl4/vpn_watchdog.log
+Environment=VPN_CHECK_INTERVAL=10
+ExecStart=/usr/bin/python3 /mnt/projects/src/network/vpn_watchdog.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

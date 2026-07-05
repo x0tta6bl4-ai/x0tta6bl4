@@ -1,0 +1,165 @@
+# Redis Sentinel Helm Values for x0tta6bl4
+# Use with: helm install redis bitnami/redis -f values.yaml -n x0tta6bl4
+
+# Architecture: Sentinel mode for HA
+architecture: replication
+
+# Authentication
+auth:
+  enabled: true
+  existingSecret: "redis-secret"
+  existingSecretPasswordKey: "redis-password"
+
+# Master configuration
+master:
+  count: 1
+  persistence:
+    enabled: true
+    size: 8Gi
+    storageClass: "standard"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  # Pod Security
+  podSecurityContext:
+    enabled: true
+    fsGroup: 1001
+    runAsUser: 1001
+  containerSecurityContext:
+    enabled: true
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+# Replica configuration
+replica:
+  replicaCount: 2
+  persistence:
+    enabled: true
+    size: 8Gi
+    storageClass: "standard"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  podSecurityContext:
+    enabled: true
+    fsGroup: 1001
+    runAsUser: 1001
+  containerSecurityContext:
+    enabled: true
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+# Sentinel configuration
+sentinel:
+  enabled: true
+  masterSet: "mymaster"
+  quorum: 2
+
+  # Sentinel replicas (should be odd number, minimum 3)
+  replicas: 3
+
+  # Sentinel resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+  # Failover settings
+  downAfterMilliseconds: 5000    # 5 seconds to detect failure
+  failoverTimeout: 60000         # 60 seconds timeout for failover
+  parallelSyncs: 1               # Only 1 replica syncs at a time
+
+  # Sentinel service
+  service:
+    type: ClusterIP
+    ports:
+      sentinel: 26379
+
+# Network Policy
+networkPolicy:
+  enabled: true
+  allowExternal: false
+  ingressNSMatchLabels:
+    app.kubernetes.io/name: x0tta6bl4
+  ingressNSPodMatchLabels:
+    app.kubernetes.io/component: api
+
+# Metrics for Prometheus
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    labels:
+      release: prometheus
+  prometheusRule:
+    enabled: true
+    namespace: monitoring
+    rules:
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis instance is down"
+          description: "Redis instance {{ $labels.instance }} is down"
+
+      - alert: RedisSentinelDown
+        expr: redis_sentinel_sentinels < 2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis Sentinel quorum lost"
+          description: "Redis Sentinel has less than 2 sentinels"
+
+      - alert: RedisReplicationLag
+        expr: redis_connected_slave_lag_seconds > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis replication lag is high"
+          description: "Redis replica lag is {{ $value }} seconds"
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage is high"
+          description: "Redis memory usage is above 90%"
+
+# Pod Disruption Budget
+pdb:
+  create: true
+  minAvailable: 1
+
+# Service Account
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+
+# Common labels
+commonLabels:
+  app.kubernetes.io/part-of: x0tta6bl4
+  environment: production

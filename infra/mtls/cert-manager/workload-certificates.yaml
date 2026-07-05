@@ -1,0 +1,111 @@
+# Workload Certificates for x0tta6bl4 services
+---
+# proxy-api Certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: proxy-api-tls
+  namespace: x0tta6bl4-production
+spec:
+  secretName: proxy-api-tls
+  duration: 720h  # 30 days
+  renewBefore: 168h  # 7 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - proxy-api
+    - proxy-api.x0tta6bl4-production
+    - proxy-api.x0tta6bl4-production.svc
+    - proxy-api.x0tta6bl4-production.svc.cluster.local
+    - "*.proxy-api.x0tta6bl4-production.svc.cluster.local"
+  issuerRef:
+    name: x0tta6bl4-production-issuer
+    kind: Issuer
+    group: cert-manager.io
+---
+# Redis Certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: redis-tls
+  namespace: x0tta6bl4-production
+spec:
+  secretName: redis-tls
+  duration: 720h
+  renewBefore: 168h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - redis
+    - redis.x0tta6bl4-production
+    - redis.x0tta6bl4-production.svc
+    - redis.x0tta6bl4-production.svc.cluster.local
+    - "redis-node-*.redis-headless.x0tta6bl4-production.svc.cluster.local"
+  issuerRef:
+    name: x0tta6bl4-production-issuer
+    kind: Issuer
+    group: cert-manager.io
+---
+# SPIRE Server Certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: spire-server-tls
+  namespace: spire-system
+spec:
+  secretName: spire-server-tls
+  duration: 2160h  # 90 days
+  renewBefore: 720h  # 30 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - spire-server
+    - spire-server.spire-system
+    - spire-server.spire-system.svc
+    - spire-server.spire-system.svc.cluster.local
+  issuerRef:
+    name: x0tta6bl4-workload-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# Client Certificate for inter-service communication
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: service-mesh-client
+  namespace: x0tta6bl4-production
+spec:
+  secretName: service-mesh-client-tls
+  duration: 720h
+  renewBefore: 168h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  usages:
+    - client auth
+  commonName: x0tta6bl4-service-mesh
+  subject:
+    organizations:
+      - x0tta6bl4
+    organizationalUnits:
+      - service-mesh
+  issuerRef:
+    name: x0tta6bl4-production-issuer
+    kind: Issuer
+    group: cert-manager.io

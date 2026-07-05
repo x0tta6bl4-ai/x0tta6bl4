@@ -1,0 +1,39 @@
+# Chaos Mesh - Pod Kill Scenario
+# Тестирование устойчивости mesh к потере узлов
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: mesh-pod-kill
+  namespace: x0tta6bl4
+  labels:
+    app.kubernetes.io/component: chaos-testing
+    scenario: pod-resilience
+spec:
+  action: pod-kill
+  mode: fixed-percent
+  value: "20"  # Kill 20% of pods
+  duration: "120s"
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app.kubernetes.io/name: x0tta6bl4
+  scheduler:
+    cron: "0 2 * * *"  # Daily at 2 AM
+---
+# Pod Failure (graceful termination test)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: mesh-pod-failure
+  namespace: x0tta6bl4
+spec:
+  action: pod-failure
+  mode: fixed
+  value: "2"  # Fail 2 specific pods
+  duration: "180s"
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app.kubernetes.io/name: x0tta6bl4

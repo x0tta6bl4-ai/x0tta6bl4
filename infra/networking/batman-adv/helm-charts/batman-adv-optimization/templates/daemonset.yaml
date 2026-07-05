@@ -1,0 +1,141 @@
+{{- if .Values.daemonSet.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "batman-adv-optimization.fullname" . }}
+  labels:
+    {{- include "batman-adv-optimization.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "batman-adv-optimization.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.daemonSet.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "batman-adv-optimization.selectorLabels" . | nindent 8 }}
+    spec:
+      hostNetwork: {{ .Values.daemonSet.hostNetwork }}
+      dnsPolicy: {{ .Values.daemonSet.dnsPolicy }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: batman-adv
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.batmanAdv.image.repository }}:{{ .Values.batmanAdv.image.tag }}"
+          imagePullPolicy: {{ .Values.batmanAdv.image.pullPolicy }}
+          command:
+            - /usr/sbin/batmand
+          args:
+            - -c
+            - /etc/batman-adv/batman-adv.conf
+            - -d
+            - "5"  # debug level
+            - -g  # gateway mode для региональных шлюзов
+            - -m    # master mode для mesh сети
+          {{- if .Values.batmanAdv.monitoring.enabled }}
+          ports:
+            - name: metrics
+              containerPort: 9091
+              protocol: TCP
+              hostPort: 9091
+          {{- end }}
+          env:
+            - name: BATMAN_IF
+              value: "bat0"
+            - name: REGION
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['topology.kubernetes.io/region']
+            - name: ZONE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['topology.kubernetes.io/zone']
+          volumeMounts:
+            - name: config
+              mountPath: /etc/batman-adv
+              readOnly: true
+            - name: modules
+              mountPath: /lib/modules
+              readOnly: true
+            - name: proc-sys-net
+              mountPath: /proc/sys/net
+            - name: run-batman
+              mountPath: /run/batman
+            {{- if .Values.persistence.enabled }}
+            - name: logs
+              mountPath: /var/log/batman-adv
+            {{- end }}
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+                - SYS_MODULE
+          resources:
+            {{- toYaml .Values.daemonSet.resources | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.daemonSet.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.daemonSet.readinessProbe | nindent 12 }}
+
+        {{- if .Values.batmanAdv.monitoring.enabled }}
+        - name: prometheus-exporter
+          image: "{{ .Values.global.imageRegistry }}prometheuscommunity/batman-adv-exporter:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 9092
+              protocol: TCP
+          env:
+            - name: BATMAN_IF
+              value: "bat0"
+            - name: SCRAPE_INTERVAL
+              value: {{ .Values.batmanAdv.monitoring.prometheus.scrapeInterval }}
+          resources:
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+          {{- end }}
+
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "batman-adv-optimization.fullname" . }}
+        - name: modules
+          hostPath:
+            path: /lib/modules
+        - name: proc-sys-net
+          hostPath:
+            path: /proc/sys/net
+        - name: run-batman
+          hostPath:
+            path: /run/batman
+        {{- if .Values.persistence.enabled }}
+        - name: logs
+          persistentVolumeClaim:
+            claimName: {{ include "batman-adv-optimization.fullname" . }}-logs
+        {{- end }}
+
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      # Tolerations для работы на всех узлах
+      tolerations:
+        - operator: Exists
+
+      # Node selector для целевых узлов (отключен для тестирования)
+      # nodeSelector:
+      #   batman-adv-enabled: "true"
+{{- end }}

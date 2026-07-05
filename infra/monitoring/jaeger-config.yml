@@ -1,0 +1,43 @@
+# Jaeger All-in-One Configuration for x0tta6bl4
+# Supports distributed tracing of all system components
+
+version: 1
+
+serviceName: x0tta6bl4
+
+sampler:
+  type: const
+  param: 1
+
+reporter_loggers: true
+
+logging: true
+
+metrics:
+  backend: prometheus
+
+jaeger:
+  endpoint: http://jaeger-collector:14268/api/traces
+
+environment:
+  COLLECTOR_ZIPKIN_HTTP_PORT: "9411"
+  COLLECTOR_OTLP_ENABLED: "true"
+  QUERY_BASE_PATH: /jaeger
+
+collectors:
+  - zipkin:
+      protocol: compact
+      port: 6831
+  - otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+ingestion:
+  defaultSamplingProbability: 1.0
+  
+  sampling:
+    type: const
+    param: 1

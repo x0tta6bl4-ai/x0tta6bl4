@@ -1,0 +1,11 @@
+[Unit]
+Description=Run x0tta6bl4 VPN validation after boot
+Documentation=file:/mnt/projects/docs/runbooks/NL_VPN_HEALTH.md
+
+[Timer]
+OnBootSec=2min
+AccuracySec=30s
+Unit=x0tta-vpn-boot-validate.service
+
+[Install]
+WantedBy=timers.target

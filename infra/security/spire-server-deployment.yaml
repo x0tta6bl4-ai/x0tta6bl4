@@ -1,0 +1,196 @@
+---
+# SPIRE Server Deployment
+# StatefulSet для SPIRE Server с persistent storage для CA keys
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spire-system
+  labels:
+    name: spire-system
+    app: spire
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-server-config
+  namespace: spire-system
+data:
+  server.conf: |
+    server {
+      bind_address = "0.0.0.0"
+      bind_port = "8081"
+      trust_domain = "x0tta6bl4.mesh"
+      data_dir = "/run/spire/data"
+      log_level = "INFO"
+      log_file = "/run/spire/logs/server.log"
+      
+      # CA Key Manager (disk for dev, KMS/Vault for prod)
+      ca_key_type = "rsa-2048"
+      ca_subject {
+        country = ["US"]
+        organization = ["x0tta6bl4"]
+        common_name = "x0tta6bl4.mesh"
+      }
+      
+      # Node Attestation
+      node_attestation "join_token" {
+        plugin_data {}
+      }
+      
+      node_attestation "k8s_psat" {
+        plugin_data {
+          clusters = {
+            "x0tta6bl4-cluster" = {
+              service_account_whitelist = ["spire-system:spire-agent"]
+            }
+          }
+        }
+      }
+      
+      # Workload Attestation
+      workload_attestation "k8s" {
+        plugin_data {
+          kubelet_config_file = "/run/spire/config/kubelet.conf"
+          skip_kubelet_verification = true
+        }
+      }
+      
+      # Datastore (SQLite for dev, PostgreSQL for prod)
+      data_store "sql" {
+        plugin_data {
+          database_type = "sqlite3"
+          connection_string = "/run/spire/data/datastore.sqlite3"
+        }
+      }
+      
+      # Telemetry
+      telemetry {
+        Prometheus {
+          port = 9988
+        }
+      }
+    }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spire-server
+  namespace: spire-system
+  labels:
+    app: spire-server
+spec:
+  type: ClusterIP
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+    - name: metrics
+      port: 9988
+      targetPort: 9988
+  selector:
+    app: spire-server
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spire-server
+  namespace: spire-system
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spire-server
+  namespace: spire-system
+  labels:
+    app: spire-server
+spec:
+  serviceName: spire-server
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spire-server
+  template:
+    metadata:
+      labels:
+        app: spire-server
+    spec:
+      serviceAccountName: spire-server
+      containers:
+        - name: spire-server
+          image: ghcr.io/spiffe/spire-server:1.8.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config
+            - /run/spire/config/server.conf
+          ports:
+            - name: grpc
+              containerPort: 8081
+            - name: metrics
+              containerPort: 9988
+          volumeMounts:
+            - name: spire-server-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-server-data
+              mountPath: /run/spire/data
+            - name: spire-server-logs
+              mountPath: /run/spire/logs
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: spire-server-config
+          configMap:
+            name: spire-server-config
+        - name: spire-server-data
+          emptyDir: {}  # Use PersistentVolumeClaim for production
+        - name: spire-server-logs
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: spire-server-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+
+---
+# ServiceMonitor for Prometheus (if Prometheus Operator installed)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: spire-server
+  namespace: spire-system
+  labels:
+    app: spire-server
+spec:
+  selector:
+    matchLabels:
+      app: spire-server
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+

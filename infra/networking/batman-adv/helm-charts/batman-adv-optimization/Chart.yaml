@@ -1,0 +1,15 @@
+apiVersion: v2
+name: batman-adv-optimization
+description: Оптимизированный BATMAN-adv с multi-path маршрутизацией и AODV fallback
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - batman-adv
+  - mesh-network
+  - routing
+  - multi-path
+  - aodv
+home: https://github.com/x0tta6bl4/infrastructure-optimizations
+maintainers:
+  - name: x0tta6bl4

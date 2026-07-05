@@ -1,0 +1,188 @@
+---
+# SPIRE Agent DaemonSet
+# Deploys SPIRE Agent to all nodes in the cluster
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-agent-config
+  namespace: spire-system
+data:
+  agent.conf: |
+    agent {
+      data_dir = "/run/spire/data"
+      log_level = "INFO"
+      log_file = "/run/spire/logs/agent.log"
+      trust_domain = "x0tta6bl4.mesh"
+      server_address = "spire-server.spire-system.svc.cluster.local"
+      server_port = 8081
+      
+      # Workload API Socket
+      socket_path = "/run/spire/sockets/agent.sock"
+      
+      # Node Attestation
+      node_attestation "join_token" {
+        plugin_data {}
+      }
+      
+      node_attestation "k8s_psat" {
+        plugin_data {
+          cluster = "x0tta6bl4-cluster"
+        }
+      }
+      
+      # Workload Attestation
+      workload_attestation "k8s" {
+        plugin_data {
+          kubelet_config_file = "/run/spire/config/kubelet.conf"
+          skip_kubelet_verification = true
+        }
+      }
+      
+      # Key Manager (memory for agent)
+      key_manager "memory" {
+        plugin_data {}
+      }
+      
+      # Telemetry
+      telemetry {
+        Prometheus {
+          port = 9989
+        }
+      }
+    }
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spire-agent
+  namespace: spire-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: spire-agent-cluster-role
+  labels:
+    app: spire-agent
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: spire-agent-cluster-role-binding
+  labels:
+    app: spire-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: spire-agent-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: spire-agent
+    namespace: spire-system
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: spire-agent
+  namespace: spire-system
+  labels:
+    app: spire-agent
+spec:
+  selector:
+    matchLabels:
+      app: spire-agent
+  template:
+    metadata:
+      labels:
+        app: spire-agent
+    spec:
+      serviceAccountName: spire-agent
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: spire-agent
+          image: ghcr.io/spiffe/spire-agent:1.8.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config
+            - /run/spire/config/agent.conf
+          ports:
+            - name: metrics
+              containerPort: 9989
+              hostPort: 9989
+          volumeMounts:
+            - name: spire-agent-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-agent-data
+              mountPath: /run/spire/data
+            - name: spire-agent-logs
+              mountPath: /run/spire/logs
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: spire-agent-config
+          configMap:
+            name: spire-agent-config
+        - name: spire-agent-data
+          emptyDir: {}
+        - name: spire-agent-logs
+          emptyDir: {}
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: DirectoryOrCreate
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+
+---
+# ServiceMonitor for Prometheus (if Prometheus Operator installed)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: spire-agent
+  namespace: spire-system
+  labels:
+    app: spire-agent
+spec:
+  selector:
+    matchLabels:
+      app: spire-agent
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+
