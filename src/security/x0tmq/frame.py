@@ -134,6 +134,8 @@ class MavlinkV2Frame:
         expected_crc = struct.unpack("<H", data[10 + plen: 12 + plen])[0]
         if _crc_ccitt(data[1: 10 + plen], crc_extra) != expected_crc:
             return None
+        if inc_flags != 0:
+            return None
         return cls(
             sys_id, comp_id, msg_id, payload,
             seq=seq, incompat_flags=inc_flags, compat_flags=cmp_flags,

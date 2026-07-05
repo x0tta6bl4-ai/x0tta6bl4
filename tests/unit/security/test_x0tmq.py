@@ -55,6 +55,11 @@ class TestMavlinkV2Frame:
         wire = b"\x00" + b"\x00" * 11
         assert MavlinkV2Frame.deserialize(wire) is None
 
+    def test_incompat_flags_rejected(self) -> None:
+        frame = MavlinkV2Frame(sys_id=1, comp_id=2, msg_id=50000, payload=b"test", incompat_flags=0x01)
+        wire = frame.serialize()
+        assert MavlinkV2Frame.deserialize(wire) is None
+
 
 # ---------------------------------------------------------------------------
 # x0CHUNK
@@ -101,6 +106,31 @@ class TestX0Chunker:
         #  (new buffer, chunk_idx collision resistant)
         result = chunker.process_chunk(frames[0])
         assert result is None  # not all chunks present
+
+    def test_out_of_order_chunk_rejected(self) -> None:
+        chunker = X0Chunker(sys_id=1, comp_id=2)
+        data = b"x" * 500
+        frames = chunker.fragment(session_id=10, data=data)
+        # Process chunk 0 first
+        chunker.process_chunk(frames[0])
+        # Try to process chunk 0 again (out of order) - should be rejected
+        result = chunker.process_chunk(frames[0])
+        assert result is None
+
+    def test_buffer_expiry(self) -> None:
+        chunker = X0Chunker(sys_id=1, comp_id=2)
+        data = b"x" * 500
+        frames = chunker.fragment(session_id=20, data=data)
+        # Process first chunk
+        chunker.process_chunk(frames[0])
+        assert len(chunker._buffers) == 1
+        # Manually expire the buffer by setting timestamp far in the past
+        key = (1, 2, 20)
+        chunker._buffer_timestamps[key] = 0
+        # Process next chunk - should evict expired buffer first
+        chunker.process_chunk(frames[1])
+        # Buffer should have been evicted and re-created for new chunk
+        assert len(chunker._buffers) == 1
 
 
 # ---------------------------------------------------------------------------
