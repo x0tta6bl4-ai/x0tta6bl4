@@ -1,0 +1,246 @@
+# ArgoCD Application - Monitoring Stack (Prometheus + Grafana)
+# Sync Wave: 2 (After SPIRE)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    targetRevision: 65.1.0
+    chart: kube-prometheus-stack
+    helm:
+      releaseName: prometheus
+      values: |
+        # Prometheus Configuration
+        prometheus:
+          prometheusSpec:
+            retention: 30d
+            retentionSize: "50GB"
+            
+            resources:
+              requests:
+                cpu: 200m
+                memory: 512Mi
+              limits:
+                cpu: 1000m
+                memory: 2Gi
+            
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 100Gi
+            
+            # Node selector for monitoring nodes
+            nodeSelector:
+              x0tta6bl4/node-type: monitoring
+            
+            tolerations:
+              - key: monitoring
+                operator: Equal
+                value: "true"
+                effect: NoSchedule
+            
+            # Additional scrape configs for x0tta6bl4
+            additionalScrapeConfigs:
+              - job_name: 'spire-server'
+                kubernetes_sd_configs:
+                  - role: pod
+                    namespaces:
+                      names: [spire]
+                relabel_configs:
+                  - source_labels: [__meta_kubernetes_pod_label_app]
+                    regex: spire-server
+                    action: keep
+                  - source_labels: [__meta_kubernetes_pod_container_port_name]
+                    regex: metrics
+                    action: keep
+              
+              - job_name: 'spire-agent'
+                kubernetes_sd_configs:
+                  - role: pod
+                    namespaces:
+                      names: [spire]
+                relabel_configs:
+                  - source_labels: [__meta_kubernetes_pod_label_app]
+                    regex: spire-agent
+                    action: keep
+              
+              - job_name: 'mesh-nodes'
+                kubernetes_sd_configs:
+                  - role: pod
+                relabel_configs:
+                  - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                    regex: "true"
+                    action: keep
+                  - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                    target_label: __metrics_path__
+                    regex: (.+)
+                  - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                    action: replace
+                    regex: ([^:]+)(?::\d+)?;(\d+)
+                    replacement: $1:$2
+                    target_label: __address__
+        
+        # Grafana Configuration
+        grafana:
+          enabled: true
+          adminPassword: "x0tta6bl4-secure-password"  # Change in production!
+          
+          persistence:
+            enabled: true
+            size: 10Gi
+          
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          
+          nodeSelector:
+            x0tta6bl4/node-type: monitoring
+          
+          tolerations:
+            - key: monitoring
+              operator: Equal
+              value: "true"
+              effect: NoSchedule
+          
+          # Grafana dashboards
+          dashboardProviders:
+            dashboardproviders.yaml:
+              apiVersion: 1
+              providers:
+                - name: 'x0tta6bl4'
+                  orgId: 1
+                  folder: 'x0tta6bl4 Mesh'
+                  type: file
+                  disableDeletion: false
+                  editable: true
+                  options:
+                    path: /var/lib/grafana/dashboards/x0tta6bl4
+          
+          dashboards:
+            x0tta6bl4:
+              mesh-overview:
+                json: |
+                  {
+                    "title": "x0tta6bl4 Mesh Overview",
+                    "uid": "mesh-overview",
+                    "panels": [
+                      {
+                        "title": "Active Nodes",
+                        "type": "stat",
+                        "targets": [{"expr": "count(up{job='mesh-nodes'} == 1)"}],
+                        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}
+                      },
+                      {
+                        "title": "SPIRE Agents Attested",
+                        "type": "stat",
+                        "targets": [{"expr": "spire_server_attested_agents"}],
+                        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}
+                      },
+                      {
+                        "title": "Mesh Latency p95",
+                        "type": "gauge",
+                        "targets": [{"expr": "histogram_quantile(0.95, mesh_latency_seconds_bucket)"}],
+                        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}
+                      },
+                      {
+                        "title": "Self-Healing Events",
+                        "type": "stat",
+                        "targets": [{"expr": "sum(increase(mape_k_healing_events_total[24h]))"}],
+                        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}
+                      }
+                    ]
+                  }
+        
+        # AlertManager
+        alertmanager:
+          enabled: true
+          alertmanagerSpec:
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 10Gi
+        
+        # Disable components not needed initially
+        nodeExporter:
+          enabled: true
+        
+        kubeStateMetrics:
+          enabled: true
+        
+        # PrometheusRule for x0tta6bl4 alerts
+        additionalPrometheusRulesMap:
+          x0tta6bl4-alerts:
+            groups:
+              - name: x0tta6bl4.mesh
+                rules:
+                  - alert: MeshNodeDown
+                    expr: up{job="mesh-nodes"} == 0
+                    for: 1m
+                    labels:
+                      severity: critical
+                    annotations:
+                      summary: "Mesh node {{ $labels.instance }} is down"
+                      description: "Mesh node has been down for more than 1 minute"
+                  
+                  - alert: SPIREServerUnhealthy
+                    expr: up{job="spire-server"} == 0
+                    for: 30s
+                    labels:
+                      severity: critical
+                    annotations:
+                      summary: "SPIRE Server is unhealthy"
+                      description: "SPIRE Server has been down for 30 seconds"
+                  
+                  - alert: HighMeshLatency
+                    expr: histogram_quantile(0.95, mesh_latency_seconds_bucket) > 0.1
+                    for: 5m
+                    labels:
+                      severity: warning
+                    annotations:
+                      summary: "High mesh latency detected"
+                      description: "95th percentile latency is above 100ms"
+                  
+                  - alert: LowSelfHealingSuccess
+                    expr: rate(mape_k_healing_success_total[1h]) / rate(mape_k_healing_events_total[1h]) < 0.9
+                    for: 15m
+                    labels:
+                      severity: warning
+                    annotations:
+                      summary: "Self-healing success rate is below 90%"
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
