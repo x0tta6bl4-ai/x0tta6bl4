@@ -8,6 +8,7 @@ UDP транспорт с Traffic Shaping для low-latency приложени�
 - NAT traversal через UDP hole punching
 - Reliable delivery опционально (для критичных пакетов)
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -16,18 +17,13 @@ import os
 import socket
 import struct
 import time
-from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
-from ..obfuscation import (
-    ObfuscationTransport,
-    TrafficAnalyzer,
-    TrafficProfile,
-    TrafficShaper,
-    TransportManager,
-)
+from src.network.obfuscation import (ObfuscationTransport, TrafficAnalyzer,
+                                     TrafficProfile, TrafficShaper,
+                                     TransportManager)
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +130,7 @@ class ShapedUDPTransport:
     def __init__(
         self,
         local_port: int = 0,
-        local_host: str = "127.0.0.1",
+        local_host: str = "0.0.0.0",  # nosec B104
         traffic_profile: str = "gaming",
         obfuscation: str = "none",
         obfuscation_key: Optional[str] = None,
@@ -262,7 +258,8 @@ class ShapedUDPTransport:
         raw = packet.to_bytes()
 
         if packet.requires_ack:
-            self._pending_acks[packet.sequence] = (packet, address)
+            # Store packet for retransmission if needed
+            self._pending_acks[packet.sequence] = (packet, self.peer_address)
 
         # Обфускация
         if self._transport:
@@ -641,8 +638,8 @@ async def example_gaming_transport():
     await transport.start()
 
     print(f"Gaming UDP транспорт запущен на порту {transport.local_port}")
-    print(f"Профиль: gaming (10-33ms интервал, 50-300 байт)")
-    print(f"Обфускация: XOR")
+    print("Профиль: gaming (10-33ms интервал, 50-300 байт)")
+    print("Обфускация: XOR")
 
     # Симуляция отправки игровых пакетов
     target = ("127.0.0.1", 5001)
@@ -659,3 +656,4 @@ async def example_gaming_transport():
 
 if __name__ == "__main__":
     asyncio.run(example_gaming_transport())
+

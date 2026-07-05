@@ -4,10 +4,10 @@ Production Dependency Checks for x0tta6bl4
 Ensures all critical dependencies are available before starting in production mode.
 No graceful degradation for production-critical components.
 """
+from __future__ import annotations
 
 import os
 import sys
-from typing import List, Tuple
 
 PRODUCTION_MODE = os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
 
@@ -24,7 +24,9 @@ def check_production_dependencies() -> None:
 
     Raises ProductionDependencyError if any critical dependency is missing.
     """
-    if not PRODUCTION_MODE:
+    # Re-read env var at call time so monkeypatch/setenv works in tests
+    production_mode = os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
+    if not production_mode:
         return
 
     errors = []
@@ -38,7 +40,7 @@ def check_production_dependencies() -> None:
                 "liboqs-python not available - REQUIRED for post-quantum cryptography"
             )
     except ImportError:
-        errors.append("Post-quantum cryptography module not available")
+        errors.append("liboqs-python not available - post-quantum cryptography module not found")
 
     # ML Components - Critical for anomaly detection
     try:
@@ -85,7 +87,7 @@ def check_production_dependencies() -> None:
         raise ProductionDependencyError(error_msg)
 
 
-def get_dependency_status() -> List[Tuple[str, bool, str]]:
+def get_dependency_status() -> list[tuple[str, bool, str]]:
     """
     Get status of all dependencies.
 
@@ -158,3 +160,4 @@ def get_dependency_status() -> List[Tuple[str, bool, str]]:
         status.append(("OpenTelemetry", False, "Not available"))
 
     return status
+

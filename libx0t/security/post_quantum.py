@@ -1,3 +1,11 @@
-"""Compatibility shim for libx0t.security.post_quantum."""
+"""
+Deprecated compatibility shim for legacy PQC imports.
 
-from src.libx0t.security.post_quantum import *  # noqa: F401,F403
+New code should import from ``src.security.pqc``.  This module stays importable
+because deployment scripts, fixtures, and older integrations still reference
+``src.security.post_quantum``.
+"""
+from __future__ import annotations
+
+from src.security.pqc import *  # noqa: F401,F403
+
