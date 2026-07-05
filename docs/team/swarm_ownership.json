@@ -9,7 +9,20 @@
     "src-tauri/",
     "vpn-xray/",
     "spire/",
-    "execute_dao_proposal.py"
+    "execute_dao_proposal.py",
+    "deploy/",
+    "alertmanager/",
+    "argocd/",
+    "chaos/",
+    "ops/",
+    "scripts/broadcast.py",
+    "scripts/measure_mttr.py",
+    "scripts/onboarding_logic.py",
+    "scripts/patch_streaming.py",
+    "scripts/start-local-proxy.sh",
+    "scripts/telegram_bot_simple.py",
+    "scripts/xray_client_naming.py",
+    "scripts/xui_client_manager.py"
   ],
   "agents": {
     "agent1-ml-core": {
