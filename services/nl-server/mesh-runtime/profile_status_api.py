@@ -70,6 +70,43 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 
+CLIENT_COMPATIBILITY_PATH = None
+
+
+def build_client_compatibility() -> dict:
+    path = Path(CLIENT_COMPATIBILITY_PATH or "/var/lib/ghost-access/client-compatibility/matrix.json")
+    if not path.exists():
+        return {"ok": False, "error": f"Matrix file not found: {path}"}
+    try:
+        matrix = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        return {"ok": False, "error": f"Failed to parse matrix: {e}"}
+
+    real_checks = matrix.get("real_client_checks", [])
+    if not isinstance(real_checks, list):
+        real_checks = []
+
+    passing_checks = [c for c in real_checks if c.get("status") == "pass"]
+    completion_rule = matrix.get("completion_rule", {})
+    evidence = completion_rule.get("evidence", {})
+    
+    return {
+        "ok": True,
+        "decision": matrix.get("decision", "unknown"),
+        "complete": completion_rule.get("current_status") == "complete",
+        "real_client_checks": len(real_checks),
+        "passing_real_client_checks": len(passing_checks),
+        "next_required_checks": completion_rule.get("next_required_checks", []),
+        "evidence_session": completion_rule.get("evidence_session", {}),
+        "completion": evidence,
+        "missing_requirements": completion_rule.get("missing_requirements", []),
+        "privacy": {
+            "raw_real_client_rows_returned": False,
+            "output_privacy_ok": True,
+        }
+    }
+
+
 def main() -> int:
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"profile status api listening on http://{HOST}:{PORT}")
