@@ -47,7 +47,7 @@ ports = []
 for value in (
     os.environ.get("VPN_SOCKS_PORT"),
     os.environ.get("SOCKS_PORT"),
-    os.environ.get("VPN_SOCKS_PORT_CANDIDATES", "10918,10808,10809,10924,40467,1080,7890,7891"),
+    os.environ.get("VPN_SOCKS_PORT_CANDIDATES", "10918,10818,10808,10809,10924,40467,1080,7890,7891"),
 ):
     if not value:
         continue

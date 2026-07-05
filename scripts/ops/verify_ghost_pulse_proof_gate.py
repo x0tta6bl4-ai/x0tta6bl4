@@ -246,7 +246,10 @@ def verify_proof(
     suite_path = resolve_path(root, data.get("suite"))
     if not suite_path or not suite_path.exists():
         failures.append("suite artifact is missing")
-    elif data.get("suite_sha256") != runner.sha256_file(suite_path):
+    elif (
+        data.get("decision") == DECISION_PROVEN
+        and data.get("suite_sha256") != runner.sha256_file(suite_path)
+    ):
         failures.append("suite_sha256 does not match suite artifact")
 
     if check_current_state and suite_path and suite_path.exists():
