@@ -152,10 +152,8 @@ def _secret_values(args: argparse.Namespace) -> dict[str, str]:
 
 def _write_local_env(path: Path, values: Mapping[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        156|        "\n".join(f"{name}={value}" for name, value in values.items()) + "\n",
-        157|  # lgtm[py/clear-text-storage-sensitive-data]
-    )  # nosec - chmod 0o600, CI temp env file
+    payload = "\n".join(f"{name}={value}" for name, value in values.items()) + "\n"
+    path.write_text(payload, encoding="utf-8")
     _chmod_owner_only(path)
 
 

@@ -21,21 +21,23 @@ import httpx
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.integration.spine import SafeActuatorEvidenceMetadata
+from src.integration.spine import SafeActuatorResult, SafeActuatorEvidenceMetadata
+
+_AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "Auto-rollback SafeActuator metadata proves only local health/metrics "
+    "observation and a rollback recommendation. It is not proof of live "
+    "rollback execution, live customer impact, traffic shifting, production "
+    "SLO breach, external DPI bypass, settlement finality, or production "
+    "readiness."
+)
 
 AUTO_ROLLBACK_CLAIM_BOUNDARY = (
     "This script records local health/metrics observations and rollback "
     "recommendations. Local error-rate, latency, or health observations do not "
     "prove live customer impact, production SLO breach, traffic shifting, "
     "external DPI bypass, settlement finality, or production readiness. Live "
-    "rollback requires separate authorization and rollout evidence."
-)
-AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
-    "Auto-rollback SafeActuator metadata proves only local health/metrics "
-    "observation and a rollback recommendation. It is not proof of live "
-    "rollback execution, live customer impact, traffic shifting, production "
-    "SLO breach, external DPI bypass, settlement finality, or production "
-    "readiness."
+    "rollback requires separate authorization and rollout evidence. "
+    "Live authorization gate: set X0TTA6BL4_ALLOW_LIVE_ROLLBACK=yes."
 )
 
 
@@ -56,6 +58,21 @@ def _elapsed_ms(started_at: float) -> int:
     return int((time.perf_counter() - started_at) * 1000)
 
 
+def _safe_actuator_base(
+    *,
+    action: str,
+    health_observed: bool = False,
+    metrics_observed: bool = False,
+    rollback_recommended: bool = False,
+    live_rollback_authorized: bool = False,
+) -> SafeActuatorResult:
+    return SafeActuatorResult(
+        success=True,
+        reason=f"{action}: local observation recorded",
+        simulated=True,
+    )
+
+
 def _safe_actuator_evidence_metadata(
     *,
     action: str,
@@ -64,26 +81,34 @@ def _safe_actuator_evidence_metadata(
     rollback_recommended: bool = False,
     live_rollback_authorized: bool = False,
 ) -> Dict[str, Any]:
-    claim_gate = {
-        "schema": "x0tta6bl4.ops.auto_rollback.safe_actuator_claim_gate.v1",
-        "action": action,
-        "local_health_observation_claim_allowed": bool(health_observed),
-        "local_metrics_observation_claim_allowed": bool(metrics_observed),
-        "local_rollback_recommendation_claim_allowed": bool(rollback_recommended),
-        "live_rollback_execution_claim_allowed": False,
-        "rollback_command_adapter_configured": False,
-        "traffic_shift_claim_allowed": False,
-        "live_customer_traffic_claim_allowed": False,
-        "production_readiness_claim_allowed": False,
-        "production_slo_claim_allowed": False,
-        "external_dpi_bypass_confirmed": False,
-        "external_settlement_finality_claim_allowed": False,
-        "claim_boundary": AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY,
-        "redacted": True,
-    }
-    return SafeActuatorEvidenceMetadata.from_value(
+    base = _safe_actuator_base(
+        action=action,
+        health_observed=health_observed,
+        metrics_observed=metrics_observed,
+        rollback_recommended=rollback_recommended,
+        live_rollback_authorized=live_rollback_authorized,
+    )
+    metadata: Dict[str, Any] = base.to_dict()
+    metadata.update(
         {
-            "claim_gate": claim_gate,
+            "schema": "x0tta6bl4.ops.auto_rollback.safe_actuator_evidence_metadata.v1",
+            "claim_gate": {
+                "schema": "x0tta6bl4.ops.auto_rollback.safe_actuator_claim_gate.v1",
+                "action": action,
+                "local_health_observation_claim_allowed": bool(health_observed),
+                "local_metrics_observation_claim_allowed": bool(metrics_observed),
+                "local_rollback_recommendation_claim_allowed": bool(rollback_recommended),
+                "live_rollback_execution_claim_allowed": False,
+                "rollback_command_adapter_configured": False,
+                "traffic_shift_claim_allowed": False,
+                "live_customer_traffic_claim_allowed": False,
+                "production_readiness_claim_allowed": False,
+                "production_slo_claim_allowed": False,
+                "external_dpi_bypass_confirmed": False,
+                "external_settlement_finality_claim_allowed": False,
+                "claim_boundary": _AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+                "redacted": True,
+            },
             "cross_plane_claim_gate": {
                 "schema": "x0tta6bl4.ops.auto_rollback.cross_plane_claim_gate.v1",
                 "allowed": False,
@@ -104,10 +129,11 @@ def _safe_actuator_evidence_metadata(
                 "raw_output_redacted": True,
             },
             "source_agents": ["auto-rollback-script"],
-            "claim_boundary": AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "claim_boundary": _AUTO_ROLLBACK_SAFE_ACTUATOR_CLAIM_BOUNDARY,
             "redacted": True,
         }
-    ).to_dict()
+    )
+    return metadata
 
 
 def _claim_boundary_fields(

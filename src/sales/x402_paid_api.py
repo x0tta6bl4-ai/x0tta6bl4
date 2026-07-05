@@ -16,31 +16,55 @@ class AgentWorldMessageRequest:
     max_tokens: int = 100
     model: str = "default"
 
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "AgentWorldMessageRequest":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
+
 
 @dataclass
 class AgentBazaarTaskRequest:
     task_id: str = ""
     description: str = ""
 
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "AgentBazaarTaskRequest":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
+
 
 @dataclass
 class ApiDocsRequest:
     url: str = ""
+
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "ApiDocsRequest":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
 
 
 @dataclass
 class DomainHealthRequest:
     domain: str = ""
 
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "DomainHealthRequest":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
+
 
 @dataclass
 class IncomeRouteRequest:
     route: str = ""
 
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "IncomeRouteRequest":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
+
 
 @dataclass
 class ListingAuditRequest:
     listing_id: str = ""
+
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "ListingAuditRequest":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
 
 
 @dataclass
@@ -49,30 +73,54 @@ class PaidApiSettings:
     x402_enabled: bool = True
     price_per_token: float = 0.001
 
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "PaidApiSettings":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
+
 
 @dataclass
 class PaymentRiskRequest:
     amount: float = 0.0
+
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "PaymentRiskRequest":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
 
 
 @dataclass
 class PreviewRouteRequest:
     route: str = ""
 
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "PreviewRouteRequest":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
+
 
 @dataclass
 class RepoTriageRequest:
     repo_url: str = ""
+
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "RepoTriageRequest":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
 
 
 @dataclass
 class UrlSnapshotRequest:
     url: str = ""
 
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "UrlSnapshotRequest":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
+
 
 @dataclass
 class X402ValidateRequest:
     payment_hash: str = ""
+
+    @classmethod
+    def model_validate(cls, payload: dict[str, Any]) -> "X402ValidateRequest":
+        return cls(**{k: payload[k] for k in cls.__dataclass_fields__ if k in payload}) # type: ignore[attr-defined]
 
 
 # ===== Functions =====
