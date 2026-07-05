@@ -1,0 +1,21 @@
+[Unit]
+Description=x0tta6bl4 Packaged Desktop Core API
+Documentation=file:/usr/share/doc/x0tta6bl4/README.md
+After=network-online.target x0tta6bl4-node.service
+Wants=network-online.target x0tta6bl4-node.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/lib/x0tta6bl4/desktop_core_api.py --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/x0tta6bl4-mesh
+PrivateTmp=true
+LogsDirectory=x0tta6bl4
+SyslogIdentifier=x0tta6bl4-core-api
+
+[Install]
+WantedBy=multi-user.target

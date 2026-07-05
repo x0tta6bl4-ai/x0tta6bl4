@@ -1,0 +1,23 @@
+[Unit]
+Description=x0tta6bl4 Local Desktop Mesh Runtime
+Documentation=file:/usr/share/doc/x0tta6bl4/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=+/usr/bin/install -d -m 0755 /opt/x0tta6bl4-mesh/state
+ExecStart=/usr/bin/python3 /usr/lib/x0tta6bl4/desktop_mesh_runtime.py --state-dir /opt/x0tta6bl4-mesh/state
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/x0tta6bl4-mesh
+PrivateTmp=true
+StateDirectory=x0tta6bl4-mesh
+LogsDirectory=x0tta6bl4
+SyslogIdentifier=x0tta6bl4-node
+
+[Install]
+WantedBy=multi-user.target
