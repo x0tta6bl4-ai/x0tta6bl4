@@ -15,12 +15,12 @@ backward-compatible extension to the MAVLink v2 protocol (MAVLink 2.0)
 that adds support for post-quantum asymmetric authentication and
 session key establishment.  MAVLink v2 currently relies solely on
 HMAC-SHA256 symmetric signatures, which are vulnerable to pre-key
-compromise and lack forward secrecy.  x0tMQ introduces three new
-message types — X0_SESSION_INIT, X0_SIGNED_CMD, and x0CHUNK —
-encapsulating post-quantum primitives defined in NIST FIPS 203
-(ML-KEM) and FIPS 204 (ML-DSA) within standard MAVLink v2 frames,
-enabling transparent relay through legacy infrastructure without
-hardware modification.
+compromise and lack forward secrecy.  x0tMQ introduces four new
+message types — X0_SESSION_INIT, X0_SIGNED_CMD, X0_SESSION_ACK,
+and x0CHUNK — encapsulating post-quantum primitives defined in NIST
+FIPS 203 (ML-KEM) and FIPS 204 (ML-DSA) within standard MAVLink v2
+frames, enabling transparent relay through legacy infrastructure
+without hardware modification.
 
 ## Status of This Memo
 
@@ -63,6 +63,7 @@ in the Revised BSD License.
     4.1  X0_SESSION_INIT (MSG_ID 50001)
     4.2  X0_SIGNED_CMD (MSG_ID 50002)
     4.3  x0CHUNK (MSG_ID 50000)
+    4.4  X0_SESSION_ACK (MSG_ID 50003)
 5.  x0CHUNK Fragmentation
 6.  Cryptographic Algorithms
     6.1  ML-KEM-1024 (FIPS 203)
@@ -145,10 +146,10 @@ x0tMQ operates in three phases during a MAVLink session:
        high-frequency telemetry, HMAC-SHA3-256 provides lightweight
        per-packet authentication.
 
-   Phase 3 — Transparent Relay via Chunking
-       ML-DSA-87 signatures are ~2.4 KB, exceeding the nominal
-       MAVLink v2 payload limit of 280 bytes.  x0CHUNK
-       fragments the signature into 245-byte segments, each
+    Phase 3 — Transparent Relay via Chunking
+        ML-DSA-87 signatures are 4627 bytes, exceeding the nominal
+        MAVLink v2 payload limit of 280 bytes.  x0CHUNK
+        fragments the signature into 245-byte segments, each
        encapsulated in a valid MAVLink frame with MSG_ID 50000,
        INCOMPAT_FLAGS = 0, and a correct CRC-16-CCITT checksum.
        Legacy relays forward these frames as opaque valid data.
@@ -199,7 +200,7 @@ output as defined in [FIPS203] Section 7.2.
 **Purpose:** Provide an ML-DSA-87 signature over a preceding command
 message.
 
-**Payload format (variable length, up to 2506 bytes):**
+**Payload format (variable length, up to 4653 bytes):**
 
     +--------+-------------+-------------+----------------------+
     | Offset | Field       | Size (bytes)| Description          |
@@ -212,9 +213,9 @@ message.
     +--------+-------------+-------------+----------------------+
     | 18     | nonce       | 8           | Random nonce          |
     +--------+-------------+-------------+----------------------+
-    | 26     | pq_sig      | 2460        | ML-DSA-87 signature   |
-    |        |             | (variable)  | (nominal: 2429 bytes, |
-    |        |             |             | padded with zeros)    |
+    | 26     | pq_sig      | 4627        | ML-DSA-87 signature   |
+    |        |             | (variable)  | (FIPS 204,            |
+    |        |             |             | encoded)              |
     +--------+-------------+-------------+----------------------+
 
 The receiving FCS buffers the command identified by cmd_seq and
@@ -226,7 +227,7 @@ against the GCS's registered public key.
 **Purpose:** Fragment a large x0tMQ message (SESSION_INIT or
 SIGNED_CMD) into relay-transparent MAVLink frames.
 
-**Payload format (fixed length: 253 bytes):**
+**Payload format (fixed length: 255 bytes):**
 
     +--------+-------------+-------------+----------------------+
     | Offset | Field       | Size (bytes)| Description          |
@@ -241,10 +242,13 @@ SIGNED_CMD) into relay-transparent MAVLink frames.
     | 4      | total_chunks| 2          | Total number of chunks |
     |        |             |             | (max: 1024)           |
     +--------+-------------+-------------+----------------------+
-    | 6      | payload     | 245         | Chunk data            |
+    | 6      | session_id  | 4           | Session identifier    |
+    |        |             |             | (for reassembly)      |
     +--------+-------------+-------------+----------------------+
-    | 251    | crc16       | 2           | CRC-16-CCITT over     |
-    |        |             |             | payload[0..250]       |
+    | 10     | payload     | 245         | Chunk data            |
+    +--------+-------------+-------------+----------------------+
+    | 255    | crc16       | 2           | CRC-16-CCITT over     |
+    |        |             |             | payload[0..254]       |
     +--------+-------------+-------------+----------------------+
 
 The receiving endpoint reconstructs the original message by
@@ -275,7 +279,21 @@ payload.  If verification fails, all chunks for that message MUST be
 discarded and a X0_NACK (deferred to future specification) MAY
 be emitted.
 
-## 6.  Cryptographic Algorithms
+### 4.4  X0_SESSION_ACK (MSG_ID 50003)
+
+**Purpose:** Acknowledge successful session establishment after
+X0_SESSION_INIT.  Confirms that the FCS has successfully decapsulated
+the ML-KEM-1024 ciphertext and derived the session key.
+
+**Payload format (fixed length: 32 bytes):**
+
+    +--------+-------------+-------------+----------------------+
+    | Offset | Field       | Size (bytes)| Description          |
+    +--------+-------------+-------------+----------------------+
+    | 0      | ack_hmac    | 32          | HMAC-SHA3-256 over   |
+    |        |             |             | (session_id ||       |
+    |        |             |             | "x0tmq-ack")         |
+    +--------+-------------+-------------+----------------------+
 
 ### 6.1  ML-KEM-1024 (FIPS 203)
 
@@ -301,11 +319,12 @@ accommodate the full payload in a single message.
 **Role:** Command signing and non-repudiation.
 
 -   **Key generation**: Per [FIPS204] Section 7.1, producing a
-    public verification key (~2.4 KB) and a private signing key.
+    public verification key (2592 bytes) and a private signing key
+    (4896 bytes).
 -   **Sign**: 509 microseconds for a 256-byte payload (ARM64 Neoverse-N2).
 -   **Verify**: Comparable or lower latency, depending on architecture.
--   **Signature size**: Variable, nominally 2429 bytes.
-    MUST be fragmented via x0CHUNK.
+-   **Signature size**: 4627 bytes (FIPS 204 encoded).
+    MUST be fragmented via x0CHUNK (19 chunks at 245 bytes each).
 -   **Security strength**: Category 5 [NISTPQ].
 
 ### 6.3  HMAC-SHA3-256
@@ -319,7 +338,7 @@ telemetry (100 Hz+).
 -   **Overhead**: 32 bytes per telemetry packet.
 
 HMAC-SHA3-256 is used for routine telemetry frames where ML-DSA-87
-overhead (~2.4 KB) would be prohibitive.  The key is rotated each
+overhead (~4.5 KB) would be prohibitive.  The key is rotated each
 session via ML-KEM-1024 re-keying at intervals determined by the
 security policy (RECOMMENDED: every 15 minutes or 100,000 packets,
 whichever comes first).
@@ -346,8 +365,8 @@ Step 5 — Both sides derive three keys from ss via HKDF-SHA3-256
         K_auth = HKDF(ss, "x0tmq-auth-key")  — for HMAC-SHA3-256
         K_enc  = HKDF(ss, "x0tmq-enc-key")   — reserved
 
-Step 6 — FCS sends X0_SESSION_ACK (provisional MSG_ID 50003,
-    specification forthcoming) confirming session establishment.
+Step 6 — FCS sends X0_SESSION_ACK (MSG_ID 50003, Section 4.4)
+    confirming session establishment.
 
 The session_id (16 bytes, generated and included in SESSION_INIT)
 binds all subsequent SIGNED_CMD and HMAC-authenticated telemetry
@@ -467,15 +486,16 @@ of CNSA 2.0 [CNSA20].
 
 ## 11.  IANA Considerations
 
-This document requests the assignment of three MAVLink message IDs
+This document requests the assignment of four MAVLink message IDs
 from the MAVLink reserved range (50000-65535):
 
     +-----------+---------------------+------------+
     | MSG_ID    | Name                | Reference  |
     +-----------+---------------------+------------+
-    | 50000     | x0CHUNK      | Section 4.3|
-    | 50001     | X0_SESSION_INIT | Section 4.1|
-    | 50002     | X0_SIGNED_CMD  | Section 4.2|
+    | 50000     | x0CHUNK             | Section 4.3|
+    | 50001     | X0_SESSION_INIT     | Section 4.1|
+    | 50002     | X0_SIGNED_CMD       | Section 4.2|
+    | 50003     | X0_SESSION_ACK      | Section 4.4|
     +-----------+---------------------+------------+
 
 The MAVLink message registry is maintained at
