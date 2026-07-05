@@ -558,3 +558,6 @@ docs/pitch/
 docs/private/
 archive/docs_2025_and_earlier/
 docs/archive/root_artifacts_20260215/
+
+# Agent workspace (not project code)
+.hermes/
