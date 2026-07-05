@@ -1,0 +1,82 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, refactor/vpn-deployment-package]
+  workflow_dispatch:
+
+jobs:
+  readiness:
+    name: Readiness Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync
+
+      - name: Run readiness gate
+        run: |
+          python src/ops/readiness_gate.py | tee gate_result.json
+          READY=$(python -c "import json; print(json.load(open('gate_result.json'))['summary']['ready'])")
+          if [ "$READY" != "True" ]; then
+            echo "::error::Readiness gate FAILED"
+            cat gate_result.json
+            exit 1
+          fi
+
+      - name: Upload gate result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-result
+          path: gate_result.json
+
+  deploy:
+    name: Deploy to NL VPS
+    needs: readiness
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.NL_VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ vars.NL_VPS_IP || '89.125.1.107' }} >> ~/.ssh/known_hosts
+
+      - name: Deploy code
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='__pycache__' \
+            --exclude='.venv' \
+            --exclude='*.pyc' \
+            ./ root@${{ vars.NL_VPS_IP || '89.125.1.107' }}:/opt/x0tta6bl4/
+
+      - name: Install dependencies on VPS
+        run: |
+          ssh root@${{ vars.NL_VPS_IP || '89.125.1.107' }} "cd /opt/x0tta6bl4 && uv sync --frozen"
+
+      - name: Restart service
+        run: |
+          ssh root@${{ vars.NL_VPS_IP || '89.125.1.107' }} "systemctl restart x0tta6bl4-node"
+
+      - name: Wait for health
+        run: |
+          sleep 5
+          ssh root@${{ vars.NL_VPS_IP || '89.125.1.107' }} "systemctl is-active x0tta6bl4-node"
+
+      - name: Run healthcheck
+        run: |
+          ssh root@${{ vars.NL_VPS_IP || '89.125.1.107' }} \
+            "/opt/x0tta6bl4/venv/bin/python /opt/x0tta6bl4/src/ops/healthcheck.py"
