@@ -809,7 +809,10 @@ def mldsa_reference_sign(
             continue
         if _mldsa_hint_weight(hints) > params.omega:
             continue
-        return mldsa_encode_signature(challenge, z, hints, params)
+        try:
+            return mldsa_encode_signature(challenge, z, hints, params)
+        except MlDsaShapeError:
+            continue
     raise MlDsaShapeError("ML-DSA reference signing did not find a valid sample")
 
 
