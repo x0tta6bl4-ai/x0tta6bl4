@@ -1,0 +1,54 @@
+replicaCount: 2
+
+image:
+  repository: registry.gitlab.com/x0tta/api-gateway
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nodeEnv: production
+logLevel: info
+meshApiUrl: http://mesh-node.x0tta-production.svc
+
+service:
+  type: ClusterIP
+  port: 4000
+  metricsPort: 9090
+
+ingress:
+  host: api.x0tta6bl4.io
+  tlsSecret: x0tta-tls
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Blue-green slot (blue | green) — set at deploy time
+slot: ""
+
+serviceAccount:
+  create: true
+  name: ""
+
+nodeSelector: {}
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app: mesh-api
+          topologyKey: kubernetes.io/hostname
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80

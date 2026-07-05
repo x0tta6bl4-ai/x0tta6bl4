@@ -1,0 +1,67 @@
+# Utrecht pilot profile for x0tta-mesh-operator
+
+operator:
+  replicaCount: 2
+  image:
+    tag: "3.3.2"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+leaderElection:
+  enabled: true
+  namespace: x0tta-mesh-system
+
+meshDefaults:
+  replicas: 50
+  trustDomain: x0tta6bl4.mesh
+
+  pqc:
+    enabled: true
+    kemAlgorithm: ML-KEM-768
+    dsaAlgorithm: ML-DSA-65
+    keyRotationInterval: 3600
+    hybridMode: true
+    ebpf:
+      enabled: true
+      packetCounter: true
+      antiReplay: true
+      windowSize: 64
+      xdpMode: skb
+
+  fallback:
+    enabled: true
+    retryAttempts: 3
+    retryDelay: 1.0
+    circuit:
+      enabled: true
+      failureThreshold: 5
+      resetTimeout: 30
+      halfOpenMaxCalls: 3
+      successThreshold: 2
+
+  dao:
+    enabled: true
+    bridge:
+      enabled: false
+
+  mesh:
+    maxNodes: 1000
+    heartbeatInterval: 30
+    routeOptimization: true
+    gossipFanout: 3
+
+  mapek:
+    enabled: true
+    monitorInterval: 15
+    analysisWindow: 300
+    adaptationEnabled: true
+
+serviceMonitor:
+  enabled: false
+
+installCRDs: true

@@ -23,10 +23,14 @@ mesh-operator/
 deploy_ghost/
 deployment/
 docker/
-
+ 
 # === ROOT COPIES OF EXISTING DEPLOY SUBS ===
-helm/
-k8s/
+/helm/
+/k8s/
+ 
+# === DEPLOY SECRET MATERIAL ===
+deploy/proxy/*.pem
+deploy/docker-compose/*.pem
 
 # === ONE-TIME / DEPRECATED SCRIPTS ===
 scripts/deprecated/

@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-mcp-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: mcp-server
+    app.kubernetes.io/part-of: x0tta-mesh
+spec:
+  replicas: {{ .Values.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: mcp-server
+  template:
+    metadata:
+      labels:
+        app: mcp-server
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+        - name: mcp-server
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          stdin: true       # MCP stdio transport requires stdin/stdout
+          tty: false
+          env:
+            - name: MESH_API_URL
+              value: {{ .Values.meshApiUrl | quote }}
+            - name: LOKI_URL
+              value: {{ .Values.lokiUrl | quote }}
+            - name: MESH_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-mcp-secrets
+                  key: service-token
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-mcp-secrets
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+stringData:
+  service-token: {{ .Values.serviceToken | quote }}
