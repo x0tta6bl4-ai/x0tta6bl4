@@ -81,6 +81,18 @@ mapek_recovery_actions_total = Counter(
     ["node_id", "peer"],
 )
 
+mesh_routing_table_size = Gauge(
+    "mesh_routing_table_size",
+    "Current number of entries in the mesh routing table",
+    ["node_id"],
+)
+
+mesh_forwarded_messages_total = Counter(
+    "mesh_forwarded_messages_total",
+    "Total messages forwarded by this node",
+    ["node_id", "destination"],
+)
+
 
 class PQC_Handshake:
     """Application-level mock PQC handshake using stdlib hashing only."""
@@ -108,6 +120,48 @@ class PQC_Handshake:
     def verify_signature(self, peer: str, message: bytes, signature_hex: str) -> bool:
         expected = hashlib.sha256(self._secret + message).digest()[:64]
         return bytes.fromhex(signature_hex) == expected
+
+
+class MeshRoutingTable:
+    def __init__(self, node_id: str, peers: set[str]) -> None:
+        self.node_id = node_id
+        self._entries: dict[str, dict] = {}
+        self._peers = list(peers)
+        for peer in self._peers:
+            address = _resolve_peer_address(peer)
+            self._entries[peer] = {
+                "peer_id": peer,
+                "address": address or peer,
+                "status": "resolved" if address else "unresolved",
+                "last_updated": time.time(),
+            }
+        mesh_routing_table_size.labels(node_id=self.node_id).set(len(self._entries))
+
+    @property
+    def entries(self) -> dict[str, dict]:
+        return dict(self._entries)
+
+    def get_next_hop(self, destination: str) -> str | None:
+        if destination == self.node_id:
+            return None
+        info = self._entries.get(destination)
+        if info:
+            return info["address"]
+        return None
+
+    def as_json(self) -> dict:
+        return {
+            "node_id": self.node_id,
+            "entries": [
+                {
+                    "peer_id": info["peer_id"],
+                    "address": info["address"],
+                    "status": info["status"],
+                    "last_updated": info["last_updated"],
+                }
+                for info in self._entries.values()
+            ],
+        }
 
 
 def _resolve_peer_address(peer: str) -> str | None:
@@ -159,6 +213,7 @@ class MeshNode:
         )
 
         self.pqc = PQC_Handshake(NODE_ID)
+        self.routing_table = MeshRoutingTable(self.node_id, self.peers)
         self._pqc_discovery_task: asyncio.Task | None = None  # type: ignore[type-arg]
         self._pqc_handshakes_by_peer: dict[str, int] = {}
         self._mapek_task: asyncio.Task | None = None  # type: ignore[type-arg]
@@ -203,6 +258,30 @@ class MeshNode:
             logger.warning("Peer %s unreachable: %s", target_peer, exc)
             return {"approved": False, "reason": str(exc)}
 
+    async def forward_message(self, destination: str, payload: dict) -> dict:
+        next_hop = self.routing_table.get_next_hop(destination)
+        if not next_hop:
+            return {"status": "error", "reason": f"No route to {destination}"}
+
+        mesh_forwarded_messages_total.labels(node_id=self.node_id, destination=destination).inc()
+
+        import aiohttp
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"http://{next_hop}:{PORT}/message",
+                    json={"destination": destination, "payload": payload},
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp:
+                    if resp.status == 200:
+                        return await resp.json()
+                    else:
+                        return {"status": "error", "reason": f"HTTP {resp.status}"}
+        except Exception as exc:
+            logger.warning("Forward to %s failed: %s", next_hop, exc)
+            return {"status": "error", "reason": str(exc)}
+
     async def run_http_server(self):
         """HTTP server with health + consensus endpoint."""
         import aiohttp.web
@@ -241,9 +320,35 @@ class MeshNode:
                     status=500,
                 )
 
+        async def handle_routing(request):
+            return aiohttp.web.json_response(self.routing_table.as_json())
+
+        async def handle_message(request):
+            try:
+                data = await request.json()
+                destination = data.get("destination", "")
+                payload = data.get("payload", {})
+                if not destination:
+                    return aiohttp.web.json_response(
+                        {"status": "error", "reason": "missing destination"}, status=400
+                    )
+                if destination == self.node_id:
+                    return aiohttp.web.json_response(
+                        {"status": "delivered", "destination": destination, "payload": payload}
+                    )
+                result = await self.forward_message(destination, payload)
+                return aiohttp.web.json_response(result)
+            except Exception as exc:
+                logger.error("message handler error: %s", exc)
+                return aiohttp.web.json_response(
+                    {"status": "error", "reason": str(exc)}, status=500
+                )
+
         app = aiohttp.web.Application()
         app.router.add_get("/health", health)
         app.router.add_post("/consensus", handle_consensus)
+        app.router.add_get("/routing", handle_routing)
+        app.router.add_post("/message", handle_message)
         runner = aiohttp.web.AppRunner(app)
         await runner.setup()
         site = aiohttp.web.TCPSite(runner, "0.0.0.0", PORT)
