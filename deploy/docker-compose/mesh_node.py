@@ -75,6 +75,12 @@ pqc_handshakes_total = Counter(
     ["node_id", "peer"],
 )
 
+mapek_recovery_actions_total = Counter(
+    "mapek_recovery_actions_total",
+    "Total MAPE-K recovery actions taken",
+    ["node_id", "peer"],
+)
+
 
 class PQC_Handshake:
     """Application-level mock PQC handshake using stdlib hashing only."""
@@ -127,6 +133,7 @@ class MeshNode:
             "mesh_health_score", "Mesh node health score baseline", ["node_id"]
         )
         self.health_score.labels(node_id=self.node_id).set(20.0)
+        self._last_health_score = 20.0
 
         self.svid_signer = SVIDSigner(
             spiffe_id=f"spiffe://x0tta6bl4.mesh/workload/{NODE_ID}",
@@ -153,6 +160,8 @@ class MeshNode:
 
         self.pqc = PQC_Handshake(NODE_ID)
         self._pqc_discovery_task: asyncio.Task | None = None  # type: ignore[type-arg]
+        self._pqc_handshakes_by_peer: dict[str, int] = {}
+        self._mapek_task: asyncio.Task | None = None  # type: ignore[type-arg]
 
         logger.info(
             "Node %s: peers=%s f=%d auto_approve=%s port=%d",
@@ -262,6 +271,7 @@ class MeshNode:
                         f"hb-{self.consensus_count}", evidence, peer
                     )
                     logger.info("Peer %s verdict: %s", peer, peer_result)
+                self._last_health_score = float(self.health_score.labels(node_id=self.node_id)._value.get())
             else:
                 # Single node: auto-approve
                 verdict = await self.consensus.request_consensus(
@@ -273,6 +283,8 @@ class MeshNode:
                 logger.info("HB #%d: %s (%.0fms)", self.consensus_count,
                             "approve" if verdict.approved else "skip",
                             verdict.duration_ms)
+
+                self._last_health_score = float(self.health_score.labels(node_id=self.node_id)._value.get())
 
             await asyncio.sleep(30)
 
@@ -300,10 +312,67 @@ class MeshNode:
                         extra={"peer": peer, "node_id": self.node_id},
                     )
                     pqc_handshakes_total.labels(node_id=self.node_id, peer=peer).inc()
+                    self._pqc_handshakes_by_peer[peer] = self._pqc_handshakes_by_peer.get(peer, 0) + 1
                 else:
                     logger.warning("PQC Handshake failed with %s", peer)
 
             await asyncio.sleep(60)
+
+    async def _apply_mape_k_recovery(self, peer: str | None = None) -> None:
+        """Plan & Execute: lightweight consensus heartbeat + score restore."""
+        target_peer = peer or (sorted(self.peers)[0] if self.peers else None)
+        logger.warning(
+            "MAPE-K intervention: restoring mesh_health_score and restarting heartbeat for node=%s peer=%s",
+            self.node_id,
+            target_peer,
+            extra={"node_id": self.node_id, "peer": target_peer},
+        )
+
+        self.health_score.labels(node_id=self.node_id).set(20.0)
+        mapek_recovery_actions_total.labels(node_id=self.node_id, peer=target_peer or "").inc()
+
+        if target_peer and target_peer in self.peers:
+            peer_result = await self.send_consensus_http(
+                f"mapek-{self.consensus_count}",
+                {
+                    "type": "mapek_recovery",
+                    "severity": "high",
+                    "failure_rate": 1.0,
+                    "total_packets": 0,
+                },
+                target_peer,
+            )
+            logger.info("MAPE-K peer verdict: %s", peer_result)
+
+        if self._pqc_discovery_task is None or self._pqc_discovery_task.done():
+            self._pqc_discovery_task = asyncio.create_task(self.run_pqc_discovery())
+
+    async def run_mape_k(self) -> None:
+        """Monitor & Analyze: periodic anomaly detection on health score and PQC handshakes."""
+        await asyncio.sleep(10)
+        last_total_by_peer: dict[str, int] = dict(self._pqc_handshakes_by_peer)
+        while True:
+            try:
+                health_value = self._last_health_score
+            except Exception:
+                health_value = 20.0
+
+            anomaly = health_value < 10.0
+            if not anomaly and self.peers:
+                stale_peers = [
+                    peer
+                    for peer in self.peers
+                    if self._pqc_handshakes_by_peer.get(peer, 0) == last_total_by_peer.get(peer, 0)
+                ]
+                if stale_peers:
+                    logger.warning("Stale PQC handshakes for peers: %s", stale_peers)
+                anomaly = bool(stale_peers)
+
+            if anomaly:
+                await self._apply_mape_k_recovery()
+
+            last_total_by_peer = dict(self._pqc_handshakes_by_peer)
+            await asyncio.sleep(30)
 
     async def run(self):
         logger.info("Starting mesh node %s", NODE_ID)
@@ -317,6 +386,9 @@ class MeshNode:
         if self.peers:
             self._pqc_discovery_task = asyncio.create_task(self.run_pqc_discovery())
             tasks.append(self._pqc_discovery_task)
+
+        self._mapek_task = asyncio.create_task(self.run_mape_k())
+        tasks.append(self._mapek_task)
 
         await asyncio.gather(*tasks)
 
