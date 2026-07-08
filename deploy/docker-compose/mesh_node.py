@@ -54,6 +54,8 @@ sys.modules["liboqs"] = _mock_oqs
 
 import hashlib
 
+from prometheus_client import Gauge, start_http_server
+
 from src.self_healing.anomaly_consensus import AnomalyConsensusManager
 from src.self_healing.svid_signer import SVIDSigner
 
@@ -63,6 +65,7 @@ NODE_ID = os.environ.get("NODE_ID", "node-a")
 PEERS = [p for p in os.environ.get("PEERS", "").split(",") if p]
 PEER_IDS = [p for p in os.environ.get("PEER_IDS", "").split(",") if p]
 PORT = int(os.environ.get("PORT", "9100"))
+MESH_METRICS_PORT = int(os.environ.get("MESH_METRICS_PORT", "9190"))
 PEER_PORTS = os.environ.get("PEER_PORTS", "").split(",")
 
 # SVID key — deterministic per node for dev
@@ -77,6 +80,10 @@ class MeshNode:
         self.f = min(1, max(0, len(self.peers) // 3))
         self.start_time = time.time()
         self.consensus_count = 0
+        self.health_score = Gauge(
+            "mesh_health_score", "Mesh node health score baseline", ["node_id"]
+        )
+        self.health_score.labels(node_id=self.node_id).set(20.0)
 
         self.svid_signer = SVIDSigner(
             spiffe_id=f"spiffe://x0tta6bl4.mesh/workload/{NODE_ID}",
@@ -225,6 +232,11 @@ class MeshNode:
 
     async def run(self):
         logger.info("Starting mesh node %s", NODE_ID)
+        try:
+            start_http_server(MESH_METRICS_PORT)
+            logger.info("Prometheus metrics on :%d/metrics", MESH_METRICS_PORT)
+        except OSError as exc:
+            logger.warning("Metrics port %s busy: %s", MESH_METRICS_PORT, exc)
         await asyncio.gather(self.run_http_server(), self.run_heartbeat())
 
 

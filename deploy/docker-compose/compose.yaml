@@ -42,11 +42,14 @@ services:
     image: mesh-node:latest
     container_name: mesh-node-a
     hostname: node-a
+    ports:
+      - "127.0.0.1:9190:9090"
     environment:
       - NODE_ID=node-a
       - PEERS=node-b,node-nl-bridge
       - PEER_PORTS=9101,9102
       - PORT=9100
+      - MESH_METRICS_PORT=9090
       - SVD_BYPASS=true
       - HTTP_PROXY=
       - HTTPS_PROXY=
