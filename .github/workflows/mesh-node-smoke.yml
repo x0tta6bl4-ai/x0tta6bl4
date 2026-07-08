@@ -1,0 +1,89 @@
+name: Mesh Node Smoke Baseline
+
+on:
+  push:
+    paths:
+      - 'deploy/**'
+      - 'scripts/**'
+  pull_request:
+    paths:
+      - 'deploy/**'
+      - 'scripts/**'
+
+jobs:
+  mesh-node-baseline:
+    name: Mesh Node Baseline Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate deploy YAML files
+        run: |
+          python - <<'PY'
+          import pathlib, sys, yaml
+          errors = []
+          for path in pathlib.Path('deploy').rglob('*.yml'):
+              try:
+                  yaml.safe_load(path.read_text())
+              except Exception as exc:
+                  errors.append(f"{path}: {exc}")
+          if errors:
+              print("YAML validation failed:")
+              for err in errors:
+                  print(f"  - {err}")
+              sys.exit(1)
+          print("YAML validation passed.")
+          PY
+
+      - name: Lint changed shell scripts (static)
+        if: always()
+        run: |
+          set -e
+          mapfile -t files < <(git diff --name-only --diff-filter=AM origin/${{ github.base_ref || 'main' }} HEAD -- scripts | grep -E '\.sh$' || true)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No shell script changes to lint."
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            echo "Linting $f"
+            bash -n "$f"
+          done
+          echo "Shell static checks passed."
+
+      - name: Compile changed Python scripts (static)
+        if: always()
+        run: |
+          set -e
+          mapfile -t files < <(git diff --name-only --diff-filter=AM origin/${{ github.base_ref || 'main' }} HEAD -- scripts deploy | grep -E '\.py$' || true)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No Python script changes to compile-check."
+            exit 0
+          fi
+          python -m py_compile "${files[@]}"
+          echo "Python static compile checks passed."
+
+      - name: HTTP smoke check against localhost metrics (opt-in)
+        if: ${{ vars.MESH_NODE_OPT_IN_PRIVILEGED == 'true' && env.MESH_NODE_SMOKE_URL != '' }}
+        env:
+          MESH_NODE_SMOKE_URL: ${{ vars.MESH_NODE_SMOKE_URL }}
+        run: |
+          set -e
+          echo "Running bounded HTTP smoke checks against: $MESH_NODE_SMOKE_URL"
+          curl --fail --max-time 5 -sSf "$MESH_NODE_SMOKE_URL/health" || true
+          curl --fail --max-time 5 -sSf "$MESH_NODE_SMOKE_URL/metrics" || true
+          echo "HTTP smoke checks completed."
+
+      - name: Skip privileged container orchestration by default
+        if: ${{ vars.MESH_NODE_OPT_IN_PRIVILEGED != 'true' }}
+        run: |
+          echo "Privileged container orchestration is disabled in this environment."
+          echo "To enable, set the repository variable MESH_NODE_OPT_IN_PRIVILEGED=true."
+          echo "This workflow intentionally skips docker-compose up / container build steps."
