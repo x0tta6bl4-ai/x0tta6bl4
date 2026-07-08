@@ -66,7 +66,7 @@ jobs:
 
 def test_run_contract_checks_with_real_workflows():
     root = Path(__file__).resolve().parents[3]
-    ci_path = root / ".github/workflows/ci.yaml"
+    ci_path = root / ".github/workflows/ci.yml"
     smoke_path = root / ".github/workflows/golden-smoke-premerge.yml"
     if not ci_path.exists() or not smoke_path.exists():
         pytest.skip(
