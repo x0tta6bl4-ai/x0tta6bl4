@@ -4,7 +4,7 @@
   "db_available": 1,
   "decision": "LEGACY_NO_PROGRESS_NUDGE_DRY_RUN",
   "failed_count": 0,
-  "generated_at": "2026-07-03T11:45:45Z",
+  "generated_at": "2026-07-08T16:46:19Z",
   "message_bytes": 622,
   "mode": "dry_run",
   "no_progress_candidate_count": 0,

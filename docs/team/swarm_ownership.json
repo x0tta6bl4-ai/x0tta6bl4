@@ -290,7 +290,8 @@
         "xray_main_config.json",
         "config.hmac",
         "archive/",
-        "docs/reference/"
+        "docs/reference/",
+        "nl-diagnostics/"
       ]
     },
     "codex": {

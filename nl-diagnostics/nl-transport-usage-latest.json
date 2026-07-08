@@ -11,7 +11,7 @@
     "60m:ghost_xhttp:legacy_proxy_4xx_seen",
     "60m:ghost_xhttp:legacy_proxy_requests_without_dataplane"
   ],
-  "generated_at": "2026-07-03T11:45:12.389131Z",
+  "generated_at": "2026-07-08T16:46:08.347496Z",
   "ok": false,
   "operator_action": "monitor_single_stale_legacy_source_after_migration",
   "privacy": {
@@ -64,7 +64,7 @@
               "legacy_proxy_requests_without_dataplane"
             ],
             "last_dataplane_seen_at": null,
-            "last_proxy_seen_at": "2026-07-03T11:44:17Z",
+            "last_proxy_seen_at": "2026-07-08T16:45:51Z",
             "path": "/ghost-ws",
             "proxy_4xx": 0,
             "proxy_5xx": 0,
@@ -91,7 +91,7 @@
               "legacy_proxy_4xx_seen"
             ],
             "last_dataplane_seen_at": null,
-            "last_proxy_seen_at": "2026-07-03T11:44:17Z",
+            "last_proxy_seen_at": "2026-07-08T16:45:51Z",
             "path": "/ghost-xhttp",
             "proxy_4xx": 17,
             "proxy_5xx": 0,
@@ -114,7 +114,7 @@
       },
       "nginx": {
         "/ghost-ws": {
-          "last_seen_at": "2026-07-03T11:44:17Z",
+          "last_seen_at": "2026-07-08T16:45:51Z",
           "method_counts": {
             "GET": 17
           },
@@ -131,7 +131,7 @@
           }
         },
         "/ghost-xhttp": {
-          "last_seen_at": "2026-07-03T11:44:17Z",
+          "last_seen_at": "2026-07-08T16:45:51Z",
           "method_counts": {
             "GET": 17
           },
@@ -148,7 +148,7 @@
           }
         }
       },
-      "since": "2026-07-03T11:30:12.389131Z",
+      "since": "2026-07-08T16:31:08.347496Z",
       "xray": {
         "ghost_https_ws": {
           "client_hashes_sample": [],
@@ -182,7 +182,7 @@
         "max_unique_proxy_source_count": 1,
         "ok": false,
         "operator_action": "monitor_single_stale_legacy_source_after_migration",
-        "proxy_requests": 862,
+        "proxy_requests": 790,
         "restart_relevant": false,
         "severity": "single_source_stale_legacy",
         "status": "attention",
@@ -194,19 +194,19 @@
               "legacy_proxy_requests_without_dataplane"
             ],
             "last_dataplane_seen_at": null,
-            "last_proxy_seen_at": "2026-07-03T11:44:17Z",
+            "last_proxy_seen_at": "2026-07-08T16:45:51Z",
             "path": "/ghost-ws",
             "proxy_4xx": 0,
             "proxy_5xx": 0,
             "proxy_method_counts": {
-              "GET": 431
+              "GET": 395
             },
-            "proxy_requests": 431,
+            "proxy_requests": 395,
             "proxy_source_hashes_sample": [
               "1520461e5dcafcc3"
             ],
             "proxy_user_agent_family_counts": {
-              "other": 431
+              "other": 395
             },
             "restart_relevant": false,
             "status": "legacy_attention",
@@ -221,19 +221,19 @@
               "legacy_proxy_4xx_seen"
             ],
             "last_dataplane_seen_at": null,
-            "last_proxy_seen_at": "2026-07-03T11:44:17Z",
+            "last_proxy_seen_at": "2026-07-08T16:45:51Z",
             "path": "/ghost-xhttp",
-            "proxy_4xx": 431,
+            "proxy_4xx": 395,
             "proxy_5xx": 0,
             "proxy_method_counts": {
-              "GET": 431
+              "GET": 395
             },
-            "proxy_requests": 431,
+            "proxy_requests": 395,
             "proxy_source_hashes_sample": [
               "1520461e5dcafcc3"
             ],
             "proxy_user_agent_family_counts": {
-              "other": 431
+              "other": 395
             },
             "restart_relevant": false,
             "status": "legacy_attention",
@@ -244,41 +244,41 @@
       },
       "nginx": {
         "/ghost-ws": {
-          "last_seen_at": "2026-07-03T11:44:17Z",
+          "last_seen_at": "2026-07-08T16:45:51Z",
           "method_counts": {
-            "GET": 431
+            "GET": 395
           },
           "proxy_source_hashes_sample": [
             "1520461e5dcafcc3"
           ],
-          "requests": 431,
+          "requests": 395,
           "status_counts": {
-            "101": 431
+            "101": 395
           },
           "unique_proxy_source_count": 1,
           "user_agent_family_counts": {
-            "other": 431
+            "other": 395
           }
         },
         "/ghost-xhttp": {
-          "last_seen_at": "2026-07-03T11:44:17Z",
+          "last_seen_at": "2026-07-08T16:45:51Z",
           "method_counts": {
-            "GET": 431
+            "GET": 395
           },
           "proxy_source_hashes_sample": [
             "1520461e5dcafcc3"
           ],
-          "requests": 431,
+          "requests": 395,
           "status_counts": {
-            "404": 431
+            "404": 395
           },
           "unique_proxy_source_count": 1,
           "user_agent_family_counts": {
-            "other": 431
+            "other": 395
           }
         }
       },
-      "since": "2026-07-03T05:45:12.389131Z",
+      "since": "2026-07-08T10:46:08.347496Z",
       "xray": {
         "ghost_https_ws": {
           "client_hashes_sample": [],
@@ -312,7 +312,7 @@
         "max_unique_proxy_source_count": 1,
         "ok": false,
         "operator_action": "monitor_single_stale_legacy_source_after_migration",
-        "proxy_requests": 144,
+        "proxy_requests": 132,
         "restart_relevant": false,
         "severity": "single_source_stale_legacy",
         "status": "attention",
@@ -324,19 +324,19 @@
               "legacy_proxy_requests_without_dataplane"
             ],
             "last_dataplane_seen_at": null,
-            "last_proxy_seen_at": "2026-07-03T11:44:17Z",
+            "last_proxy_seen_at": "2026-07-08T16:45:51Z",
             "path": "/ghost-ws",
             "proxy_4xx": 0,
             "proxy_5xx": 0,
             "proxy_method_counts": {
-              "GET": 72
+              "GET": 66
             },
-            "proxy_requests": 72,
+            "proxy_requests": 66,
             "proxy_source_hashes_sample": [
               "1520461e5dcafcc3"
             ],
             "proxy_user_agent_family_counts": {
-              "other": 72
+              "other": 66
             },
             "restart_relevant": false,
             "status": "legacy_attention",
@@ -351,19 +351,19 @@
               "legacy_proxy_4xx_seen"
             ],
             "last_dataplane_seen_at": null,
-            "last_proxy_seen_at": "2026-07-03T11:44:17Z",
+            "last_proxy_seen_at": "2026-07-08T16:45:51Z",
             "path": "/ghost-xhttp",
-            "proxy_4xx": 72,
+            "proxy_4xx": 66,
             "proxy_5xx": 0,
             "proxy_method_counts": {
-              "GET": 72
+              "GET": 66
             },
-            "proxy_requests": 72,
+            "proxy_requests": 66,
             "proxy_source_hashes_sample": [
               "1520461e5dcafcc3"
             ],
             "proxy_user_agent_family_counts": {
-              "other": 72
+              "other": 66
             },
             "restart_relevant": false,
             "status": "legacy_attention",
@@ -374,41 +374,41 @@
       },
       "nginx": {
         "/ghost-ws": {
-          "last_seen_at": "2026-07-03T11:44:17Z",
+          "last_seen_at": "2026-07-08T16:45:51Z",
           "method_counts": {
-            "GET": 72
+            "GET": 66
           },
           "proxy_source_hashes_sample": [
             "1520461e5dcafcc3"
           ],
-          "requests": 72,
+          "requests": 66,
           "status_counts": {
-            "101": 72
+            "101": 66
           },
           "unique_proxy_source_count": 1,
           "user_agent_family_counts": {
-            "other": 72
+            "other": 66
           }
         },
         "/ghost-xhttp": {
-          "last_seen_at": "2026-07-03T11:44:17Z",
+          "last_seen_at": "2026-07-08T16:45:51Z",
           "method_counts": {
-            "GET": 72
+            "GET": 66
           },
           "proxy_source_hashes_sample": [
             "1520461e5dcafcc3"
           ],
-          "requests": 72,
+          "requests": 66,
           "status_counts": {
-            "404": 72
+            "404": 66
           },
           "unique_proxy_source_count": 1,
           "user_agent_family_counts": {
-            "other": 72
+            "other": 66
           }
         }
       },
-      "since": "2026-07-03T10:45:12.389131Z",
+      "since": "2026-07-08T15:46:08.347496Z",
       "xray": {
         "ghost_https_ws": {
           "client_hashes_sample": [],
