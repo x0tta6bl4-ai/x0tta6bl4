@@ -93,6 +93,12 @@ mesh_forwarded_messages_total = Counter(
     ["node_id", "destination"],
 )
 
+mesh_route_refresh_total = Gauge(
+    "mesh_route_refresh_total",
+    "Total route discovery refreshes performed for this node",
+    ["node_id"],
+)
+
 
 class PQC_Handshake:
     """Application-level mock PQC handshake using stdlib hashing only."""
@@ -148,6 +154,18 @@ class MeshRoutingTable:
         if info:
             return info["address"]
         return None
+
+    def update_peer_address(self, peer: str, address: str | None) -> bool:
+        """Refresh peer address and update routing entry if it changed."""
+        if peer not in self._entries:
+            return False
+        info = self._entries[peer]
+        resolved = address or peer
+        changed = info["address"] != resolved
+        info["address"] = resolved
+        info["status"] = "resolved" if address else "unresolved"
+        info["last_updated"] = time.time()
+        return changed
 
     def as_json(self) -> dict:
         return {
@@ -216,6 +234,7 @@ class MeshNode:
         self.routing_table = MeshRoutingTable(self.node_id, self.peers)
         self._pqc_discovery_task: asyncio.Task | None = None  # type: ignore[type-arg]
         self._pqc_handshakes_by_peer: dict[str, int] = {}
+        self._route_discovery_task: asyncio.Task | None = None  # type: ignore[type-arg]
         self._mapek_task: asyncio.Task | None = None  # type: ignore[type-arg]
 
         logger.info(
@@ -323,6 +342,9 @@ class MeshNode:
         async def handle_routing(request):
             return aiohttp.web.json_response(self.routing_table.as_json())
 
+        async def handle_routes(request):
+            return aiohttp.web.json_response(self.routing_table.as_json())
+
         async def handle_message(request):
             try:
                 data = await request.json()
@@ -348,6 +370,7 @@ class MeshNode:
         app.router.add_get("/health", health)
         app.router.add_post("/consensus", handle_consensus)
         app.router.add_get("/routing", handle_routing)
+        app.router.add_get("/routes", handle_routes)
         app.router.add_post("/message", handle_message)
         runner = aiohttp.web.AppRunner(app)
         await runner.setup()
@@ -423,6 +446,24 @@ class MeshNode:
 
             await asyncio.sleep(60)
 
+    async def run_route_discovery(self) -> None:
+        """Periodically refresh peer addresses and update routing table."""
+        await asyncio.sleep(5)
+        while True:
+            for peer in sorted(self.peers):
+                address = _resolve_peer_address(peer)
+                updated = self.routing_table.update_peer_address(peer, address)
+                if updated:
+                    mesh_route_refresh_total.labels(node_id=self.node_id).inc()
+                    logger.info(
+                        "Route refreshed for %s -> %s",
+                        peer,
+                        address or peer,
+                    )
+                else:
+                    logger.debug("Route unchanged for %s", peer)
+            await asyncio.sleep(30)
+
     async def _apply_mape_k_recovery(self, peer: str | None = None) -> None:
         """Plan & Execute: lightweight consensus heartbeat + score restore."""
         target_peer = peer or (sorted(self.peers)[0] if self.peers else None)
@@ -491,6 +532,8 @@ class MeshNode:
         if self.peers:
             self._pqc_discovery_task = asyncio.create_task(self.run_pqc_discovery())
             tasks.append(self._pqc_discovery_task)
+            self._route_discovery_task = asyncio.create_task(self.run_route_discovery())
+            tasks.append(self._route_discovery_task)
 
         self._mapek_task = asyncio.create_task(self.run_mape_k())
         tasks.append(self._mapek_task)
