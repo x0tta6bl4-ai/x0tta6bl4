@@ -53,8 +53,9 @@ sys.modules["oqs"] = _mock_oqs
 sys.modules["liboqs"] = _mock_oqs
 
 import hashlib
+import socket
 
-from prometheus_client import Gauge, start_http_server
+from prometheus_client import Counter, Gauge, start_http_server
 
 from src.self_healing.anomaly_consensus import AnomalyConsensusManager
 from src.self_healing.svid_signer import SVIDSigner
@@ -67,6 +68,48 @@ PEER_IDS = [p for p in os.environ.get("PEER_IDS", "").split(",") if p]
 PORT = int(os.environ.get("PORT", "9100"))
 MESH_METRICS_PORT = int(os.environ.get("MESH_METRICS_PORT", "9190"))
 PEER_PORTS = os.environ.get("PEER_PORTS", "").split(",")
+
+pqc_handshakes_total = Counter(
+    "pqc_handshakes_total",
+    "Total PQC handshakes completed",
+    ["node_id", "peer"],
+)
+
+
+class PQC_Handshake:
+    """Application-level mock PQC handshake using stdlib hashing only."""
+
+    def __init__(self, node_id: str) -> None:
+        self.node_id = node_id
+        self._secret = hashlib.sha256(node_id.encode()).digest()
+
+    def encapsulate(self, peer: str) -> dict:
+        shared_secret = hashlib.sha256(self._secret + peer.encode()).digest()
+        ciphertext = hashlib.sha256(shared_secret + b"encap").digest()[:32]
+        signature = hashlib.sha256(self._secret + ciphertext).digest()[:64]
+        return {
+            "peer": peer,
+            "ciphertext": ciphertext.hex(),
+            "signature": signature.hex(),
+            "algorithm": "mock-aes-kem",
+        }
+
+    def decapsulate(self, peer: str, ciphertext_hex: str) -> bytes:
+        shared_secret = hashlib.sha256(self._secret + peer.encode()).digest()
+        expected = hashlib.sha256(shared_secret + b"encap").digest()[:32]
+        return expected if bytes.fromhex(ciphertext_hex) == expected else b""
+
+    def verify_signature(self, peer: str, message: bytes, signature_hex: str) -> bool:
+        expected = hashlib.sha256(self._secret + message).digest()[:64]
+        return bytes.fromhex(signature_hex) == expected
+
+
+def _resolve_peer_address(peer: str) -> str | None:
+    """Resolve peer hostname within the internal Docker network."""
+    try:
+        return socket.gethostbyname(peer)
+    except socket.gaierror:
+        return None
 
 # SVID key — deterministic per node for dev
 _SVID_KEY = hashlib.sha256(NODE_ID.encode()).digest()
@@ -107,6 +150,9 @@ class MeshNode:
             auto_approve=not bool(self.peers),
             svid_signer=self.svid_signer,
         )
+
+        self.pqc = PQC_Handshake(NODE_ID)
+        self._pqc_discovery_task: asyncio.Task | None = None  # type: ignore[type-arg]
 
         logger.info(
             "Node %s: peers=%s f=%d auto_approve=%s port=%d",
@@ -230,6 +276,35 @@ class MeshNode:
 
             await asyncio.sleep(30)
 
+    async def run_pqc_discovery(self) -> None:
+        """Resolve peers and establish mock PQC handshakes."""
+        await asyncio.sleep(2)
+        while True:
+            for peer in sorted(self.peers):
+                peer_address = _resolve_peer_address(peer)
+                if peer_address is None:
+                    logger.info("Peer %s unresolved", peer)
+                    continue
+
+                handshake = self.pqc.encapsulate(peer)
+                decapsulated = self.pqc.decapsulate(peer, handshake["ciphertext"])
+                valid = bool(decapsulated) and self.pqc.verify_signature(
+                    peer,
+                    handshake["ciphertext"].encode(),
+                    handshake["signature"],
+                )
+                if valid:
+                    logger.info(
+                        "PQC Handshake established with %s",
+                        peer,
+                        extra={"peer": peer, "node_id": self.node_id},
+                    )
+                    pqc_handshakes_total.labels(node_id=self.node_id, peer=peer).inc()
+                else:
+                    logger.warning("PQC Handshake failed with %s", peer)
+
+            await asyncio.sleep(60)
+
     async def run(self):
         logger.info("Starting mesh node %s", NODE_ID)
         try:
@@ -237,7 +312,13 @@ class MeshNode:
             logger.info("Prometheus metrics on :%d/metrics", MESH_METRICS_PORT)
         except OSError as exc:
             logger.warning("Metrics port %s busy: %s", MESH_METRICS_PORT, exc)
-        await asyncio.gather(self.run_http_server(), self.run_heartbeat())
+
+        tasks = [self.run_http_server(), self.run_heartbeat()]
+        if self.peers:
+            self._pqc_discovery_task = asyncio.create_task(self.run_pqc_discovery())
+            tasks.append(self._pqc_discovery_task)
+
+        await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
