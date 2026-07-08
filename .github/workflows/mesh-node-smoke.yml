@@ -81,6 +81,78 @@ jobs:
           curl --fail --max-time 5 -sSf "$MESH_NODE_SMOKE_URL/metrics" || true
           echo "HTTP smoke checks completed."
 
+      - name: Run local multi-node smoke test (opt-in)
+        if: ${{ vars.MESH_NODE_OPT_IN_PRIVILEGED == 'true' }}
+        env:
+          LOCAL_SMOKE_CHECK_LISTENERS: 1
+          LOCAL_SMOKE_HEALTH_SCORE: 20.0
+          LOCAL_SMOKE_WAIT_TIMEOUT: 60
+          NODE_A_PORT: 9190
+          NODE_B_PORT: 9191
+        run: |
+          set -e
+          echo "Waiting for mesh-node on :${NODE_A_PORT}..."
+          for i in $(seq 1 60); do
+            if curl -sS -o /dev/null -w '%{http_code}' --max-time 2 "http://localhost:${NODE_A_PORT}/metrics" 2>/dev/null | grep -q '^200$'; then
+              echo "mesh-node responsive on :${NODE_A_PORT}"
+              break
+            fi
+            if [[ "$i" == "60" ]]; then
+              echo "Timed out waiting for mesh-node on :${NODE_A_PORT}" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "Waiting for mesh-node-2 on :${NODE_B_PORT}..."
+          for i in $(seq 1 60); do
+            if curl -sS -o /dev/null -w '%{http_code}' --max-time 2 "http://localhost:${NODE_B_PORT}/metrics" 2>/dev/null | grep -q '^200$'; then
+              echo "mesh-node-2 responsive on :${NODE_B_PORT}"
+              break
+            fi
+            if [[ "$i" == "60" ]]; then
+              echo "Timed out waiting for mesh-node-2 on :${NODE_B_PORT}" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "Asserting baseline metrics for both nodes..."
+          for port in ${NODE_A_PORT} ${NODE_B_PORT}; do
+            url="http://localhost:${port}/metrics"
+            body="$(mktemp)"
+            http_code="$(curl -sS -o "${body}" -w '%{http_code}' --max-time 5 "${url}")" || true
+            if [[ "${http_code}" != "200" ]]; then
+              echo "[FAIL] Expected HTTP 200 from ${url}, got ${http_code}" >&2
+              exit 1
+            fi
+            echo "[PASS] ${url} returned HTTP ${http_code}"
+
+            if ! grep -Fq 'mesh_health_score' "${body}"; then
+              echo "[FAIL] mesh_health_score not found in ${url}" >&2
+              exit 1
+            fi
+            echo "[PASS] ${url} contains mesh_health_score"
+
+            score="$(grep -E '^mesh_health_score[[:space:]]+' "${body}" | tail -n1 | awk '{print $2}')" || true
+            if [[ "${score}" != "20.0" ]]; then
+              echo "[FAIL] ${url}: expected mesh_health_score=20.0, got ${score}" >&2
+              exit 1
+            fi
+            echo "[PASS] ${url} mesh_health_score=${score}"
+
+            established="$(grep -E '^mesh_established_sessions[[:space:]]+' "${body}" | tail -n1 | awk '{print $2}')" || true
+            if [[ "${established}" != "0" ]]; then
+              echo "[FAIL] ${url}: expected mesh_established_sessions=0, got ${established}" >&2
+              exit 1
+            fi
+            echo "[PASS] ${url} mesh_established_sessions=${established}"
+
+            rm -f "${body}"
+          done
+
+          echo "Multi-node baseline smoke assertions passed."
+
       - name: Skip privileged container orchestration by default
         if: ${{ vars.MESH_NODE_OPT_IN_PRIVILEGED != 'true' }}
         run: |
