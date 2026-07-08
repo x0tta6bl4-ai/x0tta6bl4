@@ -245,6 +245,11 @@ def build_report(root: Path, claim_id: str, candidate: Path, *, write_requested:
             failures.extend(f"{claim_id}: {error}" for error in validation["errors"])
 
     decision = DECISION_READY if not failures and validation and validation["status"] == "VERIFIED" else DECISION_REJECTED
+    proxy_decision = (
+        validation.get("proxy_validation", {}).get("decision")
+        if isinstance(validation.get("proxy_validation"), dict)
+        else None
+    )
     return {
         "schema": SCHEMA,
         "timestamp_utc": observed_at,
@@ -264,6 +269,12 @@ def build_report(root: Path, claim_id: str, candidate: Path, *, write_requested:
         "written": False,
         "failures": failures,
         "validation": validation,
+        "external_dpi_proxy_validation": {
+            "decision": proxy_decision or decision,
+            "status": "VERIFIED" if decision == DECISION_READY else "REJECTED",
+            "source": "import_ghost_pulse_external_evidence.build_report.v1",
+            "redacted": False,
+        },
         "claim_boundary": {
             "note": "Import validation/copy only; proof-gate claim boundaries are changed only by a later proof-gate run over real evidence.",
             "stealth_verified": False,
