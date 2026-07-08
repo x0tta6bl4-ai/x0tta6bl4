@@ -14,6 +14,9 @@ import sys
 import time
 from pathlib import Path
 
+# Lightweight stdlib/HTTP imports used across the node.
+import aiohttp
+
 # Path setup
 CODE_DIR = Path("/code")
 if CODE_DIR.exists():
@@ -98,6 +101,150 @@ mesh_route_refresh_total = Gauge(
     "Total route discovery refreshes performed for this node",
     ["node_id"],
 )
+
+active_peers_count = Gauge(
+    "active_peers_count",
+    "Number of currently valid/active peers known to this node",
+    ["node_id"],
+)
+
+
+class PeerRegistry:
+    """Lightweight HTTP-based peer registry for service discovery."""
+
+    def __init__(self, node_id: str, peers: list[str], peer_ports: list[str], port: int) -> None:
+        self.node_id = node_id
+        self._peers = [p for p in peers if p]
+        self._peer_ports = [p for p in peer_ports if p]
+        self.port = port
+        self._entries: dict[str, dict] = {}
+        self._lock = asyncio.Lock()
+        self.announcement_interval = int(os.environ.get("PEER_ANNOUNCE_INTERVAL_SEC", "20"))
+        self.max_missed_announcements = int(os.environ.get("PEER_MAX_MISSED_ANNOUNCE", "3"))
+
+        for idx, peer in enumerate(self._peers):
+            target_port = self._peer_ports[idx] if idx < len(self._peer_ports) else str(self.port)
+            self._entries[peer] = {
+                "peer_id": peer,
+                "address": f"{peer}:{target_port}",
+                "status": "unknown",
+                "last_seen": None,
+                "missed_announcements": 0,
+            }
+
+    @property
+    def entries(self) -> dict[str, dict]:
+        return {peer: dict(info) for peer, info in self._entries.items()}
+
+    def _resolve_target(self, peer: str) -> str:
+        for idx, known in enumerate(self._peers):
+            if known == peer and idx < len(self._peer_ports):
+                return f"{peer}:{self._peer_ports[idx]}"
+        return f"{peer}:{self.port}"
+
+    def _current_announce_payload(self) -> dict:
+        return {
+            "node_id": self.node_id,
+            "port": self.port,
+            "status": "online",
+            "ts": time.time(),
+        }
+
+    async def refresh_peer_addresses(self) -> None:
+        for peer in self._peers:
+            address = _resolve_peer_address(peer)
+            if address is None:
+                continue
+            entry = self._entries.get(peer)
+            if entry is None:
+                continue
+            entry["address"] = f"{address}:{self._resolve_target(peer).split(':')[-1]}"
+
+    async def record_announcement(self, peer: str, payload: dict) -> None:
+        async with self._lock:
+            entry = self._entries.get(peer)
+            if entry is None:
+                entry = {
+                    "peer_id": peer,
+                    "address": payload.get("address", f"{peer}:{self.port}"),
+                    "status": "active",
+                    "last_seen": time.time(),
+                    "missed_announcements": 0,
+                }
+                self._entries[peer] = entry
+            entry["last_seen"] = time.time()
+            entry["missed_announcements"] = 0
+            entry["status"] = "active"
+            entry["address"] = payload.get("address", entry["address"])
+
+    async def mark_missed(self, peer: str) -> None:
+        async with self._lock:
+            entry = self._entries.get(peer)
+            if entry is None:
+                return
+            entry["missed_announcements"] = int(entry.get("missed_announcements", 0)) + 1
+            if entry["missed_announcements"] >= self.max_missed_announcements:
+                entry["status"] = "invalid"
+                logger.warning(
+                    "Peer %s marked invalid after %d missed announcements",
+                    peer,
+                    entry["missed_announcements"],
+                )
+            else:
+                entry["status"] = "stale"
+
+    async def sync_stale_peers(self) -> None:
+        now = time.time()
+        max_idle = self.announcement_interval * self.max_missed_announcements
+        async with self._lock:
+            for peer, entry in list(self._entries.items()):
+                last_seen = entry.get("last_seen")
+                if last_seen is None:
+                    entry["missed_announcements"] = int(entry.get("missed_announcements", 0)) + 1
+                elif (now - float(last_seen)) > max_idle:
+                    entry["missed_announcements"] = int(entry.get("missed_announcements", 0)) + 1
+                else:
+                    continue
+
+                if entry["missed_announcements"] >= self.max_missed_announcements:
+                    entry["status"] = "invalid"
+                elif entry["missed_announcements"] > 0:
+                    entry["status"] = "stale"
+
+    async def announce_to_peers(self, http_session: aiohttp.ClientSession) -> None:
+        payload = self._current_announce_payload()
+        for peer in self._peers:
+            target = self._resolve_target(peer)
+            try:
+                async with http_session.post(
+                    f"http://{target}/peers/announce",
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp:
+                    if resp.status == 200:
+                        await self.record_announcement(peer, payload)
+            except Exception as exc:
+                logger.debug("Announce to %s failed: %s", target, exc)
+                await self.mark_missed(peer)
+
+    async def run_announcements(self) -> None:
+        await asyncio.sleep(2)
+        while True:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    while True:
+                        await self.announce_to_peers(session)
+                        await self.sync_stale_peers()
+                        await asyncio.sleep(self.announcement_interval)
+            except Exception as exc:
+                logger.warning("Announcement loop restarted: %s", exc)
+                await asyncio.sleep(self.announcement_interval)
+
+    def active_count(self) -> int:
+        return sum(1 for info in self._entries.values() if info.get("status") == "active")
+
+    def update_prometheus(self) -> None:
+        active_peers_count.labels(node_id=self.node_id).set(self.active_count())
 
 
 class PQC_Handshake:
@@ -232,10 +379,17 @@ class MeshNode:
 
         self.pqc = PQC_Handshake(NODE_ID)
         self.routing_table = MeshRoutingTable(self.node_id, self.peers)
+        self.peer_registry = PeerRegistry(
+            node_id=NODE_ID,
+            peers=list(self.peers),
+            peer_ports=PEER_PORTS,
+            port=PORT,
+        )
         self._pqc_discovery_task: asyncio.Task | None = None  # type: ignore[type-arg]
         self._pqc_handshakes_by_peer: dict[str, int] = {}
         self._route_discovery_task: asyncio.Task | None = None  # type: ignore[type-arg]
         self._mapek_task: asyncio.Task | None = None  # type: ignore[type-arg]
+        self._peer_announce_task: asyncio.Task | None = None  # type: ignore[type-arg]
 
         logger.info(
             "Node %s: peers=%s f=%d auto_approve=%s port=%d",
@@ -366,12 +520,30 @@ class MeshNode:
                     {"status": "error", "reason": str(exc)}, status=500
                 )
 
+        async def handle_peers(request):
+            self.peer_registry.update_prometheus()
+            return aiohttp.web.json_response(self.peer_registry.entries)
+
+        async def handle_peers_announce(request):
+            try:
+                payload = await request.json()
+                peer_id = payload.get("node_id", request.remote or "unknown")
+                await self.peer_registry.record_announcement(peer_id, payload)
+                return aiohttp.web.json_response({"status": "accepted"})
+            except Exception as exc:
+                logger.error("peers announce handler error: %s", exc)
+                return aiohttp.web.json_response(
+                    {"status": "error", "reason": str(exc)}, status=400
+                )
+
         app = aiohttp.web.Application()
         app.router.add_get("/health", health)
         app.router.add_post("/consensus", handle_consensus)
         app.router.add_get("/routing", handle_routing)
         app.router.add_get("/routes", handle_routes)
         app.router.add_post("/message", handle_message)
+        app.router.add_get("/peers", handle_peers)
+        app.router.add_post("/peers/announce", handle_peers_announce)
         runner = aiohttp.web.AppRunner(app)
         await runner.setup()
         site = aiohttp.web.TCPSite(runner, "0.0.0.0", PORT)
@@ -520,6 +692,19 @@ class MeshNode:
             last_total_by_peer = dict(self._pqc_handshakes_by_peer)
             await asyncio.sleep(30)
 
+    async def run_peer_registry(self) -> None:
+        await asyncio.sleep(3)
+        await self.peer_registry.refresh_peer_addresses()
+        self._peer_announce_task = asyncio.create_task(self.peer_registry.run_announcements())
+        try:
+            while True:
+                await asyncio.sleep(10)
+                await self.peer_registry.sync_stale_peers()
+                self.peer_registry.update_prometheus()
+        finally:
+            if self._peer_announce_task and not self._peer_announce_task.done():
+                self._peer_announce_task.cancel()
+
     async def run(self):
         logger.info("Starting mesh node %s", NODE_ID)
         try:
@@ -534,6 +719,8 @@ class MeshNode:
             tasks.append(self._pqc_discovery_task)
             self._route_discovery_task = asyncio.create_task(self.run_route_discovery())
             tasks.append(self._route_discovery_task)
+            self._peer_registry_task = asyncio.create_task(self.run_peer_registry())
+            tasks.append(self._peer_registry_task)
 
         self._mapek_task = asyncio.create_task(self.run_mape_k())
         tasks.append(self._mapek_task)
