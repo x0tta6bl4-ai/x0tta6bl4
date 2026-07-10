@@ -22,6 +22,7 @@
     "scripts/start-local-proxy.sh",
     "scripts/telegram_bot_simple.py",
     "scripts/database.py",
+    "scripts/onboarding_delivery.py",
     "scripts/xray_client_naming.py",
     "scripts/xui_client_manager.py",
     "uv.lock",
