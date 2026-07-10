@@ -63,7 +63,6 @@ except ImportError:
     BotCommand = BufferedInputFile = CallbackQuery = InlineKeyboardMarkup = None
     InlineQuery = InlineQueryResultArticle = InputTextMessageContent = Message = None
     InlineKeyboardBuilder = None
-from typing import TypedDict
 
 from xray_client_naming import build_human_xray_email
 from database import (
@@ -1964,11 +1963,12 @@ def create_cardlink_payment(user_id: int, plan_key: str) -> dict:
 
 
 def verify_cardlink_signature(out_sum: str, inv_id: str, signature: str) -> bool:
-    """Verify CardLink webhook signature: MD5(OutSum:InvId:apiToken)."""
+    """Verify CardLink webhook signature: MD5(OutSum:InvId:apiToken) — MD5 is mandated by the CardLink protocol."""
     import hashlib
+    import hmac
 
     expected = hashlib.md5(f"{out_sum}:{inv_id}:{CARDLINK_API_TOKEN}".encode()).hexdigest().upper()
-    return expected == (signature or "").upper()
+    return hmac.compare_digest(expected, (signature or "").upper())
 
 
 def parse_cardlink_order_id(payment: dict | None) -> str | None:
@@ -2818,7 +2818,6 @@ def build_subscription_health_policy() -> dict[str, str]:
 
     policy["health_generated_at"] = str(payload.get("generated_at") or "")
     services = payload.get("services") or []
-    global_recommendations = payload.get("global_recommendations") or []
     vpn_delivery = payload.get("vpn_delivery") or {}
     telegram_media = payload.get("telegram_media") or (vpn_delivery.get("telegram_media") or {})
     transport_summary = payload.get("transport_summary") or {}
@@ -4783,14 +4782,11 @@ def render_suspicious_users_block(limit: int = 5) -> str:
 def render_buy_text(user_id: int | None = None) -> str:
     state = "new"
     user = None
-    recommended_key = "basic_1m"
     latest_pending = None
     payment_provider = get_active_payment_provider()
     if user_id is not None:
         state, user = get_user_state(user_id)
-        recommended_key = get_recommended_plan_key(user_id)
         latest_pending = get_latest_pending_payment(user_id)
-    recommended_plan = PLANS[recommended_key]
     lines = [
         f"{BOT_BRAND}",
         "",
@@ -4915,7 +4911,9 @@ async def send_user_payment_detail(message: Message, user_id: int, payment: dict
     confirmation_url = None
     if parse_yookassa_payment_id(payment):
         try:
-            remote_payment = fetch_yookassa_payment(parse_yookassa_payment_id(payment))
+            remote_payment = await asyncio.to_thread(
+                fetch_yookassa_payment, parse_yookassa_payment_id(payment)
+            )
             confirmation_url = (
                 (remote_payment.get("confirmation") or {}).get("confirmation_url")
             ) or None
@@ -5642,7 +5640,9 @@ async def reconcile_pending_payments(bot: Bot) -> int:
             continue
         family = get_payment_provider_family(payment)
         if family == "yookassa":
-            remote_status, remote_payment = get_yookassa_remote_payment_state(payment)
+            remote_status, remote_payment = await asyncio.to_thread(
+                get_yookassa_remote_payment_state, payment
+            )
             if remote_status == "canceled":
                 payment_id = int(payment["payment_id"])
                 if transition_pending_payment(payment_id, "rejected"):
@@ -5664,7 +5664,9 @@ async def reconcile_pending_payments(bot: Bot) -> int:
                 continue
             matched_operation = remote_payment if remote_status == "succeeded" else None
         elif family == "yoomoney":
-            matched_operation = match_successful_yoomoney_operation(payment)
+            matched_operation = await asyncio.to_thread(
+                match_successful_yoomoney_operation, payment
+            )
         else:
             continue
         if not matched_operation:
@@ -8631,7 +8633,9 @@ async def handle_callback(callback: CallbackQuery) -> None:
                 logger.warning("missing yookassa payment id for local payment_id=%s", payment_id)
             else:
                 try:
-                    remote_payment = fetch_yookassa_payment(remote_payment_id)
+                    remote_payment = await asyncio.to_thread(
+                        fetch_yookassa_payment, remote_payment_id
+                    )
                     confirmation_url = (
                         (remote_payment.get("confirmation") or {}).get("confirmation_url")
                     ) or None
@@ -8649,7 +8653,7 @@ async def handle_callback(callback: CallbackQuery) -> None:
             )
             await callback.answer(render_payment_refresh_result("canceled"))
             return
-        matched = match_successful_pending_payment(payment)
+        matched = await asyncio.to_thread(match_successful_pending_payment, payment)
         if matched:
             try:
                 completed_provider = build_completed_provider(payment, payment_id, plan_key, "auto")
@@ -8772,7 +8776,9 @@ async def handle_callback(callback: CallbackQuery) -> None:
                 await callback.answer()
                 return
             try:
-                cl_result = create_cardlink_payment(callback.from_user.id, plan_key)
+                cl_result = await asyncio.to_thread(
+                    create_cardlink_payment, callback.from_user.id, plan_key
+                )
             except Exception as exc:
                 logger.warning(
                     "failed to create cardlink payment user_id=%s plan=%s: %s",
@@ -8904,7 +8910,9 @@ async def handle_callback(callback: CallbackQuery) -> None:
                     await callback.answer()
                     return
             try:
-                remote_payment = create_yookassa_sbp_payment(callback.from_user.id, plan_key)
+                remote_payment = await asyncio.to_thread(
+                    create_yookassa_sbp_payment, callback.from_user.id, plan_key
+                )
             except Exception as exc:
                 logger.warning(
                     "failed to create yookassa payment user_id=%s plan=%s: %s",
@@ -10898,7 +10906,8 @@ async def sync_device_activity_loop() -> None:
     while True:
         try:
             await asyncio.sleep(DEVICE_ACTIVITY_SYNC_INTERVAL_SECONDS)
-            result = subprocess.run(
+            result = await asyncio.to_thread(
+                subprocess.run,
                 ["python3", DEVICE_ACTIVITY_SYNC_SCRIPT, "--once"],
                 check=True,
                 stdout=subprocess.PIPE,
@@ -11014,10 +11023,7 @@ def verify_yookassa_webhook_signature(body: bytes, signature: str) -> bool:
 async def handle_yookassa_webhook(request):
     """Handle Yookassa payment webhook (POST JSON)."""
     from aiohttp import web
-    from time import time
-    
-    start_time = time()
-    
+
     try:
         body = await request.read()
         signature = request.headers.get("Authorization", "").replace("Signature ", "")
@@ -11051,7 +11057,10 @@ async def handle_yookassa_webhook(request):
         
         # Extract metadata
         metadata = payment_obj.get("metadata", {})
-        user_id = int(metadata.get("user_id", 0))
+        try:
+            user_id = int(metadata.get("user_id", 0))
+        except (TypeError, ValueError):
+            user_id = 0
         plan_key = metadata.get("plan_key", "")
         local_payment_id = metadata.get("local_payment_id", "")
         
@@ -11152,9 +11161,6 @@ async def handle_yookassa_webhook(request):
 async def handle_cardlink_webhook(request):
     """Handle CardLink payment result webhook (POST form-urlencoded)."""
     from aiohttp import web
-    from time import time
-    
-    start_time = time()
 
     try:
         data = await request.post()
@@ -11163,7 +11169,6 @@ async def handle_cardlink_webhook(request):
         status = data.get("Status", "")
         signature = data.get("SignatureValue", "")
         custom_raw = data.get("custom", "{}")
-        order_id = inv_id
 
         logger.info("cardlink webhook: InvId=%s Status=%s OutSum=%s", inv_id, status, out_sum)
 
@@ -11187,7 +11192,10 @@ async def handle_cardlink_webhook(request):
             custom = json.loads(custom_raw)
         except (json.JSONDecodeError, TypeError):
             custom = {}
-        user_id = int(custom.get("user_id", 0))
+        try:
+            user_id = int(custom.get("user_id", 0))
+        except (TypeError, ValueError):
+            user_id = 0
         plan_key = custom.get("plan_key", "")
 
         if not user_id or not plan_key:
@@ -11252,12 +11260,6 @@ async def handle_cardlink_webhook(request):
             logger.info(
                 "cardlink webhook: payment already processed payment_id=%s",
                 payment.get("payment_id"),
-            )
-            await bot.set_my_commands(
-                [
-                    types.BotCommand(command="start", description="Главное меню"),
-                ],
-                scope=types.BotCommandScopeDefault(),
             )
             return web.Response(text="OK")
 
