@@ -21,6 +21,7 @@
     "scripts/patch_streaming.py",
     "scripts/start-local-proxy.sh",
     "scripts/telegram_bot_simple.py",
+    "scripts/database.py",
     "scripts/xray_client_naming.py",
     "scripts/xui_client_manager.py",
     "uv.lock",
@@ -104,7 +105,7 @@
       ]
     },
     "claude-maas-reviewer": {
-      "description": "Claude Code \u2014 MaaS RBAC, security review, test coverage",
+      "description": "Claude Code — MaaS RBAC, security review, test coverage",
       "allow": [
         "src/api/maas_auth.py",
         "src/api/maas_analytics.py",
@@ -131,7 +132,7 @@
       ]
     },
     "claude": {
-      "description": "Claude Code \u2014 verification, SBOM, compliance, release-gate docs",
+      "description": "Claude Code — verification, SBOM, compliance, release-gate docs",
       "allow": [
         "scripts/verify-v1.1.sh",
         "docs/verification/",
