@@ -121,6 +121,30 @@ def get_db(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _load_inbound_port_aliases() -> dict[int, int]:
+    """Map a client-facing (public) port to the inbound's actual x-ui bind port.
+
+    Needed when a public port is fronted by something else (e.g. an nginx
+    ssl_preread SNI router on :443 forwarding to the Reality inbound moved to
+    127.0.0.1:14443). Format: "443:14443,80:8080".
+    """
+    raw = os.getenv("XUI_INBOUND_PORT_ALIASES", "").strip()
+    aliases: dict[int, int] = {}
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if ":" not in pair:
+            continue
+        pub, actual = pair.split(":", 1)
+        try:
+            aliases[int(pub)] = int(actual)
+        except ValueError:
+            continue
+    return aliases
+
+
+_INBOUND_PORT_ALIASES = _load_inbound_port_aliases()
+
+
 def resolve_inbound_id(
     conn: sqlite3.Connection,
     inbound_id: int | None = None,
@@ -130,10 +154,16 @@ def resolve_inbound_id(
         return inbound_id
     if port is None:
         return DEFAULT_INBOUND_ID
-    row = conn.execute(
-        "SELECT id FROM inbounds WHERE port = ? ORDER BY id ASC LIMIT 1",
-        (port,),
-    ).fetchone()
+
+    def _lookup(p: int):
+        return conn.execute(
+            "SELECT id FROM inbounds WHERE port = ? ORDER BY id ASC LIMIT 1",
+            (p,),
+        ).fetchone()
+
+    row = _lookup(port)
+    if not row and port in _INBOUND_PORT_ALIASES:
+        row = _lookup(_INBOUND_PORT_ALIASES[port])
     if not row:
         raise RuntimeError(f"Inbound with port {port} not found")
     return int(row["id"])
