@@ -261,6 +261,11 @@ GHOST_XHTTP_PATH = os.getenv("GHOST_XHTTP_PATH", "/ghost-xhttp").strip() or "/gh
 GHOST_XHTTP_HOST = os.getenv("GHOST_XHTTP_HOST", "").strip()
 GHOST_XHTTP_MODE = os.getenv("GHOST_XHTTP_MODE", "auto").strip() or "auto"
 GHOST_XHTTP_FINGERPRINT = os.getenv("GHOST_XHTTP_FINGERPRINT", "chrome").strip()
+# SNI presented by the plain-TLS ws/xhttp fallbacks. Default is the sslip.io name
+# that encodes the VPS IP in plaintext SNI (a DPI-visible IP leak). Once NL serves
+# a valid cert for a neutral decoy domain, set GHOST_FALLBACK_SNI=<decoy>.duckdns.org
+# to drop the leak — no code change, and it must match the cert NL presents.
+GHOST_FALLBACK_SNI = os.getenv("GHOST_FALLBACK_SNI", "mesh-nodes.duckdns.org").strip() or "mesh-nodes.duckdns.org"
 ENABLE_SECONDARY_REALITY_FALLBACK = (
     os.getenv("ENABLE_SECONDARY_REALITY_FALLBACK", "0").strip() in {"1", "true", "yes", "on"}
     and SECONDARY_VPN_PORT != VPN_PORT
@@ -1532,7 +1537,8 @@ def generate_xhttp_link(user_uuid: str, label: str | None = None) -> str:
         "&encryption=none"
         f"&type={profile['type']}"
         f"&path={path}"
-        "&allowInsecure=1"
+        f"&host={GHOST_FALLBACK_SNI}"
+        f"&sni={GHOST_FALLBACK_SNI}"
         f"#{fragment}"
     )
 
@@ -1610,8 +1616,8 @@ def generate_ghost_ws_443_link(user_uuid: str, label: str | None = None) -> str:
         "&encryption=none"
         "&type=ws"
         f"&path={path}"
-        f"&host=89-125-1-107.sslip.io"
-        f"&sni=89-125-1-107.sslip.io"
+        f"&host={GHOST_FALLBACK_SNI}"
+        f"&sni={GHOST_FALLBACK_SNI}"
         f"&fp={GHOST_HTTPS_WS_FINGERPRINT}"
         f"#{fragment}"
     )
@@ -1629,8 +1635,8 @@ def generate_ghost_xhttp_443_link(user_uuid: str, label: str | None = None) -> s
         "&type=xhttp"
         f"&path={path}"
         f"&mode={GHOST_XHTTP_MODE}"
-        f"&host=89-125-1-107.sslip.io"
-        f"&sni=89-125-1-107.sslip.io"
+        f"&host={GHOST_FALLBACK_SNI}"
+        f"&sni={GHOST_FALLBACK_SNI}"
         f"&fp={GHOST_XHTTP_FINGERPRINT}"
         f"#{fragment}"
     )
