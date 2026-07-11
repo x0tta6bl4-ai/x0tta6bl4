@@ -1697,11 +1697,17 @@ def generate_fallback_links(user_uuid: str, label: str | None = None) -> list[st
     if not EXPOSE_FALLBACK_TRANSPORTS:
         return []
     links: list[str] = []
-    # Port 443 WS/XHTTP (via Xray fallback -> nginx:8444 -> Xray WS/XHTTP) are
-    # NOT emitted here: the live Reality inbound on 443 has no `fallbacks`
-    # wired to nginx:8444 (verified 2026-07-11), so these links would not
-    # actually connect. Re-enable generate_ghost_ws_443_link /
-    # generate_ghost_xhttp_443_link once that server-side wiring exists.
+    # Port 443 WS/XHTTP: served on the SAME port as Reality via an nginx
+    # ssl_preread SNI router (SNI 89-125-1-107.sslip.io -> nginx:8443 WS/XHTTP;
+    # all other SNIs -> Xray Reality on 127.0.0.1:14443). Validated end-to-end
+    # 2026-07-11. Disguised on standard 443 alongside Reality — the strongest
+    # fallback when TSPU throttles Reality specifically while allowing HTTPS.
+    if ENABLE_GHOST_HTTPS_WS_FALLBACK:
+        ws_443_label = f"{label} 443" if label else None
+        links.append(generate_ghost_ws_443_link(user_uuid, label=ws_443_label))
+    if ENABLE_GHOST_XHTTP_FALLBACK:
+        xh_443_label = f"{label} XHTTP-443" if label else None
+        links.append(generate_ghost_xhttp_443_link(user_uuid, label=xh_443_label))
     # Port 8443 WS (legacy)
     if ENABLE_GHOST_HTTPS_WS_FALLBACK:
         ws_label = f"{label} WS" if label else None
