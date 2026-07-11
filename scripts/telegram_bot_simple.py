@@ -1697,14 +1697,11 @@ def generate_fallback_links(user_uuid: str, label: str | None = None) -> list[st
     if not EXPOSE_FALLBACK_TRANSPORTS:
         return []
     links: list[str] = []
-    # Port 443 WS (via Xray fallback -> nginx:8444 -> Xray WS)
-    if ENABLE_GHOST_HTTPS_WS_FALLBACK:
-        ws_443_label = f"{label} 443" if label else None
-        links.append(generate_ghost_ws_443_link(user_uuid, label=ws_443_label))
-    # Port 443 XHTTP (via Xray fallback -> nginx:8444 -> Xray XHTTP)
-    if ENABLE_GHOST_XHTTP_FALLBACK:
-        xh_443_label = f"{label} XHTTP-443" if label else None
-        links.append(generate_ghost_xhttp_443_link(user_uuid, label=xh_443_label))
+    # Port 443 WS/XHTTP (via Xray fallback -> nginx:8444 -> Xray WS/XHTTP) are
+    # NOT emitted here: the live Reality inbound on 443 has no `fallbacks`
+    # wired to nginx:8444 (verified 2026-07-11), so these links would not
+    # actually connect. Re-enable generate_ghost_ws_443_link /
+    # generate_ghost_xhttp_443_link once that server-side wiring exists.
     # Port 8443 WS (legacy)
     if ENABLE_GHOST_HTTPS_WS_FALLBACK:
         ws_label = f"{label} WS" if label else None
