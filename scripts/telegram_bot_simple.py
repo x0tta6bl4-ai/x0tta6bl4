@@ -1574,13 +1574,13 @@ def generate_ghost_https_ws_link(user_uuid: str, label: str | None = None) -> st
     path = quote(GHOST_HTTPS_WS_PATH, safe="/")
     fragment = quote(label or "x0tta6bl4-Access-Ghost-HTTPS", safe="")
     return (
-        f"vless://{user_uuid}@{host}:{GHOST_HTTPS_WS_PORT}"
+        f"vless://{user_uuid}@{PROFILE_VPN_SERVER}:{GHOST_HTTPS_WS_PORT}"
         "?security=tls"
         "&encryption=none"
         "&type=ws"
         f"&path={path}"
-        f"&host={host}"
-        f"&sni={host}"
+        f"&host={GHOST_FALLBACK_SNI}"
+        f"&sni={GHOST_FALLBACK_SNI}"
         f"&fp={GHOST_HTTPS_WS_FINGERPRINT}"
         f"#{fragment}"
     )
@@ -1591,14 +1591,14 @@ def generate_ghost_xhttp_link(user_uuid: str, label: str | None = None) -> str:
     path = quote(GHOST_XHTTP_PATH, safe="/")
     fragment = quote(label or "x0tta6bl4-Access-XHTTP", safe="")
     return (
-        f"vless://{user_uuid}@{host}:{GHOST_XHTTP_PORT}"
+        f"vless://{user_uuid}@{PROFILE_VPN_SERVER}:{GHOST_XHTTP_PORT}"
         "?security=tls"
         "&encryption=none"
         "&type=xhttp"
         f"&path={path}"
         f"&mode={GHOST_XHTTP_MODE}"
-        f"&host={host}"
-        f"&sni={host}"
+        f"&host={GHOST_FALLBACK_SNI}"
+        f"&sni={GHOST_FALLBACK_SNI}"
         f"&fp={GHOST_XHTTP_FINGERPRINT}"
         f"#{fragment}"
     )
