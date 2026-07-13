@@ -7,8 +7,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "x0tta6bl4"
 # Version is read from VERSION file at build time
-# For development, update VERSION file: echo "3.4.0" > VERSION
-version = "3.4.0"
+# For development, update VERSION file: echo "3.5.0" > VERSION
+version = "3.5.0"
 description = "Experimental mesh networking, post-quantum transport, eBPF dataplane, identity, and resilience tooling."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -150,6 +150,9 @@ ebpf = [
 blockchain = [
     "web3>=7.15.0",
 ]
+
+# Optional marker: payment dependencies are part of the runtime baseline.
+monetization = []
 
 # Group to install all optional dependencies
 all = [

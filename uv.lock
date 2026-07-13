@@ -5460,7 +5460,7 @@ wheels = [
 
 [[package]]
 name = "x0tta6bl4"
-version = "3.4.0"
+version = "3.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -5722,7 +5722,7 @@ requires-dist = [
     { name = "yt-dlp", specifier = ">=2026.2.21" },
     { name = "zvec", specifier = ">=0.5.1" },
 ]
-provides-extras = ["dev", "ml", "local-llm", "lora", "monitoring", "bots", "ebpf", "blockchain", "all"]
+provides-extras = ["dev", "ml", "local-llm", "lora", "monitoring", "bots", "ebpf", "blockchain", "monetization", "all"]
 
 [[package]]
 name = "xxhash"
