@@ -1,0 +1,75 @@
+graph TB
+    subgraph L11["Layer 11: Verification & Truth Matrix"]
+        VM["VERIFICATION_MATRIX.md<br/>(3-Tier Taxonomy: ✅ VERIFIED / 🟡 LAB / ⚪ TARGET)"]
+    end
+
+    subgraph L10["Layer 10: 24/7 Autopilot Daemons"]
+        AD["run_self_healing_autopilot_cycle.py"]
+        CD["self_healing_code_daemon.py"]
+    end
+
+    subgraph L9["Layer 9: User Service & Telegram Interface"]
+        TB["Telegram Bot (telegram_bot_simple.py)"]
+        DB["SQLite WAL Database (database.py)"]
+    end
+
+    subgraph L8["Layer 8: Proxy & Stealth Dataplane"]
+        XR["Xray VLESS + Reality (NL VPS 89.125.1.107)"]
+        MSK["Relay Node (MSK VPS 84.54.47.103)"]
+    end
+
+    subgraph L7["Layer 7: Post-Quantum Messaging (x0tMQ)"]
+        XMQ["x0tMQ Protocol (src/swarm/)"]
+        FRAME["X0tMQMAPEKFrame (NIST ML-DSA-65 Signed)"]
+    end
+
+    subgraph L6["Layer 6: Self-Healing MAPE-K Engine"]
+        MON["1. Monitor (MAPEKMonitor)"]
+        GNN["2. Analyze (GraphSAGE GNN Anomaly Detector)"]
+        PLN["3. Plan (Bio-Evo & DPI Healing Planner)"]
+        EXE["4. Execute (MAPEKExecutor)"]
+    end
+
+    subgraph L5["Layer 5: Zero-Trust SPIRE Identity"]
+        SPIRE["SPIRE Server + Workload API"]
+        SVID["SVIDSigner & PQCSVIDRotator"]
+    end
+
+    subgraph L4["Layer 4: Post-Quantum Cryptography Core"]
+        KEM["ML-KEM-768 (NIST FIPS 203 Key Exchange)"]
+        DSA["ML-DSA-65 (NIST FIPS 204 Digital Signature)"]
+    end
+
+    subgraph L3["Layer 3: Kernel eBPF/XDP Dataplane"]
+        XDP["eBPF/XDP Driver Hook (6.66 ns decision)"]
+        RING["AF_XDP Ring Buffers & ebpf_to_x0tmq_bridge.py"]
+    end
+
+    subgraph L2["Layer 2: Multi-Region Mesh Topology"]
+        P2P["Libp2p / WireGuard P2P Tunnels"]
+        PBFT["PBFT Delphi Consensus"]
+    end
+
+    subgraph L1["Layer 1: Bare-Metal Hardware & NICs"]
+        NIC["Physical 10Gbps NIC / Virtual Interface"]
+    end
+
+    TB --> DB
+    TB --> XR
+    XR <--> MSK
+    NIC --> XDP
+    XDP --> RING
+    RING --> XMQ
+    XMQ --> FRAME
+    FRAME --> SPIRE
+    SPIRE --> SVID
+    SVID --> KEM
+    KEM --> DSA
+    DSA --> MON
+    MON --> GNN
+    GNN --> PLN
+    PLN --> EXE
+    EXE --> P2P
+    P2P --> PBFT
+    AD --> XR
+    CD --> VM
