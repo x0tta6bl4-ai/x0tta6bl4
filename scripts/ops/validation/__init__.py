@@ -24,6 +24,8 @@ from .metrics_collector import MetricsCollector, LatencyStats, RecoveryMetrics
 from .evaluation_gate import EvaluationGate, Verdict, SLARule
 from .invariants import Invariant, InvariantCheck, InvariantStatus, get_invariant, list_invariants, check_invariant
 from .statistics import bootstrap_ci, normal_ci, detect_regression, ConfidenceInterval, RegressionResult
+from .history import ValidationHistory, ValidationRun, load_run_from_results
+from .report import generate_html_report
 
 __all__ = [
     "FailureType",
@@ -49,4 +51,8 @@ __all__ = [
     "detect_regression",
     "ConfidenceInterval",
     "RegressionResult",
+    "ValidationHistory",
+    "ValidationRun",
+    "load_run_from_results",
+    "generate_html_report",
 ]
