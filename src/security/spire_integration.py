@@ -5,10 +5,10 @@ Provides utilities for mTLS and workload identity management using SPIRE.
 Supports local testing with Docker and production deployment with SPIRE agent.
 """
 from __future__ import annotations
-
 import logging
 import os
 import socket
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -48,7 +48,7 @@ def default_spire_agent_socket_path() -> str:
     socket_dir = (
         os.getenv("SPIRE_AGENT_SOCKET_DIR")
         or os.getenv("X0TTA6BL4_SPIRE_AGENT_SOCKET_DIR")
-        or str(Path(os.getenv("XDG_RUNTIME_DIR") or "/tmp") / "x0tta6bl4-spire-agent")
+        or str(Path(tempfile.gettempdir()) / "x0tta6bl4-spire-agent")
     )
     return str(Path(socket_dir) / "api.sock")
 

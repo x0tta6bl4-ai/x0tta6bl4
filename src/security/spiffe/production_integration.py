@@ -59,10 +59,11 @@ def _safe_number_band(value: object) -> str:
 
 
 def default_spire_workload_socket() -> str:
+    import tempfile
     socket_dir = (
         os.getenv("SPIRE_AGENT_SOCKET_DIR")
         or os.getenv("X0TTA6BL4_SPIRE_AGENT_SOCKET_DIR")
-        or str(Path(os.getenv("XDG_RUNTIME_DIR") or "/tmp") / "x0tta6bl4-spire-agent")
+        or str(Path(tempfile.gettempdir()) / "x0tta6bl4-spire-agent")
     )
     return str(Path(socket_dir) / "api.sock")
 
@@ -158,7 +159,7 @@ class SPIREHealthChecker:
         try:
             # Use HTTP for local health checks (SPIRE server is on trusted network)
             # For HTTPS endpoints, proper certificate verification is enforced
-            async with httpx.AsyncClient(timeout=5) as client:
+            async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
                 response = await client.get(
                     f"http://{self.config.server_address}/health"
                 )
@@ -236,7 +237,19 @@ class SVIDRotationPolicy:
                 return
 
             # Get certificate expiration
-            cert_expiry = svid.cert.not_valid_after_utc
+            if hasattr(svid.cert, "not_valid_after_utc"):
+                cert_expiry = svid.cert.not_valid_after_utc
+            else:
+                from cryptography import x509
+                cert_obj = x509.load_pem_x509_certificate(svid.cert)
+                if hasattr(cert_obj, "not_valid_after_utc"):
+                    cert_expiry = cert_obj.not_valid_after_utc
+                else:
+                    cert_expiry = cert_obj.not_valid_after
+
+            if cert_expiry.tzinfo is not None:
+                cert_expiry = cert_expiry.replace(tzinfo=None)
+
             now = datetime.utcnow()
             ttl_remaining = (cert_expiry - now).total_seconds()
             ttl_percent = ttl_remaining / self.config.cert_ttl
@@ -616,7 +629,7 @@ class ProductionSPIREIntegration:
             "Create production SPIRE mTLS HTTP client safely",
             {"mtls_manager_present": True, "context_present": context is not None},
         )
-        return httpx.AsyncClient(verify=context, timeout=30.0)
+        return httpx.AsyncClient(verify=context, timeout=30.0, trust_env=False)
 
     def is_healthy(self) -> bool:
         """Check if SPIRE integration is healthy"""
