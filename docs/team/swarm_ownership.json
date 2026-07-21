@@ -28,7 +28,10 @@
     "uv.lock",
     "src/api/billing.py",
     "tests/unit/api/test_yoomoney_webhook_unit.py",
-    "scripts/check_vulnerable_deps.py"
+    "scripts/check_vulnerable_deps.py",
+    "validation/",
+    "MILESTONE_VALIDATION_V1.md",
+    "Makefile.validation"
   ],
   "agents": {
     "agent1-ml-core": {
@@ -293,7 +296,9 @@
         "config.hmac",
         "archive/",
         "docs/reference/",
-        "nl-diagnostics/"
+        "nl-diagnostics/",
+        "AGENTS.md",
+        "docs/architecture/BENCHMARK_SPEC.md"
       ]
     },
     "codex": {

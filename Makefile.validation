@@ -1,0 +1,50 @@
+# Validation Framework Makefile
+# One command to run validation and get a report.
+#
+# Usage:
+#   make validate          # Run full validation (N=30)
+#   make validate-fast     # Run quick validation (N=10)
+#   make meta-test         # Run meta-tests only
+#   make property-test     # Run property-based tests
+#   make test              # Run all tests
+#   make compare           # Compare last two runs
+#   make clean             # Remove old results
+
+SHELL := /bin/bash
+PYTHON := python3
+SAMPLES := 30
+OUTPUT_DIR := results
+
+.PHONY: help validate validate-fast meta-test property-test test compare clean
+
+help:
+	@echo "Validation Framework"
+	@echo ""
+	@echo "  make validate        Run full validation (N=30)"
+	@echo "  make validate-fast   Quick validation (N=10)"
+	@echo "  make meta-test       Run meta-tests only"
+	@echo "  make property-test   Run property-based tests"
+	@echo "  make test            Run all tests"
+	@echo "  make compare         Compare last two runs"
+	@echo "  make clean           Remove old results"
+
+validate:
+	$(PYTHON) -m scripts.ops.validation.runner --samples $(SAMPLES) --output-dir $(OUTPUT_DIR)
+
+validate-fast:
+	$(PYTHON) -m scripts.ops.validation.runner --samples 10 --output-dir $(OUTPUT_DIR)
+
+meta-test:
+	$(PYTHON) -m pytest validation/tests/test_meta.py -v --tb=short
+
+property-test:
+	$(PYTHON) -m pytest validation/tests/test_invariants.py -v --tb=short
+
+test: meta-test property-test
+
+compare:
+	@ls -dt $(OUTPUT_DIR)/*/summary.json 2>/dev/null | head -2 | xargs -I{} sh -c 'echo "=== {} ===" && cat {}'
+
+clean:
+	@ls -dt $(OUTPUT_DIR)/*/ 2>/dev/null | tail -n +6 | xargs rm -rf 2>/dev/null || true
+	@echo "Cleaned old results"
