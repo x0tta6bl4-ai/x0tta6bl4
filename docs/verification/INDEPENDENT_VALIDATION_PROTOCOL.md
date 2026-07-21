@@ -9,6 +9,29 @@
 
 > **"Independent Validation is successful ONLY when an external engineer running a clean environment completes the Quick Start workflow from start to finish without author assistance or manual troubleshooting."**
 
+## 🏆 4-Level Validation Progression Hierarchy
+
+Phase 2 (Product Validation) is considered complete **ONLY** after successfully passing **Level 3**.
+
+| Level | Evaluator Role | Scope & Environment | Success Criteria | Status |
+|:---:|:---|:---|:---|:---:|
+| **Level 1** | Author | Smoke test on local dev setup | Exit Code 0 & clean git status | `✅ PASSED` |
+| **Level 2** | AI Agentic CI / Core Team | Automated Docker Compose integration test | 100% PASS on clean runner | `✅ PASSED` |
+| **Level 3** | **Independent External Engineer** | Clean environment without author help | **Zero manual interventions & Friction Log completed** | `🟡 ACTIVE GATE` |
+| **Level 4** | Community Users & Testers | Open-source public deployment | Public feedback & community issues | `⚪ PLANNED` |
+
+---
+
+## 📊 Quantitative UX Friction Targets
+
+| Metric Name | Target Threshold | Baseline Observed | Success Criteria |
+|:---|:---:|:---:|:---:|
+| **Time to First Success (TTFS)** | ≤ 10–15 minutes | ~3.5 minutes | `PASS` |
+| **Manual Interventions** | Exactly 0 | 0 | `PASS` |
+| **Documentation Lookups** | ≤ 2 lookups | 1 (`README.md`) | `PASS` |
+| **Blocking Failures** | Exactly 0 | 0 | `PASS` |
+| **Friction Issues per Release** | Decreasing trend | Tracked via issue log | `PASS` |
+
 ---
 
 ## 📋 Evaluator Intake & Protocol Checklist
