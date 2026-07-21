@@ -1,0 +1,75 @@
+graph TB
+    subgraph L11["Слой 11: Единая Матрица Доказательств"]
+        VM["VERIFICATION_MATRIX.md<br/>(3 Уровня: ✅ VERIFIED / 🟡 LAB / ⚪ TARGET)"]
+    end
+
+    subgraph L10["Слой 10: Фоновые Автопилоты 24/7"]
+        AD["run_self_healing_autopilot_cycle.py (Сеть)"]
+        CD["self_healing_code_daemon.py (Код)"]
+    end
+
+    subgraph L9["Слой 9: Сервис Пользователей и Telegram-Бот"]
+        TB["Telegram-бот (telegram_bot_simple.py)"]
+        DB["База данных SQLite WAL (database.py)"]
+    end
+
+    subgraph L8["L8: Скрытый Прокси-Транспорт"]
+        XR["Шлюз Нидерланды (NL VPS 89.125.1.107 — VLESS+Reality)"]
+        MSK["Релей Москва (MSK VPS 84.54.47.103 — 40мс)"]
+    end
+
+    subgraph L7["Слой 7: Постквантовые Сообщения x0tMQ"]
+        XMQ["Протокол x0tMQ (src/swarm/)"]
+        FRAME["Кадр X0tMQMAPEKFrame (Подпись ML-DSA-65)"]
+    end
+
+    subgraph L6["Слой 6: Самовосстанавливаемый Движок MAPE-K"]
+        MON["1. Мониторинг (MAPEKMonitor)"]
+        GNN["2. Анализ Аномалий (GraphSAGE GNN)"]
+        PLN["3. Планирование (Bio-Evo & DPI Planner)"]
+        EXE["4. Исполнение Перемаршрутизации (MAPEKExecutor)"]
+    end
+
+    subgraph L5["Слой 5: Zero-Trust Идентичность SPIRE"]
+        SPIRE["SPIRE Server + Workload API"]
+        SVID["SVIDSigner & Авторотатор PQCSVIDRotator"]
+    end
+
+    subgraph L4["Слой 4: Постквантовая Криптография (PQC)"]
+        KEM["ML-KEM-768 (NIST FIPS 203 Обмен Ключами)"]
+        DSA["ML-DSA-65 (NIST FIPS 204 Цифровая Подпись)"]
+    end
+
+    subgraph L3["Слой 3: Ядро Linux eBPF/XDP"]
+        XDP["Драйверный Хук eBPF/XDP (6.66 нс/оп)"]
+        RING["Буфер Кольца AF_XDP & Мост ebpf_to_x0tmq_bridge.py"]
+    end
+
+    subgraph L2["Слой 2: Распределенная Топология Mesh"]
+        P2P["P2P Туннели Libp2p / WireGuard"]
+        PBFT["Консенсус PBFT Delphi"]
+    end
+
+    subgraph L1["Слой 1: Сетевые Карты и Оборудование"]
+        NIC["Физическая Сетевая Карта / Виртуальный Интерфейс"]
+    end
+
+    TB --> DB
+    TB --> XR
+    XR <--> MSK
+    NIC --> XDP
+    XDP --> RING
+    RING --> XMQ
+    XMQ --> FRAME
+    FRAME --> SPIRE
+    SPIRE --> SVID
+    SVID --> KEM
+    KEM --> DSA
+    DSA --> MON
+    MON --> GNN
+    GNN --> PLN
+    PLN --> EXE
+    EXE --> P2P
+    P2P --> PBFT
+    AD --> XR
+    CD --> VM
