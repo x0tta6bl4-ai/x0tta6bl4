@@ -23,7 +23,7 @@
 | **Ghost Access Bot User Chains** | `🟡 VALIDATED IN LAB` | [`services/nl-server/ghost-access/check_bot_user_chains.py`](file:///mnt/projects/services/nl-server/ghost-access/check_bot_user_chains.py) | `python3 services/nl-server/ghost-access/check_bot_user_chains.py` | 9 commands & 75 callbacks PASS |
 | **SPIRE mTLS + PBFT Consensus** | `🟡 VALIDATED IN LAB` | [`docker-compose.yml`](file:///mnt/projects/docker-compose.yml) | `docker compose ps` | SPIRE server + agent + 2 mesh nodes active |
 | **1M+ PPS on Physical NIC** | `⚪ TARGET` | Physical hardware testbed | [`scripts/ops/physical_nic_benchmark_harness.py`](file:///mnt/projects/scripts/ops/physical_nic_benchmark_harness.py) | Hardware NIC zero-copy driver probe ready |
-| **Global 100+ Node Scalability** | `🟡 VALIDATED IN LAB` | [`scripts/ops/physical_nic_benchmark_harness.py`](file:///mnt/projects/scripts/ops/physical_nic_benchmark_harness.py) | `python3 scripts/ops/physical_nic_benchmark_harness.py --nodes 100` | 100 nodes / 300 edges processed in 0.25ms (1.2M routes/sec) |
+| **Global 100+ Node Scalability** | `⚪ TARGET` | Large-scale multi-region mesh | [`scripts/ops/physical_nic_benchmark_harness.py`](file:///mnt/projects/scripts/ops/physical_nic_benchmark_harness.py) | Algorithmic graph routing simulated (100 vertices in 0.25ms). 100-node VPS deployment is a FUTURE TARGET |
 
 ---
 
