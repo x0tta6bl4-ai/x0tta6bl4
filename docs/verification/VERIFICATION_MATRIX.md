@@ -22,6 +22,7 @@
 | **Autonomous Recovery Loop** | `🟡 VALIDATED IN LAB` | [`tests/test_mapek_ai_contracts_e2e.py`](file:///mnt/projects/tests/test_mapek_ai_contracts_e2e.py) | `pytest tests/test_mapek_ai_contracts_e2e.py` | E2E failure injection PASS (14.76s) |
 | **Ghost Access Bot User Chains** | `🟡 VALIDATED IN LAB` | [`services/nl-server/ghost-access/check_bot_user_chains.py`](file:///mnt/projects/services/nl-server/ghost-access/check_bot_user_chains.py) | `python3 services/nl-server/ghost-access/check_bot_user_chains.py` | 9 commands & 75 callbacks PASS |
 | **SPIRE mTLS + PBFT Consensus** | `🟡 VALIDATED IN LAB` | [`docker-compose.yml`](file:///mnt/projects/docker-compose.yml) | `docker compose ps` | SPIRE server + agent + 2 mesh nodes active |
+| **x0tMQ PQC MAPE-K Bridge** | `✅ VERIFIED` | [`src/self_healing/x0tmq_mapek_bridge.py`](file:///mnt/projects/src/self_healing/x0tmq_mapek_bridge.py) | `pytest tests/unit/self_healing/test_x0tmq_mapek_bridge_unit.py` | PQC ML-DSA-65 + SPIRE SVID x0tMQ transport PASS |
 | **1M+ PPS on Physical NIC** | `⚪ TARGET` | Physical hardware testbed | [`scripts/ops/physical_nic_benchmark_harness.py`](file:///mnt/projects/scripts/ops/physical_nic_benchmark_harness.py) | Hardware NIC zero-copy driver probe ready |
 | **Global 100+ Node Scalability** | `⚪ TARGET` | Large-scale multi-region mesh | [`scripts/ops/physical_nic_benchmark_harness.py`](file:///mnt/projects/scripts/ops/physical_nic_benchmark_harness.py) | Algorithmic graph routing simulated (100 vertices in 0.25ms). 100-node VPS deployment is a FUTURE TARGET |
 
