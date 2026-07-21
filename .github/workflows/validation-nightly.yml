@@ -1,0 +1,51 @@
+name: Validation Nightly
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 3 AM UTC daily
+  workflow_dispatch:
+    inputs:
+      failure_id:
+        description: 'Specific failure to inject (F1-F10, or all)'
+        required: false
+        default: 'all'
+
+jobs:
+  nightly-validation:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        failure: [F1, F3, F4, F5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install hypothesis pytest
+      - name: Run meta-tests
+        run: make -f Makefile.validation meta-test
+      - name: Run validation baseline
+        run: make -f Makefile.validation validate
+      - name: Run failure injection (${{ matrix.failure }})
+        run: |
+          python3 -m scripts.ops.validation.runner \
+            --suite V1 \
+            --failure ${{ matrix.failure }} \
+            --target 89.125.1.107 \
+            --samples 10 \
+            --output-dir results/nightly
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-results-${{ matrix.failure }}
+          path: results/nightly/*/
+          retention-days: 90
+      - name: Check for failures
+        run: |
+          SUMMARY=$(find results/nightly/ -name "summary.json" -exec cat {} \; | head -1)
+          if echo "$SUMMARY" | grep -q '"FAIL"'; then
+            echo "Nightly validation FAILED for ${{ matrix.failure }}"
+            exit 1
+          fi
