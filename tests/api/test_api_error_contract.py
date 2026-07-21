@@ -36,7 +36,7 @@ def test_success_response_preserves_trace_header():
 
 def test_http_404_error_contract_with_trace_passthrough():
     trace_id = "contract-trace-404"
-    response = client.get("/definitely-missing-contract-path", headers={"X-Trace-ID": trace_id})
+    response = client.get("/api/v1/definitely-missing-contract-path", headers={"X-Trace-ID": trace_id})
     assert response.status_code == 404
     data = response.json()
     _assert_error_contract(data)

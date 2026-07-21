@@ -238,14 +238,20 @@ async def sbom_check(args: dict) -> dict:
     mode = args.get("mode", "quick")
 
     if mode == "quick":
-        # Check existing SBOM artifacts
+        # Check existing SBOM artifacts (scan root and out/ subdirectory)
         sbom_dir = ROOT_DIR / "security" / "sbom"
         artifacts = []
         if sbom_dir.exists():
-            for f in sbom_dir.glob("*.json"):
-                artifacts.append({"name": f.name, "size": f.stat().st_size})
-            for f in sbom_dir.glob("*.grype.json"):
-                artifacts.append({"name": f.name, "size": f.stat().st_size})
+            for pattern in ("*.json", "*.grype.json"):
+                for f in sbom_dir.glob(pattern):
+                    if f.is_file():
+                        artifacts.append({"name": f.name, "size": f.stat().st_size})
+            out_dir = sbom_dir / "out"
+            if out_dir.exists():
+                for pattern in ("*.json", "*.grype.json"):
+                    for f in out_dir.glob(pattern):
+                        if f.is_file() and f.stat().st_size > 0:
+                            artifacts.append({"name": f"out/{f.name}", "size": f.stat().st_size})
         return {"mode": "quick", "artifacts": artifacts}
 
     elif mode == "full":

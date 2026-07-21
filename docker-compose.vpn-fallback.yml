@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  ghost-vpn:
+    build:
+      context: .
+      dockerfile: Dockerfile.ghost-vpn
+    restart: unless-stopped
+    networks:
+      - vpn-net
+    volumes:
+      - ./configs/ghost:/etc/ghost:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  xray-fallback:
+    image: teddysun/xray:latest
+    restart: unless-stopped
+    networks:
+      - vpn-net
+    volumes:
+      - ./configs/xray:/etc/xray:ro
+    healthcheck:
+      test: ["CMD", "xray", "api", "stats", "--server=127.0.0.1:10085"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - vpn-net
+    volumes:
+      - ./configs/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+
+networks:
+  vpn-net:
+    driver: bridge
