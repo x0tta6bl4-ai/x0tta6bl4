@@ -1,0 +1,64 @@
+# x0tta6bl4 Quick Start — 2 Node Mesh
+# Запуск: docker compose up
+# Результат: 2 mesh-ноды, VPN-туннель, auto-heal, validation PASS
+
+services:
+  node-a:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: x0tta-node-a
+    hostname: node-a
+    ports:
+      - "9290:9090"   # Metrics
+      - "8280:8080"   # API
+    environment:
+      - NODE_ID=node-a
+      - PEERS=node-b
+      - PEER_PORTS=9100
+      - PORT=9100
+      - MESH_METRICS_PORT=9090
+      - SVD_BYPASS=true
+      - DEMO_MODE=true
+    networks:
+      mesh-net:
+        aliases:
+          - node-a
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/metrics')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  node-b:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: x0tta-node-b
+    hostname: node-b
+    ports:
+      - "9291:9090"   # Metrics (different host port)
+      - "8281:8080"   # API (different host port)
+    environment:
+      - NODE_ID=node-b
+      - PEERS=node-a
+      - PEER_PORTS=9100
+      - PORT=9100
+      - MESH_METRICS_PORT=9090
+      - SVD_BYPASS=true
+      - DEMO_MODE=true
+    networks:
+      mesh-net:
+        aliases:
+          - node-b
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/metrics')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  mesh-net:
+    driver: bridge

@@ -31,7 +31,8 @@
     "scripts/check_vulnerable_deps.py",
     "validation/",
     "MILESTONE_VALIDATION_V1.md",
-    "Makefile.validation"
+    "Makefile.validation",
+    "quickstart/"
   ],
   "agents": {
     "agent1-ml-core": {

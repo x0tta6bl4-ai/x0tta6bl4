@@ -36,7 +36,8 @@ def test_mape_k_status():
     result = run(mod.mape_k_status({}))
     assert "module" in result
     assert "version" in result
-    assert result["version"] == "3.4.0"
+    expected_version = (ROOT / "VERSION").read_text().strip()
+    assert result["version"] == expected_version, f"Expected {expected_version}, got {result['version']}"
 
 
 def test_healing_diagnose():
