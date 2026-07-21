@@ -1,18 +1,18 @@
-# x0tta6bl4 — Autonomous Self-Healing Mesh Networking Platform
+# x0tta6bl4 — Autonomous Self-Healing VPN & Mesh Platform
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](https://github.com/x0tta6bl4-ai/x0tta6bl4/security/code-scanning)
-![Status](https://img.shields.io/badge/status-v3.5.0--verified-brightgreen)
+![Status](https://img.shields.io/badge/status-v3.5.0--pilot--readiness-yellow)
 ![Tests](https://img.shields.io/badge/tests-100%25--passing-brightgreen)
 ![Security](https://img.shields.io/badge/Bandit%20Audit-0%20High-brightgreen)
 [![x0tMQ](https://img.shields.io/badge/x0tMQ-IETF%20Draft-blueviolet)](https://github.com/x0tta6bl4-ai/x0tmq)
 
-**Autonomous Self-Healing · Post-Quantum Cryptography · eBPF/XDP Dataplane · Zero-Trust SPIRE**  
+**Self-Healing VPN Service · Post-Quantum Cryptography · eBPF/XDP Dataplane · Zero-Trust SPIRE**  
 *Independent engineering research project by [x0tta6bl4](https://github.com/x0tta6bl4-ai).*
 
 ---
 
-> **"The system detects failures in real time, automatically reroutes and heals without human intervention, and algorithmically verifies that all system invariants hold after recovery."**
+> **«x0tta6bl4 — это VPN-сервис, который внутри использует собственную платформу самовосстанавливающейся сети, чтобы соединение оставалось доступным даже при сбоях и блокировках.»**
 
 ---
 
