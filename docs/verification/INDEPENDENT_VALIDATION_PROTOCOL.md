@@ -24,13 +24,13 @@ Phase 2 (Product Validation) is considered complete **ONLY** after successfully 
 
 ## 📊 Quantitative UX Friction Targets
 
-| Metric Name | Target Threshold | Baseline Observed | Success Criteria |
+| Metric Name | Target Threshold | Baseline Provenance | Level 3 Independent Gate Status |
 |:---|:---:|:---:|:---:|
-| **Time to First Success (TTFS)** | ≤ 10–15 minutes | ~3.5 minutes | `PASS` |
-| **Manual Interventions** | Exactly 0 | 0 | `PASS` |
-| **Documentation Lookups** | ≤ 2 lookups | 1 (`README.md`) | `PASS` |
-| **Blocking Failures** | Exactly 0 | 0 | `PASS` |
-| **Friction Issues per Release** | Decreasing trend | Tracked via issue log | `PASS` |
+| **Time to First Success (TTFS)** | ≤ 10–15 minutes | ~3.5 min (`Level 2 Internal Run`) | `⚪ PENDING (Level 3 Gate)` |
+| **Manual Interventions** | Exactly 0 | 0 (`Level 2 Internal Run`) | `⚪ PENDING (Level 3 Gate)` |
+| **Documentation Lookups** | ≤ 2 lookups | 1 (`Level 2 Internal Run`) | `⚪ PENDING (Level 3 Gate)` |
+| **Blocking Failures** | Exactly 0 | 0 (`Level 2 Internal Run`) | `⚪ PENDING (Level 3 Gate)` |
+| **Friction Issues per Release** | Decreasing trend | Tracked via issue log | `⚪ PENDING (Level 3 Gate)` |
 
 ---
 
