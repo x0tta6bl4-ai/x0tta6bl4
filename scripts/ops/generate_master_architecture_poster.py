@@ -152,7 +152,7 @@ def generate_master_poster() -> int:
 
   <!-- Layer 1: User & Interface -->
   <rect x="50" y="110" width="1100" height="90" rx="10" fill="url(#cardGrad)" stroke="#38bdf8" stroke-width="1.5"/>
-  <text x="75" y="140" fill="#38bdf8" font-family="sans-serif" font-size="15" font-weight="bold">LAYER 1: USER SERVICE & TELEGRAM INTERFACE</text>
+  <text x="75" y="140" fill="#38bdf8" font-family="sans-serif" font-size="15" font-weight="bold">LAYER 1: USER SERVICE &amp; TELEGRAM INTERFACE</text>
   <rect x="75" y="152" width="310" height="36" rx="6" fill="#0f172a" stroke="#334155"/>
   <text x="230" y="175" fill="#f8fafc" font-family="sans-serif" font-size="12" text-anchor="middle">Telegram Bot (telegram_bot_simple.py)</text>
   <rect x="405" y="152" width="310" height="36" rx="6" fill="#0f172a" stroke="#334155"/>
@@ -162,7 +162,7 @@ def generate_master_poster() -> int:
 
   <!-- Layer 2: Transport & Proxy -->
   <rect x="50" y="220" width="1100" height="90" rx="10" fill="url(#cardGrad)" stroke="#818cf8" stroke-width="1.5"/>
-  <text x="75" y="250" fill="#818cf8" font-family="sans-serif" font-size="15" font-weight="bold">LAYER 2: STEALTH PROXY & MESH TUNNELS</text>
+  <text x="75" y="250" fill="#818cf8" font-family="sans-serif" font-size="15" font-weight="bold">LAYER 2: STEALTH PROXY &amp; MESH TUNNELS</text>
   <rect x="75" y="262" width="350" height="36" rx="6" fill="#0f172a" stroke="#334155"/>
   <text x="250" y="285" fill="#f8fafc" font-family="sans-serif" font-size="12" text-anchor="middle">NL Gateway (VPS 89.125.1.107 — Xray / SPIRE)</text>
   <rect x="445" y="262" width="350" height="36" rx="6" fill="#0f172a" stroke="#334155"/>
@@ -172,7 +172,7 @@ def generate_master_poster() -> int:
 
   <!-- Layer 3: PQC & SPIRE Identity -->
   <rect x="50" y="330" width="1100" height="90" rx="10" fill="url(#cardGrad)" stroke="#c084fc" stroke-width="1.5"/>
-  <text x="75" y="360" fill="#c084fc" font-family="sans-serif" font-size="15" font-weight="bold">LAYER 3: POST-QUANTUM CRYPTO & ZERO-TRUST IDENTITY</text>
+  <text x="75" y="360" fill="#c084fc" font-family="sans-serif" font-size="15" font-weight="bold">LAYER 3: POST-QUANTUM CRYPTO &amp; ZERO-TRUST IDENTITY</text>
   <rect x="75" y="372" width="350" height="36" rx="6" fill="#0f172a" stroke="#334155"/>
   <text x="250" y="395" fill="#f8fafc" font-family="sans-serif" font-size="12" text-anchor="middle">NIST ML-KEM-768 &amp; ML-DSA-65 (liboqs)</text>
   <rect x="445" y="372" width="350" height="36" rx="6" fill="#0f172a" stroke="#334155"/>
