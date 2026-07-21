@@ -60,7 +60,20 @@ x0tta6bl4 is an **autonomous self-healing mesh platform**. Rather than claiming 
 
 ---
 
-## 📋 System Status Summary
+## 📊 Step-by-Step Success Criteria (Runbook Verification Gate)
+
+| Step | Phase Name | Success Criterion | Target Metric | Status |
+|:---|:---|:---|:---|:---:|
+| **1** | Baseline | Topology active & all nodes HEALTHY | Packet loss 0%, latency < 100ms | `🟡 VALIDATED IN LAB` |
+| **2** | Failure Injection | Link partition / packet drop confirmed | Simulated packet loss = 100% | `🟡 VALIDATED IN LAB` |
+| **3** | Detection | Anomaly classified by GNN | Detection time (MTTD) < 20s | `✅ VERIFIED` |
+| **4** | Re-planning | Alternative routing path constructed | Valid signed policy generated | `✅ VERIFIED` |
+| **5** | Dataplane Update | eBPF/XDP table & WireGuard updated | Reroute without process restart | `✅ VERIFIED` |
+| **6** | Validation | Invariants checked by Validation Framework | Exit Code 0 & 100% Invariants PASS | `✅ VERIFIED` |
+
+---
+
+## 📋 Subsystem Status Summary
 
 | Subsystem | Status Category | Evidence / Test Location |
 |:---|:---:|:---|
