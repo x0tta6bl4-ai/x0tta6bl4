@@ -38,15 +38,18 @@ services:
       spire-server:
         condition: service_healthy
 
-  node-a:
+  mesh-node:
     image: mesh-node:latest
-    container_name: mesh-node-a
-    hostname: node-a
+    container_name: mesh-node
+    hostname: mesh-node
+    ports:
+      - "127.0.0.1:9190:9090"
     environment:
-      - NODE_ID=node-a
-      - PEERS=node-b,node-nl-bridge
-      - PEER_PORTS=9101,9102
+      - NODE_ID=mesh-node
+      - PEERS=mesh-node-2
+      - PEER_PORTS=9103
       - PORT=9100
+      - MESH_METRICS_PORT=9090
       - SVD_BYPASS=true
       - HTTP_PROXY=
       - HTTPS_PROXY=
@@ -59,19 +62,25 @@ services:
     networks:
       mesh-net:
         aliases:
-          - node-a
+          - mesh-node
+      x0tmq-net:
+        aliases:
+          - mesh-node
     depends_on:
       - spire-agent
 
-  node-b:
+  mesh-node-2:
     image: mesh-node:latest
-    container_name: mesh-node-b
-    hostname: node-b
+    container_name: mesh-node-2
+    hostname: mesh-node-2
+    ports:
+      - "127.0.0.1:9191:9090"
     environment:
-      - NODE_ID=node-b
-      - PEERS=node-a
+      - NODE_ID=mesh-node-2
+      - PEERS=mesh-node
       - PEER_PORTS=9100
-      - PORT=9101
+      - PORT=9103
+      - MESH_METRICS_PORT=9090
       - SVD_BYPASS=true
       - HTTP_PROXY=
       - HTTPS_PROXY=
@@ -84,9 +93,12 @@ services:
     networks:
       mesh-net:
         aliases:
-          - node-b
+          - mesh-node-2
+      x0tmq-net:
+        aliases:
+          - mesh-node-2
     depends_on:
-      - node-a
+      - mesh-node
 
   node-nl-bridge:
     image: mesh-node:latest
@@ -94,16 +106,17 @@ services:
     hostname: node-nl-bridge
     environment:
       - NODE_ID=node-nl-bridge
-      - PEERS=node-a,node-b,89.125.1.107
-      - PEER_PORTS=9100,9100,9101
+      - PEERS=mesh-node,mesh-node-2,89.125.1.107
+      - PEER_PORTS=9100,9103,9101
       - PORT=9102
+      - MESH_METRICS_PORT=9090
+      - SVD_BYPASS=true
       - HTTP_PROXY=
       - HTTPS_PROXY=
       - NO_PROXY=*
       - http_proxy=
       - https_proxy=
       - no_proxy=*
-      - SVD_BYPASS=true
     volumes:
       - spire-socket:/tmp/spire-agent:ro
     networks:
@@ -111,7 +124,7 @@ services:
         aliases:
           - node-nl-bridge
     depends_on:
-      - node-b
+      - mesh-node
 
   spire-agent-nl:
     image: spire-agent:latest
@@ -141,3 +154,6 @@ volumes:
 networks:
   mesh-net:
     driver: bridge
+  x0tmq-net:
+    driver: bridge
+    internal: true

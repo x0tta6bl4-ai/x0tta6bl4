@@ -370,7 +370,7 @@ class LinuxTunDevice:
 
     @staticmethod
     def _default_command_runner(command: Sequence[str]) -> None:
-        safe_run(command, check=True)
+        safe_run(list(command), check=True)
 
 
 def _read_linux_tun_packet(fd: int, mtu: int, timeout: float | None) -> bytes:

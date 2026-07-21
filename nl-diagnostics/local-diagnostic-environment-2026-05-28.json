@@ -1,22 +1,22 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_local_diagnostic_environment.py",
-  "generated_at": "2026-05-28T03:42:23.036672+00:00",
-  "status": "watch_root_full_tmpdir_available",
+  "generated_at": "2026-07-02T13:55:15.266210+00:00",
+  "status": "ok",
   "ok": true,
   "summary": {
-    "root_status": "critical_full",
-    "root_used_percent": 94.9,
-    "root_free_gib": 0.0,
-    "tmp_status": "critical_full",
+    "root_status": "ok",
+    "root_used_percent": 85.1,
+    "root_free_gib": 10.39,
+    "tmp_status": "ok",
     "projects_status": "ok",
-    "projects_free_gib": 61.17,
+    "projects_free_gib": 320.56,
     "diagnostic_tmpdir": "/mnt/projects/.tmp",
     "diagnostic_tmpdir_exists": true,
     "diagnostic_tmpdir_writable": true,
-    "cleanup_required": true,
+    "cleanup_required": false,
     "recommended_tmpdir_prefix": "TMPDIR=/mnt/projects/.tmp",
-    "cleanup_candidate_count": 2,
+    "cleanup_candidate_count": 0,
     "nl_write_allowed": false,
     "spb_fallback_allowed": false,
     "automatic_failover_allowed": false
@@ -25,38 +25,38 @@
     {
       "path": "/",
       "exists": true,
-      "status": "critical_full",
+      "status": "ok",
       "total_bytes": 114303512576,
-      "used_bytes": 108509061120,
-      "free_bytes": 0,
+      "used_bytes": 97296838656,
+      "free_bytes": 11153104896,
       "total_gib": 106.45,
-      "used_gib": 101.06,
-      "free_gib": 0.0,
-      "used_percent": 94.9
+      "used_gib": 90.61,
+      "free_gib": 10.39,
+      "used_percent": 85.1
     },
     {
       "path": "/tmp",
       "exists": true,
-      "status": "critical_full",
+      "status": "ok",
       "total_bytes": 114303512576,
-      "used_bytes": 108509061120,
-      "free_bytes": 0,
+      "used_bytes": 97296838656,
+      "free_bytes": 11153104896,
       "total_gib": 106.45,
-      "used_gib": 101.06,
-      "free_gib": 0.0,
-      "used_percent": 94.9
+      "used_gib": 90.61,
+      "free_gib": 10.39,
+      "used_percent": 85.1
     },
     {
       "path": "/mnt/projects",
       "exists": true,
       "status": "ok",
       "total_bytes": 499738734592,
-      "used_bytes": 434061987840,
-      "free_bytes": 65676746752,
+      "used_bytes": 155535564800,
+      "free_bytes": 344203169792,
       "total_gib": 465.42,
-      "used_gib": 404.25,
-      "free_gib": 61.17,
-      "used_percent": 86.9
+      "used_gib": 144.85,
+      "free_gib": 320.56,
+      "used_percent": 31.1
     }
   ],
   "tmpdir_probe": {
@@ -69,12 +69,12 @@
   "cleanup_candidates": [
     {
       "path": "/tmp/antigravity_restore",
-      "exists": true,
+      "exists": false,
       "action": "manual_review_before_delete"
     },
     {
       "path": "/tmp/antigravity_restore_correct",
-      "exists": true,
+      "exists": false,
       "action": "manual_review_before_delete"
     }
   ],

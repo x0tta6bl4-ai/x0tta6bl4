@@ -1,10 +1,10 @@
 {
-  "active_user_count": 12,
+  "active_user_count": 17,
   "blocked_count": 0,
   "db_available": 1,
   "decision": "LEGACY_NO_PROGRESS_NUDGE_DRY_RUN",
   "failed_count": 0,
-  "generated_at": "2026-06-08T04:39:15Z",
+  "generated_at": "2026-07-08T16:46:19Z",
   "message_bytes": 622,
   "mode": "dry_run",
   "no_progress_candidate_count": 0,
@@ -23,7 +23,7 @@
     "raw_uuid_printed": false,
     "raw_vpn_uris_printed": false
   },
-  "progress_user_count": 12,
+  "progress_user_count": 17,
   "reply_user_count": 0,
   "schema_version": 1,
   "selected_user_count": 0,

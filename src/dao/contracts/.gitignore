@@ -2,6 +2,9 @@
 artifacts/
 cache/
 
+# Dependencies
+node_modules/
+
 # Debug temp files
 .tmp/
 

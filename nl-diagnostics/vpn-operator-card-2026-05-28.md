@@ -1,23 +1,23 @@
 # VPN Operator Card
 
-generated_at: `2026-05-28T03:42:30.348752+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z`
+generated_at: `2026-07-02T13:55:15.874611+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z`
 
 ## Status
 
 ```text
-operator_status=observe
-plain_action=VPN core is healthy. Do not restart NL; collect fresh evidence during the next visible outage.
-decision=observe
+operator_status=provider_ticket
+plain_action=Build a provider packet; do not hide provider symptoms with restarts.
+decision=provider_ticket
 confidence=high
-overall_status=advisory
+overall_status=provider_outage
 transport_status=healthy
-telegram_media_status=degraded
-provider_status=recent_boot_gap
-failure_domain=external_network
-blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=11
-manual_failover_status=planning_not_active
+telegram_media_status=healthy
+provider_status=suspect_active
+failure_domain=provider_host
+blocking_history_trend=has_degradation
+blocking_history_snapshot_count=22
+manual_failover_status=manual_failover_candidate
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false

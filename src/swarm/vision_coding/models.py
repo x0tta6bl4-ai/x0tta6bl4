@@ -1,28 +1,9 @@
 """Vision coding models."""
 from __future__ import annotations
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
 
-"""
-Vision Coding Module - Coding with Vision для Kimi K2.5
-Реализация визуального программирования, отладки и анализа графов.
-"""
-
-import asyncio
-import hashlib
-import heapq
-import logging
-import time
-from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Tuple
-
-import numpy  # type: ignore
-from PIL import Image, ImageDraw, ImageFont  # type: ignore
-
-logger = logging.getLogger(__name__)
 
 
 class AnalysisType(Enum):
@@ -65,7 +46,8 @@ class BoundingBox:
     def contains(self, point: Tuple[float, float]) -> bool:
         px, py = point
         return (
-            self.x <= px <= self.x + self.width and self.y <= py <= self.y + self.height
+            self.x <= px <= self.x + self.width
+            and self.y <= py <= self.y + self.height
         )
 
     def intersects(self, other: "BoundingBox") -> bool:
@@ -122,4 +104,21 @@ class Suggestion:
     code_snippet: str = ""
     explanation: str = ""
 
+
+@dataclass
+class VisualOverlay:
+    """Визуальный оверлей для анализа"""
+
+    elements: List[OverlayElement] = field(default_factory=list)
+    issues: List[Issue] = field(default_factory=list)
+    suggestions: List[Suggestion] = field(default_factory=list)
+
+    def add_element(self, element: OverlayElement) -> None:
+        self.elements.append(element)
+
+    def add_issue(self, issue: Issue) -> None:
+        self.issues.append(issue)
+
+    def add_suggestion(self, suggestion: Suggestion) -> None:
+        self.suggestions.append(suggestion)
 

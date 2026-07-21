@@ -1,0 +1,24 @@
+[Unit]
+Description=x0tta6bl4 Optional Full Core API
+Documentation=file:/usr/share/doc/x0tta6bl4/README.md
+After=network-online.target x0tta6bl4-core-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/x0tta6bl4/full-core.env
+Environment=X0TTA6BL4_FULL_CORE_API_APP_MODULE=src.core.app:app
+Environment=MAAS_LIGHT_MODE=true
+ExecStart=/usr/lib/x0tta6bl4/start_full_core_api.sh --host 127.0.0.1 --port 8001
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/x0tta6bl4-mesh /tmp
+PrivateTmp=true
+LogsDirectory=x0tta6bl4
+SyslogIdentifier=x0tta6bl4-full-core-api
+
+[Install]
+WantedBy=multi-user.target

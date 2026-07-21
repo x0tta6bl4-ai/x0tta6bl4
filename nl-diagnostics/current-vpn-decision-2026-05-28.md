@@ -1,26 +1,26 @@
 # Current VPN Decision
 
-generated_at: `2026-05-28T03:42:16.470375+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z`
+generated_at: `2026-07-02T13:55:13.838707+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z`
 
 ## Status
 
-decision: `observe`
+decision: `provider_ticket`
 confidence: `high`
-reason: core VPN is healthy/advisory and blocking probes show no direct-vs-SOCKS failure
+reason: classification points to provider or host failure
 
 ## Current State
 
 ```text
-overall_status=advisory
+overall_status=provider_outage
 transport_status=healthy
-telegram_media_status=degraded
-provider_status=recent_boot_gap
-failure_domain=external_network
-recommended_action=observe
-blocking_category=app_specific_degradation
-blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshots=11
+telegram_media_status=healthy
+provider_status=suspect_active
+failure_domain=provider_host
+recommended_action=provider_ticket
+blocking_category=provider_or_host_issue
+blocking_history_trend=has_degradation
+blocking_history_snapshots=22
 nl_mutation_allowed=false
 auto_profile_switch_allowed=false
 spb_fallback_allowed=false
@@ -28,10 +28,8 @@ spb_fallback_allowed=false
 
 ## Next Actions
 
-- keep observing current VPN path
-- when a user-visible outage happens, collect a fresh read-only snapshot with blocking probes
-- test Telegram/media separately from core VPN transport
-- keep provider boot gap on watch; build provider packet if transport degrades
+- build or refresh provider incident packet
+- keep NL mutation blocked until provider symptoms are understood
 
 ## Blocked Actions
 
@@ -43,8 +41,6 @@ spb_fallback_allowed=false
 ## Warnings
 
 - NL non-critical failed units: ifup@eth0.service
-- NL boot gap seconds=21907
-- NL previous boot ended uncleanly
 
 ## Problems
 
@@ -52,24 +48,22 @@ spb_fallback_allowed=false
 
 ## Evidence
 
-- local vpn_status_json overall=ok
+- local vpn_status_json overall=advisory
 - route to VPN server bypasses singbox_tun
 - generic traffic routes through singbox_tun
 - external exit IP is VPN server
-- watchdog proxy healthy
 - packet_loss_percent=0
 - NL failed units are known non-critical: ifup@eth0.service
 - NL key services active
 - NL core listeners 443/2083/39829 present
 - NL transport_status=healthy
-- NL current boot reports previous journal uncleanly shut down
 
 ## Blocking Probe History
 
 ```text
-snapshot_count=11
-trend=stable_no_probe_evidence
-latest_snapshot=20260528T034120Z
+snapshot_count=22
+trend=has_degradation
+latest_snapshot=20260702T135431Z
 latest_targets_ok=8/8
 latest_degraded_targets=0
 ```

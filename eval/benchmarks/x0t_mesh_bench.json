@@ -1,0 +1,92 @@
+[
+  {
+    "id": "x0t-001",
+    "category": "diagnostics",
+    "complexity": "easy",
+    "question": "Проверь health NL VPS (89.125.1.107). Какие сервисы активны?",
+    "ideal_answer": "SSH на VPS, systemctl list-units — показать активные сервисы: x-ui, nginx, spire-server, spire-agent, mesh-node, ghost-vpn, ghost-core-api, telegrams-bot, warp-svc. Вернуть список активных сервисов с их статусами.",
+    "required_tools": ["terminal", "ssh"],
+    "eval_criteria": "at least 5 active services identified, NL VPS reachable"
+  },
+  {
+    "id": "x0t-002",
+    "category": "diagnostics",
+    "complexity": "medium",
+    "question": "Проверь DPI blocking на NL VPS. Работает ли Reality на порту 443? Сколько clients/day? Есть ли DPI invalid hello в логах?",
+    "ideal_answer": "Проверить /var/log/xray/access.log на количество accepted соединений. Подсчитать clients по email. Проверить error.log на 'failed to read client hello'. Вернуть: общее количество соединений, уникальные клиенты, количество DPI ошибок.",
+    "required_tools": ["terminal", "ssh"],
+    "eval_criteria": "client count, DPI error count, port status reported"
+  },
+  {
+    "id": "x0t-003",
+    "category": "crypto",
+    "complexity": "easy",
+    "question": "Проверь, что PQC стек работает. Запусти PQC smoke test.",
+    "ideal_answer": "Запустить python3 scripts/benchmark_pqc.py. Проверить, что ML-KEM-768 и ML-DSA-65 работают, benchmark завершается без ошибок. Вернуть: время sign+verify, количество тестов.",
+    "required_tools": ["terminal"],
+    "eval_criteria": "PQC smoke test exit code 0, ML-KEM + ML-DSA verified"
+  },
+  {
+    "id": "x0t-004",
+    "category": "mesh",
+    "complexity": "hard",
+    "question": "Проверь состояние SPIRE кластера. Работают ли spire-server и spire-agent? Какие SVID выданы?",
+    "ideal_answer": "Проверить systemctl статус spire-server и spire-agent. Запустить spire-server healthcheck. Проверить список зарегистрированных нод. Вернуть: статус сервера, статус агента, количество SVID, список нод.",
+    "required_tools": ["terminal", "ssh"],
+    "eval_criteria": "both SPIRE services healthy, entry list retrieved"
+  },
+  {
+    "id": "x0t-005",
+    "category": "mesh",
+    "complexity": "medium",
+    "question": "Проверь mesh peer connections. Есть ли связь между ATHLON-NODE-01 и NL? Какой статус пиров?",
+    "ideal_answer": "Проверить логи mesh-node на NL VPS. Найти peer ATHLON-NODE-01. Проверить статус NORMAL. Измерить latency. Вернуть: статус пира, latency, uptime соединения.",
+    "required_tools": ["terminal", "ssh"],
+    "eval_criteria": "peer status reported, latency measured, connection uptime"
+  },
+  {
+    "id": "x0t-006",
+    "category": "diagnostics",
+    "complexity": "easy",
+    "question": "Проверь readiness gate. Запусти check_real_readiness.py.",
+    "ideal_answer": "Запустить python3 scripts/ops/check_real_readiness.py --skip-git-check --json. Проверить что статус REAL_READINESS_READY. Все 70/70 checks пройдены. Вернуть: статус, количество checks, список failures если есть.",
+    "required_tools": ["terminal"],
+    "eval_criteria": "readiness gate exit code 0, all checks pass"
+  },
+  {
+    "id": "x0t-007",
+    "category": "infrastructure",
+    "complexity": "hard",
+    "question": "Проверь WARP статус на NL VPS. Работает ли cloudflare warp-svc? Какой исходящий IP?",
+    "ideal_answer": "Проверить systemctl статус warp-svc. Выполнить warp-cli status. curl через SOCKS5 127.0.0.1:40000 на ifconfig.me. Вернуть: статус WARP, исходящий IP, задержку.",
+    "required_tools": ["terminal", "ssh"],
+    "eval_criteria": "WARP service status, outbound IP, latency"
+  },
+  {
+    "id": "x0t-008",
+    "category": "security",
+    "complexity": "medium",
+    "question": "Проверь безопасность subprocess. Сколько файлов используют subprocess.run? Все ли переведены на safe_run?",
+    "ideal_answer": "Найти все файлы с subprocess.run в src/. Проверить какие из них импортируют safe_run. Проверить allowlist в subprocess_validator.py. Вернуть: общее количество, количество НЕ переведённых, размер allowlist.",
+    "required_tools": ["terminal"],
+    "eval_criteria": "subprocess.run count, safe_run conversion rate, allowlist size"
+  },
+  {
+    "id": "x0t-009",
+    "category": "infrastructure",
+    "complexity": "easy",
+    "question": "Проверь свободное место на дисках. Статус RAM и CPU на ПК.",
+    "ideal_answer": "df -h /, free -h, uptime, nproc, cat /proc/loadavg. Вернуть: диск %, RAM %, load average, количество ядер.",
+    "required_tools": ["terminal"],
+    "eval_criteria": "disk, RAM, load reported with actual values"
+  },
+  {
+    "id": "x0t-010",
+    "category": "diagnostics",
+    "complexity": "hard",
+    "question": "Проверь Ghost VPN статус на NL VPS. Есть ли активные клиенты? Работает ли ghost-vpn и ghost-tcp-bridge?",
+    "ideal_answer": "Проверить systemctl статус ghost-vpn и ghost-tcp-bridge. Посмотреть метрики на localhost:9464/metrics (ghostvpn_active_clients). Проверить порты 4433, 4434. Вернуть: статус сервисов, количество клиентов, PID, RSS.",
+    "required_tools": ["terminal", "ssh"],
+    "eval_criteria": "both services checked, client count, port status"
+  }
+]

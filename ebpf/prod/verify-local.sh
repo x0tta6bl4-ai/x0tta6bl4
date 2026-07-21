@@ -103,7 +103,7 @@ echo "[2/5] CO-RE object generation"
 # This step requires clang and the cilium/ebpf bpf2go toolchain.
 # It modifies the working tree (generates .o and .go files).
 # The make -n dry-run confirms the plan without executing; the real build runs in CI.
-if command -v clang >/dev/null 2>&1; then
+if command -v clang >/dev/null 2>&1 && [[ -f "${ROOT_DIR}/src/network/ebpf/programs/xdp_mesh_filter.c" ]]; then
   GEN_OUTPUT="$(
     make -f "${ROOT_DIR}/ebpf/prod/Makefile.bpf" -C "${ROOT_DIR}/ebpf/prod" generate 2>&1
   )" && GEN_RC=0 || GEN_RC=$?

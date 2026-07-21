@@ -1,6 +1,38 @@
 {
   "version": "2026-02-23",
-  "shared_allow": [],
+  "shared_allow": [
+    "eval/",
+    "examples/",
+    "demo/",
+    "compliance/",
+    "contracts/audit-ready/",
+    "src-tauri/",
+    "vpn-xray/",
+    "spire/",
+    "execute_dao_proposal.py",
+    "deploy/",
+    "alertmanager/",
+    "argocd/",
+    "chaos/",
+    "ops/",
+    "scripts/broadcast.py",
+    "scripts/measure_mttr.py",
+    "scripts/onboarding_logic.py",
+    "scripts/patch_streaming.py",
+    "scripts/start-local-proxy.sh",
+    "scripts/telegram_bot_simple.py",
+    "scripts/database.py",
+    "scripts/onboarding_delivery.py",
+    "scripts/xray_client_naming.py",
+    "scripts/xui_client_manager.py",
+    "uv.lock",
+    "src/api/billing.py",
+    "tests/unit/api/test_yoomoney_webhook_unit.py",
+    "scripts/check_vulnerable_deps.py",
+    "validation/",
+    "MILESTONE_VALIDATION_V1.md",
+    "Makefile.validation"
+  ],
   "agents": {
     "agent1-ml-core": {
       "description": "Torch/GraphSAGE lazy loading and ML core stability",
@@ -210,6 +242,10 @@
         "scripts/ops/",
         "scripts/mcp/",
         "scripts/verify_codex_environment.py",
+        "scripts/check_pipeline_stage_contract.py",
+        "tests/unit/scripts/test_check_pipeline_stage_contract_unit.py",
+        ".github/workflows/ci.yml",
+        ".github/workflows/golden-smoke-premerge.yml",
         "scripts/agents/agent_cycle_profiles.json",
         "scripts/agents/run_agent_cycle.py",
         "mcp-server/",
@@ -259,7 +295,10 @@
         "xray_main_config.json",
         "config.hmac",
         "archive/",
-        "docs/reference/"
+        "docs/reference/",
+        "nl-diagnostics/",
+        "AGENTS.md",
+        "docs/architecture/BENCHMARK_SPEC.md"
       ]
     },
     "codex": {

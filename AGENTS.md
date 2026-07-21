@@ -226,3 +226,93 @@ nlprobe         # NL VPN health
 pyimport X.Y.Z  # тест импорта модуля
 chromedbg       # Chrome с remote debugging
 ```
+
+## Мандат Главного Инженера (Chief Engineer Mandate)
+
+Все AI-агенты (Gemini, Codex, Cursor) обязаны следовать этим правилам без исключений.
+
+### Запрещено без доказательств
+
+- Слова: "уникальный", "революционный", "лучший", "не имеет аналогов", "100% reliable"
+- Придумывание метрик и округление результатов
+- Вывод p95/p99 при выборке N < 30 (статистически бессмысленно)
+- Утверждения без источника: код, benchmark, лог, стандарт
+
+### Обязательный источник каждого утверждения
+
+| Тип утверждения | Допустимый источник |
+|:----------------|:--------------------|
+| "Работает" | CI pass, тест с exit code 0 |
+| "Быстрее" | Benchmark с control group, N ≥ 30 |
+| "Восстанавливается за X сек" | Лог эксперимента, методика, повторяемость |
+| "Поддерживает N клиентов" | Нагрузочный тест, CPU/RAM метрики |
+| "Безопасно" | Аудит, стандарт (FIPS 203/204), а НЕ benchmark |
+
+### Разделение статусов
+
+Каждый компонент должен быть помечен одним из:
+- **Реализовано:** Код написан, тест пройден, результат воспроизводим
+- **Экспериментально:** Прототип на локальном стенде
+- **Гипотеза:** Идея без подтверждения тестами
+- **Roadmap:** Запланировано
+
+### Правила Benchmark / Validation Framework
+
+1. **Минимальная выборка:** N ≥ 30 независимых измерений или непрерывный 10-минутный тест
+2. **Контрольная группа обязательна:** Direct ISP → Basic Proxy → Ghost Access → Mesh → Mesh + Self-Healing
+3. **Описание стенда:** CPU, RAM, Kernel, Provider, Bandwidth, MTU, TCP CC, Commit SHA
+4. **PASS/FAIL критерии:** Определены в BENCHMARK_SPEC.md §5
+5. **Машинно-читаемый вывод:** results/YYYY-MM-DD_HH-MM-SS_sha-XXXXX/{metadata.json, summary.json, metrics.prom, raw.csv}
+6. **Версионирование:** Spec v1.0 → v1.1 → v2.0
+
+### Что benchmark НЕ доказывает
+
+- Security / anonymity
+- Censorship resistance across all DPI vendors
+- Production readiness for N > 100 nodes
+- Scalability beyond tested topology
+
+### Приоритеты проекта
+
+1. Рабочая система
+2. Автоматические тесты
+3. Benchmark / Validation Framework
+4. Документация
+5. Презентация
+
+### Источник спецификации
+
+Полная спецификация: `docs/architecture/BENCHMARK_SPEC.md`
+
+### Запрещённые сравнения
+
+Не писать: "уровень Kubernetes/Istio/Envoy". Эти проекты прошли годы эксплуатации.
+Писать: "Framework implements: failure injection, regression detection, invariant checking".
+
+### Обязательные артефакты доказательств
+
+Каждое утверждение должно иметь:
+- Код теста (property-based или unit)
+- Результат выполнения (exit code 0)
+- Артефакт (JSON/CSV/лог)
+- Методику (как измерялось)
+
+---
+
+### Известные грабли и правила интеграции (Integration Traps)
+
+1. **Асинхронность в MAPE-K цикле:**
+   - `SelfHealingManager.run_cycle` является полностью СИНХРОННЫМ. Нельзя переопределять или оборачивать методы фаз (например, `analyzer.analyze`) в асинхронные (`async def`). Это приведет к тому, что метод вернет объект `coroutine` вместо результата-строки, что сломает планировщик (`TypeError: argument of type 'coroutine' is not iterable`).
+   - Все ИИ-компоненты (такие как GraphSAGE) должны иметь синхронный интерфейс вызова (`analyze_anomaly_sync` / `analyze_with_graphsage_sync`) для интеграции в основной цикл.
+
+2. **Совместимость с Ethers.js v6 в Hardhat:**
+   - Не используйте свойство `.address` на инстансах контрактов. Вместо этого вызывайте асинхронный метод `await contract.getAddress()`.
+   - Не передавайте короткие строки типа `'0x00'` для параметров типа `bytes32` (например, `predecessor` в методах schedule/execute контракта `TimelockController`). В Ethers v6 это вызывает ошибку валидации длины байт. Используйте константу `ethers.ZeroHash` для 32-байтовых нулевых значений.
+   - Хелпер `@nomicfoundation/hardhat-network-helpers` не содержит функции `time.mine()`. Используйте метод `time.advanceBlock()` для продвижения блокчейн-времени вперед.
+
+3. **Права доступа в тестах Governance:**
+   - При интеграции стандартного OpenZeppelin `TimelockController` и `Governor`, обязательно выдавайте роли в `beforeEach`:
+     * Назначьте `Governor` proposer-ом и canceller-ом на контракте `Timelock` (через `timelock.grantRole(...)` с ролями `PROPOSER_ROLE` и `CANCELLER_ROLE`).
+     * Назначьте `EXECUTOR_ROLE` для `ethers.ZeroAddress`, чтобы сделать роль открытой (open executor).
+     * Казначейство (`Treasury`) должно разворачиваться с указанием адреса `Timelock` в качестве управляющего, так как именно `Timelock` физически выполняет транзакции по результатам голосования, а не сам `Governor`.
+

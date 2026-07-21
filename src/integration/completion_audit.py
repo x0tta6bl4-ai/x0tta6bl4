@@ -3758,6 +3758,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--output-json", help="write audit JSON to this path")
     parser.add_argument("--output-md", help="write audit markdown to this path")
     parser.add_argument("--require-complete", action="store_true", help="return 2 when completion audit is not complete")
+    parser.add_argument(
+        "--require-ready",
+        action="store_true",
+        help="explicit fail-closed readiness gate: return 2 unless completion audit is complete and all critical items are closed",
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()

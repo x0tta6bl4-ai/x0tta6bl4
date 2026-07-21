@@ -71,17 +71,6 @@ TASK_SOURCES: tuple[PaidTaskSource, ...] = (
         source_basis="Official pages describe creating bounties with /bounty comments and paying when work is merged.",
     ),
     PaidTaskSource(
-        source_id="github_paid_issue",
-        name="GitHub Paid Issue Search",
-        url="https://github.com/search?q=type%3Aissue+state%3Aopen+bounty",
-        payout_style="Repository-specific bounty, usually paid after maintainer acceptance or merge.",
-        automation_fit="medium",
-        allowed_ai_role="Agent can discover public issues, score them, prepare patches, and draft PR evidence.",
-        human_gate="Maintainer rules, platform eligibility, final PR submission, and payout setup.",
-        search_hint="Search public GitHub issues for bounty labels and /bounty dollar text.",
-        source_basis="Public GitHub issues can contain explicit bounty labels or /bounty payout text.",
-    ),
-    PaidTaskSource(
         source_id="superteam_earn",
         name="Superteam Earn",
         url="https://earn.superteam.fun/",

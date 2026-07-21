@@ -12,7 +12,7 @@ The current landscape of Decentralized Physical Infrastructure Networks (DePIN) 
 3. **Node Downtime & Manual Recovery:** Distributed networks suffer from high latency and downtime when edge nodes drop offline, requiring manual intervention.
 
 ## 2. The Solution: x0tta6bl4
-**x0tta6bl4** is a production-ready, post-quantum, self-healing Mesh-as-a-Service layer designed specifically to secure and route traffic for the DePIN ecosystem. 
+**x0tta6bl4** is under active development for DePIN-grade transport. The project targets a production-ready, post-quantum, self-healing Mesh-as-a-Service layer for DePIN ecosystems, but current public-facing wording in this grant document is aspirational and not a verified current production claim.
 
 **Key Technical Differentiators:**
 * **Post-Quantum Transport:** Fully implements NIST FIPS 203/204 (Kyber/Dilithium) hybrid TLS out-of-the-box.

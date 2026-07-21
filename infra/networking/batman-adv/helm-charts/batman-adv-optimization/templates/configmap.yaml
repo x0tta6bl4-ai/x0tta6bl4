@@ -1,0 +1,98 @@
+{{- if .Values.configMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "batman-adv-optimization.fullname" . }}
+  labels:
+    {{- include "batman-adv-optimization.labels" . | nindent 4 }}
+data:
+  {{- if .Values.configMap.data }}
+  {{- .Values.configMap.data | toYaml | nindent 2 }}
+  {{- else }}
+  batman-adv.conf: |
+    # Оптимизированная конфигурация BATMAN-adv для многорегиональной сети
+
+    # Основные параметры производительности
+    originator_interval 1000          # 1 секунда для быстрого обнаружения
+    echo_interval 500                 # 500ms для снижения задержек
+    route_record_timeout 10000        # 10 секунд для стабильности
+
+    # Multi-path маршрутизация
+    multipath_mode 1                  # Включить multi-path
+    multipath_max_paths 3             # Максимум 3 пути
+    multipath_path_discovery 1        # Автоматическое обнаружение путей
+
+    # AODV fallback параметры
+    aodv_fallback_timeout 15000       # 15 секунд тайм-аут для AODV
+    aodv_max_retries 3                # Максимум 3 попытки
+    aodv_rate_limit 10                # Лимит запросов в секунду
+
+    # Параметры буферизации
+    packet_buffer_max 1000            # Максимальный размер буфера
+    retransmission_buffer_size 50     # Буфер ретрансмиссии
+
+    # Параметры соседей
+    neighbor_timeout 5000             # 5 секунд тайм-аут соседей
+    neighbor_aging_time 30000         # 30 секунд старение соседей
+
+    # Параметры шлюза
+    gateway_mode 1                    # Режим шлюза включен
+    gateway_selection_class 1         # Автоматический выбор шлюза
+
+    # Логирование
+    log_level 3                       # Детальное логирование для отладки
+
+  # Региональная конфигурация
+  region-config.yaml: |
+    regions:
+      us-east:
+        priority: 1
+        gateway_nodes: 3
+        backup_paths: 2
+        latency_threshold: "50ms"
+      eu-west:
+        priority: 2
+        gateway_nodes: 3
+        backup_paths: 2
+        latency_threshold: "75ms"
+      asia-pacific:
+        priority: 3
+        gateway_nodes: 2
+        backup_paths: 1
+        latency_threshold: "150ms"
+
+    # Глобальные настройки
+    global:
+      multipath_enabled: true
+      aodv_fallback_enabled: true
+      monitoring_enabled: true
+      health_check_interval: "10s"
+
+  # Мониторинг конфигурация
+  monitoring.yaml: |
+    metrics:
+      - name: batman_route_flaps_total
+        type: counter
+        description: "Total number of route flaps"
+      - name: batman_multipath_utilization
+        type: gauge
+        description: "Current multipath utilization percentage"
+      - name: batman_neighbor_stability
+        type: gauge
+        description: "Neighbor stability percentage"
+      - name: batman_packet_loss_ratio
+        type: gauge
+        description: "Packet loss ratio per path"
+
+    alerts:
+      - name: HighRouteFlaps
+        expr: increase(batman_route_flaps_total[5m]) > 10
+        severity: warning
+      - name: LowMultipathUtilization
+        expr: batman_multipath_utilization < 0.3
+        severity: info
+      - name: NeighborInstability
+        expr: batman_neighbor_stability < 0.8
+        severity: critical
+  {{- end }}
+{{- end }}

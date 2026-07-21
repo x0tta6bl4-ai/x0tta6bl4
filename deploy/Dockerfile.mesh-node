@@ -1,0 +1,29 @@
+# Lightweight mesh-node image for docker-compose testnet
+# Uses the root Dockerfile as the real build; this is a thin wrapper
+# for deployments that need NET_ADMIN capabilities.
+
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    iproute2 iptables curl procps \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir \
+    torch==2.9.0 --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir prometheus-client==0.23.1
+
+COPY src/ src/
+
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+CMD ["uvicorn", "src.core.app:app", "--host", "0.0.0.0", "--port", "8080"]

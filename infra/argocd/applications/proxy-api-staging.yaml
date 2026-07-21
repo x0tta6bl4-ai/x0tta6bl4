@@ -1,0 +1,66 @@
+# ArgoCD Application for proxy-api (Staging)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: proxy-api-staging
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: proxy-api
+    app.kubernetes.io/part-of: x0tta6bl4
+    environment: staging
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.slack: deployments
+    notifications.argoproj.io/subscribe.on-sync-failed.slack: alerts
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: x0tta6bl4
+
+  source:
+    repoURL: https://github.com/x0tta6bl4/mesh.git
+    targetRevision: develop
+    path: infra/k8s/overlays/staging
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: x0tta6bl4-staging
+
+  # Sync policy
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences in certain fields
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /spec/minReplicas
+        - /spec/maxReplicas
+
+  # Health checks
+  revisionHistoryLimit: 10
+
+  info:
+    - name: Documentation
+      value: https://docs.x0tta6bl4.io/staging
+    - name: Runbook
+      value: https://runbooks.x0tta6bl4.io/proxy-api

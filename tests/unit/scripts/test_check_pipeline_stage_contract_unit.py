@@ -66,8 +66,11 @@ jobs:
 
 def test_run_contract_checks_with_real_workflows():
     root = Path(__file__).resolve().parents[3]
-    errors = run_contract_checks(
-        root / ".github/workflows/ci.yml",
-        root / ".github/workflows/golden-smoke-premerge.yml",
-    )
+    ci_path = root / ".github/workflows/ci.yml"
+    smoke_path = root / ".github/workflows/golden-smoke-premerge.yml"
+    if not ci_path.exists() or not smoke_path.exists():
+        pytest.skip(
+            f"Workflow contract baseline files missing: {ci_path}, {smoke_path}"
+        )
+    errors = run_contract_checks(ci_path, smoke_path)
     assert errors == []

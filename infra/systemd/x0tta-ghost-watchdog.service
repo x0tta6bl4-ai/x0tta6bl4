@@ -1,0 +1,28 @@
+[Unit]
+Description=x0tta6bl4 Ghost VPN Watchdog (MAPE-K)
+After=x0tta-ghost-vpn.service
+Wants=x0tta-ghost-vpn.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 -c "
+import time, subprocess, sys
+while True:
+    try:
+        r = subprocess.run(['pgrep', '-f', 'ghost_vpn_server'], capture_output=True)
+        if r.returncode != 0:
+            subprocess.run(['systemctl', 'restart', 'x0tta-ghost-vpn'])
+            print(f'[{time.strftime(\"%Y-%m-%d %H:%M:%S\")}] VPN restarted')
+    except Exception as e:
+        print(f'[{time.strftime(\"%Y-%m-%d %H:%M:%S\")}] Watchdog error: {e}', file=sys.stderr)
+    time.sleep(30)
+"
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=x0tta-watchdog
+
+[Install]
+WantedBy=multi-user.target

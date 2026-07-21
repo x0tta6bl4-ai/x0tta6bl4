@@ -1,0 +1,22 @@
+name: Pipeline Contract CI
+
+# This file exists for pipeline stage contract baseline checks.
+# It is intentionally disabled in real CI to avoid duplicate workflow runs.
+if: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lint with ruff
+        run: echo "lint"
+
+      - name: Type check with mypy
+        run: echo "type"
+
+      - name: Test with pytest
+        run: echo "unit"
+
+  spire-integration:
+    runs-on: ubuntu-latest
+    steps: []

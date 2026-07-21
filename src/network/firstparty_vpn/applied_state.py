@@ -9,11 +9,10 @@ import json
 import subprocess
 from typing import Callable, Mapping
 
+from src.core.security.subprocess_validator import safe_run
 from .linux_policy import LinuxNetworkPolicyConfig, LinuxServerNatConfig
 from .ops import assert_privacy_safe
 from .tun import LinuxTunConfig
-from src.core.security.subprocess_validator import safe_run
-
 LinuxAppliedStateReadCommand = tuple[str, ...]
 LinuxAppliedStateCommandRunner = Callable[[LinuxAppliedStateReadCommand], str]
 
@@ -402,14 +401,9 @@ def _nonempty_lines(output: str) -> tuple[str, ...]:
 
 
 def _default_read_command_runner(command: LinuxAppliedStateReadCommand) -> str:
-    completed = safe_run(
-        command,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    completed = safe_run(list(command), check=True, capture_output=True, text=True)
+    if completed.stdout is None:
+        raise RuntimeError("empty applied state read")
     return completed.stdout
-
-
 def _utc_now() -> int:
     return int(datetime.now(timezone.utc).timestamp())

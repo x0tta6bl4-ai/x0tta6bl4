@@ -1,0 +1,26 @@
+{
+  "schema_version": "x0tta6bl4.rc1.manifest.v1",
+  "release": "RC1",
+  "codename": "Empirical Honesty",
+  "commit_id": "47a135b00efef4474907b1ffd09699c1bebbc488",
+  "snapshot_date": "2026-03-08T01:45:00Z",
+  "status": "FROZEN",
+  "branch": "release/rc1",
+  "toolchain": {
+    "go": "1.24+",
+    "python": "3.12+",
+    "node": "22.x",
+    "kernel": "6.1+"
+  },
+  "baselines": {
+    "xdp_tx_pps": "142k",
+    "xdp_rx_pps": "49",
+    "xdp_nic": "enp8s0",
+    "map_e_k_mttd_s": "<20",
+    "pqc_modules": ["ML-KEM-768", "ML-DSA-65"]
+  },
+  "provenance": {
+    "signature_path": "docs/release/provenance/RC1_MANIFEST.json.sig",
+    "certificate_path": "docs/release/provenance/RC1_MANIFEST.json.crt"
+  }
+}

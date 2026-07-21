@@ -1,0 +1,21 @@
+# Residential Proxy Infrastructure Environment Configuration
+# Generated: 2026-01-30
+
+# Environment
+PROXY_ENV=production
+PROXY_CONFIG_PATH=./deploy/proxy/config.yaml
+
+# Master Key for Credential Encryption (generate with: openssl rand -hex 32)
+PROXY_CONFIG_MASTER_KEY=7d8f9e2a1b3c4d5e6f70819293a4b5c6d7e8f901234567890abcdef12345678
+
+# API Keys (format: key:role)
+PROXY_API_KEY_ADMIN=pk_a1b2c3d4e5f6789012345678abcdef1234567890:ADMIN
+PROXY_API_KEY_OPERATOR=pk_b2c3d4e5f6789012345678abcdef1234567890a1:OPERATOR
+PROXY_API_KEY_VIEWER=pk_c3d4e5f6789012345678abcdef1234567890a1b2:VIEWER
+
+# JWT Secret (min 32 chars)
+JWT_SECRET=your-jwt-secret-key-minimum-32-characters-long
+
+# Provider Credentials (replace with actual values)
+OXYLABS_USERNAME=your_oxylabs_username
+OXYLABS_PASSWORD=your_oxylabs_password

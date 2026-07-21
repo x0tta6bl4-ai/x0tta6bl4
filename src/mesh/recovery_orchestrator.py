@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -237,9 +238,15 @@ class MeshRecoveryOrchestrator:
         policy = evidence.policy_decision
         service_identity = evidence.service_identity
         service_identity_payload = service_identity.model_dump(mode="json")
+        thinking_context = self.last_thinking_context
+        if not isinstance(thinking_context, str):
+            try:
+                thinking_context = json.dumps(thinking_context, ensure_ascii=False, default=str)
+            except Exception:
+                thinking_context = str(type(thinking_context).__name__)
         return {
             "schema": MESH_RECOVERY_EVENTBUS_SCHEMA,
-            "recovery_evidence_schema": evidence.schema,
+            "recovery_evidence_schema": getattr(evidence, "schema_id", getattr(evidence, "schema", "")),
             "component": "src.mesh.recovery_orchestrator",
             "operation": "mesh_node_degradation_recovery",
             "service_name": MESH_RECOVERY_SOURCE_AGENT,
@@ -258,16 +265,12 @@ class MeshRecoveryOrchestrator:
             "incident_id": evidence.incident_id,
             "incident_key_redacted": True,
             "action": evidence.action,
+            "observed_state": True,
             "policy_allowed": policy.allowed,
             "cooldown_active": policy.cooldown_active,
-            "safe_mode_required": (
-                policy.safe_mode_required
-                or evidence.post_action_safe_mode_required
-            ),
+            "safe_mode_required": policy.safe_mode_required or evidence.post_action_safe_mode_required,
             "policy_safe_mode_required": policy.safe_mode_required,
-            "post_action_safe_mode_required": (
-                evidence.post_action_safe_mode_required
-            ),
+            "post_action_safe_mode_required": evidence.post_action_safe_mode_required,
             "execution_limit_checked": policy.execution_limit_checked,
             "escalation_required": evidence.escalation_required,
             "node_id_hash": evidence.node_id_hash,
@@ -279,7 +282,6 @@ class MeshRecoveryOrchestrator:
                 "wallet_address": service_identity.wallet_address_configured,
             },
             "service_identity": service_identity_payload,
-            "observed_state": True,
             "before": evidence.before.model_dump(mode="json"),
             "after": evidence.after.model_dump(mode="json"),
             "claim_gate": evidence.claim_gate.model_dump(mode="json"),
@@ -298,15 +300,17 @@ class MeshRecoveryOrchestrator:
                 if evidence.post_action_dataplane_revalidation is not None
                 else False
             ),
-            "customer_traffic_restored": (
-                evidence.claim_gate.customer_traffic_restored
-            ),
+            "customer_traffic_restored": evidence.claim_gate.customer_traffic_restored,
             "raw_values_redacted": evidence.raw_values_redacted,
             "raw_identifiers_redacted": True,
             "payloads_redacted": True,
             "claim_boundary": MESH_RECOVERY_CLAIM_BOUNDARY,
-            "thinking": self.thinking_coach.status(),
-            "last_thinking_context": self.last_thinking_context,
+            "thinking": (
+                str(self.thinking_coach.status())
+                if hasattr(self.thinking_coach, "status") and callable(self.thinking_coach.status)
+                else str(type(self.thinking_coach).__name__)
+            ),
+            "last_thinking_context": thinking_context,
         }
 
     def _dataplane_revalidation(

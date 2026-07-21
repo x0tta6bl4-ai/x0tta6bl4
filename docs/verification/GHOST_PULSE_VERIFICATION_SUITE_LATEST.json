@@ -4,12 +4,12 @@
     "local_evidence_sha256": "7dd9ba7e8ecfeae4ad1d4e49aec9a6ff3c2dbe12dff8d1adbffacc7ca19ddf72",
     "profile_matrix": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
     "profile_matrix_sha256": "9edf1d51a01c1141470e1c38e95bcdaf9978c24b3dba2699b0cb311f20d2466c",
-    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z/suite.json",
-    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z/summary.md",
+    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260703T210348Z/suite.json",
+    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260703T210348Z/summary.md",
     "suite_latest_json": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
     "suite_latest_md": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.md"
   },
-  "bundle": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z",
+  "bundle": "docs/verification/ghost-pulse-verification-suite-20260703T210348Z",
   "claim_boundary": {
     "kernel_attach_verified": false,
     "kernel_read_only_visible": false,
@@ -18,8 +18,12 @@
     "whitelist_verified": false
   },
   "claim_boundary_note": "This suite verifies bounded local evidence consistency only. It does not prove DPI evasion, provider whitelist behavior, kernel attach, or production readiness.",
-  "decision": "GHOST_PULSE_VERIFICATION_SUITE_VERIFIED_STEALTH_NOT_VERIFIED",
-  "failures": [],
+  "decision": "GHOST_PULSE_VERIFICATION_SUITE_INCOMPLETE",
+  "failures": [
+    "local_evidence_verifier did not pass",
+    "seed_replay_verifier did not pass",
+    "ghost_core_shell_syntax did not pass"
+  ],
   "gates": {
     "artifact_integrity": {
       "checks": {
@@ -118,14 +122,14 @@
         {
           "exists": true,
           "path": "src/network/transport/pulse_transport.py",
-          "sha256": "e492e6954dd769d650b7e3d4947c93ea80c8becab9b071d178456347eca7ddbc",
-          "size_bytes": 10533
+          "sha256": "dd855b2635821f53925770429ee0596d9c253b1c59cafcf5902591537807c1a5",
+          "size_bytes": 10813
         },
         {
           "exists": true,
           "path": "src/network/obfuscation/whitelist_mimicry.py",
-          "sha256": "14fed57c998a95c78bef2cab769d9fd61df70e570b5bb2ff25a2dc33c52d9681",
-          "size_bytes": 1925
+          "sha256": "68da7c6ed0c8ad55e15681a6ff6c1904d06ac720e3e5aa85cc14cfb05ad3b730",
+          "size_bytes": 1942
         },
         {
           "exists": true,
@@ -268,8 +272,8 @@
         {
           "exists": true,
           "path": "docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md",
-          "sha256": "d212ca6dd13d1a01235830d68418cc6c83c76ff37af709f46cf88fe62d629dcd",
-          "size_bytes": 25511
+          "sha256": "5a3b0266ac28cb78fdb1f3663e3d6a1de50ee61fe678bd182881e5ce22c5bb94",
+          "size_bytes": 719
         },
         {
           "exists": true,
@@ -407,16 +411,16 @@
           "ghost-core.sh"
         ],
         "available": true,
-        "returncode": 0,
-        "stderr": "",
+        "returncode": 127,
+        "stderr": "bash: ghost-core.sh: \u041d\u0435\u0442 \u0442\u0430\u043a\u043e\u0433\u043e \u0444\u0430\u0439\u043b\u0430 \u0438\u043b\u0438 \u043a\u0430\u0442\u0430\u043b\u043e\u0433\u0430\n",
         "stdout": ""
       },
-      "status": "PASS"
+      "status": "FAIL"
     },
     "incoming_gap_candidates_verifier": {
       "command": {
         "args": [
-          "/usr/bin/python3",
+          "/home/x0ttta6bl4/.hermes/hermes-agent/venv/bin/python3",
           "scripts/ops/verify_ghost_pulse_incoming_gap_candidates.py",
           "--report",
           "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.json",
@@ -432,22 +436,22 @@
     "local_evidence_verifier": {
       "command": {
         "args": [
-          "/usr/bin/python3",
+          "/home/x0ttta6bl4/.hermes/hermes-agent/venv/bin/python3",
           "scripts/ops/verify_ghost_pulse_local_evidence.py",
           "--evidence",
           "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json"
         ],
         "available": true,
-        "returncode": 0,
+        "returncode": 1,
         "stderr": "",
-        "stdout": "PASS: local x0tta6bl4_pulse evidence is bounded and internally consistent\nevidence=docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json\n"
+        "stdout": "FAIL\n- timing_plan_replay.sha256 does not match timing_plan_samples\n"
       },
-      "status": "PASS"
+      "status": "FAIL"
     },
     "profile_matrix_verifier": {
       "command": {
         "args": [
-          "/usr/bin/python3",
+          "/home/x0ttta6bl4/.hermes/hermes-agent/venv/bin/python3",
           "scripts/ops/verify_ghost_pulse_profile_matrix.py",
           "--evidence",
           "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json"
@@ -462,7 +466,7 @@
     "python_compile": {
       "command": {
         "args": [
-          "/usr/bin/python3",
+          "/home/x0ttta6bl4/.hermes/hermes-agent/venv/bin/python3",
           "-m",
           "py_compile",
           "src/network/transport/pulse_transport.py",
@@ -500,7 +504,7 @@
     "seed_replay_verifier": {
       "command": {
         "args": [
-          "/usr/bin/python3",
+          "/home/x0ttta6bl4/.hermes/hermes-agent/venv/bin/python3",
           "scripts/ops/verify_ghost_pulse_rng_replay.py",
           "--local-evidence",
           "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json",
@@ -508,11 +512,11 @@
           "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json"
         ],
         "available": true,
-        "returncode": 0,
+        "returncode": 1,
         "stderr": "",
-        "stdout": "PASS: x0tta6bl4_pulse seed replay digests match evidence artifacts\nchecked=docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json, docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json\n"
+        "stdout": "FAIL\n- docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json: local replay sha256 does not match seed replay\n- docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json: run 0: replay sha256 does not match seed replay\n- docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json: run 1: replay sha256 does not match seed replay\n- docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json: run 2: replay sha256 does not match seed replay\n- docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json: run 3: replay sha256 does not match seed replay\n"
       },
-      "status": "PASS"
+      "status": "FAIL"
     }
   },
   "schema": "x0tta6bl4.ghost_pulse.verification_suite.v1",
@@ -572,5 +576,5 @@
       "seed": 20260522
     }
   },
-  "timestamp_utc": "2026-05-25T04:45:07.029484+00:00"
+  "timestamp_utc": "2026-07-03T21:03:48.050265+00:00"
 }

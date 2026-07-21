@@ -13,9 +13,12 @@ Reassembly is keyed by (sys_id, comp_id, session_id).
 from __future__ import annotations
 
 import struct
+import time
 from typing import Dict, List, Optional, Tuple
 
 from .frame import MavlinkV2Frame
+
+_BUFFER_TTL_SECONDS = 300  # 5 minutes
 
 
 X0_CHUNK_MSG_ID = 50000          # x0CHUNK fragment
@@ -48,6 +51,8 @@ class X0Chunker:
         self._sys_id = sys_id
         self._comp_id = comp_id
         self._buffers: Dict[Tuple[int, int, int], Dict[int, bytes]] = {}
+        self._buffer_timestamps: Dict[Tuple[int, int, int], float] = {}
+        self._last_seq: Dict[Tuple[int, int, int], int] = {}
 
     def fragment(self, session_id: int, data: bytes) -> List[MavlinkV2Frame]:
         """Split *data* into x0CHUNK frames.
@@ -72,12 +77,24 @@ class X0Chunker:
             )
         return frames
 
+    def _evict_expired_buffers(self) -> None:
+        """Remove buffers older than _BUFFER_TTL_SECONDS."""
+        now = time.monotonic()
+        expired = [k for k, ts in self._buffer_timestamps.items()
+                   if now - ts > _BUFFER_TTL_SECONDS]
+        for k in expired:
+            self._buffers.pop(k, None)
+            self._buffer_timestamps.pop(k, None)
+            self._last_seq.pop(k, None)
+
     def process_chunk(self, frame: MavlinkV2Frame) -> Optional[bytes]:
         """Feed one incoming x0CHUNK frame.
 
         Returns the reassembled payload when all chunks for a session
         have arrived, otherwise *None*.
         """
+        self._evict_expired_buffers()
+
         if frame.msg_id != X0_CHUNK_MSG_ID:
             return None
         raw = frame.payload
@@ -90,13 +107,22 @@ class X0Chunker:
         data = raw[_CHUNK_HEADER_BYTES:]
 
         key = (frame.sys_id, frame.comp_id, session_id)
+
+        # Reject out-of-order chunks (seq must be >= last validated)
+        if key in self._last_seq and chunk_idx < self._last_seq[key]:
+            return None
+
         buf = self._buffers.setdefault(key, {})
         buf[chunk_idx] = data
+        self._buffer_timestamps[key] = time.monotonic()
+        self._last_seq[key] = chunk_idx
 
         if len(buf) == total_chunks:
             parts = [buf[i] for i in range(total_chunks) if i in buf]
             if len(parts) == total_chunks:
                 del self._buffers[key]
+                self._buffer_timestamps.pop(key, None)
+                self._last_seq.pop(key, None)
                 return b"".join(parts)
             return None
         return None

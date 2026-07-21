@@ -1,6 +1,6 @@
 # x0tta6bl4_pulse Artifact Chain
 
-Decision: `GHOST_PULSE_ARTIFACT_CHAIN_VERIFIED`
+Decision: `GHOST_PULSE_ARTIFACT_CHAIN_INCOMPLETE`
 
 ## Claim Boundary
 
@@ -12,8 +12,8 @@ Decision: `GHOST_PULSE_ARTIFACT_CHAIN_VERIFIED`
 
 ## Artifacts
 
-- chain_bundle_json: `docs/verification/ghost-pulse-artifact-chain-20260525T044547Z/chain.json`
-- chain_bundle_md: `docs/verification/ghost-pulse-artifact-chain-20260525T044547Z/summary.md`
+- chain_bundle_json: `docs/verification/ghost-pulse-artifact-chain-20260703T210127Z/chain.json`
+- chain_bundle_md: `docs/verification/ghost-pulse-artifact-chain-20260703T210127Z/summary.md`
 - chain_latest_json: `docs/verification/GHOST_PULSE_ARTIFACT_CHAIN_LATEST.json`
 - chain_latest_md: `docs/verification/GHOST_PULSE_ARTIFACT_CHAIN_LATEST.md`
 - external_evidence_intake: `docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json`
@@ -38,12 +38,20 @@ Decision: `GHOST_PULSE_ARTIFACT_CHAIN_VERIFIED`
 
 - external_evidence_intake_verifier: `PASS`
 - external_evidence_inventory_verifier: `PASS`
-- local_evidence_verifier: `PASS`
+- local_evidence_verifier: `FAIL`
 - profile_matrix_verifier: `PASS`
 - replacement_candidates_verifier: `PASS`
-- seed_replay_verifier: `PASS`
-- suite_self_verifier: `PASS`
+- seed_replay_verifier: `FAIL`
+- suite_self_verifier: `FAIL`
 
 ## Failures
 
-- None
+- local_evidence_verifier did not pass
+- seed_replay_verifier did not pass
+- suite_self_verifier did not pass
+- suite false_claim_scan target size_bytes mismatch: src/network/transport/pulse_transport.py
+- suite false_claim_scan target sha256 mismatch: src/network/transport/pulse_transport.py
+- suite false_claim_scan target size_bytes mismatch: src/network/obfuscation/whitelist_mimicry.py
+- suite false_claim_scan target sha256 mismatch: src/network/obfuscation/whitelist_mimicry.py
+- suite false_claim_scan target size_bytes mismatch: docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md
+- suite false_claim_scan target sha256 mismatch: docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md

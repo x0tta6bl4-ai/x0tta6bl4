@@ -1,0 +1,16 @@
+[Unit]
+Description=X0T Epoch Reward Scheduler
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/x0tta6bl4
+Environment=PYTHONPATH=/opt/x0tta6bl4
+EnvironmentFile=/opt/x0tta6bl4/.env
+ExecStart=/usr/bin/python3 src/dao/run_scheduler.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -23,10 +23,14 @@ mesh-operator/
 deploy_ghost/
 deployment/
 docker/
-
+ 
 # === ROOT COPIES OF EXISTING DEPLOY SUBS ===
-helm/
-k8s/
+/helm/
+/k8s/
+ 
+# === DEPLOY SECRET MATERIAL ===
+deploy/proxy/*.pem
+deploy/docker-compose/*.pem
 
 # === ONE-TIME / DEPRECATED SCRIPTS ===
 scripts/deprecated/
@@ -558,3 +562,6 @@ docs/pitch/
 docs/private/
 archive/docs_2025_and_earlier/
 docs/archive/root_artifacts_20260215/
+
+# Agent workspace (not project code)
+.hermes/

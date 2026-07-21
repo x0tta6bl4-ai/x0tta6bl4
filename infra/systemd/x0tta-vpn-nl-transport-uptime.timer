@@ -1,0 +1,14 @@
+[Unit]
+Description=Run outside-in NL VPN transport uptime probe
+Documentation=file:/mnt/projects/docs/runbooks/NL_VPN_HEALTH.md
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+RandomizedDelaySec=20s
+Persistent=true
+Unit=x0tta-vpn-nl-transport-uptime.service
+
+[Install]
+WantedBy=timers.target

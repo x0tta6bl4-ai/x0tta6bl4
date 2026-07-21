@@ -93,11 +93,26 @@ class Event:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
+        def _safe(value: Any) -> Any:
+            if value is None or isinstance(value, (bool, int, float, str)):
+                return value
+            if isinstance(value, (list, tuple, set)):
+                return [_safe(item) for item in value]
+            if isinstance(value, dict):
+                return {str(key): _safe(item) for key, item in value.items()}
+            if hasattr(value, "model_dump"):
+                return _safe(value.model_dump(mode="json"))
+            if hasattr(value, "dict"):
+                return _safe(value.dict())
+            if callable(value):
+                return f"<callable {getattr(value, '__name__', repr(value))}>"
+            return repr(value)
+
         return {
             "event_id": self.event_id,
             "event_type": self.event_type.value,
             "source_agent": self.source_agent,
-            "data": self.data,
+            "data": _safe(self.data),
             "timestamp": self.timestamp.isoformat(),
             "target_agents": list(self.target_agents) if self.target_agents else None,
             "priority": self.priority,

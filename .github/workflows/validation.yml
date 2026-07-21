@@ -1,0 +1,54 @@
+name: Validation Framework
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/ops/validation/**'
+      - 'validation/**'
+      - 'docs/architecture/BENCHMARK_SPEC.md'
+      - 'Makefile.validation'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/ops/validation/**'
+      - 'validation/**'
+
+jobs:
+  meta-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install hypothesis pytest
+      - name: Run meta-validation tests
+        run: make -f Makefile.validation meta-test
+
+  validate:
+    runs-on: ubuntu-latest
+    needs: meta-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install hypothesis pytest
+      - name: Run validation (N=30)
+        run: make -f Makefile.validation validate
+      - name: Check for FAIL
+        run: |
+          SUMMARY=$(find results/ -name "summary.json" -newer results/ -exec cat {} \; | head -1)
+          if echo "$SUMMARY" | grep -q '"FAIL"'; then
+            echo "Validation FAILED"
+            exit 1
+          fi
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-results
+          path: results/*/
+          retention-days: 30

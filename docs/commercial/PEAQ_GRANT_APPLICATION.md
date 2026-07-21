@@ -5,6 +5,7 @@
 
 ## Proposal
 I propose to integrate the **x0tta6bl4** post-quantum transport layer as an optional security module for the peaq ecosystem. As a solo developer with a proven track record in high-performance networking (eBPF/XDP), I have built a production-ready, post-quantum mesh protocol that is now live on Base Sepolia testnet.
+This grant document uses aspirational public-claim wording; it is not a verified current production claim.
 
 ## Value to peaq
 * **Security:** Protect peaq node telemetry against future quantum attacks using NIST hybrid standards.

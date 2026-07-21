@@ -1,0 +1,10 @@
+[Unit]
+Description=x0tta6bl4 healthcheck
+After=x0tta6bl4-node.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/x0tta6bl4/venv/bin/python /opt/x0tta6bl4/src/ops/healthcheck.py
+User=x0tta6bl4
+StandardOutput=journal
+StandardError=journal

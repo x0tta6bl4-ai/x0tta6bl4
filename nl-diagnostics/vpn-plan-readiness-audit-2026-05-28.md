@@ -1,22 +1,22 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-28T03:42:31.056483+00:00`
-overall_status: `ready_local_with_future_blocks`
-ok: `true`
+generated_at: `2026-07-02T13:55:16.115489+00:00`
+overall_status: `missing_evidence`
+ok: `false`
 
 ## Summary
 
 ```text
-ready_local=24
+ready_local=21
 blocked_future_approval=4
-watch=3
-missing=0
-decision=observe
-operator_status=observe
-boot_gap_watch_status=watch
-provider_packet_type=provider_watch
+watch=4
+missing=2
+decision=provider_ticket
+operator_status=provider_ticket
+boot_gap_watch_status=provider_ticket
+provider_packet_type=provider_ticket
 provider_packet_stale=False
-manual_failover_readiness_status=blocked_no_incident_trigger
+manual_failover_readiness_status=blocked_missing_secondary
 manual_failover_switch_allowed=False
 secondary_candidate_score_status=missing_candidates
 secondary_exit_requirements_status=requirements_ready_no_candidate
@@ -45,16 +45,16 @@ secondary_post_provision_validation_status=post_provision_validation_ready_waiti
 secondary_post_provision_can_generate_probe_config=False
 secondary_post_provision_can_run_public_probe=False
 secondary_post_provision_test_client_allowed=False
-local_diagnostic_environment_status=watch_root_full_tmpdir_available
-local_root_status=critical_full
+local_diagnostic_environment_status=ok
+local_root_status=ok
 local_tmpdir_writable=True
-local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.24
+local_root_cleanup_plan_status=no_cleanup_needed
+local_root_cleanup_estimated_reclaim_gib=1.46
 local_root_cleanup_execute_allowed=False
-local_root_cleanup_approval_packet_status=cleanup_approval_packet_ready
-local_root_cleanup_approval_required=True
+local_root_cleanup_approval_packet_status=cleanup_approval_packet_no_cleanup_needed
+local_root_cleanup_approval_required=False
 local_root_cleanup_commands_executed=0
-incident_symptom_intake_status=symptom_intake_ready_observe
+incident_symptom_intake_status=symptom_intake_ready_incident
 incident_symptom_required_fields=12
 incident_symptom_forbidden_material=12
 transport_probe_status=healthy
@@ -69,15 +69,15 @@ automatic_failover_allowed=false
 | ID | Status | Area | Next Step |
 |---|---|---|---|
 | `EVIDENCE-01` | `ready_local` | Latest read-only snapshot is the shared evidence anchor | collect a fresh read-only snapshot during the next visible outage |
-| `DECISION-01` | `ready_local` | Current decision blocks mutation and automatic profile changes | keep decision=observe unless a fresh snapshot changes the failure domain |
+| `DECISION-01` | `watch` | Current decision blocks mutation and automatic profile changes | keep decision=observe unless a fresh snapshot changes the failure domain |
 | `BOOT-01` | `watch` | Boot-gap provider signal is tracked separately from restart decisions | keep provider boot gap on watch while current transport remains healthy/advisory |
 | `PROVIDER-01` | `ready_local` | Provider packet is generated from the same read-only snapshot | use the packet for provider questions only when fresh evidence points to provider or host failure |
-| `EVIDENCE-02` | `ready_local` | Blocking/app probe history is available as trend evidence | use probes as app/path evidence, not as an x-ui restart trigger |
+| `EVIDENCE-02` | `watch` | Blocking/app probe history is available as trend evidence | use probes as app/path evidence, not as an x-ui restart trigger |
 | `REFRESH-01` | `ready_local` | One refresh command rebuilds the local planning reports | run refresh after every new snapshot before deciding on action |
-| `LOCALENV-01` | `watch` | Local diagnostic host has a writable project temp directory | keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval |
-| `LOCALCLEAN-01` | `watch` | Local root cleanup plan is prepared but execution is blocked | review local cleanup candidates and execute cleanup only after separate local approval |
+| `LOCALENV-01` | `ready_local` | Local diagnostic host has a writable project temp directory | keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval |
+| `LOCALCLEAN-01` | `ready_local` | Local root cleanup plan is prepared but execution is blocked | review local cleanup candidates and execute cleanup only after separate local approval |
 | `LOCALCLEAN-02` | `ready_local` | Local cleanup approval packet is prepared without executing commands | run only prechecks now; execute cleanup previews only after separate local cleanup approval |
-| `OPERATOR-01` | `ready_local` | Short incident card exists for the next outage | start incidents from the operator card, then collect fresh evidence |
+| `OPERATOR-01` | `watch` | Short incident card exists for the next outage | start incidents from the operator card, then collect fresh evidence |
 | `INCIDENT-01` | `ready_local` | Incident symptom intake is safe to use without collecting secrets | use this template for user-visible symptoms and reject any pasted VPN secrets |
 | `FAILOVER-03` | `blocked_future_approval` | Manual failover readiness gate blocks unsafe switching | keep manual switch blocked until a fresh incident trigger and healthy non-NL/non-SPB secondary exist |
 | `FAILOVER-05` | `ready_local` | Secondary candidate scorer is available before provider choice | score only public metadata for non-NL/non-SPB candidates before generating a probe config |
@@ -94,108 +94,108 @@ automatic_failover_allowed=false
 | `UPTIME-01` | `ready_local` | Outside-in NL TCP uptime history is recorded locally | if uptime history becomes watch, collect a fresh read-only snapshot and provider packet |
 | `SCHEDULER-01` | `ready_local` | Local uptime systemd timer templates are prepared but not installed | install/enable the local timer only after separate local host approval |
 | `SOURCE-01` | `ready_local` | NL source reconciliation is locally closed and deploy-blocked | keep services/nl-server as reviewed local source until a separate NL write approval exists |
-| `PREFLIGHT-01` | `ready_local` | Preflight validator passes while deploy remains blocked | run preflight again before any maintenance window |
+| `PREFLIGHT-01` | `missing` | Preflight validator passes while deploy remains blocked | run preflight again before any maintenance window |
 | `GATE-01` | `blocked_future_approval` | Future NL write is blocked until the exact approval phrase | do not stage files to NL before the exact approval phrase is given |
 | `SPB-01` | `ready_local` | SPB remains excluded from recovery | keep SPB disabled until it has its own explicit reactivation plan |
-| `FAILOVER-01` | `ready_local` | Manual failover is documented but inactive | keep failover manual-only and require fresh evidence before any client switch |
+| `FAILOVER-01` | `missing` | Manual failover is documented but inactive | keep failover manual-only and require fresh evidence before any client switch |
 | `FAILOVER-02` | `blocked_future_approval` | Secondary exit probe is only a safe template until a new node exists | choose a new non-NL/non-SPB provider/region before any emergency profile test |
 
 ## Evidence
 
 ### EVIDENCE-01
 
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z
-- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z
-- latest_snapshot=20260528T034120Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z
+- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z
+- latest_snapshot=20260702T135431Z
 - snapshot_exists=true
-- snapshot_age_seconds=71
+- snapshot_age_seconds=45
 - fresh=true
 
 ### DECISION-01
 
-- decision=observe
+- decision=provider_ticket
 - transport_status=healthy
-- failure_domain=external_network
+- failure_domain=provider_host
 - safe_flags=true
 
 ### BOOT-01
 
-- boot_gap_watch_status=watch
-- boot_gap_seconds=21907
-- provider_status=recent_boot_gap
+- boot_gap_watch_status=provider_ticket
+- boot_gap_seconds=15
+- provider_status=suspect_active
 - transport_status=healthy
 - safe_flags=true
 
 ### PROVIDER-01
 
-- provider_packet_type=provider_watch
+- provider_packet_type=provider_ticket
 - snapshot_stale=false
-- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z
+- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z
 - same_snapshot=true
 - safe_flags=true
 
 ### EVIDENCE-02
 
-- snapshot_count=11
-- trend=stable_no_probe_evidence
-- latest_probe_snapshot=20260528T034120Z
+- snapshot_count=22
+- trend=has_degradation
+- latest_probe_snapshot=20260702T135431Z
 - latest_targets_ok=8/8
 
 ### REFRESH-01
 
 - refresh_ok=true
-- operator_status=observe
-- manual_failover_status=planning_not_active
+- operator_status=provider_ticket
+- manual_failover_status=manual_failover_candidate
 - safe_flags=true
 
 ### LOCALENV-01
 
-- local_environment_status=watch_root_full_tmpdir_available
-- root_status=critical_full
-- root_used_percent=94.9
-- root_free_gib=0.0
-- tmp_status=critical_full
+- local_environment_status=ok
+- root_status=ok
+- root_used_percent=85.1
+- root_free_gib=10.39
+- tmp_status=ok
 - diagnostic_tmpdir=/mnt/projects/.tmp
 - diagnostic_tmpdir_writable=true
 - recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
-- cleanup_required=true
+- cleanup_required=false
 - safe_flags=true
 
 ### LOCALCLEAN-01
 
-- cleanup_plan_status=manual_cleanup_plan_ready
-- root_status=critical_full
-- root_free_gib=0.0
-- existing_candidate_count=5
-- estimated_reclaim_gib=3.24
-- top_candidate_id=APT-CACHE-01
+- cleanup_plan_status=no_cleanup_needed
+- root_status=ok
+- root_free_gib=10.39
+- existing_candidate_count=3
+- estimated_reclaim_gib=1.46
+- top_candidate_id=JOURNAL-01
 - cleanup_execute_allowed=false
 - safe_flags=true
 
 ### LOCALCLEAN-02
 
-- cleanup_approval_packet_status=cleanup_approval_packet_ready
+- cleanup_approval_packet_status=cleanup_approval_packet_no_cleanup_needed
 - first_review_id=APT-CACHE-01
-- command_preview_count=5
-- approval_required=true
+- command_preview_count=3
+- approval_required=false
 - commands_executed=0
 - cleanup_execute_allowed=false
 - safe_flags=true
 
 ### OPERATOR-01
 
-- operator_status=observe
-- plain_action=VPN core is healthy. Do not restart NL; collect fresh evidence during the next visible outage.
-- blocking_history_trend=stable_no_probe_evidence
+- operator_status=provider_ticket
+- plain_action=Build a provider packet; do not hide provider symptoms with restarts.
+- blocking_history_trend=has_degradation
 - safe_flags=true
 
 ### INCIDENT-01
 
-- incident_symptom_intake_status=symptom_intake_ready_observe
-- decision=observe
-- operator_status=observe
-- failure_domain=external_network
+- incident_symptom_intake_status=symptom_intake_ready_incident
+- decision=provider_ticket
+- operator_status=provider_ticket
+- failure_domain=provider_host
 - transport_status=healthy
 - required_field_count=12
 - forbidden_material_count=12
@@ -203,7 +203,7 @@ automatic_failover_allowed=false
 
 ### FAILOVER-03
 
-- manual_failover_readiness_status=blocked_no_incident_trigger
+- manual_failover_readiness_status=blocked_missing_secondary
 - manual_probe_allowed=false
 - manual_switch_allowed=false
 - secondary_probe_status=planning_template
@@ -322,7 +322,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=24
+- sample_count=31
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true
@@ -345,7 +345,7 @@ automatic_failover_allowed=false
 
 ### PREFLIGHT-01
 
-- preflight_ok=true
+- preflight_ok=false
 - deploy_status=local_ready_but_deploy_blocked
 - nl_write_allowed=false
 - check_count=70
@@ -368,7 +368,7 @@ automatic_failover_allowed=false
 
 ### FAILOVER-01
 
-- manual_failover_status=planning_not_active
+- manual_failover_status=manual_failover_candidate
 - spb_fallback_allowed=false
 - automatic_failover_allowed=false
 - safe_flags=true

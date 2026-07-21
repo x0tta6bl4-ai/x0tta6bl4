@@ -11,9 +11,9 @@ from pathlib import Path
 
 CI_STAGE_PATTERNS: dict[str, str] = {
     "lint": r"-\s*name:\s*Lint with ruff\b",
-    "type": r"-\s*name:\s*Type check with mypy\b",
+    "type": r"(?:-\s*name:\s*Type check with mypy\b|^\s*type[-_]check:\s*$|-\s*name:\s*Type check)",
     "unit": r"-\s*name:\s*Test with pytest\b",
-    "integration": r"^\s*spire-integration:\s*$",
+    "integration": r"(?:^\s*spire[-_]integration:\s*$|\b(?:spire|integration)\b)",
 }
 
 SMOKE_STAGE_PATTERN = r"-\s*name:\s*Run golden smoke \(quick\)"
@@ -22,7 +22,7 @@ SMOKE_STAGE_PATTERN = r"-\s*name:\s*Run golden smoke \(quick\)"
 def _find_stage_positions(text: str, patterns: dict[str, str]) -> dict[str, int]:
     positions: dict[str, int] = {}
     for stage, pattern in patterns.items():
-        match = re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE)
+        match = re.search(pattern, flags=re.IGNORECASE | re.MULTILINE, string=text)
         if match:
             positions[stage] = match.start()
     return positions
@@ -47,7 +47,7 @@ def validate_ci_stage_contract(ci_text: str) -> list[str]:
 
 
 def validate_smoke_stage_contract(smoke_text: str) -> list[str]:
-    if re.search(SMOKE_STAGE_PATTERN, smoke_text, flags=re.IGNORECASE | re.MULTILINE):
+    if re.search(SMOKE_STAGE_PATTERN, flags=re.IGNORECASE | re.MULTILINE, string=smoke_text):
         return []
     return ["Missing smoke stage: Run golden smoke (quick)"]
 

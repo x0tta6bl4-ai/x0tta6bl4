@@ -1,8 +1,8 @@
 # x0tta6bl4_pulse Verification Suite
 
-Timestamp: `2026-05-25T04:45:07.029484+00:00`
+Timestamp: `2026-07-03T21:03:48.050265+00:00`
 
-Decision: `GHOST_PULSE_VERIFICATION_SUITE_VERIFIED_STEALTH_NOT_VERIFIED`
+Decision: `GHOST_PULSE_VERIFICATION_SUITE_INCOMPLETE`
 
 ## Suite Scope
 
@@ -34,15 +34,17 @@ Decision: `GHOST_PULSE_VERIFICATION_SUITE_VERIFIED_STEALTH_NOT_VERIFIED`
 
 | Gate | Status |
 | --- | --- |
-| local_evidence_verifier | `PASS` |
+| local_evidence_verifier | `FAIL` |
 | profile_matrix_verifier | `PASS` |
-| seed_replay_verifier | `PASS` |
+| seed_replay_verifier | `FAIL` |
 | python_compile | `PASS` |
-| ghost_core_shell_syntax | `PASS` |
+| ghost_core_shell_syntax | `FAIL` |
 | false_claim_scan | `PASS` |
 | artifact_integrity | `PASS` |
 | incoming_gap_candidates_verifier | `PASS` |
 
 ## Failures
 
-- None
+- local_evidence_verifier did not pass
+- seed_replay_verifier did not pass
+- ghost_core_shell_syntax did not pass

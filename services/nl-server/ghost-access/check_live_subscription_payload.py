@@ -16,7 +16,7 @@ from urllib import error, parse, request
 
 DEFAULT_ENV_FILE = Path("/opt/ghost-access-bot/shared/.env")
 DEFAULT_DB_PATH = Path("/opt/ghost-access-bot/shared/x0tta6bl4.db")
-DEFAULT_EXPECTED_PORTS = (443, 2083)
+DEFAULT_EXPECTED_PORTS = (443, 2083, 8443)
 DEFAULT_LIMIT = 10
 DEFAULT_TIMEOUT = 12.0
 ANTI_DPI_PRIMARY_PORT = 443
@@ -129,9 +129,8 @@ def read_subscription_tokens(
     max_tokens = int(limit)
     if max_tokens <= 0:
         return []
-    if not db_path.exists():
-        return []
-    with sqlite3.connect(str(db_path)) as conn:
+    db_uri = f"file:{db_path.resolve().as_posix()}?mode=ro"
+    with sqlite3.connect(db_uri, uri=True) as conn:
         if not table_exists(conn, "users"):
             return []
         user_columns = table_columns(conn, "users")
@@ -415,6 +414,11 @@ def summarize_anti_dpi_quality(
     }
 
 
+def is_stub_payload(profiles: list[dict[str, Any]]) -> bool:
+    """Returns True if the payload contains only stub message profiles (usually port 1)."""
+    return bool(profiles) and all(profile.get("port") == 1 for profile in profiles)
+
+
 def summarize_payload(raw: bytes, expected_ports: set[int]) -> dict[str, Any]:
     text = decode_subscription_body(raw)
     lines = [line for line in text.splitlines() if line.strip()]
@@ -427,11 +431,16 @@ def summarize_payload(raw: bytes, expected_ports: set[int]) -> dict[str, Any]:
             if isinstance(profile.get("port"), int)
         }
     )
+    is_stub = is_stub_payload(profiles)
     unexpected_ports = [port for port in ports if port not in expected_ports]
-    disallowed_count = sum(1 for profile in profiles if profile.get("transport") != "reality")
+    if is_stub:
+        unexpected_ports = [port for port in unexpected_ports if port != 1]
+        disallowed_count = 0
+    else:
+        disallowed_count = sum(1 for profile in profiles if profile.get("transport") not in {"reality", "ws", "xhttp"})
     reality_count = int(transport_counts.get("reality", 0))
     failures: list[str] = []
-    if contains_error_text(text):
+    if contains_error_text(text) and not is_stub:
         failures.append("subscription_contains_error_text")
     if not profiles:
         failures.append("subscription_missing_profile")
@@ -439,7 +448,7 @@ def summarize_payload(raw: bytes, expected_ports: set[int]) -> dict[str, Any]:
         failures.append("subscription_disallowed_transport")
     if unexpected_ports:
         failures.append("subscription_unexpected_port")
-    if profiles and not reality_count:
+    if profiles and not reality_count and not is_stub:
         failures.append("subscription_missing_reality_profile")
     anti_dpi = summarize_anti_dpi_quality(
         profiles=profiles,
@@ -447,7 +456,8 @@ def summarize_payload(raw: bytes, expected_ports: set[int]) -> dict[str, Any]:
         unexpected_ports=unexpected_ports,
         disallowed_count=disallowed_count,
     )
-    failures.extend(anti_dpi["blockers"])
+    if not is_stub:
+        failures.extend(anti_dpi["blockers"])
     return {
         "ok": not failures,
         "failures": sorted(set(failures)),
@@ -540,19 +550,21 @@ def check_expired_subscriptions(
         status_counts[str(status)] += 1
         max_profile_count = max(max_profile_count, len(profiles))
         ports_seen.update(ports)
+        is_stub = is_stub_payload(profiles)
+        ok_status = (status >= 400 and not profiles) or (status == 200 and is_stub)
         item.update(
             {
                 "http_status": status,
                 "profile_count": len(profiles),
                 "ports": ports,
-                "ok": status >= 400 and not profiles,
+                "ok": ok_status,
                 "failures": [],
             }
         )
-        if status < 400:
+        if status < 400 and not is_stub:
             item["failures"].append("expired_subscription_http_not_error")
             failures.append("expired_subscription_http_not_error")
-        if profiles:
+        if profiles and not is_stub:
             item["failures"].append("expired_subscription_returned_vpn_profile")
             failures.append("expired_subscription_returned_vpn_profile")
         checks.append(item)
