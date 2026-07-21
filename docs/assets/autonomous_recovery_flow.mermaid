@@ -1,0 +1,20 @@
+sequenceDiagram
+    autonumber
+    participant NodeA as Mesh Node A
+    participant eBPF as eBPF/XDP Hook
+    participant MAPEK as MAPE-K Controller
+    participant GNN as GraphSAGE Anomaly Detector
+    participant NodeB as Mesh Node B
+
+    NodeA->>eBPF: Send Encrypted Packet (PQC ML-KEM)
+    eBPF->>eBPF: Filter Packet (6.66 ns decision)
+    eBPF->>NodeB: Forward via Primary Transit Link
+    Note over NodeB: Simulated Link Drop (Packet Loss = 100%)
+    NodeA->>MAPEK: Telemetry Event (Latency Spike > 500ms)
+    MAPEK->>GNN: Classify Metric Anomaly
+    GNN-->>MAPEK: Anomaly Confirmed (CRITICAL_LINK_DEGRADATION)
+    MAPEK->>MAPEK: Compute Alternative Route Policy
+    MAPEK->>eBPF: Update eBPF Routing Table & WireGuard Endpoint
+    NodeA->>eBPF: Send Traffic over Backup Route
+    eBPF->>NodeB: Forward via Secondary Transit Link
+    Note over MAPEK: Validation Framework Check: 100% Invariants PASS
