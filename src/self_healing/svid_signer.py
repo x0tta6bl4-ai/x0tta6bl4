@@ -183,9 +183,11 @@ class SVIDSigner:
                 elif self._known_peers is not None:
                     logger.warning("SVID sign: no key for %s", signer_id[:20])
                     return False
+                elif signer_id == self.spiffe_id:
+                    expected_key = self._signing_key
                 else:
-                    # Dev mode default key derived deterministically for signer_id
-                    expected_key = hashlib.sha256(signer_id.encode("utf-8")).digest()
+                    logger.warning("SVID sign: no peers registered, cannot verify %s", signer_id[:20])
+                    return False
 
                 expected = hmac.new(expected_key, canonical, hashlib.sha256).hexdigest()
                 return hmac.compare_digest(expected, str(sig))
