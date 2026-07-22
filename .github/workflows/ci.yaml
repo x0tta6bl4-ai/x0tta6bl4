@@ -24,7 +24,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq librsync-dev
+          sudo apt-get install -y -qq librsync-dev gettext
 
       - name: Install dependencies
         run: |
