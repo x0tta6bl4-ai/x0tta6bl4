@@ -89,7 +89,9 @@
     "docs/architecture/m2_operational_spec.md",
     "docs/architecture/mesh_scaling_experiments.md",
     "docs/architecture/pqc_release_criteria_v1.0.md",
-    "scripts/run_experiment_e002_partition_merge.py"
+    "scripts/run_experiment_e002_partition_merge.py",
+    "SECURITY.md",
+    "docs/outreach/"
   ],
   "agents": {
     "agent1-ml-core": {
