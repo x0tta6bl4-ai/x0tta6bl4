@@ -9,11 +9,14 @@ Usage:
 
 from __future__ import annotations
 
-import hashlib
-from typing import Any
-
 from src.security.pqc.adapter import is_liboqs_available
-from src.security.pqc import get_pqc_key_exchange, get_pqc_digital_signature
+from src.security.pqc.compat import (
+    PQCDigitalSignature,
+    PQCKeyExchange,
+    get_pqc_digital_signature,
+    get_pqc_key_exchange,
+)
+from src.security.pqc.types import PQCEncapsulationResult, PQCKeyPair
 
 __all__ = ["PQC"]
 
@@ -30,11 +33,11 @@ class PQC:
     def __init__(self, algorithm: str = "ML-KEM-768") -> None:
         self.available = is_liboqs_available()
         self.algorithm = algorithm or self.ALGORITHM
-        self._kem = None
-        self._dsa = None
+        self._kem: PQCKeyExchange | None = None
+        self._dsa: PQCDigitalSignature | None = None
 
     @property
-    def kem(self) -> Any:
+    def kem(self) -> PQCKeyExchange:
         if self._kem is None:
             if not self.available:
                 raise RuntimeError("PQC not available - liboqs missing")
@@ -42,7 +45,7 @@ class PQC:
         return self._kem
 
     @property
-    def dsa(self) -> Any:
+    def dsa(self) -> PQCDigitalSignature:
         if self._dsa is None:
             if not self.available:
                 raise RuntimeError("PQC not available - liboqs missing")
@@ -51,28 +54,25 @@ class PQC:
 
     def generate_keypair(self) -> tuple[bytes, bytes]:
         kp = self.kem.generate_keypair()
-        if hasattr(kp, "public_key") and hasattr(kp, "secret_key"):
+        if isinstance(kp, PQCKeyPair):
             return (kp.public_key, kp.secret_key)
         return kp
 
     def encapsulate(self, public_key: bytes) -> tuple[bytes, bytes]:
         res = self.kem.encapsulate(public_key)
-        if hasattr(res, "ciphertext") and hasattr(res, "shared_secret"):
+        if isinstance(res, PQCEncapsulationResult):
             return (res.shared_secret, res.ciphertext)
-        if isinstance(res, tuple) and len(res) == 2:
-            a, b = res
-            if len(a) > len(b):
-                return (b, a)
-            return (a, b)
-        return res
+        # PQCKeyExchange.encapsulate returns (ciphertext, shared_secret).
+        # Legacy PQC interface contract expects (shared_secret, ciphertext).
+        ciphertext, shared_secret = res
+        return (shared_secret, ciphertext)
 
-    def decapsulate(self, ciphertext: bytes, secret_key: bytes) -> bytes:
-        if len(ciphertext) > len(secret_key):
-            ciphertext, secret_key = secret_key, ciphertext
-        try:
-            return self.kem.decapsulate(secret_key, ciphertext)
-        except (TypeError, ValueError, Exception):
-            return self.kem.decapsulate(ciphertext, secret_key)
+    def decapsulate(self, ciphertext: bytes, secret_key: bytes | PQCKeyPair) -> bytes:
+        # Normalize PQCKeyPair object if supplied instead of raw secret key bytes
+        if isinstance(secret_key, PQCKeyPair):
+            secret_key = secret_key.secret_key
+        # PQCKeyExchange.decapsulate expects (secret_key, ciphertext)
+        return self.kem.decapsulate(secret_key, ciphertext)
 
     def sign(self, message: bytes, secret_key: bytes) -> bytes:
         return self.dsa.sign(message, secret_key)
