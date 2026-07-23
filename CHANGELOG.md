@@ -5,6 +5,22 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 и этот проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [3.6.0] - 2026-07-23
+
+### Added
+- **Prometheus Metrics (#170)**: All mesh metrics renamed with `x0tta6bl4_mesh_` prefix. New `x0tta6bl4_mesh_uptime_seconds` gauge. `docker-compose.override.yml` with Prometheus sidecar.
+- **Docker Compose Healthchecks (#168)**: Healthcheck for `mesh-node`, `mesh-node-2`, `node-nl-bridge` using `python3 urllib`. `mesh-node-2` depends on `mesh-node: service_healthy`.
+- **API Quickstart (#167)**: `docs/api/QUICKSTART.md` with 10 endpoint examples (curl + Python + JSON).
+- **MAPE-K Integration Tests (#169)**: 12 tests covering full detect → analyze → plan → execute → verify cycle.
+- **README Rewrite**: 4-question format (What/Run/See/Stop).
+- **Demo Assets**: HTML terminals, capture script, API examples for GIF generation.
+- **Blind Launch Test**: New developer sees Validation PASS within 12 minutes.
+- **Architecture Docs**: ADR-001 PQC Facade, invariant evidence matrix, M2 operational spec.
+- **Mesh Scaling Experiments**: Scripts for partition merge testing.
+
+### Changed
+- **Swarm Ownership**: Updated `shared_allow` with new directories and scripts.
+
 ## [3.5.0] - 2026-07-23
 
 ### Added
