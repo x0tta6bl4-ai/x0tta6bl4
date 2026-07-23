@@ -191,6 +191,9 @@ markers = [
     "mesh: mesh network tests",
     "api: api tests",
     "performance: wall-clock timing assertions; scale thresholds via CI_LATENCY_FACTOR env var",
+    "prometheus_unavailable: skipped when prometheus_client is mocked in conftest",
+    "isinstance_mock: skipped when isinstance() fails due to mocked prometheus types",
+    "opentelemetry_conflict: skipped when opentelemetry monkeypatch breaks dataclasses",
 ]
 filterwarnings = [
     "error",
