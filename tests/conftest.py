@@ -67,7 +67,7 @@ _prom.Histogram = lambda *a, **kw: types.SimpleNamespace(
     observe=lambda v: None, labels=lambda **kw: types.SimpleNamespace(observe=lambda v: None)
 )
 _prom.Summary = lambda *a, **kw: types.SimpleNamespace(observe=lambda v: None)
-_prom.generate_latest = lambda: b""
+_prom.generate_latest = lambda *a, **kw: b""  # noqa: E731 — simple mock fallback
 _prom.CONTENT_TYPE_LATEST = "text/plain"
 _prom.REGISTRY = types.SimpleNamespace(_names_to_collectors={})
 _prom.start_http_server = lambda *a, **kw: None
