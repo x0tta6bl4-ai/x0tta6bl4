@@ -191,7 +191,14 @@ def _patch_otel(monkeypatch):
     return fake_trace, set_global_calls, detach_calls
 
 
-@pytest.mark.skipif(True, reason="Pre-existing: monkeypatch breaks dataclasses")
+try:
+    import opentelemetry
+    OPENTELEMETRY_AVAILABLE = True
+except ImportError:
+    OPENTELEMETRY_AVAILABLE = False
+
+
+@pytest.mark.skipif(True, reason="Pre-existing: monkeypatch of sys.modules breaks dataclasses module resolution")
 @pytest.mark.opentelemetry_conflict
 def test_module_import_success_path_with_fake_opentelemetry(monkeypatch):
     def _ensure_module(name: str):

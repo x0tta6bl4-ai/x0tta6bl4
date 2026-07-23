@@ -99,6 +99,16 @@ dev = [
     "virtualenv>=20.36.1",
     "wheel>=0.46.2",
 ]
+# OpenTelemetry tracing (optional - tests skip if not installed)
+tracing = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
+    "opentelemetry-exporter-jaeger-proto-grpc>=1.20.0",
+    "opentelemetry-exporter-zipkin-json>=1.20.0",
+    "opentelemetry-instrumentation-fastapi>=0.41b0",
+    "opentelemetry-instrumentation-httpx>=0.41b0",
+]
 
 # Dependencies for Machine Learning models and tasks
 ml = [
