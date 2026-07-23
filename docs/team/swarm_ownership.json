@@ -88,7 +88,8 @@
     "docs/architecture/invariant_evidence_matrix.md",
     "docs/architecture/m2_operational_spec.md",
     "docs/architecture/mesh_scaling_experiments.md",
-    "docs/architecture/pqc_release_criteria_v1.0.md"
+    "docs/architecture/pqc_release_criteria_v1.0.md",
+    "scripts/run_experiment_e002_partition_merge.py"
   ],
   "agents": {
     "agent1-ml-core": {
@@ -438,7 +439,8 @@
         "plans/ТЕХНИЧЕСКОЕ_ЗАДАНИЕ_НИОКР.md",
         "scripts/demo_autonomous_self_healing_mesh.py",
         "scripts/replicate_m2_environment.sh",
-        "scripts/run_m2_operational_validation.py",
+    "scripts/run_m2_operational_validation.py",
+    "scripts/run_experiment_e002_partition_merge.py",
         "config/crdt_sync.yaml",
         "config/raft_production.yaml",
         "config/recovery_actions.yaml",
