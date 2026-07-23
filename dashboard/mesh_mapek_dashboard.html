@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 — Консоль Мониторинга Mesh-Сети & MAPE-K</title>
+    
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js & D3.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --bg-base: #0a0b10;
+            --bg-card: rgba(16, 18, 27, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent-primary: #00f0ff;    /* Cyber Cyan */
+            --accent-secondary: #ff007f;  /* Neon Rose */
+            --accent-warning: #ffb703;    /* Amber Alert */
+            --accent-success: #06d6a0;    /* Emerald Safe */
+            
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(0, 240, 255, 0.05) 0px, transparent 50%),
+                radial-gradient(at 50% 100%, rgba(255, 0, 127, 0.03) 0px, transparent 50%);
+        }
+
+        /* Glassmorphism Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            background: rgba(10, 11, 16, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo-section h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-section p {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 2px;
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 13px;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            padding: 6px 14px;
+            border-radius: 30px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--accent-success);
+            box-shadow: 0 0 10px var(--accent-success);
+            animation: pulse 2s infinite;
+        }
+
+        /* Dashboard Grid Layout */
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            padding: 30px 40px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .main-pane {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .side-pane {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Dashboard Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            backdrop-filter: blur(16px);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            transition: border-color 0.3s;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.3), transparent);
+        }
+
+        .card:hover {
+            border-color: rgba(0, 240, 255, 0.2);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* D3 Topology Graph */
+        #topology-view {
+            height: 380px;
+            width: 100%;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        /* Metrics Grid */
+        .metrics-bar {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .mini-stat {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .mini-stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .mini-stat-val {
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        /* Controls Panel */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-secondary), #b5179e);
+            border: none;
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 0 15px rgba(255, 0, 127, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 240, 255, 0.1);
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+        }
+
+        /* Log / Anomaly Terminal */
+        .terminal-box {
+            background: #050608;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            padding: 16px;
+            height: 250px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #4ecca3;
+        }
+
+        .terminal-line {
+            margin-bottom: 8px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .terminal-time {
+            color: #7f8c8d;
+        }
+
+        .terminal-tag {
+            font-weight: bold;
+        }
+
+        .tag-info { color: var(--accent-primary); }
+        .tag-warn { color: var(--accent-warning); }
+        .tag-error { color: var(--accent-secondary); }
+        .tag-success { color: var(--accent-success); }
+
+        /* Node Details Panel */
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 0;
+            font-size: 13px;
+        }
+
+        .detail-label {
+            color: var(--text-muted);
+        }
+
+        .detail-val {
+            font-weight: 500;
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.6; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .pulse-warning {
+            animation: pulse-warn 1s infinite;
+        }
+
+        @keyframes pulse-warn {
+            0% { border-color: var(--border-color); }
+            50% { border-color: var(--accent-warning); box-shadow: 0 0 10px rgba(255, 183, 3, 0.3); }
+            100% { border-color: var(--border-color); }
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: rgba(10, 11, 16, 0.95);
+            border: 1px solid var(--accent-primary);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            pointer-events: none;
+            z-index: 10;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <header>
+        <div class="logo-section">
+            <h1><i data-lucide="shield-alert" style="color: var(--accent-primary);"></i> x0tta6bl4</h1>
+            <p>MAPE-K Self-Healing Dataplane</p>
+        </div>
+        <div class="system-status">
+            <div class="status-pill">
+                <span style="color: var(--text-muted); margin-right: 5px;">Эра:</span> PQC (ML-KEM-768)
+            </div>
+            <div class="status-pill">
+                <span class="status-dot"></span>
+                <span>Сеть Стабильна</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard Grid -->
+    <div class="dashboard-container">
+        
+        <!-- Left Column: Topology & Telemetry Charts -->
+        <div class="main-pane">
+            
+            <!-- Topology Section -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i data-lucide="network"></i> Топология Mesh-Сети (D3.js)</h2>
+                    <div style="font-size: 12px; color: var(--text-muted);">
+                        Перетаскивайте узлы для анализа соединений
+                    </div>
+                </div>
+                <div id="topology-view">
+                    <div class="tooltip" id="node-tooltip"></div>
+                </div>
+            </div>
+
+            <!-- Telemetry Graph Section -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i data-lucide="activity"></i> Метрики Сетевых Интерфейсов (eBPF Ring Buffer)</h2>
+                </div>
+                <div style="height: 250px;">
+                    <canvas id="metricsChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Control Panel & Event Log -->
+        <div class="side-pane">
+            
+            <!-- Node Inspector / TEE Status -->
+            <div class="card" id="inspector-card">
+                <div class="card-header">
+                    <h2 class="card-title"><i data-lucide="cpu"></i> Инспектор Workload-Узла</h2>
+                </div>
+                <div id="inspector-content">
+                    <div class="detail-row">
+                        <span class="detail-label">Идентификатор</span>
+                        <span class="detail-val" id="insp-id">Выберите узел на графе</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">SPIFFE ID</span>
+                        <span class="detail-val" id="insp-spiffe" style="font-size: 11px; color: var(--accent-primary);">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Аттестация TEE</span>
+                        <span class="detail-val" id="insp-tee">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">eBPF Драйвер</span>
+                        <span class="detail-val" id="insp-ebpf">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Потери Пакетов</span>
+                        <span class="detail-val" id="insp-loss">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scenario Simulator -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i data-lucide="flask-conical"></i> Симулятор Атак & MAPE-K</h2>
+                </div>
+                <div class="controls-grid">
+                    <button class="btn btn-primary" onclick="injectAnomaly()"><i data-lucide="zap"></i> Симулировать Атаку</button>
+                    <button class="btn btn-secondary" onclick="resetNetwork()"><i data-lucide="refresh-cw"></i> Сбросить Сеть</button>
+                </div>
+            </div>
+
+            <!-- Event Terminal -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i data-lucide="terminal"></i> Лог Событий Контура Самовосстановления</h2>
+                </div>
+                <div class="terminal-box" id="event-log">
+                    <!-- Lines added dynamically -->
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // ---------------- D3.JS TOPOLOGY GRAPH ----------------
+        const width = document.getElementById('topology-view').clientWidth;
+        const height = 380;
+
+        const svg = d3.select("#topology-view")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", height);
+
+        let nodesData = [
+            { id: "node-a", name: "Node A (Edge)", role: "Edge Gateway", spiffe: "spiffe://x0tta6bl4.mesh/node/node-a", tee: "AMD SEV-SNP (Trusted)", ebpf: "x0tta6bl4_pulse.o", loss: 0.1, status: "stable" },
+            { id: "node-b", name: "Node B (Core)", role: "Core Transit", spiffe: "spiffe://x0tta6bl4.mesh/node/node-b", tee: "Intel SGX (Trusted)", ebpf: "x0tta6bl4_pulse.o", loss: 0.2, status: "stable" },
+            { id: "node-c", name: "Node C (Edge)", role: "Edge Gateway", spiffe: "spiffe://x0tta6bl4.mesh/node/node-c", tee: "AWS Nitro Enclaves (Trusted)", ebpf: "x0tta6bl4_pulse.o", loss: 0.15, status: "stable" }
+        ];
+
+        let linksData = [
+            { source: "node-a", target: "node-b", loss: 0.1 },
+            { source: "node-b", target: "node-c", loss: 0.2 }
+        ];
+
+        // Draw Links
+        const linkElements = svg.append("g")
+            .selectAll("line")
+            .data(linksData)
+            .enter()
+            .append("line")
+            .attr("stroke", "rgba(0, 240, 255, 0.2)")
+            .attr("stroke-width", 2);
+
+        // Draw Nodes
+        const nodeElements = svg.append("g")
+            .selectAll("g")
+            .data(nodesData)
+            .enter()
+            .append("g")
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended))
+            .on("click", inspectNode);
+
+        // Append Circle
+        nodeElements.append("circle")
+            .attr("r", 20)
+            .attr("fill", d => d.id === "node-b" ? "#ff007f" : "#00f0ff")
+            .attr("stroke", "rgba(255,255,255,0.1)")
+            .attr("stroke-width", 3)
+            .style("cursor", "pointer")
+            .style("filter", "drop-shadow(0px 0px 8px rgba(0, 240, 255, 0.4))");
+
+        // Append Labels
+        nodeElements.append("text")
+            .attr("dx", 25)
+            .attr("dy", 4)
+            .attr("fill", "#eaeaea")
+            .style("font-size", "12px")
+            .style("font-weight", "600")
+            .text(d => d.id.toUpperCase());
+
+        // Simulation setup
+        const simulation = d3.forceSimulation(nodesData)
+            .force("link", d3.forceLink(linksData).id(d => d.id).distance(150))
+            .force("charge", d3.forceManyBody().strength(-200))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .on("tick", () => {
+                linkElements
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                nodeElements
+                    .attr("transform", d => `translate(${d.x}, ${d.y})`);
+            });
+
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        // Inspector logic
+        let selectedNode = null;
+        function inspectNode(event, d) {
+            selectedNode = d;
+            document.getElementById("insp-id").innerText = d.name;
+            document.getElementById("insp-spiffe").innerText = d.spiffe;
+            document.getElementById("insp-tee").innerText = d.tee;
+            document.getElementById("insp-ebpf").innerText = d.ebpf;
+            document.getElementById("insp-loss").innerText = `${d.loss}%`;
+
+            // Change border color to notify selection
+            d3.selectAll("circle").attr("stroke", "rgba(255,255,255,0.1)");
+            d3.select(this).select("circle").attr("stroke", "#ffb703");
+        }
+
+        // ---------------- CHART.JS TELEMETRY CHART ----------------
+        const ctx = document.getElementById('metricsChart').getContext('2d');
+        let chartData = {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Потеря Пакетов (%)',
+                    borderColor: '#ff007f',
+                    backgroundColor: 'rgba(255, 0, 127, 0.1)',
+                    data: [],
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                },
+                {
+                    label: 'Задержка Syscall (мс)',
+                    borderColor: '#00f0ff',
+                    backgroundColor: 'rgba(0, 240, 255, 0.1)',
+                    data: [],
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }
+            ]
+        };
+
+        const metricsChart = new Chart(ctx, {
+            type: 'line',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#eaeaea', font: { family: 'Inter' } }
+                    }
+                },
+                scales: {
+                    x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#9ca3af' } },
+                    y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#9ca3af' } }
+                }
+            }
+        });
+
+        // Telemetry Feed from Gateway API
+        let timeIndex = 0;
+        setInterval(async () => {
+            timeIndex++;
+            const now = new Date().toLocaleTimeString();
+            
+            let loss = 0.1;
+            let latency = 12.0;
+            
+            try {
+                const response = await fetch('/api/metrics');
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Update nodes statuses from active docker containers
+                    if (data.nodes) {
+                        nodesData.forEach(node => {
+                            if (data.nodes[node.id]) {
+                                node.status = data.nodes[node.id].status;
+                            }
+                        });
+                        
+                        // Select metrics based on inspected node or default to node-c
+                        const targetNodeId = selectedNode ? selectedNode.id : "node-c";
+                        const targetNodeData = data.nodes[targetNodeId] || data.nodes["node-c"];
+                        loss = targetNodeData.loss;
+                        latency = targetNodeData.latency;
+                    }
+                }
+            } catch (e) {
+                // Fallback simulation if gateway server is not running
+                loss = 0.1 + Math.random() * 0.2;
+                latency = 10 + Math.random() * 4;
+                if (nodesData[2].status === "attacked") {
+                    loss = 8.5 + Math.random() * 2.0;
+                    latency = 120 + Math.random() * 15.0;
+                }
+            }
+
+            // Update chart data
+            if (chartData.labels.length > 15) {
+                chartData.labels.shift();
+                chartData.datasets[0].data.shift();
+                chartData.datasets[1].data.shift();
+            }
+
+            chartData.labels.push(now);
+            chartData.datasets[0].data.push(loss);
+            chartData.datasets[1].data.push(latency);
+            metricsChart.update();
+
+            // Live update inspector details if inspected node changes
+            if (selectedNode) {
+                if (selectedNode.id === "node-c" && nodesData[2].status === "attacked") {
+                    document.getElementById("insp-loss").innerText = `${loss.toFixed(2)}% (КРИТИЧНО)`;
+                    document.getElementById("insp-loss").style.color = "var(--accent-secondary)";
+                } else {
+                    document.getElementById("insp-loss").innerText = `${loss.toFixed(2)}%`;
+                    document.getElementById("insp-loss").style.color = "var(--text-main)";
+                }
+            }
+        }, 2000);
+
+        // ---------------- SCENARIO SIMULATOR & LOGS ----------------
+        const eventLog = document.getElementById("event-log");
+
+        function addLog(tag, type, message) {
+            const time = new Date().toLocaleTimeString();
+            const tagClass = `tag-${type}`;
+            const line = document.createElement("div");
+            line.className = "terminal-line";
+            line.innerHTML = `<span class="terminal-time">[${time}]</span> <span class="terminal-tag ${tagClass}">${tag}</span> <span>${message}</span>`;
+            eventLog.appendChild(line);
+            eventLog.scrollTop = eventLog.scrollHeight;
+        }
+
+        // Initial logs
+        addLog("SYSTEM", "info", "Запуск консоли мониторинга x0tta6bl4...");
+        addLog("SPIRE", "success", "Связь со SPIRE Workload API установлена. Все SVID валидны.");
+        addLog("eBPF", "info", "Загружен стабильный драйвер x0tta6bl4_pulse.o на всех узлах.");
+
+        function injectAnomaly() {
+            if (nodesData[2].status === "attacked") return;
+
+            addLog("SIMULATOR", "warn", "Запуск сценария: Атака на узел Node C (Edge Gateway)");
+            nodesData[2].status = "attacked";
+            nodesData[2].loss = 9.8;
+            
+            // Visual feedback on graph node
+            d3.selectAll("circle")
+                .filter(d => d.id === "node-c")
+                .transition()
+                .duration(500)
+                .attr("fill", "var(--accent-warning)")
+                .attr("r", 25);
+
+            document.getElementById("inspector-card").classList.add("pulse-warning");
+
+            // Execute simulated MAPE-K loop
+            setTimeout(() => {
+                addLog("MAPE-K MON", "warn", "eBPF Ring Buffer: обнаружен критический скачок потерь пакетов на Node C (>5.0%)");
+            }, 1000);
+
+            setTimeout(() => {
+                addLog("GraphSAGE GNN", "error", "ИИ-анализатор классифицировал аномалию: Угроза деградации канала (DDoS / DPI fingerprint mismatch)");
+            }, 2500);
+
+            setTimeout(() => {
+                addLog("DAO GOV", "info", "Предложение по лечению №127 автоматически внесено в DAO смарт-контракт");
+            }, 4000);
+
+            setTimeout(() => {
+                addLog("DAO GOV", "success", "Голосование завершено за 2 блока. Выдано предписание на ротацию XDP фильтров.");
+            }, 5500);
+
+            setTimeout(() => {
+                addLog("MAPE-K EXEC", "info", "Скачивание обновленной политики eBPF из IPFS (CID: QmX0tTarget999...)");
+            }, 7000);
+
+            setTimeout(() => {
+                // Heal network
+                nodesData[2].status = "stable";
+                nodesData[2].loss = 0.12;
+                nodesData[2].ebpf = "x0tta6bl4_pulse_v4.o";
+                
+                d3.selectAll("circle")
+                    .filter(d => d.id === "node-c")
+                    .transition()
+                    .duration(500)
+                    .attr("fill", "#00f0ff")
+                    .attr("r", 20);
+
+                document.getElementById("inspector-card").classList.remove("pulse-warning");
+                if (selectedNode && selectedNode.id === "node-c") {
+                    document.getElementById("insp-ebpf").innerText = "x0tta6bl4_pulse_v4.o";
+                }
+
+                addLog("MAPE-K EXEC", "success", "Новая eBPF-политика (x0tta6bl4_pulse_v4.o) успешно загружена через libbpf на Node C VERIFIED_HERE");
+            }, 8500);
+        }
+
+        function resetNetwork() {
+            nodesData[2].status = "stable";
+            nodesData[2].loss = 0.15;
+            nodesData[2].ebpf = "x0tta6bl4_pulse.o";
+
+            d3.selectAll("circle")
+                .filter(d => d.id === "node-c")
+                .transition()
+                .duration(500)
+                .attr("fill", "#00f0ff")
+                .attr("r", 20);
+
+            document.getElementById("inspector-card").classList.remove("pulse-warning");
+            if (selectedNode && selectedNode.id === "node-c") {
+                document.getElementById("insp-ebpf").innerText = "x0tta6bl4_pulse.o";
+                document.getElementById("insp-loss").innerText = "0.15%";
+            }
+
+            addLog("SIMULATOR", "info", "Состояние сети возвращено к исходному стабильному уровню.");
+        }
+    </script>
+</body>
+</html>

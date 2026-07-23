@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/plan_local_root_cleanup.py",
-  "generated_at": "2026-07-02T13:55:15.762023+00:00",
+  "generated_at": "2026-07-17T18:26:27.032721+00:00",
   "status": "no_cleanup_needed",
   "ok": true,
   "summary": {
     "root_status": "ok",
-    "root_free_gib": 10.39,
+    "root_free_gib": 13.35,
     "candidate_count": 5,
     "existing_candidate_count": 3,
-    "estimated_reclaim_gib": 1.46,
+    "estimated_reclaim_gib": 1.04,
     "min_target_free_gib": 2.0,
     "top_candidate_id": "JOURNAL-01",
-    "top_candidate_size_gib": 1.12,
+    "top_candidate_size_gib": 0.99,
     "cleanup_execute_allowed": false,
     "nl_write_allowed": false,
     "spb_fallback_allowed": false,
@@ -59,8 +59,8 @@
       "approval": "separate local cleanup approval",
       "exists": true,
       "is_dir": true,
-      "size_bytes": 308701094,
-      "size_gib": 0.29,
+      "size_bytes": 4096,
+      "size_gib": 0.0,
       "error_count": 1,
       "errors": [
         "[Errno 13] Permission denied: '/var/cache/apt/archives/partial'"
@@ -76,8 +76,8 @@
       "approval": "separate local cleanup approval; keep recent logs",
       "exists": true,
       "is_dir": true,
-      "size_bytes": 1199595520,
-      "size_gib": 1.12,
+      "size_bytes": 1065377792,
+      "size_gib": 0.99,
       "error_count": 0,
       "errors": []
     },
@@ -95,18 +95,18 @@
       "size_gib": 0.05,
       "error_count": 16,
       "errors": [
-        "[Errno 13] Permission denied: '/var/tmp/systemd-private-bed477df7bc24e76af9b0912ea945eb9-x0tta6bl4-node.service-tIyGNX'",
-        "[Errno 13] Permission denied: '/var/tmp/systemd-private-bed477df7bc24e76af9b0912ea945eb9-ModemManager.service-VLZmTA'",
-        "[Errno 13] Permission denied: '/var/tmp/systemd-private-bed477df7bc24e76af9b0912ea945eb9-earlyoom.service-gaiBUo'",
-        "[Errno 13] Permission denied: '/var/tmp/systemd-private-bed477df7bc24e76af9b0912ea945eb9-colord.service-zOq05p'",
-        "[Errno 13] Permission denied: '/var/tmp/systemd-private-bed477df7bc24e76af9b0912ea945eb9-power-profiles-daemon.service-oVCt2g'"
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-4810a6db69a04a49a48faf92f6d33d49-colord.service-QAfirk'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-4810a6db69a04a49a48faf92f6d33d49-ModemManager.service-tuBc6H'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-4810a6db69a04a49a48faf92f6d33d49-fwupd.service-Qx9Gnh'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-4810a6db69a04a49a48faf92f6d33d49-systemd-timesyncd.service-hOzX6P'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-4810a6db69a04a49a48faf92f6d33d49-polkit.service-ZFzN7d'"
       ]
     }
   ],
   "review_order": [
     "JOURNAL-01",
-    "APT-CACHE-01",
-    "VARTMP-01"
+    "VARTMP-01",
+    "APT-CACHE-01"
   ],
   "execution_rules": [
     "This report does not delete files.",

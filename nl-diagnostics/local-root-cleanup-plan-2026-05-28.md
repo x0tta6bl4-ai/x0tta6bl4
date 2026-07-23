@@ -1,6 +1,6 @@
 # Local Root Cleanup Plan
 
-generated_at: `2026-07-02T13:55:15.762023+00:00`
+generated_at: `2026-07-17T18:26:27.032721+00:00`
 status: `no_cleanup_needed`
 ok: `true`
 
@@ -8,11 +8,11 @@ ok: `true`
 
 ```text
 root_status=ok
-root_free_gib=10.39
+root_free_gib=13.35
 existing_candidate_count=3
-estimated_reclaim_gib=1.46
+estimated_reclaim_gib=1.04
 top_candidate_id=JOURNAL-01
-top_candidate_size_gib=1.12
+top_candidate_size_gib=0.99
 cleanup_execute_allowed=false
 nl_write_allowed=false
 spb_fallback_allowed=false
@@ -22,8 +22,8 @@ automatic_failover_allowed=false
 ## Review Order
 
 - `JOURNAL-01`
-- `APT-CACHE-01`
 - `VARTMP-01`
+- `APT-CACHE-01`
 
 ## Candidates
 
@@ -31,8 +31,8 @@ automatic_failover_allowed=false
 |---|---:|---:|---|---|---|
 | `TMP-ANTIGRAVITY-01` | false | 0.0 | `medium_manual_review` | `manual_review_before_delete` | `sudo rm -rf /tmp/antigravity_restore` |
 | `TMP-ANTIGRAVITY-02` | false | 0.0 | `medium_manual_review` | `manual_review_before_delete` | `sudo rm -rf /tmp/antigravity_restore_correct` |
-| `APT-CACHE-01` | true | 0.29 | `low_standard_cache` | `command_requires_approval` | `sudo apt-get clean` |
-| `JOURNAL-01` | true | 1.12 | `medium_keep_recent_logs` | `command_requires_approval` | `sudo journalctl --vacuum-size=500M` |
+| `APT-CACHE-01` | true | 0.0 | `low_standard_cache` | `command_requires_approval` | `sudo apt-get clean` |
+| `JOURNAL-01` | true | 0.99 | `medium_keep_recent_logs` | `command_requires_approval` | `sudo journalctl --vacuum-size=500M` |
 | `VARTMP-01` | true | 0.05 | `high_manual_review` | `manual_review_before_delete` | `sudo find /var/tmp -mindepth 1 -maxdepth 1 -mtime +7 -print` |
 
 ## Execution Rules

@@ -1,6 +1,6 @@
 # VPN Incident Timeline
 
-event_count: `29`
+event_count: `30`
 
 ## Recent Events
 
@@ -35,6 +35,7 @@ event_count: `29`
 | `2026-07-02T13:51:20.949639+00:00` | `20260702T135036Z` | `provider_ticket` | `provider_ticket` | `healthy` | `suspect_active` | `15` | open or update provider packet from fresh evidence |
 | `2026-07-02T13:52:55.591188+00:00` | `20260702T135211Z` | `provider_ticket` | `provider_ticket` | `healthy` | `suspect_active` | `15` | open or update provider packet from fresh evidence |
 | `2026-07-02T13:55:16.175003+00:00` | `20260702T135431Z` | `provider_ticket` | `provider_ticket` | `healthy` | `suspect_active` | `15` | open or update provider packet from fresh evidence |
+| `2026-07-17T18:26:27.471589+00:00` | `20260717T182536Z` | `observe` | `local_fix` | `healthy` | `normal` | `None` | observe and refresh evidence during the next visible outage |
 
 ## Guardrails
 

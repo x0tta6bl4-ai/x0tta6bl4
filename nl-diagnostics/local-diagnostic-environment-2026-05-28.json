@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_local_diagnostic_environment.py",
-  "generated_at": "2026-07-02T13:55:15.266210+00:00",
+  "generated_at": "2026-07-17T18:26:21.736660+00:00",
   "status": "ok",
   "ok": true,
   "summary": {
     "root_status": "ok",
-    "root_used_percent": 85.1,
-    "root_free_gib": 10.39,
+    "root_used_percent": 82.3,
+    "root_free_gib": 13.35,
     "tmp_status": "ok",
     "projects_status": "ok",
-    "projects_free_gib": 320.56,
+    "projects_free_gib": 324.14,
     "diagnostic_tmpdir": "/mnt/projects/.tmp",
     "diagnostic_tmpdir_exists": true,
     "diagnostic_tmpdir_writable": true,
@@ -27,36 +27,36 @@
       "exists": true,
       "status": "ok",
       "total_bytes": 114303512576,
-      "used_bytes": 97296838656,
-      "free_bytes": 11153104896,
+      "used_bytes": 94118064128,
+      "free_bytes": 14331879424,
       "total_gib": 106.45,
-      "used_gib": 90.61,
-      "free_gib": 10.39,
-      "used_percent": 85.1
+      "used_gib": 87.65,
+      "free_gib": 13.35,
+      "used_percent": 82.3
     },
     {
       "path": "/tmp",
       "exists": true,
       "status": "ok",
       "total_bytes": 114303512576,
-      "used_bytes": 97296838656,
-      "free_bytes": 11153104896,
+      "used_bytes": 94118064128,
+      "free_bytes": 14331879424,
       "total_gib": 106.45,
-      "used_gib": 90.61,
-      "free_gib": 10.39,
-      "used_percent": 85.1
+      "used_gib": 87.65,
+      "free_gib": 13.35,
+      "used_percent": 82.3
     },
     {
       "path": "/mnt/projects",
       "exists": true,
       "status": "ok",
       "total_bytes": 499738734592,
-      "used_bytes": 155535564800,
-      "free_bytes": 344203169792,
+      "used_bytes": 151698599936,
+      "free_bytes": 348040134656,
       "total_gib": 465.42,
-      "used_gib": 144.85,
-      "free_gib": 320.56,
-      "used_percent": 31.1
+      "used_gib": 141.28,
+      "free_gib": 324.14,
+      "used_percent": 30.4
     }
   ],
   "tmpdir_probe": {

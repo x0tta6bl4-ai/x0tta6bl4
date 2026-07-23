@@ -234,13 +234,14 @@ def reset_prometheus_registry():
     try:
         from prometheus_client import REGISTRY
 
-        # Collect all collectors to clear
-        collectors = list(REGISTRY._collector_to_names.keys())
-        for collector in collectors:
-            try:
-                REGISTRY.unregister(collector)
-            except Exception:
-                pass
+        if hasattr(REGISTRY, "_collector_to_names"):
+            # Collect all collectors to clear
+            collectors = list(REGISTRY._collector_to_names.keys())
+            for collector in collectors:
+                try:
+                    REGISTRY.unregister(collector)
+                except Exception:
+                    pass
     except ImportError:
         pass
     yield

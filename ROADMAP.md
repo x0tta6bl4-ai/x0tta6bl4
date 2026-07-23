@@ -10,13 +10,20 @@
 
 | Area | Detail |
 |:-----|:-------|
+| **Agentic Harness & HQI** | Dual-Loop (Loop A/B) tuning engine, HQI formula metric, Error Heatmap, 30 unit tests (100% PASS) |
+| **GNN + MAPE-K Integration** | GraphSAGE GNN topology anomaly detection (95.0% accuracy, 2.6% FPR) integrated into MAPE-K Planner |
+| **eBPF XDP Dataplane & PQC** | PQC SipHash MAC packet processor, verified eBPF metrics exporter, Cilium Hubble flow tests (8/8 PASS) |
+| **Evals UI Control Dashboard** | Interactive HTML/JS/CSS dashboard (`dashboard/agentic_harness_dashboard.html`) for HQI & heatmap monitoring |
+| **E2E Mesh + SPIRE + DAO** | SVID PQC Workload Identity, ML-DSA-65 signatures, PBFT Quorum consensus verification |
+| **Grant Package (FSI Start-AI-1)** | Complete evidence package, 2-minute video demo script (`grant_application_package_v3.5.md`) |
+| **Background Auto-Tuner** | Active background daemon (`auto_tuner_daemon.py`) for continuous profile mutation |
 | **Ghost Access VPN Surface** | 20/20 files present (5 core VPN modules, 4 docs, 7 scripts, 4 infra/bridges) |
 | **MCP Operator Tools** | 9/9 tools verified & operational (`ghost_vpn_status`, `ghost_access_status`, `mape_k_status`, etc.) |
 | **PQC Encryption Suite** | ML-KEM-768 key exchange & ML-DSA-65 signature verification runtime-verified (`liboqs` ✅ MATCH & VALID) |
 | **Security & CVE Audit** | Pillow 12.3.0, MCP 1.28.1, cryptography 46.0.7 — reduced pip-audit CVEs 24→1 |
 | **SPIRE & Mesh Stack** | SPIRE mTLS + Delphi PBFT consensus + MAPE-K self-healing active in Docker Compose |
 | **5G Edge Dataplane** | `go test ./edge/5g/...` SCTP/NGAP & PFCP signaling test suite (0.074s PASS) |
-| **RAG Memory Bank** | GitMark RAG rebuilt across 1,412 documents (16,312 chunks, 1,475 edges) |
+| **RAG Memory Bank** | GitMark RAG rebuilt across 1,420 documents (16,362 chunks, 1,485 edges) |
 | **Code Audit (Bandit)** | 474,425 lines scanned, 0 High-severity issues in production core |
 
 ### Remaining Tech Debt

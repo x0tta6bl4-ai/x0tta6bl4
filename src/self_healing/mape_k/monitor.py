@@ -7,6 +7,8 @@ import time
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
+from src.core.thinking.agent_thinking import AgentThinkingCoach
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,6 +27,20 @@ class MAPEKMonitor:
         self, knowledge: Optional["MAPEKKnowledge"] = None, threshold_manager=None
     ):
         self.anomaly_detectors: List[Callable[[Dict], bool]] = []
+        self.thinking_coach = AgentThinkingCoach(agent_id="mapek_monitor", role="monitoring")
+        self.last_thinking_context: Dict[str, Any] = {}
+        
+        # Resolve via DI if not passed explicitly
+        try:
+            from src.core.di import get_container
+            di = get_container()
+            if not knowledge and di.has("knowledge"):
+                knowledge = di.resolve("knowledge")
+            if not threshold_manager and di.has("threshold_manager"):
+                threshold_manager = di.resolve("threshold_manager")
+        except ImportError:
+            pass
+            
         self.knowledge = knowledge
         self.threshold_manager = threshold_manager
 
@@ -69,7 +85,18 @@ class MAPEKMonitor:
             Dict with 'anomaly_detected' (bool) and 'scaling_recommended' (bool)
         """
         node_id = metrics.get("node_id", "unknown")
-        
+        redacted_metrics = dict(metrics)
+        if "node_id" in redacted_metrics:
+            redacted_metrics["node_id"] = "[REDACTED]"
+        self.last_thinking_context = self.thinking_coach.prepare_task(
+            {
+                "task_type": "mapek_monitor_check",
+                "goal": "Detect metric anomaly for self-healing cycle",
+                "constraints": {"redact_node_ids": True},
+                "metrics": redacted_metrics,
+            }
+        )
+
         # Get thresholds (priority: DAO > Knowledge > Default)
         if self.threshold_manager:
             cpu_threshold = self.threshold_manager.get_threshold("cpu_threshold", 90.0)
@@ -144,6 +171,13 @@ class MAPEKMonitor:
             "anomaly_detected": anomaly_detected,
             "scaling_recommended": scaling_recommended,
             "issue": issue if anomaly_detected else ("Predicted Peak" if scaling_recommended else "Healthy")
+        }
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Return thinking status for inspection."""
+        return {
+            "thinking": self.thinking_coach.prepare_task({"task_type": "status"}),
+            "last_thinking_context": self.last_thinking_context,
         }
 
 

@@ -48,3 +48,9 @@ patches:
         value:
           name: PROFILING_ENABLED
           value: "true"
+
+secretGenerator:
+  - name: x0tta6bl4-secrets
+    envs:
+      - secrets.env
+

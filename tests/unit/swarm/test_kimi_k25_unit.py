@@ -52,6 +52,24 @@ def _mock_http_response(content_text: str, status_code: int = 200):
 # ---------------------------------------------------------------------------
 
 class TestDisabledPath:
+    def test_local_endpoint_reduces_default_timeout(self):
+        # Auto-detect path (no KIMI_API_KEY) should map to local Ollama and set timeout to 5.0
+        with patch.dict(os.environ, {}, clear=True):
+            ki = KimiK25Integration(enabled=True)
+            assert ki.api_endpoint == "http://localhost:11434/v1"
+            assert ki._timeout_s == 5.0
+
+    def test_local_endpoint_does_not_override_custom_timeout(self):
+        with patch.dict(os.environ, {}, clear=True):
+            ki = KimiK25Integration(enabled=True, timeout_s=15.0)
+            assert ki._timeout_s == 15.0
+
+    def test_remote_endpoint_keeps_default_timeout(self):
+        with patch.dict(os.environ, {"KIMI_API_KEY": "some-key"}):
+            ki = KimiK25Integration(enabled=True)
+            assert ki.api_endpoint == "https://api.moonshot.cn/v1"
+            assert ki._timeout_s == 30.0
+
     @pytest.mark.asyncio
     async def test_disabled_returns_zero_index(self):
         ki = KimiK25Integration(enabled=False)
@@ -136,6 +154,26 @@ class TestSuccessfulCall:
 
         assert idx == 0
 
+    @pytest.mark.asyncio
+    async def test_latency_metric_recorded_on_success(self):
+        ki = _integration()
+        good_json = json.dumps({"index": 0, "reasoning": "ok"})
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(return_value=_mock_http_response(good_json))
+
+        from src.monitoring.metrics import MetricsRegistry
+        mock_metric = MagicMock()
+        with patch.object(MetricsRegistry, "maas_llm_inference_latency_seconds", mock_metric):
+            with patch.object(ki, "_load_httpx") as mock_load:
+                mock_load.return_value = MagicMock(AsyncClient=MagicMock(return_value=mock_client))
+                await ki.enhance_decision(_ctx(), ["a", "b"])
+        
+        mock_metric.labels.assert_called_once_with(model=ki._model, status="success")
+        mock_metric.labels.return_value.observe.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # Error / fallback paths
@@ -187,6 +225,25 @@ class TestFallbackPaths:
 
         assert idx == 0
         assert "heuristic" in reason
+
+    @pytest.mark.asyncio
+    async def test_latency_metric_recorded_on_error(self):
+        ki = _integration(max_retries=0)
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(side_effect=Exception("connection refused"))
+
+        from src.monitoring.metrics import MetricsRegistry
+        mock_metric = MagicMock()
+        with patch.object(MetricsRegistry, "maas_llm_inference_latency_seconds", mock_metric):
+            with patch.object(ki, "_load_httpx") as mock_load:
+                mock_load.return_value = MagicMock(AsyncClient=MagicMock(return_value=mock_client))
+                await ki.enhance_decision(_ctx(), ["a", "b"])
+
+        mock_metric.labels.assert_called_once_with(model=ki._model, status="error")
+        mock_metric.labels.return_value.observe.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

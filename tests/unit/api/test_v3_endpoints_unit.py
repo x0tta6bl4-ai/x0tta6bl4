@@ -24,7 +24,7 @@ async def test_status_ok_and_unavailable(monkeypatch):
     monkeypatch.setattr(mod, "V3_AVAILABLE", True)
     ok = await mod.get_v3_status(integration=integration)
     assert ok["status"] == "operational"
-    assert ok["version"] == "3.4.0"
+    assert ok["version"] == "3.5.0"
     assert ok["local_component_status_claim_allowed"] is True
     assert ok["dataplane_confirmed"] is False
     assert ok["customer_traffic_confirmed"] is False

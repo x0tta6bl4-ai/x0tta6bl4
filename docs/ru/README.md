@@ -1,7 +1,7 @@
 # x0tta6bl4 — Само-восстанавливающаяся mesh-сеть
 
 [![Лицензия](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-![Статус](https://img.shields.io/badge/status-experimental-orange)
+![Статус](https://img.shields.io/badge/status-v3.5.0--hardening-blue)
 [![x0tMQ](https://img.shields.io/badge/x0tMQ-черновик%20IETF-blueviolet)](https://github.com/x0tta6bl4-ai/x0tmq)
 
 **Постквантовая криптография · eBPF/XDP ядро · Автономное самовосстановление**  

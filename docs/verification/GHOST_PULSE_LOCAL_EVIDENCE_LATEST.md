@@ -1,6 +1,6 @@
 # x0tta6bl4_pulse Local Evidence Bundle
 
-Timestamp: `2026-05-22T00:53:53.918970+00:00`
+Timestamp: `2026-07-11T10:25:29.144326+00:00`
 
 Decision: `LOCAL_TIMING_VERIFIED_STEALTH_NOT_VERIFIED`
 
@@ -10,7 +10,6 @@ Decision: `LOCAL_TIMING_VERIFIED_STEALTH_NOT_VERIFIED`
 - Seed replay metadata was recorded for deterministic sender-side timing fields.
 - Static eBPF source/object artifacts exist if marked present below.
 - Read-only kernel inspection was attempted and recorded.
-- A local unshaped UDP negative control was captured for timing comparison.
 
 ## What This Does Not Prove
 
@@ -24,28 +23,18 @@ Decision: `LOCAL_TIMING_VERIFIED_STEALTH_NOT_VERIFIED`
 
 - Status: `VERIFIED_LOCAL`
 - Mode: `corporate`
-- Requested packets: `12`
-- Send successes: `12`
-- Received packets: `12`
+- Requested packets: `24`
+- Send successes: `24`
+- Received packets: `24`
 - Transport evidence status: `EXPERIMENTAL_LOCAL_TIMING_PROFILE`
 - Stealth mode: `NOT_VERIFIED`
 - Pulse RNG seed: `20260521`
 - Timing replay status: `LOCAL_SEED_REPLAYABLE`
-- Timing replay sha256: `63161b0c98bc3482b730371866c327eb2d5c57bd00eab453a823e97d5d0f77ff`
-- Sender planned mean delay ms: `40.41809202774685`
-- Sender actual mean gap ms: `40.924158963290125`
-- Mean inter-packet gap ms: `40.93050981818182`
+- Timing replay sha256: `0652e3251dbf527e622ec36c588bda0034e02baff827b27d279fe2b52743b153`
+- Sender planned mean delay ms: `21.605337`
+- Sender actual mean gap ms: `23.094965`
+- Mean inter-packet gap ms: `23.09558104347826`
 - PCAP capture: `NOT_REQUESTED`
-
-## Baseline Comparison
-
-- Baseline status: `VERIFIED_LOCAL`
-- Baseline requested packets: `12`
-- Baseline received packets: `12`
-- Baseline mean inter-packet gap ms: `0.18573545454545454`
-- Comparison status: `VERIFIED_LOCAL_COMPARISON`
-- Mean gap delta ms: `40.74477436363637`
-- Mean gap ratio: `220.3699337767793`
 
 
 ## Static eBPF
@@ -57,10 +46,10 @@ Decision: `LOCAL_TIMING_VERIFIED_STEALTH_NOT_VERIFIED`
 
 ## Kernel Read-Only Status
 
-- Status: `KERNEL_ATTACH_NOT_VERIFIED`
+- Status: `KERNEL_EVIDENCE_VISIBLE_READ_ONLY`
 - pulse_stats map present: `False`
 - pulse program visible: `False`
-- XDP links visible: `0`
+- XDP links visible: `1`
 
 ## Gates
 

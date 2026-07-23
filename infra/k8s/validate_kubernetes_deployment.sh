@@ -6,9 +6,10 @@
 
 set -e
 
-PROJECT_DIR="/mnt/AC74CC2974CBF3DC"
+PROJECT_DIR="/mnt/projects"
 K8S_DIR="${PROJECT_DIR}/infra/k8s"
 HELM_DIR="${PROJECT_DIR}/helm/x0tta6bl4"
+mkdir -p "${PROJECT_DIR}/.zencoder"
 REPORT_FILE="${PROJECT_DIR}/.zencoder/PHASE4_WEEK4_K8S_VALIDATION.md"
 
 echo "=========================================="
@@ -179,7 +180,7 @@ errors = []
 for filepath in glob.glob('${K8S_DIR}/**/*.yaml', recursive=True):
     try:
         with open(filepath) as f:
-            yaml.safe_load(f)
+            list(yaml.safe_load_all(f))
         print(f'✅ {filepath}: Valid')
     except Exception as e:
         print(f'❌ {filepath}: {e}')

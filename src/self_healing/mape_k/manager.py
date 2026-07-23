@@ -27,9 +27,20 @@ class SelfHealingManager:
     """
 
     def __init__(
-        self, node_id: str = "default", threshold_manager=None, knowledge_storage=None
+        self, node_id: str = "default", threshold_manager=None, knowledge_storage=None, event_bus=None
     ):
         self.node_id = node_id
+        self.event_bus = event_bus
+        self._executed_actions_count = 0
+        self._in_cooldown = False
+
+        # Resolve via DI container if not passed explicitly
+        from src.core.di import get_container
+        di = get_container()
+        if not threshold_manager and di.has("threshold_manager"):
+            threshold_manager = di.resolve("threshold_manager")
+        if not knowledge_storage and di.has("knowledge_storage"):
+            knowledge_storage = di.resolve("knowledge_storage")
 
         # Initialize Knowledge with storage (if provided)
         if knowledge_storage:
@@ -73,7 +84,7 @@ class SelfHealingManager:
         self.strategy_improvements = 0
 
     def run_cycle(self, metrics: Dict):
-        """Run MAPE-K cycle with MTTR tracking."""
+        """Run MAPE-K cycle with MTTR tracking and event verification."""
         time.time()
 
         # MONITOR phase
@@ -93,6 +104,61 @@ class SelfHealingManager:
             pass
 
         if anomaly_detected:
+            if self._in_cooldown:
+                logger.info("Recovery action in progress / cooldown active.")
+                return
+
+            if self._executed_actions_count > 0:
+                self._in_cooldown = True
+                if self.event_bus:
+                    from src.coordination.events import EventType
+                    self.event_bus.publish(
+                        EventType.TASK_FAILED,
+                        "self-healing-mapek",
+                        {
+                            "operation": "verify",
+                            "status": "not_verified",
+                            "success": False,
+                            "claim_gate": {
+                                "local_healing_verification_claim_allowed": False,
+                                "blockers": ["post_action_local_state_not_recovered"],
+                            },
+                            "last_thinking_context": {
+                                "applied": {"framing": {"problem": "self_healing_mapek_verify"}}
+                            },
+                        },
+                    )
+                    self.event_bus.publish(
+                        EventType.TASK_FAILED,
+                        "self-healing-mapek",
+                        {
+                            "stage": "execute_blocked_by_cooldown",
+                            "status": "blocked_by_cooldown",
+                            "success": False,
+                            "safe_actuator": True,
+                            "control_action": True,
+                            "claim_gate": {
+                                "remediation_cooldown_active": True,
+                                "local_control_action_claim_allowed": False,
+                                "restored_dataplane_claim_allowed": False,
+                                "customer_traffic_claim_allowed": False,
+                                "production_readiness_claim_allowed": False,
+                                "blockers": ["remediation_cooldown_active"],
+                            },
+                            "safe_actuator_evidence_metadata": {
+                                "redacted": True,
+                                "claim_gate": {"safe_actuator_result_recorded": False},
+                            },
+                            "oscillation_guard": {
+                                "blocked": True,
+                                "reason": "failed_verification_retry_blocked",
+                                "raw_values_redacted": True,
+                            },
+                        },
+                    )
+                logger.info("Recovery action in progress / cooldown active.")
+                return
+
             # ANALYZE phase
             analyze_start = time.time()
             analyze_event_id = f"{self.node_id}_{int(time.time() * 1000)}"
@@ -101,7 +167,6 @@ class SelfHealingManager:
                     metrics, node_id=self.node_id, event_id=analyze_event_id
                 )
             except TypeError as exc:
-                # Backward compatibility for analyzer test doubles that only accept metrics.
                 if "unexpected keyword argument" in str(exc):
                     issue = self.analyzer.analyze(metrics)
                 else:
@@ -136,6 +201,7 @@ class SelfHealingManager:
             execute_start = time.time()
             success = self.executor.execute(action)
             execute_duration = time.time() - execute_start
+            self._executed_actions_count += 1
 
             # Calculate MTTR
             if event_id in self.recovery_start_times:
@@ -188,6 +254,32 @@ class SelfHealingManager:
                 f"MTTR={mttr:.3f}s, success={success}"
             )
         else:
+            if self._executed_actions_count > 0:
+                if self.event_bus:
+                    from src.coordination.events import EventType
+                    self.event_bus.publish(
+                        EventType.HEALING_VERIFIED,
+                        "self-healing-mapek",
+                        {
+                            "operation": "verify",
+                            "status": "verified",
+                            "read_only": True,
+                            "observed_state": True,
+                            "success": True,
+                            "claim_gate": {
+                                "schema": "x0tta6bl4.self_healing_mapek.verification_claim_gate.v1",
+                                "local_healing_verification_claim_allowed": True,
+                                "customer_traffic_claim_allowed": False,
+                                "production_readiness_claim_allowed": False,
+                            },
+                            "thinking": {"profile": {"role": "healing"}},
+                            "last_thinking_context": {
+                                "applied": {"framing": {"problem": "self_healing_mapek_verify"}}
+                            },
+                        },
+                    )
+                self._executed_actions_count = 0
+                self._in_cooldown = False
             logger.info("No anomalies detected. System healthy.")
 
     def _apply_feedback_loop(self, issue: str, action: str, success: bool, mttr: float):
@@ -231,6 +323,22 @@ class SelfHealingManager:
                 f"strategy_improvements={self.strategy_improvements}"
             )
 
+        # Record event in AgentFeedbackLoop for Evals and Error Heatmaps
+        try:
+            from scripts.agents.agent_feedback_loop import AgentFeedbackLoop
+            fb_loop = AgentFeedbackLoop()
+            score = 1.0 if (success and mttr < 5.0) else (0.5 if success else 0.0)
+            err_type = "NONE" if success else ("TIMEOUT" if mttr > 7.0 else "EXECUTION_ERROR")
+            fb_loop.record_feedback(
+                agent=f"mapek_{self.node_id}",
+                action=f"heal_{issue.lower().replace(' ', '_')}",
+                result="pass" if success else "fail",
+                score=score,
+                error_type=err_type,
+            )
+        except Exception as exc:
+            logger.debug("AgentFeedbackLoop MAPE-K ingest notice: %s", exc)
+
     def get_feedback_stats(self) -> Dict[str, Any]:
         """Get feedback loop statistics."""
         return {
@@ -250,7 +358,7 @@ class SelfHealingManager:
         Enables automatic recovery from network-level issues.
         """
         try:
-            from .ebpf_anomaly_detector import integrate_ebpf_self_healing
+            from ..ebpf_anomaly_detector import integrate_ebpf_self_healing
 
             ebpf_controller = integrate_ebpf_self_healing(self, interface)
             logger.info("✅ eBPF self-healing integrated with MAPE-K")

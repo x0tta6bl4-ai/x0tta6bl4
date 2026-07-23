@@ -3,7 +3,7 @@ SHELL := /bin/bash
 CLANG ?= clang
 GO ?= go
 BPF2GO ?= $(GO) run github.com/cilium/ebpf/cmd/bpf2go
-SRC ?= ../../src/network/ebpf/programs/xdp_mesh_filter.c
+SRC ?= ../../src/network/ebpf/kernel/xdp_mesh_filter.c
 VMLINUX ?= ../../src/network/ebpf/programs/vmlinux/vmlinux.h
 OUT ?= .
 PACKAGE ?= main
@@ -28,12 +28,16 @@ generate: validate-kernel
 	@test -f "$(VMLINUX)" || (echo "Missing $(VMLINUX)" && exit 1)
 	cd "$(OUT)" && \
 		BPF2GO_CFLAGS='$(CFLAGS)' \
+		GOPACKAGE=$(PACKAGE) \
 		$(BPF2GO) \
 			-cc "$(CLANG)" \
 			-target amd64,arm64 \
-			-go-package $(PACKAGE) \
 			meshcore \
 			"$(SRC)"
 
+build: generate
+	GOOS=linux GOARCH=amd64 $(GO) build -o loader_linux_amd64 loader.go
+	GOOS=linux GOARCH=arm64 $(GO) build -o loader_linux_arm64 loader.go
+
 clean:
-	rm -f $(OUT)/meshcore_bpf*.go $(OUT)/meshcore_bpf*.o $(OUT)/cilium-networkpolicy.yaml
+	rm -f $(OUT)/meshcore_*.go $(OUT)/meshcore_*.o $(OUT)/cilium-networkpolicy.yaml $(OUT)/loader_linux_amd64 $(OUT)/loader_linux_arm64

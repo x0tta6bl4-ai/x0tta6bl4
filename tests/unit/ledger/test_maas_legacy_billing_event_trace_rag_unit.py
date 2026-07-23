@@ -111,7 +111,7 @@ async def test_legacy_billing_event_trace_is_ledger_indexable_without_raw_ids(
     ]
     assert trace_payload["events"][0]["source_agent"] == "maas-legacy-billing"
     assert trace_payload["events"][0]["data"]["component"] == "api.maas_legacy"
-    assert trace_payload["events"][0]["data"]["service_name"] == "maas-billing"
+    assert trace_payload["events"][0]["data"]["service_name"] == "maas-legacy-billing"
     assert raw_event_id not in trace_text
     assert raw_customer_id not in trace_text
     assert raw_subscription_id not in trace_text

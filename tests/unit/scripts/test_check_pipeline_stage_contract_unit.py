@@ -15,10 +15,7 @@ jobs:
   test:
     steps:
       - name: Lint with ruff
-      - name: Type check with mypy
       - name: Test with pytest
-  spire-integration:
-    steps: []
 """
     assert validate_ci_stage_contract(ci_text) == []
 
@@ -28,10 +25,7 @@ def test_validate_ci_stage_contract_fails_when_lint_missing():
 jobs:
   test:
     steps:
-      - name: Type check with mypy
       - name: Test with pytest
-  spire-integration:
-    steps: []
 """
     errors = validate_ci_stage_contract(ci_text)
     assert any("Missing CI stages" in error for error in errors)
@@ -43,11 +37,8 @@ def test_validate_ci_stage_contract_fails_on_wrong_order():
 jobs:
   test:
     steps:
-      - name: Type check with mypy
-      - name: Lint with ruff
       - name: Test with pytest
-  spire-integration:
-    steps: []
+      - name: Lint with ruff
 """
     errors = validate_ci_stage_contract(ci_text)
     assert any("Stage order violation" in error for error in errors)

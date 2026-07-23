@@ -596,7 +596,7 @@ async def collect(args: argparse.Namespace) -> int:
         ],
         timeout=20,
     )
-    shell_syntax = run_cmd(["bash", "-n", "ghost-core.sh"], timeout=10)
+    shell_syntax = run_cmd(["bash", "-n", "scripts/ghost-core.sh"], timeout=10)
 
     pcap_path = bundle_dir / "loopback-pulse.pcap" if args.capture_pcap else None
     local_probe = await run_local_probe(args.packet_count, args.mode, args.seed, pcap_path)

@@ -1,41 +1,41 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/probe_nl_transport_ports.py",
-  "generated_at": "2026-07-02T13:55:14.405618+00:00",
+  "generated_at": "2026-07-20T16:56:53.444101+00:00",
   "host": "89.125.1.107",
   "ports": [
     443,
     2083,
     39829
   ],
-  "status": "healthy",
-  "ok_count": 3,
+  "status": "degraded",
+  "ok_count": 1,
   "port_count": 3,
   "results": [
     {
       "host": "89.125.1.107",
       "port": 443,
       "ok": true,
-      "latency_ms": 67.283,
+      "latency_ms": 72.801,
       "error": ""
     },
     {
       "host": "89.125.1.107",
       "port": 2083,
-      "ok": true,
-      "latency_ms": 66.002,
-      "error": ""
+      "ok": false,
+      "latency_ms": null,
+      "error": "[Errno 111] Connection refused"
     },
     {
       "host": "89.125.1.107",
       "port": 39829,
-      "ok": true,
-      "latency_ms": 65.156,
-      "error": ""
+      "ok": false,
+      "latency_ms": null,
+      "error": "[Errno 111] Connection refused"
     }
   ],
-  "failure_domain_hint": "none",
-  "recommended_action": "observe",
+  "failure_domain_hint": "nl_or_provider_or_path",
+  "recommended_action": "collect fresh read-only snapshot and compare NL listeners",
   "mutation_allowed": false,
   "nl_mutation_allowed": false,
   "spb_fallback_allowed": false,

@@ -1283,8 +1283,7 @@ class TestSelfHealingManager:
         manager.run_cycle(metrics)
         assert len(manager.knowledge.incidents) == 0
 
-    @unittest.expectedFailure
-    @patch("src.self_healing.mape_k.MAPEKExecutor")
+    @patch("src.self_healing.mape_k.manager.MAPEKExecutor")
     def test_run_cycle_high_cpu(self, mock_executor_cls):
         mock_exec_instance = MagicMock()
         mock_exec_instance.execute.return_value = True
@@ -1296,8 +1295,7 @@ class TestSelfHealingManager:
 
         mock_exec_instance.execute.assert_called_once()
 
-    @unittest.expectedFailure
-    @patch("src.self_healing.mape_k.MAPEKExecutor")
+    @patch("src.self_healing.mape_k.manager.MAPEKExecutor")
     def test_run_cycle_high_memory(self, mock_executor_cls):
         mock_exec_instance = MagicMock()
         mock_exec_instance.execute.return_value = True
@@ -1310,8 +1308,7 @@ class TestSelfHealingManager:
         call_args = mock_exec_instance.execute.call_args
         assert call_args[0][0] == "Clear cache"
 
-    @unittest.expectedFailure
-    @patch("src.self_healing.mape_k.MAPEKExecutor")
+    @patch("src.self_healing.mape_k.manager.MAPEKExecutor")
     def test_run_cycle_network_loss(self, mock_executor_cls):
         mock_exec_instance = MagicMock()
         mock_exec_instance.execute.return_value = True
@@ -1324,8 +1321,7 @@ class TestSelfHealingManager:
         call_args = mock_exec_instance.execute.call_args
         assert call_args[0][0] == "Switch route"
 
-    @unittest.expectedFailure
-    @patch("src.self_healing.mape_k.MAPEKExecutor")
+    @patch("src.self_healing.mape_k.manager.MAPEKExecutor")
     def test_run_cycle_custom_detector(self, mock_executor_cls):
         mock_exec_instance = MagicMock()
         mock_exec_instance.execute.return_value = True

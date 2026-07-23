@@ -1,6 +1,6 @@
 # x0tta6bl4_pulse Profile Matrix
 
-Timestamp: `2026-05-22T00:54:13.741112+00:00`
+Timestamp: `2026-07-11T10:26:02.948454+00:00`
 
 Decision: `PROFILE_MATRIX_LOCAL_VERIFIED_STEALTH_NOT_VERIFIED`
 
@@ -22,12 +22,12 @@ Decision: `PROFILE_MATRIX_LOCAL_VERIFIED_STEALTH_NOT_VERIFIED`
 
 | Mode | Runs | Successful | Replayable | Planned mean ms | Pulse mean gap ms | Baseline mean gap ms | Ratio mean |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| corporate | 2 | 2 | 2 | 39.998892694869824 | 40.529315499999996 | 0.2929085 | 158.2894681562993 |
-| whitelist | 2 | 2 | 2 | 783.3044611244208 | 644.7120938 | 0.1717038 | 3729.861347845559 |
+| corporate | 2 | 2 | 2 | 23.5956875 | 26.07842188888889 | 0.1621962777777778 | 165.04282403799613 |
+| whitelist | 2 | 2 | 2 | 63.1895375 | 68.46181411111111 | 0.8800548333333333 | 248.45450846711663 |
 
 ## Kernel Read-Only Status
 
-- Status: `KERNEL_ATTACH_NOT_VERIFIED`
+- Status: `KERNEL_EVIDENCE_VISIBLE_READ_ONLY`
 - pulse_stats map present: `False`
 - pulse program visible: `False`
 

@@ -1,8 +1,8 @@
 # x0tta6bl4_pulse Verification Suite
 
-Timestamp: `2026-07-03T21:03:48.050265+00:00`
+Timestamp: `2026-07-11T10:26:08.254049+00:00`
 
-Decision: `GHOST_PULSE_VERIFICATION_SUITE_INCOMPLETE`
+Decision: `GHOST_PULSE_VERIFICATION_SUITE_VERIFIED_STEALTH_NOT_VERIFIED`
 
 ## Suite Scope
 
@@ -24,27 +24,25 @@ Decision: `GHOST_PULSE_VERIFICATION_SUITE_INCOMPLETE`
 
 - Local seed: `20260521`
 - Local replay: `LOCAL_SEED_REPLAYABLE`
-- Local replay sha256: `63161b0c98bc3482b730371866c327eb2d5c57bd00eab453a823e97d5d0f77ff`
+- Local replay sha256: `0652e3251dbf527e622ec36c588bda0034e02baff827b27d279fe2b52743b153`
 - Matrix runs: `4`
 - Matrix replayable runs: `4`
-- Local evidence sha256: `7dd9ba7e8ecfeae4ad1d4e49aec9a6ff3c2dbe12dff8d1adbffacc7ca19ddf72`
-- Matrix sha256: `9edf1d51a01c1141470e1c38e95bcdaf9978c24b3dba2699b0cb311f20d2466c`
+- Local evidence sha256: `0762bb39d3475da0f0bd43d91d3a20f8accad57a2f9cba1ff60f776bf59bdc87`
+- Matrix sha256: `8fcbda2a9326cd6379dc817cda9577a37c7cc0c0bdb9729dee02998f8fe59f27`
 
 ## Gates
 
 | Gate | Status |
 | --- | --- |
-| local_evidence_verifier | `FAIL` |
+| local_evidence_verifier | `PASS` |
 | profile_matrix_verifier | `PASS` |
-| seed_replay_verifier | `FAIL` |
+| seed_replay_verifier | `PASS` |
 | python_compile | `PASS` |
-| ghost_core_shell_syntax | `FAIL` |
+| ghost_core_shell_syntax | `PASS` |
 | false_claim_scan | `PASS` |
 | artifact_integrity | `PASS` |
 | incoming_gap_candidates_verifier | `PASS` |
 
 ## Failures
 
-- local_evidence_verifier did not pass
-- seed_replay_verifier did not pass
-- ghost_core_shell_syntax did not pass
+- None

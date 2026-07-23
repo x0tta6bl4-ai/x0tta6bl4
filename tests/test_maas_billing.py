@@ -31,6 +31,7 @@ def test_deploy_mesh_success():
         headers={"X-API-Key": api_key},
     )
 
+    print("DEBUG RESP:", response.status_code, response.content)
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "active"

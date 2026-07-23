@@ -1,7 +1,7 @@
 # Release v3.5.0 — Verified Product Release Draft
 
 **Tag:** `v3.5.0-verified`  
-**Date:** 2026-07-21T17:35:40.620907+00:00  
+**Date:** 2026-07-21T17:58:28.666327+00:00  
 **Consistency Audit Status:** `✅ PASSED`  
 
 ---
@@ -19,6 +19,11 @@
 ## 📜 Recent Commits
 
 ```text
+0e6908ad docs(readme): align product definition and update status badge to pilot readiness
+4806e1e8 docs(verification): correct 100+ node scalability status to TARGET to adhere strictly to Chief Engineer Mandate
+f0d0b167 feat(ops): add physical NIC probe & 100-node topology scale harness scripts/ops/physical_nic_benchmark_harness.py and update VERIFICATION_MATRIX.md
+a3f0233b fix(ci): remove broken gitlink x0tta6bl4-ebpf
+56705258 feat(ops): add Release Manager scripts/ops/generate_release_draft.py and generate RELEASE_v3.5.0_DRAFT.md
 41d92c09 feat(ops): add Demo Assets Generator scripts/ops/generate_demo_assets.py and generate visual assets
 1550f92b feat(ops): add Independent Validation Assistant scripts/ops/run_independent_validation_simulation.py and generate Friction Report
 15518d81 feat(ops): add Verification Auditor script scripts/ops/verify_matrix_consistency.py
@@ -29,11 +34,6 @@ b4af1770 docs(verification): clarify TTFS baseline provenance as Level 2 interna
 3047d3a6 docs(verification): add exact file links and reproducible proof commands to VERIFICATION_MATRIX.md
 56d6f6c6 docs(verification): create VERIFICATION_MATRIX.md and add Success Criteria to AUTONOMOUS_RECOVERY_DEMO.md
 6e3cdca0 docs(architecture): introduce 3-tier status taxonomy and official Autonomous Recovery Demo runbook
-fa58ce9f fix(quickstart): PQC handshake, demo UX, minimal Dockerfile
-235ed4e7 feat(ops): add autonomous self-healing code daemon scripts/ops/self_healing_code_daemon.py
-f396bea0 docs(career): add CV_AI_ARCHITECT_2026.md for job search strategy
-d28e9f9a docs(roadmap): update ROADMAP.md and PORTFOLIO.md with July 2026 verification metrics
-f6173cce feat(bot): promote production telegram_bot_simple.py and database.py to root
 ```
 
 ---

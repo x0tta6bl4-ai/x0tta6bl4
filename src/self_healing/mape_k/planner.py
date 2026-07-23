@@ -19,6 +19,14 @@ class MAPEKPlanner:
     """
 
     def __init__(self, knowledge: Optional["MAPEKKnowledge"] = None):
+        if not knowledge:
+            try:
+                from src.core.di import get_container
+                di = get_container()
+                if di.has("knowledge"):
+                    knowledge = di.resolve("knowledge")
+            except ImportError:
+                pass
         self.knowledge = knowledge
         self.default_strategies = {
             "High CPU": "Restart service",
@@ -55,6 +63,15 @@ class MAPEKPlanner:
             if recommended:
                 logger.debug(f"Using recommended action from knowledge: {recommended}")
                 return recommended
+
+        # Handle GNN / GraphSAGE anomaly issues: "Anomaly detected...", "GraphSAGE+Causal..."
+        if "Anomaly" in issue or "GraphSAGE" in issue:
+            if "CPU" in issue or "Memory" in issue:
+                strategy = "Restart service"
+            else:
+                strategy = "Switch route"
+            logger.info(f"🧠 GNN-Planner: Selected strategy '{strategy}' for issue '{issue}'")
+            return strategy
 
         # Fallback to default strategies
         return self.default_strategies.get(issue, "No action needed")

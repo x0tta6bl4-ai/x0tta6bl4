@@ -369,7 +369,7 @@ class MAPEKIntegration:
             "safe_actuator_evidence_metadata": (
                 safe_actuator_evidence_metadata.to_dict()
                 if safe_actuator_evidence_metadata is not None
-                else SafeActuatorEvidenceMetadata().to_dict()
+                else SafeActuatorResult(success=False).to_dict()
             ),
             "claim_boundary": MAPEK_CLAIM_BOUNDARY,
         }
@@ -410,49 +410,12 @@ class MAPEKIntegration:
         if asyncio.iscoroutine(raw):
             raw = await raw
         if isinstance(raw, SafeActuatorResult):
-            if raw.evidence_metadata.claim_gate:
-                return raw
-            return SafeActuatorResult(
-                success=raw.success,
-                reason=raw.reason,
-                simulated=raw.simulated,
-                evidence_metadata=self._safe_actuator_evidence_metadata(
-                    action_type=action_type,
-                    context=context,
-                    success=raw.success,
-                    simulated=raw.simulated,
-                    decision_result=self._last_decision_result,
-                ),
-            )
+            return raw
         if isinstance(raw, dict):
-            result = SafeActuatorResult(
-                success=bool(raw.get("success", raw.get("ok", False))),
-                reason=str(raw.get("reason", raw.get("error", "")) or ""),
-                simulated=bool(raw.get("simulated", False)),
-                evidence_metadata=SafeActuatorEvidenceMetadata.from_value(raw),
-            )
-            if result.evidence_metadata.claim_gate:
-                return result
-            return SafeActuatorResult(
-                success=result.success,
-                reason=result.reason,
-                simulated=result.simulated,
-                evidence_metadata=self._safe_actuator_evidence_metadata(
-                    action_type=action_type,
-                    context=context,
-                    success=result.success,
-                    simulated=result.simulated,
-                    decision_result=self._last_decision_result,
-                ),
-            )
+            return SafeActuatorResult.from_value(raw)
         return SafeActuatorResult(
-            bool(raw),
-            evidence_metadata=self._safe_actuator_evidence_metadata(
-                action_type=action_type,
-                context=context,
-                success=bool(raw),
-                decision_result=self._last_decision_result,
-            ),
+            success=bool(raw),
+            reason="" if raw else "safe actuator returned false",
         )
 
     async def _propose_action_internal(
@@ -465,11 +428,11 @@ class MAPEKIntegration:
             return SafeActuatorResult(
                 False,
                 "swarm MAPE-K action is missing",
-                evidence_metadata=self._safe_actuator_evidence_metadata(
+                metadata=self._safe_actuator_evidence_metadata(
                     action_type=_action_type,
                     context=context,
                     success=False,
-                ),
+                ).to_dict(),
             )
         decision_result = await self.swarm.propose_action(action)
         self._last_decision_result = decision_result
@@ -483,12 +446,12 @@ class MAPEKIntegration:
             return SafeActuatorResult(
                 True,
                 decision_result.reason,
-                evidence_metadata=evidence_metadata,
+                metadata=evidence_metadata.to_dict(),
             )
         return SafeActuatorResult(
             False,
             decision_result.reason or "swarm consensus rejected MAPE-K action",
-            evidence_metadata=evidence_metadata,
+            metadata=evidence_metadata.to_dict(),
         )
 
     async def monitor(self) -> Dict[str, Any]:

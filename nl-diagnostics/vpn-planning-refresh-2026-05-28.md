@@ -1,24 +1,24 @@
 # VPN Planning Refresh
 
-generated_at: `2026-07-02T13:55:16.184213+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z`
+generated_at: `2026-07-17T18:26:27.479693+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260717T182536Z`
 ok: `false`
 
 ## Summary
 
 ```text
-decision=provider_ticket
+decision=local_fix
 decision_confidence=high
-operator_status=provider_ticket
-boot_gap_watch_status=provider_ticket
-boot_gap_seconds=15
-provider_packet_type=provider_ticket
+operator_status=local_fix
+boot_gap_watch_status=normal
+boot_gap_seconds=None
+provider_packet_type=historical_provider_incident
 provider_packet_stale=False
 provider_packet_snapshot_age_seconds=43
 blocking_history_trend=has_degradation
-blocking_history_snapshot_count=22
-manual_failover_status=manual_failover_candidate
-manual_failover_readiness_status=blocked_missing_secondary
+blocking_history_snapshot_count=23
+manual_failover_status=blocked_local_client_first
+manual_failover_readiness_status=blocked_local_client_first
 manual_failover_probe_allowed=False
 manual_failover_switch_allowed=False
 secondary_candidate_score_status=missing_candidates
@@ -56,25 +56,25 @@ local_root_status=ok
 local_tmpdir_writable=True
 local_recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
 local_root_cleanup_plan_status=no_cleanup_needed
-local_root_cleanup_estimated_reclaim_gib=1.46
+local_root_cleanup_estimated_reclaim_gib=1.04
 local_root_cleanup_execute_allowed=False
 local_root_cleanup_approval_packet_status=cleanup_approval_packet_no_cleanup_needed
 local_root_cleanup_approval_required=False
 local_root_cleanup_commands_executed=0
-incident_symptom_intake_status=symptom_intake_ready_incident
+incident_symptom_intake_status=symptom_intake_ready_review
 incident_symptom_required_fields=12
 incident_symptom_forbidden_material=12
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=31
+nl_transport_uptime_samples=32
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=missing_evidence
 readiness_missing=2
-incident_timeline_event_count=29
-incident_timeline_latest_type=provider_ticket
-incident_timeline_latest_snapshot=20260702T135431Z
+incident_timeline_event_count=30
+incident_timeline_latest_type=observe
+incident_timeline_latest_snapshot=20260717T182536Z
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false

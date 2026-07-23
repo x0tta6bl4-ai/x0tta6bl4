@@ -58,6 +58,10 @@
     }
   },
   "src/api/ledger_endpoints.py:SearchRequest": {
+    "include_verification": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='bool', ctx=Load()), ctx=Load())"
+    },
     "query": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
@@ -89,10 +93,62 @@
       "annotation_ast": "Name(id='int', ctx=Load())"
     }
   },
+  "src/api/maas/endpoints/agent_mesh.py:HealthBotRunRequest": {
+    "auto_heal": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "dry_run": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/analytics.py:AnalyticsSummary": {
+    "cost_aws_estimate": {
+      "required": true,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    },
+    "cost_maas_total": {
+      "required": true,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    },
+    "health_score": {
+      "required": true,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    },
+    "mesh_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "nodes_online": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "nodes_total": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "pqc_status": {
+      "required": true,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "savings_pct": {
+      "required": true,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    }
+  },
   "src/api/maas/endpoints/batman.py:BatmanGatewaysResponse": {
+    "batman_topology_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "count": {
       "required": true,
       "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
     },
     "gateway_mode": {
       "required": true,
@@ -138,6 +194,14 @@
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
     },
+    "batman_control_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "details": {
       "required": false,
       "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
@@ -156,9 +220,17 @@
     }
   },
   "src/api/maas/endpoints/batman.py:BatmanHealthResponse": {
+    "batman_health_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "checks": {
       "required": true,
       "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
     },
     "node_id": {
       "required": true,
@@ -190,9 +262,17 @@
       "required": true,
       "annotation_ast": "Name(id='int', ctx=Load())"
     },
+    "batman_control_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "completed_at": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
     },
     "cycle_id": {
       "required": true,
@@ -228,6 +308,14 @@
       "required": true,
       "annotation_ast": "Name(id='bool', ctx=Load())"
     },
+    "batman_control_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "cycle_count": {
       "required": true,
       "annotation_ast": "Name(id='int', ctx=Load())"
@@ -257,6 +345,14 @@
     "avg_link_quality": {
       "required": true,
       "annotation_ast": "Name(id='float', ctx=Load())"
+    },
+    "batman_metrics_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
     },
     "gateways_count": {
       "required": true,
@@ -308,9 +404,17 @@
     }
   },
   "src/api/maas/endpoints/batman.py:BatmanOriginatorsResponse": {
+    "batman_topology_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "count": {
       "required": true,
       "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
     },
     "interface": {
       "required": true,
@@ -330,6 +434,14 @@
     }
   },
   "src/api/maas/endpoints/batman.py:BatmanTopologyResponse": {
+    "batman_topology_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "links": {
       "required": true,
       "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
@@ -363,6 +475,958 @@
       "annotation_ast": "Name(id='int', ctx=Load())"
     }
   },
+  "src/api/maas/endpoints/governance.py:GovernanceAction": {
+    "params": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "type": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/governance.py:ProposalCreate": {
+    "actions": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Name(id='GovernanceAction', ctx=Load()), ctx=Load())"
+    },
+    "description": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "duration_hours": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "title": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/governance.py:VoteRequest": {
+    "vote": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/ledger.py:SearchRequest": {
+    "include_current_evidence": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='bool', ctx=Load()), ctx=Load())"
+    },
+    "include_verification": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='bool', ctx=Load()), ctx=Load())"
+    },
+    "query": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "top_k": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='int', ctx=Load()), ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/ledger.py:SearchResponse": {
+    "metadata": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "query": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "results": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='list', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "search_time_ms": {
+      "required": true,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    },
+    "total_results": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/marketplace.py:ListingCreate": {
+    "bandwidth_mbps": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "currency": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "node_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "price_per_hour": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='float', ctx=Load()), ctx=Load())"
+    },
+    "price_token_per_hour": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='float', ctx=Load()), ctx=Load())"
+    },
+    "region": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/marketplace.py:ListingResponse": {
+    "bandwidth_mbps": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "claim_boundary": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "created_at": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "currency": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "customer_traffic_delivery_claim_allowed": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "dataplane_confirmed": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "external_settlement_finality_claim_allowed": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "listing_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "listing_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "node_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "owner_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "price_per_hour": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='float', ctx=Load()), ctx=Load())"
+    },
+    "price_token_per_hour": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='float', ctx=Load()), ctx=Load())"
+    },
+    "production_readiness_claim_allowed": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "region": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "status": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "trust_score": {
+      "required": true,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/pilot.py:PilotSignupRequest": {
+    "company": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "contact_name": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "email": {
+      "required": false,
+      "annotation_ast": "Name(id='EmailStr', ctx=Load())"
+    },
+    "expected_users": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "region": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "use_case": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/pilot.py:PilotSignupResponse": {
+    "billing_setup_url": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "mesh_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "onboarding_url": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "pilot_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "status": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "user_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/pilot.py:PilotStatusResponse": {
+    "billing_status": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "created_at": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "mesh_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "pilot_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "status": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "user_count": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/playbooks.py:PlaybookAction": {
+    "action": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "params": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/playbooks.py:PlaybookCreateRequest": {
+    "actions": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Name(id='PlaybookAction', ctx=Load()), ctx=Load())"
+    },
+    "expires_in_sec": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "name": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "target_nodes": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/playbooks.py:PlaybookCreateResponse": {
+    "algorithm": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "expires_at": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "name": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "payload": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "playbook_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "signature": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/policies.py:PolicyRequest": {
+    "action": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "source_tag": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "target_tag": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/policies.py:PolicyResponse": {
+    "action": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "created_at": {
+      "required": true,
+      "annotation_ast": "Name(id='datetime', ctx=Load())"
+    },
+    "id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "mesh_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "source_tag": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "target_tag": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/provisioning.py:ProvisionRequest": {
+    "device_class": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "device_name": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "mesh_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "os_type": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/provisioning.py:ProvisionResponse": {
+    "config_json": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "install_command": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "join_token": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "node_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "provisioning_setup_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/supply_chain.py:AttestationMeta": {
+    "bundle_url": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "signed_at": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "signer": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "type": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/supply_chain.py:BinaryVerifyRequest": {
+    "agent_version": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "checksum_sha256": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "mesh_id": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "node_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/supply_chain.py:ComponentEntry": {
+    "name": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "type": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "version": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/supply_chain.py:SBOMRegisterRequest": {
+    "attestation": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='AttestationMeta', ctx=Load()), ctx=Load())"
+    },
+    "checksum_sha256": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "components": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Name(id='ComponentEntry', ctx=Load()), ctx=Load())"
+    },
+    "format": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "version": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/supply_chain.py:SBOMResponse": {
+    "attestation": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "checksum_sha256": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "components": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "created_at": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "format": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "id": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "pqc_signature": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "version": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/swarm.py:ScaleRequest": {
+    "action": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "capabilities": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "num_agents": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "reason": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/swarm.py:SwarmConstraints": {
+    "max_parallel_steps": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "resource_limits": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "target_latency_ms": {
+      "required": false,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/swarm.py:SwarmCreateRequest": {
+    "auto_terminate": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "capabilities": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "constraints": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='SwarmConstraints', ctx=Load()), ctx=Load())"
+    },
+    "integration_targets": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "name": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "num_agents": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "task_type": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "ttl_seconds": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='int', ctx=Load()), ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/swarm.py:SwarmResponse": {
+    "created_at": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "endpoints": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='str', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "name": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "num_agents": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "status": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "swarm_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/swarm.py:TaskResponse": {
+    "created_at": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "progress": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "status": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "swarm_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "task_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/swarm.py:TaskSubmitRequest": {
+    "callback_url": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "parallelization": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "payload": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "priority": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "task_type": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "timeout_seconds": {
+      "required": false,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/swarm.py:TerminateRequest": {
+    "force": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "graceful": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "timeout_seconds": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/swarm_orchestration.py:TaskRequest": {
+    "payload": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "priority": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "task_type": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/telemetry.py:NodeHeartbeatRequest": {
+    "cpu_usage": {
+      "required": true,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    },
+    "error_reports": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='List', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "latency_ms": {
+      "required": false,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    },
+    "memory_usage": {
+      "required": true,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    },
+    "neighbors_count": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "node_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "pheromones": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='float', ctx=Load())], ctx=Load()), ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "routing_table_size": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "uptime": {
+      "required": true,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/users.py:SessionResponse": {
+    "expires_at": {
+      "required": true,
+      "annotation_ast": "Name(id='datetime', ctx=Load())"
+    },
+    "token": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "user": {
+      "required": true,
+      "annotation_ast": "Name(id='UserResponse', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/users.py:UserCreate": {
+    "company": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "email": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "full_name": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "password": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/users.py:UserLogin": {
+    "email": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "password": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/users.py:UserResponse": {
+    "company": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "created_at": {
+      "required": true,
+      "annotation_ast": "Name(id='datetime', ctx=Load())"
+    },
+    "email": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "full_name": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "plan": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/vision.py:DebuggingResponse": {
+    "findings": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "proposed_plan": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "status": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/vpn.py:SubscriptionStatusResponse": {
+    "days_left": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='int', ctx=Load()), ctx=Load())"
+    },
+    "email": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "expires_at": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='datetime', ctx=Load()), ctx=Load())"
+    },
+    "plan": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "requests_count": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "requests_limit": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "status": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "user_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "vpn_uuid_present": {
+      "required": true,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/vpn.py:VPNConfigRequest": {
+    "email": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "node_id": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "port": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='int', ctx=Load()), ctx=Load())"
+    },
+    "server": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "user_id": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "username": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/vpn.py:VPNConfigResponse": {
+    "config_text": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "user_id": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "username": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "vless_link": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/vpn.py:VPNStatusResponse": {
+    "active_users": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "port": {
+      "required": true,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "protocol": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "server": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "status": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "uptime": {
+      "required": true,
+      "annotation_ast": "Name(id='float', ctx=Load())"
+    }
+  },
+  "src/api/maas/endpoints/vpn.py:ZKPAuthRequest": {
+    "proof": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    }
+  },
+  "src/api/maas/middleware.py:ErrorResponse": {
+    "details": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "error": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "message": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "request_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "timestamp": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/middleware.py:ValidationErrorDetail": {
+    "field": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "message": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "value": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='Any', ctx=Load()), ctx=Load())"
+    }
+  },
+  "src/api/maas/middleware.py:ValidationErrorResponse": {
+    "details": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Name(id='ValidationErrorDetail', ctx=Load()), ctx=Load())"
+    },
+    "error": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "message": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "request_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "timestamp": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
   "src/api/maas/models.py:ApiKeyResponse": {
     "api_key": {
       "required": true,
@@ -383,6 +1447,10 @@
     "api_key": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "created_at": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
     },
     "message": {
       "required": true,
@@ -457,6 +1525,48 @@
       "annotation_ast": "Name(id='str', ctx=Load())"
     }
   },
+  "src/api/maas/models.py:LegacyBillingResponse": {
+    "data": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "event_id": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "idempotent_replay": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "message": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "plan_after": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "plan_before": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "processed": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "requests_limit": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='int', ctx=Load()), ctx=Load())"
+    },
+    "status": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "user_id": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    }
+  },
   "src/api/maas/models.py:LoginRequest": {
     "email": {
       "required": false,
@@ -468,12 +1578,20 @@
     }
   },
   "src/api/maas/models.py:LoginResponse": {
+    "access_token": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
     "expires_in": {
       "required": false,
       "annotation_ast": "Name(id='int', ctx=Load())"
     },
     "session_token": {
       "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "token_type": {
+      "required": false,
       "annotation_ast": "Name(id='str', ctx=Load())"
     },
     "user_id": {
@@ -524,6 +1642,10 @@
       "required": false,
       "annotation_ast": "Name(id='str', ctx=Load())"
     },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "dashboard_url": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
@@ -536,9 +1658,17 @@
       "required": false,
       "annotation_ast": "Name(id='str', ctx=Load())"
     },
+    "mesh_deploy_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "mesh_id": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "mesh_provisioner_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
     },
     "plan": {
       "required": false,
@@ -552,6 +1682,10 @@
       "required": false,
       "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
     },
+    "provisioner_cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "status": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
@@ -562,6 +1696,14 @@
       "required": true,
       "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
     },
+    "control_policy_evidence": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "mape_k": {
       "required": true,
       "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
@@ -569,6 +1711,10 @@
     "mesh_id": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "mesh_metrics_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
     },
     "network": {
       "required": true,
@@ -580,12 +1726,28 @@
     }
   },
   "src/api/maas/models.py:MeshScaleRequest": {
+    "action": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "count": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='int', ctx=Load()), ctx=Load())"
+    },
     "target_count": {
       "required": false,
-      "annotation_ast": "Name(id='int', ctx=Load())"
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='int', ctx=Load()), ctx=Load())"
     }
   },
   "src/api/maas/models.py:MeshStatusResponse": {
+    "control_policy_evidence": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
     "federated_strategy": {
       "required": false,
       "annotation_ast": "Name(id='str', ctx=Load())"
@@ -597,6 +1759,10 @@
     "mesh_id": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "mesh_lifecycle_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
     },
     "nodes_healthy": {
       "required": true,
@@ -639,6 +1805,10 @@
     "acl_profile": {
       "required": false,
       "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "attestation_data": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
     },
     "tags": {
       "required": false,
@@ -684,6 +1854,18 @@
       "required": false,
       "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
     },
+    "dataplane_probe_target": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "ip_address": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "latency_ms": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='float', ctx=Load()), ctx=Load())"
+    },
     "memory_percent": {
       "required": false,
       "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='float', ctx=Load()), ctx=Load())"
@@ -701,8 +1883,8 @@
       "annotation_ast": "Name(id='int', ctx=Load())"
     },
     "node_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
     },
     "pheromones": {
       "required": false,
@@ -712,9 +1894,23 @@
       "required": false,
       "annotation_ast": "Name(id='int', ctx=Load())"
     },
+    "status": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "traffic_mbps": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='float', ctx=Load()), ctx=Load())"
+    },
     "uptime": {
       "required": false,
       "annotation_ast": "Name(id='float', ctx=Load())"
+    }
+  },
+  "src/api/maas/models.py:NodeMeasuredAttestationRefreshRequest": {
+    "attestation_data": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
     }
   },
   "src/api/maas/models.py:NodeRegisterRequest": {
@@ -768,6 +1964,10 @@
     }
   },
   "src/api/maas/models.py:NodeRegisterResponse": {
+    "api_key": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
     "mesh_id": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
@@ -779,6 +1979,18 @@
     "node_id": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "node_runtime_credential": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "node_runtime_credential_expires_at": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='datetime', ctx=Load()), ctx=Load())"
+    },
+    "raw_runtime_credential_returned_once": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
     },
     "status": {
       "required": true,
@@ -845,9 +2057,189 @@
       "annotation_ast": "Name(id='str', ctx=Load())"
     }
   },
+  "src/api/maas/models.py:NodeRuntimeCredentialRotateRequest": {
+    "identity_proof": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='NodeRuntimeIdentityProof', ctx=Load()), ctx=Load())"
+    },
+    "ttl_seconds": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    }
+  },
+  "src/api/maas/models.py:NodeRuntimeCredentialRotateResponse": {
+    "api_key": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "mesh_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "node_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "node_runtime_credential": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "node_runtime_credential_expires_at": {
+      "required": true,
+      "annotation_ast": "Name(id='datetime', ctx=Load())"
+    },
+    "node_runtime_credential_rotated_at": {
+      "required": true,
+      "annotation_ast": "Name(id='datetime', ctx=Load())"
+    },
+    "raw_runtime_credential_returned_once": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "status": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/models.py:NodeRuntimeIdentityBindResponse": {
+    "api_side_jwt_svid_verification_claim_allowed": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "attestation_verifier_backend": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "attestation_verifier_provenance": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "live_spiffe_svid_claim_allowed": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "mesh_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "node_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "production_attestation_verifier_claim_allowed": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "production_trust_finality_claim_allowed": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "raw_runtime_identity_proof_redacted": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "runtime_identity_binding_hash_prefix": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "runtime_identity_binding_type": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "runtime_identity_bound_at": {
+      "required": true,
+      "annotation_ast": "Name(id='datetime', ctx=Load())"
+    },
+    "runtime_identity_last_verified_at": {
+      "required": true,
+      "annotation_ast": "Name(id='datetime', ctx=Load())"
+    },
+    "runtime_identity_verification_source": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "status": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "trusted_runtime_identity_proxy_claim_allowed": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    }
+  },
+  "src/api/maas/models.py:NodeRuntimeIdentityProof": {
+    "attestation_digest": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "binding_type": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "nonce": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "spiffe_id": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    }
+  },
   "src/api/maas/models.py:OIDCExchangeRequest": {
     "id_token": {
       "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/models.py:PeaqRelayTunnelRequest": {
+    "machine_did": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "pqc_algorithm": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "region": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "telemetry_opt_in": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "tunnel_type": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/models.py:PeaqRelayTunnelResponse": {
+    "cross_plane_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "endpoint": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "machine_did": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "peaq_relay_claim_gate": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "pqc_config": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "status": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "tunnel_id": {
+      "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
     }
   },
@@ -888,9 +2280,17 @@
     }
   },
   "src/api/maas/models.py:RegisterRequest": {
+    "company": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
     "email": {
       "required": false,
       "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "full_name": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
     },
     "name": {
       "required": false,
@@ -902,6 +2302,10 @@
     }
   },
   "src/api/maas/models.py:RegisterResponse": {
+    "access_token": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
     "api_key": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
@@ -910,8 +2314,16 @@
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
     },
+    "expires_in": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
     "message": {
       "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "token_type": {
+      "required": false,
       "annotation_ast": "Name(id='str', ctx=Load())"
     },
     "user_id": {
@@ -988,6 +2400,10 @@
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
     },
+    "id": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
     "name": {
       "required": false,
       "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
@@ -996,7 +2412,59 @@
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
     },
+    "requests_count": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "role": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
     "user_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/maas/nodes/heartbeat.py:HeartbeatRequest": {
+    "active_connections": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='int', ctx=Load()), ctx=Load())"
+    },
+    "cpu_percent": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='float', ctx=Load()), ctx=Load())"
+    },
+    "custom_metrics": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "dataplane_probe_target": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
+    },
+    "latency_ms": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='float', ctx=Load()), ctx=Load())"
+    },
+    "mem_percent": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='float', ctx=Load()), ctx=Load())"
+    },
+    "status": {
+      "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "traffic_mbps": {
+      "required": false,
+      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='float', ctx=Load()), ctx=Load())"
+    }
+  },
+  "src/api/maas/nodes/telemetry_acl.py:AccessCheckRequest": {
+    "source_node_id": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    },
+    "target_node_id": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
     }
@@ -1223,468 +2691,6 @@
       "annotation_ast": "Name(id='str', ctx=Load())"
     }
   },
-  "src/api/maas_legacy.py:BillingWebhookRequest": {
-    "customer_id": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
-    },
-    "email": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
-    },
-    "event_id": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
-    },
-    "event_type": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "metadata": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
-    },
-    "plan": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
-    },
-    "subscription_id": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
-    },
-    "user_id": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:BillingWebhookResponse": {
-    "event_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "event_type": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "idempotent_replay": {
-      "required": false,
-      "annotation_ast": "Name(id='bool', ctx=Load())"
-    },
-    "plan_after": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "plan_before": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "processed": {
-      "required": true,
-      "annotation_ast": "Name(id='bool', ctx=Load())"
-    },
-    "requests_limit": {
-      "required": true,
-      "annotation_ast": "Name(id='int', ctx=Load())"
-    },
-    "user_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:MeshDeployRequest": {
-    "billing_plan": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "join_token_ttl_sec": {
-      "required": false,
-      "annotation_ast": "Name(id='int', ctx=Load())"
-    },
-    "name": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "nodes": {
-      "required": false,
-      "annotation_ast": "Name(id='int', ctx=Load())"
-    },
-    "obfuscation": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "pqc_enabled": {
-      "required": false,
-      "annotation_ast": "Name(id='bool', ctx=Load())"
-    },
-    "traffic_profile": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:MeshDeployResponse": {
-    "created_at": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "dashboard_url": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "join_config": {
-      "required": true,
-      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
-    },
-    "join_token_expires_at": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "mesh_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "plan": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "pqc_enabled": {
-      "required": false,
-      "annotation_ast": "Name(id='bool', ctx=Load())"
-    },
-    "pqc_identity": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
-    },
-    "status": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:MeshMetricsResponse": {
-    "consciousness": {
-      "required": true,
-      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
-    },
-    "mape_k": {
-      "required": true,
-      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
-    },
-    "mesh_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "network": {
-      "required": true,
-      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
-    },
-    "timestamp": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:MeshStatusResponse": {
-    "health_score": {
-      "required": true,
-      "annotation_ast": "Name(id='float', ctx=Load())"
-    },
-    "mesh_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "nodes_healthy": {
-      "required": true,
-      "annotation_ast": "Name(id='int', ctx=Load())"
-    },
-    "nodes_total": {
-      "required": true,
-      "annotation_ast": "Name(id='int', ctx=Load())"
-    },
-    "obfuscation": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "peers": {
-      "required": true,
-      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
-    },
-    "pqc_enabled": {
-      "required": true,
-      "annotation_ast": "Name(id='bool', ctx=Load())"
-    },
-    "status": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "traffic_profile": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "uptime_seconds": {
-      "required": true,
-      "annotation_ast": "Name(id='float', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:NodeApproveRequest": {
-    "acl_profile": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "tags": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:NodeApproveResponse": {
-    "approved_at": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "join_token": {
-      "required": true,
-      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
-    },
-    "mesh_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "node_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "status": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:NodeHeartbeatRequest": {
-    "cpu_usage": {
-      "required": true,
-      "annotation_ast": "Name(id='float', ctx=Load())"
-    },
-    "memory_usage": {
-      "required": true,
-      "annotation_ast": "Name(id='float', ctx=Load())"
-    },
-    "neighbors_count": {
-      "required": true,
-      "annotation_ast": "Name(id='int', ctx=Load())"
-    },
-    "node_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "pheromones": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='float', ctx=Load())], ctx=Load()), ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
-    },
-    "routing_table_size": {
-      "required": true,
-      "annotation_ast": "Name(id='int', ctx=Load())"
-    },
-    "uptime": {
-      "required": true,
-      "annotation_ast": "Name(id='float', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:NodeRegisterRequest": {
-    "attestation_data": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
-    },
-    "device_class": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "enclave_enabled": {
-      "required": false,
-      "annotation_ast": "Name(id='bool', ctx=Load())"
-    },
-    "enrollment_token": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "hardware_id": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
-    },
-    "labels": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='str', ctx=Load())], ctx=Load()), ctx=Load())"
-    },
-    "node_id": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
-    },
-    "public_keys": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='str', ctx=Load())], ctx=Load()), ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:NodeRegisterResponse": {
-    "mesh_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "message": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "node_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "status": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:NodeReissueTokenRequest": {
-    "ttl_seconds": {
-      "required": false,
-      "annotation_ast": "Name(id='int', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:NodeReissueTokenResponse": {
-    "expires_at": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "issued_at": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "join_token": {
-      "required": true,
-      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
-    },
-    "mesh_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "node_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:NodeRevokeRequest": {
-    "node_id": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())"
-    },
-    "reason": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:NodeRevokeResponse": {
-    "mesh_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "node_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "reason": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "revoked_at": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "status": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:OIDCExchangeRequest": {
-    "id_token": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:PolicyRequest": {
-    "action": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "source_tag": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "target_tag": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:PolicyResponse": {
-    "action": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "created_at": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "policy_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "source_tag": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "target_tag": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:ScaleRequest": {
-    "action": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "count": {
-      "required": false,
-      "annotation_ast": "Name(id='int', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:ScaleResponse": {
-    "current_nodes": {
-      "required": true,
-      "annotation_ast": "Name(id='int', ctx=Load())"
-    },
-    "mesh_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "previous_nodes": {
-      "required": true,
-      "annotation_ast": "Name(id='int', ctx=Load())"
-    },
-    "status": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_legacy.py:TokenRotateResponse": {
-    "expires_at": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "issued_at": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "join_token": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "mesh_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
   "src/api/maas_marketplace.py:ListingCreate": {
     "bandwidth_mbps": {
       "required": false,
@@ -1905,42 +2911,6 @@
       "annotation_ast": "Name(id='str', ctx=Load())"
     },
     "target_tag": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_provisioning.py:ProvisionRequest": {
-    "device_class": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "device_name": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "mesh_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "os_type": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas_provisioning.py:ProvisionResponse": {
-    "config_json": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "install_command": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "join_token": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "node_id": {
       "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
     }

@@ -28,13 +28,9 @@ CORE_DEPENDENCY_MANIFESTS = (
     "monitoring/geo-leak-detector/requirements.txt",
 )
 
-REMOVED_DEPENDABOT_MANIFESTS = (
-    "другие проекты/базис-веб/requirements-neural.txt",
-)
+REMOVED_DEPENDABOT_MANIFESTS = ("другие проекты/базис-веб/requirements-neural.txt",)
 
-REMOVED_UNPATCHED_DEPENDENCIES = (
-    "paramiko",
-)
+REMOVED_UNPATCHED_DEPENDENCIES = ("paramiko",)
 
 
 def _requirements(path: Path) -> dict[str, Requirement]:
@@ -78,10 +74,7 @@ def test_staging_and_pyproject_keep_security_floor_versions() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     project_requirements = {
         canonicalize_name(req.name): req
-        for req in (
-            Requirement(item)
-            for item in pyproject["project"]["dependencies"]
-        )
+        for req in (Requirement(item) for item in pyproject["project"]["dependencies"])
     }
 
     assert str(staging["python-multipart"].specifier) == ">=0.0.27"
@@ -103,11 +96,18 @@ def test_removed_unpatched_dependencies_stay_out_of_runtime_baseline() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     project_requirements = {
         canonicalize_name(req.name): req
-        for req in (
-            Requirement(item)
-            for item in pyproject["project"]["dependencies"]
-        )
+        for req in (Requirement(item) for item in pyproject["project"]["dependencies"])
     }
     for package in REMOVED_UNPATCHED_DEPENDENCIES:
         assert package not in requirements
         assert package not in project_requirements
+
+
+def test_all_extra_references_only_declared_extras() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    optional_dependencies = pyproject["project"]["optional-dependencies"]
+
+    for requirement_text in optional_dependencies["all"]:
+        requirement = Requirement(requirement_text)
+        assert requirement.name == "x0tta6bl4"
+        assert set(requirement.extras) <= set(optional_dependencies)

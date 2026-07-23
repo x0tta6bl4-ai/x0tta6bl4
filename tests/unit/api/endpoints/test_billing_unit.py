@@ -287,7 +287,7 @@ from src.services.service_event_trace import event_trace_evidence_summary
 def _make_billing_client(user: UserContext | None = None) -> TestClient:
     """Build a TestClient with the billing router and optional user override."""
     app = FastAPI()
-    app.include_router(billing_mod.router, prefix="/api/v1/maas")
+    app.include_router(billing_mod.router, prefix="/api/v1/maas/billing")
     if user:
         app.dependency_overrides[billing_mod.get_current_user] = lambda: user
     return TestClient(app)
@@ -353,7 +353,7 @@ class TestGetLimitsEndpoint:
     def test_returns_limits_for_user_plan(self):
         user = UserContext(user_id="u-1", plan="pro")
         client = _make_billing_client(user)
-        resp = client.get("/api/v1/maas/billing/limits")
+        resp = client.get("/api/v1/maas/billing/billing/limits")
         assert resp.status_code == 200
         limits = resp.json()
         assert "max_nodes" in limits
@@ -361,13 +361,13 @@ class TestGetLimitsEndpoint:
     def test_enterprise_limits_differ_from_starter(self):
         starter_client = _make_billing_client(UserContext(user_id="u-s", plan="starter"))
         enterprise_client = _make_billing_client(UserContext(user_id="u-e", plan="enterprise"))
-        starter_limits = starter_client.get("/api/v1/maas/billing/limits").json()
-        enterprise_limits = enterprise_client.get("/api/v1/maas/billing/limits").json()
+        starter_limits = starter_client.get("/api/v1/maas/billing/billing/limits").json()
+        enterprise_limits = enterprise_client.get("/api/v1/maas/billing/billing/limits").json()
         assert enterprise_limits["max_nodes"] > starter_limits["max_nodes"]
 
     def test_requires_auth(self):
         client = _make_billing_client()  # no user override
-        resp = client.get("/api/v1/maas/billing/limits")
+        resp = client.get("/api/v1/maas/billing/billing/limits")
         # Without auth override the dependency raises 401 or similar
         assert resp.status_code in (401, 403, 422)
 

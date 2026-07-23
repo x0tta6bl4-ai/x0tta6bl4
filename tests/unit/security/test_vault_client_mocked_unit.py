@@ -12,6 +12,11 @@ os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
 
+def _raise(exc):
+    raise exc
+
+
+
 class _Metric:
     def __init__(self):
         self.incs = []
@@ -176,7 +181,7 @@ async def test_connect_success_and_idempotent(monkeypatch, metric_mocks):
 async def test_connect_failure_sets_degraded(monkeypatch, metric_mocks):
     client = _make_client()
     monkeypatch.setattr(
-        vc.hvac, "Client", lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("boom"))
+        vc.hvac, "Client", lambda **_kwargs: _raise(OSError("boom"))
     )
 
     with pytest.raises(vc.VaultAuthError):
@@ -212,7 +217,7 @@ async def test_authenticate_retries_then_raises(monkeypatch, metric_mocks):
     client.client = _FakeHVACClient()
     client._k8s_auth = Mock()
     monkeypatch.setattr(
-        client, "_read_jwt_token", AsyncMock(side_effect=RuntimeError("jwt fail"))
+        client, "_read_jwt_token", AsyncMock(side_effect=OSError("jwt fail"))
     )
 
     delays = []
@@ -238,13 +243,13 @@ async def test_read_jwt_token_success_and_errors(monkeypatch):
     assert await client._read_jwt_token() == "jwt-ok"
 
     monkeypatch.setattr(
-        client, "_read_jwt_sync", lambda: (_ for _ in ()).throw(FileNotFoundError())
+        client, "_read_jwt_sync", lambda: _raise(FileNotFoundError())
     )
     with pytest.raises(vc.VaultAuthError):
         await client._read_jwt_token()
 
     monkeypatch.setattr(
-        client, "_read_jwt_sync", lambda: (_ for _ in ()).throw(RuntimeError("bad"))
+        client, "_read_jwt_sync", lambda: _raise(OSError("bad"))
     )
     with pytest.raises(vc.VaultAuthError):
         await client._read_jwt_token()
@@ -299,7 +304,7 @@ async def test_get_secret_key_not_found_and_cache_key_lookup(monkeypatch, metric
 async def test_get_secret_connection_error_sets_degraded(monkeypatch, metric_mocks):
     client = _make_client()
     fake_hvac_client = _FakeHVACClient()
-    fake_hvac_client.secrets.kv.v2.read_secret_version.side_effect = RuntimeError(
+    fake_hvac_client.secrets.kv.v2.read_secret_version.side_effect = ConnectionError(
         "socket closed"
     )
     client.client = fake_hvac_client
@@ -397,7 +402,7 @@ async def test_health_check_properties_stats_and_close(monkeypatch, metric_mocks
     assert client._degraded is True
     assert metric_mocks["health"].sets[-1] == 0
 
-    fake_hvac_client.sys.read_health_status.side_effect = RuntimeError("down")
+    fake_hvac_client.sys.read_health_status.side_effect = ConnectionError("down")
     assert await client.health_check() is False
     assert client._degraded is True
 
@@ -413,7 +418,7 @@ async def test_health_check_properties_stats_and_close(monkeypatch, metric_mocks
 
     class _BrokenCloseClient(_FakeHVACClient):
         def close(self):
-            raise RuntimeError("close fail")
+            raise OSError("close fail")
 
     client.client = _BrokenCloseClient()
     client._authenticated = True
@@ -434,3 +439,14 @@ async def test_close_calls_underlying_client_close():
     client.client = fake_hvac_client
     await client.close()
     assert fake_hvac_client.closed is True
+
+
+@pytest.mark.asyncio
+async def test_authenticate_token_fallback():
+    client = _make_client(vault_token="my-secret-token")
+    fake_hvac_client = _FakeHVACClient()
+    client.client = fake_hvac_client
+    await client._authenticate()
+    assert client.token == "my-secret-token"
+    assert client.client.token == "my-secret-token"
+    assert client.token_expiry is not None

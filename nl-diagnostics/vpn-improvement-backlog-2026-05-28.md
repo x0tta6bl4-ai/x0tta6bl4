@@ -1,19 +1,19 @@
 # VPN Improvement Backlog
 
-generated_at: `2026-07-02T13:55:14.091834+00:00`
+generated_at: `2026-07-17T18:26:20.034121+00:00`
 
 ## Current Evidence
 
 ```text
-decision=provider_ticket
+decision=local_fix
 decision_confidence=high
-overall_status=provider_outage
-transport_status=healthy
-telegram_media_status=healthy
-provider_status=suspect_active
-failure_domain=provider_host
+overall_status=critical
+transport_status=unknown
+telegram_media_status=unknown
+provider_status=normal
+failure_domain=local_client
 blocking_history_trend=has_degradation
-blocking_history_snapshot_count=22
+blocking_history_snapshot_count=23
 promoted_source_count=22
 nl_write_allowed=false
 spb_fallback_allowed=false
@@ -37,8 +37,8 @@ spb_fallback_allowed=false
 Reason: Fresh evidence prevents restarting NL for app-only or provider symptoms.
 
 Evidence:
-- decision=provider_ticket
-- transport_status=healthy
+- decision=local_fix
+- transport_status=unknown
 - collector=nl-diagnostics/collect_vpn_readonly_snapshot.sh
 
 Next steps:
@@ -68,7 +68,7 @@ Reason: Current app/path probe history does not prove an x-ui outage.
 
 Evidence:
 - blocking_history_trend=has_degradation
-- blocking_history_snapshot_count=22
+- blocking_history_snapshot_count=23
 
 Next steps:
 - keep nl-diagnostics/blocking_probe_targets.json as the default target set
@@ -126,8 +126,8 @@ spb_fallback_allowed=false
 Reason: A boot gap with current healthy transport is a provider-watch signal, not a restart signal.
 
 Evidence:
-- provider_status=suspect_active
-- failure_domain=provider_host
+- provider_status=normal
+- failure_domain=local_client
 
 Next steps:
 - build a provider packet if transport becomes degraded or critical

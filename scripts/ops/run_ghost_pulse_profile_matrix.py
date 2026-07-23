@@ -99,7 +99,7 @@ async def run_matrix(args: argparse.Namespace) -> int:
         ],
         timeout=30,
     )
-    shell_syntax = pulse_evidence.run_cmd(["bash", "-n", "ghost-core.sh"], timeout=10)
+    shell_syntax = pulse_evidence.run_cmd(["bash", "-n", "scripts/ghost-core.sh"], timeout=10)
     static = pulse_evidence.static_artifact_evidence()
     kernel = pulse_evidence.kernel_read_only_evidence()
 

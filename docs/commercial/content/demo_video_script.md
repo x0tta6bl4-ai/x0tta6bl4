@@ -153,7 +153,7 @@ License: Apache-2.0
 Status:  REAL_READINESS_READY 70/70
 ```
 
-**Voiceover:** "x0tta6bl4 — the post-quantum transport layer for the DePIN economy. Open source. Production-ready under active verification. Quantum-resistant."
+**Voiceover:** "x0tta6bl4 — the post-quantum transport layer for the DePIN economy. Open source. Production-candidate RC1 baseline under active verification. Quantum-resistant."
 
 ---
 

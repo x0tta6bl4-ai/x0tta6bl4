@@ -283,7 +283,10 @@ def event_trace_evidence_summary(payload: Any) -> Dict[str, Any]:
     }
     if "settlement_evidence" in payload and isinstance(payload["settlement_evidence"], dict):
         for k, v in payload["settlement_evidence"].items():
-            settlement_summary[k] = v
+            if k == "claim_gate" and isinstance(v, dict):
+                settlement_summary[k] = {"present": True, **v}
+            else:
+                settlement_summary[k] = v
         settlement_summary["present"] = True
 
     # 2. runtime_evidence

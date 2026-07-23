@@ -226,8 +226,8 @@ class TestListMeshes:
 
         result = await mod.list_meshes(user=_make_user("owner-1"), include_terminated=False)
 
-        assert len(result) == 1
-        assert result[0].mesh_id == mid1
+        assert len(result["meshes"]) == 1
+        assert result["meshes"][0].mesh_id == mid1
 
     @pytest.mark.asyncio
     async def test_excludes_terminated_by_default(self, monkeypatch):
@@ -240,8 +240,8 @@ class TestListMeshes:
 
         result = await mod.list_meshes(user=_make_user("owner-1"), include_terminated=False)
 
-        assert len(result) == 1
-        assert result[0].mesh_id == mid1
+        assert len(result["meshes"]) == 1
+        assert result["meshes"][0].mesh_id == mid1
 
     @pytest.mark.asyncio
     async def test_includes_terminated_when_flag_set(self, monkeypatch):
@@ -254,7 +254,7 @@ class TestListMeshes:
 
         result = await mod.list_meshes(user=_make_user("owner-1"), include_terminated=True)
 
-        assert len(result) == 2
+        assert len(result["meshes"]) == 2
 
     @pytest.mark.asyncio
     async def test_returns_empty_for_no_owned_meshes(self, monkeypatch):
@@ -262,7 +262,7 @@ class TestListMeshes:
 
         result = await mod.list_meshes(user=_make_user("owner-x"), include_terminated=False)
 
-        assert result == []
+        assert result["meshes"] == []
 
     @pytest.mark.asyncio
     async def test_response_shape(self, monkeypatch):
@@ -272,7 +272,7 @@ class TestListMeshes:
 
         result = await mod.list_meshes(user=_make_user("owner-1"), include_terminated=False)
 
-        r = result[0]
+        r = result["meshes"][0]
         assert r.mesh_id == mid
         assert r.nodes_total == 2
         assert r.nodes_healthy == 2
@@ -1012,9 +1012,9 @@ async def test_mesh_read_routes_publish_redacted_observed_state_evidence(
         http_request=http_request,
     )
 
-    assert listed[0].mesh_id == mesh_id
+    assert listed["meshes"][0].mesh_id == mesh_id
     assert status_response.control_policy_evidence == evidence
-    assert listed[0].mesh_lifecycle_claim_gate[
+    assert listed["meshes"][0].mesh_lifecycle_claim_gate[
         "local_mesh_registry_read_claim_allowed"
     ] is True
     assert status_response.mesh_lifecycle_claim_gate[

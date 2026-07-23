@@ -132,7 +132,7 @@ parso==0.8.5
 passlib==1.7.4
 pathspec==1.1.1
 pem==23.1.0
-pillow==12.2.0
+pillow==12.3.0
 pip-api==0.0.34
 pip_audit==2.10.0
 pip-requirements-parser==32.0.1
@@ -300,7 +300,7 @@ LibAppArmor==4.0.1
 libvirt-python==10.0.0
 Markdown==3.10.2
 matplotlib==3.10.7
-mcp==1.26.0
+mcp==1.28.1
 monotonic==1.6
 more-itertools==10.2.0
 mutagen==1.46.0

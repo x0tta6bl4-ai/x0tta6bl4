@@ -12,6 +12,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.core.security.subprocess_validator import safe_run
+
 VPS_IP = os.getenv("X0_VPS_IP", "89.125.1.107")
 VPN_PORT = int(os.getenv("X0_VPN_PORT", "443"))
 SPIRE_SOCKET = os.getenv("X0_SPIRE_SOCKET", "/opt/spire/sockets/agent.sock")
@@ -30,7 +36,7 @@ def check(name):
 
 @check("node_process")
 def node_process():
-    r = subprocess.run(
+    r = safe_run(
         ["systemctl", "is-active", "x0tta6bl4-node"],
         capture_output=True, text=True, timeout=5,
     )
@@ -95,7 +101,7 @@ def load_average():
 
 @check("ghost_bot")
 def ghost_bot():
-    r = subprocess.run(
+    r = safe_run(
         ["systemctl", "is-active", "ghost-access-bot"],
         capture_output=True, text=True, timeout=5,
     )
@@ -115,7 +121,7 @@ def spire_jwt_svid():
         return False, "socket not found"
 
     try:
-        r = subprocess.run(
+        r = safe_run(
             [spire_agent, "api", "fetch",
              "-socketPath", socket_path,
              "-jwt",

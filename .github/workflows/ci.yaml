@@ -21,11 +21,16 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq librsync-dev gettext
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt --no-build-isolation
-          pip install pytest
+          pip install pytest pytest-asyncio pytest-mock
 
       - name: Run x0tMQ PQ MAVLink tests
         run: |
@@ -63,4 +68,4 @@ jobs:
         run: pip install bandit
 
       - name: Bandit security scan
-        run: bandit -r src/self_healing/ src/security/ src/core/security/ -f json
+        run: bandit -r src/security/ src/self_healing/ src/core/security/ -ll -q

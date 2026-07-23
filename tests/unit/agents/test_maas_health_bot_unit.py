@@ -81,8 +81,8 @@ def test_run_once_plans_actions_in_dry_run_mode(tmp_path):
     cfg = HealthBotConfig(
         **{
             **_base_config(tmp_path).__dict__,
-            "restart_xray_cmd": "/bin/echo restart-xray",
-            "reroute_cmd": "/bin/echo reroute",
+            "restart_xray_cmd": "uname",
+            "reroute_cmd": "hostname",
             "enable_execute": True,
         }
     )
@@ -102,7 +102,7 @@ def test_run_once_executes_commands_when_not_dry_run(tmp_path):
     cfg = HealthBotConfig(
         **{
             **_base_config(tmp_path).__dict__,
-            "restart_xray_cmd": "/bin/echo restart-xray",
+            "restart_xray_cmd": "uname",
             "enable_execute": True,
         }
     )
@@ -121,7 +121,7 @@ def test_run_once_does_not_execute_when_execute_disabled(tmp_path):
     cfg = HealthBotConfig(
         **{
             **_base_config(tmp_path).__dict__,
-            "restart_xray_cmd": "/bin/echo restart-xray",
+            "restart_xray_cmd": "uname",
             "enable_execute": False,
         }
     )
@@ -140,7 +140,7 @@ def test_run_once_respects_action_cooldown(tmp_path):
     cfg = HealthBotConfig(
         **{
             **_base_config(tmp_path).__dict__,
-            "restart_xray_cmd": "/bin/echo restart-xray",
+            "restart_xray_cmd": "uname",
             "enable_execute": True,
             "action_cooldown_seconds": 60,
         }

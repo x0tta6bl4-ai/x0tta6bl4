@@ -1,0 +1,8 @@
+node_modules
+artifacts
+cache
+deployments
+.env
+hardhat.log
+hardhat_pilot.log
+*.db

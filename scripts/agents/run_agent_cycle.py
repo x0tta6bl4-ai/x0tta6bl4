@@ -696,6 +696,14 @@ def main() -> int:
         dry_run=args.dry_run,
     )
 
+    try:
+        from scripts.agents.agent_feedback_loop import AgentFeedbackLoop
+        feedback_loop = AgentFeedbackLoop()
+        feedback_res = feedback_loop.ingest_cycle_summary(run_dir / "summary.json")
+        print(f"[agent-cycle] feedback_loop score={feedback_res['overall_score']}")
+    except Exception as exc:
+        print(f"[agent-cycle] feedback_loop ingest notice: {exc}")
+
     print(f"[agent-cycle] summary={run_dir.relative_to(project_root) / 'summary.md'}")
     if exit_code != 0:
         print("[agent-cycle] blocking failures detected")

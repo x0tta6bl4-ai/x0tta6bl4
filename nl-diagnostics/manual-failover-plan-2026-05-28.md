@@ -1,17 +1,17 @@
 # Manual Failover Plan
 
-generated_at: `2026-07-02T13:55:14.149810+00:00`
+generated_at: `2026-07-17T18:26:20.135869+00:00`
 
 ## Status
 
 ```text
-status=manual_failover_candidate
-current_decision=provider_ticket
+status=blocked_local_client_first
+current_decision=local_fix
 decision_confidence=high
-overall_status=provider_outage
-transport_status=healthy
-failure_domain=provider_host
-provider_status=suspect_active
+overall_status=critical
+transport_status=unknown
+failure_domain=local_client
+provider_status=normal
 spb_fallback_allowed=false
 automatic_failover_allowed=false
 nl_write_allowed=false

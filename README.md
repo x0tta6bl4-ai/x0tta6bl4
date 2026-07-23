@@ -26,12 +26,14 @@
 
 | Subsystem / Feature | Status | Proof / Evidence Link | Command / Artifact |
 |:---|:---:|:---|:---|
+| **Readiness Gate Suite (16/16)** | `✅ VERIFIED` | [`src/ops/readiness_gate.py`](src/ops/readiness_gate.py) | `X0TTA6BL4_DEV_MODE=1 python3 src/ops/readiness_gate.py --json` |
+| **PQC ML-KEM-768 & ML-DSA-65** | `✅ VERIFIED` | [`tests/security/test_pqc_phase8.py`](tests/security/test_pqc_phase8.py) | `pytest tests/security/test_pqc_phase8.py` |
+| **GitMark RAG v3.0 Engine** | `✅ VERIFIED` | [`scripts/test_gitmark_rag_quality.py`](scripts/test_gitmark_rag_quality.py) | `python3 scripts/test_gitmark_rag_quality.py` |
 | **Validation Framework** | `✅ VERIFIED` | [`tests/api/test_api_error_contract.py`](tests/api/test_api_error_contract.py) | `pytest tests/api/test_api_error_contract.py` |
-| **PQC ML-KEM-768 & ML-DSA-65** | `✅ VERIFIED` | [`src/security/pqc/`](src/security/pqc/) | `python3 -c "import src.security.pqc as pqc; print(pqc.is_liboqs_available())"` |
 | **XDP Decision Simulator** | `✅ VERIFIED` | [`ebpf/prod/bench_test.go`](ebpf/prod/bench_test.go) | `go test -bench=BenchmarkXDPDecisionSimulator ./ebpf/prod` |
 | **MCP Operator Tools** | `✅ VERIFIED` | [`mcp-server/test_operator_tools.py`](mcp-server/test_operator_tools.py) | `pytest mcp-server/test_operator_tools.py` |
-| **Autonomous Recovery Loop** | `🟡 VALIDATED IN LAB` | [`tests/test_mapek_ai_contracts_e2e.py`](tests/test_mapek_ai_contracts_e2e.py) | `pytest tests/test_mapek_ai_contracts_e2e.py` |
-| **Autonomous Network Autopilot** | `🟡 VALIDATED IN LAB` | [`scripts/ops/run_self_healing_autopilot_cycle.py`](scripts/ops/run_self_healing_autopilot_cycle.py) | `python3 scripts/ops/run_self_healing_autopilot_cycle.py --cycles 1` |
+| **Autonomous Recovery Loop** | `🟡 VALIDATED IN LAB` | [`tests/unit/self_healing/`](tests/unit/self_healing/) | `pytest tests/unit/self_healing/` |
+| **Multi-Node VPN Topology** | `🟡 VALIDATED IN LAB` | [`scripts/ops/vpn_health_check.py`](scripts/ops/vpn_health_check.py) | `python3 scripts/ops/vpn_health_check.py` |
 | **1M+ PPS Physical Hardware** | `⚪ TARGET` | Physical hardware testbed | Planned benchmark on bare-metal NIC |
 
 ---

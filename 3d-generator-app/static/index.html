@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 3D CAD Studio</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-badge">3D</div>
+      <div class="logo-title">AI CAD Studio</div>
+    </div>
+    <div class="header-hint">Опиши модель — AI сгенерирует код → получи STL/STEP</div>
+  </header>
+
+  <div class="main-layout">
+
+    <!-- Left: Code Editor -->
+    <div class="editor-panel">
+      <div class="panel-header">
+        <span class="panel-title">build123d код</span>
+        <div class="panel-actions">
+          <button class="btn-sm btn-ghost" onclick="loadTemplateHelp()" title="Справка">?</button>
+          <button class="btn-sm btn-ghost" onclick="formatCode()" title="Форматировать">fmt</button>
+          <button class="btn-sm btn-ghost" onclick="clearCode()" title="Очистить">clr</button>
+        </div>
+      </div>
+
+      <div class="templates-bar">
+        <button class="template-chip active" onclick="showTab('nl')">AI Генератор</button>
+        <button class="template-chip" onclick="showTab('editor')">Код</button>
+        <button class="template-chip" onclick="showTab('templates')">Шаблоны</button>
+        <button class="template-chip" onclick="showTab('help')">Справка</button>
+      </div>
+
+      <!-- NL Tab -->
+      <div id="tab-nl" class="tab-body active">
+        <div class="nl-prompt-area">
+          <label class="form-label">Опиши 3D модель на русском:</label>
+          <textarea id="nl-input" class="nl-textarea" rows="6" placeholder="Например: Квадратная крышка 50x50мм с 4 отверстиями по углам и выемкой по центру 20мм..."></textarea>
+          <button class="btn-generate nl-btn" onclick="generateFromNL()" id="btn-nl">
+            <span class="btn-icon">✨</span>
+            <span id="nl-btn-text">Сгенерировать из описания</span>
+          </button>
+        </div>
+        <div id="nl-status" class="nl-status"></div>
+      </div>
+
+      <!-- Editor Tab -->
+      <div id="tab-editor" class="tab-body">
+        <div class="editor-wrapper">
+          <div class="line-numbers" id="line-numbers"></div>
+          <textarea id="code-editor" spellcheck="false" placeholder="# Вставь build123d код сюда...&#10;# Или выбери шаблон слева&#10;&#10;from build123d import *&#10;&#10;shape = Box(80, 50, 25)"></textarea>
+        </div>
+      </div>
+
+      <!-- Templates Tab -->
+      <div id="tab-templates" class="tab-body">
+        <div id="templates-list" class="templates-grid"></div>
+      </div>
+
+      <!-- Help Tab -->
+      <div id="tab-help" class="tab-body">
+        <div class="help-content">
+          <h3>Как пользоваться</h3>
+          <ol>
+            <li><strong>Выбери шаблон</strong> или впиши код вручную</li>
+            <li><strong>Опиши что нужно</strong> в любом AI (ChatGPT, Claude, Gemini) — попроси сгенерировать build123d код</li>
+            <li><strong>Вставь код</strong> в редактор</li>
+            <li><strong>Нажми "Сгенерировать"</strong> — получи STL/STEP</li>
+          </ol>
+
+          <h3>Промпт для AI</h3>
+          <div class="prompt-box">
+            <code>Сгенерируй build123d Python код для: <em>[опиши модель]</em>.<br>
+            Используй <code>from build123d import *</code>.<br>
+            Результат положи в переменную <code>shape</code>.<br>
+            Используй параметрические размеры.</code>
+          </div>
+
+          <h3>Примитивы</h3>
+          <table>
+            <tr><td><code>Box(w,d,h)</code></td><td>Параллелепипед</td></tr>
+            <tr><td><code>Cylinder(r,h)</code></td><td>Цилиндр</td></tr>
+            <tr><td><code>Sphere(r)</code></td><td>Сфера</td></tr>
+            <tr><td><code>Cone(r1,r2,h)</code></td><td>Конус</td></tr>
+          </table>
+
+          <h3>Операции</h3>
+          <table>
+            <tr><td><code>A - B</code></td><td>Вычитание</td></tr>
+            <tr><td><code>A + B</code></td><td>Объединение</td></tr>
+            <tr><td><code>fillet(edges, r)</code></td><td>Скругление</td></tr>
+            <tr><td><code>chamfer(edges, d)</code></td><td>Фаска</td></tr>
+            <tr><td><code>extrude(sketch, h)</code></td><td>Экструзия</td></tr>
+            <tr><td><code>revolve(sketch, axis)</code></td><td>Вращение</td></tr>
+          </table>
+
+          <h3>Позиционирование</h3>
+          <table>
+            <tr><td><code>translate(obj, (x,y,z))</code></td><td>Перемещение</td></tr>
+            <tr><td><code>rotate(obj, (ax,ay,az))</code></td><td>Поворот</td></tr>
+            <tr><td><code>Loc(x,y,z)</code></td><td>Точка позиции</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Generate Bar -->
+      <div class="generate-bar">
+        <select id="export-format" class="format-select">
+          <option value="both">STL + STEP</option>
+          <option value="stl">Только STL</option>
+          <option value="step">Только STEP</option>
+        </select>
+        <button class="btn-generate" onclick="generateFromCode()" id="btn-generate">
+          <span class="btn-icon">⚡</span>
+          <span id="btn-text">Сгенерировать</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Right: 3D Viewport -->
+    <div class="viewport-container">
+      <div id="canvas-container"></div>
+      <div class="viewport-overlay">
+        <span>Статус: <strong id="status-text" style="color: var(--accent-cyan);">Готов</strong></span>
+      </div>
+      <div class="viewport-controls" id="viewport-controls" style="display:none;">
+        <button class="vp-btn" onclick="resetCamera()" title="Сброс камеры">⟲</button>
+        <button class="vp-btn" onclick="toggleWireframe()" title="Каркас">▦</button>
+        <button class="vp-btn" onclick="toggleAutoRotate()" title="Авто-вращение">↻</button>
+      </div>
+      <div class="download-bar" id="download-bar" style="display:none;">
+        <a id="dl-stl" class="dl-btn" href="#" download>📥 STL</a>
+        <a id="dl-step" class="dl-btn" href="#" download>📐 STEP</a>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

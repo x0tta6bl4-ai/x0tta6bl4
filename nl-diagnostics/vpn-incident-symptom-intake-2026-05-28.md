@@ -1,22 +1,22 @@
 # VPN Incident Symptom Intake
 
-generated_at: `2026-07-02T13:55:15.934648+00:00`
-status: `symptom_intake_ready_incident`
+generated_at: `2026-07-17T18:26:27.216208+00:00`
+status: `symptom_intake_ready_review`
 ok: `true`
 
 ## Summary
 
 ```text
-decision=provider_ticket
-operator_status=provider_ticket
-transport_status=healthy
-failure_domain=provider_host
-provider_status=suspect_active
+decision=local_fix
+operator_status=local_fix
+transport_status=unknown
+failure_domain=local_client
+provider_status=normal
 blocking_history_trend=has_degradation
-blocking_history_snapshot_count=22
-latest_blocking_targets_ok=8/8
+blocking_history_snapshot_count=23
+latest_blocking_targets_ok=0/8
 nl_transport_probe_status=healthy
-manual_failover_readiness_status=blocked_missing_secondary
+manual_failover_readiness_status=blocked_local_client_first
 manual_switch_allowed=false
 required_field_count=12
 allowed_field_count=12

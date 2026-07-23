@@ -1,64 +1,145 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/summarize_blocking_probe_history.py",
-  "generated_at": "2026-07-02T13:55:13.696268+00:00",
+  "generated_at": "2026-07-17T18:26:19.385558+00:00",
   "snapshots_dir": "nl-diagnostics/snapshots",
   "summary": {
-    "snapshot_count": 22,
+    "snapshot_count": 23,
     "trend": "has_degradation",
     "assessment_counts": {
       "no_probe_evidence": 18,
       "possible_local_isp_block": 2,
-      "vpn_path_degraded": 2
+      "vpn_path_degraded": 3
     },
     "degraded_by_target": {
-      "connectivity": 4,
-      "github": 4,
-      "openai_api": 4,
-      "russia_search": 4,
-      "telegram_api": 4,
-      "telegram_media_dc2_149_154_166_111_443": 3,
-      "telegram_media_dc4_91_108_56_161_443": 3,
-      "telegram_web": 4
+      "connectivity": 5,
+      "github": 5,
+      "openai_api": 5,
+      "russia_search": 5,
+      "telegram_api": 5,
+      "telegram_media_dc2_149_154_166_111_443": 4,
+      "telegram_media_dc4_91_108_56_161_443": 4,
+      "telegram_web": 5
     },
     "degraded_by_group": {
-      "ai": 4,
-      "baseline": 4,
-      "dev": 4,
-      "ru": 4,
-      "telegram": 8,
-      "telegram_media": 6
+      "ai": 5,
+      "baseline": 5,
+      "dev": 5,
+      "ru": 5,
+      "telegram": 10,
+      "telegram_media": 8
     },
     "latest": {
-      "snapshot": "20260702T135431Z",
-      "generated_at": "2026-07-02T13:54:49.174170+00:00",
-      "assessment": "no_probe_evidence",
+      "snapshot": "20260717T182536Z",
+      "generated_at": "2026-07-17T18:25:57.005779+00:00",
+      "assessment": "vpn_path_degraded",
       "target_count": 8,
-      "ok_count": 8,
-      "degraded_count": 0,
+      "ok_count": 0,
+      "degraded_count": 8,
       "group_assessments": {
         "ai": {
-          "ok": 1
+          "vpn_path_degraded": 1
         },
         "baseline": {
-          "ok": 1
+          "vpn_path_degraded": 1
         },
         "dev": {
-          "ok": 1
+          "vpn_path_degraded": 1
         },
         "ru": {
-          "ok": 1
+          "vpn_path_degraded": 1
         },
         "telegram": {
-          "ok": 2
+          "vpn_path_degraded": 2
         },
         "telegram_media": {
-          "ok": 2
+          "vpn_path_degraded": 2
         }
       },
-      "degraded_targets": [],
-      "socks_proxy_detected": true,
-      "socks_port": 10808,
+      "degraded_targets": [
+        {
+          "label": "connectivity",
+          "kind": "http",
+          "group": "baseline",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 204,
+          "socks_http_code": null
+        },
+        {
+          "label": "telegram_web",
+          "kind": "http",
+          "group": "telegram",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 200,
+          "socks_http_code": null
+        },
+        {
+          "label": "telegram_api",
+          "kind": "http",
+          "group": "telegram",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 200,
+          "socks_http_code": null
+        },
+        {
+          "label": "telegram_media_dc2_149_154_166_111_443",
+          "kind": "tcp",
+          "group": "telegram_media",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": null,
+          "socks_http_code": null
+        },
+        {
+          "label": "telegram_media_dc4_91_108_56_161_443",
+          "kind": "tcp",
+          "group": "telegram_media",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": null,
+          "socks_http_code": null
+        },
+        {
+          "label": "openai_api",
+          "kind": "http",
+          "group": "ai",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 401,
+          "socks_http_code": null
+        },
+        {
+          "label": "github",
+          "kind": "http",
+          "group": "dev",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 200,
+          "socks_http_code": null
+        },
+        {
+          "label": "russia_search",
+          "kind": "http",
+          "group": "ru",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 200,
+          "socks_http_code": null
+        }
+      ],
+      "socks_proxy_detected": false,
+      "socks_port": null,
       "http_proxy_configured": false,
       "targets_source": "/mnt/projects/nl-diagnostics/blocking_probe_targets.json"
     }
@@ -1072,6 +1153,120 @@
       "degraded_targets": [],
       "socks_proxy_detected": true,
       "socks_port": 10808,
+      "http_proxy_configured": false,
+      "targets_source": "/mnt/projects/nl-diagnostics/blocking_probe_targets.json"
+    },
+    {
+      "snapshot": "20260717T182536Z",
+      "generated_at": "2026-07-17T18:25:57.005779+00:00",
+      "assessment": "vpn_path_degraded",
+      "target_count": 8,
+      "ok_count": 0,
+      "degraded_count": 8,
+      "group_assessments": {
+        "ai": {
+          "vpn_path_degraded": 1
+        },
+        "baseline": {
+          "vpn_path_degraded": 1
+        },
+        "dev": {
+          "vpn_path_degraded": 1
+        },
+        "ru": {
+          "vpn_path_degraded": 1
+        },
+        "telegram": {
+          "vpn_path_degraded": 2
+        },
+        "telegram_media": {
+          "vpn_path_degraded": 2
+        }
+      },
+      "degraded_targets": [
+        {
+          "label": "connectivity",
+          "kind": "http",
+          "group": "baseline",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 204,
+          "socks_http_code": null
+        },
+        {
+          "label": "telegram_web",
+          "kind": "http",
+          "group": "telegram",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 200,
+          "socks_http_code": null
+        },
+        {
+          "label": "telegram_api",
+          "kind": "http",
+          "group": "telegram",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 200,
+          "socks_http_code": null
+        },
+        {
+          "label": "telegram_media_dc2_149_154_166_111_443",
+          "kind": "tcp",
+          "group": "telegram_media",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": null,
+          "socks_http_code": null
+        },
+        {
+          "label": "telegram_media_dc4_91_108_56_161_443",
+          "kind": "tcp",
+          "group": "telegram_media",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": null,
+          "socks_http_code": null
+        },
+        {
+          "label": "openai_api",
+          "kind": "http",
+          "group": "ai",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 401,
+          "socks_http_code": null
+        },
+        {
+          "label": "github",
+          "kind": "http",
+          "group": "dev",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 200,
+          "socks_http_code": null
+        },
+        {
+          "label": "russia_search",
+          "kind": "http",
+          "group": "ru",
+          "assessment": "vpn_path_degraded",
+          "direct_ok": true,
+          "socks_ok": false,
+          "direct_http_code": 200,
+          "socks_http_code": null
+        }
+      ],
+      "socks_proxy_detected": false,
+      "socks_port": null,
       "http_proxy_configured": false,
       "targets_source": "/mnt/projects/nl-diagnostics/blocking_probe_targets.json"
     }

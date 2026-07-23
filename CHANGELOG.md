@@ -5,6 +5,14 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 и этот проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [3.5.0] - 2026-07-11
+
+### Added
+- **HashiCorp Vault Setup & Client Integration**: Added `k8s/vault/setup.sh` configuration scripts, client implementation `src/security/vault_client.py`, metrics reporting, secret manager and monitor with 100% passing tests.
+- **Sealed Secrets Generation**: Added automated Kubernetes SealedSecret generator `scripts/generate_sealed_secrets.py` for production overlays, and `secrets.env` generator for staging overlays.
+- **Billing E2E stability**: Stabilized Stripe billing e2e checks, corrected FastAPI mock database dependency overrides in `tests/conftest.py`, and added validation of plans during mesh creation in `src/api/maas/endpoints/mesh.py`.
+- **K8s Deploy Verification**: Implemented multi-document YAML verification checks in validation engine (`validate_kubernetes_deployment.sh`).
+
 ## [Unreleased]
 
 ### Added

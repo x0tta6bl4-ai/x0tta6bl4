@@ -1,23 +1,23 @@
 # VPN Operator Card
 
-generated_at: `2026-07-02T13:55:15.874611+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z`
+generated_at: `2026-07-17T18:26:27.151916+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260717T182536Z`
 
 ## Status
 
 ```text
-operator_status=provider_ticket
-plain_action=Build a provider packet; do not hide provider symptoms with restarts.
-decision=provider_ticket
+operator_status=local_fix
+plain_action=Fix local route, SOCKS, or client state before testing NL.
+decision=local_fix
 confidence=high
-overall_status=provider_outage
-transport_status=healthy
-telegram_media_status=healthy
-provider_status=suspect_active
-failure_domain=provider_host
+overall_status=critical
+transport_status=unknown
+telegram_media_status=unknown
+provider_status=normal
+failure_domain=local_client
 blocking_history_trend=has_degradation
-blocking_history_snapshot_count=22
-manual_failover_status=manual_failover_candidate
+blocking_history_snapshot_count=23
+manual_failover_status=blocked_local_client_first
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false

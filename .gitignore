@@ -279,6 +279,7 @@ data-16bbdde1-92ce-4f6f-ac13-c7217d4cd06a-*/
 **/*.cap
 **/core.*
 !src/dao/bridge/core.py
+!src/swarm/intelligence/core.py
 **/*.dump
 **/*.mem
 
@@ -565,3 +566,8 @@ docs/archive/root_artifacts_20260215/
 
 # Agent workspace (not project code)
 .hermes/
+
+# Editor / scratch / generated outputs
+.zencoder/
+outputs/
+scratch/

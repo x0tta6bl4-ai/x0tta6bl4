@@ -35,7 +35,7 @@ jobs:
           errors = []
           for path in pathlib.Path('deploy').rglob('*.yml'):
               try:
-                  yaml.safe_load(path.read_text())
+                  list(yaml.safe_load_all(path.read_text()))
               except Exception as exc:
                   errors.append(f"{path}: {exc}")
           if errors:

@@ -440,7 +440,7 @@ Phase 3: Development Agents (Q4 2026)
 
 ### Q1 2026: Validation & Publication
 - [ ] Arxiv paper: "Federated PPO for Autonomous Mesh Routing"
-- [ ] Benchmark vs OSPF/BGP (30% latency improvement goal)
+- [ ] Benchmark vs standard static routing (30% latency improvement goal)
 - [ ] Investor Pitch Deck
 
 ### Q2 2026: Commercialization

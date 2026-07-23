@@ -706,6 +706,28 @@ class MeshNode:
                 self._peer_announce_task.cancel()
 
     async def run(self):
+        # Initialize Vault if env vars are present
+        vault_addr = os.environ.get("VAULT_ADDR")
+        vault_token = os.environ.get("VAULT_TOKEN")
+        if vault_addr and vault_token:
+            try:
+                from src.security.vault_client import VaultClient
+                from src.security.vault_secrets import VaultSecretManager, ApiCredentials
+                
+                logger.info("Initializing Vault client and writing node secrets...")
+                client = VaultClient(vault_addr=vault_addr, vault_token=vault_token)
+                await client.connect()
+                secrets_mgr = VaultSecretManager(client)
+                cred = ApiCredentials(api_key=f"key-for-{NODE_ID}", api_secret=f"secret-for-{NODE_ID}")
+                await secrets_mgr.store_api_credentials(f"node-{NODE_ID}", cred)
+                logger.info("Node secrets successfully stored in Vault!")
+                # Verify retrieval
+                retrieved = await secrets_mgr.get_api_credentials(f"node-{NODE_ID}")
+                logger.info("Verified Vault secret retrieval: api_key=%s", retrieved.api_key)
+                await client.close()
+            except Exception as e:
+                logger.error("Failed to initialize Vault configuration: %s", e)
+
         logger.info("Starting mesh node %s", NODE_ID)
         try:
             start_http_server(MESH_METRICS_PORT)

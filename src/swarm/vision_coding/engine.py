@@ -7,9 +7,10 @@ import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import requests
-from .models import AnalysisType, BoundingBox, Issue, Severity, Style, Suggestion, VisualOverlay
-from .graph import GraphNode, BFSAlgorithm, AStarAlgorithm
+import numpy
+from PIL import Image, ImageDraw
+from .models import AnalysisType, BoundingBox, Issue, OverlayElement, Severity, Style, Suggestion, VisualOverlay
+from .graph import Graph, GraphNode, BFSAlgorithm, AStarAlgorithm
 from .cache import VisionCache
 logger = logging.getLogger(__name__)
 

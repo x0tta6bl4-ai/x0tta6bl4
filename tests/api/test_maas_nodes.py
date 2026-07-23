@@ -417,7 +417,7 @@ class TestHeartbeat:
         self,
         mesh_id="mesh-hb-test",
         status="approved",
-        with_mesh=False,
+        with_mesh=True,
         enclave_enabled=False,
         runtime_identity_binding_type=None,
         runtime_identity_binding_hash=None,
@@ -517,7 +517,7 @@ class TestHeartbeat:
             headers=_runtime_headers_for_node(nid),
         )
         assert r.status_code == 403
-        assert r.json()["detail"] == "Node must be approved before runtime access"
+        assert r.json()["detail"] == "Node is not approved for heartbeat"
 
     def test_heartbeat_rejects_revoked_node(self, client):
         nid, mesh_id = self._db_node(status="revoked")
@@ -527,7 +527,7 @@ class TestHeartbeat:
             headers=_runtime_headers_for_node(nid),
         )
         assert r.status_code == 403
-        assert r.json()["detail"] == "Node must be approved before runtime access"
+        assert r.json()["detail"] == "Node is not approved for heartbeat"
 
     def test_heartbeat_rejects_expired_runtime_credential(self, client):
         nid, mesh_id = self._db_node()

@@ -96,6 +96,10 @@ class SafeActuatorResult:
     redacted: bool = True
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def evidence_metadata(self) -> "SafeActuatorResult":
+        return self
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "success": bool(self.success),
@@ -113,34 +117,19 @@ class SafeActuatorResult:
     @classmethod
     def from_value(cls, value: Dict[str, Any]) -> "SafeActuatorResult":
         if not isinstance(value, dict):
-            return cls(success=False, reason="invalid evidence metadata payload")
-        base_fields = {
-            "success": value.get("success", value.get("allowed", False)),
-            "reason": str(value.get("reason", value.get("message", ""))),
-            "simulated": bool(value.get("simulated", value.get("dry_run", False))),
-            "claim_gate": value.get("claim_gate", {}),
-            "cross_plane_claim_gate": value.get("cross_plane_claim_gate", {}),
-            "evidence": value.get("evidence", {}),
-            "source_agents": list(value.get("source_agents", [])),
-            "claim_boundary": str(value.get("claim_boundary", "")),
-            "redacted": bool(value.get("redacted", True)),
-        }
-        known_keys = set(base_fields) | {
-            "success",
-            "reason",
-            "simulated",
-            "allowed",
-            "message",
-            "dry_run",
-            "claim_gate",
-            "cross_plane_claim_gate",
-            "evidence",
-            "source_agents",
-            "claim_boundary",
-            "redacted",
-        }
-        metadata = {key: value[key] for key in value if key not in known_keys}
-        return cls(**base_fields, metadata=metadata)
+            return cls(success=False, reason="Invalid dict value")
+        return cls(
+            success=bool(value.get("success", value.get("ok", False))),
+            reason=str(value.get("reason", value.get("error", "")) or ""),
+            simulated=bool(value.get("simulated", False)),
+            claim_gate=dict(value.get("claim_gate", {})),
+            cross_plane_claim_gate=dict(value.get("cross_plane_claim_gate", {})),
+            evidence=dict(value.get("evidence", {})),
+            source_agents=list(value.get("source_agents", [])),
+            claim_boundary=str(value.get("claim_boundary", "")),
+            redacted=bool(value.get("redacted", True)),
+            metadata=dict(value.get("metadata", {})),
+        )
 
 
 # Backward-compatible alias used by dao bridge, deployment modules

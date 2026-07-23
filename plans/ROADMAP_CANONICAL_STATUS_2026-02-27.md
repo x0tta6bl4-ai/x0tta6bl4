@@ -28,7 +28,7 @@
 | Golden Smoke Pre-Merge | Dev + QA | ✅ **Стабилен** | Keep green | None |
 | Nightly Golden Smoke | DevOps | ✅ **Работает** | Duration baseline collected | None |
 | MaaS Pivot Scope (Phases 1-5) | Product + Dev | ✅ **Complete** | Harden for pilots | Execution quality, not feature gap |
-| **God Object Refactoring** | Core | **9/10 done** | drift_detector.py (922 строк) | 1 оставшийся |
+| **God Object Refactoring** | Core | **10/10 done** | Все 10 монолитов декомпозированы | None |
 | **CodeQL gates** | Security | **0 critical/high** | Поддерживать | None |
 | **requirements.txt cleanup** | Dev | **342→72 deps (-79%)** | Поддерживать | None |
 | **Ghost Access Bot** | Ops | **Работает на NL** | 2 пользователя | Мало пользователей |
