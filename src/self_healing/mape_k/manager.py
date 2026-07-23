@@ -13,6 +13,17 @@ from src.self_healing.mape_k.knowledge import MAPEKKnowledge
 from src.self_healing.mape_k.monitor import MAPEKMonitor
 from src.self_healing.mape_k.planner import MAPEKPlanner
 
+try:
+    from src.monitoring.metrics import (
+        record_mape_k_cycle,
+        record_mttr,
+        record_self_healing_event,
+    )
+except ImportError:
+    record_mape_k_cycle = None
+    record_mttr = None
+    record_self_healing_event = None
+
 logger = logging.getLogger(__name__)
 
 

@@ -18,7 +18,7 @@ def test_rate_limiter_blocks_when_exceeded(monkeypatch):
         def now(cls, tz=None):
             return cls.now_value
 
-    monkeypatch.setattr("src.self_healing.recovery_actions.datetime", _FakeDT)
+    monkeypatch.setattr("src.self_healing.recovery.rate_limiter.datetime", _FakeDT)
 
     assert rl.allow() is True
     assert rl.allow() is True
@@ -37,7 +37,7 @@ def test_circuit_breaker_opens_and_transitions_to_half_open(monkeypatch):
         def now(cls, tz=None):
             return cls.now_value
 
-    monkeypatch.setattr("src.self_healing.recovery_actions.datetime", _FakeDT)
+    monkeypatch.setattr("src.self_healing.recovery.circuit_breaker.datetime", _FakeDT)
 
     def boom():
         raise RuntimeError("x")

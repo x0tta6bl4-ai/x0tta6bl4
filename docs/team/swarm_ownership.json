@@ -76,7 +76,19 @@
     "services/nl-server/README.md",
     "plans/БИЗНЕС_ПЛАН_И_КОММЕРЦИАЛИЗАЦИЯ.md",
     "plans/ПРЕЗЕНТАЦИЯ_ПРОЕКТА.md",
-    "plans/ТЕХНИЧЕСКОЕ_ЗАДАНИЕ_НИОКР.md"
+    "plans/ТЕХНИЧЕСКОЕ_ЗАДАНИЕ_НИОКР.md",
+    "scripts/demo_autonomous_self_healing_mesh.py",
+    "scripts/replicate_m2_environment.sh",
+    "scripts/run_m2_operational_validation.py",
+    "tests/benchmark/",
+    "tests/e2e/test_mape_k_e2e_recovery.py",
+    "tests/unit/security/test_pqc_invariants_hypothesis.py",
+    "tests/validation/test_validation_laboratory_l2_l3.py",
+    "docs/architecture/adr/",
+    "docs/architecture/invariant_evidence_matrix.md",
+    "docs/architecture/m2_operational_spec.md",
+    "docs/architecture/mesh_scaling_experiments.md",
+    "docs/architecture/pqc_release_criteria_v1.0.md"
   ],
   "agents": {
     "agent1-ml-core": {
@@ -424,6 +436,9 @@
         "plans/БИЗНЕС_ПЛАН_И_КОММЕРЦИАЛИЗАЦИЯ.md",
         "plans/ПРЕЗЕНТАЦИЯ_ПРОЕКТА.md",
         "plans/ТЕХНИЧЕСКОЕ_ЗАДАНИЕ_НИОКР.md",
+        "scripts/demo_autonomous_self_healing_mesh.py",
+        "scripts/replicate_m2_environment.sh",
+        "scripts/run_m2_operational_validation.py",
         "config/crdt_sync.yaml",
         "config/raft_production.yaml",
         "config/recovery_actions.yaml",

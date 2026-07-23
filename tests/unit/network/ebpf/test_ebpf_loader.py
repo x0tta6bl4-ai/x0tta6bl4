@@ -55,15 +55,18 @@ def loader(temp_programs_dir):
 @pytest.fixture
 def mock_safe_run():
     """Mock safe_run function."""
-    with patch("src.network.ebpf.loader.safe_run") as mock:
+    with patch("src.network.ebpf.loader._legacy._original.safe_run") as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_subprocess_run():
     """Mock subprocess.run."""
-    with patch("src.network.ebpf.loader.subprocess.run") as mock:
-        yield mock
+    with patch("src.network.ebpf.loader._legacy._original.subprocess.run") as mock_sub, patch(
+        "src.network.ebpf.loader._legacy._original.safe_run"
+    ) as mock_safe:
+        mock_safe.side_effect = lambda cmd, **kwargs: mock_sub(cmd, **kwargs)
+        yield mock_sub
 
 
 class TestEBPFLoader:
@@ -109,7 +112,7 @@ class TestEBPFLoader:
         with pytest.raises(EBPFLoadError):
             loader.load_program("nonexistent.o", EBPFProgramType.XDP)
 
-    @patch("src.network.ebpf.loader.ELFFile")
+    @patch("src.network.ebpf.loader._legacy._original.ELFFile")
     def test_parse_elf_sections(self, mock_elf_file, loader, temp_ebpf_file):
         """Test ELF section parsing."""
         # Copy temporary file to programs directory
@@ -143,7 +146,7 @@ class TestEBPFLoader:
 
         mock_elf_file.return_value = mock_elf
 
-        with patch("src.network.ebpf.loader.ELF_TOOLS_AVAILABLE", True):
+        with patch("src.network.ebpf.loader._legacy._original.ELF_TOOLS_AVAILABLE", True):
             program_id = loader.load_program(dest_file.name, EBPFProgramType.XDP)
             program = loader.loaded_programs[program_id]
 
