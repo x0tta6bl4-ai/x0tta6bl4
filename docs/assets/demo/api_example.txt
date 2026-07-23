@@ -1,0 +1,19 @@
+$ curl http://localhost:8280/health
+{
+  "node_id": "node-a",
+  "status": "ok",
+  "uptime": 120,
+  "peers": ["node-b"],
+  "consensus_count": 4
+}
+
+$ curl http://localhost:9190/metrics | grep x0tta6bl4_mesh
+# HELP x0tta6bl4_mesh_health_score Mesh node health score baseline
+# TYPE x0tta6bl4_mesh_health_score gauge
+x0tta6bl4_mesh_health_score{node_id="node-a"} 20.0
+# HELP x0tta6bl4_mesh_uptime_seconds Seconds since the mesh node started
+# TYPE x0tta6bl4_mesh_uptime_seconds gauge
+x0tta6bl4_mesh_uptime_seconds{node_id="node-a"} 120
+# HELP x0tta6bl4_mesh_peers_connected Number of currently valid/active peers
+# TYPE x0tta6bl4_mesh_peers_connected gauge
+x0tta6bl4_mesh_peers_connected{node_id="node-a"} 1

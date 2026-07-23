@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x0tta6bl4 Demo</title>
+  
+<style>
+  body { margin: 0; padding: 20px; background: #1e1e1e; font-family: 'Courier New', monospace; }
+  .terminal { background: #0d1117; border-radius: 8px; padding: 20px; max-width: 800px; margin: 0 auto; }
+  .prompt { color: #7ee787; }
+  .output { color: #c9d1d9; }
+  .success { color: #3fb950; }
+  .header { color: #58a6ff; font-weight: bold; }
+  .divider { color: #484f58; }
+</style>
+
+</head>
+<body>
+  <div class="terminal">
+    <span class="prompt">$ curl http://localhost:8280/health</span><br><span class="output">{</span><br><span class="output">  "node_id": "node-a",</span><br><span class="output">  "status": "ok",</span><br><span class="output">  "uptime": 120,</span><br><span class="output">  "peers": ["node-b"],</span><br><span class="output">  "consensus_count": 4</span><br><span class="output">}</span><br><span class="output"></span><br><span class="prompt">$ curl http://localhost:9190/metrics | grep x0tta6bl4_mesh</span><br><span class="output"># HELP x0tta6bl4_mesh_health_score Mesh node health score</span><br><span class="output"># TYPE x0tta6bl4_mesh_health_score gauge</span><br><span class="output">x0tta6bl4_mesh_health_score{node_id="node-a"} 20.0</span><br><span class="output"># HELP x0tta6bl4_mesh_uptime_seconds Seconds since start</span><br><span class="output"># TYPE x0tta6bl4_mesh_uptime_seconds gauge</span><br><span class="output">x0tta6bl4_mesh_uptime_seconds{node_id="node-a"} 120</span><br><span class="output"># HELP x0tta6bl4_mesh_peers_connected Active peers</span><br><span class="output"># TYPE x0tta6bl4_mesh_peers_connected gauge</span><br><span class="output">x0tta6bl4_mesh_peers_connected{node_id="node-a"} 1</span>
+  </div>
+</body>
+</html>
