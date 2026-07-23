@@ -16,9 +16,9 @@ import logging.handlers
 import os
 import re
 import sys
-from datetime import datetime
+from contextvars import ContextVar
+from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Optional
 
 import structlog
 
@@ -59,7 +59,7 @@ class StructuredJsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
-            "timestamp": datetime.fromtimestamp(record.created).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat().replace("+00:00", "Z"),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -73,6 +73,10 @@ class StructuredJsonFormatter(logging.Formatter):
 
         if hasattr(record, "request_id"):
             log_entry["request_id"] = record.request_id
+        else:
+            context_request_id = RequestIdContextVar.get()
+            if context_request_id:
+                log_entry["request_id"] = context_request_id
 
         if hasattr(record, "user_id"):
             log_entry["user_id"] = record.user_id
@@ -234,22 +238,22 @@ def get_logger(name: str) -> logging.Logger:
 class RequestIdContextVar:
     """Store request ID in logging context"""
 
-    _context = {}
+    _context: ContextVar[str | None] = ContextVar("request_id", default=None)
 
     @classmethod
     def set(cls, request_id: str):
         """Set request ID for current context"""
-        cls._context[id(cls)] = request_id
+        cls._context.set(request_id)
 
     @classmethod
-    def get(cls) -> Optional[str]:
+    def get(cls) -> str | None:
         """Get request ID from current context"""
-        return cls._context.get(id(cls))
+        return cls._context.get()
 
     @classmethod
     def clear(cls):
         """Clear request ID from context"""
-        cls._context.pop(id(cls), None)
+        cls._context.set(None)
 
 
 class LoggingMiddleware:
