@@ -566,3 +566,8 @@ docs/archive/root_artifacts_20260215/
 
 # Agent workspace (not project code)
 .hermes/
+
+# Editor / scratch / generated outputs
+.zencoder/
+outputs/
+scratch/
