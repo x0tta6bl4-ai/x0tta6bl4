@@ -73,38 +73,44 @@ MESH_METRICS_PORT = int(os.environ.get("MESH_METRICS_PORT", "9190"))
 PEER_PORTS = os.environ.get("PEER_PORTS", "").split(",")
 
 pqc_handshakes_total = Counter(
-    "pqc_handshakes_total",
+    "x0tta6bl4_mesh_pqc_handshakes_total",
     "Total PQC handshakes completed",
     ["node_id", "peer"],
 )
 
 mapek_recovery_actions_total = Counter(
-    "mapek_recovery_actions_total",
+    "x0tta6bl4_mesh_recovery_total",
     "Total MAPE-K recovery actions taken",
     ["node_id", "peer"],
 )
 
 mesh_routing_table_size = Gauge(
-    "mesh_routing_table_size",
+    "x0tta6bl4_mesh_routing_table_size",
     "Current number of entries in the mesh routing table",
     ["node_id"],
 )
 
 mesh_forwarded_messages_total = Counter(
-    "mesh_forwarded_messages_total",
+    "x0tta6bl4_mesh_forwarded_messages_total",
     "Total messages forwarded by this node",
     ["node_id", "destination"],
 )
 
 mesh_route_refresh_total = Gauge(
-    "mesh_route_refresh_total",
+    "x0tta6bl4_mesh_route_refresh_total",
     "Total route discovery refreshes performed for this node",
     ["node_id"],
 )
 
 active_peers_count = Gauge(
-    "active_peers_count",
+    "x0tta6bl4_mesh_peers_connected",
     "Number of currently valid/active peers known to this node",
+    ["node_id"],
+)
+
+mesh_uptime_seconds = Gauge(
+    "x0tta6bl4_mesh_uptime_seconds",
+    "Seconds since the mesh node started",
     ["node_id"],
 )
 
@@ -349,9 +355,10 @@ class MeshNode:
         self.start_time = time.time()
         self.consensus_count = 0
         self.health_score = Gauge(
-            "mesh_health_score", "Mesh node health score baseline", ["node_id"]
+            "x0tta6bl4_mesh_health_score", "Mesh node health score baseline", ["node_id"]
         )
         self.health_score.labels(node_id=self.node_id).set(20.0)
+        mesh_uptime_seconds.labels(node_id=self.node_id).set(0)
         self._last_health_score = 20.0
 
         self.svid_signer = SVIDSigner(
@@ -556,6 +563,9 @@ class MeshNode:
         """Periodic consensus round."""
         await asyncio.sleep(5)  # Let HTTP server start
         while True:
+            mesh_uptime_seconds.labels(node_id=self.node_id).set(
+                int(time.time() - self.start_time)
+            )
             self.consensus_count += 1
             evidence = {
                 "type": "routine_check",

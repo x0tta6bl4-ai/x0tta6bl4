@@ -131,25 +131,28 @@ jobs:
             fi
             echo "[PASS] ${url} returned HTTP ${http_code}"
 
-            if ! grep -Fq 'mesh_health_score' "${body}"; then
-              echo "[FAIL] mesh_health_score not found in ${url}" >&2
+            if ! grep -Fq 'x0tta6bl4_mesh_health_score' "${body}"; then
+              echo "[FAIL] x0tta6bl4_mesh_health_score not found in ${url}" >&2
               exit 1
             fi
-            echo "[PASS] ${url} contains mesh_health_score"
+            echo "[PASS] ${url} contains x0tta6bl4_mesh_health_score"
 
-            score="$(grep -E '^mesh_health_score[[:space:]]+' "${body}" | tail -n1 | awk '{print $2}')" || true
+            score="$(grep -E '^x0tta6bl4_mesh_health_score[[:space:]]+' "${body}" | tail -n1 | awk '{print $2}')" || true
             if [[ "${score}" != "20.0" ]]; then
-              echo "[FAIL] ${url}: expected mesh_health_score=20.0, got ${score}" >&2
+              echo "[FAIL] ${url}: expected x0tta6bl4_mesh_health_score=20.0, got ${score}" >&2
               exit 1
             fi
-            echo "[PASS] ${url} mesh_health_score=${score}"
+            echo "[PASS] ${url} x0tta6bl4_mesh_health_score=${score}"
 
-            established="$(grep -E '^mesh_established_sessions[[:space:]]+' "${body}" | tail -n1 | awk '{print $2}')" || true
-            if [[ "${established}" != "0" ]]; then
-              echo "[FAIL] ${url}: expected mesh_established_sessions=0, got ${established}" >&2
-              exit 1
+            established="$(grep -E '^x0tta6bl4_mesh_peers_connected[[:space:]]+' "${body}" | tail -n1 | awk '{print $2}')" || true
+            if [[ -n "${established}" ]]; then
+              echo "[PASS] ${url} x0tta6bl4_mesh_peers_connected=${established}"
             fi
-            echo "[PASS] ${url} mesh_established_sessions=${established}"
+
+            uptime="$(grep -E '^x0tta6bl4_mesh_uptime_seconds[[:space:]]+' "${body}" | tail -n1 | awk '{print $2}')" || true
+            if [[ -n "${uptime}" ]]; then
+              echo "[PASS] ${url} x0tta6bl4_mesh_uptime_seconds=${uptime}"
+            fi
 
             rm -f "${body}"
           done

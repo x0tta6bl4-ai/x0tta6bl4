@@ -7,21 +7,18 @@ package, so ``src.security.pqc`` no longer imports legacy modules to initialize.
 """
 from __future__ import annotations
 
-import contextlib
-from datetime import datetime, timedelta
-import io
+import hashlib
 import logging
 import os
-import warnings
-from enum import Enum
 from dataclasses import dataclass
-import hashlib
-
-logger = logging.getLogger(__name__)
-
-from .types import PQCKeyPair, PQCSignature
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any
 
 from .adapter import is_liboqs_available
+from .types import PQCEncapsulationResult, PQCKeyPair, PQCSignature
+
+logger = logging.getLogger(__name__)
 
 try:
     import oqs
@@ -540,6 +537,14 @@ class PQCKeyExchange:
         kem = KeyEncapsulation(self.ALGORITHM)
         ciphertext, shared_secret = kem.encap_secret(public_key)
         return ciphertext, shared_secret
+
+    def encapsulate_legacy(self, public_key: bytes) -> tuple[bytes, bytes]:
+        """Encapsulate and return (shared_secret, ciphertext) for legacy PQC contract."""
+        res = self.encapsulate(public_key)
+        if isinstance(res, PQCEncapsulationResult):
+            return res.shared_secret, res.ciphertext
+        ciphertext, shared_secret = res
+        return shared_secret, ciphertext
 
     def decapsulate(self, secret_key: bytes, ciphertext: bytes) -> bytes:
         if not self.enabled:
