@@ -1,6 +1,7 @@
 //go:build ignore
-#include <linux/bpf.h>
+#include "../src/network/ebpf/programs/vmlinux/vmlinux.h"
 #include <bpf/bpf_helpers.h>
+#include <bpf/bpf_tracing.h>
 #include <bpf/bpf_endian.h>
 
 struct {

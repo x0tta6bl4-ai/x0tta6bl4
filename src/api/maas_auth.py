@@ -370,11 +370,20 @@ if not hasattr(_legacy, "require_mesh_access"):
 if not hasattr(_legacy, "get_current_user_from_maas"):
     _legacy.get_current_user_from_maas = get_current_user_from_maas
 
-from src.api.maas.endpoints.auth import register
-_legacy.register = register
+try:
+    import src.api.maas_auth_legacy_full as _legacy_full
+    for _k, _v in _legacy_full.__dict__.items():
+        if not _k.startswith("__"):
+            setattr(_legacy, _k, _v)
+except ImportError:
+    pass
+
+import src.api.maas.endpoints.auth as _auth_endpoints
+for _attr in dir(_auth_endpoints):
+    if not _attr.startswith("_") and not hasattr(_legacy, _attr):
+        setattr(_legacy, _attr, getattr(_auth_endpoints, _attr))
 
 _legacy.router = router
-
 globals().update(_legacy.__dict__)
 _sys.modules[__name__] = _legacy
 

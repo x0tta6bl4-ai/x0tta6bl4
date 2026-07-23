@@ -3,6 +3,11 @@
 import sys
 import types
 
+try:
+    import oqs as _REAL_OQS_MODULE
+except ImportError:
+    _REAL_OQS_MODULE = None
+
 # Heavy/missing deps that break collection or test startup.
 _eth_account = types.ModuleType("eth_account")
 _eth_account.messages = types.SimpleNamespace(encode_defunct=lambda **kwargs: kwargs.get("text", ""))
@@ -52,10 +57,10 @@ _prom.CollectorRegistry = type("CollectorRegistry", (), {
     "names": lambda self: iter([]),
 })
 _prom.Counter = lambda *a, **kw: types.SimpleNamespace(
-    inc=lambda: None, labels=lambda **kw: types.SimpleNamespace(inc=lambda: None)
+    inc=lambda *args, **kwargs: None, labels=lambda **kw: types.SimpleNamespace(inc=lambda *args, **kwargs: None)
 )
 _prom.Gauge = lambda *a, **kw: types.SimpleNamespace(
-    set=lambda v: None, inc=lambda: None,
+    set=lambda v: None, inc=lambda *args, **kwargs: None,
     labels=lambda **kw: types.SimpleNamespace(set=lambda v: None)
 )
 _prom.Histogram = lambda *a, **kw: types.SimpleNamespace(
@@ -209,7 +214,7 @@ try:
     fastapi_concurrency.contextmanager_in_threadpool = _contextmanager_inline
     fastapi_dependencies_utils.contextmanager_in_threadpool = _contextmanager_inline
 
-    def _run_in_threadpool_inline(func, *args, **kwargs):
+    async def _run_in_threadpool_inline(func, *args, **kwargs):
         return func(*args, **kwargs)
 
     fastapi_concurrency.run_in_threadpool = _run_in_threadpool_inline
@@ -372,11 +377,6 @@ try:
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 except Exception:
     pass
-
-try:
-    import oqs as _REAL_OQS_MODULE
-except ImportError:
-    _REAL_OQS_MODULE = None
 
 mocked_modules = {
     "liboqs": mock.MagicMock(),

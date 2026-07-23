@@ -30,7 +30,7 @@ describe('x0tta6bl4 DAO Smart Contracts', function () {
     await governanceToken.waitForDeployment();
 
     // Deploy Timelock
-    const Timelock = await ethers.getContractFactory('Timelock');
+    const Timelock = await ethers.getContractFactory('X0TTA6BL4Timelock');
     timelock = await Timelock.deploy(
       [owner.address],
       [owner.address],
@@ -39,25 +39,29 @@ describe('x0tta6bl4 DAO Smart Contracts', function () {
     await timelock.waitForDeployment();
 
     // Deploy Governor
-    const Governor = await ethers.getContractFactory('Governor');
+    const Governor = await ethers.getContractFactory('X0TTA6BL4Governor');
     governor = await Governor.deploy(
       await governanceToken.getAddress(),
-      await timelock.getAddress(),
-      VOTING_DELAY,
-      VOTING_PERIOD,
-      PROPOSAL_THRESHOLD,
-      QUORUM_PERCENTAGE
+      await timelock.getAddress()
     );
     await governor.waitForDeployment();
 
     // Deploy Treasury
-    const Treasury = await ethers.getContractFactory('Treasury');
-    treasury = await Treasury.deploy(await governor.getAddress());
+    const Treasury = await ethers.getContractFactory('X0TTA6BL4Treasury');
+    treasury = await Treasury.deploy(await timelock.getAddress());
     await treasury.waitForDeployment();
 
     // Grant MINTER_ROLE to owner
     const MINTER_ROLE = await governanceToken.MINTER_ROLE();
     await governanceToken.grantRole(MINTER_ROLE, owner.address);
+
+    // Grant roles on Timelock to Governor
+    const PROPOSER_ROLE = await timelock.PROPOSER_ROLE();
+    const EXECUTOR_ROLE = await timelock.EXECUTOR_ROLE();
+    const CANCELLER_ROLE = await timelock.CANCELLER_ROLE();
+    await timelock.grantRole(PROPOSER_ROLE, await governor.getAddress());
+    await timelock.grantRole(EXECUTOR_ROLE, ethers.ZeroAddress);
+    await timelock.grantRole(CANCELLER_ROLE, await governor.getAddress());
   });
 
   describe('GovernanceToken', function () {
@@ -112,10 +116,10 @@ describe('x0tta6bl4 DAO Smart Contracts', function () {
       
       // Delegate voting power
       await governanceToken.connect(addr1).delegate(addr1.address);
-      await time.mine(1); // Wait for delegation to take effect
+      await time.advanceBlock(1); // Wait for delegation to take effect
       
       // Create proposal
-      const targets = [treasury.address];
+      const targets = [await treasury.getAddress()];
       const values = [0];
       const calldatas = [
         treasury.interface.encodeFunctionData('depositToken', [
@@ -141,9 +145,9 @@ describe('x0tta6bl4 DAO Smart Contracts', function () {
       // Setup: mint tokens and create proposal
       await governanceToken.mint(addr1.address, PROPOSAL_THRESHOLD);
       await governanceToken.connect(addr1).delegate(addr1.address);
-      await time.mine(1);
+      await time.advanceBlock(1);
       
-      const targets = [treasury.address];
+      const targets = [await treasury.getAddress()];
       const values = [0];
       const calldatas = [
         treasury.interface.encodeFunctionData('depositToken', [
@@ -161,10 +165,13 @@ describe('x0tta6bl4 DAO Smart Contracts', function () {
       );
       
       const receipt = await tx.wait();
-      const proposalId = receipt.logs[0].topics[1]; // Extract proposal ID
+      const proposalCreatedLog = receipt.logs.map(log => {
+        try { return governor.interface.parseLog(log); } catch { return null; }
+      }).find(parsed => parsed && parsed.name === 'ProposalCreated');
+      const proposalId = proposalCreatedLog.args[0];
       
       // Move to voting phase
-      await time.mine(Number(VOTING_DELAY) + 1);
+      await time.advanceBlock(Number(VOTING_DELAY) + 1);
       
       // Cast vote (1 = FOR)
       await governor.connect(addr1).castVote(proposalId, 1);
@@ -181,19 +188,25 @@ describe('x0tta6bl4 DAO Smart Contracts', function () {
     });
 
     it('Should queue and execute operations after delay', async function () {
-      const data = treasury.interface.encodeFunctionData('depositToken', [
-        await governanceToken.getAddress(),
-        ethers.parseEther('100'),
+      // Send ETH to treasury first
+      await owner.sendTransaction({
+        to: await treasury.getAddress(),
+        value: ethers.parseEther('1'),
+      });
+
+      const data = treasury.interface.encodeFunctionData('withdrawETH', [
+        owner.address,
+        ethers.parseEther('0.5'),
       ]);
       
       const salt = ethers.id('test-operation');
       
       // Queue operation
       await timelock.schedule(
-        treasury.address,
+        await treasury.getAddress(),
         0, // value
         data,
-        '0x00', // predecessor
+        ethers.ZeroHash, // predecessor
         salt,
         TIMELOCK_DELAY
       );
@@ -203,10 +216,10 @@ describe('x0tta6bl4 DAO Smart Contracts', function () {
       
       // Execute operation
       await timelock.execute(
-        treasury.address,
+        await treasury.getAddress(),
         0,
         data,
-        '0x00',
+        ethers.ZeroHash,
         salt
       );
     });
@@ -276,15 +289,21 @@ describe('x0tta6bl4 DAO Smart Contracts', function () {
       
       // 2. Delegate voting power
       await governanceToken.connect(addr1).delegate(addr1.address);
-      await time.mine(1);
+      await time.advanceBlock(1);
       
+      // Send ETH to treasury first
+      await owner.sendTransaction({
+        to: await treasury.getAddress(),
+        value: ethers.parseEther('1'),
+      });
+
       // 3. Create proposal
-      const targets = [treasury.address];
+      const targets = [await treasury.getAddress()];
       const values = [0];
       const calldatas = [
-        treasury.interface.encodeFunctionData('depositToken', [
-          await governanceToken.getAddress(),
-          ethers.parseEther('100'),
+        treasury.interface.encodeFunctionData('withdrawETH', [
+          owner.address,
+          ethers.parseEther('0.5'),
         ]),
       ];
       const description = 'Full Flow Test';
@@ -297,16 +316,19 @@ describe('x0tta6bl4 DAO Smart Contracts', function () {
       );
       
       const proposeReceipt = await proposeTx.wait();
-      const proposalId = proposeReceipt.logs[0].topics[1];
+      const proposalCreatedLog = proposeReceipt.logs.map(log => {
+        try { return governor.interface.parseLog(log); } catch { return null; }
+      }).find(parsed => parsed && parsed.name === 'ProposalCreated');
+      const proposalId = proposalCreatedLog.args[0];
       
       // 4. Wait for voting to start
-      await time.mine(Number(VOTING_DELAY) + 1);
+      await time.advanceBlock(Number(VOTING_DELAY) + 1);
       
       // 5. Vote
       await governor.connect(addr1).castVote(proposalId, 1); // FOR
       
       // 6. Wait for voting to end
-      await time.mine(Number(VOTING_PERIOD) + 1);
+      await time.advanceBlock(Number(VOTING_PERIOD) + 1);
       
       // 7. Queue proposal
       const descriptionHash = ethers.id(description);

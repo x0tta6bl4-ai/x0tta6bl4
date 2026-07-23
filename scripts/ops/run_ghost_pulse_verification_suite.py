@@ -492,7 +492,7 @@ def build_report(
                 "scripts/ops/run_ghost_pulse_proof_gate.py",
                 "scripts/ops/run_ghost_pulse_verification_suite.py",
             ],
-            "ghost_core_shell_syntax": ["bash", "-n", "ghost-core.sh"],
+            "ghost_core_shell_syntax": ["bash", "-n", "scripts/ghost-core.sh"],
             "incoming_gap_candidates_verifier": [
                 sys.executable,
                 "scripts/ops/verify_ghost_pulse_incoming_gap_candidates.py",

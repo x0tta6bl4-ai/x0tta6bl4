@@ -1,3 +1,4 @@
+import sys
 import httpx
 import pytest
 import pytest_asyncio
@@ -8,6 +9,8 @@ from src.mesh.metric_evidence_policy import (
     MESH_METRIC_POLICY_KEY,
     build_mesh_metric_evidence_policy,
 )
+
+_app_module = sys.modules["src.core.app.app"]
 
 
 class DummyMonkey:
@@ -25,11 +28,10 @@ async def client():
 
 @pytest.mark.asyncio
 async def test_mesh_endpoints(monkeypatch, tmp_path, client):
-    import src.core.app as app_module
     import src.network.yggdrasil_client as yc
 
     bus = EventBus(project_root=str(tmp_path))
-    monkeypatch.setattr(app_module, "_mesh_event_bus_from_request", lambda _request: bus)
+    monkeypatch.setattr(_app_module, "_mesh_event_bus_from_request", lambda _request: bus)
     monkeypatch.setattr(
         yc,
         "get_yggdrasil_status",
@@ -85,7 +87,6 @@ async def test_mesh_status_endpoint_returns_yggdrasil_evidence(
     tmp_path,
     client,
 ):
-    import src.core.app as app_module
     import src.network.yggdrasil_client as yc
 
     class FakeCompleted:
@@ -94,7 +95,7 @@ async def test_mesh_status_endpoint_returns_yggdrasil_evidence(
         returncode = 0
 
     bus = EventBus(project_root=str(tmp_path))
-    monkeypatch.setattr(app_module, "_mesh_event_bus_from_request", lambda _request: bus)
+    monkeypatch.setattr(_app_module, "_mesh_event_bus_from_request", lambda _request: bus)
     monkeypatch.setattr(yc, "_find_yggdrasilctl", lambda: "/usr/local/bin/yggdrasilctl")
     monkeypatch.setattr(yc.subprocess, "run", lambda *_args, **_kwargs: FakeCompleted())
 
@@ -130,7 +131,6 @@ async def test_mesh_endpoint_returns_redacted_control_policy_evidence(
     tmp_path,
     client,
 ):
-    import src.core.app as app_module
     import src.network.yggdrasil_client as yc
 
     bus = EventBus(project_root=str(tmp_path))
@@ -154,7 +154,7 @@ async def test_mesh_endpoint_returns_redacted_control_policy_evidence(
         },
     )
 
-    monkeypatch.setattr(app_module, "_mesh_event_bus_from_request", lambda _request: bus)
+    monkeypatch.setattr(_app_module, "_mesh_event_bus_from_request", lambda _request: bus)
     monkeypatch.setattr(
         yc,
         "get_yggdrasil_peers",
@@ -182,9 +182,7 @@ async def test_mesh_endpoint_returns_redacted_control_policy_evidence(
 
 
 def test_status_api_response_keeps_local_health_out_of_production_claims():
-    import src.core.app as app_module
-
-    payload = app_module._status_api_response(
+    payload = _app_module._status_api_response(
         {"status": "healthy", "version": "test", "mesh": {"connected_peers": 1}}
     )
 
@@ -210,8 +208,6 @@ def test_status_api_response_keeps_local_health_out_of_production_claims():
 
 
 def test_mesh_event_bus_from_request_skips_oversized_root_log(monkeypatch, tmp_path):
-    import src.core.app as app_module
-
     event_log = tmp_path / ".agent_coordination" / "events.log"
     event_log.parent.mkdir()
     event_log.write_text("x" * 8, encoding="utf-8")
@@ -221,12 +217,12 @@ def test_mesh_event_bus_from_request_skips_oversized_root_log(monkeypatch, tmp_p
 
     monkeypatch.setenv("X0TTA6BL4_MESH_API_EVENT_LOG_MAX_BYTES", "4")
     monkeypatch.setattr(
-        app_module,
+        _app_module,
         "get_event_bus",
         lambda _project_root: pytest.fail("oversized log should not be loaded"),
     )
 
-    assert app_module._mesh_event_bus_from_request(request) is None
+    assert _app_module._mesh_event_bus_from_request(request) is None
 
 
 @pytest.mark.asyncio

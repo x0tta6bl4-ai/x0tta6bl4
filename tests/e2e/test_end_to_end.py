@@ -337,6 +337,7 @@ class TestSecurityIncidentLifecycle:
 # E2E 5: PQC Key Exchange → Encrypted Communication
 # ---------------------------------------------------------------------------
 
+@pytest.mark.usefixtures("real_oqs")
 class TestPQCKeyExchange:
     @pytest.mark.skipif(
         not os.getenv("PQC_FAIL_CLOSED", "true").lower() == "false",

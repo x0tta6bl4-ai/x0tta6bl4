@@ -121,8 +121,39 @@ def normalize_path(path: str) -> str:
     return path.replace(os.sep, "/").strip("/")
 
 
+DOMAIN_THESAURUS: dict[str, list[str]] = {
+    "самовосстановление": ["mape-k", "autonomic", "self-healing", "healer", "recovery"],
+    "самовосстановления": ["mape-k", "autonomic", "self-healing", "healer", "recovery"],
+    "самовосстановлению": ["mape-k", "autonomic", "self-healing", "healer", "recovery"],
+    "self-healing": ["mape-k", "autonomic", "healer", "recovery"],
+    "pqc": ["ml-kem-768", "ml-dsa-65", "post-quantum", "dilithium", "kyber", "oqs"],
+    "постквантовый": ["pqc", "ml-kem-768", "ml-dsa-65", "post-quantum"],
+    "постквантовая": ["pqc", "ml-kem-768", "ml-dsa-65", "post-quantum"],
+    "ebpf": ["xdp", "dataplane", "af_xdp", "kernel"],
+    "xdp": ["ebpf", "dataplane", "packet", "filter"],
+    "nl": ["89.125.1.107", "netherlands", "01164.com", "vps"],
+    "spb": ["decommissioned", "195.58.48.193", "inactive"],
+    "петербург": ["spb", "decommissioned", "195.58.48.193"],
+    "петербурга": ["spb", "decommissioned", "195.58.48.193"],
+    "спб": ["spb", "decommissioned", "195.58.48.193"],
+    "bot": ["ghost-access-bot", "telegram", "x0tta6bl4.db"],
+    "бот": ["ghost-access-bot", "telegram", "x0tta6bl4.db"],
+}
+
+
 def tokenize(text: str) -> list[str]:
     return [token.lower() for token in TOKEN_RE.findall(text)]
+
+
+def expand_query_terms(query: str) -> list[str]:
+    base_terms = tokenize(query)
+    expanded = list(base_terms)
+    for term in base_terms:
+        synonyms = DOMAIN_THESAURUS.get(term.lower(), [])
+        for syn in synonyms:
+            if syn.lower() not in expanded:
+                expanded.append(syn.lower())
+    return expanded
 
 
 def text_excerpt(text: str, limit: int = 360) -> str:
@@ -581,7 +612,7 @@ def load_index(index_path: Path) -> dict[str, Any]:
 
 def bm25_search(index: dict[str, Any], query: str, limit: int = 10) -> list[dict[str, Any]]:
     docs = index.get("documents") or []
-    terms = tokenize(query)
+    terms = expand_query_terms(query)
     if not terms:
         return []
     n_docs = max(1, len(docs))
@@ -613,7 +644,10 @@ def bm25_search(index: dict[str, Any], query: str, limit: int = 10) -> list[dict
         if query_compact and query_compact in " ".join(haystacks):
             score += 0.75
         if score > 0:
-            scored.append({**doc, "score": round(score, 6)})
+            # Apply RRF inbound link weighting
+            inbound = int(doc.get("inbound_count") or 0)
+            rrf_boost = 1.0 + min(inbound / 50.0, 0.5)
+            scored.append({**doc, "score": round(score * rrf_boost, 6)})
     scored.sort(
         key=lambda row: (
             -float(row.get("score") or 0),
@@ -632,7 +666,7 @@ def bm25_chunk_search(
     max_per_doc: int = 2,
 ) -> list[dict[str, Any]]:
     chunks = index.get("chunks") or []
-    terms = tokenize(query)
+    terms = expand_query_terms(query)
     if not terms:
         return []
     n_chunks = max(1, len(chunks))
@@ -675,7 +709,10 @@ def bm25_chunk_search(
         elif length < 36:
             score *= 0.82
         if score > 0:
-            scored.append({**chunk, "score": round(score, 6)})
+            # Apply RRF reranking weighting (combines BM25 + inbound PageRank)
+            inbound = int(chunk.get("doc_inbound_count") or 0)
+            rrf_boost = 1.0 + min(inbound / 50.0, 0.5)
+            scored.append({**chunk, "score": round(score * rrf_boost, 6)})
     scored.sort(
         key=lambda row: (
             -float(row.get("score") or 0),

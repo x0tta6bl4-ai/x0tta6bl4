@@ -10,19 +10,62 @@ Benchmarks for:
 Establishes baseline metrics for production monitoring and regression detection.
 """
 
+import sys
 import json
 import time
 import statistics
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple, Any
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
     from src.security.post_quantum_liboqs import PQMeshSecurityLibOQS
     PQC_AVAILABLE = True
 except ImportError:
-    PQC_AVAILABLE = False
+    try:
+        import os
+        from src.network.firstparty_vpn.mlkem import mlkem_keygen, mlkem_encapsulate, mlkem_decapsulate
+        from src.network.firstparty_vpn.mldsa import mldsa_derive_reference_keypair, mldsa_reference_sign, mldsa_reference_verify
+
+        class FirstPartyPQCWrapper:
+            def __init__(self, node_id: str = "benchmark-pqc"):
+                self._os = os
+                self._mlkem_keygen = mlkem_keygen
+                self._mlkem_encapsulate = mlkem_encapsulate
+                self._mlkem_decapsulate = mlkem_decapsulate
+                self._mldsa_derive = mldsa_derive_reference_keypair
+                self._mldsa_sign = mldsa_reference_sign
+                self._mldsa_verify = mldsa_reference_verify
+
+            def generate_kem_keypair(self):
+                return self._mlkem_keygen("ML-KEM-768")
+
+            def kem_encapsulate(self, kp):
+                return self._mlkem_encapsulate("ML-KEM-768", getattr(kp, 'encapsulation_key', kp))
+
+            def generate_dsa_keypair(self):
+                seed = self._os.urandom(32)
+                return self._mldsa_derive(seed, "ML-DSA-65")
+
+            def sign(self, message: bytes):
+                seed = self._os.urandom(32)
+                kp = self._mldsa_derive(seed, "ML-DSA-65")
+                return self._mldsa_sign("ML-DSA-65", kp.signing_key, message)
+
+            def verify(self, message: bytes, signature: bytes):
+                seed = self._os.urandom(32)
+                kp = self._mldsa_derive(seed, "ML-DSA-65")
+                return self._mldsa_verify("ML-DSA-65", kp.verification_key, message, signature)
+
+        PQMeshSecurityLibOQS = FirstPartyPQCWrapper
+        PQC_AVAILABLE = True
+    except ImportError:
+        PQC_AVAILABLE = False
 
 try:
     from src.network.batman.topology import MeshTopology, MeshNode, MeshLink, LinkQuality, NodeState
@@ -49,7 +92,7 @@ class PQCBenchmark:
 
     def benchmark_kem_keygen(self, iterations: int = 100) -> Dict[str, float]:
         """Benchmark KEM keypair generation (ML-KEM-768)."""
-        if not PQC_AVAILABLE or not self.pqc:
+        if not PQC_AVAILABLE or self.pqc is None:
             return {'error': 'PQC not available', 'status': 'skipped'}
 
         times = []
@@ -78,7 +121,7 @@ class PQCBenchmark:
 
     def benchmark_kem_encapsulate(self, iterations: int = 100) -> Dict[str, float]:
         """Benchmark KEM encapsulation (encryption)."""
-        if not PQC_AVAILABLE or not self.pqc:
+        if not PQC_AVAILABLE or self.pqc is None:
             return {'error': 'PQC not available', 'status': 'skipped'}
 
         pk = self.pqc.generate_kem_keypair()
@@ -110,13 +153,16 @@ class PQCBenchmark:
 
     def benchmark_dsa_keygen(self, iterations: int = 50) -> Dict[str, float]:
         """Benchmark ML-DSA-65 keypair generation (signatures)."""
-        if not PQC_AVAILABLE or not self.pqc:
+        if not PQC_AVAILABLE or self.pqc is None:
             return {'error': 'PQC not available', 'status': 'skipped'}
 
         times = []
-        for _ in range(iterations):
+        for i in range(iterations):
             start = time.perf_counter()
-            pk = self.pqc.generate_dsa_keypair()
+            if hasattr(self.pqc, 'generate_dsa_keypair'):
+                pk = self.pqc.generate_dsa_keypair()
+            else:
+                pk = PQMeshSecurityLibOQS(node_id=f"benchmark-dsa-{i}")
             elapsed = (time.perf_counter() - start) * 1000
             if pk is not None:
                 times.append(elapsed)
@@ -138,7 +184,7 @@ class PQCBenchmark:
 
     def benchmark_signature_generation(self, message_size: int = 256, iterations: int = 100) -> Dict[str, float]:
         """Benchmark ML-DSA-65 signature generation."""
-        if not PQC_AVAILABLE or not self.pqc:
+        if not PQC_AVAILABLE or self.pqc is None:
             return {'error': 'PQC not available', 'status': 'skipped'}
 
         message = b'x' * message_size
@@ -154,7 +200,7 @@ class PQCBenchmark:
         if not times:
             return {'error': 'No successful signatures', 'status': 'failed'}
 
-        throughput = 1000 / statistics.mean(times)  # Signatures per second
+        throughput = 1000 / statistics.mean(times) if statistics.mean(times) > 0 else 0
 
         return {
             'status': 'passed',
@@ -171,7 +217,7 @@ class PQCBenchmark:
 
     def benchmark_signature_verification(self, message_size: int = 256, iterations: int = 100) -> Dict[str, float]:
         """Benchmark ML-DSA-65 signature verification."""
-        if not PQC_AVAILABLE or not self.pqc:
+        if not PQC_AVAILABLE or self.pqc is None:
             return {'error': 'PQC not available', 'status': 'skipped'}
 
         message = b'x' * message_size
@@ -184,13 +230,13 @@ class PQCBenchmark:
             start = time.perf_counter()
             verified = self.pqc.verify(message, signature)
             elapsed = (time.perf_counter() - start) * 1000
-            if verified is not None:
+            if verified:
                 times.append(elapsed)
 
         if not times:
             return {'error': 'No successful verifications', 'status': 'failed'}
 
-        throughput = 1000 / statistics.mean(times)
+        throughput = 1000 / statistics.mean(times) if statistics.mean(times) > 0 else 0
 
         return {
             'status': 'passed',
@@ -207,17 +253,15 @@ class PQCBenchmark:
 
     def benchmark_batch_operations(self, batch_size: int = 10) -> Dict[str, Any]:
         """Benchmark batch PQC operations."""
-        if not PQC_AVAILABLE or not self.pqc:
+        if not PQC_AVAILABLE or self.pqc is None:
             return {'error': 'PQC not available', 'status': 'skipped'}
 
-        # Batch signature generation
         messages = [f"message-{i}".encode() for i in range(batch_size)]
 
         start = time.perf_counter()
         signatures = [self.pqc.sign(msg) for msg in messages]
         sig_time = (time.perf_counter() - start) * 1000
 
-        # Batch verification
         start = time.perf_counter()
         verifications = [self.pqc.verify(msg, sig) for msg, sig in zip(messages, signatures)]
         verify_time = (time.perf_counter() - start) * 1000
@@ -238,7 +282,7 @@ class PQCBenchmark:
         print("=" * 60)
 
         results = {
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'component': 'pqc',
             'availability': 'available' if PQC_AVAILABLE else 'unavailable',
             'benchmarks': {}
@@ -260,8 +304,11 @@ class PQCBenchmark:
                 result = func(**kwargs)
                 results['benchmarks'][name] = result
                 if result.get('status') == 'passed':
-                    print(f"  ✅ Mean: {result.get('mean_ms', 'N/A'):.2f}ms")
-                    print(f"  Target: {'✅ MET' if result.get('target_met') else '❌ MISSED'}")
+                    mean_val = result.get('mean_ms', result.get('total_time_ms'))
+                    if isinstance(mean_val, (int, float)):
+                        print(f"  ✅ Mean/Total: {mean_val:.2f}ms")
+                    if 'target_met' in result:
+                        print(f"  Target: {'✅ MET' if result.get('target_met') else '❌ MISSED'}")
                 else:
                     print(f"  ⚠️ Status: {result.get('status', 'unknown')}")
             except Exception as e:
@@ -277,13 +324,13 @@ class MeshBenchmark:
     def __init__(self):
         self.results: Dict[str, Any] = {}
         if MESH_AVAILABLE:
-            self.topology = MeshTopology()
+            self.topology = MeshTopology(mesh_id="bench-mesh", local_node_id="bench-local")
         else:
             self.topology = None
 
     def benchmark_node_addition(self, num_nodes: int = 100) -> Dict[str, float]:
         """Benchmark adding nodes to topology."""
-        if not MESH_AVAILABLE or not self.topology:
+        if not MESH_AVAILABLE or self.topology is None:
             return {'error': 'Mesh not available', 'status': 'skipped'}
 
         times = []
@@ -308,15 +355,14 @@ class MeshBenchmark:
             'min_ms': min(times),
             'max_ms': max(times),
             'total_ms': sum(times),
-            'throughput_nodes_per_sec': num_nodes / (sum(times) / 1000)
+            'throughput_nodes_per_sec': num_nodes / (sum(times) / 1000) if sum(times) > 0 else 0
         }
 
     def benchmark_link_quality_calculation(self, num_links: int = 100) -> Dict[str, float]:
         """Benchmark link quality score calculation."""
-        if not MESH_AVAILABLE or not self.topology:
+        if not MESH_AVAILABLE or self.topology is None:
             return {'error': 'Mesh not available', 'status': 'skipped'}
 
-        # Create test links
         links = [
             MeshLink(
                 source=f"node-{i}",
@@ -339,17 +385,16 @@ class MeshBenchmark:
         return {
             'status': 'passed',
             'links_calculated': num_links,
-            'mean_us': statistics.mean(times) * 1000,  # Convert to microseconds
+            'mean_us': statistics.mean(times) * 1000,
             'total_ms': sum(times),
-            'throughput_links_per_sec': num_links / (sum(times) / 1000)
+            'throughput_links_per_sec': num_links / (sum(times) / 1000) if sum(times) > 0 else 0
         }
 
     def benchmark_shortest_path(self, nodes: int = 50, density: float = 0.3) -> Dict[str, float]:
         """Benchmark Dijkstra shortest path calculation."""
-        if not MESH_AVAILABLE or not self.topology:
+        if not MESH_AVAILABLE or self.topology is None:
             return {'error': 'Mesh not available', 'status': 'skipped'}
 
-        # Create mesh nodes
         for i in range(nodes):
             node = MeshNode(
                 node_id=f"path-node-{i}",
@@ -359,7 +404,6 @@ class MeshBenchmark:
             )
             self.topology.add_node(node)
 
-        # Create links with density
         import random
         random.seed(42)
         for i in range(nodes):
@@ -374,13 +418,12 @@ class MeshBenchmark:
                     )
                     self.topology.add_link(link)
 
-        # Benchmark shortest path calculations
         times = []
         source = "path-node-0"
         for dest_idx in range(1, min(10, nodes)):
             dest = f"path-node-{dest_idx}"
             start = time.perf_counter()
-            path = self.topology.shortest_path(source, dest)
+            path = self.topology.compute_shortest_path(source, dest)
             elapsed = (time.perf_counter() - start) * 1000
             if path:
                 times.append(elapsed)
@@ -396,7 +439,7 @@ class MeshBenchmark:
             'mean_ms': statistics.mean(times),
             'median_ms': statistics.median(times),
             'max_ms': max(times),
-            'throughput_paths_per_sec': len(times) / (sum(times) / 1000)
+            'throughput_paths_per_sec': len(times) / (sum(times) / 1000) if sum(times) > 0 else 0
         }
 
     def run_all(self) -> Dict[str, Any]:
@@ -405,7 +448,7 @@ class MeshBenchmark:
         print("=" * 60)
 
         results = {
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'component': 'mesh',
             'availability': 'available' if MESH_AVAILABLE else 'unavailable',
             'benchmarks': {}
@@ -438,7 +481,7 @@ class MeshBenchmark:
 def generate_baseline_report(pqc_results: Dict, mesh_results: Dict, output_file: str = None) -> Dict[str, Any]:
     """Generate comprehensive baseline performance report."""
     report = {
-        'timestamp': datetime.utcnow().isoformat(),
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'version': '1.0',
         'baseline_type': 'comprehensive_performance',
         'results': {
@@ -448,7 +491,6 @@ def generate_baseline_report(pqc_results: Dict, mesh_results: Dict, output_file:
         'summary': {}
     }
 
-    # Calculate summary statistics
     pqc_tests_passed = sum(1 for b in pqc_results.get('benchmarks', {}).values() 
                           if b.get('status') == 'passed')
     mesh_tests_passed = sum(1 for b in mesh_results.get('benchmarks', {}).values() 
@@ -468,10 +510,17 @@ def generate_baseline_report(pqc_results: Dict, mesh_results: Dict, output_file:
     }
 
     if output_file:
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-        with open(output_file, 'w') as f:
+        out_path = Path(output_file)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_path, 'w') as f:
             json.dump(report, f, indent=2)
         print(f"\n✅ Baseline report saved to: {output_file}")
+
+        # Also write canonical release benchmark file: results/pqc_benchmark_v3.5.0.json
+        rel_path = out_path.parent / "pqc_benchmark_v3.5.0.json"
+        with open(rel_path, 'w') as f:
+            json.dump(report, f, indent=2)
+        print(f"✅ Release benchmark artifact saved to: {rel_path}")
 
     return report
 
@@ -482,22 +531,18 @@ def main():
     print("x0tta6bl4 Comprehensive Performance Benchmark Suite")
     print("=" * 60)
 
-    # Run PQC benchmarks
     pqc_bench = PQCBenchmark()
     pqc_results = pqc_bench.run_all()
 
-    # Run Mesh benchmarks
     mesh_bench = MeshBenchmark()
     mesh_results = mesh_bench.run_all()
 
-    # Generate baseline report
     output_dir = Path(__file__).parent / 'results'
-    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
     output_file = output_dir / f'baseline_comprehensive_{timestamp}.json'
 
     report = generate_baseline_report(pqc_results, mesh_results, str(output_file))
 
-    # Print summary
     print("\n" + "=" * 60)
     print("📋 Benchmark Summary")
     print("=" * 60)
@@ -510,10 +555,6 @@ def main():
     print(f"  Status: {report['summary']['mesh']['availability']}")
 
     print(f"\n📊 Baseline report: {output_file}")
-    print("\nNext steps:")
-    print("  1. Review baseline metrics in benchmarks/results/")
-    print("  2. Integrate benchmarks into CI/CD pipeline")
-    print("  3. Monitor for performance regressions")
 
 
 if __name__ == "__main__":

@@ -1,26 +1,26 @@
 # Current VPN Decision
 
-generated_at: `2026-07-02T13:55:13.838707+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z`
+generated_at: `2026-07-17T18:26:19.620475+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260717T182536Z`
 
 ## Status
 
-decision: `provider_ticket`
+decision: `local_fix`
 confidence: `high`
-reason: classification points to provider or host failure
+reason: local client path is critical
 
 ## Current State
 
 ```text
-overall_status=provider_outage
-transport_status=healthy
-telegram_media_status=healthy
-provider_status=suspect_active
-failure_domain=provider_host
-recommended_action=provider_ticket
-blocking_category=provider_or_host_issue
+overall_status=critical
+transport_status=unknown
+telegram_media_status=unknown
+provider_status=normal
+failure_domain=local_client
+recommended_action=local_soft_heal
+blocking_category=local_client_issue
 blocking_history_trend=has_degradation
-blocking_history_snapshots=22
+blocking_history_snapshots=23
 nl_mutation_allowed=false
 auto_profile_switch_allowed=false
 spb_fallback_allowed=false
@@ -28,8 +28,8 @@ spb_fallback_allowed=false
 
 ## Next Actions
 
-- build or refresh provider incident packet
-- keep NL mutation blocked until provider symptoms are understood
+- fix local route/SOCKS/client state first
+- collect a new read-only snapshot after the local fix
 
 ## Blocked Actions
 
@@ -40,32 +40,31 @@ spb_fallback_allowed=false
 
 ## Warnings
 
-- NL non-critical failed units: ifup@eth0.service
+- none
 
 ## Problems
 
-- none
+- local vpn_status is not PASS
+- route to VPN server may loop through tunnel
+- NL critical failed units: ghost-access-live-subscription-payload-check.service
+- NL transport_status=unknown
 
 ## Evidence
 
-- local vpn_status_json overall=advisory
-- route to VPN server bypasses singbox_tun
 - generic traffic routes through singbox_tun
 - external exit IP is VPN server
 - packet_loss_percent=0
-- NL failed units are known non-critical: ifup@eth0.service
 - NL key services active
 - NL core listeners 443/2083/39829 present
-- NL transport_status=healthy
 
 ## Blocking Probe History
 
 ```text
-snapshot_count=22
+snapshot_count=23
 trend=has_degradation
-latest_snapshot=20260702T135431Z
-latest_targets_ok=8/8
-latest_degraded_targets=0
+latest_snapshot=20260717T182536Z
+latest_targets_ok=0/8
+latest_degraded_targets=8
 ```
 
 No NL or SPB writes were performed by this report.

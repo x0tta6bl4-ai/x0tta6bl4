@@ -83,9 +83,7 @@ python3 services/nl-server/tools/pull_candidate_readonly.py --priority P1
 Only with `--pull` does it read files from NL, and accepted files stay under the
 git-ignored `.quarantine/incoming/` tree.
 
-## Inactive SPB Path
+## Permanently Decommissioned SPB Path
 
-SPB standalone Xray is disabled and not part of the current VPN recovery path.
-`ghost-access/sync_spb_standalone_clients.py` is retained only so local source
-reconciliation matches real NL state. It must stay non-deployable and inactive
-until SPB is explicitly brought back into service with a fresh rollback plan.
+SPB standalone Xray (`195.58.48.193`) is permanently decommissioned and removed from the active VPN architecture by operator directive.
+`ghost-access/sync_spb_standalone_clients.py` is retained only as legacy code for historical reference. No traffic or client sync is routed to SPB.

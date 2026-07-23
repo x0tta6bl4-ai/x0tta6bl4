@@ -8,7 +8,7 @@
   "done_updated_count": 0,
   "events": [],
   "failure_count": 0,
-  "generated_at": "2026-07-08T16:46:18Z",
+  "generated_at": "2026-07-20T16:51:10Z",
   "operator_action": "collect_legacy_migration_replies",
   "packet": {
     "decision": "LEGACY_CLIENT_MIGRATION_PACKET_READY",

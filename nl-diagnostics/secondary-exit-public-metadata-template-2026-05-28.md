@@ -1,6 +1,6 @@
 # Secondary Exit Public Metadata Template
 
-generated_at: `2026-07-02T13:55:15.151452+00:00`
+generated_at: `2026-07-17T18:26:21.511910+00:00`
 status: `public_metadata_template_ready_no_endpoint`
 ok: `true`
 

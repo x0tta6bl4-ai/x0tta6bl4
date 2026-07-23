@@ -10,7 +10,14 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from .utils import with_retry, RetryConfig
+from .utils import with_retry, RetryConfig, DegradationState
+from .loggers import StructuredLogger
+
+try:
+    import prometheus_client
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 

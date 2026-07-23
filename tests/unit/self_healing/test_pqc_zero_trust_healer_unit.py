@@ -58,7 +58,7 @@ def _make_loader(stats=None):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def _import_module():
     """Import the healer module; patch get_pqc_gateway so constructors
     don't try to create a real gateway."""

@@ -25,7 +25,7 @@ def _patch_runtime_setup(server):
     return (
         patch("src.server.ghost_server.os.open", return_value=42),
         patch("src.server.ghost_server.fcntl.ioctl", return_value=0),
-        patch("src.server.ghost_server.subprocess.run", return_value=MagicMock(returncode=0)),
+        patch("src.server.ghost_server.safe_run", return_value=MagicMock(returncode=0)),
         patch.object(server, "_enable_ip_forward", return_value=None),
     )
 

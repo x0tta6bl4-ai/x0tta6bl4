@@ -34,9 +34,13 @@ _SERVICE_AGENT = "swarm-mapek"
 from ..interfaces import DecisionEngineInterface, SwarmNodeInterface
 
 class SwarmIntelligence(DecisionEngineInterface, SwarmNodeInterface):
-    """
-    Main class for distributed decision-making across mesh nodes.
-    """
+    @property
+    def node_id(self) -> str:
+        return getattr(self, "_node_id", "")
+
+    @node_id.setter
+    def node_id(self, value: str) -> None:
+        self._node_id = value
     
     def __init__(
         self,

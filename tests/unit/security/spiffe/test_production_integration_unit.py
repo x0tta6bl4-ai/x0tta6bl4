@@ -30,7 +30,7 @@ async def test_spire_health_checker_server_and_agent(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         "src.security.spiffe.production_integration.httpx.AsyncClient",
-        lambda timeout=5: _Client(),
+        lambda timeout=5, trust_env=True: _Client(),
     )
 
     hc = SPIREHealthChecker(cfg)

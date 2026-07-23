@@ -1,6 +1,7 @@
 """LedgerDriftDetector."""
 from __future__ import annotations
 import logging
+import re
 import threading
 import time
 from datetime import datetime, timedelta
@@ -8,6 +9,24 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from .models import DriftResult
 logger = logging.getLogger(__name__)
+
+
+def _get_project_root() -> Path:
+    """Resolve PROJECT_ROOT at runtime to support test patching via unittest.mock.patch."""
+    import src.ledger.drift_detector as _pkg
+    return _pkg.PROJECT_ROOT
+
+
+def _get_continuity_file() -> Path:
+    """Resolve CONTINUITY_FILE at runtime to support test patching."""
+    import src.ledger.drift_detector as _pkg
+    return _pkg.CONTINUITY_FILE
+
+
+def _get_find_metrics():
+    """Resolve find_metrics at runtime to support test patching."""
+    import src.ledger.drift_detector as _pkg
+    return _pkg.find_metrics
 
 class LedgerDriftDetector:
     """
@@ -20,7 +39,7 @@ class LedgerDriftDetector:
     """
 
     def __init__(self):
-        self.continuity_file = CONTINUITY_FILE
+        self.continuity_file = _get_continuity_file()
         self.anomaly_detector = None
         self.causal_engine = None
         self._initialized = False
@@ -240,7 +259,7 @@ class LedgerDriftDetector:
             import ast
 
             # 1. Парсинг кода (AST analysis) - анализ основных компонентов
-            src_path = PROJECT_ROOT / "src"
+            src_path = _get_project_root() / "src"
             if not src_path.exists():
                 logger.warning("⚠️ src/ directory not found")
                 return drifts
@@ -262,7 +281,7 @@ class LedgerDriftDetector:
                             if isinstance(node, ast.ImportFrom) and node.module:
                                 code_info["imports"].append(node.module)
 
-                    code_info["files"].append(str(py_file.relative_to(PROJECT_ROOT)))
+                    code_info["files"].append(str(py_file.relative_to(_get_project_root())))
                 except (SyntaxError, UnicodeDecodeError) as e:
                     logger.debug(f"⚠️ Cannot parse {py_file}: {e}")
                     continue
@@ -370,7 +389,7 @@ class LedgerDriftDetector:
             content = self.continuity_file.read_text(encoding="utf-8")
 
             # Парсинг метрик из ledger
-            find_metrics(content)
+            _get_find_metrics()(content)
 
             # Поиск метрик с числовыми значениями для сравнения
             metric_patterns = {

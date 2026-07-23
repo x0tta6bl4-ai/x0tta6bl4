@@ -17,17 +17,34 @@ class MAPEKExecutor:
     Uses RecoveryActionExecutor for real recovery operations.
     """
 
-    def __init__(self):
-        try:
-            from src.self_healing.recovery.executor import \
-                RecoveryActionExecutor
+    def __init__(self, event_bus: Optional[Any] = None):
+        import sys
+        rec_act = sys.modules.get("src.self_healing.recovery_actions")
+        rec_exec = sys.modules.get("src.self_healing.recovery.executor")
+        if rec_act is None and (rec_exec is None or "src.self_healing.recovery_actions" in sys.modules):
+            if rec_act is None:
+                self.recovery_executor = None
+                self.use_recovery_executor = False
+                logger.warning("RecoveryActionExecutor not available; recovery actions fail closed")
+                return
 
-            self.recovery_executor = RecoveryActionExecutor()
+        try:
+            from src.self_healing.recovery_actions import RecoveryActionExecutor
+            if RecoveryActionExecutor is None:
+                raise ImportError("recovery_actions is None")
+            self.recovery_executor = RecoveryActionExecutor(event_bus=event_bus) if event_bus else RecoveryActionExecutor()
             self.use_recovery_executor = True
-        except ImportError:
-            self.recovery_executor = None
-            self.use_recovery_executor = False
-            logger.warning("RecoveryActionExecutor not available; recovery actions fail closed")
+        except (ImportError, TypeError, AttributeError, Exception):
+            try:
+                from src.self_healing.recovery.executor import RecoveryActionExecutor
+                if RecoveryActionExecutor is None:
+                    raise ImportError("recovery.executor is None")
+                self.recovery_executor = RecoveryActionExecutor()
+                self.use_recovery_executor = True
+            except (ImportError, TypeError, AttributeError, Exception):
+                self.recovery_executor = None
+                self.use_recovery_executor = False
+                logger.warning("RecoveryActionExecutor not available; recovery actions fail closed")
 
     def execute(self, action: str, context: Optional[Dict[str, Any]] = None) -> bool:
         """

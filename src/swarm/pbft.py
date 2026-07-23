@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
-import json
+from src.swarm import fast_json as json
 
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.integration.spine import SafeActuator, SafeActuatorResult

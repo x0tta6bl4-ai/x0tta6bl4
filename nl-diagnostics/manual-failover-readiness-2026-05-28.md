@@ -1,18 +1,18 @@
 # Manual Failover Readiness
 
-generated_at: `2026-07-02T13:55:14.628015+00:00`
+generated_at: `2026-07-17T18:26:20.713278+00:00`
 
 ## Status
 
 ```text
-status=blocked_missing_secondary
+status=blocked_local_client_first
 manual_probe_allowed=false
 manual_switch_allowed=false
-decision=provider_ticket
-transport_status=healthy
-failure_domain=provider_host
-provider_status=suspect_active
-manual_failover_status=manual_failover_candidate
+decision=local_fix
+transport_status=unknown
+failure_domain=local_client
+provider_status=normal
+manual_failover_status=blocked_local_client_first
 secondary_probe_status=planning_template
 candidate_configured=false
 spb_excluded=true
@@ -24,8 +24,8 @@ automatic_failover_allowed=false
 
 | ID | Status | Gate | Next Step |
 |---|---|---|---|
-| `TRIGGER-01` | `pass` | Incident evidence justifies considering failover | stay on observe while NL transport is healthy and no incident trigger exists |
-| `LOCAL-01` | `pass` | Local client is not the failure domain | fix local route/SOCKS/client before any failover work |
+| `TRIGGER-01` | `blocked` | Incident evidence justifies considering failover | stay on observe while NL transport is healthy and no incident trigger exists |
+| `LOCAL-01` | `blocked` | Local client is not the failure domain | fix local route/SOCKS/client before any failover work |
 | `SECONDARY-01` | `blocked` | Secondary exit candidate is configured | choose a new non-SPB provider/region and generate a safe public probe config |
 | `SECONDARY-02` | `blocked` | Secondary exit health is verified enough for the requested action | run probe_secondary_exit.py against the secondary public endpoint before any profile test |
 | `SPB-01` | `pass` | SPB is excluded from failover | do not use SPB or SPB sync scripts as emergency recovery |
@@ -35,15 +35,15 @@ automatic_failover_allowed=false
 
 ### TRIGGER-01
 
-- decision=provider_ticket
-- failure_domain=provider_host
-- transport_status=healthy
-- provider_status=suspect_active
+- decision=local_fix
+- failure_domain=local_client
+- transport_status=unknown
+- provider_status=normal
 
 ### LOCAL-01
 
-- decision=provider_ticket
-- failure_domain=provider_host
+- decision=local_fix
+- failure_domain=local_client
 
 ### SECONDARY-01
 

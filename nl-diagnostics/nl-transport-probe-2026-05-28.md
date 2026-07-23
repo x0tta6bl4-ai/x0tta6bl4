@@ -1,15 +1,15 @@
 # NL Transport Probe
 
-generated_at: `2026-07-02T13:55:14.405618+00:00`
+generated_at: `2026-07-20T16:56:53.444101+00:00`
 host: `89.125.1.107`
 
 ## Summary
 
 ```text
-status=healthy
-ok_count=3/3
-failure_domain_hint=none
-recommended_action=observe
+status=degraded
+ok_count=1/3
+failure_domain_hint=nl_or_provider_or_path
+recommended_action=collect fresh read-only snapshot and compare NL listeners
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false
@@ -19,8 +19,8 @@ automatic_failover_allowed=false
 
 | Port | OK | Latency ms | Error |
 |---|---|---:|---|
-| `443` | `true` | `67.283` |  |
-| `2083` | `true` | `66.002` |  |
-| `39829` | `true` | `65.156` |  |
+| `443` | `true` | `72.801` |  |
+| `2083` | `false` | `None` | [Errno 111] Connection refused |
+| `39829` | `false` | `None` | [Errno 111] Connection refused |
 
 No NL or SPB writes were performed by this transport probe.

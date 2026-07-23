@@ -6,6 +6,7 @@ Covers: health, status, root, mesh/*, security headers; receive_beacon logic;
 get_mesh_peers / get_mesh_routes fallback paths; helper reproducibility.
 """
 
+import importlib
 import os
 import time
 from unittest.mock import patch
@@ -50,7 +51,7 @@ class TestHealthEndpoint:
 
 class TestStatusEndpoint:
     @pytest.mark.asyncio
-    @patch("src.core.app.get_current_status")
+    @patch("src.core.app.app.get_current_status")
     async def test_status_returns_200(self, mock_gcs, client):
         mock_gcs.return_value = {"status": "healthy", "version": "3.2.0", "uptime": 42}
         resp = await client.get("/status")
@@ -154,7 +155,7 @@ class TestStartupCriticalRoutes:
 
 class TestPqcLogging:
     def test_pqc_verify_fail_closed_when_pqc_unavailable(self, monkeypatch):
-        import src.core.app as app_module
+        app_module = importlib.import_module("src.core.app.app")
 
         monkeypatch.setattr(app_module, "PQC_LIBOQS_AVAILABLE", False)
         monkeypatch.delenv("X0TTA6BL4_ALLOW_INSECURE_PQC_VERIFY", raising=False)
@@ -162,7 +163,7 @@ class TestPqcLogging:
         assert pqc_verify(b"data", b"sig", b"pub") is False
 
     def test_pqc_verify_does_not_log_sensitive_payloads(self, monkeypatch):
-        import src.core.app as app_module
+        app_module = importlib.import_module("src.core.app.app")
 
         class _DummySig:
             def verify(self, *_args, **_kwargs):
@@ -223,7 +224,7 @@ class TestReceiveBeacon:
 
 class TestGetMeshStatus:
     @pytest.mark.asyncio
-    @patch("src.core.app.get_current_status")
+    @patch("src.core.app.app.get_current_status")
     async def test_returns_collector_data(self, mock_gcs):
         mock_gcs.return_value = {"status": "ok", "peers": ["a", "b"], "routes": []}
         data = await get_mesh_status()
@@ -232,7 +233,7 @@ class TestGetMeshStatus:
         mock_gcs.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("src.core.app.get_current_status", side_effect=RuntimeError("boom"))
+    @patch("src.core.app.app.get_current_status", side_effect=RuntimeError("boom"))
     async def test_falls_back_on_error(self, _mock):
         _peers.clear()
         _peers["fallback-node"] = {"last_seen": time.time(), "neighbors": []}
@@ -336,3 +337,16 @@ class TestGenerateTrainingData:
         nf2, ei2 = _generate_training_data(num_nodes=5, num_edges=7, seed=123)
         assert nf1 == nf2
         assert ei1 == ei2
+
+
+def test_live_snapshot_json_reader_fails_closed(tmp_path):
+    from src.core.app.app import _live_snapshot_read_json
+
+    valid_path = tmp_path / "valid.json"
+    valid_path.write_text("{\"status\": \"ok\"}", encoding="utf-8")
+    assert _live_snapshot_read_json(valid_path) == {"status": "ok"}
+
+    invalid_path = tmp_path / "invalid.json"
+    invalid_path.write_text("not-json", encoding="utf-8")
+    assert _live_snapshot_read_json(invalid_path) == {}
+    assert _live_snapshot_read_json(tmp_path / "missing.json") == {}

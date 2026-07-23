@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from src.coordination.events import EventBus, EventType
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 
@@ -45,6 +46,7 @@ try:
         router,
         stripe_webhook,
     )
+    from src.services.service_event_trace import event_trace_evidence_summary
 
     BILLING_AVAILABLE = True
 except ImportError:

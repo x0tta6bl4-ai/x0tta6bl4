@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.api import maas_agent_mesh as mod
+from src.api.maas.endpoints import agent_mesh as mod
 from src.core.resilience.reliability_policy import get_degraded_dependencies
 
 

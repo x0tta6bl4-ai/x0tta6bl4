@@ -30,6 +30,7 @@ services:
       - SPIRE_SERVER_ADDRESS=spire-server
     volumes:
       - spire-socket:/tmp/spire-agent
+      - ./spire-agent.conf:/etc/spire/agent.conf:ro
     networks:
       mesh-net:
         aliases:
@@ -57,6 +58,8 @@ services:
       - http_proxy=
       - https_proxy=
       - no_proxy=*
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
     volumes:
       - spire-socket:/tmp/spire-agent:ro
     networks:
@@ -67,7 +70,10 @@ services:
         aliases:
           - mesh-node
     depends_on:
-      - spire-agent
+      spire-agent:
+        condition: service_started
+      vault:
+        condition: service_healthy
 
   mesh-node-2:
     image: mesh-node:latest
@@ -88,6 +94,8 @@ services:
       - http_proxy=
       - https_proxy=
       - no_proxy=*
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
     volumes:
       - spire-socket:/tmp/spire-agent:ro
     networks:
@@ -98,7 +106,10 @@ services:
         aliases:
           - mesh-node-2
     depends_on:
-      - mesh-node
+      mesh-node:
+        condition: service_started
+      vault:
+        condition: service_healthy
 
   node-nl-bridge:
     image: mesh-node:latest
@@ -146,6 +157,25 @@ services:
         aliases:
           - spire-agent-nl
     restart: always
+
+  vault:
+    image: hashicorp/vault:1.15.2
+    container_name: vault
+    hostname: vault
+    ports:
+      - "127.0.0.1:8200:8200"
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=root
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+    networks:
+      mesh-net:
+        aliases:
+          - vault
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
   spire-socket:

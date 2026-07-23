@@ -42,6 +42,21 @@ def override_get_db():
 def client():
     Base.metadata.create_all(bind=engine)
     app.dependency_overrides[get_db] = override_get_db
+    def print_routes(routes, prefix=""):
+        for r in routes:
+            path = prefix + getattr(r, "path", "")
+            if hasattr(r, "original_router"):
+                print_routes(r.original_router.routes, path)
+            else:
+                app_obj = getattr(r, "app", None)
+                while app_obj and not hasattr(app_obj, "routes") and hasattr(app_obj, "app"):
+                    app_obj = app_obj.app
+                if app_obj and hasattr(app_obj, "routes"):
+                    print_routes(app_obj.routes, path)
+                else:
+                    methods = getattr(r, "methods", set())
+                    print(f"ROUTE: {list(methods)} {path} -> {getattr(r, 'endpoint', None)}")
+    print_routes(app.routes)
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.pop(get_db, None)

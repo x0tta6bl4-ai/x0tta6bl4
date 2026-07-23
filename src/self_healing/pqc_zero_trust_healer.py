@@ -32,17 +32,12 @@ from src.core.thinking.agent_thinking import AgentThinkingCoach
 
 logger = logging.getLogger(__name__)
 
-_SERVICE_AGENT = "pqc-zero-trust-healer"
-PQC_CLAIM_BOUNDARY = (
-    "PQC recovery executor event only. It records local policy and healing action "
-    "state; it is not external production evidence or a settlement attestation."
-)
-
 
 def _safe_hash(value: Any) -> Optional[str]:
     if value is None:
         return None
     return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+
 
 _SERVICE_AGENT = "pqc-zero-trust-healer"
 PQC_CLAIM_BOUNDARY = (
@@ -945,6 +940,39 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
             return False, decision, self._policy_reason(decision) or "PQC recovery policy denied action"
         return True, decision, self._policy_reason(decision)
 
+    def _record_thinking(
+        self,
+        task_type: str,
+        goal: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        context: Dict[str, Any] = {
+            "type": task_type,
+            "goal": goal,
+            "constraints": {
+                "redact_session_ids": True,
+                "redact_keys": True,
+                "execution_is_not_trust_finality": True,
+                "does_not_prove_dataplane_delivery": True,
+            },
+            "safety_boundary": PQC_CLAIM_BOUNDARY,
+        }
+        if extra:
+            context.update(extra)
+        if hasattr(self, "thinking_coach") and self.thinking_coach is not None:
+            self.last_thinking_context = self.thinking_coach.prepare_task(context)
+        else:
+            self.last_thinking_context = context
+        return self.last_thinking_context
+
+    def get_thinking_status(self) -> Dict[str, Any]:
+        """Expose executor thinking state."""
+        thinking_status = self.thinking_coach.status() if hasattr(self, "thinking_coach") and self.thinking_coach else {}
+        return {
+            "thinking": thinking_status,
+            "last_thinking_context": getattr(self, "last_thinking_context", {}),
+        }
+
     async def execute(self, plan: Dict[str, Any]) -> Dict[str, Any]:
         """Execute PQC healing actions"""
         try:
@@ -1087,6 +1115,8 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
         else:
             action_lower = str(action_or_cmd).lower()
 
+        action_name = cmd.action if isinstance(action_or_cmd, SignedRemediationCommand) else str(action_or_cmd)
+
         if "rotate all pqc keys" in action_lower:
             return await self._rotate_all_keys()
         elif "rotate identity" in action_lower or "rotate pqc identity" in action_lower:
@@ -1105,8 +1135,8 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
             return await self._perform_health_check()
         else:
             # Default action: log and continue
-            logger.info(f"PQC healing action: {action}")
-            return {"action": action, "success": True, "message": "Action logged"}
+            logger.info(f"PQC healing action: {action_name}")
+            return {"action": action_name, "success": True, "message": "Action logged"}
 
     async def _rotate_pqc_identity(self) -> Dict[str, Any]:
         """Rotate PQC Node Identity (Long-term ML-DSA/ML-KEM keys).
@@ -1481,6 +1511,13 @@ class PQCZeroTrustHealer:
             consensus_peers=consensus_peers,
             consensus_f=consensus_f,
         )
+        self.thinking_coach = AgentThinkingCoach(
+            component_id="pqc_zero_trust_healer",
+            agent_type="PQCZeroTrustHealer",
+            domain="security",
+            capabilities=("mape_k", "zero-trust", "pqc", "self-healing"),
+        )
+        self.last_thinking_context: Dict[str, Any] = {}
 
         # Start healing loop
         asyncio.create_task(self.run_healing_loop())

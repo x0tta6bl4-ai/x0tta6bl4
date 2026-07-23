@@ -371,14 +371,20 @@ class AgentThinkingCoach:
 
     def __init__(
         self,
-        agent_id: str,
-        role: str,
+        agent_id: str | None = None,
+        role: str | None = None,
         capabilities: Iterable[str] = (),
         extra_techniques: Iterable[str] = (),
+        component_id: str | None = None,
+        agent_type: str | None = None,
+        domain: str | None = None,
+        **kwargs: Any,
     ):
+        resolved_agent_id = agent_id or component_id or "generic_agent"
+        resolved_role = role or agent_type or domain or "generic"
         self.profile = build_agent_thinking_profile(
-            agent_id=agent_id,
-            role=role,
+            agent_id=resolved_agent_id,
+            role=resolved_role,
             capabilities=capabilities,
             extra_techniques=extra_techniques,
         )
@@ -499,6 +505,7 @@ class AgentThinkingCoach:
             "agent_id": self.profile.agent_id,
             "role": self.profile.role,
             "techniques": list(self.profile.techniques),
+            "profile": _plain(self.profile),
             "applied": applied,
             "documented_guidance": [_plain(spec) for spec in documented],
         }

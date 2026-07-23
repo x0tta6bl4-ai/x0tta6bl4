@@ -1,0 +1,18 @@
+# Build artifacts
+artifacts/
+cache/
+
+# Dependencies
+node_modules/
+
+# Debug temp files
+.tmp/
+
+# Build logs
+hardhat*.log
+
+# Secrets (never commit)
+.env
+
+# Environment config (local overrides)
+.env.local

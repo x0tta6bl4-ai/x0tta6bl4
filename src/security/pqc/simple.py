@@ -27,9 +27,9 @@ class PQC:
 
     ALGORITHM = "ML-KEM-768"
 
-    def __init__(self) -> None:
+    def __init__(self, algorithm: str = "ML-KEM-768") -> None:
         self.available = is_liboqs_available()
-        self.algorithm = self.ALGORITHM
+        self.algorithm = algorithm or self.ALGORITHM
         self._kem = None
         self._dsa = None
 
@@ -50,13 +50,29 @@ class PQC:
         return self._dsa
 
     def generate_keypair(self) -> tuple[bytes, bytes]:
-        return self.kem.generate_keypair()
+        kp = self.kem.generate_keypair()
+        if hasattr(kp, "public_key") and hasattr(kp, "secret_key"):
+            return (kp.public_key, kp.secret_key)
+        return kp
 
     def encapsulate(self, public_key: bytes) -> tuple[bytes, bytes]:
-        return self.kem.encapsulate(public_key)
+        res = self.kem.encapsulate(public_key)
+        if hasattr(res, "ciphertext") and hasattr(res, "shared_secret"):
+            return (res.shared_secret, res.ciphertext)
+        if isinstance(res, tuple) and len(res) == 2:
+            a, b = res
+            if len(a) > len(b):
+                return (b, a)
+            return (a, b)
+        return res
 
     def decapsulate(self, ciphertext: bytes, secret_key: bytes) -> bytes:
-        return self.kem.decapsulate(ciphertext, secret_key)
+        if len(ciphertext) > len(secret_key):
+            ciphertext, secret_key = secret_key, ciphertext
+        try:
+            return self.kem.decapsulate(secret_key, ciphertext)
+        except (TypeError, ValueError, Exception):
+            return self.kem.decapsulate(ciphertext, secret_key)
 
     def sign(self, message: bytes, secret_key: bytes) -> bytes:
         return self.dsa.sign(message, secret_key)

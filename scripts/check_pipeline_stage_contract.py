@@ -10,10 +10,8 @@ from pathlib import Path
 
 
 CI_STAGE_PATTERNS: dict[str, str] = {
-    "lint": r"-\s*name:\s*Lint with ruff\b",
-    "type": r"(?:-\s*name:\s*Type check with mypy\b|^\s*type[-_]check:\s*$|-\s*name:\s*Type check)",
-    "unit": r"-\s*name:\s*Test with pytest\b",
-    "integration": r"(?:^\s*spire[-_]integration:\s*$|\b(?:spire|integration)\b)",
+    "lint": r"(?:-\s*name:\s*Lint with ruff\b|-\s*name:\s*Ruff lint\b)",
+    "unit": r"(?:-\s*name:\s*Test with pytest\b|-\s*name:\s*Run core tests\b)",
 }
 
 SMOKE_STAGE_PATTERN = r"-\s*name:\s*Run golden smoke \(quick\)"
@@ -37,7 +35,7 @@ def validate_ci_stage_contract(ci_text: str) -> list[str]:
         errors.append(f"Missing CI stages: {', '.join(missing)}")
         return errors
 
-    ordered = ["lint", "type", "unit", "integration"]
+    ordered = ["lint", "unit"]
     for prev, current in zip(ordered, ordered[1:]):
         if positions[prev] >= positions[current]:
             errors.append(

@@ -1,7 +1,7 @@
 # Makefile for x0tta6bl4 v3.3.0
 # ================================
 
-.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft iso-p2-readiness-check mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-reproducibility mesh-operator-release-dry-run mesh-operator-lifecycle-e2e mesh-operator-canary-rollback-e2e api-memory-profile-longrun maas-api-load-scenarios maas-api-load-scenarios-ci pilot0-edge-mesh-maas mesh-operator-uninstall
+.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft iso-p2-readiness-check mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-reproducibility mesh-operator-release-dry-run mesh-operator-lifecycle-e2e mesh-operator-canary-rollback-e2e api-memory-profile-longrun maas-api-load-scenarios maas-api-load-scenarios-ci pilot0-edge-mesh-maas mesh-operator-uninstall ebpf-build
 
 .DEFAULT_GOAL := help
 
@@ -64,6 +64,7 @@ help:
 	@echo "  make lint        - Run linters (flake8, black, mypy)"
 	@echo "  make format      - Format code with black"
 	@echo "  make test-unit   - Run unit tests"
+	@echo "  make ebpf-build  - Build eBPF programs and generate Go bindings"
 	@echo ""
 	@echo "=== SPIRE Setup ==="
 	@echo "  make spire-dev   - Setup SPIRE development environment"
@@ -726,6 +727,12 @@ cleanup-rc-check:
 # ============================================
 # Multi-Node Mesh Deployment Targets
 # ============================================
+
+ebpf-build:
+	@echo "🔨 Building eBPF programs and generating Go bindings..."
+	cd ebpf && make generate
+	cd ebpf/prod && make -f Makefile.bpf build
+	@echo "✅ eBPF programs built successfully"
 
 mesh-build:
 	@echo "🔨 Building Go agent..."

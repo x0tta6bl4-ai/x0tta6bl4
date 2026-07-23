@@ -8,12 +8,18 @@ package, so ``src.security.pqc`` no longer imports legacy modules to initialize.
 from __future__ import annotations
 
 import contextlib
+from datetime import datetime, timedelta
 import io
 import logging
+import os
 import warnings
 from enum import Enum
 from dataclasses import dataclass
 import hashlib
+
+logger = logging.getLogger(__name__)
+
+from .types import PQCKeyPair, PQCSignature
 
 from .adapter import is_liboqs_available
 

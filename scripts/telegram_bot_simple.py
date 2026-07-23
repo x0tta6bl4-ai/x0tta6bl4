@@ -286,7 +286,8 @@ SPB_REALITY_PUBLIC_KEY = os.getenv(
 SPB_REALITY_SHORT_ID = os.getenv("SPB_REALITY_SHORT_ID", "a1b2c3d4").strip()
 SPB_REALITY_FLOW = os.getenv("SPB_REALITY_FLOW", "xtls-rprx-vision").strip()
 SPB_REALITY_NETWORK = os.getenv("SPB_REALITY_NETWORK", "tcp").strip()
-SPB_PROFILE_SERVER = os.getenv("SPB_PROFILE_SERVER", "195.58.48.193").strip() or "195.58.48.193"
+RU_MSK_PROFILE_SERVER = os.getenv("RU_MSK_PROFILE_SERVER", os.getenv("SPB_PROFILE_SERVER", "84.54.47.103")).strip() or "84.54.47.103"
+SPB_PROFILE_SERVER = RU_MSK_PROFILE_SERVER
 SPB_PROFILE_PRIMARY_PORT = int(os.getenv("SPB_PROFILE_PRIMARY_PORT", str(VPN_PORT)))
 NL_BETA_REALITY_SERVER_NAME = os.getenv(
     "NL_BETA_REALITY_SERVER_NAME", "www.microsoft.com"
@@ -1511,10 +1512,10 @@ def generate_nl_beta_reality_link(user_uuid: str, label: str | None = None) -> s
     )
 
 
-def generate_spb_reality_link(user_uuid: str, label: str | None = None) -> str:
-    fragment = quote(label or "x0tta6bl4-SPB", safe="")
+def generate_ru_msk_reality_link(user_uuid: str, label: str | None = None) -> str:
+    fragment = quote(label or "x0tta6bl4-RU-MSK", safe="")
     return (
-        f"vless://{user_uuid}@{SPB_PROFILE_SERVER}:{SPB_PROFILE_PRIMARY_PORT}"
+        f"vless://{user_uuid}@{RU_MSK_PROFILE_SERVER}:{SPB_PROFILE_PRIMARY_PORT}"
         "?security=reality"
         "&encryption=none"
         f"&flow={SPB_REALITY_FLOW}"
@@ -1525,6 +1526,10 @@ def generate_spb_reality_link(user_uuid: str, label: str | None = None) -> str:
         f"&sid={SPB_REALITY_SHORT_ID}"
         f"#{fragment}"
     )
+
+
+def generate_spb_reality_link(user_uuid: str, label: str | None = None) -> str:
+    return generate_ru_msk_reality_link(user_uuid, label=label or "x0tta6bl4-RU-MSK")
 
 
 def generate_xhttp_link(user_uuid: str, label: str | None = None) -> str:

@@ -7,8 +7,10 @@ import os
 import json
 import logging
 
-# Ensure project root is in path
+# Ensure project root and scripts dirs are in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../vpn')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 
 # Set mock env vars
 os.environ['DATABASE_URL'] = 'sqlite:////mnt/projects/x0tta6bl4.db'
@@ -17,7 +19,7 @@ os.environ['GHOST_ACCESS_DB_PATH'] = '/mnt/projects/x0tta6bl4.db'
 logging.basicConfig(level=logging.INFO)
 
 try:
-    from database import init_database, get_user, update_user
+    from database import init_database, get_user, update_user, create_user
     from vpn_config_generator import generate_config_text, generate_vless_link
 except ImportError as e:
     print(f"❌ Import Error: {e}")
@@ -34,8 +36,9 @@ def run_tests():
     user = get_user(test_user_id)
     
     if not user:
-        print(f"❌ User {test_user_id} not found in DB.")
-        sys.exit(1)
+        print(f"⚠️ User {test_user_id} not found in DB. Creating test user...")
+        create_user(test_user_id, username="test_tma_user")
+        user = get_user(test_user_id)
         
     vpn_uuid = user.get('vpn_uuid')
     if not vpn_uuid:
@@ -67,7 +70,7 @@ def run_tests():
     print("\n--- Test 3: Multi-Node Config Generation (RU) ---")
     try:
         ru_config = generate_config_text(test_user_id, vpn_uuid, node_id='ru')
-        assert "TBD_RU_IP" in ru_config
+        assert "84.54.47.103" in ru_config
         assert "x0tta6bl4_RU_Entry" in ru_config
         print("✅ RU config generation passed.")
     except Exception as e:

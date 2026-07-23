@@ -187,7 +187,7 @@ across four layers: (1) multi-model anomaly detection achieving
 (2) Byzantine-robust federated learning with differential privacy, 
 (3) MAPE-K self-healing with 20-second MTTD, and (4) quantum-ready 
 optimization via QAOA simulation. Evaluation on real network 
-topologies shows 30% latency improvement over OSPF/BGP baselines.
+topologies shows 30% latency improvement over standard static routing baselines.
 ```
 
 ---

@@ -41,12 +41,12 @@ def generate_self_signed_cert():
 
 class MockWorkloadAPI:
     async def fetch_x509_svid(self):
-        cert, key = generate_self_signed_cert()
+        cert_pem, key_pem = generate_self_signed_cert()
         class MockSVID:
             def __init__(self, c, k):
                 self.cert = c
                 self.private_key = k
-        return MockSVID(cert, key)
+        return MockSVID(cert_pem, key_pem)
 
 @pytest.mark.asyncio
 async def test_maas_pqc_microsegmentation_e2e(real_oqs):

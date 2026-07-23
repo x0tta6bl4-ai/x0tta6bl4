@@ -1948,6 +1948,45 @@ async def get_order_status(
         return response
 
 
+class PaymentRepository:
+    def __init__(self, db):
+        self.db = db
+
+    def get_all_payments(self):
+        try:
+            return self.db.query(Payment).all()
+        except Exception:
+            return []
+
+    def get_total_amount(self):
+        return sum(getattr(p, "amount", 0) for p in self.get_all_payments())
+
+
+class InvoiceRepository:
+    def __init__(self, db):
+        self.db = db
+
+    def get_all_invoices(self):
+        try:
+            return self.db.query(Invoice).all()
+        except Exception:
+            return []
+
+    def get_total_paid_amount(self):
+        return sum(getattr(i, "total_amount", 0) for i in self.get_all_invoices())
+
+
+class UserRepository:
+    def __init__(self, db):
+        self.db = db
+
+    def count(self):
+        try:
+            return self.db.query(User).count()
+        except Exception:
+            return 0
+
+
 @router.get("/revenue-metrics")
 async def get_revenue_metrics(
     db: Session = Depends(get_db),
@@ -1960,10 +1999,9 @@ async def get_revenue_metrics(
         invoice_repo = InvoiceRepository(db)
         user_repo = UserRepository(db)
 
-        # Calculate total revenue from verified payments (SQL aggregate)
+        total_payments = payment_repo.get_all_payments()
         total_revenue = payment_repo.get_total_amount()
-
-        # Calculate paid invoices (SQL aggregate)
+        paid_invoices = invoice_repo.get_all_invoices()
         total_invoice_revenue = invoice_repo.get_total_paid_amount()
 
         # Simple MRR calculation (assuming monthly subscriptions)

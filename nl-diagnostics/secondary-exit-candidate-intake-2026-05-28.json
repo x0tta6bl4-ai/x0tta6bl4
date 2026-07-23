@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_secondary_exit_candidate_intake.py",
-  "generated_at": "2026-07-02T13:55:14.861870+00:00",
+  "generated_at": "2026-07-17T18:26:20.995715+00:00",
   "status": "awaiting_public_candidate_metadata",
   "ok": true,
   "summary": {

@@ -44,10 +44,12 @@ def _build_client(
             request.state.event_bus = event_bus
             return await call_next(request)
 
-    app.include_router(auth_module.router, prefix="/api/v1/maas")
+    app.include_router(auth_module.router, prefix="/api/v1/maas/auth")
     app.dependency_overrides[get_db] = override_get_db
     if user:
-        app.dependency_overrides[get_current_user] = lambda: user
+        async def _override_get_current_user():
+            return user
+        app.dependency_overrides[get_current_user] = _override_get_current_user
     return TestClient(app)
 
 

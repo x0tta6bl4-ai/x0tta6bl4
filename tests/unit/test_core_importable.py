@@ -273,9 +273,9 @@ class TestVersion:
     def test_get_version_info(self):
         from src.version import get_version_info
         info = get_version_info()
-        assert info.version == "3.4.0"
+        assert info.version == "3.5.0"
         assert info.major == 3
-        assert info.minor == 4
+        assert info.minor == 5
         assert info.patch == 0
 
     def test_version_info_to_dict(self):
@@ -301,7 +301,8 @@ class TestVersion:
         from src.version import is_compatible
         assert is_compatible("3.0.0") is True
         assert is_compatible("3.4.0") is True
-        assert is_compatible("3.5.0") is False
+        assert is_compatible("3.5.0") is True
+        assert is_compatible("3.6.0") is False
         assert is_compatible("4.0.0") is False
 
     def test_check_min_version_raises(self):

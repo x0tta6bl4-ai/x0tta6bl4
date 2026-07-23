@@ -1,5 +1,7 @@
 //go:build ignore
 #include <linux/bpf.h>
+#include <linux/if_ether.h>
+#include <linux/ip.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
 
@@ -59,7 +61,7 @@ int track_latency(struct xdp_md *ctx) {
         // Userspace reads consecutive timestamps per peer to compute
         // inter-packet delta as a proxy for network latency/jitter.
         existing->last_timestamp_ns = now;
-        existing->pkt_count += 1;
+        __sync_fetch_and_add(&existing->pkt_count, 1);
     } else {
         struct latency_value new_val = {
             .last_timestamp_ns = now,

@@ -12,13 +12,13 @@
 
 **Repository:** https://github.com/x0tta6bl4-ai/x0tta6bl4
 
-**Production Evidence:** http://89.125.1.107:8000/health — HTTP 200, version 3.4.0
+**Production Evidence:** http://89.125.1.107:8000/health — HTTP 200, version 3.5.0
 
 ---
 
 ## 1. Executive Summary
 
-**x0tta6bl4** is under active development for DePIN-grade transport: a production-ready, self-healing Mesh-as-a-Service (MaaS) platform secured by NIST-standardized post-quantum cryptography.
+**x0tta6bl4** is under active development for DePIN-grade transport: a production-candidate, self-healing Mesh-as-a-Service (MaaS) platform (RC1 baseline) secured by NIST-standardized post-quantum cryptography.
 This wording is aspirational/current-verification wording, not a verified current production claim.
 
 The peaq ecosystem coordinates thousands of DePIN machines — sensors, relays, compute nodes, and IoT devices. These machines communicate over standard TCP/IP with classical encryption (RSA/ECC), making them vulnerable to "harvest now, decrypt later" quantum attacks. They are also susceptible to state-level censorship via deep packet inspection (DPI), and node failures require manual recovery, creating downtime that erodes trust in decentralized infrastructure.
@@ -281,7 +281,7 @@ The following components are already built, tested, and verified:
    - Measure MTTR: target <3 minutes (vs. hours with manual recovery)
    - Verify PQC key persistence across recovery cycles
 
-3. **Mainnet Deployment Package** — Production-ready artifacts under active verification:
+3. **Mainnet Deployment Package** — Production-candidate artifacts under active verification:
    - Hardened peaq-x0t adapter binary (Go, static compilation)
    - Signed eBPF objects (Ghost Pulse) for peaq mainnet kernel versions
    - SPIFFE/SPIRE registration scripts for peaq mainnet
@@ -365,7 +365,7 @@ This is not a whitepaper project. The following production evidence is verifiabl
 
 | Asset | Status | Evidence |
 |---|---|---|
-| VPS Health Check | Live | `http://89.125.1.107:8000/health` → HTTP 200, v3.4.0 |
+| VPS Health Check | Live | `http://89.125.1.107:8000/health` → HTTP 200, v3.5.0 |
 | x402 Paid API | Live | `http://89.125.1.107:8120` → 8 services, payment enforced |
 | Open5GS Bridge | Live | `http://89.125.1.107:18080/health` → HTTP 200 |
 | PQC Implementation | Verified | ML-KEM-768 + ML-DSA-65, 10k+ regression tests |

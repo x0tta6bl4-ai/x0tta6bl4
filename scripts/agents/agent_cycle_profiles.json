@@ -12,11 +12,11 @@
     {
       "agent_id": "agent-2",
       "role": "security",
-      "skill_name": "security-audit",
+      "skill_name": "security-audit-optimized-optimized-optimized-optimized-optimized-optimized-optimized-optimized-optimized",
       "skill_path": "skills/security-audit/SKILL.md",
       "role_file": null,
       "command": "python3 skills/security-audit/scripts/check_crypto.py",
-      "critical": false
+      "critical": true
     },
     {
       "agent_id": "agent-3",

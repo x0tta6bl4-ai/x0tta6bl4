@@ -6,17 +6,17 @@ import src.agents as agents
 
 
 def test_agents_package_lazily_exports_top_level_agents() -> None:
-    agents.__dict__.pop("MarketingAgent", None)
-    agents.__dict__.pop("SalesBot", None)
-    sys.modules.pop("src.agents.marketing_agent", None)
-    sys.modules.pop("src.agents.sales_notify_bot", None)
+    agents.__dict__.pop("GTMAgent", None)
+    agents.__dict__.pop("KimiHealingAgent", None)
+    sys.modules.pop("src.agents.gtm_agent", None)
+    sys.modules.pop("src.agents.kimi_healing_agent", None)
 
-    assert "MarketingAgent" in agents.__all__
-    assert "SalesBot" in agents.__all__
-    assert "src.agents.marketing_agent" not in sys.modules
-    assert "src.agents.sales_notify_bot" not in sys.modules
+    assert "GTMAgent" in agents.__all__
+    assert "KimiHealingAgent" in agents.__all__
+    assert "src.agents.gtm_agent" not in sys.modules
+    assert "src.agents.kimi_healing_agent" not in sys.modules
 
-    assert agents.MarketingAgent.__name__ == "MarketingAgent"
-    assert agents.SalesBot.__name__ == "SalesBot"
-    assert "src.agents.marketing_agent" in sys.modules
-    assert "src.agents.sales_notify_bot" in sys.modules
+    assert agents.GTMAgent.__name__ == "GTMAgent"
+    assert agents.KimiHealingAgent.__name__ == "KimiHealingAgent"
+    assert "src.agents.gtm_agent" in sys.modules
+    assert "src.agents.kimi_healing_agent" in sys.modules

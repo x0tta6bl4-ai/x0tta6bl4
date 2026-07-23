@@ -93,7 +93,7 @@ class SPIREClient:
             self.client = WorkloadApiClient(self.config.agent_address)
             self._connected = True
             logger.info(f"SPIRE client initialized at {self.config.agent_address}")
-        except (ConnectionError, TimeoutError, OSError, ValueError) as e:
+        except Exception as e:
             logger.warning(f"Failed to initialize SPIRE client: {e}")
             self._connected = False
 

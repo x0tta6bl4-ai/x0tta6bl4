@@ -1,22 +1,22 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-07-02T13:55:16.115489+00:00`
+generated_at: `2026-07-17T18:26:27.406099+00:00`
 overall_status: `missing_evidence`
 ok: `false`
 
 ## Summary
 
 ```text
-ready_local=21
+ready_local=22
 blocked_future_approval=4
-watch=4
+watch=3
 missing=2
-decision=provider_ticket
-operator_status=provider_ticket
-boot_gap_watch_status=provider_ticket
-provider_packet_type=provider_ticket
+decision=local_fix
+operator_status=local_fix
+boot_gap_watch_status=normal
+provider_packet_type=historical_provider_incident
 provider_packet_stale=False
-manual_failover_readiness_status=blocked_missing_secondary
+manual_failover_readiness_status=blocked_local_client_first
 manual_failover_switch_allowed=False
 secondary_candidate_score_status=missing_candidates
 secondary_exit_requirements_status=requirements_ready_no_candidate
@@ -49,12 +49,12 @@ local_diagnostic_environment_status=ok
 local_root_status=ok
 local_tmpdir_writable=True
 local_root_cleanup_plan_status=no_cleanup_needed
-local_root_cleanup_estimated_reclaim_gib=1.46
+local_root_cleanup_estimated_reclaim_gib=1.04
 local_root_cleanup_execute_allowed=False
 local_root_cleanup_approval_packet_status=cleanup_approval_packet_no_cleanup_needed
 local_root_cleanup_approval_required=False
 local_root_cleanup_commands_executed=0
-incident_symptom_intake_status=symptom_intake_ready_incident
+incident_symptom_intake_status=symptom_intake_ready_review
 incident_symptom_required_fields=12
 incident_symptom_forbidden_material=12
 transport_probe_status=healthy
@@ -70,7 +70,7 @@ automatic_failover_allowed=false
 |---|---|---|---|
 | `EVIDENCE-01` | `ready_local` | Latest read-only snapshot is the shared evidence anchor | collect a fresh read-only snapshot during the next visible outage |
 | `DECISION-01` | `watch` | Current decision blocks mutation and automatic profile changes | keep decision=observe unless a fresh snapshot changes the failure domain |
-| `BOOT-01` | `watch` | Boot-gap provider signal is tracked separately from restart decisions | keep provider boot gap on watch while current transport remains healthy/advisory |
+| `BOOT-01` | `ready_local` | Boot-gap provider signal is tracked separately from restart decisions | keep provider boot gap on watch while current transport remains healthy/advisory |
 | `PROVIDER-01` | `ready_local` | Provider packet is generated from the same read-only snapshot | use the packet for provider questions only when fresh evidence points to provider or host failure |
 | `EVIDENCE-02` | `watch` | Blocking/app probe history is available as trend evidence | use probes as app/path evidence, not as an x-ui restart trigger |
 | `REFRESH-01` | `ready_local` | One refresh command rebuilds the local planning reports | run refresh after every new snapshot before deciding on action |
@@ -104,57 +104,57 @@ automatic_failover_allowed=false
 
 ### EVIDENCE-01
 
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z
-- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z
-- latest_snapshot=20260702T135431Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260717T182536Z
+- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260717T182536Z
+- latest_snapshot=20260717T182536Z
 - snapshot_exists=true
-- snapshot_age_seconds=45
+- snapshot_age_seconds=51
 - fresh=true
 
 ### DECISION-01
 
-- decision=provider_ticket
-- transport_status=healthy
-- failure_domain=provider_host
+- decision=local_fix
+- transport_status=unknown
+- failure_domain=local_client
 - safe_flags=true
 
 ### BOOT-01
 
-- boot_gap_watch_status=provider_ticket
-- boot_gap_seconds=15
-- provider_status=suspect_active
-- transport_status=healthy
+- boot_gap_watch_status=normal
+- boot_gap_seconds=None
+- provider_status=normal
+- transport_status=unknown
 - safe_flags=true
 
 ### PROVIDER-01
 
-- provider_packet_type=provider_ticket
+- provider_packet_type=historical_provider_incident
 - snapshot_stale=false
-- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260702T135431Z
+- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260717T182536Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260717T182536Z
 - same_snapshot=true
 - safe_flags=true
 
 ### EVIDENCE-02
 
-- snapshot_count=22
+- snapshot_count=23
 - trend=has_degradation
-- latest_probe_snapshot=20260702T135431Z
-- latest_targets_ok=8/8
+- latest_probe_snapshot=20260717T182536Z
+- latest_targets_ok=0/8
 
 ### REFRESH-01
 
 - refresh_ok=true
-- operator_status=provider_ticket
-- manual_failover_status=manual_failover_candidate
+- operator_status=local_fix
+- manual_failover_status=blocked_local_client_first
 - safe_flags=true
 
 ### LOCALENV-01
 
 - local_environment_status=ok
 - root_status=ok
-- root_used_percent=85.1
-- root_free_gib=10.39
+- root_used_percent=82.3
+- root_free_gib=13.35
 - tmp_status=ok
 - diagnostic_tmpdir=/mnt/projects/.tmp
 - diagnostic_tmpdir_writable=true
@@ -166,9 +166,9 @@ automatic_failover_allowed=false
 
 - cleanup_plan_status=no_cleanup_needed
 - root_status=ok
-- root_free_gib=10.39
+- root_free_gib=13.35
 - existing_candidate_count=3
-- estimated_reclaim_gib=1.46
+- estimated_reclaim_gib=1.04
 - top_candidate_id=JOURNAL-01
 - cleanup_execute_allowed=false
 - safe_flags=true
@@ -185,25 +185,25 @@ automatic_failover_allowed=false
 
 ### OPERATOR-01
 
-- operator_status=provider_ticket
-- plain_action=Build a provider packet; do not hide provider symptoms with restarts.
+- operator_status=local_fix
+- plain_action=Fix local route, SOCKS, or client state before testing NL.
 - blocking_history_trend=has_degradation
 - safe_flags=true
 
 ### INCIDENT-01
 
-- incident_symptom_intake_status=symptom_intake_ready_incident
-- decision=provider_ticket
-- operator_status=provider_ticket
-- failure_domain=provider_host
-- transport_status=healthy
+- incident_symptom_intake_status=symptom_intake_ready_review
+- decision=local_fix
+- operator_status=local_fix
+- failure_domain=local_client
+- transport_status=unknown
 - required_field_count=12
 - forbidden_material_count=12
 - safe_flags=true
 
 ### FAILOVER-03
 
-- manual_failover_readiness_status=blocked_missing_secondary
+- manual_failover_readiness_status=blocked_local_client_first
 - manual_probe_allowed=false
 - manual_switch_allowed=false
 - secondary_probe_status=planning_template
@@ -322,7 +322,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=31
+- sample_count=32
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true
@@ -368,7 +368,7 @@ automatic_failover_allowed=false
 
 ### FAILOVER-01
 
-- manual_failover_status=manual_failover_candidate
+- manual_failover_status=blocked_local_client_first
 - spb_fallback_allowed=false
 - automatic_failover_allowed=false
 - safe_flags=true

@@ -118,8 +118,14 @@ class TestSVIDSignerUnit:
         with pytest.raises(ValueError, match="Unknown SVID signer mode"):
             SVIDSigner(spiffe_id="test", mode="invalid")
 
-    def test_prod_mode_not_implemented(self):
-        """Prod mode must raise NotImplementedError on sign."""
-        signer = SVIDSigner(spiffe_id="test", mode="prod", _signing_key=b"test")
-        with pytest.raises(NotImplementedError, match="SPIRE JWT-SVID signing"):
-            signer.sign_payload({"test": "data"})
+    def test_prod_mode_signing_and_verification(self, monkeypatch):
+        """Prod mode must fetch and verify SVID signature (mocked in test mode)."""
+        monkeypatch.setenv("_X0TTA_TEST_MODE_", "true")
+        signer = SVIDSigner(spiffe_id="spiffe://x0tta6bl4.mesh/workload/node-a", mode="prod")
+        msg = _make_pbft_msg()
+        signed = signer.sign_payload(msg)
+        assert "svid_signature" in signed
+        assert signed["svid_signature"].startswith("mock-jwt-svid-token-for-")
+        
+        result = signer.verify_payload(signed)
+        assert result is True

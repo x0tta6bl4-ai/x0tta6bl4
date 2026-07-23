@@ -6,6 +6,7 @@ resources:
   - rbac.yaml
   - network-policy.yaml
   - pdb.yaml
+  - sealed-secrets.yaml
 
 namePrefix: prod-
 namespace: x0tta6bl4-production

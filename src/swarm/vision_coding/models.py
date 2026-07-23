@@ -109,6 +109,7 @@ class Suggestion:
 class VisualOverlay:
     """Визуальный оверлей для анализа"""
 
+    original_size: Tuple[int, int] = (100, 100)
     elements: List[OverlayElement] = field(default_factory=list)
     issues: List[Issue] = field(default_factory=list)
     suggestions: List[Suggestion] = field(default_factory=list)
@@ -121,4 +122,26 @@ class VisualOverlay:
 
     def add_suggestion(self, suggestion: Suggestion) -> None:
         self.suggestions.append(suggestion)
+
+    @staticmethod
+    def _hex_to_rgba(hex_color: str, alpha: int = 255) -> Tuple[int, int, int, int]:
+        clean = hex_color.lstrip("#")
+        if len(clean) == 6:
+            r, g, b = int(clean[0:2], 16), int(clean[2:4], 16), int(clean[4:6], 16)
+            return (r, g, b, alpha)
+        return (0, 0, 0, alpha)
+
+    def render(self, base_image: Any) -> Any:
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            img = base_image.copy() if hasattr(base_image, "copy") else Image.new("RGB", self.original_size, (128, 128, 128))
+            draw = ImageDraw.Draw(img, "RGBA")
+            for elem in self.elements:
+                loc = elem.location
+                color = self._hex_to_rgba(elem.style.color, int(elem.style.opacity * 255))
+                fill = self._hex_to_rgba(elem.style.fill_color, int(elem.style.opacity * 255)) if elem.style.fill_color else None
+                draw.rectangle([loc.x, loc.y, loc.x + loc.width, loc.y + loc.height], outline=color, fill=fill, width=int(elem.style.border_width))
+            return img.convert(base_image.mode if hasattr(base_image, "mode") else "RGB")
+        except Exception:
+            return base_image
 

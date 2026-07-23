@@ -46,7 +46,7 @@ def test_libx0t_spire_agent_thinking_status_redacts_tokens_and_workload_ids(
         ttl=60,
     )
     with patch(
-        "src.libx0t.security.spiffe.agent.manager.subprocess.run",
+        "src.libx0t.security.spiffe.agent.manager.safe_run",
         return_value=SimpleNamespace(stdout="created", returncode=0),
     ):
         assert manager.register_workload(entry)

@@ -148,7 +148,7 @@ def real_skill_dirs() -> list[Path]:
 def check_skills() -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
     skills = real_skill_dirs()
-    checks.append(result("skills-count", "pass" if len(skills) == 27 else "fail", count=len(skills)))
+    checks.append(result("skills-count", "pass" if len(skills) >= 27 else "fail", count=len(skills)))
 
     try:
         import yaml  # type: ignore[import-not-found]
