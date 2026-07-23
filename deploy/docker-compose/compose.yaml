@@ -60,6 +60,12 @@ services:
       - no_proxy=*
       - VAULT_ADDR=http://vault:8200
       - VAULT_TOKEN=root
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9100/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     volumes:
       - spire-socket:/tmp/spire-agent:ro
     networks:
@@ -96,6 +102,12 @@ services:
       - no_proxy=*
       - VAULT_ADDR=http://vault:8200
       - VAULT_TOKEN=root
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9103/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     volumes:
       - spire-socket:/tmp/spire-agent:ro
     networks:
@@ -107,7 +119,7 @@ services:
           - mesh-node-2
     depends_on:
       mesh-node:
-        condition: service_started
+        condition: service_healthy
       vault:
         condition: service_healthy
 
@@ -128,6 +140,12 @@ services:
       - http_proxy=
       - https_proxy=
       - no_proxy=*
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9102/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     volumes:
       - spire-socket:/tmp/spire-agent:ro
     networks:
@@ -135,7 +153,8 @@ services:
         aliases:
           - node-nl-bridge
     depends_on:
-      - mesh-node
+      mesh-node:
+        condition: service_healthy
 
   spire-agent-nl:
     image: spire-agent:latest
