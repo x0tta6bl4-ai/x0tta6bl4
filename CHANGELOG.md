@@ -5,13 +5,32 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 и этот проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
-## [3.5.0] - 2026-07-11
+## [3.5.0] - 2026-07-23
 
 ### Added
-- **HashiCorp Vault Setup & Client Integration**: Added `k8s/vault/setup.sh` configuration scripts, client implementation `src/security/vault_client.py`, metrics reporting, secret manager and monitor with 100% passing tests.
-- **Sealed Secrets Generation**: Added automated Kubernetes SealedSecret generator `scripts/generate_sealed_secrets.py` for production overlays, and `secrets.env` generator for staging overlays.
-- **Billing E2E stability**: Stabilized Stripe billing e2e checks, corrected FastAPI mock database dependency overrides in `tests/conftest.py`, and added validation of plans during mesh creation in `src/api/maas/endpoints/mesh.py`.
-- **K8s Deploy Verification**: Implemented multi-document YAML verification checks in validation engine (`validate_kubernetes_deployment.sh`).
+- **Quick Start (Phase 1)**: `quickstart/` directory with docker-compose.yml (2-node mesh), Dockerfile, demo.sh (6-step demo), README.md (4-question format). Ports: API 8280/8281, metrics 9290/9291.
+- **3D CAD Generator**: `3d-generator-app/` — FastAPI AI-powered build123d generator (port 8095). 10 parametric templates, ollama integration, Three.js STL viewer.
+- **eBPF Binaries**: New compiled BPF objects (latencytracker, connectiontracker, bandwidthmonitor), loader_linux_arm64.
+- **6 Swarm Agents**: chaos-engineer, finops, compliance, sre, docs, devrel — all 100% smoke pass.
+- **K8s Infra**: sealed-secrets.yaml (encrypted), staging secrets template.
+- **20 New Test Files**: agents, anti_censorship, core, ml, security, swarm coverage.
+- **PQC Refactor**: `simple.py` strict type hints, `encapsulate_legacy()` contract, hypothesis property-based tests.
+- **HashiCorp Vault Setup & Client Integration**: `k8s/vault/setup.sh`, `src/security/vault_client.py`, metrics, secret manager.
+- **Sealed Secrets Generation**: `scripts/generate_sealed_secrets.py` for production overlays.
+- **Billing E2E stability**: Stripe billing e2e checks, FastAPI mock database overrides.
+- **K8s Deploy Verification**: Multi-document YAML verification in `validate_kubernetes_deployment.sh`.
+- **MAPE-K Events**: `healing.verified` local event, cooldown guard against duplicate self-healing.
+- **Trust Finality Contracts**: Strict proof contracts rejecting hidden fields.
+
+### Fixed
+- **CI Stabilization**: Removed broken gitlink x0tta6bl4-ebpf, synced requirements.lock (cryptography 49.0.0→46.0.7, mcp 1.26.0→1.28.1, pillow 12.2.0→12.3.0), added pyyaml to mesh-node-smoke.yml, fixed YAML multi-doc validation (safe_load → safe_load_all).
+- **SVIDSigner**: Fixed verify_payload key lookup.
+- **Bandit**: Resolved security warnings (`-f json` → `-ll -q`).
+- **Duplicity Build**: Added librsync-dev and gettext build dependencies.
+- **Gitignore**: Added .zencoder/, outputs/, scratch/.
+
+### Changed
+- **Swarm Ownership**: Updated `docs/team/swarm_ownership.json` with new directories (3d-generator-app, dashboard, pitch-deck, ebpf, infra/k8s, plans, scripts).
 
 ## [Unreleased]
 
