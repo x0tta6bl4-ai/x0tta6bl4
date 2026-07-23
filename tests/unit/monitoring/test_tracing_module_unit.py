@@ -198,115 +198,29 @@ except ImportError:
     OPENTELEMETRY_AVAILABLE = False
 
 
-@pytest.mark.skipif(True, reason="Pre-existing: monkeypatch of sys.modules breaks dataclasses module resolution")
+@pytest.mark.skipif(not OPENTELEMETRY_AVAILABLE, reason="opentelemetry not installed")
 @pytest.mark.opentelemetry_conflict
-def test_module_import_success_path_with_fake_opentelemetry(monkeypatch):
-    def _ensure_module(name: str):
-        existing = sys.modules.get(name)
-        if existing is not None:
-            return existing
+def test_module_import_success_path_with_real_opentelemetry():
+    """Test tracing module import with real opentelemetry installed."""
+    from src.monitoring.tracing import initialize_tracing
 
-        module = types.ModuleType(name)
-        module.__path__ = []  # type: ignore[attr-defined]
-        monkeypatch.setitem(sys.modules, name, module)
-
-        parent, _, child = name.rpartition(".")
-        if parent:
-            parent_mod = _ensure_module(parent)
-            setattr(parent_mod, child, module)
-        return module
-
-    for module_name in list(sys.modules):
-        if module_name == "opentelemetry" or module_name.startswith("opentelemetry."):
-            monkeypatch.delitem(sys.modules, module_name, raising=False)
-
-    trace_mod = _ensure_module("opentelemetry.trace")
-    setattr(trace_mod, "Status", type("Status", (), {}))
-    setattr(trace_mod, "StatusCode", type("StatusCode", (), {}))
-
-    context_mod = _ensure_module("opentelemetry.context")
-    setattr(context_mod, "Context", dict)
-    setattr(context_mod, "attach", lambda _ctx: "token")
-    setattr(context_mod, "detach", lambda _token: None)
-    setattr(context_mod, "set_value", lambda k, v: {k: v})
-
-    jaeger_mod = _ensure_module("opentelemetry.exporter.jaeger.thrift")
-    setattr(jaeger_mod, "JaegerExporter", type("JaegerExporter", (), {}))
-
-    otlp_mod = _ensure_module("opentelemetry.exporter.otlp.proto.grpc.trace_exporter")
-    setattr(otlp_mod, "OTLPSpanExporter", type("OTLPSpanExporter", (), {}))
-
-    zipkin_mod = _ensure_module("opentelemetry.exporter.zipkin.json")
-    setattr(zipkin_mod, "ZipkinExporter", type("ZipkinExporter", (), {}))
-
-    fastapi_mod = _ensure_module("opentelemetry.instrumentation.fastapi")
-    setattr(fastapi_mod, "FastAPIInstrumentor", type("FastAPIInstrumentor", (), {}))
-
-    httpx_mod = _ensure_module("opentelemetry.instrumentation.httpx")
-    setattr(httpx_mod, "HTTPXClientInstrumentor", type("HTTPXClientInstrumentor", (), {}))
-
-    propagate_mod = _ensure_module("opentelemetry.propagate")
-    setattr(propagate_mod, "extract", lambda *_args, **_kwargs: {})
-    setattr(propagate_mod, "inject", lambda *_args, **_kwargs: None)
-    setattr(propagate_mod, "set_global_textmap", lambda *_args, **_kwargs: None)
-
-    b3_mod = _ensure_module("opentelemetry.propagators.b3")
-    setattr(b3_mod, "B3MultiFormat", type("B3MultiFormat", (), {}))
-
-    composite_mod = _ensure_module("opentelemetry.propagators.composite")
-    setattr(
-        composite_mod,
-        "CompositeHTTPPropagator",
-        type("CompositeHTTPPropagator", (), {}),
+    # Should not raise when opentelemetry is properly installed
+    tracer_provider = initialize_tracing(
+        service_name="test-service",
+        service_version="1.0.0",
+        enable_console=True,
     )
+    assert tracer_provider is not None
 
-    tracecontext_mod = _ensure_module("opentelemetry.propagators.tracecontext")
-    setattr(
-        tracecontext_mod,
-        "TraceContextTextMapPropagator",
-        type("TraceContextTextMapPropagator", (), {}),
-    )
+    # Verify we can get a tracer
+    from opentelemetry import trace
+    tracer = trace.get_tracer("test-tracer")
+    assert tracer is not None
 
-    resources_mod = _ensure_module("opentelemetry.sdk.resources")
-    setattr(resources_mod, "SERVICE_NAME", "service.name")
-    setattr(resources_mod, "SERVICE_VERSION", "service.version")
-    setattr(resources_mod, "Resource", type("Resource", (), {}))
-
-    sdk_trace_mod = _ensure_module("opentelemetry.sdk.trace")
-    setattr(sdk_trace_mod, "TracerProvider", type("TracerProvider", (), {}))
-
-    sdk_trace_export_mod = _ensure_module("opentelemetry.sdk.trace.export")
-    setattr(
-        sdk_trace_export_mod,
-        "BatchSpanProcessor",
-        type("BatchSpanProcessor", (), {}),
-    )
-    setattr(
-        sdk_trace_export_mod,
-        "ConsoleSpanExporter",
-        type("ConsoleSpanExporter", (), {}),
-    )
-
-    sdk_sampling_mod = _ensure_module("opentelemetry.sdk.trace.sampling")
-    setattr(sdk_sampling_mod, "ALWAYS_OFF", object())
-    setattr(sdk_sampling_mod, "ALWAYS_ON", object())
-    setattr(sdk_sampling_mod, "ParentBased", type("ParentBased", (), {}))
-    setattr(
-        sdk_sampling_mod,
-        "TraceIdRatioBased",
-        type("TraceIdRatioBased", (), {}),
-    )
-
-    module_name = "_tracing_success_import_cov"
-    module_path = pathlib.Path(mod.__file__)
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    assert spec is not None and spec.loader is not None
-    reloaded = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(reloaded)
-
-    assert reloaded.OPENTELEMETRY_AVAILABLE is True
-    assert reloaded.FastAPIInstrumentor is not None
-    assert reloaded.HTTPXClientInstrumentor is not None
+    # Verify span creation works
+    with tracer.start_as_current_span("test-span") as span:
+        assert span is not None
+        span.set_attribute("test.key", "test.value")
 
 
 def test_init_without_opentelemetry(monkeypatch):
