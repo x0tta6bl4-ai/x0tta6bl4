@@ -1,12 +1,20 @@
 # Mesh Scaling & Resilience Experiment Specification (x0tta6bl4 Platform)
 
-**Version**: 1.1  
-**Focus**: Core Mesh Resilience, Gossip Storms, Partition Merge & Adaptive Knowledge Quality  
+**Version**: 1.2  
+**Focus**: Knowledge-Guided Recovery Quality, Partition Reconciliation & High-Volume Data Tunnels  
 **Date**: 2026-07-23  
 
 ---
 
-## 1. Top-3 Strategic Focus Experiments
+## 1. Scientific Principles & Hypothesis Refinement
+
+> **Empirical Discovery (Experiment E-007)**: Controlled testing (Knowledge OFF vs ON vs WIPE) disproved the initial hypothesis that Knowledge storage accelerates raw execution micro-seconds ($0.150\text{ms}$ vs $0.185\text{ms}$). Initial speedup was an artifact of Python interpreter warmup.
+> 
+> **Refined Core Hypothesis**: Knowledge accumulation does NOT decrease raw execution microseconds. Instead, Knowledge improves **Recovery Quality**, reduces **Wrong Actions**, minimizes **Recovery Retries**, and prioritizes **Lowest-Cost Remediations**.
+
+---
+
+## 2. Top-3 Strategic Focus Experiments
 
 ### **E-002: Network Partition, Independent Operation & Merge Conflict Resolution**
 - **Objective**: Verify dual-cluster independent operation and loop-free reconciliation upon link merge.
@@ -15,9 +23,9 @@
   Full Mesh (25 nodes) ---> Split Partition (Bridge Drop) ---> Independent Sub-clusters ---> Re-connect Link (Merge) ---> Conflict Resolution & Loop Check
   ```
 - **Target Metrics**:
-  - Partition Detection Time ($T_{\text{split}} < 1.0s$)
-  - Dual-Cluster Routing Isolation (Zero cross-partition loops)
-  - Merge Healing & Conflict Resolution Time ($T_{\text{merge}} < 3.0s$)
+  - Topology Recovery Time ($T_{\text{topology}} < 2.0s$)
+  - Topology Conflict Count ($C_{\text{merge}} = 0$)
+  - Gossip Volume during Merge ($V_{\text{gossip}} < 50\text{KB}$)
 - **Required Invariants**: `I1` (No Loops), `I3` (Knowledge Monotonicity), `I5` (Zero Trust Integrity).
 
 ---
@@ -35,26 +43,20 @@
 
 ---
 
-### **E-007: Knowledge Quality & Adaptive MTTR Acceleration**
-- **Objective**: Prove that accumulated Knowledge experience accelerates recovery over time ($MTTR_{\#50} < MTTR_{\#1}$).
-- **Scenario**:
-  ```
-  Failure #1 (Cold Knowledge) ---> MTTR_1 (~ 900ms) 
-         |
-         V (50 Iterative Self-Healing Cycles)
-         |
-  Failure #50 (Warm Knowledge) ---> MTTR_50 (~ 250ms)
-  ```
-- **Target Metrics**:
-  - Accelerated MTTR Ratio ($\frac{MTTR_{\#50}}{MTTR_{\#1}} \le 0.40$)
-  - Threshold Adaptation Monotonicity
+### **E-007: Knowledge-Guided Recovery Quality & Decision Precision**
+- **Objective**: Prove that accumulated Knowledge experience improves action precision, lowers remediation cost, and eliminates retries.
+- **Metrics**:
+  1. **Wrong Recovery Decisions**: Reduction from baseline ($\Delta \text{Wrong} \ge 80\%$)
+  2. **Recovery Retries**: Zero repeated action retries on identical anomalies
+  3. **Recovery Remediation Cost**: Preference hierarchy ($\text{Reroute} < \text{Restart Daemon} < \text{Restart Node}$)
+  4. **False Positives Rate**: $\text{FP} < 1\%$
 - **Required Invariants**: `I2` (MTTR SLA), `I3` (Knowledge Monotonicity).
 
 ---
 
-## 2. Extended Scaling & Long-Running Experiments
+## 3. Extended Scaling & Operational Experiments
 
-### **E-001: 10-Node Mesh Convergence & Route Oscillation Guard**
+### **E-001: 10-Node Mesh Convergence & Route Flap Stabilization**
 - **Objective**: Measure convergence time and route flap stabilization ($R_{\text{flap}} < 2/\text{min}$).
 - **Required Invariants**: `I1`, `I2`, `I4`.
 
@@ -66,6 +68,6 @@
 - **Objective**: Verify catastrophic failure survival when 40% of topology nodes drop simultaneously.
 - **Required Invariants**: `I1`, `I2`, `I3`.
 
-### **E-006: 24-Hour Long-Running Operational Stability**
-- **Objective**: Run continuous 24-hour mesh simulation with periodic faults to audit memory leaks and route degradation.
+### **E-006: 24-Hour Long-Running Operational Telemetry Audit**
+- **Objective**: Continuous 24-hour run with 10-minute snapshot logging (CPU, RAM, Peers, Routes, Knowledge Size, MTTR, GC pauses).
 - **Required Invariants**: `I1`, `I2`, `I3`, `I4`, `I5`, `I6`.
