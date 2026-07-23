@@ -430,5 +430,51 @@ class TestPQCIntegration:
             pytest.skip("liboqs not installed")
 
 
+class TestPQCHypothesisProperties:
+    """Hypothesis property-based tests for PQC interfaces."""
+
+    def test_hypothesis_signature_property(self):
+        """Property-based test verifying DSA signature invariant over arbitrary inputs."""
+        from hypothesis import given, strategies as st
+        from src.security.pqc.simple import PQC
+
+        pqc = PQC()
+        if not pqc.available:
+            pytest.skip("PQC liboqs backend not available")
+
+        public_key, private_key = pqc.generate_keypair()
+
+        @given(message=st.binary(min_size=0, max_size=2048))
+        def check_signature_invariant(message: bytes):
+            sig = pqc.sign(message, private_key)
+            assert pqc.verify(message, sig, public_key) is True
+            if len(message) > 0:
+                mutated = bytearray(message)
+                mutated[0] ^= 0xFF
+                assert pqc.verify(bytes(mutated), sig, public_key) is False
+
+        check_signature_invariant()
+
+    def test_hypothesis_kem_roundtrip_property(self):
+        """Property-based test verifying KEM encapsulation/decapsulation invariant."""
+        from hypothesis import given, strategies as st
+        from src.security.pqc.simple import PQC
+
+        pqc = PQC()
+        if not pqc.available:
+            pytest.skip("PQC liboqs backend not available")
+
+        public_key, private_key = pqc.generate_keypair()
+
+        @given(dummy=st.integers(min_value=1, max_value=50))
+        def check_kem_invariant(dummy: int):
+            shared_secret, ciphertext = pqc.encapsulate(public_key)
+            assert len(shared_secret) == 32
+            recovered_secret = pqc.decapsulate(ciphertext, private_key)
+            assert recovered_secret == shared_secret
+
+        check_kem_invariant()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

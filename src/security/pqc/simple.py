@@ -16,7 +16,7 @@ from src.security.pqc.compat import (
     get_pqc_digital_signature,
     get_pqc_key_exchange,
 )
-from src.security.pqc.types import PQCEncapsulationResult, PQCKeyPair
+from src.security.pqc.types import PQCKeyPair
 
 __all__ = ["PQC"]
 
@@ -59,13 +59,7 @@ class PQC:
         return kp
 
     def encapsulate(self, public_key: bytes) -> tuple[bytes, bytes]:
-        res = self.kem.encapsulate(public_key)
-        if isinstance(res, PQCEncapsulationResult):
-            return (res.shared_secret, res.ciphertext)
-        # PQCKeyExchange.encapsulate returns (ciphertext, shared_secret).
-        # Legacy PQC interface contract expects (shared_secret, ciphertext).
-        ciphertext, shared_secret = res
-        return (shared_secret, ciphertext)
+        return self.kem.encapsulate_legacy(public_key)
 
     def decapsulate(self, ciphertext: bytes, secret_key: bytes | PQCKeyPair) -> bytes:
         # Normalize PQCKeyPair object if supplied instead of raw secret key bytes
