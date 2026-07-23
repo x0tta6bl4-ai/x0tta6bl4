@@ -23,7 +23,6 @@ sys.modules["eth_account"] = _eth_account
 sys.modules["eth_account.messages"] = _eth_account.messages
 
 _HEAVY_MOCKS = {
-    "prometheus_client": types.ModuleType("prometheus_client"),
     "kubernetes": types.ModuleType("kubernetes"),
     "flwr": types.ModuleType("flwr"),
     "eth_account": types.ModuleType("eth_account"),
@@ -33,6 +32,14 @@ _HEAVY_MOCKS = {
 }
 for _mod_name, _mod in _HEAVY_MOCKS.items():
     sys.modules.setdefault(_mod_name, _mod)
+
+# Only mock prometheus_client if not already installed
+try:
+    import prometheus_client as _prom_real
+    _prom = _prom_real
+except ImportError:
+    _prom = types.ModuleType("prometheus_client")
+    sys.modules.setdefault("prometheus_client", _prom)
 
 _eth = sys.modules.setdefault("eth_account")
 _eth.messages = types.ModuleType("eth_account.messages")
@@ -48,29 +55,30 @@ _eth.Account = type("Account", (), {
 })
 _eth.recover_message = lambda *args, **kwargs: "0x" + "0"*40
 
-_prom = sys.modules["prometheus_client"]
-_prom.CollectorRegistry = type("CollectorRegistry", (), {
-    "__call__": lambda s, *a, **kw: types.SimpleNamespace(
-        get_sample_value=lambda *a: 0.0, names=lambda self: iter([])
-    ),
-    "get_sample_value": lambda *a: 0.0,
-    "names": lambda self: iter([]),
-})
-_prom.Counter = lambda *a, **kw: types.SimpleNamespace(
-    inc=lambda *args, **kwargs: None, labels=lambda **kw: types.SimpleNamespace(inc=lambda *args, **kwargs: None)
-)
-_prom.Gauge = lambda *a, **kw: types.SimpleNamespace(
-    set=lambda v: None, inc=lambda *args, **kwargs: None,
-    labels=lambda **kw: types.SimpleNamespace(set=lambda v: None)
-)
-_prom.Histogram = lambda *a, **kw: types.SimpleNamespace(
-    observe=lambda v: None, labels=lambda **kw: types.SimpleNamespace(observe=lambda v: None)
-)
-_prom.Summary = lambda *a, **kw: types.SimpleNamespace(observe=lambda v: None)
-_prom.generate_latest = lambda *a, **kw: b""  # noqa: E731 — simple mock fallback
-_prom.CONTENT_TYPE_LATEST = "text/plain"
-_prom.REGISTRY = types.SimpleNamespace(_names_to_collectors={})
-_prom.start_http_server = lambda *a, **kw: None
+# Only mock prometheus_client attributes if using the mock module
+if not hasattr(_prom, "generate_latest") or not callable(_prom.generate_latest):
+    _prom.CollectorRegistry = type("CollectorRegistry", (), {
+        "__call__": lambda s, *a, **kw: types.SimpleNamespace(
+            get_sample_value=lambda *a: 0.0, names=lambda self: iter([])
+        ),
+        "get_sample_value": lambda *a: 0.0,
+        "names": lambda self: iter([]),
+    })
+    _prom.Counter = lambda *a, **kw: types.SimpleNamespace(
+        inc=lambda *args, **kwargs: None, labels=lambda **kw: types.SimpleNamespace(inc=lambda *args, **kwargs: None)
+    )
+    _prom.Gauge = lambda *a, **kw: types.SimpleNamespace(
+        set=lambda v: None, inc=lambda *args, **kwargs: None,
+        labels=lambda **kw: types.SimpleNamespace(set=lambda v: None)
+    )
+    _prom.Histogram = lambda *a, **kw: types.SimpleNamespace(
+        observe=lambda v: None, labels=lambda **kw: types.SimpleNamespace(observe=lambda v: None)
+    )
+    _prom.Summary = lambda *a, **kw: types.SimpleNamespace(observe=lambda v: None)
+    _prom.generate_latest = lambda *a, **kw: b""  # noqa: E731 — simple mock fallback
+    _prom.CONTENT_TYPE_LATEST = "text/plain"
+    _prom.REGISTRY = types.SimpleNamespace(_names_to_collectors={})
+    _prom.start_http_server = lambda *a, **kw: None
 
 import asyncio
 import os

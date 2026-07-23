@@ -678,7 +678,7 @@ class TestGetMetrics:
         assert "text/plain" in result.media_type
         assert "0.0.4" in result.media_type
 
-    @pytest.mark.skipif(_is_mocked, reason="prometheus_client mocked - registry is mock")
+    @pytest.mark.skipif(not _is_mocked, reason="prometheus_client is real - test uses mock registry")
     def test_uses_custom_registry(self):
         from src.monitoring.metrics import _metrics_registry, get_metrics
         with patch("src.monitoring.metrics.prometheus_client.generate_latest") as mock_gen:
