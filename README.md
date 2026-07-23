@@ -1,134 +1,131 @@
-# x0tta6bl4 — Autonomous Self-Healing VPN & Mesh Platform
+# x0tta6bl4
 
+Self-healing mesh VPN with post-quantum cryptography. If a node goes down, the network heals itself automatically.
+
+[![CI](https://github.com/x0tta6bl4-ai/x0tta6bl4/actions/workflows/ci.yml/badge.svg)](https://github.com/x0tta6bl4-ai/x0tta6bl4/actions)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![CodeQL](https://img.shields.io/badge/CodeQL-0%20alerts-brightgreen)](https://github.com/x0tta6bl4-ai/x0tta6bl4/security/code-scanning)
-![Status](https://img.shields.io/badge/status-v3.5.0--pilot--readiness-yellow)
-![Tests](https://img.shields.io/badge/tests-100%25--passing-brightgreen)
-![Security](https://img.shields.io/badge/Bandit%20Audit-0%20High-brightgreen)
-[![x0tMQ](https://img.shields.io/badge/x0tMQ-IETF%20Draft-blueviolet)](https://github.com/x0tta6bl4-ai/x0tmq)
-
-**Self-Healing VPN Service · Post-Quantum Cryptography · eBPF/XDP Dataplane · Zero-Trust SPIRE**  
-*Independent engineering research project by [x0tta6bl4](https://github.com/x0tta6bl4-ai).*
 
 ---
 
-> **«x0tta6bl4 — это VPN-сервис, который внутри использует собственную платформу самовосстанавливающейся сети, чтобы соединение оставалось доступным даже при сбоях и блокировках.»**
+## What is this?
+
+x0tta6bl4 is a VPN service built on a self-healing mesh network. It uses:
+
+- **Post-Quantum Cryptography** (ML-KEM-768 + ML-DSA-65) for quantum-resistant encryption
+- **MAPE-K self-healing loop** that detects failures and recovers automatically
+- **eBPF/XDP dataplane** for kernel-level packet processing
+- **SPIRE/SPIFFE** for zero-trust workload identity
+
+When a mesh node fails, the system detects the anomaly, plans a recovery action, and executes it — all without human intervention.
 
 ---
 
-> 📖 **Single Source of Truth:** See [`VERIFICATION_MATRIX.md`](docs/verification/VERIFICATION_MATRIX.md) for reproducible proof links across all subsystems.  
-> 🔬 **Runbook Demo:** See [`AUTONOMOUS_RECOVERY_DEMO.md`](docs/architecture/AUTONOMOUS_RECOVERY_DEMO.md) for the 6-step Autonomous Recovery Demonstration.  
-> **🇬🇧 English.** [🇷🇺 Русская версия](docs/ru/README.md)
-
----
-
-## 🏛️ Verifiable Subsystem Status (3-Tier Taxonomy)
-
-| Subsystem / Feature | Status | Proof / Evidence Link | Command / Artifact |
-|:---|:---:|:---|:---|
-| **Readiness Gate Suite (16/16)** | `✅ VERIFIED` | [`src/ops/readiness_gate.py`](src/ops/readiness_gate.py) | `X0TTA6BL4_DEV_MODE=1 python3 src/ops/readiness_gate.py --json` |
-| **PQC ML-KEM-768 & ML-DSA-65** | `✅ VERIFIED` | [`tests/security/test_pqc_phase8.py`](tests/security/test_pqc_phase8.py) | `pytest tests/security/test_pqc_phase8.py` |
-| **GitMark RAG v3.0 Engine** | `✅ VERIFIED` | [`scripts/test_gitmark_rag_quality.py`](scripts/test_gitmark_rag_quality.py) | `python3 scripts/test_gitmark_rag_quality.py` |
-| **Validation Framework** | `✅ VERIFIED` | [`tests/api/test_api_error_contract.py`](tests/api/test_api_error_contract.py) | `pytest tests/api/test_api_error_contract.py` |
-| **XDP Decision Simulator** | `✅ VERIFIED` | [`ebpf/prod/bench_test.go`](ebpf/prod/bench_test.go) | `go test -bench=BenchmarkXDPDecisionSimulator ./ebpf/prod` |
-| **MCP Operator Tools** | `✅ VERIFIED` | [`mcp-server/test_operator_tools.py`](mcp-server/test_operator_tools.py) | `pytest mcp-server/test_operator_tools.py` |
-| **Autonomous Recovery Loop** | `🟡 VALIDATED IN LAB` | [`tests/unit/self_healing/`](tests/unit/self_healing/) | `pytest tests/unit/self_healing/` |
-| **Multi-Node VPN Topology** | `🟡 VALIDATED IN LAB` | [`scripts/ops/vpn_health_check.py`](scripts/ops/vpn_health_check.py) | `python3 scripts/ops/vpn_health_check.py` |
-| **1M+ PPS Physical Hardware** | `⚪ TARGET` | Physical hardware testbed | Planned benchmark on bare-metal NIC |
-
----
-
-## ⚡ Quick Start
+## How to run?
 
 ```bash
 git clone https://github.com/x0tta6bl4-ai/x0tta6bl4.git
-cd x0tta6bl4
-
-# Run one-command clean environment quickstart
-bash quickstart/demo.sh
-
-# Or start local mesh (SPIRE + 2 nodes + MAPE-K)
-docker compose -f deploy/docker-compose/compose.yaml up -d
-curl -s http://localhost:9100/health
+cd x0tta6bl4/quickstart
+docker compose up -d
+./demo.sh
 ```
 
-[Full docs →](docs/) | [Verification Matrix →](docs/verification/VERIFICATION_MATRIX.md) | [Telegram](https://t.me/x0tta6bl4_ai) | [Issues](https://github.com/x0tta6bl4-ai/x0tta6bl4/issues)
+That's it. No SPIRE, no external dependencies. Just Docker.
+
+---
+
+## What will I see?
+
+```
+✓ Mesh Connected (2 nodes)
+✓ PQC Handshake Established
+✓ Validation Passed (16/16 checks)
+✓ HTML Report Generated
+```
+
+Open `http://localhost:8280/health` to see the node status.
+Open `http://localhost:9190/metrics` to see Prometheus metrics.
+
+---
+
+## How to stop?
+
+```bash
+cd quickstart
+docker compose down
+```
+
+---
+
+## Metrics
+
+The mesh node exposes Prometheus metrics at `:9190/metrics`:
+
+| Metric | Type | Description |
+|:-------|:-----|:------------|
+| `x0tta6bl4_mesh_health_score` | gauge | Node health (0-100) |
+| `x0tta6bl4_mesh_uptime_seconds` | gauge | Seconds since start |
+| `x0tta6bl4_mesh_peers_connected` | gauge | Active peers |
+| `x0tta6bl4_mesh_pqc_handshakes_total` | counter | PQC handshakes |
+| `x0tta6bl4_mesh_recovery_total` | counter | Recovery actions |
+
+---
+
+## API Examples
+
+```bash
+# Health check
+curl http://localhost:9100/health
+
+# List peers
+curl http://localhost:9100/peers
+
+# View metrics
+curl http://localhost:9190/metrics | grep x0tta6bl4_mesh
+```
+
+See [`docs/api/QUICKSTART.md`](docs/api/QUICKSTART.md) for full API reference with Python examples.
 
 ---
 
 ## Architecture
 
-```mermaid
-graph TB
-    subgraph APP["Application Layer"]
-        API[FastAPI / MaaS API]
-        Billing[Billing & Access Control]
-    end
-    subgraph CONTROL["Control Plane"]
-        MAPEK[MAPE-K Self-Healing]
-        ZTCR[ZTCR Security]
-        EventBus[Async Event Bus]
-    end
-    subgraph MESH["Mesh Layer"]
-        DHT[DHT Peer Discovery]
-        CRDT[CRDT Sync]
-        VPN[Ghost Transport VPN]
-    end
-    subgraph TRANSPORT["Transport Security"]
-        PQC[Hybrid TLS 1.3<br/>ML-KEM-768 + X25519<br/>ML-DSA-65 + ECDSA]
-        SPIRE[SPIRE/SPIFFE mTLS]
-    end
-    subgraph KERNEL["Kernel (eBPF/XDP)"]
-        XDP[Packet Filtering]
-        AFXDP[Zero-Copy kernel ↔ userspace]
-    end
-    KERNEL --> TRANSPORT --> MESH --> CONTROL --> APP
+```
+┌─────────────────────────────────────────────┐
+│  Application Layer (FastAPI / MaaS API)     │
+├─────────────────────────────────────────────┤
+│  Control Plane (MAPE-K Self-Healing)        │
+├─────────────────────────────────────────────┤
+│  Mesh Layer (DHT + CRDT + Ghost Transport)  │
+├─────────────────────────────────────────────┤
+│  Transport Security (PQC + SPIRE mTLS)      │
+├─────────────────────────────────────────────┤
+│  Kernel (eBPF/XDP Packet Filtering)         │
+└─────────────────────────────────────────────┘
 ```
 
-## Components
+---
 
-| Component | Lang | Lines | Status |
-|-----------|------|-------|--------|
-| PQC (ML-KEM-768/1024 + ML-DSA-65/87) | Python | ~3,500 | ✅ Tested via liboqs |
-| MAPE-K self-healing loop | Python | ~1,900 | ✅ 4/4 tests |
-| MaaS API (REST, FastAPI) | Python | ~5,000 | ✅ 35+ handlers |
-| eBPF/XDP dataplane | C | ~1,500 | ✅ Kernel-level |
-| Anti-censorship / DPI bypass | Python/Sh | ~2,000 | ✅ Reality + XHTTP |
-| Ghost Transport VPN | Python | ~2,000 | ✅ Docker-ready |
-| Billing & Access | Python | ~1,200 | ✅ Subscription model |
-| **x0tMQ** (MAVLink PQC) | Python | ~775 | ✅ [IETF Draft](https://github.com/x0tta6bl4-ai/x0tmq) |
+## Documentation
 
-## Benchmarks
+| Document | Description |
+|:---------|:------------|
+| [API Quickstart](docs/api/QUICKSTART.md) | curl/Python examples for all endpoints |
+| [Quick Start](quickstart/) | Docker Compose 2-node mesh |
+| [Architecture](docs/architecture/) | System design and ADRs |
+| [Validation](validation/) | Test framework and invariants |
+| [Deploy](deploy/) | Production Docker Compose |
 
-| Metric | Value | Conditions |
-|--------|-------|------------|
-| XDP TX throughput | 141,667 PPS | pktgen → XDP_TX |
-| XDP RX throughput | 49,000 PPS | XDP_DROP raw |
-| PQC hybrid handshake | <50 ms | ML-KEM-768 + ML-DSA-65, localhost |
-| MAPE-K MTTD | <20 s | Time to detect anomaly |
-| MAPE-K MTTR | ~3 min | Autonomous recovery |
-| Dependencies | 376 (lock file) | Python |
+---
 
 ## Security
 
-- **CodeQL**: 0 open alerts (100% clean baseline)
+- **CodeQL**: 0 open alerts
 - **Bandit**: 0 HIGH, 0 CRITICAL
-- **Dependabot**: Auto-patches active
-- **CVE fixes**: 18 (including recent yt-dlp, starlette, PyJWT patches)
-- **ZTCR chaos tests**: 29 scenarios
-
-## Languages
-
-Python 71.8% · C 19.8% · Shell 4.1% · Go 1.2% · HTML 1% · TS/JS 0.8% · others 1.3%
-
-**1,085 commits · 4,736 source files · 352 MB**
+- **PQC**: ML-KEM-768 + ML-DSA-65 (NIST FIPS 203/204)
+- **Zero-Trust**: SPIRE/SPIFFE workload identity
 
 ---
 
-*Independent engineering project. Verified by machines, not marketing.*
+## License
 
----
-
-## 🇷🇺 Русская версия
-
-Полная русская версия: [`docs/ru/README.md`](docs/ru/README.md)
+Apache 2.0
