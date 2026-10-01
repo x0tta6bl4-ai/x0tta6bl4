@@ -1,15 +1,16 @@
 """
 Recovery Actions for MAPE-K - Data Models
 """
+
 from __future__ import annotations
-import logging
+import time
+from datetime import datetime
+from enum import StrEnum
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-logger = logging.getLogger(__name__)
 
-
-class RecoveryActionType:
+class RecoveryActionType(StrEnum):
     """Types of recovery actions"""
 
     RESTART_SERVICE = "restart_service"
@@ -47,9 +48,5 @@ class CircuitBreakerState:
     failures: int = 0
     successes: int = 0
     state: str = "closed"  # "closed", "open", "half_open"
-    last_failure_time: Optional[float] = None
-    opened_at: Optional[float] = None
-
-
-import time  # noqa: E402
-
+    last_failure_time: Optional[datetime] = None
+    opened_at: Optional[datetime] = None

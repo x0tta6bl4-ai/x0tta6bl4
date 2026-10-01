@@ -1,11 +1,23 @@
-import subprocess
+from unittest.mock import MagicMock
 from datetime import datetime, timedelta
 
 import pytest
 
-from src.self_healing.recovery_actions import (CircuitBreaker, RateLimiter,
-                                               RecoveryActionExecutor,
-                                               RecoveryActionType)
+from src.self_healing.recovery_actions import (
+    CircuitBreaker,
+    RateLimiter,
+    RecoveryActionExecutor,
+    RecoveryActionType,
+    RecoveryResult,
+)
+
+
+@pytest.fixture(autouse=True)
+def isolated_backends(monkeypatch):
+    for name in ("systemctl", "docker", "kubectl"):
+        monkeypatch.setattr(RecoveryActionExecutor, f"_probe_{name}", staticmethod(lambda: False))
+    monkeypatch.setattr(RecoveryActionExecutor, "_probe_routing", staticmethod(lambda: None))
+    monkeypatch.setattr("src.self_healing.recovery.executor.get_event_bus", lambda: MagicMock())
 
 
 def test_rate_limiter_blocks_when_exceeded(monkeypatch):
@@ -26,9 +38,7 @@ def test_rate_limiter_blocks_when_exceeded(monkeypatch):
 
 
 def test_circuit_breaker_opens_and_transitions_to_half_open(monkeypatch):
-    cb = CircuitBreaker(
-        failure_threshold=2, success_threshold=1, timeout=timedelta(seconds=10)
-    )
+    cb = CircuitBreaker(failure_threshold=2, success_threshold=1, timeout=timedelta(seconds=10))
 
     class _FakeDT(datetime):
         now_value = datetime(2026, 1, 1, 0, 0, 0)
@@ -58,13 +68,9 @@ def test_circuit_breaker_opens_and_transitions_to_half_open(monkeypatch):
 
 
 def test_parse_action_type_mapping():
-    ex = RecoveryActionExecutor(
-        enable_circuit_breaker=False, enable_rate_limiting=False
-    )
+    ex = RecoveryActionExecutor(enable_circuit_breaker=False, enable_rate_limiting=False)
 
-    assert (
-        ex._parse_action_type("Restart service") == RecoveryActionType.RESTART_SERVICE
-    )
+    assert ex._parse_action_type("Restart service") == RecoveryActionType.RESTART_SERVICE
     assert ex._parse_action_type("Switch route") == RecoveryActionType.SWITCH_ROUTE
     assert ex._parse_action_type("Clear cache") == RecoveryActionType.CLEAR_CACHE
     assert ex._parse_action_type("Scale up") == RecoveryActionType.SCALE_UP
@@ -88,7 +94,7 @@ def test_execute_retries_and_records_failure(monkeypatch):
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("fail")
-        return ex._clear_cache(context)
+        return RecoveryResult(True, RecoveryActionType.CLEAR_CACHE)
 
     monkeypatch.setattr(ex, "_execute_action_internal", _internal)
 
@@ -99,11 +105,12 @@ def test_execute_retries_and_records_failure(monkeypatch):
 
 
 def test_rollback_last_action_executes_rollback_action(monkeypatch):
-    ex = RecoveryActionExecutor(
-        enable_circuit_breaker=False, enable_rate_limiting=False
-    )
+    ex = RecoveryActionExecutor(enable_circuit_breaker=False, enable_rate_limiting=False)
 
-    # First action will be successful and saved for rollback
+    monkeypatch.setattr(
+        ex, "_switch_route", lambda context: RecoveryResult(True, RecoveryActionType.SWITCH_ROUTE)
+    )
+    # Explicit test backend executes the forward action.
     ex.execute("Switch route", {"old_route": "r1", "alternative_route": "r2"})
     assert ex.rollback_stack
 
@@ -120,15 +127,13 @@ def test_rollback_last_action_executes_rollback_action(monkeypatch):
 
 
 def test_restart_service_tries_systemd_then_fallback(monkeypatch):
-    ex = RecoveryActionExecutor(
-        enable_circuit_breaker=False, enable_rate_limiting=False
-    )
+    ex = RecoveryActionExecutor(enable_circuit_breaker=False, enable_rate_limiting=False)
 
     def _run(*args, **kwargs):
         raise FileNotFoundError()
 
-    monkeypatch.setattr(subprocess, "run", _run)
+    monkeypatch.setattr("src.self_healing.recovery.executor.safe_run", _run)
 
     res = ex._restart_service({"service_name": "svc"})
-    assert res.success is True
-    assert res.details and res.details.get("method") == "simulated"
+    assert res.success is False
+    assert res.details and res.details.get("method") == "unavailable"

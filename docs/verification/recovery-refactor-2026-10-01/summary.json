@@ -1,0 +1,24 @@
+{
+  "base_commit": "f77b49308f1085e0003e037f63119e382efd2d66",
+  "scope": "recovery execution contract increment 1",
+  "unit_tests": {
+    "passed": 156,
+    "exit_code": 0
+  },
+  "mock_backend_integration_tests": {
+    "passed": 4,
+    "exit_code": 0
+  },
+  "baseline_legacy_subset": {
+    "passed": 85,
+    "failed": 13
+  },
+  "readiness": {
+    "decision": "REAL_READINESS_READY",
+    "skip_git_check": true
+  },
+  "full_suite_run": false,
+  "live_backends_tested": false,
+  "dependencies": "environment.txt",
+  "verification_command": "bash scripts/validation/verify_recovery_contract.sh"
+}
