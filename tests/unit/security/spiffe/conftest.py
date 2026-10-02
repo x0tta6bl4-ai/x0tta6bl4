@@ -1,4 +1,3 @@
-import os
 from unittest.mock import patch
 
 import pytest
@@ -7,12 +6,9 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def force_mock_spiffe_sdk_env():
+def force_mock_spiffe_sdk_env(monkeypatch):
     """Forces the SPIFFE WorkloadAPIClient to run in mock mode during tests."""
-    os.environ["X0TTA6BL4_FORCE_MOCK_SPIFFE"] = "true"
-    yield
-    if "X0TTA6BL4_FORCE_MOCK_SPIFFE" in os.environ:
-        del os.environ["X0TTA6BL4_FORCE_MOCK_SPIFFE"]
+    monkeypatch.setenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
 
 @pytest.fixture(autouse=True)
@@ -29,3 +25,18 @@ def mock_spire_agent_manager_bin():
     except AttributeError:
         # Method doesn't exist, skip patching
         yield
+
+
+@pytest.fixture
+def mock_spire_executable(monkeypatch):
+    """Explicit executable lookup for tests which already mock subprocess calls."""
+    from src.core.security import subprocess_validator
+    original = subprocess_validator.shutil.which
+
+    def which(command):
+        if command in ("spire-agent", "spire-server",
+                       "/usr/local/bin/spire-agent", "/usr/local/bin/spire-server"):
+            return command if command.startswith("/") else f"/usr/local/bin/{command}"
+        return original(command)
+
+    monkeypatch.setattr(subprocess_validator.shutil, "which", which)

@@ -1,10 +1,13 @@
+import pytest
+
 from types import SimpleNamespace
 
 
 def test_spire_server_client_health_check_success(monkeypatch):
     from src.security.spiffe.server.client import SPIREServerClient
 
-    def _run(cmd, capture_output, text, timeout):
+    def _run(cmd, capture_output, text, timeout, shell):
+        assert shell is False
         assert cmd[1] == "healthcheck"
         return SimpleNamespace(returncode=0)
 
@@ -31,7 +34,8 @@ def test_spire_server_client_create_entry_parses_id_and_admin_flag(monkeypatch):
 
     seen = {}
 
-    def _run(cmd, capture_output, text, timeout):
+    def _run(cmd, capture_output, text, timeout, shell):
+        assert shell is False
         seen["cmd"] = cmd
         return SimpleNamespace(returncode=0, stdout="Entry created: eid\n", stderr="")
 
@@ -82,7 +86,8 @@ Admin: false
 def test_spire_server_client_delete_entry_and_status(monkeypatch):
     from src.security.spiffe.server.client import SPIREServerClient
 
-    def _run(cmd, capture_output, text, timeout):
+    def _run(cmd, capture_output, text, timeout, shell):
+        assert shell is False
         if cmd[1:3] == ["entry", "delete"]:
             return SimpleNamespace(returncode=0, stdout="ok", stderr="")
         return SimpleNamespace(returncode=1, stdout="", stderr="bad")
@@ -95,3 +100,6 @@ def test_spire_server_client_delete_entry_and_status(monkeypatch):
     st = c.get_server_status()
     assert st["healthy"] is False
     assert st["address"] == c.server_address
+
+
+pytestmark = pytest.mark.usefixtures("mock_spire_executable")

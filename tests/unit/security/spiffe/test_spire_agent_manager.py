@@ -37,16 +37,16 @@ def mock_spire_env():
     ):
 
         def which_side_effect(binary_name):
-            if binary_name == "spire-agent":
+            if binary_name in ("spire-agent", MOCK_AGENT_BIN):
                 return MOCK_AGENT_BIN
-            if binary_name == "spire-server":
+            if binary_name in ("spire-server", MOCK_SERVER_BIN):
                 return MOCK_SERVER_BIN
             return None
 
         def find_binary_side_effect(binary_name):
-            if binary_name == "spire-agent":
+            if binary_name in ("spire-agent", MOCK_AGENT_BIN):
                 return MOCK_AGENT_BIN
-            if binary_name == "spire-server":
+            if binary_name in ("spire-server", MOCK_SERVER_BIN):
                 return MOCK_SERVER_BIN
             raise FileNotFoundError(f"{binary_name} not found")
 
@@ -206,6 +206,7 @@ def test_register_workload_success(mock_spire_env, tmp_path):
         check=True,
         text=True,
         timeout=30,
+        shell=False,
     )
 
 
@@ -244,8 +245,9 @@ def test_attest_node_restarts_running_agent(mock_spire_env, tmp_path):
     """Test that attest_node restarts a running agent to apply the new token."""
     mgr = SPIREAgentManager(socket_path=tmp_path / "agent.sock")
     process = mock_spire_env["process"]
-    # poll: None (running) -> None (still running at stop check) -> 0 (terminated)
-    process.poll.side_effect = [None, None, 0, None]
+    # Model process state, independent of how often lifecycle code polls.
+    process.poll.return_value = None
+    mock_spire_env["killpg"].side_effect = lambda *_: setattr(process.poll, "return_value", 0)
     mgr.agent_process = process
 
     # Make start() successful
@@ -308,3 +310,17 @@ def test_start_uses_attest_token(mock_spire_env, tmp_path):
     assert "env" in call_args.kwargs
     subprocess_env = call_args.kwargs["env"]
     assert subprocess_env.get("SPIRE_JOIN_TOKEN") == token
+
+
+def test_agent_filters_inherited_injection_variables(mock_spire_env, tmp_path, monkeypatch):
+    monkeypatch.setenv("PYTHONPATH", "/untrusted/python")
+    monkeypatch.setenv("LD_PRELOAD", "/untrusted/library.so")
+    monkeypatch.setenv("SPIRE_JOIN_TOKEN", "test-join-token")
+    mgr = SPIREAgentManager(socket_path=tmp_path / "agent.sock")
+    # Observe environment even when readiness times out; no fake ready socket.
+    with patch("time.sleep"):
+        assert mgr.start() is False
+    env = mock_spire_env["popen"].call_args.kwargs["env"]
+    assert "PYTHONPATH" not in env
+    assert "LD_PRELOAD" not in env
+    assert env["SPIRE_JOIN_TOKEN"] == "test-join-token"

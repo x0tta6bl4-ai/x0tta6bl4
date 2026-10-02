@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.core.security.subprocess_validator import safe_popen, safe_run
+from src.core.security.subprocess_validator import UNSAFE_ENV_KEYS, safe_popen, safe_run
 from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
@@ -395,7 +395,8 @@ class SPIREAgentManager:
 
             cmd = [self._spire_agent_bin, "run", "-config", str(config_to_use)]
 
-            env = os.environ.copy()
+            env = {key: value for key, value in os.environ.items()
+                   if key not in UNSAFE_ENV_KEYS}
             if self._join_token:
                 env["SPIRE_JOIN_TOKEN"] = self._join_token
                 logger.info("Using join token from attest_node for node attestation")

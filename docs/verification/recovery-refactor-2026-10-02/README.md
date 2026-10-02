@@ -29,3 +29,25 @@ with the test tools. The global autouse fixture no longer imports governance_scr
 for unrelated tests; it patches the module only when already loaded. The same
 170 unit + 4 integration tests pass under ordinary pytest with root conftest enabled
 (see global-fixtures.txt). Full security suite is still pending CI.
+
+### SPIFFE/SPIRE follow-up
+
+Removed production subprocess resolver's TESTING/PYTEST_CURRENT_TEST fallback:
+missing executables now fail closed instead of manufacturing a path. Absolute
+ip/tc paths now receive the same subcommand validation as bare names. Explicit
+absolute executable paths and PATH lookup remain supported as before; this is
+not a complete executable trust-policy redesign.
+
+SPIRE filters unsafe inherited injection variables before strict validation,
+while retaining its join token. Restored the explicitly named mock X509 helper;
+its placeholder bytes are not valid credentials or real SPIRE evidence.
+
+Tests now explicitly provide mocked executable lookup, assert shell=False, and
+model process termination independently of poll count. The spine success test
+uses a real Unix socket instead of a regular file. No socket test is skipped.
+
+Local evidence: 75 SPIFFE tests passed, 3 failed because this executor denies
+AF_UNIX socket creation (spiffe-local.txt); 6 targeted regression tests passed
+(spiffe-regressions.txt). Recovery verification remains 170 unit + 4 integration
+passed. The three socket cases require CI validation. These are unit tests with
+mocked SPIRE processes, not live SPIRE integration or production certification.
