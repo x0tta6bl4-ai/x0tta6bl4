@@ -723,7 +723,7 @@ class TestRollback:
         # Rollback should call execute with the rollback action
         result = executor.rollback_last_action()
         assert result is True
-        assert len(executor.rollback_stack) >= 0  # may add a new entry from rollback
+        assert executor.rollback_stack == []
 
     def test_rollback_after_scale_up(self, executor):
         executor.execute("Scale up", {"deployment_name": "web", "old_replicas": 2})
@@ -747,7 +747,8 @@ class TestRollback:
     def test_rollback_failover(self, executor):
         executor.execute("Failover", {"primary_region": "us-east"})
         result = executor.rollback_last_action()
-        assert result is True
+        assert result is False
+        assert len(executor.rollback_stack) == 1
 
 
 # ────────────────────────────────────────────

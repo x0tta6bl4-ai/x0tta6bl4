@@ -187,7 +187,13 @@ class RecoveryActionExecutor:
         except Exception:
             return None
 
-    def execute(self, action: str, context: Optional[Dict[str, Any]] = None) -> bool:
+    def execute(
+        self,
+        action: str,
+        context: Optional[Dict[str, Any]] = None,
+        *,
+        _record_rollback: bool = True,
+    ) -> bool:
         """
         Execute recovery action with retry logic, rate limiting, and circuit breaker.
 
@@ -257,7 +263,7 @@ class RecoveryActionExecutor:
                 result.duration_seconds = time.monotonic() - start_time
 
                 # Save state for rollback if successful
-                if result.success:
+                if result.success and _record_rollback:
                     self._save_state_for_rollback(action_type, context)
 
                 # Record in history
@@ -884,7 +890,7 @@ class RecoveryActionExecutor:
 
     def get_action_history(self, limit: int = 100) -> List[RecoveryResult]:
         """Get recent action history"""
-        return self.action_history[-limit:]
+        return self.action_history[-limit:] if limit > 0 else []
 
     def get_success_rate(self, action_type: Optional[RecoveryActionType] = None) -> float:
         """Get success rate for actions"""
@@ -926,43 +932,49 @@ class RecoveryActionExecutor:
             logger.warning("No actions to rollback")
             return False
 
-        last_action = self.rollback_stack.pop()
-        action_type_str = last_action["action_type"]
-        context = last_action["context"]
-
-        logger.info(f"Rolling back action: {action_type_str}")
-
-        # Determine rollback action based on original action
-        rollback_action = self._get_rollback_action(action_type_str, context)
-
-        if rollback_action:
-            return self.execute(rollback_action, context)
-        else:
-            logger.warning(f"No rollback strategy for action: {action_type_str}")
+        last_action = self.rollback_stack[-1]
+        inverse = self._build_rollback(last_action["action_type"], last_action["context"])
+        if inverse is None:
+            logger.warning("No evidenced rollback for action: %s", last_action["action_type"])
             return False
+        action, context = inverse
+        if not self.execute(action, context, _record_rollback=False):
+            return False
+        self.rollback_stack.pop()
+        return True
+
+    @staticmethod
+    def _build_rollback(
+        action_type: str, context: Dict[str, Any]
+    ) -> Optional[tuple[str, Dict[str, Any]]]:
+        """Build an inverse only when the caller supplied the previous state.
+
+        This submits a compensating command; it does not verify convergence.
+        """
+        inverse_context = dict(context)
+        if action_type == RecoveryActionType.SWITCH_ROUTE:
+            previous = context.get("old_route")
+            if not previous:
+                return None
+            inverse_context["alternative_route"] = previous
+            return RecoveryActionType.SWITCH_ROUTE, inverse_context
+        if action_type in (RecoveryActionType.SCALE_UP, RecoveryActionType.SCALE_DOWN):
+            previous = context.get("old_replicas")
+            if isinstance(previous, bool) or not isinstance(previous, int) or previous < 0:
+                return None
+            inverse_context["replicas"] = previous
+            inverse_action = (
+                RecoveryActionType.SCALE_DOWN
+                if action_type == RecoveryActionType.SCALE_UP
+                else RecoveryActionType.SCALE_UP
+            )
+            return inverse_action, inverse_context
+        return None
 
     def _get_rollback_action(self, action_type_str: str, context: Dict[str, Any]) -> Optional[str]:
-        """
-        Get rollback action for a given action type.
-
-        Args:
-            action_type_str: Original action type
-            context: Original context
-
-        Returns:
-            Rollback action string or None
-        """
-        rollback_strategies = {
-            "restart_service": None,  # Restart doesn't need rollback
-            "switch_route": f"Switch route to {context.get('old_route', 'previous')}",
-            "clear_cache": None,  # Cache clear doesn't need rollback
-            "scale_up": f"Scale down {context.get('deployment_name')} to {context.get('old_replicas', 1)}",
-            "scale_down": f"Scale up {context.get('deployment_name')} to {context.get('old_replicas', 1)}",
-            "failover": f"Failover back to {context.get('primary_region', 'original')}",
-            "quarantine_node": f"Unquarantine node {context.get('node_id')}",
-        }
-
-        return rollback_strategies.get(action_type_str)
+        """Compatibility accessor; execution also requires the inverse context."""
+        inverse = self._build_rollback(action_type_str, context)
+        return inverse[0] if inverse else None
 
     async def restart_service(self, service_name: str, namespace: str = "default") -> bool:
         """Public wrapper for _restart_service"""
@@ -987,7 +999,6 @@ class RecoveryActionExecutor:
             "deployment_name": deployment_name,
             "replicas": replicas,
             "namespace": namespace,
-            "old_replicas": replicas - 1,
         }
         return self.execute(RecoveryActionType.SCALE_UP, context)
 
@@ -999,7 +1010,6 @@ class RecoveryActionExecutor:
             "deployment_name": deployment_name,
             "replicas": replicas,
             "namespace": namespace,
-            "old_replicas": replicas + 1,
         }
         return self.execute(RecoveryActionType.SCALE_DOWN, context)
 

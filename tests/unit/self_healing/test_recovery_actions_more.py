@@ -116,14 +116,14 @@ def test_rollback_last_action_executes_rollback_action(monkeypatch):
 
     called = {"action": None}
 
-    def _execute(action, context=None):
+    def _execute(action, context=None, **kwargs):
         called["action"] = action
         return True
 
     monkeypatch.setattr(ex, "execute", _execute)
 
     assert ex.rollback_last_action() is True
-    assert called["action"] and "Switch route" in called["action"]
+    assert called["action"] == RecoveryActionType.SWITCH_ROUTE
 
 
 def test_restart_service_tries_systemd_then_fallback(monkeypatch):
