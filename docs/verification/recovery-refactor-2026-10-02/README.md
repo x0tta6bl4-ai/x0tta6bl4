@@ -22,3 +22,10 @@ it is now a valid manual-only placeholder, preserving its existing role.
 
 Primary CI run 36924796601 passed on the parent commit. Full unit CI status for
 this follow-up must be checked on the new commit; the full suite is not yet certified.
+
+Follow-up: CI job 110751278424 successfully installed runtime dependencies, then
+collection failed because hypothesis was absent. It is now explicitly installed
+with the test tools. The global autouse fixture no longer imports governance_script
+for unrelated tests; it patches the module only when already loaded. The same
+170 unit + 4 integration tests pass under ordinary pytest with root conftest enabled
+(see global-fixtures.txt). Full security suite is still pending CI.
