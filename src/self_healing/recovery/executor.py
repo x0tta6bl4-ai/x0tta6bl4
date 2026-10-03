@@ -62,7 +62,7 @@ class RecoveryActionExecutor:
         self.node_id = node_id
         self.action_history: List[RecoveryResult] = []
         self.max_history_size = 1000
-        self.event_bus = event_bus or get_event_bus()
+        self.event_bus = event_bus if event_bus is not None else get_event_bus()
         self.policy_engine = policy_engine
         self.require_policy = require_policy
         self.source_agent = source_agent
