@@ -129,8 +129,6 @@ def _resolve_trusted_command(command: str) -> str:
     resolved = shutil.which(command)
     if resolved:
         return resolved
-    if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("TESTING", "false").lower() == "true":
-        return f"/usr/bin/{command}"
     raise ValueError(f"Allowed command is not available in trusted system paths: {command}")
 
 
@@ -161,7 +159,7 @@ def validate_command(cmd: list[str]) -> bool:
     if not cmd or not isinstance(cmd, list):
         raise ValueError("Command must be a non-empty list")
 
-    command = _validate_bare_command_name(cmd[0])
+    command = os.path.basename(_validate_bare_command_name(cmd[0]))
 
     # Additional validation for specific commands
     if command == "ip":

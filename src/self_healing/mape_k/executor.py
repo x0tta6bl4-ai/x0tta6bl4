@@ -3,48 +3,29 @@
 from __future__ import annotations
 
 import logging
-import time
-from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class MAPEKExecutor:
     """
-    MAPE-K Executor with production-ready recovery actions.
+    MAPE-K executor backed by policy-checked recovery actions.
 
     Uses RecoveryActionExecutor for real recovery operations.
     """
 
     def __init__(self, event_bus: Optional[Any] = None):
-        import sys
-        rec_act = sys.modules.get("src.self_healing.recovery_actions")
-        rec_exec = sys.modules.get("src.self_healing.recovery.executor")
-        if rec_act is None and (rec_exec is None or "src.self_healing.recovery_actions" in sys.modules):
-            if rec_act is None:
-                self.recovery_executor = None
-                self.use_recovery_executor = False
-                logger.warning("RecoveryActionExecutor not available; recovery actions fail closed")
-                return
-
+        self.recovery_executor = None
+        self.use_recovery_executor = False
         try:
-            from src.self_healing.recovery_actions import RecoveryActionExecutor
-            if RecoveryActionExecutor is None:
-                raise ImportError("recovery_actions is None")
-            self.recovery_executor = RecoveryActionExecutor(event_bus=event_bus) if event_bus else RecoveryActionExecutor()
-            self.use_recovery_executor = True
-        except (ImportError, TypeError, AttributeError, Exception):
-            try:
-                from src.self_healing.recovery.executor import RecoveryActionExecutor
-                if RecoveryActionExecutor is None:
-                    raise ImportError("recovery.executor is None")
-                self.recovery_executor = RecoveryActionExecutor()
-                self.use_recovery_executor = True
-            except (ImportError, TypeError, AttributeError, Exception):
-                self.recovery_executor = None
-                self.use_recovery_executor = False
-                logger.warning("RecoveryActionExecutor not available; recovery actions fail closed")
+            from src.self_healing.recovery.executor import RecoveryActionExecutor
+        except ImportError:
+            logger.warning("RecoveryActionExecutor not available; recovery actions fail closed")
+            return
+
+        self.recovery_executor = RecoveryActionExecutor(event_bus=event_bus)
+        self.use_recovery_executor = True
 
     def execute(self, action: str, context: Optional[Dict[str, Any]] = None) -> bool:
         """

@@ -84,7 +84,7 @@ import asyncio
 import os
 import threading
 import unittest.mock as mock
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 
 import pytest
 import httpx
@@ -404,11 +404,15 @@ mocked_modules = {
 @pytest.fixture(autouse=True)
 def mock_dependencies():
     with mock.patch.dict("sys.modules", mocked_modules):
-        with mock.patch(
-            "src.dao.governance_script.Web3",
-            mocked_modules["web3"].Web3,
-            create=True,
-        ):
+        # Do not import an unrelated CLI (and its optional dependencies) for
+        # every test. If collection imported it, patch its bound Web3 symbol;
+        # otherwise a later import sees the mocked web3 module above.
+        governance = sys.modules.get("src.dao.governance_script")
+        patch_governance = (
+            mock.patch.object(governance, "Web3", mocked_modules["web3"].Web3, create=True)
+            if governance is not None else nullcontext()
+        )
+        with patch_governance:
             yield
 
 

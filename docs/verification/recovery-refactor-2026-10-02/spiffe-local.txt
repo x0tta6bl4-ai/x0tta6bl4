@@ -1,0 +1,104 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /workspace/scratch/7b8230aa3cb1/x0tta6bl4
+configfile: pyproject.toml
+plugins: mock-3.16.0, asyncio-1.4.0, anyio-4.15.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 78 items
+
+tests/unit/security/spiffe/test_api_client_production_unit.py ..         [  2%]
+tests/unit/security/spiffe/test_auto_renew_unit.py ....                  [  7%]
+tests/unit/security/spiffe/test_certificate_validator_unit.py ......     [ 15%]
+tests/unit/security/spiffe/test_join_token_guard_unit.py ....            [ 20%]
+tests/unit/security/spiffe/test_libx0t_spiffe_runtime_thinking_unit.py . [ 21%]
+..                                                                       [ 24%]
+tests/unit/security/spiffe/test_mtls_controller_production_unit.py ...   [ 28%]
+tests/unit/security/spiffe/test_mtls_http_client.py ......               [ 35%]
+tests/unit/security/spiffe/test_production_integration_unit.py ....      [ 41%]
+tests/unit/security/spiffe/test_spiffe_controller.py ..                  [ 43%]
+tests/unit/security/spiffe/test_spire_agent_manager.py .F......F.        [ 56%]
+tests/unit/security/spiffe/test_spire_agent_manager_spine_unit.py F....  [ 62%]
+tests/unit/security/spiffe/test_spire_server_client_spine_unit.py .....  [ 69%]
+tests/unit/security/spiffe/test_spire_server_client_unit.py .....        [ 75%]
+tests/unit/security/spiffe/test_tls_context_unit.py ...                  [ 79%]
+tests/unit/security/spiffe/test_workload_api_client.py .........         [ 91%]
+tests/unit/security/spiffe/test_workload_api_client_validation.py ...... [ 98%]
+.                                                                        [100%]
+
+=================================== FAILURES ===================================
+___________________________ test_start_agent_success ___________________________
+tests/unit/security/spiffe/test_spire_agent_manager.py:110: in test_start_agent_success
+    assert mgr.start() is True
+E   assert False is True
+E    +  where False = start()
+E    +    where start = <src.security.spiffe.agent.manager.SPIREAgentManager object at 0x7ff63af846b0>.start
+------------------------------ Captured log call -------------------------------
+ERROR    src.security.spiffe.agent.manager:manager.py:428 Failed to start SPIRE Agent
+Traceback (most recent call last):
+  File "/workspace/scratch/7b8230aa3cb1/x0tta6bl4/src/security/spiffe/agent/manager.py", line 408, in _start_agent_internal
+    self.agent_process = safe_popen(
+                         ^^^^^^^^^^^
+  File "/workspace/scratch/7b8230aa3cb1/x0tta6bl4/src/core/security/subprocess_validator.py", line 260, in safe_popen
+    return subprocess.Popen(resolved_cmd, **safe_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/mock.py", line 1204, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/7b8230aa3cb1/x0tta6bl4/tests/unit/security/spiffe/test_spire_agent_manager.py", line 103, in touch_socket
+    bound_socket = _bind_unix_socket(socket_path)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/7b8230aa3cb1/x0tta6bl4/tests/unit/security/spiffe/test_spire_agent_manager.py", line 20, in _bind_unix_socket
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socket.py", line 233, in __init__
+    _socket.socket.__init__(self, family, type, proto, fileno)
+PermissionError: [Errno 1] Operation not permitted
+___________________ test_attest_node_restarts_running_agent ____________________
+tests/unit/security/spiffe/test_spire_agent_manager.py:273: in test_attest_node_restarts_running_agent
+    assert result is True
+E   assert False is True
+------------------------------ Captured log call -------------------------------
+ERROR    src.security.spiffe.agent.manager:manager.py:428 Failed to start SPIRE Agent
+Traceback (most recent call last):
+  File "/workspace/scratch/7b8230aa3cb1/x0tta6bl4/src/security/spiffe/agent/manager.py", line 408, in _start_agent_internal
+    self.agent_process = safe_popen(
+                         ^^^^^^^^^^^
+  File "/workspace/scratch/7b8230aa3cb1/x0tta6bl4/src/core/security/subprocess_validator.py", line 260, in safe_popen
+    return subprocess.Popen(resolved_cmd, **safe_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/mock.py", line 1204, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/7b8230aa3cb1/x0tta6bl4/tests/unit/security/spiffe/test_spire_agent_manager.py", line 260, in touch_socket
+    bound_socket = _bind_unix_socket(socket_path)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/7b8230aa3cb1/x0tta6bl4/tests/unit/security/spiffe/test_spire_agent_manager.py", line 20, in _bind_unix_socket
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socket.py", line 233, in __init__
+    _socket.socket.__init__(self, family, type, proto, fileno)
+PermissionError: [Errno 1] Operation not permitted
+_____ test_start_agent_publishes_identity_policy_and_safe_actuator_events ______
+tests/unit/security/spiffe/test_spire_agent_manager_spine_unit.py:69: in test_start_agent_publishes_identity_policy_and_safe_actuator_events
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socket.py:233: in __init__
+    _socket.socket.__init__(self, family, type, proto, fileno)
+E   PermissionError: [Errno 1] Operation not permitted
+=========================== short test summary info ============================
+FAILED tests/unit/security/spiffe/test_spire_agent_manager.py::test_start_agent_success
+FAILED tests/unit/security/spiffe/test_spire_agent_manager.py::test_attest_node_restarts_running_agent
+FAILED tests/unit/security/spiffe/test_spire_agent_manager_spine_unit.py::test_start_agent_publishes_identity_policy_and_safe_actuator_events
+========================= 3 failed, 75 passed in 1.54s =========================

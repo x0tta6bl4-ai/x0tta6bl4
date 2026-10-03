@@ -1,0 +1,14 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /workspace/scratch/7b8230aa3cb1/x0tta6bl4
+configfile: pyproject.toml
+plugins: anyio-4.15.1, hypothesis-6.168.3, mock-3.16.0, asyncio-1.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 148 items
+
+tests/unit/self_healing/test_mape_k_cold_start.py ....                   [  2%]
+tests/unit/self_healing/test_mape_k_unit.py ............................ [ 21%]
+........................................................................ [ 70%]
+............................................                             [100%]
+
+============================= 148 passed in 3.41s ==============================

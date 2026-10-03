@@ -1,3 +1,7 @@
+import socket
+
+import pytest
+
 from unittest.mock import MagicMock, patch
 
 from src.coordination.events import EventBus, EventType
@@ -61,8 +65,11 @@ def test_start_agent_publishes_identity_policy_and_safe_actuator_events(tmp_path
     process.pid = 4242
     process.poll.return_value = None
 
-    with patch("src.security.spiffe.agent.manager.subprocess.Popen", return_value=process) as popen:
-        result = manager.start()
+    manager.socket_path.unlink()
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+        sock.bind(str(manager.socket_path))
+        with patch("src.security.spiffe.agent.manager.subprocess.Popen", return_value=process) as popen:
+            result = manager.start()
 
     assert result is True
     popen.assert_called_once()
@@ -184,3 +191,6 @@ def test_stop_agent_runs_through_safe_actuator(tmp_path):
     assert payload["resource"] == "identity:spire_agent:stop_agent"
     assert payload["policy_allowed"] is True
     assert payload["safe_actuator"] is True
+
+
+pytestmark = pytest.mark.usefixtures("mock_spire_executable")

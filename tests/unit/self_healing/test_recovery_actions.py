@@ -1,108 +1,46 @@
-"""
-Unit tests for Recovery Actions.
+"""Public recovery wrappers must propagate actual backend outcomes."""
 
-Tests production-ready recovery actions.
-"""
-
-from unittest.mock import AsyncMock, patch
+from unittest.mock import Mock
 
 import pytest
 
-try:
-    from src.self_healing.recovery_actions import RecoveryActionExecutor
-
-    RECOVERY_ACTIONS_AVAILABLE = True
-except ImportError:
-    RECOVERY_ACTIONS_AVAILABLE = False
-    RecoveryActionExecutor = None  # type: ignore
+from src.self_healing.recovery import RecoveryActionExecutor, RecoveryResult
 
 
-@pytest.mark.skipif(
-    not RECOVERY_ACTIONS_AVAILABLE, reason="Recovery actions not available"
+@pytest.fixture
+def executor(monkeypatch):
+    for name in ("systemctl", "docker", "kubectl"):
+        monkeypatch.setattr(RecoveryActionExecutor, f"_probe_{name}", staticmethod(lambda: False))
+    monkeypatch.setattr(RecoveryActionExecutor, "_probe_routing", staticmethod(lambda: None))
+    return RecoveryActionExecutor(node_id="test-node", event_bus=Mock(), retry_delay=0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method,args,kind",
+    [
+        ("restart_service", ("svc", "lab"), "restart_service"),
+        ("switch_route", ("old", "new"), "switch_route"),
+        ("clear_cache", ("svc", "all"), "clear_cache"),
+        ("scale_up", ("worker", 5, "lab"), "scale_up"),
+        ("scale_down", ("worker", 1, "lab"), "scale_down"),
+        ("failover", ("svc", "eu", "us"), "failover"),
+        ("quarantine_node", ("node",), "quarantine_node"),
+        ("execute_action", ("restart_service",), "restart_service"),
+    ],
 )
-class TestRecoveryActionExecutor:
-    """Unit tests for RecoveryActionExecutor"""
+@pytest.mark.parametrize("success", [False, True])
+async def test_wrapper_propagates_backend_outcome(
+    executor, monkeypatch, method, args, kind, success
+):
+    handler = Mock(return_value=RecoveryResult(success, kind))
+    monkeypatch.setattr(executor, "_execute_action_internal", handler)
+    assert await getattr(executor, method)(*args) is success
+    assert handler.call_args.args[0] == kind
+    assert executor.last_result.success is success
+    assert len(executor.action_history) == 1
 
-    @pytest.fixture
-    def executor(self):
-        """Create Recovery Action Executor"""
-        return RecoveryActionExecutor(node_id="test-node")
 
-    def test_executor_initialization(self, executor):
-        """Test executor initialization"""
-        assert executor.node_id == "test-node"
-
-    @pytest.mark.asyncio
-    async def test_restart_service(self, executor):
-        """Test service restart"""
-        with patch("asyncio.create_subprocess_shell") as mock_subprocess:
-            mock_process = AsyncMock()
-            mock_process.communicate = AsyncMock(return_value=(b"restarted", b""))
-            mock_process.returncode = 0
-            mock_subprocess.return_value = mock_process
-
-            result = await executor.restart_service("test-service", "default")
-
-            assert result is True
-
-    @pytest.mark.asyncio
-    async def test_switch_route(self, executor):
-        """Test route switching"""
-        result = await executor.switch_route("old-route", "new-route")
-
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_clear_cache(self, executor):
-        """Test cache clearing"""
-        result = await executor.clear_cache("test-service", "all")
-
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_scale_up(self, executor):
-        """Test scaling up"""
-        with patch("asyncio.create_subprocess_shell") as mock_subprocess:
-            mock_process = AsyncMock()
-            mock_process.communicate = AsyncMock(return_value=(b"scaled", b""))
-            mock_process.returncode = 0
-            mock_subprocess.return_value = mock_process
-
-            result = await executor.scale_up(
-                "test-deployment", replicas=5, namespace="default"
-            )
-
-            assert result is True
-
-    @pytest.mark.asyncio
-    async def test_failover(self, executor):
-        """Test failover"""
-        result = await executor.failover(
-            "test-service", "primary-region", "fallback-region"
-        )
-
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_quarantine_node(self, executor):
-        """Test node quarantine"""
-        result = await executor.quarantine_node("problematic-node")
-
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_execute_action_dynamic(self, executor):
-        """Test dynamic action execution"""
-        with patch("asyncio.create_subprocess_shell"):
-            result = await executor.execute_action(
-                "Restart service", service_name="test-service", namespace="default"
-            )
-
-            assert result is True
-
-    @pytest.mark.asyncio
-    async def test_execute_action_unknown(self, executor):
-        """Test unknown action execution"""
-        result = await executor.execute_action("Unknown action")
-
-        assert result is False
+@pytest.mark.asyncio
+async def test_unknown_action(executor):
+    assert await executor.execute_action("Unknown action") is False

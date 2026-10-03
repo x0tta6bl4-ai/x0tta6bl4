@@ -883,12 +883,11 @@ class TestMAPEKExecutor:
         mock_module = MagicMock()
         mock_module.RecoveryActionExecutor.return_value = mock_executor
         with patch.dict(
-            "sys.modules", {"src.self_healing.recovery_actions": mock_module}
+            "sys.modules", {"src.self_healing.recovery.executor": mock_module}
         ):
             executor = MAPEKExecutor()
         assert executor.use_recovery_executor is True
 
-    @unittest.expectedFailure
     def test_init_passes_event_bus_to_recovery_executor(self, tmp_path):
         bus = EventBus(project_root=str(tmp_path))
         mock_executor = MagicMock()
@@ -896,7 +895,7 @@ class TestMAPEKExecutor:
         mock_module.RecoveryActionExecutor.return_value = mock_executor
 
         with patch.dict(
-            "sys.modules", {"src.self_healing.recovery_actions": mock_module}
+            "sys.modules", {"src.self_healing.recovery.executor": mock_module}
         ):
             executor = MAPEKExecutor(event_bus=bus)
 
@@ -904,7 +903,7 @@ class TestMAPEKExecutor:
         mock_module.RecoveryActionExecutor.assert_called_once_with(event_bus=bus)
 
     def test_init_without_recovery_executor(self):
-        with patch.dict("sys.modules", {"src.self_healing.recovery_actions": None}):
+        with patch.dict("sys.modules", {"src.self_healing.recovery.executor": None}):
             executor = MAPEKExecutor()
         assert executor.use_recovery_executor is False
         assert executor.recovery_executor is None

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
@@ -38,8 +39,15 @@ class SelfHealingManager:
     """
 
     def __init__(
-        self, node_id: str = "default", threshold_manager=None, knowledge_storage=None, event_bus=None
+        self, node_id: str = "default", threshold_manager=None, knowledge_storage=None, event_bus=None,
+        action_cooldown_seconds: float = 60.0, clock: Callable[[], float] = time.monotonic
     ):
+        if not math.isfinite(action_cooldown_seconds) or action_cooldown_seconds < 0:
+            raise ValueError("action_cooldown_seconds must be finite and non-negative")
+        self.action_cooldown_seconds = action_cooldown_seconds
+        self._clock = clock
+        self._cooldown_until = 0.0
+        self.oscillation_blocks = 0
         self.node_id = node_id
         self.event_bus = event_bus
         self._executed_actions_count = 0
@@ -72,7 +80,7 @@ class SelfHealingManager:
         )
         self.analyzer = MAPEKAnalyzer()
         self.planner = MAPEKPlanner(knowledge=self.knowledge)
-        self.executor = MAPEKExecutor()
+        self.executor = MAPEKExecutor(event_bus=event_bus)
 
         # Check and apply DAO proposals on startup
         if threshold_manager:
@@ -115,12 +123,9 @@ class SelfHealingManager:
             pass
 
         if anomaly_detected:
+            self._in_cooldown = self._clock() < self._cooldown_until
             if self._in_cooldown:
-                logger.info("Recovery action in progress / cooldown active.")
-                return
-
-            if self._executed_actions_count > 0:
-                self._in_cooldown = True
+                self.oscillation_blocks += 1
                 if self.event_bus:
                     from src.coordination.events import EventType
                     self.event_bus.publish(
@@ -210,7 +215,15 @@ class SelfHealingManager:
 
             # EXECUTE phase
             execute_start = time.time()
-            success = self.executor.execute(action)
+            # Reserve cooldown before dispatch: a failed/raising backend must not
+            # cause immediate repeated remediation on the next sample.
+            self._cooldown_until = self._clock() + self.action_cooldown_seconds
+            try:
+                success = self.executor.execute(action, {"node_id": self.node_id})
+            except Exception:
+                self.recovery_start_times.pop(event_id, None)
+                self.recovery_events.pop(event_id, None)
+                raise
             execute_duration = time.time() - execute_start
             self._executed_actions_count += 1
 
@@ -353,6 +366,7 @@ class SelfHealingManager:
     def get_feedback_stats(self) -> Dict[str, Any]:
         """Get feedback loop statistics."""
         return {
+            "oscillation_blocks": self.oscillation_blocks,
             "feedback_updates": self.feedback_updates,
             "threshold_adjustments": self.threshold_adjustments,
             "strategy_improvements": self.strategy_improvements,

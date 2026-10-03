@@ -1,17 +1,14 @@
 """
 Recovery Actions for MAPE-K - Main Executor
 """
+
 from __future__ import annotations
 import logging
-import os
 import shutil
 import subprocess
 import time
-from collections import deque
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from .circuit_breaker import CircuitBreaker
 from .models import RecoveryActionType, RecoveryResult
@@ -37,10 +34,9 @@ CLAIM_BOUNDARY = (
 )
 
 
-
 class RecoveryActionExecutor:
     """
-    Production-ready recovery action executor.
+    Policy-gated recovery action executor.
 
     Implements real recovery actions for MAPE-K cycle.
     """
@@ -60,10 +56,13 @@ class RecoveryActionExecutor:
         wallet_address: Optional[str] = None,
         source_agent: str = _SERVICE_AGENT,
     ):
+        if max_retries < 1 or retry_delay < 0:
+            raise ValueError("max_retries must be positive and retry_delay non-negative")
+        self.last_result: RecoveryResult | None = None
         self.node_id = node_id
         self.action_history: List[RecoveryResult] = []
         self.max_history_size = 1000
-        self.event_bus = event_bus or get_event_bus()
+        self.event_bus = event_bus if event_bus is not None else get_event_bus()
         self.policy_engine = policy_engine
         self.require_policy = require_policy
         self.source_agent = source_agent
@@ -80,7 +79,11 @@ class RecoveryActionExecutor:
         self.rollback_stack: List[Dict[str, Any]] = []
 
         # Circuit breaker
-        self.circuit_breaker = CircuitBreaker() if enable_circuit_breaker else None
+        self.circuit_breaker = (
+            CircuitBreaker(is_failure=lambda result: not result.success)
+            if enable_circuit_breaker
+            else None
+        )
 
         # Rate limiter
         self.rate_limiter = RateLimiter() if enable_rate_limiting else None
@@ -105,7 +108,7 @@ class RecoveryActionExecutor:
 
         logger.info(
             f"RecoveryActionExecutor initialized for node {node_id} "
-            f"(backends: {available or ['simulated']}, "
+            f"(backends: {available or ['unavailable']}, "
             f"routing: {'batman-adv' if self._routing_backend else 'deferred'})"
         )
 
@@ -178,14 +181,19 @@ class RecoveryActionExecutor:
 
             mgr = NodeManager("default-mesh", "local")
             has_route_method = any(
-                hasattr(mgr, m)
-                for m in ("switch_route", "update_route", "set_preferred_next_hop")
+                hasattr(mgr, m) for m in ("switch_route", "update_route", "set_preferred_next_hop")
             )
             return mgr if has_route_method else None
         except Exception:
             return None
 
-    def execute(self, action: str, context: Optional[Dict[str, Any]] = None) -> bool:
+    def execute(
+        self,
+        action: str,
+        context: Optional[Dict[str, Any]] = None,
+        *,
+        _record_rollback: bool = True,
+    ) -> bool:
         """
         Execute recovery action with retry logic, rate limiting, and circuit breaker.
 
@@ -196,16 +204,26 @@ class RecoveryActionExecutor:
         Returns:
             True if action executed successfully
         """
-        context = context or {}
-        start_time = time.time()
+        context = dict(context or {})
+        start_time = time.monotonic()
 
-        # Check rate limit
-        if self.rate_limiter and not self.rate_limiter.allow():
-            logger.warning("Rate limit exceeded for recovery action")
-            return False
-
-        # Parse action type
         action_type = self._parse_action_type(action)
+        if self.rate_limiter and not self.rate_limiter.allow():
+            result = RecoveryResult(
+                False, action_type, error_message="Rate limit exceeded for recovery action"
+            )
+            self.last_result = result
+            self._record_action(result)
+            self._publish_recovery_event(
+                EventType.TASK_BLOCKED,
+                action=action,
+                action_type=action_type,
+                context=context,
+                stage="rate_limited",
+                result=result,
+                reason=result.error_message,
+            )
+            return False
         policy_allowed, policy_decision, policy_reason = self._evaluate_policy(
             action_type,
             context,
@@ -214,7 +232,7 @@ class RecoveryActionExecutor:
             result = RecoveryResult(
                 success=False,
                 action_type=action_type,
-                duration_seconds=time.time() - start_time,
+                duration_seconds=time.monotonic() - start_time,
                 error_message=policy_reason or "Recovery action policy denied",
             )
             self._record_action(result)
@@ -242,10 +260,10 @@ class RecoveryActionExecutor:
                 else:
                     result = self._execute_action_internal(action_type, context)
 
-                result.duration_seconds = time.time() - start_time
+                result.duration_seconds = time.monotonic() - start_time
 
                 # Save state for rollback if successful
-                if result.success:
+                if result.success and _record_rollback:
                     self._save_state_for_rollback(action_type, context)
 
                 # Record in history
@@ -262,9 +280,7 @@ class RecoveryActionExecutor:
                     )
 
                 self._publish_recovery_event(
-                    EventType.PIPELINE_STAGE_END
-                    if result.success
-                    else EventType.TASK_FAILED,
+                    EventType.PIPELINE_STAGE_END if result.success else EventType.TASK_FAILED,
                     action=action,
                     action_type=action_type,
                     context=context,
@@ -281,9 +297,11 @@ class RecoveryActionExecutor:
                 )
 
                 if attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
+                    time.sleep(
+                        self.retry_delay * (attempt + 1)
+                    )  # Linear backoff (preserve retry timing)
                 else:
-                    duration = time.time() - start_time
+                    duration = time.monotonic() - start_time
                     logger.error(
                         f"❌ Recovery action failed after {self.max_retries} attempts: {e}"
                     )
@@ -314,35 +332,41 @@ class RecoveryActionExecutor:
         self, action_type: RecoveryActionType, context: Dict[str, Any]
     ) -> RecoveryResult:
         """Internal method to execute action (used by circuit breaker)"""
-        if action_type == RecoveryActionType.RESTART_SERVICE:
-            return self._restart_service(context)
-        elif action_type == RecoveryActionType.SWITCH_ROUTE:
-            return self._switch_route(context)
-        elif action_type == RecoveryActionType.CLEAR_CACHE:
-            return self._clear_cache(context)
-        elif action_type == RecoveryActionType.SCALE_UP:
-            return self._scale_up(context)
-        elif action_type == RecoveryActionType.SCALE_DOWN:
-            return self._scale_down(context)
-        elif action_type == RecoveryActionType.FAILOVER:
-            return self._failover(context)
-        elif action_type == RecoveryActionType.QUARANTINE_NODE:
-            return self._quarantine_node(context)
-        elif action_type == RecoveryActionType.EXECUTE_SCRIPT:
-            return self._execute_script(context)
-        elif action_type == RecoveryActionType.SWITCH_PROTOCOL:
-            return self._switch_protocol(context)
-        else:
+        handlers = {
+            RecoveryActionType.RESTART_SERVICE: self._restart_service,
+            RecoveryActionType.SWITCH_ROUTE: self._switch_route,
+            RecoveryActionType.CLEAR_CACHE: self._clear_cache,
+            RecoveryActionType.SCALE_UP: self._scale_up,
+            RecoveryActionType.SCALE_DOWN: self._scale_down,
+            RecoveryActionType.FAILOVER: self._failover,
+            RecoveryActionType.QUARANTINE_NODE: self._quarantine_node,
+            RecoveryActionType.EXECUTE_SCRIPT: self._execute_script,
+            RecoveryActionType.SWITCH_PROTOCOL: self._switch_protocol,
+        }
+        handler = handlers.get(action_type)
+        if handler is None:
             return RecoveryResult(
-                success=False,
-                action_type=RecoveryActionType.NO_ACTION,
-                duration_seconds=0.0,
-                error_message="Unknown action type",
+                False, RecoveryActionType.NO_ACTION, error_message="Unknown action type"
             )
+        return handler(context)
+
+    @staticmethod
+    def _unavailable(action_type: RecoveryActionType, **details: Any) -> RecoveryResult:
+        """A logged intent is not an executed recovery action."""
+        return RecoveryResult(
+            success=False,
+            action_type=action_type,
+            error_message="No backend executed the requested recovery action",
+            details={**details, "method": "unavailable"},
+        )
 
     def _parse_action_type(self, action: str) -> RecoveryActionType:
         """Parse action string to RecoveryActionType"""
-        action_lower = action.lower()
+        action_lower = action.strip().lower()
+        try:
+            return RecoveryActionType(action_lower)
+        except ValueError:
+            pass
 
         if "protocol" in action_lower or "stego" in action_lower:
             return RecoveryActionType.SWITCH_PROTOCOL
@@ -405,8 +429,7 @@ class RecoveryActionExecutor:
             return (
                 False,
                 decision,
-                normalize_policy_reason(decision)
-                or "Recovery action policy denied control action",
+                normalize_policy_reason(decision) or "Recovery action policy denied control action",
             )
         return True, decision, normalize_policy_reason(decision)
 
@@ -422,32 +445,36 @@ class RecoveryActionExecutor:
         reason: str = "",
         policy_decision: Any = None,
     ) -> Optional[str]:
-        event = self.event_bus.publish(
-            event_type,
-            self.source_agent,
-            {
-                "component": "self_healing.recovery_actions",
-                "claim_boundary": CLAIM_BOUNDARY,
-                "stage": stage,
-                "action": action,
-                "action_type": self._action_type_value(action_type),
-                "context": dict(context),
-                "success": result.success,
-                "reason": reason,
-                "error_message": result.error_message,
-                "duration_seconds": result.duration_seconds,
-                "details": result.details or {},
-                "identity": dict(self.identity),
-                "policy_allowed": (
-                    normalize_policy_allowed(policy_decision)
-                    if policy_decision is not None
-                    else None
-                ),
-                "matched_rules": normalize_policy_rules(policy_decision),
-            },
-            priority=7,
-        )
-        return event.event_id
+        try:
+            event = self.event_bus.publish(
+                event_type,
+                self.source_agent,
+                {
+                    "component": "self_healing.recovery_actions",
+                    "claim_boundary": CLAIM_BOUNDARY,
+                    "stage": stage,
+                    "action": action,
+                    "action_type": self._action_type_value(action_type),
+                    "context": dict(context),
+                    "success": result.success,
+                    "reason": reason,
+                    "error_message": result.error_message,
+                    "duration_seconds": result.duration_seconds,
+                    "details": result.details or {},
+                    "identity": dict(self.identity),
+                    "policy_allowed": (
+                        normalize_policy_allowed(policy_decision)
+                        if policy_decision is not None
+                        else None
+                    ),
+                    "matched_rules": normalize_policy_rules(policy_decision),
+                },
+                priority=7,
+            )
+            return event.event_id
+        except Exception:
+            logger.exception("Recovery event publication failed; action will not be repeated")
+            return None
 
     def _restart_service(self, context: Dict[str, Any]) -> RecoveryResult:
         """Restart a service.
@@ -519,8 +546,15 @@ class RecoveryActionExecutor:
                 try:
                     exists = safe_run(
                         [
-                            "kubectl", "get", "deployment", service_name,
-                            "-o", "name", "--request-timeout=2s",
+                            "kubectl",
+                            "get",
+                            "deployment",
+                            service_name,
+                            "-o",
+                            "name",
+                            "--namespace",
+                            context.get("namespace", "default"),
+                            "--request-timeout=2s",
                         ],
                         capture_output=True,
                         timeout=5,
@@ -528,8 +562,12 @@ class RecoveryActionExecutor:
                     if exists.returncode == 0:
                         result = safe_run(
                             [
-                                "kubectl", "rollout", "restart",
+                                "kubectl",
+                                "rollout",
+                                "restart",
                                 f"deployment/{service_name}",
+                                "--namespace",
+                                context.get("namespace", "default"),
                                 "--request-timeout=30s",
                             ],
                             capture_output=True,
@@ -546,16 +584,17 @@ class RecoveryActionExecutor:
                 except (FileNotFoundError, subprocess.TimeoutExpired):
                     self._available_backends["kubectl"] = False
 
-            # Fallback: simulated (dev/test environment)
+            # No backend executed the request.
             logger.warning(
                 f"Service restart requested but no container manager found for {service_name}"
             )
             return RecoveryResult(
-                success=True,
+                success=False,
+                error_message="No backend executed the requested recovery action",
                 action_type=RecoveryActionType.RESTART_SERVICE,
                 duration_seconds=0.0,
                 details={
-                    "method": "simulated",
+                    "method": "unavailable",
                     "service": service_name,
                     "node_id": node_id,
                 },
@@ -577,7 +616,7 @@ class RecoveryActionExecutor:
         """
         target_node = context.get("target_node")
         alternative_route = context.get("alternative_route")
-        start_time = time.time()
+        start_time = time.monotonic()
 
         try:
             # Use pre-cached NodeManager (avoids 9s init on every call)
@@ -585,13 +624,19 @@ class RecoveryActionExecutor:
                 try:
                     manager = self._routing_backend
                     if hasattr(manager, "switch_route"):
-                        manager.switch_route(target_node, alternative_route)
+                        outcome = manager.switch_route(target_node, alternative_route)
                     elif hasattr(manager, "update_route"):
-                        manager.update_route(target_node, alternative_route)
+                        outcome = manager.update_route(target_node, alternative_route)
                     else:
-                        manager.set_preferred_next_hop(target_node, alternative_route)
+                        outcome = manager.set_preferred_next_hop(target_node, alternative_route)
 
-                    duration = time.time() - start_time
+                    if outcome is False:
+                        return RecoveryResult(
+                            False,
+                            RecoveryActionType.SWITCH_ROUTE,
+                            error_message="Routing backend rejected route change",
+                        )
+                    duration = time.monotonic() - start_time
                     logger.info(
                         f"Route switched via Batman-adv: {target_node} → "
                         f"{alternative_route} ({duration:.3f}s)"
@@ -615,8 +660,13 @@ class RecoveryActionExecutor:
 
                 router = MeshRouter()
                 if hasattr(router, "set_route"):
-                    router.set_route(target_node, alternative_route)
-                    duration = time.time() - start_time
+                    if router.set_route(target_node, alternative_route) is False:
+                        return RecoveryResult(
+                            False,
+                            RecoveryActionType.SWITCH_ROUTE,
+                            error_message="Mesh router rejected route change",
+                        )
+                    duration = time.monotonic() - start_time
                     logger.info(
                         f"Route switched via MeshRouter: {target_node} → "
                         f"{alternative_route} ({duration:.3f}s)"
@@ -634,18 +684,19 @@ class RecoveryActionExecutor:
             except (ImportError, AttributeError, TypeError):
                 pass
 
-            # Fallback: log intent for external routing daemon
-            duration = time.time() - start_time
+            # A logged intent cannot be counted as successful execution.
+            duration = time.monotonic() - start_time
             logger.warning(
                 f"No routing backend available, route switch logged: "
                 f"{target_node} → {alternative_route}"
             )
             return RecoveryResult(
-                success=True,
+                success=False,
+                error_message="No backend executed the requested recovery action",
                 action_type=RecoveryActionType.SWITCH_ROUTE,
                 duration_seconds=duration,
                 details={
-                    "method": "deferred",
+                    "method": "unavailable",
                     "target_node": target_node,
                     "route": alternative_route,
                 },
@@ -660,180 +711,69 @@ class RecoveryActionExecutor:
             )
 
     def _clear_cache(self, context: Dict[str, Any]) -> RecoveryResult:
-        """Clear cache"""
-        cache_type = context.get("cache_type", "all")
-
-        try:
-            # Try to clear various caches
-            # In production, would integrate with actual cache systems
-            logger.info(f"Clearing cache: {cache_type}")
-            return RecoveryResult(
-                success=True,
-                action_type=RecoveryActionType.CLEAR_CACHE,
-                duration_seconds=0.0,
-                details={"cache_type": cache_type},
-            )
-
-        except Exception as e:
-            return RecoveryResult(
-                success=False,
-                action_type=RecoveryActionType.CLEAR_CACHE,
-                duration_seconds=0.0,
-                error_message=str(e),
-            )
+        return self._unavailable(
+            RecoveryActionType.CLEAR_CACHE, cache_type=context.get("cache_type", "all")
+        )
 
     def _scale_up(self, context: Dict[str, Any]) -> RecoveryResult:
-        """Scale up service"""
-        service_name = context.get("service_name", "x0tta6bl4")
-        replicas = context.get("replicas", 1)
-
-        try:
-            # Try Kubernetes
-            try:
-                result = safe_run(
-                    [
-                        "kubectl",
-                        "scale",
-                        f"deployment/{service_name}",
-                        f"--replicas={replicas}",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-                if result.returncode == 0:
-                    return RecoveryResult(
-                        success=True,
-                        action_type=RecoveryActionType.SCALE_UP,
-                        duration_seconds=0.0,
-                        details={
-                            "method": "kubernetes",
-                            "service": service_name,
-                            "replicas": replicas,
-                        },
-                    )
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                pass
-
-            # Fallback
-            return RecoveryResult(
-                success=True,
-                action_type=RecoveryActionType.SCALE_UP,
-                duration_seconds=0.0,
-                details={
-                    "method": "simulated",
-                    "service": service_name,
-                    "replicas": replicas,
-                },
-            )
-
-        except Exception as e:
-            return RecoveryResult(
-                success=False,
-                action_type=RecoveryActionType.SCALE_UP,
-                duration_seconds=0.0,
-                error_message=str(e),
-            )
+        return self._scale(RecoveryActionType.SCALE_UP, context)
 
     def _scale_down(self, context: Dict[str, Any]) -> RecoveryResult:
-        """Scale down service"""
-        service_name = context.get("service_name", "x0tta6bl4")
+        return self._scale(RecoveryActionType.SCALE_DOWN, context)
+
+    def _scale(self, action_type: RecoveryActionType, context: Dict[str, Any]) -> RecoveryResult:
+        service = context.get("deployment_name") or context.get("service_name", "x0tta6bl4")
         replicas = context.get("replicas", 1)
-
+        namespace = context.get("namespace", "default")
+        if isinstance(replicas, bool) or not isinstance(replicas, int) or replicas < 0:
+            return RecoveryResult(
+                False, action_type, error_message="replicas must be a non-negative integer"
+            )
+        details = {"service": service, "replicas": replicas, "namespace": namespace}
+        if not self._available_backends.get("kubectl"):
+            return self._unavailable(action_type, **details)
         try:
-            # Try Kubernetes
-            try:
-                result = safe_run(
-                    [
-                        "kubectl",
-                        "scale",
-                        f"deployment/{service_name}",
-                        f"--replicas={replicas}",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-                if result.returncode == 0:
-                    return RecoveryResult(
-                        success=True,
-                        action_type=RecoveryActionType.SCALE_DOWN,
-                        duration_seconds=0.0,
-                        details={
-                            "method": "kubernetes",
-                            "service": service_name,
-                            "replicas": replicas,
-                        },
-                    )
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                pass
-
-            # Fallback
-            return RecoveryResult(
-                success=True,
-                action_type=RecoveryActionType.SCALE_DOWN,
-                duration_seconds=0.0,
-                details={
-                    "method": "simulated",
-                    "service": service_name,
-                    "replicas": replicas,
-                },
+            result = safe_run(
+                [
+                    "kubectl",
+                    "scale",
+                    f"deployment/{service}",
+                    f"--replicas={replicas}",
+                    "--namespace",
+                    namespace,
+                    "--request-timeout=25s",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
-
-        except Exception as e:
             return RecoveryResult(
-                success=False,
-                action_type=RecoveryActionType.SCALE_DOWN,
-                duration_seconds=0.0,
-                error_message=str(e),
+                success=result.returncode == 0,
+                action_type=action_type,
+                error_message=(result.stderr or "Kubernetes scaling failed")
+                if result.returncode
+                else None,
+                details={**details, "method": "kubernetes"},
             )
+        except Exception as exc:
+            return RecoveryResult(False, action_type, error_message=str(exc), details=details)
 
     def _failover(self, context: Dict[str, Any]) -> RecoveryResult:
-        """Failover to backup node"""
-        primary_node = context.get("primary_node")
-        backup_node = context.get("backup_node")
-
-        try:
-            logger.info(f"Failing over from {primary_node} to {backup_node}")
-            return RecoveryResult(
-                success=True,
-                action_type=RecoveryActionType.FAILOVER,
-                duration_seconds=0.0,
-                details={"primary_node": primary_node, "backup_node": backup_node},
-            )
-
-        except Exception as e:
-            return RecoveryResult(
-                success=False,
-                action_type=RecoveryActionType.FAILOVER,
-                duration_seconds=0.0,
-                error_message=str(e),
-            )
+        return self._unavailable(
+            RecoveryActionType.FAILOVER,
+            primary_node=context.get("primary_node"),
+            backup_node=context.get("backup_node"),
+        )
 
     def _quarantine_node(self, context: Dict[str, Any]) -> RecoveryResult:
-        """Quarantine a node"""
-        node_id = context.get("node_id", "unknown")
-
-        try:
-            logger.warning(f"Quarantining node: {node_id}")
-            return RecoveryResult(
-                success=True,
-                action_type=RecoveryActionType.QUARANTINE_NODE,
-                duration_seconds=0.0,
-                details={"node_id": node_id},
-            )
-
-        except Exception as e:
-            return RecoveryResult(
-                success=False,
-                action_type=RecoveryActionType.QUARANTINE_NODE,
-                duration_seconds=0.0,
-                error_message=str(e),
-            )
+        return self._unavailable(
+            RecoveryActionType.QUARANTINE_NODE, node_id=context.get("node_id", "unknown")
+        )
 
     def _execute_script(self, context: Dict[str, Any]) -> RecoveryResult:
         """Execute a custom script, preferably in a Docker container for isolation."""
         import uuid
+
         script_content = context.get("script") or context.get("action")
         if not script_content:
             return RecoveryResult(
@@ -846,6 +786,7 @@ class RecoveryActionExecutor:
         # If it's a full AI response, try to extract script
         if "AI-Analysis" in script_content and "```" in script_content:
             import re
+
             match = re.search(r"```(?:bash|sh)?\n(.*?)\n```", script_content, re.DOTALL)
             if match:
                 script_content = match.group(1)
@@ -856,13 +797,21 @@ class RecoveryActionExecutor:
                 # Run in a minimal alpine container with a timeout
                 container_name = f"x0t-recovery-{uuid.uuid4().hex[:8]}"
                 cmd = [
-                    "docker", "run", "--rm",
-                    "--name", container_name,
-                    "--network", "none",  # Isolate network by default
-                    "--memory", "64m",    # Limit memory
-                    "--cpu-shares", "128", # Limit CPU
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--name",
+                    container_name,
+                    "--network",
+                    "none",  # Isolate network by default
+                    "--memory",
+                    "64m",  # Limit memory
+                    "--cpu-shares",
+                    "128",  # Limit CPU
                     "alpine:latest",
-                    "sh", "-c", script_content
+                    "sh",
+                    "-c",
+                    script_content,
                 ]
                 result = safe_run(cmd, capture_output=True, text=True, timeout=60)
                 if result.returncode == 0:
@@ -879,10 +828,7 @@ class RecoveryActionExecutor:
             # 2. Local execution (fallback)
             logger.info("Executing script locally (no container isolation)")
             result = safe_run(
-                ["sh", "-c", script_content],
-                capture_output=True,
-                text=True,
-                timeout=30
+                ["sh", "-c", script_content], capture_output=True, text=True, timeout=30
             )
 
             return RecoveryResult(
@@ -923,31 +869,30 @@ class RecoveryActionExecutor:
                     success=success,
                     action_type=RecoveryActionType.SWITCH_PROTOCOL,
                     duration_seconds=0.0,
-                    details={"protocol": protocol, "mimic": mimic}
+                    details={"protocol": protocol, "mimic": mimic},
                 )
 
             logger.warning(f"Protocol switch to {protocol} logged (backend deferred)")
             return RecoveryResult(
-                success=True,
+                success=False,
+                error_message="No backend executed the requested recovery action",
                 action_type=RecoveryActionType.SWITCH_PROTOCOL,
                 duration_seconds=0.0,
-                details={"protocol": protocol, "mimic": mimic, "method": "deferred"}
+                details={"protocol": protocol, "mimic": mimic, "method": "unavailable"},
             )
         except Exception as e:
             return RecoveryResult(
                 success=False,
                 action_type=RecoveryActionType.SWITCH_PROTOCOL,
                 duration_seconds=0.0,
-                error_message=str(e)
+                error_message=str(e),
             )
 
     def get_action_history(self, limit: int = 100) -> List[RecoveryResult]:
         """Get recent action history"""
-        return self.action_history[-limit:]
+        return self.action_history[-limit:] if limit > 0 else []
 
-    def get_success_rate(
-        self, action_type: Optional[RecoveryActionType] = None
-    ) -> float:
+    def get_success_rate(self, action_type: Optional[RecoveryActionType] = None) -> float:
         """Get success rate for actions"""
         if not self.action_history:
             return 0.0
@@ -962,9 +907,7 @@ class RecoveryActionExecutor:
         successful = sum(1 for r in filtered if r.success)
         return successful / len(filtered)
 
-    def _save_state_for_rollback(
-        self, action_type: RecoveryActionType, context: Dict[str, Any]
-    ):
+    def _save_state_for_rollback(self, action_type: RecoveryActionType, context: Dict[str, Any]):
         """Save state before action for potential rollback"""
         rollback_state = {
             "action_type": self._action_type_value(action_type),
@@ -989,65 +932,64 @@ class RecoveryActionExecutor:
             logger.warning("No actions to rollback")
             return False
 
-        last_action = self.rollback_stack.pop()
-        action_type_str = last_action["action_type"]
-        context = last_action["context"]
-
-        logger.info(f"Rolling back action: {action_type_str}")
-
-        # Determine rollback action based on original action
-        rollback_action = self._get_rollback_action(action_type_str, context)
-
-        if rollback_action:
-            return self.execute(rollback_action, context)
-        else:
-            logger.warning(f"No rollback strategy for action: {action_type_str}")
+        last_action = self.rollback_stack[-1]
+        inverse = self._build_rollback(last_action["action_type"], last_action["context"])
+        if inverse is None:
+            logger.warning("No evidenced rollback for action: %s", last_action["action_type"])
             return False
+        action, context = inverse
+        if not self.execute(action, context, _record_rollback=False):
+            return False
+        self.rollback_stack.pop()
+        return True
 
-    def _get_rollback_action(
-        self, action_type_str: str, context: Dict[str, Any]
-    ) -> Optional[str]:
+    @staticmethod
+    def _build_rollback(
+        action_type: str, context: Dict[str, Any]
+    ) -> Optional[tuple[str, Dict[str, Any]]]:
+        """Build an inverse only when the caller supplied the previous state.
+
+        This submits a compensating command; it does not verify convergence.
         """
-        Get rollback action for a given action type.
+        inverse_context = dict(context)
+        if action_type == RecoveryActionType.SWITCH_ROUTE:
+            previous = context.get("old_route")
+            if not previous:
+                return None
+            inverse_context["alternative_route"] = previous
+            return RecoveryActionType.SWITCH_ROUTE, inverse_context
+        if action_type in (RecoveryActionType.SCALE_UP, RecoveryActionType.SCALE_DOWN):
+            previous = context.get("old_replicas")
+            if isinstance(previous, bool) or not isinstance(previous, int) or previous < 0:
+                return None
+            inverse_context["replicas"] = previous
+            inverse_action = (
+                RecoveryActionType.SCALE_DOWN
+                if action_type == RecoveryActionType.SCALE_UP
+                else RecoveryActionType.SCALE_UP
+            )
+            return inverse_action, inverse_context
+        return None
 
-        Args:
-            action_type_str: Original action type
-            context: Original context
+    def _get_rollback_action(self, action_type_str: str, context: Dict[str, Any]) -> Optional[str]:
+        """Compatibility accessor; execution also requires the inverse context."""
+        inverse = self._build_rollback(action_type_str, context)
+        return inverse[0] if inverse else None
 
-        Returns:
-            Rollback action string or None
-        """
-        rollback_strategies = {
-            "restart_service": None,  # Restart doesn't need rollback
-            "switch_route": f"Switch route to {context.get('old_route', 'previous')}",
-            "clear_cache": None,  # Cache clear doesn't need rollback
-            "scale_up": f"Scale down {context.get('deployment_name')} to {context.get('old_replicas', 1)}",
-            "scale_down": f"Scale up {context.get('deployment_name')} to {context.get('old_replicas', 1)}",
-            "failover": f"Failover back to {context.get('primary_region', 'original')}",
-            "quarantine_node": f"Unquarantine node {context.get('node_id')}",
-        }
-
-        return rollback_strategies.get(action_type_str)
-
-    async def restart_service(
-        self, service_name: str, namespace: str = "default"
-    ) -> bool:
+    async def restart_service(self, service_name: str, namespace: str = "default") -> bool:
         """Public wrapper for _restart_service"""
         context = {"service_name": service_name, "namespace": namespace}
-        result = self._restart_service(context)
-        return result.success
+        return self.execute(RecoveryActionType.RESTART_SERVICE, context)
 
     async def switch_route(self, old_route: str, new_route: str) -> bool:
         """Public wrapper for _switch_route"""
         context = {"old_route": old_route, "alternative_route": new_route}
-        result = self._switch_route(context)
-        return result.success
+        return self.execute(RecoveryActionType.SWITCH_ROUTE, context)
 
     async def clear_cache(self, service_name: str, cache_type: str) -> bool:
         """Public wrapper for _clear_cache"""
         context = {"service_name": service_name, "cache_type": cache_type}
-        result = self._clear_cache(context)
-        return result.success
+        return self.execute(RecoveryActionType.CLEAR_CACHE, context)
 
     async def scale_up(
         self, deployment_name: str, replicas: int, namespace: str = "default"
@@ -1057,10 +999,8 @@ class RecoveryActionExecutor:
             "deployment_name": deployment_name,
             "replicas": replicas,
             "namespace": namespace,
-            "old_replicas": replicas - 1,
         }
-        result = self._scale_up(context)
-        return result.success
+        return self.execute(RecoveryActionType.SCALE_UP, context)
 
     async def scale_down(
         self, deployment_name: str, replicas: int, namespace: str = "default"
@@ -1070,36 +1010,28 @@ class RecoveryActionExecutor:
             "deployment_name": deployment_name,
             "replicas": replicas,
             "namespace": namespace,
-            "old_replicas": replicas + 1,
         }
-        result = self._scale_down(context)
-        return result.success
+        return self.execute(RecoveryActionType.SCALE_DOWN, context)
 
-    async def failover(
-        self, service_name: str, primary_region: str, fallback_region: str
-    ) -> bool:
+    async def failover(self, service_name: str, primary_region: str, fallback_region: str) -> bool:
         """Public wrapper for _failover"""
         context = {
             "service_name": service_name,
             "primary_region": primary_region,
             "fallback_region": fallback_region,
         }
-        result = self._failover(context)
-        return result.success
+        return self.execute(RecoveryActionType.FAILOVER, context)
 
     async def quarantine_node(self, node_id: str) -> bool:
         """Public wrapper for _quarantine_node"""
         context = {"node_id": node_id}
-        result = self._quarantine_node(context)
-        return result.success
+        return self.execute(RecoveryActionType.QUARANTINE_NODE, context)
 
     async def execute_action(
         self, action_type: str, context: Optional[Dict[str, Any]] = None, **kwargs
     ) -> bool:
         """Public async wrapper for execute action"""
-        if context is None:
-            context = {}
-        context.update(kwargs)
+        context = {**(context or {}), **kwargs}
         return self.execute(action_type, context)
 
     def get_circuit_breaker_status(self) -> Dict[str, Any]:
@@ -1130,4 +1062,3 @@ class RecoveryActionExecutor:
             "max_actions": self.rate_limiter.max_actions,
             "window_seconds": self.rate_limiter.window_seconds,
         }
-

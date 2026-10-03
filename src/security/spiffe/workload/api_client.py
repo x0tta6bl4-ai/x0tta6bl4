@@ -294,7 +294,7 @@ class WorkloadAPIClient:
             logger.exception("Failed to publish SPIFFE Workload API evidence")
             return None
 
-    def _fetch_x509_svid_via_sdk(self) -> X509SVID:
+    def _mock_fetch_x509_svid(self) -> X509SVID:
         # Simple mock X509SVID for testing
         return X509SVID(
             spiffe_id="spiffe://mock.domain/workload/mock-app",

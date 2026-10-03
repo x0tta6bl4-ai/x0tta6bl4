@@ -54,11 +54,37 @@ jobs:
             requirements.txt
             requirements.lock
 
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq librsync-dev gettext cmake ninja-build libssl-dev
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt --no-build-isolation
-          pip install pytest pytest-asyncio pytest-mock
+          pip install pytest pytest-asyncio pytest-mock hypothesis
+
+      - name: Build pinned native PQC dependency
+        run: |
+          git clone --no-checkout https://github.com/open-quantum-safe/liboqs.git "$RUNNER_TEMP/liboqs"
+          git -C "$RUNNER_TEMP/liboqs" checkout --detach 5a1a854b0dc9f2141bdc771c555ee60c37950183
+          cmake -S "$RUNNER_TEMP/liboqs" -B "$RUNNER_TEMP/liboqs/build" -G Ninja \
+            -DBUILD_SHARED_LIBS=ON -DOQS_BUILD_ONLY_LIB=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/liboqs/build" --parallel 2
+          sudo cmake --install "$RUNNER_TEMP/liboqs/build"
+          sudo ldconfig
+          python -m pip install liboqs-python==0.16.0.1
+          python - <<'PYQ'
+          import oqs
+          assert "ML-KEM-768" in oqs.get_enabled_kem_mechanisms()
+          assert "ML-DSA-65" in oqs.get_enabled_sig_mechanisms()
+          with oqs.Signature("ML-DSA-65") as signer:
+              public_key = signer.generate_keypair()
+              signature = signer.sign(b"ci-native-pqc")
+              assert signer.verify(b"ci-native-pqc", signature, public_key)
+              assert not signer.verify(b"tampered", signature, public_key)
+          PYQ
 
       - name: Run security tests
         run: |

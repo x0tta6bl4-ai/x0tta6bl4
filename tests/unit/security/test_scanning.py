@@ -3,6 +3,7 @@ Unit tests for SecurityScanner integration
 """
 
 import subprocess
+import shutil
 
 import pytest
 
@@ -16,6 +17,10 @@ class DummyCompletedProcess:
 
 @pytest.fixture(autouse=True)
 def patch_subprocess_run(monkeypatch):
+    original = shutil.which
+    monkeypatch.setattr(shutil, "which", lambda command:
+                        f"/usr/bin/{command}" if command in {"bandit", "safety", "trivy"}
+                        else original(command))
     monkeypatch.setattr(
         subprocess, "run", lambda *a, **kw: DummyCompletedProcess("scan ok")
     )

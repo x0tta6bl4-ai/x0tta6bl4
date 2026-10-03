@@ -1,3 +1,5 @@
+import pytest
+
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -185,3 +187,6 @@ def test_get_server_status_records_failed_health_without_losing_status(tmp_path)
     )
     assert failed[-1].data["stage"] == "actuator_failed"
     assert failed[-1].data["resource"] == "identity:spire_server:get_server_status"
+
+
+pytestmark = pytest.mark.usefixtures("mock_spire_executable")

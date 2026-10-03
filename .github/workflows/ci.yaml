@@ -50,6 +50,9 @@ jobs:
             tests/unit/self_healing/test_spire_crash_chaos.py \
             -v --tb=short -c /dev/null -p no:cacheprovider -p no:cov
 
+      - name: Verify recovery execution contract
+        run: bash scripts/validation/verify_recovery_contract.sh
+
       - name: Build Docker
         run: |
           docker build --no-cache -t mesh-node:latest -f deploy/docker-compose/Dockerfile.mesh .

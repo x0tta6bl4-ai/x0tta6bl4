@@ -68,8 +68,14 @@ class PQC:
         # PQCKeyExchange.decapsulate expects (secret_key, ciphertext)
         return self.kem.decapsulate(secret_key, ciphertext)
 
-    def sign(self, message: bytes, secret_key: bytes) -> bytes:
-        return self.dsa.sign(message, secret_key)
+    def sign(self, message: bytes, secret_key: bytes | PQCKeyPair) -> bytes:
+        if isinstance(secret_key, PQCKeyPair):
+            if secret_key.algorithm != "ML-DSA-65":
+                raise TypeError("Non-ML-DSA-65 keypair supplied to sign")
+            secret_key = secret_key.secret_key
+        if not isinstance(secret_key, bytes):
+            raise TypeError("Secret key supplied to sign must be bytes or an ML-DSA-65 keypair")
+        return self.dsa.sign(message, secret_key).signature_bytes
 
     def verify(self, message: bytes, signature: bytes, public_key: bytes) -> bool:
         return self.dsa.verify(message, signature, public_key)

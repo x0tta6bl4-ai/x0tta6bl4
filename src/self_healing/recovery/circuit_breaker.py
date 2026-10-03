@@ -1,36 +1,15 @@
 """
 Recovery Actions for MAPE-K
 """
+
 from __future__ import annotations
 import logging
-import os
-import shutil
-import subprocess
-import time
-from collections import deque
-from dataclasses import dataclass
 from datetime import datetime, timedelta
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
-
-from src.coordination.events import EventBus, EventType, get_event_bus
-from src.security.policy_decision_adapter import (
-    policy_allowed as normalize_policy_allowed,
-    policy_reason as normalize_policy_reason,
-    policy_rules as normalize_policy_rules,
-)
-from src.services.service_event_identity import service_event_identity
+from typing import Any, Callable
 
 from .models import CircuitBreakerState
 
 logger = logging.getLogger(__name__)
-
-CLAIM_BOUNDARY = (
-    "Self-healing recovery action event only. It records local policy, safety, "
-    "and execution decisions and does not prove production rollout or live "
-    "operator-approved remediation by itself."
-)
-
 
 
 class CircuitBreaker:
@@ -46,7 +25,12 @@ class CircuitBreaker:
         success_threshold: int = 2,
         timeout: timedelta = timedelta(seconds=60),
         half_open_timeout: timedelta = timedelta(seconds=30),
+        *,
+        is_failure: Callable[[Any], bool] | None = None,
     ):
+        if failure_threshold < 1 or success_threshold < 1:
+            raise ValueError("Circuit breaker thresholds must be positive")
+        self.is_failure = is_failure or (lambda result: False)
         self.failure_threshold = failure_threshold
         self.success_threshold = success_threshold
         self.timeout = timeout
@@ -68,19 +52,20 @@ class CircuitBreaker:
             Exception: If circuit is open or function fails
         """
         if self.state.state == "open":
-            if (
-                self.state.opened_at
-                and (datetime.now() - self.state.opened_at) < self.timeout
-            ):
+            if self.state.opened_at and (datetime.now() - self.state.opened_at) < self.timeout:
                 raise Exception("Circuit breaker is OPEN - too many failures")
             else:
                 # Transition to half-open
                 self.state.state = "half_open"
+                self.state.successes = 0
                 logger.info("Circuit breaker transitioning to HALF_OPEN")
 
         try:
             result = func(*args, **kwargs)
-            self._on_success()
+            if self.is_failure(result):
+                self._on_failure()
+            else:
+                self._on_success()
             return result
         except Exception:
             self._on_failure()
@@ -101,13 +86,11 @@ class CircuitBreaker:
 
     def _on_failure(self):
         """Handle failed execution"""
+        self.state.successes = 0
         self.state.failures += 1
         self.state.last_failure_time = datetime.now()
 
-        if self.state.failures >= self.failure_threshold:
+        if self.state.state == "half_open" or self.state.failures >= self.failure_threshold:
             self.state.state = "open"
             self.state.opened_at = datetime.now()
-            logger.warning(
-                f"Circuit breaker OPENED after {self.state.failures} failures"
-            )
-
+            logger.warning(f"Circuit breaker OPENED after {self.state.failures} failures")

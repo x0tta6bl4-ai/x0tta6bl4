@@ -12,7 +12,6 @@ import os
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 
-import subprocess
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -20,12 +19,41 @@ import pytest
 
 from src.coordination.events import EventBus, EventType
 from src.security.zero_trust.policy_engine import PolicyAction, PolicyEngine, PolicyRule
-from src.self_healing.recovery_actions import (CircuitBreaker,
-                                               CircuitBreakerState,
-                                               RateLimiter,
-                                               RecoveryActionExecutor,
-                                               RecoveryActionType,
-                                               RecoveryResult)
+from src.self_healing.recovery_actions import (
+    CircuitBreaker,
+    CircuitBreakerState,
+    RateLimiter,
+    RecoveryActionExecutor,
+    RecoveryActionType,
+    RecoveryResult,
+)
+
+
+@pytest.fixture(autouse=True)
+def isolated_backends(monkeypatch, request):
+    for name in ("systemctl", "docker", "kubectl"):
+        monkeypatch.setattr(RecoveryActionExecutor, f"_probe_{name}", staticmethod(lambda: False))
+    monkeypatch.setattr(RecoveryActionExecutor, "_probe_routing", staticmethod(lambda: None))
+    monkeypatch.setattr("src.self_healing.recovery.executor.get_event_bus", lambda: MagicMock())
+    if request.cls and request.cls.__name__ in {
+        "TestExecutorExecute",
+        "TestSuccessRate",
+        "TestRollback",
+    }:
+        for method, kind in {
+            "_clear_cache": RecoveryActionType.CLEAR_CACHE,
+            "_switch_route": RecoveryActionType.SWITCH_ROUTE,
+            "_scale_up": RecoveryActionType.SCALE_UP,
+            "_scale_down": RecoveryActionType.SCALE_DOWN,
+            "_failover": RecoveryActionType.FAILOVER,
+            "_restart_service": RecoveryActionType.RESTART_SERVICE,
+        }.items():
+
+            def completed(self, context, action_type=kind):
+                return RecoveryResult(True, action_type, details={"method": "test_backend"})
+
+            monkeypatch.setattr(RecoveryActionExecutor, method, completed)
+
 
 # ────────────────────────────────────────────
 # RecoveryActionType enum
@@ -118,7 +146,7 @@ class TestCircuitBreaker:
             def now(cls, tz=None):
                 return cls._now
 
-        monkeypatch.setattr("src.self_healing.recovery_actions.datetime", FakeDT)
+        monkeypatch.setattr("src.self_healing.recovery.circuit_breaker.datetime", FakeDT)
         return FakeDT
 
     def test_initial_state_is_closed(self):
@@ -142,6 +170,7 @@ class TestCircuitBreaker:
     def test_opens_after_threshold_failures(self, monkeypatch):
         self._make_fake_datetime(monkeypatch, datetime(2026, 1, 1))
         cb = CircuitBreaker(failure_threshold=3, timeout=timedelta(seconds=60))
+
         def boom():
             return (_ for _ in ()).throw(RuntimeError("fail"))
 
@@ -155,8 +184,10 @@ class TestCircuitBreaker:
     def test_open_circuit_rejects_calls(self, monkeypatch):
         self._make_fake_datetime(monkeypatch, datetime(2026, 1, 1))
         cb = CircuitBreaker(failure_threshold=2, timeout=timedelta(seconds=60))
+
         def boom():
             return (_ for _ in ()).throw(RuntimeError("fail"))
+
         for _ in range(2):
             with pytest.raises(RuntimeError):
                 cb.call(boom)
@@ -172,8 +203,10 @@ class TestCircuitBreaker:
             success_threshold=1,
             timeout=timedelta(seconds=10),
         )
+
         def boom():
             return (_ for _ in ()).throw(RuntimeError("fail"))
+
         for _ in range(2):
             with pytest.raises(RuntimeError):
                 cb.call(boom)
@@ -193,6 +226,7 @@ class TestCircuitBreaker:
             success_threshold=2,
             timeout=timedelta(seconds=10),
         )
+
         def boom():
             return (_ for _ in ()).throw(RuntimeError("fail"))
 
@@ -218,8 +252,10 @@ class TestCircuitBreaker:
             success_threshold=3,
             timeout=timedelta(seconds=10),
         )
+
         def boom():
             return (_ for _ in ()).throw(RuntimeError("fail"))
+
         for _ in range(2):
             with pytest.raises(RuntimeError):
                 cb.call(boom)
@@ -264,7 +300,7 @@ class TestRateLimiter:
             def now(cls, tz=None):
                 return cls._now
 
-        monkeypatch.setattr("src.self_healing.recovery_actions.datetime", FakeDT)
+        monkeypatch.setattr("src.self_healing.recovery.rate_limiter.datetime", FakeDT)
         return FakeDT
 
     def test_allows_up_to_max_actions(self, monkeypatch):
@@ -452,8 +488,9 @@ class TestExecutorExecute:
         ex.rate_limiter.allow = lambda: False
         result = ex.execute("Clear cache")
         assert result is False
-        # No history since it was blocked before execution
-        assert len(ex.action_history) == 0
+        # Denial replaces any stale result and is recorded.
+        assert len(ex.action_history) == 1
+        assert ex.last_result.success is False
 
     @patch("time.sleep")
     @patch("time.time")
@@ -501,10 +538,11 @@ class TestExecutorExecute:
 
         events = bus.get_event_history(limit=10)
         event_types = [event.event_type for event in events]
-        assert EventType.COORDINATION_REQUEST in event_types
-        assert EventType.PIPELINE_STAGE_START in event_types
+        assert EventType.TASK_FAILED not in event_types
         assert EventType.PIPELINE_STAGE_END in event_types
-        completed = [event for event in events if event.event_type == EventType.PIPELINE_STAGE_END][-1]
+        completed = [event for event in events if event.event_type == EventType.PIPELINE_STAGE_END][
+            -1
+        ]
         assert completed.source_agent == "self-healing-test"
         assert completed.data["component"] == "self_healing.recovery_actions"
         assert completed.data["identity"] == {
@@ -685,7 +723,7 @@ class TestRollback:
         # Rollback should call execute with the rollback action
         result = executor.rollback_last_action()
         assert result is True
-        assert len(executor.rollback_stack) >= 0  # may add a new entry from rollback
+        assert executor.rollback_stack == []
 
     def test_rollback_after_scale_up(self, executor):
         executor.execute("Scale up", {"deployment_name": "web", "old_replicas": 2})
@@ -709,7 +747,8 @@ class TestRollback:
     def test_rollback_failover(self, executor):
         executor.execute("Failover", {"primary_region": "us-east"})
         result = executor.rollback_last_action()
-        assert result is True
+        assert result is False
+        assert len(executor.rollback_stack) == 1
 
 
 # ────────────────────────────────────────────
@@ -794,7 +833,9 @@ class TestInternalActions:
 
         mock_result = MagicMock()
         mock_result.returncode = 0
-        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: mock_result)
+        monkeypatch.setattr(
+            "src.self_healing.recovery.executor.safe_run", lambda *a, **kw: mock_result
+        )
 
         result = executor._restart_service({"service_name": "myservice"})
         assert result.success is True
@@ -815,7 +856,7 @@ class TestInternalActions:
             result.returncode = 0
             return result
 
-        monkeypatch.setattr(subprocess, "run", mock_run)
+        monkeypatch.setattr("src.self_healing.recovery.executor.safe_run", mock_run)
         result = executor._restart_service({"service_name": "myservice"})
         assert result.success is True
         assert result.details["method"] == "docker"
@@ -833,7 +874,7 @@ class TestInternalActions:
             result.returncode = 0
             return result
 
-        monkeypatch.setattr(subprocess, "run", mock_run)
+        monkeypatch.setattr("src.self_healing.recovery.executor.safe_run", mock_run)
         result = executor._restart_service({"service_name": "myservice"})
         assert result.success is True
         assert result.details["method"] == "kubernetes"
@@ -844,13 +885,12 @@ class TestInternalActions:
         executor._available_backends["kubectl"] = True
 
         monkeypatch.setattr(
-            subprocess,
-            "run",
+            "src.self_healing.recovery.executor.safe_run",
             lambda *a, **kw: (_ for _ in ()).throw(FileNotFoundError()),
         )
         result = executor._restart_service({"service_name": "myservice"})
-        assert result.success is True
-        assert result.details["method"] == "simulated"
+        assert result.success is False
+        assert result.details["method"] == "unavailable"
 
     def test_restart_service_nonzero_exit_falls_through(self, executor, monkeypatch):
         """When subprocess returns nonzero, it falls through to next method."""
@@ -863,21 +903,19 @@ class TestInternalActions:
             result.returncode = 1
             return result
 
-        monkeypatch.setattr(subprocess, "run", mock_run)
+        monkeypatch.setattr("src.self_healing.recovery.executor.safe_run", mock_run)
         result = executor._restart_service({"service_name": "myservice"})
         # All return code 1 -> falls through to simulated
-        assert result.success is True
-        assert result.details["method"] == "simulated"
+        assert result.success is False
+        assert result.details["method"] == "unavailable"
 
     def test_switch_route(self, executor):
-        result = executor._switch_route(
-            {"target_node": "n1", "alternative_route": "r2"}
-        )
-        assert result.success is True
+        result = executor._switch_route({"target_node": "n1", "alternative_route": "r2"})
+        assert result.success is False
 
     def test_clear_cache(self, executor):
         result = executor._clear_cache({"cache_type": "redis"})
-        assert result.success is True
+        assert result.success is False
         assert result.details["cache_type"] == "redis"
 
     def test_clear_cache_default(self, executor):
@@ -885,9 +923,12 @@ class TestInternalActions:
         assert result.details["cache_type"] == "all"
 
     def test_scale_up_kubernetes(self, executor, monkeypatch):
+        executor._available_backends["kubectl"] = True
         mock_result = MagicMock()
         mock_result.returncode = 0
-        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: mock_result)
+        monkeypatch.setattr(
+            "src.self_healing.recovery.executor.safe_run", lambda *a, **kw: mock_result
+        )
 
         result = executor._scale_up({"service_name": "web", "replicas": 5})
         assert result.success is True
@@ -895,18 +936,20 @@ class TestInternalActions:
 
     def test_scale_up_simulated(self, executor, monkeypatch):
         monkeypatch.setattr(
-            subprocess,
-            "run",
+            "src.self_healing.recovery.executor.safe_run",
             lambda *a, **kw: (_ for _ in ()).throw(FileNotFoundError()),
         )
         result = executor._scale_up({"service_name": "web", "replicas": 3})
-        assert result.success is True
-        assert result.details["method"] == "simulated"
+        assert result.success is False
+        assert result.details["method"] == "unavailable"
 
     def test_scale_down_kubernetes(self, executor, monkeypatch):
+        executor._available_backends["kubectl"] = True
         mock_result = MagicMock()
         mock_result.returncode = 0
-        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: mock_result)
+        monkeypatch.setattr(
+            "src.self_healing.recovery.executor.safe_run", lambda *a, **kw: mock_result
+        )
 
         result = executor._scale_down({"service_name": "web", "replicas": 1})
         assert result.success is True
@@ -914,22 +957,21 @@ class TestInternalActions:
 
     def test_scale_down_simulated(self, executor, monkeypatch):
         monkeypatch.setattr(
-            subprocess,
-            "run",
+            "src.self_healing.recovery.executor.safe_run",
             lambda *a, **kw: (_ for _ in ()).throw(FileNotFoundError()),
         )
         result = executor._scale_down({"service_name": "web", "replicas": 1})
-        assert result.success is True
-        assert result.details["method"] == "simulated"
+        assert result.success is False
+        assert result.details["method"] == "unavailable"
 
     def test_failover(self, executor):
         result = executor._failover({"primary_node": "p1", "backup_node": "b1"})
-        assert result.success is True
+        assert result.success is False
         assert result.details["primary_node"] == "p1"
 
     def test_quarantine_node(self, executor):
         result = executor._quarantine_node({"node_id": "bad-node"})
-        assert result.success is True
+        assert result.success is False
         assert result.details["node_id"] == "bad-node"
 
     def test_execute_action_internal_no_action(self, executor):
@@ -956,57 +998,54 @@ class TestAsyncWrappers:
     @pytest.mark.asyncio
     async def test_restart_service_async(self, executor, monkeypatch):
         monkeypatch.setattr(
-            subprocess,
-            "run",
+            "src.self_healing.recovery.executor.safe_run",
             lambda *a, **kw: (_ for _ in ()).throw(FileNotFoundError()),
         )
         result = await executor.restart_service("svc", "default")
-        assert result is True
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_switch_route_async(self, executor):
         result = await executor.switch_route("old", "new")
-        assert result is True
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_clear_cache_async(self, executor):
         result = await executor.clear_cache("svc", "redis")
-        assert result is True
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_scale_up_async(self, executor, monkeypatch):
         monkeypatch.setattr(
-            subprocess,
-            "run",
+            "src.self_healing.recovery.executor.safe_run",
             lambda *a, **kw: (_ for _ in ()).throw(FileNotFoundError()),
         )
         result = await executor.scale_up("deploy", 3, "default")
-        assert result is True
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_scale_down_async(self, executor, monkeypatch):
         monkeypatch.setattr(
-            subprocess,
-            "run",
+            "src.self_healing.recovery.executor.safe_run",
             lambda *a, **kw: (_ for _ in ()).throw(FileNotFoundError()),
         )
         result = await executor.scale_down("deploy", 2, "default")
-        assert result is True
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_failover_async(self, executor):
         result = await executor.failover("svc", "us-east", "us-west")
-        assert result is True
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_quarantine_node_async(self, executor):
         result = await executor.quarantine_node("bad-node")
-        assert result is True
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_execute_action_async(self, executor):
         result = await executor.execute_action("Clear cache", cache_type="all")
-        assert result is True
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_execute_action_async_with_context(self, executor):
@@ -1015,7 +1054,7 @@ class TestAsyncWrappers:
             context={"primary_node": "p1"},
             backup_node="b1",
         )
-        assert result is True
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_execute_action_async_unknown(self, executor):
