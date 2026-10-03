@@ -36,7 +36,7 @@ class PQCKeyPair:
     """PQC key pair for KEM or DSA operations."""
     algorithm: str  # "ML-KEM-768" or "ML-DSA-65"
     public_key: bytes
-    secret_key: bytes
+    secret_key: bytes = field(repr=False)
     created_at: datetime = field(default_factory=datetime.utcnow)
     expires_at: datetime | None = None
     key_id: str = ""

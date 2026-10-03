@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /workspace/scratch/7b8230aa3cb1/x0tta6bl4
+configfile: pyproject.toml
+plugins: mock-3.16.0, anyio-4.15.1, hypothesis-6.168.3, asyncio-1.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 157 items
+
+tests/unit/self_healing/test_manager_cooldown_contract.py .......        [  4%]
+tests/unit/self_healing/test_mape_k_unit.py ............................ [ 22%]
+........................................................................ [ 68%]
+............................................                             [ 96%]
+tests/unit/security/test_pqc_facade_contract.py ...                      [ 98%]
+tests/unit/security/test_scanning.py ...                                 [100%]
+
+============================= 157 passed in 1.30s ==============================

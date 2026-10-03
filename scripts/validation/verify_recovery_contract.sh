@@ -9,6 +9,7 @@ python_bin="${PYTHON:-python3}"
   tests/unit/self_healing/test_recovery_actions_more.py \
   tests/unit/self_healing/test_recovery_execution_contract.py \
   tests/unit/self_healing/test_mape_k_cold_start.py \
+  tests/unit/self_healing/test_manager_cooldown_contract.py \
   -q -o addopts= --tb=short
 "$python_bin" -m pytest --confcutdir=tests/integration \
   tests/integration/test_recovery_actions.py -q -o addopts= --tb=short
