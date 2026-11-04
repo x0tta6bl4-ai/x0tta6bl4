@@ -1055,8 +1055,8 @@ def _write_output(path_text: str, report: Mapping[str, Any]) -> None:
     output_path = Path(path_text)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        1058|        json.dumps(report, ensure_ascii=True, indent=2) + "\n",
-        1059|  # lgtm[py/clear-text-storage-sensitive-data]
+        json.dumps(report, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
     )  # nosec - diagnostic report, no secrets
 
 
